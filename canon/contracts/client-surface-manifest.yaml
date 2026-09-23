@@ -1,0 +1,38 @@
+version: 1
+server_truth_owner: backend
+launch_profiles:
+  - R0
+  - R1
+  - R2
+  - R3
+  - R4
+required_surfaces:
+  - WEB
+  - PWA
+  - IOS
+  - ANDROID
+contract:
+  source: contracts/openapi/apgic-v1.yaml
+  generated: packages/contracts/src/generated/apgic-v1.ts
+consumers:
+  WEB: apps/web/src/api-contract.ts
+  PWA: apps/web/src/api-contract.ts
+  IOS: apps/mobile/src/api-contract.ts
+  ANDROID: apps/mobile/src/api-contract.ts
+shared_code_roots:
+  - packages/contracts
+native:
+  runtime_dependency: react-native
+  language_dependency: typescript
+compatibility_exceptions: canon/evidence/compatibility-exceptions.yaml
+verification_surface_evidence_prefixes:
+  WEB: surface://WEB/
+  IOS: surface://IOS/
+  ANDROID: surface://ANDROID/
+forbidden_client_truth_identifiers:
+  - BookingStateMachine
+  - PaymentStateMachine
+  - LedgerStateMachine
+  - QualificationStateMachine
+  - EntitlementStateMachine
+  - PayoutStateMachine
