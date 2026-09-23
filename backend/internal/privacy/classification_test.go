@@ -2,11 +2,13 @@ package privacy
 
 import "testing"
 
-func TestRawConsultationCannotFlowToGrowthWithoutPurposeConsent(t *testing.T) {
-	if err := CanExportToGrowth(RawConsultation, false); err != ErrPurposeConsentRequired {
-		t.Fatalf("unexpected result: %v", err)
-	}
-	if err := CanExportToGrowth(RawConsultation, true); err != nil {
-		t.Fatalf("purpose-consented export should be allowed by this boundary: %v", err)
+func TestRawContentCannotFlowToGrowthWithoutPurposeConsent(t *testing.T) {
+	for _, classification := range []Classification{RawConsultation, RawPersona} {
+		if err := CanExportToGrowth(classification, false); err != ErrPurposeConsentRequired {
+			t.Fatalf("%s: unexpected result: %v", classification, err)
+		}
+		if err := CanExportToGrowth(classification, true); err != nil {
+			t.Fatalf("%s: consented export rejected: %v", classification, err)
+		}
 	}
 }

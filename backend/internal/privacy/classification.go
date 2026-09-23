@@ -17,9 +17,7 @@ var ErrPurposeConsentRequired = errors.New("purpose-specific consent required")
 func CanExportToGrowth(classification Classification, purposeConsent bool) error {
 	switch classification {
 	case RawConsultation, RawPersona:
-		if !purposeConsent {
-			return ErrPurposeConsentRequired
-		}
+		if !purposeConsent { return ErrPurposeConsentRequired }
 	}
 	return nil
 }

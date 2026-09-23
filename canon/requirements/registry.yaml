@@ -335,12 +335,14 @@ requirements:
   release_profile: R0
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies:
   - APGIC-CONN-001
-  implementation_refs: []
+  implementation_refs:
+  - backend/internal/connector/capability.go
   contract_refs: []
-  test_refs: []
+  test_refs:
+  - backend/internal/connector/capability_test.go
   evidence_refs: []
   acceptance:
     given: provider повторяет/переставляет webhook
@@ -472,11 +474,13 @@ requirements:
   release_profile: R0
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies: []
-  implementation_refs: []
+  implementation_refs:
+  - backend/internal/privacy/classification.go
   contract_refs: []
-  test_refs: []
+  test_refs:
+  - backend/internal/privacy/classification_test.go
   evidence_refs: []
   acceptance:
     given: raw session content существует
@@ -496,11 +500,14 @@ requirements:
   release_profile: R0
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies: []
-  implementation_refs: []
+  implementation_refs:
+  - backend/internal/security/service_principal.go
+  - tools/architecture_guard.py
   contract_refs: []
-  test_refs: []
+  test_refs:
+  - backend/internal/security/service_principal_test.go
   evidence_refs: []
   acceptance:
     given: connector/service запускается в production
@@ -671,11 +678,13 @@ requirements:
   release_profile: R0
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies: []
-  implementation_refs: []
+  implementation_refs:
+  - backend/internal/legal/transaction_snapshot.go
   contract_refs: []
-  test_refs: []
+  test_refs:
+  - backend/internal/legal/transaction_snapshot_test.go
   evidence_refs: []
   acceptance:
     given: Order создаётся
@@ -1551,11 +1560,13 @@ requirements:
   release_profile: R0
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies: []
-  implementation_refs: []
+  implementation_refs:
+  - backend/internal/launchconfig/config.go
   contract_refs: []
-  test_refs: []
+  test_refs:
+  - backend/internal/launchconfig/config_test.go
   evidence_refs: []
   acceptance:
     given: соответствующий capability включён в launch/release profile
@@ -1626,11 +1637,13 @@ requirements:
   release_profile: R0
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies: []
-  implementation_refs: []
+  implementation_refs:
+  - backend/internal/launchconfig/config.go
   contract_refs: []
-  test_refs: []
+  test_refs:
+  - backend/internal/launchconfig/config_test.go
   evidence_refs: []
   acceptance:
     given: соответствующий capability включён в launch/release profile
@@ -1650,11 +1663,13 @@ requirements:
   release_profile: R0
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies: []
-  implementation_refs: []
+  implementation_refs:
+  - backend/internal/launchconfig/config.go
   contract_refs: []
-  test_refs: []
+  test_refs:
+  - backend/internal/launchconfig/config_test.go
   evidence_refs: []
   acceptance:
     given: соответствующий capability включён в launch/release profile
@@ -1699,11 +1714,13 @@ requirements:
   release_profile: R0
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies: []
-  implementation_refs: []
+  implementation_refs:
+  - backend/internal/launchconfig/config.go
   contract_refs: []
-  test_refs: []
+  test_refs:
+  - backend/internal/launchconfig/config_test.go
   evidence_refs: []
   acceptance:
     given: соответствующий capability включён в launch/release profile
@@ -1724,11 +1741,13 @@ requirements:
   release_profile: R0
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies: []
-  implementation_refs: []
+  implementation_refs:
+  - backend/internal/launchconfig/config.go
   contract_refs: []
-  test_refs: []
+  test_refs:
+  - backend/internal/launchconfig/config_test.go
   evidence_refs: []
   acceptance:
     given: соответствующий capability включён в launch/release profile
@@ -2016,12 +2035,16 @@ requirements:
   release_profile: R0
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies:
   - APGIC-EXEC-001
   - APGIC-MOBILE-002
-  implementation_refs: []
-  contract_refs: []
+  implementation_refs:
+  - apps/web/src/foundation-contract.ts
+  - apps/mobile/src/foundation-contract.ts
+  contract_refs:
+  - packages/contracts/src/foundation.ts
+  - packages/contracts/src/index.ts
   test_refs: []
   evidence_refs: []
   acceptance:

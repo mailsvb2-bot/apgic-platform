@@ -16,7 +16,29 @@ FORBIDDEN_IMPORT_PATTERNS = [
     re.compile(r'["\'][^"\']*Virtual-Persona-Runtime[^"\']*["\']', re.I),
 ]
 
+FORBIDDEN_DUPLICATE_ROOTS = [
+    ROOT / "go.mod",
+    ROOT / "cmd",
+    ROOT / "internal",
+    ROOT / "migrations",
+    ROOT / "scripts",
+    ROOT / "apps" / "native",
+    ROOT / "canon" / "APGIC_Requirement_Registry_v7_FINAL.yaml",
+    ROOT / "canon" / "APGIC_Canon_Coverage_v7_FINAL.json",
+]
+
 errors: list[str] = []
+
+for duplicate in FORBIDDEN_DUPLICATE_ROOTS:
+    if duplicate.exists():
+        errors.append(
+            f"{duplicate.relative_to(ROOT).as_posix()}: duplicate canonical ownership; "
+            "server truth belongs under backend/, native under apps/mobile/, "
+            "tooling under tools/, and executable canon under canon/requirements/"
+        )
+
+if not (ROOT / "backend" / "go.mod").is_file():
+    errors.append("backend/go.mod: canonical Go backend module is required")
 
 for base in SCAN_ROOTS:
     if not base.exists():

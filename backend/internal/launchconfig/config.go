@@ -5,34 +5,30 @@ import (
 	"strings"
 )
 
+const ReasonConfigRequired = "CONFIG_REQUIRED"
+
 type Config struct {
 	JurisdictionMatrixVersion string
-	RetentionPolicyVersion    string
-	SLOPolicyVersion          string
-	ProviderMatrixVersion     string
+	RetentionPolicyVersion string
+	SLOPolicyVersion string
+	ProviderMatrixVersion string
 }
+type Problem struct { Field string; Reason string }
+func (p Problem) Error() string { return fmt.Sprintf("%s: %s",p.Field,p.Reason) }
 
-type Problem struct {
-	Field  string
-	Reason string
-}
-
-func (p Problem) Error() string {
-	return fmt.Sprintf("%s: %s", p.Field, p.Reason)
-}
-
-func Preflight(config Config) []Problem {
-	required := map[string]string{
-		"jurisdiction_matrix_version": config.JurisdictionMatrixVersion,
-		"retention_policy_version":    config.RetentionPolicyVersion,
-		"slo_policy_version":          config.SLOPolicyVersion,
-		"provider_matrix_version":     config.ProviderMatrixVersion,
+func Preflight(c Config) []Problem {
+	required:=[]struct{field,value string}{
+		{"jurisdiction_matrix_version",c.JurisdictionMatrixVersion},
+		{"retention_policy_version",c.RetentionPolicyVersion},
+		{"slo_policy_version",c.SLOPolicyVersion},
+		{"provider_matrix_version",c.ProviderMatrixVersion},
 	}
-	problems := make([]Problem, 0)
-	for field, value := range required {
-		if strings.TrimSpace(value) == "" {
-			problems = append(problems, Problem{Field: field, Reason: "CONFIG_REQUIRED"})
+	out:=make([]Problem,0)
+	for _,item:=range required {
+		if strings.TrimSpace(item.value)=="" || item.value==ReasonConfigRequired {
+			out=append(out,Problem{Field:item.field,Reason:ReasonConfigRequired})
 		}
 	}
-	return problems
+	return out
 }
+func Ready(c Config) bool { return len(Preflight(c))==0 }

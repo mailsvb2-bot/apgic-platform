@@ -2,25 +2,15 @@ package launchconfig
 
 import "testing"
 
-func TestPreflightFailsClosedForMissingCriticalConfig(t *testing.T) {
-	problems := Preflight(Config{
-		JurisdictionMatrixVersion: "jurisdiction-v1",
-		RetentionPolicyVersion:    "retention-v1",
-		SLOPolicyVersion:          "slo-v1",
-	})
-	if len(problems) != 1 || problems[0].Field != "provider_matrix_version" {
-		t.Fatalf("unexpected problems: %+v", problems)
-	}
+func TestPreflightFailsClosedAndIsDeterministic(t *testing.T) {
+	p:=Preflight(Config{})
+	want:=[]string{"jurisdiction_matrix_version","retention_policy_version","slo_policy_version","provider_matrix_version"}
+	if len(p)!=len(want) { t.Fatalf("unexpected problems: %+v",p) }
+	for i,field:=range want { if p[i].Field!=field || p[i].Reason!=ReasonConfigRequired { t.Fatalf("problem %d=%+v",i,p[i]) } }
 }
-
-func TestPreflightAcceptsExplicitVersionedConfig(t *testing.T) {
-	problems := Preflight(Config{
-		JurisdictionMatrixVersion: "jurisdiction-v1",
-		RetentionPolicyVersion:    "retention-v1",
-		SLOPolicyVersion:          "slo-v1",
-		ProviderMatrixVersion:     "providers-v1",
-	})
-	if len(problems) != 0 {
-		t.Fatalf("unexpected problems: %+v", problems)
-	}
+func TestPlaceholderIsNotReady(t *testing.T) {
+	if Ready(Config{JurisdictionMatrixVersion:"j-v1",RetentionPolicyVersion:"r-v1",SLOPolicyVersion:"s-v1",ProviderMatrixVersion:ReasonConfigRequired}) { t.Fatal("CONFIG_REQUIRED must fail closed") }
+}
+func TestExplicitVersionedConfigIsReady(t *testing.T) {
+	if !Ready(Config{JurisdictionMatrixVersion:"j-v1",RetentionPolicyVersion:"r-v1",SLOPolicyVersion:"s-v1",ProviderMatrixVersion:"p-v1"}) { t.Fatal("versioned config should be ready") }
 }
