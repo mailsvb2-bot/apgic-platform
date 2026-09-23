@@ -22,7 +22,7 @@ jobs:
       - run: python tools/architecture_guard.py
 
   backend:
-    name: Go R0 domain tests
+    name: Go format / vet / race tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -31,7 +31,39 @@ jobs:
           go-version: '1.27.1'
           cache-dependency-path: backend/go.mod
       - working-directory: backend
-        run: go test ./...
+        shell: bash
+        run: |
+          test -z "$(gofmt -l .)"
+          go vet ./...
+          go test -race ./...
+
+  web-build:
+    name: Web / Next.js production build
+    runs-on: ubuntu-latest
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - working-directory: apps/web
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - working-directory: apps/web
+        run: npm run build
+
+  mobile-typecheck:
+    name: Native / React Native typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - working-directory: apps/mobile
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - working-directory: apps/mobile
+        run: npx tsc --noEmit
 
   client-contract-presence:
     name: Multi-surface contract guard
@@ -46,3 +78,17 @@ jobs:
           test -f packages/contracts/src/index.ts
           grep -q '"next": "16.3.6"' apps/web/package.json
           grep -q '"react-native": "0.87.1"' apps/mobile/package.json
+
+  r0-gate:
+    name: R0 bootstrap gate
+    if: always()
+    needs: [canon, backend, web-build, mobile-typecheck, client-contract-presence]
+    runs-on: ubuntu-latest
+    steps:
+      - shell: bash
+        run: |
+          test "${{ needs.canon.result }}" = "success"
+          test "${{ needs.backend.result }}" = "success"
+          test "${{ needs.web-build.result }}" = "success"
+          test "${{ needs.mobile-typecheck.result }}" = "success"
+          test "${{ needs.client-contract-presence.result }}" = "success"
