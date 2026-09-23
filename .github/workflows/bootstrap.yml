@@ -29,8 +29,11 @@ jobs:
           set -euo pipefail
           cat .bootstrap/chunk.* | base64 -d > /tmp/apgic-bootstrap.tar.gz
           tar -xzf /tmp/apgic-bootstrap.tar.gz -C .
+
+          # Workflow mutations are finalized through the GitHub connector,
+          # not through GITHUB_TOKEN. Keep bootstrap.yml and omit ci.yml here.
+          rm -f .github/workflows/ci.yml
           rm -rf .bootstrap
-          rm -f .github/workflows/bootstrap.yml
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
