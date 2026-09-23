@@ -703,11 +703,14 @@ requirements:
   release_profile: R0
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies: []
-  implementation_refs: []
+  implementation_refs:
+  - backend/internal/legal/acceptance.go
+  - backend/migrations/000002_legal_acceptance_mobile_installation.sql
   contract_refs: []
-  test_refs: []
+  test_refs:
+  - backend/internal/legal/acceptance_test.go
   evidence_refs: []
   acceptance:
     given: пользователь принимает документ vN
@@ -1852,12 +1855,15 @@ requirements:
   release_profile: R0
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies:
   - APGIC-MOBILE-002
-  implementation_refs: []
+  implementation_refs:
+  - apps/mobile/src/device-capability.ts
   contract_refs: []
-  test_refs: []
+  test_refs:
+  - apps/mobile/src/device-capability.test.ts
+  - .github/workflows/ci.yml
   evidence_refs: []
   acceptance:
     given: capability требует microphone/camera/calendar/secure storage
@@ -1876,12 +1882,15 @@ requirements:
   release_profile: R0
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies:
   - APGIC-ID-001
-  implementation_refs: []
+  implementation_refs:
+  - backend/internal/mobile/installation.go
+  - backend/migrations/000002_legal_acceptance_mobile_installation.sql
   contract_refs: []
-  test_refs: []
+  test_refs:
+  - backend/internal/mobile/installation_test.go
   evidence_refs: []
   acceptance:
     given: user имеет несколько устройств или token rotated
@@ -2007,12 +2016,15 @@ requirements:
   release_profile: R0
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies:
   - APGIC-MOBILE-002
-  implementation_refs: []
+  implementation_refs:
+  - apps/mobile/src/storage-policy.ts
   contract_refs: []
-  test_refs: []
+  test_refs:
+  - apps/mobile/src/storage-policy.test.ts
+  - .github/workflows/ci.yml
   evidence_refs: []
   acceptance:
     given: native client обрабатывает sensitive/session data
