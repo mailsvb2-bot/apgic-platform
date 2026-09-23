@@ -1593,9 +1593,13 @@ requirements:
   dependencies: []
   implementation_refs:
   - backend/internal/launchconfig/config.go
+  - config/jurisdiction/r0-ci-matrix.yaml
+  - tools/launch_config_guard.py
   contract_refs: []
   test_refs:
   - backend/internal/launchconfig/config_test.go
+  - tools/launch_config_guard.py
+  - .github/workflows/ci.yml
   evidence_refs: []
   acceptance:
     given: соответствующий capability включён в launch/release profile
@@ -1670,9 +1674,13 @@ requirements:
   dependencies: []
   implementation_refs:
   - backend/internal/launchconfig/config.go
+  - config/retention/r0-ci-matrix.yaml
+  - tools/launch_config_guard.py
   contract_refs: []
   test_refs:
   - backend/internal/launchconfig/config_test.go
+  - tools/launch_config_guard.py
+  - .github/workflows/ci.yml
   evidence_refs: []
   acceptance:
     given: соответствующий capability включён в launch/release profile
@@ -1754,9 +1762,13 @@ requirements:
   dependencies: []
   implementation_refs:
   - backend/internal/launchconfig/config.go
+  - config/providers/r0-ci-matrix.yaml
+  - tools/launch_config_guard.py
   contract_refs: []
   test_refs:
   - backend/internal/launchconfig/config_test.go
+  - tools/launch_config_guard.py
+  - .github/workflows/ci.yml
   evidence_refs: []
   acceptance:
     given: соответствующий capability включён в launch/release profile

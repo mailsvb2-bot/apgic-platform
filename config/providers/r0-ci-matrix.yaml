@@ -1,0 +1,26 @@
+version: providers-ci-v1
+scope: CI_ONLY
+production_approved: false
+capabilities:
+  NOTIFICATION_PROVIDER:
+    enabled: true
+    primary_provider: CI_NOTIFICATION_A
+    fallback_providers:
+      - CI_NOTIFICATION_B
+    degraded_behavior: QUEUE_WITH_BOUNDED_TTL
+    certification_status: CI_SYNTHETIC_ONLY
+    exit_semantics: DISABLE_NEW_SENDS_AND_DRAIN_EXISTING
+    provider_neutral_contract: true
+providers:
+  CI_NOTIFICATION_A:
+    kind: SYNTHETIC
+    certified: true
+    capabilities:
+      - NOTIFICATION_PROVIDER
+  CI_NOTIFICATION_B:
+    kind: SYNTHETIC
+    certified: true
+    capabilities:
+      - NOTIFICATION_PROVIDER
+notes:
+  - "Synthetic CI-only providers. Brand/vendor names are not canonical domain types."
