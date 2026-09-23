@@ -124,3 +124,123 @@ BEGIN
   END IF;
 END
 $$;
+
+
+-- R0 semantic alignment invariants added by migration 000003.
+INSERT INTO organization_directions (
+  id, organization_id, name, status
+) VALUES (
+  '00000000-0000-0000-0000-000000000501',
+  '00000000-0000-0000-0000-000000000010',
+  'Archive-only direction',
+  'ACTIVE'
+);
+
+DO $$
+DECLARE
+  blocked boolean := false;
+BEGIN
+  BEGIN
+    DELETE FROM organization_directions
+    WHERE id = '00000000-0000-0000-0000-000000000501';
+  EXCEPTION WHEN raise_exception THEN
+    blocked := true;
+  END;
+  IF NOT blocked THEN
+    RAISE EXCEPTION 'organization direction hard delete was not blocked';
+  END IF;
+END
+$$;
+
+INSERT INTO products (
+  id, owner_type, owner_id, commercial_owner_ref, author_refs,
+  revenue_beneficiary_ref
+) VALUES (
+  '00000000-0000-0000-0000-000000000601',
+  'ORGANIZATION',
+  '00000000-0000-0000-0000-000000000010',
+  'organization/00000000-0000-0000-0000-000000000010',
+  ARRAY['identity/author-1'],
+  'beneficiary/author-1'
+);
+
+DO $$
+DECLARE
+  blocked boolean := false;
+BEGIN
+  BEGIN
+    INSERT INTO products (
+      id, owner_type, owner_id, commercial_owner_ref, author_refs,
+      revenue_beneficiary_ref
+    ) VALUES (
+      '00000000-0000-0000-0000-000000000602',
+      'ORGANIZATION',
+      '00000000-0000-0000-0000-000000009999',
+      'organization/missing',
+      ARRAY['identity/author-1'],
+      'beneficiary/author-1'
+    );
+  EXCEPTION WHEN raise_exception THEN
+    blocked := true;
+  END;
+  IF NOT blocked THEN
+    RAISE EXCEPTION 'nonexistent polymorphic product owner was accepted';
+  END IF;
+END
+$$;
+
+INSERT INTO outbox_events (
+  event_id, idempotency_key, event_type, schema_version, aggregate_ref,
+  correlation_id, occurred_at, producer, payload
+) VALUES (
+  '00000000-0000-0000-0000-000000000701',
+  'identity/person-1:role_added:1',
+  'identity.role_added',
+  '1',
+  'identity/person-1',
+  'correlation-outbox-1',
+  now(),
+  'identity',
+  '{"role":"SPECIALIST"}'::jsonb
+);
+
+DO $$
+DECLARE
+  duplicate_blocked boolean := false;
+  terminal_without_evidence_blocked boolean := false;
+BEGIN
+  BEGIN
+    INSERT INTO outbox_events (
+      event_id, idempotency_key, event_type, schema_version, aggregate_ref,
+      correlation_id, occurred_at, producer, payload
+    ) VALUES (
+      '00000000-0000-0000-0000-000000000702',
+      'identity/person-1:role_added:1',
+      'identity.role_added',
+      '1',
+      'identity/person-1',
+      'correlation-outbox-2',
+      now(),
+      'identity',
+      '{"role":"SPECIALIST"}'::jsonb
+    );
+  EXCEPTION WHEN unique_violation THEN
+    duplicate_blocked := true;
+  END;
+
+  BEGIN
+    UPDATE outbox_events
+    SET delivery_status = 'DELIVERED'
+    WHERE event_id = '00000000-0000-0000-0000-000000000701';
+  EXCEPTION WHEN check_violation THEN
+    terminal_without_evidence_blocked := true;
+  END;
+
+  IF NOT duplicate_blocked THEN
+    RAISE EXCEPTION 'outbox idempotency key uniqueness was not enforced';
+  END IF;
+  IF NOT terminal_without_evidence_blocked THEN
+    RAISE EXCEPTION 'outbox terminal status without delivered_at was not blocked';
+  END IF;
+END
+$$;

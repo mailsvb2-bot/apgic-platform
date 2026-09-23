@@ -1,6 +1,9 @@
 package commerce
 
-import "errors"
+import (
+	"errors"
+	"strings"
+)
 
 type OwnerType string
 
@@ -21,8 +24,16 @@ type Ownership struct {
 
 func (o Ownership) Validate() error {
 	if (o.OwnerType != OwnerIdentity && o.OwnerType != OwnerOrganization) ||
-		o.OwnerID == "" || o.CommercialOwnerRef == "" || o.RevenueBeneficiaryRef == "" {
+		strings.TrimSpace(o.OwnerID) == "" ||
+		strings.TrimSpace(o.CommercialOwnerRef) == "" ||
+		len(o.AuthorRefs) == 0 ||
+		strings.TrimSpace(o.RevenueBeneficiaryRef) == "" {
 		return ErrOwnershipIncomplete
+	}
+	for _, author := range o.AuthorRefs {
+		if strings.TrimSpace(author) == "" {
+			return ErrOwnershipIncomplete
+		}
 	}
 	return nil
 }

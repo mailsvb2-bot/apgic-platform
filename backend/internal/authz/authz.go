@@ -47,6 +47,12 @@ func Authorize(in Input) Result {
 	if in.Principal.ID == "" {
 		return Result{Decision: Deny, ReasonCode: "AUTH_PRINCIPAL_REQUIRED"}
 	}
+	if in.Now.IsZero() {
+		return Result{Decision: Deny, ReasonCode: "AUTH_TIME_REQUIRED"}
+	}
+	if in.Risk != RiskNormal && in.Risk != RiskHigh {
+		return Result{Decision: Deny, ReasonCode: "AUTH_RISK_INVALID"}
+	}
 	if in.Resource.TenantID == "" || in.Principal.TenantID == "" || in.Resource.TenantID != in.Principal.TenantID {
 		return Result{Decision: Deny, ReasonCode: "AUTH_CROSS_TENANT_DENY"}
 	}
@@ -58,7 +64,13 @@ func Authorize(in Input) Result {
 		if maxAge <= 0 {
 			maxAge = 10 * time.Minute
 		}
-		if in.Principal.StepUpAt == nil || in.Now.Sub(*in.Principal.StepUpAt) > maxAge {
+		if in.Principal.StepUpAt == nil {
+			return Result{Decision: StepUpRequired, ReasonCode: "AUTH_STEP_UP_REQUIRED"}
+		}
+		if in.Principal.StepUpAt.After(in.Now) {
+			return Result{Decision: StepUpRequired, ReasonCode: "AUTH_STEP_UP_INVALID_TIME"}
+		}
+		if in.Now.Sub(*in.Principal.StepUpAt) > maxAge {
 			return Result{Decision: StepUpRequired, ReasonCode: "AUTH_STEP_UP_REQUIRED"}
 		}
 	}

@@ -5,48 +5,60 @@ import (
 	"time"
 )
 
-func TestCrossTenantKnownResourceIDIsDenied(t *testing.T) {
-	got := Authorize(Input{
+func normalInput(now time.Time) Input {
+	return Input{
 		Principal: Principal{
 			ID: "alice", TenantID: "org-a",
 			Permissions: map[string]struct{}{"organization.read_private": {}},
 		},
-		Resource: ResourceRef{ID: "known-uuid", TenantID: "org-b"},
+		Resource: ResourceRef{ID: "org-a", TenantID: "org-a"},
 		Action:   "organization.read_private",
-		Now:      time.Now(),
-	})
+		Risk:     RiskNormal,
+		Now:      now,
+	}
+}
+
+func TestCrossTenantKnownResourceIDIsDenied(t *testing.T) {
+	in := normalInput(time.Now())
+	in.Resource = ResourceRef{ID: "known-uuid", TenantID: "org-b"}
+	got := Authorize(in)
 	if got.Decision != Deny || got.ReasonCode != "AUTH_CROSS_TENANT_DENY" {
 		t.Fatalf("unexpected decision: %#v", got)
 	}
 }
 
-func TestHighRiskRequiresFreshStepUp(t *testing.T) {
+func TestUnknownRiskFailsClosed(t *testing.T) {
+	in := normalInput(time.Now())
+	in.Risk = Risk("UNRECOGNIZED")
+	got := Authorize(in)
+	if got.Decision != Deny || got.ReasonCode != "AUTH_RISK_INVALID" {
+		t.Fatalf("unexpected decision: %#v", got)
+	}
+}
+
+func TestHighRiskRequiresFreshNonFutureStepUp(t *testing.T) {
 	now := time.Now()
-	got := Authorize(Input{
-		Principal: Principal{
-			ID: "owner", TenantID: "org-a",
-			Permissions: map[string]struct{}{"organization.transfer_ownership": {}},
-		},
-		Resource: ResourceRef{ID: "org-a", TenantID: "org-a"},
-		Action:   "organization.transfer_ownership",
-		Risk:     RiskHigh,
-		Now:      now,
-	})
+	in := normalInput(now)
+	in.Principal.ID = "owner"
+	in.Principal.Permissions = map[string]struct{}{"organization.transfer_ownership": {}}
+	in.Action = "organization.transfer_ownership"
+	in.Risk = RiskHigh
+
+	got := Authorize(in)
 	if got.Decision != StepUpRequired {
 		t.Fatalf("expected step-up, got %#v", got)
 	}
 
-	step := now.Add(-time.Minute)
-	got = Authorize(Input{
-		Principal: Principal{
-			ID: "owner", TenantID: "org-a", StepUpAt: &step,
-			Permissions: map[string]struct{}{"organization.transfer_ownership": {}},
-		},
-		Resource: ResourceRef{ID: "org-a", TenantID: "org-a"},
-		Action:   "organization.transfer_ownership",
-		Risk:     RiskHigh,
-		Now:      now,
-	})
+	future := now.Add(time.Minute)
+	in.Principal.StepUpAt = &future
+	got = Authorize(in)
+	if got.Decision != StepUpRequired || got.ReasonCode != "AUTH_STEP_UP_INVALID_TIME" {
+		t.Fatalf("future step-up must fail closed, got %#v", got)
+	}
+
+	fresh := now.Add(-time.Minute)
+	in.Principal.StepUpAt = &fresh
+	got = Authorize(in)
 	if got.Decision != Allow {
 		t.Fatalf("expected allow after fresh step-up, got %#v", got)
 	}

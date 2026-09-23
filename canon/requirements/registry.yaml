@@ -282,9 +282,11 @@ requirements:
   - APGIC-ORG-001
   implementation_refs:
   - backend/internal/organization/organization.go
+  - backend/migrations/000003_r0_semantic_invariants.sql
   contract_refs: []
   test_refs:
   - backend/internal/organization/organization_test.go
+  - backend/migrations/ci_invariants.sql
   evidence_refs: []
   acceptance:
     given: direction имеет продажи/booking
@@ -370,6 +372,7 @@ requirements:
   contract_refs: []
   test_refs:
   - backend/internal/eventspine/outbox_test.go
+  - backend/migrations/ci_invariants.sql
   evidence_refs: []
   acceptance:
     given: domain transaction создаёт событие
@@ -451,9 +454,12 @@ requirements:
   dependencies: []
   implementation_refs:
   - backend/internal/commerce/product.go
+  - backend/migrations/000001_r0_foundation.sql
+  - backend/migrations/000003_r0_semantic_invariants.sql
   contract_refs: []
   test_refs:
   - backend/internal/commerce/product_test.go
+  - backend/migrations/ci_invariants.sql
   evidence_refs: []
   acceptance:
     given: специалист создаёт продукт внутри Organization

@@ -1,7 +1,9 @@
 package eventspine
 
 import (
+	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 )
 
@@ -12,10 +14,11 @@ const (
 	Delivered DeliveryStatus = "DELIVERED"
 )
 
-var ErrInvalidEvent = errors.New("event id, type, schema version, aggregate ref and correlation id are required")
+var ErrInvalidEvent = errors.New("outbox event is incomplete or invalid")
 
 type EventEnvelope struct {
 	EventID          string
+	IdempotencyKey   string
 	EventType        string
 	SchemaVersion    string
 	AggregateRef     string
@@ -37,20 +40,30 @@ type OutboxRecord struct {
 }
 
 func NewRecord(event EventEnvelope) (OutboxRecord, error) {
-	if event.EventID == "" || event.EventType == "" || event.SchemaVersion == "" ||
-		event.AggregateRef == "" || event.CorrelationID == "" {
+	if strings.TrimSpace(event.EventID) == "" ||
+		strings.TrimSpace(event.IdempotencyKey) == "" ||
+		strings.TrimSpace(event.EventType) == "" ||
+		strings.TrimSpace(event.SchemaVersion) == "" ||
+		strings.TrimSpace(event.AggregateRef) == "" ||
+		event.OccurredAt.IsZero() ||
+		strings.TrimSpace(event.Producer) == "" ||
+		strings.TrimSpace(event.CorrelationID) == "" ||
+		len(event.PayloadJSON) == 0 ||
+		!json.Valid(event.PayloadJSON) {
 		return OutboxRecord{}, ErrInvalidEvent
 	}
 	if event.ProducedAt.IsZero() {
 		event.ProducedAt = time.Now().UTC()
 	}
+	event.PayloadJSON = append([]byte(nil), event.PayloadJSON...)
 	return OutboxRecord{Event: event, Status: Pending}, nil
 }
 
-func (o *OutboxRecord) MarkDelivered(at time.Time) {
-	if o.Status == Delivered {
-		return
+func (o *OutboxRecord) MarkDelivered(at time.Time) bool {
+	if o.Status == Delivered || at.IsZero() {
+		return false
 	}
 	o.Status = Delivered
 	o.DeliveredAt = &at
+	return true
 }

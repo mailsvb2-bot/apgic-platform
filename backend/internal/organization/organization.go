@@ -10,8 +10,8 @@ const (
 )
 
 var (
-	ErrDirectionNotFound = errors.New("organization direction not found")
-	ErrDependentTruth    = errors.New("hard delete blocked: direction has dependent business truth")
+	ErrDirectionNotFound  = errors.New("organization direction not found")
+	ErrHardDeleteForbidden = errors.New("hard delete forbidden: archive direction to preserve business truth")
 )
 
 type Organization struct {
@@ -39,22 +39,17 @@ func (o *Organization) AddDirection(id, name string) {
 }
 
 func (o *Organization) ArchiveDirection(id string) error {
-	d, ok := o.Directions[id]
+	direction, ok := o.Directions[id]
 	if !ok {
 		return ErrDirectionNotFound
 	}
-	d.Status = DirectionArchived
+	direction.Status = DirectionArchived
 	return nil
 }
 
 func (o *Organization) HardDeleteDirection(id string) error {
-	d, ok := o.Directions[id]
-	if !ok {
+	if _, ok := o.Directions[id]; !ok {
 		return ErrDirectionNotFound
 	}
-	if d.HasDependentTruth {
-		return ErrDependentTruth
-	}
-	delete(o.Directions, id)
-	return nil
+	return ErrHardDeleteForbidden
 }
