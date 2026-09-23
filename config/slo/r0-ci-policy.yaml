@@ -1,0 +1,15 @@
+policy_version: slo-r0-ci-v1
+scope: CI_ONLY
+production_approved: false
+critical_paths:
+  - id: API_READYNESS
+    availability_target_percent: 99.0
+    latency_p95_ms: 1000
+    alert_after_consecutive_failures: 2
+  - id: POSTGRES_RESTORE_DRILL
+    availability_target_percent: 100.0
+    rpo_seconds: 0
+    rto_seconds: 120
+notes:
+  - "CI-only proof values. They are not production SLO/RPO/RTO commitments."
+  - "Production promotion remains blocked until separately approved numeric policy/evidence is supplied."
