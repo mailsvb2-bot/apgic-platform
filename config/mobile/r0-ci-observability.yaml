@@ -1,0 +1,54 @@
+version: mobile-observability-ci-v1
+scope: CI_ONLY
+production_approved: false
+sensitive_content_telemetry: FORBIDDEN
+allowed_dimensions:
+  - app_version
+  - platform
+  - os_version
+  - device_class
+  - network_class
+  - release_channel
+metrics:
+  crash_rate:
+    unit: ratio
+    guardrail_operator: LTE
+    guardrail_value: 0.05
+    breach_action: HALT_OR_LIMIT_ROLLOUT
+  anr_rate:
+    unit: ratio
+    guardrail_operator: LTE
+    guardrail_value: 0.05
+    breach_action: HALT_OR_LIMIT_ROLLOUT
+  startup_p95_ms:
+    unit: milliseconds
+    guardrail_operator: LTE
+    guardrail_value: 5000
+    breach_action: HALT_OR_LIMIT_ROLLOUT
+  push_delivery_success:
+    unit: ratio
+    guardrail_operator: GTE
+    guardrail_value: 0.80
+    breach_action: HALT_OR_LIMIT_ROLLOUT
+  deep_link_success:
+    unit: ratio
+    guardrail_operator: GTE
+    guardrail_value: 0.80
+    breach_action: HALT_OR_LIMIT_ROLLOUT
+  checkout_success:
+    unit: ratio
+    guardrail_operator: GTE
+    guardrail_value: 0.80
+    breach_action: HALT_OR_LIMIT_ROLLOUT
+  realtime_join_success:
+    unit: ratio
+    guardrail_operator: GTE
+    guardrail_value: 0.80
+    breach_action: HALT_OR_LIMIT_ROLLOUT
+  reconnect_success:
+    unit: ratio
+    guardrail_operator: GTE
+    guardrail_value: 0.80
+    breach_action: HALT_OR_LIMIT_ROLLOUT
+notes:
+  - "CI-only thresholds prove gate mechanics and are not production SLO commitments."

@@ -1,0 +1,24 @@
+version: CONFIG_REQUIRED
+scope: PRODUCTION
+production_approved: false
+organization:
+  organization_id: CONFIG_REQUIRED
+  organization_owned: CONFIG_REQUIRED
+  personal_owner_allowed: false
+applications:
+  ios:
+    bundle_id: CONFIG_REQUIRED
+    team_id: CONFIG_REQUIRED
+    store_account_id: CONFIG_REQUIRED
+    signing_identity_ref: CONFIG_REQUIRED
+  android:
+    application_id: CONFIG_REQUIRED
+    developer_account_id: CONFIG_REQUIRED
+    signing_identity_ref: CONFIG_REQUIRED
+required_evidence:
+  - IOS_BUILD_PROOF
+  - ANDROID_BUILD_PROOF
+  - SECRET_SCAN
+  - STORE_ACCOUNT_EVIDENCE
+  - SIGNING_AUDIT
+  - RELEASE_EVIDENCE

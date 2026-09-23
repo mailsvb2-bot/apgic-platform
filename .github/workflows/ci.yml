@@ -27,6 +27,8 @@ jobs:
       - run: python tools/mobile_dependency_guard.py
       - run: python tools/mobile_privacy_guard.py
       - run: python tools/launch_config_guard.py config/launch.ci.yaml --mode ci
+      - run: python tools/mobile_release_guard.py config/mobile/r0-ci-release-governance.yaml --mode ci
+      - run: python tools/mobile_observability_guard.py config/mobile/r0-ci-observability.yaml --mode ci
       - shell: bash
         run: |
           if python tools/launch_config_guard.py config/launch.example.yaml --mode production; then
@@ -34,6 +36,11 @@ jobs:
             exit 1
           fi
           echo "fail-closed production preflight proof: PASS"
+          if python tools/mobile_release_guard.py config/mobile/release-governance.example.yaml --mode production; then
+            echo "production mobile release placeholder unexpectedly passed" >&2
+            exit 1
+          fi
+          echo "fail-closed production mobile release proof: PASS"
 
   backend:
     name: Go format / vet / race tests
