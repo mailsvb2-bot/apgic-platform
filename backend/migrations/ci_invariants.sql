@@ -232,8 +232,9 @@ BEGIN
     UPDATE outbox_events
     SET delivery_status = 'DELIVERED'
     WHERE event_id = '00000000-0000-0000-0000-000000000701';
-  EXCEPTION WHEN check_violation THEN
-    terminal_without_evidence_blocked := true;
+  EXCEPTION
+    WHEN check_violation OR raise_exception THEN
+      terminal_without_evidence_blocked := true;
   END;
 
   IF NOT duplicate_blocked THEN
