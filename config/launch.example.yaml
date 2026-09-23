@@ -1,0 +1,7 @@
+version: 1
+jurisdiction_matrix_version: CONFIG_REQUIRED
+retention_policy_version: CONFIG_REQUIRED
+slo_policy_version: CONFIG_REQUIRED
+provider_matrix_version: CONFIG_REQUIRED
+notes:
+  - "Example only. Production promotion must fail while any active critical field remains CONFIG_REQUIRED."
