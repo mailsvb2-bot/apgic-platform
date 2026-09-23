@@ -1,0 +1,40 @@
+name: Bootstrap R0 foundation
+
+on:
+  push:
+    branches:
+      - feat/r0-foundation-bootstrap
+
+permissions:
+  contents: write
+
+jobs:
+  bootstrap:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Expand verified bootstrap archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .bootstrap/chunk.* | base64 -d > /tmp/apgic-bootstrap.tar.gz
+          tar -xzf /tmp/apgic-bootstrap.tar.gz -C .
+          rm -rf .bootstrap
+          rm -f .github/workflows/bootstrap.yml
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "No bootstrap changes to commit."
+            exit 0
+          fi
+
+          git commit -m "feat: bootstrap APGIC R0 foundation from v7 canon"
+          git push origin HEAD:feat/r0-foundation-bootstrap
