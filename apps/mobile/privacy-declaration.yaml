@@ -1,0 +1,24 @@
+version: 1
+build_scope: R0_NATIVE_SHELL
+tracking: false
+collected_data_classes: []
+shared_data_classes: []
+required_permissions: []
+required_reason_apis: []
+runtime_dependency_assertions:
+  react:
+    egress: NONE
+    data_classes: []
+    permissions: []
+  react-native:
+    egress: NONE_BY_DEFAULT
+    data_classes:
+      - INTERNAL
+    permissions: []
+store_artifacts:
+  apple_privacy_manifest:
+    status: NOT_YET_GENERATED
+    reason: Native iOS build graph is not yet present; do not claim build-match evidence.
+  google_data_safety:
+    status: NOT_YET_GENERATED
+    reason: Native Android build graph is not yet present; do not claim build-match evidence.
