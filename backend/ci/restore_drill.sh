@@ -66,6 +66,11 @@ if [[ "$audit_trigger_count" != "1" || "$ledger_trigger_count" != "1" || "$legal
   exit 1
 fi
 
+if [[ "$direction_trigger_count" != "1" || "$product_owner_trigger_count" != "1" || "$outbox_delivery_constraint_count" != "1" ]]; then
+  echo "restore drill failed: semantic invariant object missing" >&2
+  exit 1
+fi
+
 rto_ms=$((restore_finished_ms - restore_started_ms))
 backup_ms=$((backup_finished_ms - backup_started_ms))
 
@@ -84,6 +89,9 @@ cat >"$evidence_dir/restore-drill.json" <<JSON
   "integrity_probe_audit_trigger_count": $audit_trigger_count,
   "integrity_probe_ledger_trigger_count": $ledger_trigger_count,
   "integrity_probe_legal_trigger_count": $legal_trigger_count,
+  "integrity_probe_direction_trigger_count": $direction_trigger_count,
+  "integrity_probe_product_owner_trigger_count": $product_owner_trigger_count,
+  "integrity_probe_outbox_delivery_constraint_count": $outbox_delivery_constraint_count,
   "production_evidence": false
 }
 JSON
