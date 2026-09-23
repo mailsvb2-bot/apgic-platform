@@ -205,9 +205,11 @@ requirements:
   status: IN_PROGRESS
   dependencies: []
   implementation_refs:
+  - backend/internal/authz/evaluator.go
   - backend/internal/authz/authz.go
   contract_refs: []
   test_refs:
+  - backend/internal/authz/evaluator_test.go
   - backend/internal/authz/authz_test.go
   evidence_refs: []
   acceptance:
@@ -230,9 +232,11 @@ requirements:
   dependencies:
   - APGIC-AUTH-001
   implementation_refs:
+  - backend/internal/authz/evaluator.go
   - backend/internal/authz/authz.go
   contract_refs: []
   test_refs:
+  - backend/internal/authz/evaluator_test.go
   - backend/internal/authz/authz_test.go
   evidence_refs: []
   acceptance:
@@ -403,6 +407,7 @@ requirements:
   - backend/migrations/000001_r0_foundation.sql
   contract_refs: []
   test_refs:
+  - backend/internal/authz/evaluator_test.go
   - backend/internal/audit/audit_test.go
   evidence_refs: []
   acceptance:
