@@ -2359,12 +2359,16 @@ requirements:
   release_profile: R0
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies:
   - APGIC-MOBILE-002
-  implementation_refs: []
+  implementation_refs:
+  - apps/mobile/dependency-registry.yaml
+  - tools/mobile_dependency_guard.py
   contract_refs: []
-  test_refs: []
+  test_refs:
+  - tools/mobile_dependency_guard.py
+  - .github/workflows/ci.yml
   evidence_refs: []
   acceptance:
     given: mobile dependency is added/upgraded
