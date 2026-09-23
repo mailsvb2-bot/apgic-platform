@@ -755,11 +755,17 @@ requirements:
   release_profile: R0
   risk: HIGH
   priority: P1
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies: []
-  implementation_refs: []
-  contract_refs: []
-  test_refs: []
+  implementation_refs:
+  - canon/contracts/provider-terminology.yaml
+  - backend/internal/connector/registry.go
+  - tools/terminology_guard.py
+  contract_refs:
+  - canon/contracts/provider-terminology.yaml
+  test_refs:
+  - tools/terminology_guard.py
+  - .github/workflows/ci.yml
   evidence_refs: []
   acceptance:
     given: разработчик добавляет новый domain type/API

@@ -26,6 +26,7 @@ jobs:
       - run: python tools/architecture_guard.py
       - run: python tools/mobile_dependency_guard.py
       - run: python tools/mobile_privacy_guard.py
+      - run: python tools/terminology_guard.py
       - run: python tools/launch_config_guard.py config/launch.ci.yaml --mode ci
       - run: python tools/mobile_release_guard.py config/mobile/r0-ci-release-governance.yaml --mode ci
       - run: python tools/mobile_observability_guard.py config/mobile/r0-ci-observability.yaml --mode ci

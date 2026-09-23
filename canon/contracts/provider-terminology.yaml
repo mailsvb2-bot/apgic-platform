@@ -1,0 +1,33 @@
+version: 1
+canonical_terms:
+  provider: External implementation/vendor instance behind a capability boundary.
+  capability_class: Provider-neutral capability owned by APGIC contracts.
+  connector: Boundary that normalizes provider-specific behavior into a capability contract.
+  adapter: Provider-specific implementation detail allowed only behind connector/adapter boundaries.
+  payment_provider: External money-execution provider.
+  payment_method: User-visible payment method.
+  payment_rail: Underlying execution rail; never collapsed with provider or method.
+canonical_capability_classes:
+  - GROWTH_CRM_PROVIDER
+  - COMMUNICATION_PROVIDER
+  - PERSONA_PROVIDER
+  - MANAGEMENT_INTELLIGENCE_PROVIDER
+  - NOTIFICATION_PROVIDER
+  - CALENDAR_PROVIDER
+  - PAYMENT_PROVIDER
+  - STORAGE_PROVIDER
+  - CDN_PROVIDER
+  - ANALYTICS_PROVIDER
+  - LMS_PROVIDER
+  - ERP_PROVIDER
+  - IDENTITY_PROVIDER
+  - AI_MODEL_PROVIDER
+forbidden_canonical_brand_fragments:
+  - ClientPlatform
+  - BusinessAIOS
+  - UniversalCommunicationRuntime
+  - VirtualPersonaRuntime
+rules:
+  - "Provider brand/vendor names may exist in connector/adapter implementation names, not canonical domain/API types."
+  - "Canonical APIs and schemas use capability terms."
+  - "PaymentProvider, PaymentMethod and PaymentRail remain separate semantics."
