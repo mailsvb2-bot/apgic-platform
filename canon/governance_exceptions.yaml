@@ -1,0 +1,9 @@
+version: 1
+exceptions:
+  - id: APGIC-GOV-EX-001
+    status: OPEN
+    type: RELEASE_PROFILE_DEPENDENCY_ORDER
+    subject_requirement: APGIC-PAY-004
+    dependency_requirement: APGIC-PAY-001
+    observed: "APGIC-PAY-004 is R0 while APGIC-PAY-001 is R2"
+    treatment: "Do not rewrite canon. Track through Requirement Change/RFC; bootstrap only enforces the taxonomy invariant."

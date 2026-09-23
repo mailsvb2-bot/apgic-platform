@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apgic.local/contracts/mobile-policy-v1.schema.json",
+  "title": "APGIC Mobile Policy Snapshot v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "compatibility",
+    "remote_config_version",
+    "remote_config_policy_id",
+    "capability_states"
+  ],
+  "properties": {
+    "compatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "reason_code", "policy_version", "contract_version"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["SUPPORTED", "DEPRECATED_BUT_SUPPORTED", "UPDATE_REQUIRED"]
+        },
+        "reason_code": {
+          "type": "string",
+          "enum": [
+            "CLIENT_VERSION_SUPPORTED",
+            "CLIENT_VERSION_DEPRECATED",
+            "CLIENT_VERSION_BELOW_MINIMUM"
+          ]
+        },
+        "policy_version": { "type": "string", "minLength": 1 },
+        "contract_version": { "type": "string", "minLength": 1 }
+      }
+    },
+    "remote_config_version": { "type": "integer", "minimum": 1 },
+    "remote_config_policy_id": { "type": "string", "minLength": 1 },
+    "capability_states": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["capability", "disabled"],
+        "properties": {
+          "capability": {
+            "type": "string",
+            "enum": [
+              "REALTIME_CONSULTATION",
+              "CALENDAR_INTEGRATION",
+              "PERSONA_PREVIEW"
+            ]
+          },
+          "disabled": { "type": "boolean" },
+          "reason_code": { "type": "string" }
+        }
+      }
+    }
+  }
+}

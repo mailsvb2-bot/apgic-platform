@@ -1,0 +1,58 @@
+name: Requirement Change / RFC
+description: Propose a governed change to the APGIC Canon, Requirement Registry, Launch Cut, or executable contract.
+title: "RFC: "
+labels:
+  - canon
+  - rfc
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Implementation does not redefine the Canon. Use this form before changing immutable requirement semantics, dependencies, release profile, Launch Cut, or canonical ownership.
+  - type: input
+    id: requirement_ids
+    attributes:
+      label: Requirement ID(s)
+      placeholder: APGIC-...
+    validations:
+      required: true
+  - type: dropdown
+    id: reason_class
+    attributes:
+      label: Allowed reason class
+      options:
+        - LEGAL_BLOCKER
+        - SECURITY_BLOCKER
+        - FINANCIAL_INTEGRITY_BLOCKER
+        - MISSING_DEPENDENCY_BLOCKER
+        - POST_LAUNCH_BACKLOG
+    validations:
+      required: true
+  - type: textarea
+    id: current_semantics
+    attributes:
+      label: Current canonical semantics
+      description: Quote or summarize the exact current requirement and source section.
+    validations:
+      required: true
+  - type: textarea
+    id: proposed_change
+    attributes:
+      label: Proposed change
+      description: State the exact semantic/dependency/release-profile change.
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact analysis
+      description: Cover API/schema, data migration, clients, security/privacy, finance/legal, rollout, and rollback.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Required evidence and acceptance update
+      description: Identify tests, staging proof, and registry/coverage changes that would be required.
+    validations:
+      required: true

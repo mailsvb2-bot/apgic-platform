@@ -1,0 +1,20 @@
+version: jurisdiction-ci-v1
+scope: CI_ONLY
+production_approved: false
+unknown_combination: BLOCK
+jurisdictions:
+  - code: CI_TEST
+    enabled: true
+    product_types:
+      - CI_TEST_SERVICE
+    currencies:
+      - TST
+    legal_financial_roles:
+      seller_or_service_provider: CI_TEST_PROVIDER
+      commercial_owner: CI_TEST_ORGANIZATION
+      payment_recipient: CI_TEST_PROVIDER
+      fiscal_responsibility: CI_TEST_PROVIDER
+      refund_responsibility: CI_TEST_PROVIDER
+      payout_beneficiary: CI_TEST_PROVIDER
+    notes:
+      - "Synthetic CI-only matrix. Not valid for real-world transactions."

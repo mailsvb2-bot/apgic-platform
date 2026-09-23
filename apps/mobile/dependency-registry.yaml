@@ -1,0 +1,67 @@
+version: 1
+policy:
+  unknown_dependency: BLOCK
+  wildcard_dependency: BLOCK
+  runtime_dependency_requires_privacy_review: true
+dependencies:
+  - name: react
+    declared_version: "19.3.0"
+    scope: RUNTIME
+    purpose: UI component runtime
+    data_classes: []
+    egress: NONE
+    permissions: []
+    provenance: "npm:react@19.3.0"
+    privacy_status: REVIEWED_BASELINE
+    security_status: REVIEWED_BASELINE
+    removal_strategy: Remove package and rebuild native clients
+    kill_strategy: Disable dependent UI capability through governed app release
+  - name: react-native
+    declared_version: "0.87.1"
+    scope: RUNTIME
+    purpose: Native iOS/Android application runtime and platform adapter boundary
+    data_classes:
+      - INTERNAL
+    egress: NONE_BY_DEFAULT
+    permissions: []
+    provenance: "npm:react-native@0.87.1"
+    privacy_status: REVIEWED_BASELINE
+    security_status: REVIEWED_BASELINE
+    removal_strategy: Replace native runtime only through approved architecture migration
+    kill_strategy: Disable affected capability through governed app release or remote capability gate
+  - name: "@types/node"
+    declared_version: "^24.0.0"
+    scope: BUILD_ONLY
+    purpose: TypeScript declarations for Node-based test tooling
+    data_classes: []
+    egress: NONE
+    permissions: []
+    provenance: "npm:@types/node"
+    privacy_status: BUILD_ONLY
+    security_status: BUILD_ONLY
+    removal_strategy: Remove development dependency
+    kill_strategy: Not shipped in runtime
+  - name: "@types/react"
+    declared_version: "^19.0.0"
+    scope: BUILD_ONLY
+    purpose: TypeScript declarations for React
+    data_classes: []
+    egress: NONE
+    permissions: []
+    provenance: "npm:@types/react"
+    privacy_status: BUILD_ONLY
+    security_status: BUILD_ONLY
+    removal_strategy: Remove development dependency
+    kill_strategy: Not shipped in runtime
+  - name: typescript
+    declared_version: "^5.9.0"
+    scope: BUILD_ONLY
+    purpose: Static type checking for native source
+    data_classes: []
+    egress: NONE
+    permissions: []
+    provenance: "npm:typescript"
+    privacy_status: BUILD_ONLY
+    security_status: BUILD_ONLY
+    removal_strategy: Remove development dependency after replacement compiler approval
+    kill_strategy: Not shipped in runtime

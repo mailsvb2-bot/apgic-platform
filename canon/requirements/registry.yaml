@@ -1,0 +1,3393 @@
+meta:
+  product: APGIC Platform
+  registry_version: '1.0'
+  canon_execution_baseline: v7-final-qa-strict-non-custodial
+  canonical_docx: APGIC_Единое_каноническое_ТЗ_исполняемый_канон_v7_FINAL.docx
+  canonical_docx_sha256: 37dff62a52d60e6011cabd0b5f91c9a50ef6a6981b80fcd0f149071554ed85f4
+  parent_source_docx: APGIC_Единое_каноническое_ТЗ_полное_с_универсальной_адаптивностью_и_жестким_каноном(1).docx
+  parent_source_sha256: be51a1e5233653d1b0f64eee8a6c8324456554e516896a4c591b5f5c71478e52
+  launch_cut:
+  - R0
+  - R1
+  - R2
+  - R3
+  - R4
+  policy: Human-readable Canon owns meaning; registry owns executable traceability/status. Conflicts require Requirement Change/RFC.
+  version: v7_FINAL
+  parent_execution_docx: APGIC_Единое_каноническое_ТЗ_исполняемый_канон_v6.docx
+  parent_execution_sha256: cd2e5c80dfbc7122f618526ecec4a343a87c4259ee9c16194cd6e3b381d55c12
+  client_surfaces:
+  - WEB
+  - PWA
+  - IOS
+  - ANDROID
+  native_delivery: PARALLEL_R0_R4
+  store_policy_checked_at: '2026-09-23'
+release_profiles:
+  R0:
+    name: Foundation + Multi-Surface Shells
+    launch: true
+    depends_on: []
+    client_tracks:
+    - SERVER
+    - WEB
+    - IOS
+    - ANDROID
+  R1:
+    name: Supply-Min + Marketplace Discovery / Multi-Surface
+    launch: true
+    depends_on:
+    - R0
+    client_tracks:
+    - SERVER
+    - WEB
+    - IOS
+    - ANDROID
+  R2:
+    name: Transaction + Multi-Provider Checkout & Routing
+    launch: true
+    depends_on:
+    - R1
+    client_tracks:
+    - SERVER
+    - WEB
+    - IOS
+    - ANDROID
+  R3:
+    name: Fulfillment / Web + Native Realtime
+    launch: true
+    depends_on:
+    - R2
+    client_tracks:
+    - SERVER
+    - WEB
+    - IOS
+    - ANDROID
+  R4:
+    name: Financial Evidence Completion + Provider-Executed Split/Payout + Native Store Reconciliation
+    launch: true
+    depends_on:
+    - R3
+    client_tracks:
+    - SERVER
+    - WEB
+    - IOS
+    - ANDROID
+  R5:
+    name: Retention
+    launch: false
+    depends_on:
+    - R4
+  R6:
+    name: Duty/Now
+    launch: false
+    depends_on:
+    - R4
+  R7:
+    name: Full Specialist/Organization Supply
+    launch: false
+    depends_on:
+    - R1
+  R8:
+    name: EdTech
+    launch: false
+    depends_on:
+    - R0
+    - R2
+  R9:
+    name: Live Events
+    launch: false
+    depends_on:
+    - R3
+policy_pack_v1:
+  qualification:
+    default: DENY_OR_MANUAL_REVIEW
+    commercial_inputs_forbidden: true
+    unknown_is_eligible: false
+  ranking:
+    mode: LEXICOGRAPHIC_V1
+    order:
+    - RELEVANCE_MATCH
+    - EXPERTISE
+    - RELIABILITY
+    - REPUTATION
+    - AVAILABILITY_RESPONSE
+    - PLATFORM_EXPERIENCE_CONTRIBUTION_OFFERING
+    - COMMERCIAL_BOOST_WITHIN_ALLOWED_BAND
+    sponsored_label_required: true
+  commission:
+    missing_rule: BLOCK_POLICY_NOT_CONFIGURED
+    silent_default_rate: false
+  jurisdiction:
+    missing_or_unknown: BLOCK_OR_REVIEW
+    explicit_enablement_required: true
+  notifications:
+    booking_reminder_baseline:
+    - PT24H
+    - PT2H
+    - PT15M
+    - AT_START
+    respect_channel_and_user_rules: true
+  avatar_privacy:
+    default_mode: PRIVATE_EPHEMERAL
+    raw_to_growth_or_intelligence_without_targeted_consent: false
+  market_cell:
+    missing_thresholds: NOT_SCALE_READY
+requirements:
+- requirement_id: APGIC-EXEC-001
+  title: Requirement traceability
+  statement: Каждый launch-critical capability трассируется Requirement ID → contract/schema → implementation → automated
+    tests → release evidence.
+  owner_domain: EXEC
+  source_sections:
+  - 226
+  - 247
+  - 249
+  - 302
+  - 314
+  release_profile: R0
+  risk: HIGH
+  priority: P0
+  status: IN_PROGRESS
+  dependencies: []
+  implementation_refs:
+  - tools/canon_lint.py
+  - .github/workflows/ci.yml
+  contract_refs: []
+  test_refs:
+  - tools/canon_lint.py
+  evidence_refs: []
+  acceptance:
+    given: утверждён launch-critical Requirement
+    when: команда заявляет его VERIFIED/RELEASED
+    then: registry содержит owner, dependencies, implementation/test/evidence refs; пустой обязательный ref блокирует переход
+      статуса
+    required_evidence:
+    - DOMAIN_OR_CONTRACT_TEST
+    - E2E_OR_STAGING_PROOF
+- requirement_id: APGIC-ID-001
+  title: Single identity with multiple roles
+  statement: Один человек использует единую Identity с несколькими профилями/ролями, а не независимые аккаунты по функциям.
+  owner_domain: IDENTITY
+  source_sections:
+  - 4
+  - 5
+  - 92
+  release_profile: R0
+  risk: HIGH
+  priority: P0
+  status: IN_PROGRESS
+  dependencies: []
+  implementation_refs:
+  - backend/internal/identity/identity.go
+  - backend/migrations/000001_r0_foundation.sql
+  contract_refs: []
+  test_refs:
+  - backend/internal/identity/identity_test.go
+  evidence_refs: []
+  acceptance:
+    given: существует пользователь с ClientProfile
+    when: он становится Specialist/Author/Student
+    then: новая роль привязывается к той же Identity без дублирования account truth
+    required_evidence:
+    - DOMAIN_OR_CONTRACT_TEST
+    - E2E_OR_STAGING_PROOF
+- requirement_id: APGIC-AUTH-001
+  title: Resource authorization and tenant isolation
+  statement: Каждое protected действие авторизуется по principal/resource/scope/tenant; caller-supplied ID не может обходить
+    tenant isolation.
+  owner_domain: AUTH
+  source_sections:
+  - 228
+  release_profile: R0
+  risk: HIGH
+  priority: P0
+  status: IN_PROGRESS
+  dependencies: []
+  implementation_refs:
+  - backend/internal/authz/authz.go
+  contract_refs: []
+  test_refs:
+  - backend/internal/authz/authz_test.go
+  evidence_refs: []
+  acceptance:
+    given: principal Organization A знает UUID private resource Organization B
+    when: он вызывает protected endpoint
+    then: данные B не раскрываются, decision=DENY и audit evidence фиксируется
+    required_evidence:
+    - SECURITY_TEST
+    - DB/API_NEGATIVE_TEST
+- requirement_id: APGIC-AUTH-002
+  title: Step-up for high-risk actions
+  statement: HIGH_RISK действия требуют step-up authentication и audit evidence.
+  owner_domain: AUTH
+  source_sections:
+  - 228
+  release_profile: R0
+  risk: HIGH
+  priority: P0
+  status: IN_PROGRESS
+  dependencies:
+  - APGIC-AUTH-001
+  implementation_refs:
+  - backend/internal/authz/authz.go
+  contract_refs: []
+  test_refs:
+  - backend/internal/authz/authz_test.go
+  evidence_refs: []
+  acceptance:
+    given: авторизованный пользователь пытается изменить payout requisites/ownership/secret
+    when: step-up отсутствует или устарел
+    then: операция не выполняется; возвращается deterministic step-up requirement и audit event
+    required_evidence:
+    - DOMAIN_OR_CONTRACT_TEST
+    - E2E_OR_STAGING_PROOF
+- requirement_id: APGIC-ORG-001
+  title: Organization universal boundary
+  statement: Organization является универсальной canonical entity с направлениями деятельности, ownership и membership, без
+    отраслевой жёсткой привязки.
+  owner_domain: ORG
+  source_sections:
+  - 229
+  release_profile: R0
+  risk: HIGH
+  priority: P0
+  status: IN_PROGRESS
+  dependencies: []
+  implementation_refs:
+  - backend/internal/organization/organization.go
+  - backend/migrations/000001_r0_foundation.sql
+  contract_refs: []
+  test_refs:
+  - backend/internal/organization/organization_test.go
+  evidence_refs: []
+  acceptance:
+    given: создана Organization
+    when: владелец создаёт направление деятельности любого поддерживаемого типа
+    then: direction принадлежит Organization и не требует образовательной domain-модели
+    required_evidence:
+    - DOMAIN_OR_CONTRACT_TEST
+    - E2E_OR_STAGING_PROOF
+- requirement_id: APGIC-ORG-002
+  title: Deletion preserves dependent truth
+  statement: Деактивация/удаление направления не уничтожает booking, entitlements, ledger или audit history.
+  owner_domain: ORG
+  source_sections:
+  - 229
+  release_profile: R0
+  risk: HIGH
+  priority: P0
+  status: IN_PROGRESS
+  dependencies:
+  - APGIC-ORG-001
+  implementation_refs:
+  - backend/internal/organization/organization.go
+  - backend/migrations/000003_r0_semantic_invariants.sql
+  contract_refs: []
+  test_refs:
+  - backend/internal/organization/organization_test.go
+  - backend/migrations/ci_invariants.sql
+  evidence_refs: []
+  acceptance:
+    given: direction имеет продажи/booking
+    when: администратор пытается удалить direction
+    then: система использует archive/deactivate и сохраняет исторические связи; hard delete блокируется
+    required_evidence:
+    - DOMAIN_OR_CONTRACT_TEST
+    - E2E_OR_STAGING_PROOF
+- requirement_id: APGIC-CONN-001
+  title: Provider-neutral capability boundary
+  statement: APGIC domain зависит от capability interface, а не от бренда provider; provider SDK ограничен connector boundary.
+  owner_domain: CONNECTOR
+  source_sections:
+  - 94
+  - 98
+  - 99
+  - 100
+  - 106
+  - 227
+  - 311
+  release_profile: R0
+  risk: HIGH
+  priority: P0
+  status: IN_PROGRESS
+  dependencies: []
+  implementation_refs:
+  - backend/internal/connector/registry.go
+  contract_refs: []
+  test_refs:
+  - tools/architecture_guard.py
+  evidence_refs: []
+  acceptance:
+    given: CommunicationProvider reference недоступен
+    when: core booking/identity/ledger продолжают работать
+    then: APGIC сохраняет business truth и выбирает compatible provider/degraded mode без provider-owned canonical state
+    required_evidence:
+    - DOMAIN_OR_CONTRACT_TEST
+    - E2E_OR_STAGING_PROOF
+- requirement_id: APGIC-CONN-002
+  title: Connector scopes and idempotency
+  statement: Connector использует минимальные scopes, signature/auth, idempotency и retry/degraded semantics.
+  owner_domain: CONNECTOR
+  source_sections:
+  - 100
+  - 101
+  - 105
+  - 241
+  release_profile: R0
+  risk: HIGH
+  priority: P0
+  status: IN_PROGRESS
+  dependencies:
+  - APGIC-CONN-001
+  implementation_refs:
+  - backend/internal/connector/capability.go
+  contract_refs: []
+  test_refs:
+  - backend/internal/connector/capability_test.go
+  evidence_refs: []
+  acceptance:
+    given: provider повторяет/переставляет webhook
+    when: connector обрабатывает delivery
+    then: экономический/booking effect выполняется ровно один раз, out-of-order поведение deterministic
+    required_evidence:
+    - DOMAIN_OR_CONTRACT_TEST
+    - E2E_OR_STAGING_PROOF
+- requirement_id: APGIC-EVENT-001
+  title: Transactional outbox
+  statement: Внешние side-effects публикуются через durable transactional outbox/Event Spine, а не best-effort после commit.
+  owner_domain: EVENT
+  source_sections:
+  - 88
+  - 89
+  - 241
+  release_profile: R0
+  risk: HIGH
+  priority: P0
+  status: IN_PROGRESS
+  dependencies: []
+  implementation_refs:
+  - backend/internal/eventspine/outbox.go
+  - backend/migrations/000001_r0_foundation.sql
+  contract_refs: []
+  test_refs:
+  - backend/internal/eventspine/outbox_test.go
+  - backend/migrations/ci_invariants.sql
+  evidence_refs: []
+  acceptance:
+    given: domain transaction создаёт событие
+    when: процесс падает после DB commit до внешней доставки
+    then: outbox сохраняет событие и доставляет после восстановления без двойного domain effect
+    required_evidence:
+    - DOMAIN_OR_CONTRACT_TEST
+    - E2E_OR_STAGING_PROOF
+- requirement_id: APGIC-AUDIT-001
+  title: Immutable audit for high-risk decisions
+  statement: High-risk authorization, verification, finance и policy overrides создают audit evidence с actor/time/reason/version.
+  owner_domain: AUDIT
+  source_sections:
+  - 228
+  - 240
+  - 295
+  - 301
+  release_profile: R0
+  risk: HIGH
+  priority: P0
+  status: IN_PROGRESS
+  dependencies: []
+  implementation_refs:
+  - backend/internal/audit/audit.go
+  - backend/migrations/000001_r0_foundation.sql
+  contract_refs: []
+  test_refs:
+  - backend/internal/audit/audit_test.go
+  evidence_refs: []
+  acceptance:
+    given: оператор выполняет high-risk override
+    when: операция завершается
+    then: audit trail содержит actor, scope, old/new semantic state, reason и policy/contract version
+    required_evidence:
+    - DOMAIN_OR_CONTRACT_TEST
+    - E2E_OR_STAGING_PROOF
+- requirement_id: APGIC-LEDGER-001
+  title: Ledger is financial truth
+  statement: APGIC хранит non-custodial financial/business accounting-and-evidence ledger; mutable balance/status не заменяет
+    entries/reconciliation, а ledger не является денежным счётом или источником payout funds.
+  owner_domain: LEDGER
+  source_sections:
+  - 85
+  - 222
+  - 235
+  release_profile: R0
+  risk: HIGH
+  priority: P0
+  status: IN_PROGRESS
+  dependencies: []
+  implementation_refs:
+  - backend/internal/ledger/ledger.go
+  - backend/migrations/000001_r0_foundation.sql
+  contract_refs: []
+  test_refs:
+  - backend/internal/ledger/ledger_test.go
+  evidence_refs: []
+  acceptance:
+    given: создан payment/commission/refund effect
+    when: финансовое состояние читается системой
+    then: итог воспроизводится из non-custodial ledger/evidence entries и совпадает с инвариантами precision/reconciliation;
+      реальное движение денег подтверждается provider evidence
+    required_evidence:
+    - DB_INVARIANT_TEST
+    - FINANCIAL_TEST
+- requirement_id: APGIC-PROD-001
+  title: Product/Offer explicit ownership
+  statement: Product/Offer имеет явного owner/commercial owner и не выводит legal/revenue roles из одного неявного поля.
+  owner_domain: COMMERCE
+  source_sections:
+  - 84
+  - 86
+  - 229
+  - 295
+  release_profile: R0
+  risk: HIGH
+  priority: P0
+  status: IN_PROGRESS
+  dependencies: []
+  implementation_refs:
+  - backend/internal/commerce/product.go
+  - backend/migrations/000001_r0_foundation.sql
+  - backend/migrations/000003_r0_semantic_invariants.sql
+  contract_refs: []
+  test_refs:
+  - backend/internal/commerce/product_test.go
+  - backend/migrations/ci_invariants.sql
+  evidence_refs: []
+  acceptance:
+    given: специалист создаёт продукт внутри Organization
+    when: продукт публикуется
+    then: owner/commercial owner/author/revenue beneficiary определены по contract/policy и доступны для order snapshot
+    required_evidence:
+    - DOMAIN_OR_CONTRACT_TEST
+    - E2E_OR_STAGING_PROOF
+- requirement_id: APGIC-DATA-001
+  title: Data classification and consent boundary
+  statement: Sensitive/raw consultation/persona content не попадает в growth/intelligence без отдельного purpose consent.
+  owner_domain: DATA
+  source_sections:
+  - 95
+  - 111
+  - 211
+  - 217
+  release_profile: R0
+  risk: HIGH
+  priority: P0
+  status: IN_PROGRESS
+  dependencies: []
+  implementation_refs:
+  - backend/internal/privacy/classification.go
+  contract_refs: []
+  test_refs:
+  - backend/internal/privacy/classification_test.go
+  evidence_refs: []
+  acceptance:
+    given: raw session content существует
+    when: growth connector запрашивает данные без целевого consent
+    then: raw content не передаётся; допускаются только разрешённые минимальные facts/projections
+    required_evidence:
+    - SECURITY_PRIVACY_TEST
+- requirement_id: APGIC-SEC-001
+  title: Secrets and service principals
+  statement: Secrets не попадают в repository/client/logs; service principals имеют минимальные scopes и rotation.
+  owner_domain: SECURITY
+  source_sections:
+  - 101
+  - 210
+  - 217
+  - 228
+  release_profile: R0
+  risk: HIGH
+  priority: P0
+  status: IN_PROGRESS
+  dependencies: []
+  implementation_refs:
+  - backend/internal/security/service_principal.go
+  - tools/architecture_guard.py
+  contract_refs: []
+  test_refs:
+  - backend/internal/security/service_principal_test.go
+  evidence_refs: []
+  acceptance:
+    given: connector/service запускается в production
+    when: он аутентифицируется
+    then: используется scoped service identity; secret redaction/rotation rules выполняются, client bundle не содержит credential
+    required_evidence:
+    - DOMAIN_OR_CONTRACT_TEST
+    - E2E_OR_STAGING_PROOF
+- requirement_id: APGIC-NFR-001
+  title: Observable SLO baseline
+  statement: Critical paths имеют SLI/SLO, telemetry и error-budget/alert expectations до production readiness.
+  owner_domain: SRE
+  source_sections:
+  - 209
+  - 216
+  - 243
+  release_profile: R0
+  risk: HIGH
+  priority: P1
+  status: IN_PROGRESS
+  dependencies: []
+  implementation_refs:
+  - config/slo/r0-ci-policy.yaml
+  - backend/internal/httpapi/handler.go
+  - tools/launch_config_guard.py
+  contract_refs:
+  - contracts/openapi/apgic-v1.yaml
+  test_refs:
+  - backend/internal/httpapi/handler_test.go
+  - tools/launch_config_guard.py
+  - .github/workflows/ci.yml
+  evidence_refs: []
+  acceptance:
+    given: critical endpoint/job/provider path развёрнут
+    when: происходит latency/error/outage
+    then: метрика/trace/alert позволяют определить нарушенный SLO и dependency, без silent failure
+    required_evidence:
+    - DOMAIN_OR_CONTRACT_TEST
+    - E2E_OR_STAGING_PROOF
+- requirement_id: APGIC-DR-001
+  title: Restore is proven
+  statement: Backup считается защитой только после регулярного restore drill с измеренными RPO/RTO.
+  owner_domain: SRE
+  source_sections:
+  - 209
+  - 243
+  - 245
+  release_profile: R0
+  risk: HIGH
+  priority: P0
+  status: IN_PROGRESS
+  dependencies: []
+  implementation_refs:
+  - backend/ci/restore_drill.sh
+  - docs/operations/restore-drill.md
+  - .github/workflows/ci.yml
+  contract_refs: []
+  test_refs:
+  - backend/ci/restore_drill.sh
+  - .github/workflows/ci.yml
+  evidence_refs: []
+  acceptance:
+    given: существует production backup
+    when: выполняется scheduled restore drill
+    then: восстановление завершается в изолированной среде, проверяются integrity/business probes и фиксируются RPO/RTO evidence
+    required_evidence:
+    - RESTORE_DR_PROOF
+- requirement_id: APGIC-UI-001
+  title: Adaptive critical flows
+  statement: Critical user flows поддерживают phone/tablet/desktop без скрытых primary actions или horizontal overflow.
+  owner_domain: UI
+  source_sections:
+  - 298
+  - 303
+  - 305
+  release_profile: R0
+  risk: HIGH
+  priority: P0
+  status: IN_PROGRESS
+  dependencies: []
+  implementation_refs:
+  - apps/web/app/page.tsx
+  - apps/web/app/globals.css
+  - apps/web/playwright.config.ts
+  contract_refs: []
+  test_refs:
+  - apps/web/e2e/foundation.spec.ts
+  - .github/workflows/ci.yml
+  evidence_refs: []
+  acceptance:
+    given: один и тот же critical journey
+    when: он проходит на phone, tablet и desktop viewports
+    then: business outcome и semantic state одинаковы; нет overlap/hidden CTA/horizontal overflow
+    required_evidence:
+    - VISUAL_REGRESSION
+    - E2E
+- requirement_id: APGIC-A11Y-001
+  title: Accessible interaction baseline
+  statement: Critical flows поддерживают keyboard/focus/labels/contrast/text scaling согласно Accessibility Canon.
+  owner_domain: UI
+  source_sections:
+  - 219
+  - 303
+  - 305
+  release_profile: R0
+  risk: HIGH
+  priority: P1
+  status: IN_PROGRESS
+  dependencies: []
+  implementation_refs:
+  - apps/web/app/page.tsx
+  - apps/web/playwright.config.ts
+  contract_refs: []
+  test_refs:
+  - apps/web/e2e/foundation.spec.ts
+  - .github/workflows/ci.yml
+  evidence_refs: []
+  acceptance:
+    given: пользователь использует keyboard/assistive compatible flow
+    when: проходит critical journey
+    then: focus order и accessible name/state позволяют завершить journey без pointer-only blocker
+    required_evidence:
+    - A11Y_AUTOMATED
+    - MANUAL_A11Y_EVIDENCE
+- requirement_id: APGIC-TEST-001
+  title: State-machine and invariant test canon
+  statement: Каждый critical state machine покрыт allowed/forbidden transitions, idempotency, concurrency, timeout, dependency
+    failure и recovery.
+  owner_domain: QA
+  source_sections:
+  - 244
+  - 247
+  release_profile: R0
+  risk: HIGH
+  priority: P0
+  status: IN_PROGRESS
+  dependencies: []
+  implementation_refs:
+  - .github/workflows/ci.yml
+  contract_refs: []
+  test_refs:
+  - backend/internal/
+  - tools/canon_lint.py
+  - tools/architecture_guard.py
+  evidence_refs: []
+  acceptance:
+    given: новый critical state machine заявлен production-ready
+    when: CI выполняет required suite
+    then: все transition/invariant classes присутствуют и проходят; отсутствие класса блокирует release
+    required_evidence:
+    - DOMAIN_OR_CONTRACT_TEST
+    - E2E_OR_STAGING_PROOF
+- requirement_id: APGIC-RELEASE-001
+  title: Production readiness gate
+  statement: Release требует migration, security/privacy, observability, rollback/recovery, adaptive conformance и production/staging
+    proof по risk class.
+  owner_domain: RELEASE
+  source_sections:
+  - 245
+  - 305
+  - 314
+  release_profile: R0
+  risk: HIGH
+  priority: P0
+  status: IN_PROGRESS
+  dependencies:
+  - APGIC-TEST-001
+  implementation_refs:
+  - .github/workflows/ci.yml
+  - tools/release_evidence.py
+  - canon/evidence/release-evidence-v1.schema.json
+  contract_refs:
+  - canon/evidence/release-evidence-v1.schema.json
+  test_refs:
+  - .github/workflows/ci.yml
+  - tools/release_evidence.py
+  evidence_refs: []
+  acceptance:
+    given: build-кандидат предназначен для production
+    when: release gate выполняется
+    then: artifact связан с SHA/schema и все required evidence green; одного UI happy path недостаточно
+    required_evidence:
+    - DOMAIN_OR_CONTRACT_TEST
+    - E2E_OR_STAGING_PROOF
+- requirement_id: APGIC-LEGAL-001
+  title: Legal/financial role snapshot
+  statement: 'Каждая production transaction фиксирует versioned legal/financial roles: seller/service provider/commercial
+    owner/payment recipient/fiscal responsibility/payout beneficiary.'
+  owner_domain: LEGAL
+  source_sections:
+  - 67
+  - 295
+  release_profile: R0
+  risk: HIGH
+  priority: P0
+  status: IN_PROGRESS
+  dependencies: []
+  implementation_refs:
+  - backend/internal/legal/transaction_snapshot.go
+  contract_refs: []
+  test_refs:
+  - backend/internal/legal/transaction_snapshot_test.go
+  evidence_refs: []
+  acceptance:
+    given: Order создаётся
+    when: цена/продавец/роль платформы определены
+    then: order хранит immutable role snapshot; последующие policy changes не переписывают историю
+    required_evidence:
+    - DOMAIN_OR_CONTRACT_TEST
+    - E2E_OR_STAGING_PROOF
+- requirement_id: APGIC-LEGAL-002
+  title: Versioned legal acceptance
+  statement: Acceptance договора/политики является отдельной versioned evidence record, а не эффектом логина.
+  owner_domain: LEGAL
+  source_sections:
+  - 68
+  - 296
+  release_profile: R0
+  risk: HIGH
+  priority: P0
+  status: IN_PROGRESS
+  dependencies: []
+  implementation_refs:
+  - backend/internal/legal/acceptance.go
+  - backend/migrations/000002_legal_acceptance_mobile_installation.sql
+  contract_refs: []
+  test_refs:
+  - backend/internal/legal/acceptance_test.go
+  evidence_refs: []
+  acceptance:
+    given: пользователь принимает документ vN
+    when: позже публикуется vN+1
+    then: исторический acceptance vN сохраняется; vN+1 не считается принятым без нового требуемого acceptance
+    required_evidence:
+    - DOMAIN_OR_CONTRACT_TEST
+    - E2E_OR_STAGING_PROOF
+- requirement_id: APGIC-TERM-001
+  title: Canonical provider terminology
+  statement: Canonical domain/API names используют capability terms; reference provider brand не становится обязательным type/owner.
+  owner_domain: ARCH
+  source_sections:
+  - 227
+  - 248
+  - 311
+  release_profile: R0
+  risk: HIGH
+  priority: P1
+  status: IN_PROGRESS
+  dependencies: []
+  implementation_refs:
+  - canon/contracts/provider-terminology.yaml
+  - backend/internal/connector/registry.go
+  - tools/terminology_guard.py
+  contract_refs:
+  - canon/contracts/provider-terminology.yaml
+  test_refs:
+  - tools/terminology_guard.py
+  - .github/workflows/ci.yml
+  evidence_refs: []
+  acceptance:
+    given: разработчик добавляет новый domain type/API
+    when: он связан с CRM/live/persona/intelligence provider
+    then: название использует capability class; architecture test запрещает brand-coupled canonical type
+    required_evidence:
+    - DOMAIN_OR_CONTRACT_TEST
+    - E2E_OR_STAGING_PROOF
+- requirement_id: APGIC-SPEC-001
+  title: Capability evidence states
+  statement: Specialist capability различает SELF_DECLARED, DOCUMENT_SUPPORTED, APGIC_VERIFIED и связанные evidence/verification
+    states.
+  owner_domain: SPECIALIST
+  source_sections:
+  - 12
+  - 18
+  - 26
+  - 301
+  release_profile: R1
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-ID-001
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: специалист заявляет topic capability
+    when: документы ещё не проверены
+    then: UI/API не маркируют capability как verified и Qualification видит фактический evidence state
+    required_evidence:
+    - DOMAIN_OR_CONTRACT_TEST
+    - E2E_OR_STAGING_PROOF
+- requirement_id: APGIC-SPEC-002
+  title: Supply-Min publish gate
+  statement: Для Launch специалист публикуется только после identity/profile + evidence intake + verification/review + qualification
+    publish gate.
+  owner_domain: SPECIALIST
+  source_sections:
+  - 17
+  - 21
+  - 26
+  - 229
+  - 301
+  - 307
+  release_profile: R1
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-SPEC-001
+  - APGIC-QUAL-001
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: профиль специалиста неполон или review не завершён
+    when: он пытается стать discoverable
+    then: public discoverability блокируется с reason; после требуемого review/policy specialist может publish/unpublish
+    required_evidence:
+    - DOMAIN_OR_CONTRACT_TEST
+    - E2E_OR_STAGING_PROOF
+- requirement_id: APGIC-DEMAND-001
+  title: HelpIntent confirmation
+  statement: Свободный запрос преобразуется в HelpIntent, который пользователь может подтвердить/исправить; AI не ставит диагноз.
+  owner_domain: DEMAND
+  source_sections:
+  - 6
+  - 7
+  - 9
+  - 10
+  release_profile: R1
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies: []
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: пользователь описывает запрос свободным текстом
+    when: система предлагает topics/goals/context
+    then: пользователь видит и может исправить интерпретацию; модель не утверждает диагноз как факт
+    required_evidence:
+    - DOMAIN_OR_CONTRACT_TEST
+    - E2E_OR_STAGING_PROOF
+- requirement_id: APGIC-QUAL-001
+  title: Qualification fail-closed gate
+  statement: Eligibility определяется versioned QualificationPolicy; MANUAL_REVIEW/unknown не превращаются в ELIGIBLE.
+  owner_domain: QUAL
+  source_sections:
+  - 13
+  - 230
+  - 308
+  release_profile: R1
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-SPEC-001
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: нет явного разрешающего policy rule/evidence
+    when: выполняется qualification
+    then: результат INELIGIBLE или MANUAL_REVIEW с reason_codes; specialist не попадает в eligible set
+    required_evidence:
+    - DOMAIN_OR_CONTRACT_TEST
+    - E2E_OR_STAGING_PROOF
+- requirement_id: APGIC-QUAL-002
+  title: Qualification excludes commerce
+  statement: Subscription/ad spend/commercial boost не влияют на право работать с запросом.
+  owner_domain: QUAL
+  source_sections:
+  - 13
+  - 25
+  - 30
+  - 230
+  release_profile: R1
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-QUAL-001
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: два specialist различаются только рекламным spend
+    when: оба проходят qualification
+    then: eligibility result идентичен по коммерческому признаку; boost применяется только downstream
+    required_evidence:
+    - DOMAIN_OR_CONTRACT_TEST
+    - E2E_OR_STAGING_PROOF
+- requirement_id: APGIC-MATCH-001
+  title: Matching only eligible specialists
+  statement: Matching получает только eligible specialist set и учитывает request/context/format/language/price/availability
+    fit.
+  owner_domain: MATCH
+  source_sections:
+  - 11
+  - 14
+  - 230
+  - 231
+  release_profile: R1
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-QUAL-001
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: есть eligible и ineligible candidates
+    when: пользователь запускает matching
+    then: ineligible candidate отсутствует в result независимо от match score
+    required_evidence:
+    - DOMAIN_OR_CONTRACT_TEST
+    - E2E_OR_STAGING_PROOF
+- requirement_id: APGIC-RANK-001
+  title: Deterministic RankingPolicy v1
+  statement: Ranking v1 использует versioned deterministic order после qualification; policy version сохраняется для воспроизводимости.
+  owner_domain: RANK
+  source_sections:
+  - 14
+  - 24
+  - 25
+  - 30
+  - 52
+  - 231
+  - 308
+  release_profile: R1
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-MATCH-001
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: eligible candidates имеют разные relevance/expertise/reliability attributes
+    when: формируется выдача
+    then: порядок воспроизводим одной policy version и объясним privacy-safe reason codes
+    required_evidence:
+    - DOMAIN_OR_CONTRACT_TEST
+    - E2E_OR_STAGING_PROOF
+- requirement_id: APGIC-RANK-002
+  title: Sponsored cannot bypass quality band
+  statement: Commercial boost маркируется и не поднимает ineligible либо более низкий relevance/quality band выше запрещённой
+    границы.
+  owner_domain: RANK
+  source_sections:
+  - 25
+  - 30
+  - 31
+  - 231
+  - 308
+  release_profile: R1
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-RANK-001
+  - APGIC-QUAL-002
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: кандидат купил sponsored placement
+    when: он ineligible или в более низком protected band
+    then: он не обходит gate/band; sponsored label присутствует там, где показ разрешён
+    required_evidence:
+    - DOMAIN_OR_CONTRACT_TEST
+    - E2E_OR_STAGING_PROOF
+- requirement_id: APGIC-SEARCH-001
+  title: Search is rebuildable projection
+  statement: Search/vector index не владеет Specialist/Product/Qualification truth и может быть rebuilt из canonical data.
+  owner_domain: SEARCH
+  source_sections:
+  - 72
+  - 176
+  - 178
+  - 179
+  - 257
+  - 300
+  release_profile: R1
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-SPEC-002
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: search index потерян/устарел
+    when: выполняется rebuild
+    then: projection восстанавливается из canonical stores; изменение index не изменяет qualification truth
+    required_evidence:
+    - DOMAIN_OR_CONTRACT_TEST
+    - E2E_OR_STAGING_PROOF
+- requirement_id: APGIC-BOOK-001
+  title: Exclusive slot hold
+  statement: Одновременная конкуренция за эксклюзивный slot приводит ровно к одному ACTIVE hold/confirmed booking.
+  owner_domain: BOOKING
+  source_sections:
+  - 34
+  - 232
+  - 233
+  release_profile: R2
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-AUTH-001
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: свободен один exclusive slot
+    when: два клиента конкурентно создают hold
+    then: ровно один hold ACTIVE; второй получает deterministic conflict; double booking невозможен
+    required_evidence:
+    - DB_CONCURRENCY_TEST
+    - E2E
+- requirement_id: APGIC-BOOK-002
+  title: Booking state machine
+  statement: Booking меняет состояния только разрешёнными transitions с timeout/expiry/cancel/no-show semantics.
+  owner_domain: BOOKING
+  source_sections:
+  - 34
+  - 232
+  release_profile: R2
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-BOOK-001
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: Booking находится в текущем state
+    when: команда пытается разрешённый/запрещённый transition
+    then: разрешённый transition атомарен; запрещённый возвращает stable error code без silent mutation
+    required_evidence:
+    - DOMAIN_OR_CONTRACT_TEST
+    - E2E_OR_STAGING_PROOF
+- requirement_id: APGIC-ORDER-001
+  title: Immutable economic snapshot
+  statement: Captured order хранит immutable pricing/economic/legal snapshot; последующая policy/price change не переписывает
+    заказ.
+  owner_domain: COMMERCE
+  source_sections:
+  - 61
+  - 84
+  - 235
+  - 275
+  - 295
+  release_profile: R2
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-LEGAL-001
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: Order создан по Offer/Price/Commission policy vN
+    when: policy/price меняется до/после capture
+    then: исторический order сохраняет исходные amount/currency/source/roles/policy versions
+    required_evidence:
+    - DOMAIN_OR_CONTRACT_TEST
+    - E2E_OR_STAGING_PROOF
+- requirement_id: APGIC-PAY-001
+  title: Replaceable non-custodial PaymentProvider
+  statement: Payment execution идёт только через внешний PaymentProvider connector. APGIC не принимает/не хранит деньги плательщика
+    и не владеет provider monetary balance; он хранит Order/Payment evidence/non-custodial Ledger/Reconciliation truth.
+  owner_domain: PAYMENT
+  source_sections:
+  - 87
+  - 94
+  - 235
+  release_profile: R2
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-CONN-001
+  - APGIC-ORDER-001
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: PaymentProvider недоступен или не поддерживает требуемый monetary capability
+    when: клиент пытается оплатить
+    then: APGIC фиксирует controlled failure/pending или выбирает иной eligible provider до irreversible attempt; APGIC не
+      принимает деньги на собственный баланс
+    required_evidence:
+    - DOMAIN_OR_CONTRACT_TEST
+    - E2E_OR_STAGING_PROOF
+    - NON_CUSTODIAL_ARCHITECTURE_ASSERTION
+- requirement_id: APGIC-PAY-002
+  title: Payment webhook idempotency
+  statement: Duplicate payment callback не создаёт второй экономический effect.
+  owner_domain: PAYMENT
+  source_sections:
+  - 87
+  - 235
+  - 241
+  release_profile: R2
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-PAY-001
+  - APGIC-LEDGER-001
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: provider повторно прислал captured webhook с тем же idempotency identity
+    when: обработчик получает его второй раз
+    then: Payment/Ledger содержат один economic effect; повтор отмечен idempotent outcome
+    required_evidence:
+    - DB_INVARIANT_TEST
+    - CONTRACT_TEST
+- requirement_id: APGIC-NOTIF-001
+  title: Transactional NotificationIntent
+  statement: Transactional notifications создаются как idempotent NotificationIntent и не зависят от growth opt-in там, где
+    сообщение необходимо для исполнения сделки.
+  owner_domain: NOTIFICATION
+  source_sections:
+  - 36
+  - 234
+  - 308
+  release_profile: R2
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-BOOK-002
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: Booking подтверждён
+    when: создаются reminders/confirmation
+    then: каждый intent имеет stable purpose/idempotency; duplicate delivery request не создаёт бесконечные уведомления
+    required_evidence:
+    - DOMAIN_OR_CONTRACT_TEST
+    - E2E_OR_STAGING_PROOF
+- requirement_id: APGIC-CAL-001
+  title: Calendar sync/export cannot own booking truth
+  statement: CalendarProvider/.ics отражают APGIC availability/booking, но внешний calendar не становится canonical booking
+    owner.
+  owner_domain: CALENDAR
+  source_sections:
+  - 35
+  - 71
+  - 233
+  release_profile: R2
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-BOOK-002
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: внешний calendar временно недоступен
+    when: Booking подтверждается/изменяется
+    then: APGIC сохраняет booking truth и sync помечается pending/retry; конфликт обрабатывается policy
+    required_evidence:
+    - DOMAIN_OR_CONTRACT_TEST
+    - E2E_OR_STAGING_PROOF
+- requirement_id: APGIC-REFUND-001
+  title: Cancellation/refund base path
+  statement: Cancellation/refund используют явные policies/state transitions; APGIC отправляет idempotent refund instruction
+    original provider, а provider возвращает деньги. APGIC фиксирует non-custodial reversal/evidence и не удаляет исходный
+    payment.
+  owner_domain: REFUND
+  source_sections:
+  - 47
+  - 64
+  - 65
+  - 235
+  release_profile: R2
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-PAY-002
+  - APGIC-BOOK-002
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: подтверждённая booking отменяется по допустимой причине
+    when: refund положен по policy
+    then: создаётся Refund/Reversal с audit/ledger effect; исходный Payment/Order history сохраняется
+    required_evidence:
+    - DOMAIN_OR_CONTRACT_TEST
+    - E2E_OR_STAGING_PROOF
+- requirement_id: APGIC-COMM-001
+  title: CommunicationProvider scoped room authorization
+  statement: Live room/session создаётся через scoped CommunicationProvider authorization, а APGIC хранит business meaning/access
+    decision.
+  owner_domain: COMM
+  source_sections:
+  - 38
+  - 108
+  - 185
+  - 236
+  - 311
+  release_profile: R3
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-BOOK-002
+  - APGIC-CONN-001
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: Booking CONFIRMED/READY
+    when: участник запрашивает join
+    then: APGIC проверяет entitlement/role/time и выдаёт short-lived scoped provider credential либо deny
+    required_evidence:
+    - DOMAIN_OR_CONTRACT_TEST
+    - E2E_OR_STAGING_PROOF
+- requirement_id: APGIC-CONSULT-001
+  title: Consultation lifecycle evidence
+  statement: Ready/join/leave/start/end facts образуют consultation lifecycle и не выводятся только из provider UI presence.
+  owner_domain: CONSULT
+  source_sections:
+  - 37
+  - 38
+  - 236
+  release_profile: R3
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-COMM-001
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: участники проходят Ready/Join
+    when: сессия начинается и завершается
+    then: APGIC фиксирует lifecycle facts/state transitions с timestamps и provider refs без передачи ownership provider-у
+    required_evidence:
+    - DOMAIN_OR_CONTRACT_TEST
+    - E2E_OR_STAGING_PROOF
+- requirement_id: APGIC-COMM-002
+  title: Technical failure and recovery
+  statement: Provider/network failure переводит fulfillment в объяснимое recoverable/technical state без двойного charge/completion.
+  owner_domain: COMM
+  source_sections:
+  - 47
+  - 126
+  - 133
+  - 236
+  release_profile: R3
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-CONSULT-001
+  - APGIC-REFUND-001
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: идёт консультация
+    when: provider disconnect/room failure
+    then: система пытается recovery/fallback по policy; при невозможности фиксирует TECHNICAL_FAILURE и запускает перенос/refund
+      path
+    required_evidence:
+    - DOMAIN_OR_CONTRACT_TEST
+    - E2E_OR_STAGING_PROOF
+- requirement_id: APGIC-CONSULT-002
+  title: Completion requires evidence
+  statement: COMPLETED не ставится только по таймеру/UI; требуется допустимое completion evidence и state transition.
+  owner_domain: CONSULT
+  source_sections:
+  - 38
+  - 45
+  - 236
+  release_profile: R3
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-CONSULT-001
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: Booking/Consultation IN_PROGRESS
+    when: приходит completion signal
+    then: система проверяет evidence/idempotency и только затем формирует completed domain event
+    required_evidence:
+    - DOMAIN_OR_CONTRACT_TEST
+    - E2E_OR_STAGING_PROOF
+- requirement_id: APGIC-PRIV-001
+  title: Session content minimization
+  statement: Raw consultation/avatar media/transcript не становится обязательной APGIC business truth и подчиняется retention/consent
+    policy.
+  owner_domain: PRIVACY
+  source_sections:
+  - 49
+  - 95
+  - 111
+  - 211
+  release_profile: R3
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-DATA-001
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: live/persona session завершается
+    when: создаётся business completion record
+    then: record содержит минимальные lifecycle facts; raw content отсутствует либо хранится только по явной policy/consent
+    required_evidence:
+    - DOMAIN_OR_CONTRACT_TEST
+    - E2E_OR_STAGING_PROOF
+- requirement_id: APGIC-COMMISSION-001
+  title: Versioned source-based commission
+  statement: CommissionPolicy versioned по source/product/jurisdiction; отсутствие policy блокирует расчёт вместо скрытого
+    default.
+  owner_domain: COMMISSION
+  source_sections:
+  - 252
+  - 295
+  - 308
+  release_profile: R4
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-ORDER-001
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: completed payable transaction имеет demand source
+    when: рассчитывается commission
+    then: используется explicit policy version; если записи нет — deterministic POLICY_NOT_CONFIGURED и settlement не финализируется
+    required_evidence:
+    - DOMAIN_OR_CONTRACT_TEST
+    - E2E_OR_STAGING_PROOF
+- requirement_id: APGIC-SETTLE-001
+  title: Provider-executed settlement evidence from ledger-backed facts
+  statement: APGIC формирует contractual allocation/settlement instruction/evidence из completed fulfillment + immutable economic
+    snapshot + ledger facts; фактический split/settlement выполняет внешний provider.
+  owner_domain: SETTLEMENT
+  source_sections:
+  - 84
+  - 85
+  - 222
+  - 235
+  release_profile: R4
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-CONSULT-002
+  - APGIC-COMMISSION-001
+  - APGIC-LEDGER-001
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: transaction eligible for settlement
+    when: APGIC определяет settlement/allocation eligibility и отправляет provider instruction либо принимает provider evidence
+    then: amounts/beneficiaries сходятся с ledger/policy; duplicate processing не создаёт второй economic effect; APGIC не
+      хранит и не переводит payable funds
+    required_evidence:
+    - DOMAIN_OR_CONTRACT_TEST
+    - E2E_OR_STAGING_PROOF
+- requirement_id: APGIC-PAYOUT-001
+  title: Provider-executed payout eligibility gate
+  statement: APGIC может сформировать payout/allocation eligibility/instruction только после своих business/legal gates; фактический
+    payout/hold/release/KYC-KYB/compliance execution выполняет внешний provider. APGIC не хранит payable funds.
+  owner_domain: PAYOUT
+  source_sections:
+  - 222
+  - 235
+  - 295
+  release_profile: R4
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-SETTLE-001
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: по APGIC economic snapshot/fulfillment policy существует ожидаемая выплата beneficiary
+    when: provider-reported eligibility/compliance не подтверждена или provider не поддерживает payout/split capability
+    then: APGIC не симулирует payout внутренним балансом; provider instruction не отправляется/остаётся blocked с reason,
+      а non-custodial ledger/evidence сохраняются
+    required_evidence:
+    - DOMAIN_OR_CONTRACT_TEST
+    - PROVIDER_CAPABILITY_TEST
+    - E2E_OR_STAGING_PROOF
+- requirement_id: APGIC-RECON-001
+  title: Provider reconciliation
+  statement: Provider payment/settlement/payout/refund evidence и provider fees регулярно reconciled с APGIC non-custodial
+    ledger; mismatch создаёт operational exception, а не «аналитическую погрешность».
+  owner_domain: RECON
+  source_sections:
+  - 50
+  - 222
+  - 281
+  release_profile: R4
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-PAY-002
+  - APGIC-PAYOUT-001
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: есть APGIC ledger period и provider statement/webhook facts
+    when: reconciliation job сравнивает их
+    then: совпадения закрываются; mismatch создаёт typed discrepancy с owner/status/evidence и не переписывает историю
+    required_evidence:
+    - RECONCILIATION_TEST
+    - STAGING_OR_PROD_PROOF
+- requirement_id: APGIC-DISPUTE-001
+  title: Dispute/refund/reversal preserve audit trail
+  statement: Dispute/chargeback/refund/reversal являются отдельными stateful business/evidence effects с audit/ledger; monetary
+    execution выполняет provider, а APGIC не делает destructive edits и не перемещает деньги сам.
+  owner_domain: DISPUTE
+  source_sections:
+  - 213
+  - 235
+  - 281
+  release_profile: R4
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-SETTLE-001
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: завершённая транзакция получает dispute/chargeback
+    when: оператор/provider меняет финансовый outcome
+    then: создаются linked dispute/reversal evidence entries; provider исполняет monetary outcome; исходные payment/order/settlement
+      facts остаются неизменяемыми
+    required_evidence:
+    - DOMAIN_OR_CONTRACT_TEST
+    - E2E_OR_STAGING_PROOF
+- requirement_id: APGIC-REVENUE-001
+  title: Revenue Assurance launch gate
+  statement: Launch financial path должен сходиться Provider Payment evidence → APGIC Ledger → Entitlement/Fulfillment → Commission/Allocation
+    basis → Provider Settlement/Payout evidence → Reconciliation.
+  owner_domain: FINCONTROL
+  source_sections:
+  - 62
+  - 222
+  - 281
+  release_profile: R4
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-RECON-001
+  - APGIC-DISPUTE-001
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: release candidate R4
+    when: выполняется end-to-end revenue assurance suite
+    then: нет orphan payment/entitlement/commission/provider-payout evidence effects; все amounts/fees reconciled либо имеют
+      typed provider/exception state; APGIC custody отсутствует
+    required_evidence:
+    - E2E_FINANCIAL_PROOF
+    - RECONCILIATION_PROOF
+- requirement_id: APGIC-LIQ-001
+  title: MarketCell evidence before scale
+  statement: MarketCell масштабируется только после explicit supply/demand/availability thresholds и recorded evidence.
+  owner_domain: MARKET
+  source_sections:
+  - 56
+  - 66
+  - 67
+  - 273
+  - 308
+  release_profile: R5
+  risk: MEDIUM
+  priority: P1
+  status: APPROVED
+  dependencies: []
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: MarketCell создан, но thresholds не настроены/не достигнуты
+    when: growth routing пытается включить scale
+    then: state SCALE_READY недостижим; система не обещает мгновенную ликвидность
+    required_evidence:
+    - DOMAIN_OR_CONTRACT_TEST
+    - E2E_OR_STAGING_PROOF
+- requirement_id: APGIC-CANON-001
+  title: Launch scope freeze
+  statement: Новая feature idea не расширяет Launch Cut без formal Requirement Change и допустимой причины.
+  owner_domain: GOVERNANCE
+  source_sections:
+  - 74
+  - 246
+  - 302
+  - 313
+  release_profile: R0
+  risk: HIGH
+  priority: P0
+  status: IN_PROGRESS
+  dependencies: []
+  implementation_refs:
+  - tools/canon_lint.py
+  - docs/governance/requirement-change.md
+  - .github/ISSUE_TEMPLATE/requirement-change.yml
+  contract_refs: []
+  test_refs:
+  - tools/canon_lint.py
+  - .github/workflows/ci.yml
+  evidence_refs: []
+  acceptance:
+    given: R0–R4 утверждены
+    when: появляется новая полезная идея
+    then: она получает POST_LAUNCH/backlog, если не является legal/security/financial-integrity/missing-dependency blocker
+    required_evidence:
+    - DOMAIN_OR_CONTRACT_TEST
+    - E2E_OR_STAGING_PROOF
+- requirement_id: APGIC-CONFIG-001
+  title: Jurisdiction/legal matrix configured
+  statement: Каждая включённая jurisdiction/product transaction combination имеет явный versioned legal/financial role matrix;
+    отсутствие блокирует юридически значимый path.
+  owner_domain: LEGAL
+  source_sections:
+  - 315
+  release_profile: R0
+  risk: HIGH
+  priority: P0
+  status: IN_PROGRESS
+  dependencies: []
+  implementation_refs:
+  - backend/internal/launchconfig/config.go
+  - config/jurisdiction/r0-ci-matrix.yaml
+  - tools/launch_config_guard.py
+  contract_refs: []
+  test_refs:
+  - backend/internal/launchconfig/config_test.go
+  - tools/launch_config_guard.py
+  - .github/workflows/ci.yml
+  evidence_refs: []
+  acceptance:
+    given: соответствующий capability включён в launch/release profile
+    when: выполняется LaunchConfig preflight и acceptance suite
+    then: required config имеет explicit versioned value и доказательства; CONFIG_REQUIRED/default на active critical path
+      приводит к FAIL
+    required_evidence:
+    - CONFIG_SCHEMA_TEST
+    - PREFLIGHT_PROOF
+    - RELEASE_EVIDENCE
+- requirement_id: APGIC-CONFIG-002
+  title: Pricing/commission configured without silent defaults
+  statement: Каждый monetized launch path имеет versioned Pricing/CommissionPolicy; отсутствие правила блокирует order/payment
+    path до side-effect.
+  owner_domain: COMMERCE
+  source_sections:
+  - 315
+  release_profile: R2
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies: []
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: соответствующий capability включён в launch/release profile
+    when: выполняется LaunchConfig preflight и acceptance suite
+    then: required config имеет explicit versioned value и доказательства; CONFIG_REQUIRED/default на active critical path
+      приводит к FAIL
+    required_evidence:
+    - CONFIG_SCHEMA_TEST
+    - PREFLIGHT_PROOF
+    - RELEASE_EVIDENCE
+- requirement_id: APGIC-CONFIG-003
+  title: Cancellation/no-show/refund policy configured
+  statement: Bookable launch products имеют versioned cancellation/no-show/refund/reschedule policy; числовые окна не выводятся
+    из UI/provider defaults.
+  owner_domain: BOOKING
+  source_sections:
+  - 315
+  release_profile: R3
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies: []
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: соответствующий capability включён в launch/release profile
+    when: выполняется LaunchConfig preflight и acceptance suite
+    then: required config имеет explicit versioned value и доказательства; CONFIG_REQUIRED/default на active critical path
+      приводит к FAIL
+    required_evidence:
+    - CONFIG_SCHEMA_TEST
+    - PREFLIGHT_PROOF
+    - RELEASE_EVIDENCE
+- requirement_id: APGIC-CONFIG-004
+  title: Retention matrix configured
+  statement: Все DataClass активного launch path имеют retention/deletion/legal-hold rules; capability, создающая raw data
+    без retention rule, не включается.
+  owner_domain: DATA
+  source_sections:
+  - 315
+  release_profile: R0
+  risk: HIGH
+  priority: P0
+  status: IN_PROGRESS
+  dependencies: []
+  implementation_refs:
+  - backend/internal/launchconfig/config.go
+  - config/retention/r0-ci-matrix.yaml
+  - tools/launch_config_guard.py
+  contract_refs: []
+  test_refs:
+  - backend/internal/launchconfig/config_test.go
+  - tools/launch_config_guard.py
+  - .github/workflows/ci.yml
+  evidence_refs: []
+  acceptance:
+    given: соответствующий capability включён в launch/release profile
+    when: выполняется LaunchConfig preflight и acceptance suite
+    then: required config имеет explicit versioned value и доказательства; CONFIG_REQUIRED/default на active critical path
+      приводит к FAIL
+    required_evidence:
+    - CONFIG_SCHEMA_TEST
+    - PREFLIGHT_PROOF
+    - RELEASE_EVIDENCE
+- requirement_id: APGIC-CONFIG-005
+  title: SLO/RPO/RTO configured and evidenced
+  statement: Launch-critical domains имеют numeric SLO/RPO/RTO и restore/incident evidence; отсутствие блокирует RELEASED.
+  owner_domain: RELIABILITY
+  source_sections:
+  - 315
+  release_profile: R0
+  risk: HIGH
+  priority: P0
+  status: IN_PROGRESS
+  dependencies: []
+  implementation_refs:
+  - backend/internal/launchconfig/config.go
+  - config/slo/r0-ci-policy.yaml
+  - tools/launch_config_guard.py
+  - backend/ci/restore_drill.sh
+  contract_refs:
+  - contracts/openapi/apgic-v1.yaml
+  test_refs:
+  - backend/internal/launchconfig/config_test.go
+  - backend/internal/httpapi/handler_test.go
+  - tools/launch_config_guard.py
+  - .github/workflows/ci.yml
+  evidence_refs: []
+  acceptance:
+    given: соответствующий capability включён в launch/release profile
+    when: выполняется LaunchConfig preflight и acceptance suite
+    then: required config имеет explicit versioned value и доказательства; CONFIG_REQUIRED/default на active critical path
+      приводит к FAIL
+    required_evidence:
+    - CONFIG_SCHEMA_TEST
+    - PREFLIGHT_PROOF
+    - RELEASE_EVIDENCE
+- requirement_id: APGIC-CONFIG-006
+  title: MarketCell thresholds configured before scale
+  statement: MarketCell не достигает SCALE_READY без versioned liquidity/economics thresholds и recorded evidence.
+  owner_domain: MARKET
+  source_sections:
+  - 315
+  release_profile: R1
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies: []
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: соответствующий capability включён в launch/release profile
+    when: выполняется LaunchConfig preflight и acceptance suite
+    then: required config имеет explicit versioned value и доказательства; CONFIG_REQUIRED/default на active critical path
+      приводит к FAIL
+    required_evidence:
+    - CONFIG_SCHEMA_TEST
+    - PREFLIGHT_PROOF
+    - RELEASE_EVIDENCE
+- requirement_id: APGIC-CONFIG-007
+  title: Launch provider matrix configured
+  statement: Включённые provider-dependent capabilities имеют primary/fallback/degraded contracts, certification and exit
+    semantics; brand не входит в canonical domain types.
+  owner_domain: CONNECTOR
+  source_sections:
+  - 315
+  release_profile: R0
+  risk: HIGH
+  priority: P0
+  status: IN_PROGRESS
+  dependencies: []
+  implementation_refs:
+  - backend/internal/launchconfig/config.go
+  - config/providers/r0-ci-matrix.yaml
+  - tools/launch_config_guard.py
+  contract_refs: []
+  test_refs:
+  - backend/internal/launchconfig/config_test.go
+  - tools/launch_config_guard.py
+  - .github/workflows/ci.yml
+  evidence_refs: []
+  acceptance:
+    given: соответствующий capability включён в launch/release profile
+    when: выполняется LaunchConfig preflight и acceptance suite
+    then: required config имеет explicit versioned value и доказательства; CONFIG_REQUIRED/default на active critical path
+      приводит к FAIL
+    required_evidence:
+    - CONFIG_SCHEMA_TEST
+    - PREFLIGHT_PROOF
+    - RELEASE_EVIDENCE
+- requirement_id: APGIC-CONFIG-008
+  title: LaunchConfig preflight is a release gate
+  statement: Production promotion запускает machine-readable config preflight и FAIL при CONFIG_REQUIRED на активном critical
+    path или несовместимой/missing policy/provider/evidence.
+  owner_domain: GOVERNANCE
+  source_sections:
+  - 315
+  release_profile: R0
+  risk: HIGH
+  priority: P0
+  status: IN_PROGRESS
+  dependencies: []
+  implementation_refs:
+  - backend/internal/launchconfig/config.go
+  - backend/internal/httpapi/handler.go
+  - tools/launch_config_guard.py
+  - .github/workflows/ci.yml
+  contract_refs:
+  - contracts/openapi/apgic-v1.yaml
+  test_refs:
+  - backend/internal/launchconfig/config_test.go
+  - backend/internal/httpapi/handler_test.go
+  - tools/launch_config_guard.py
+  - .github/workflows/ci.yml
+  evidence_refs: []
+  acceptance:
+    given: соответствующий capability включён в launch/release profile
+    when: выполняется LaunchConfig preflight и acceptance suite
+    then: required config имеет explicit versioned value и доказательства; CONFIG_REQUIRED/default на active critical path
+      приводит к FAIL
+    required_evidence:
+    - CONFIG_SCHEMA_TEST
+    - PREFLIGHT_PROOF
+    - RELEASE_EVIDENCE
+- requirement_id: APGIC-MOBILE-001
+  title: Single business truth across web and native
+  statement: Web/PWA/iOS/Android используют один backend/domain truth; native не создаёт второй booking/payment/qualification/ledger
+    domain.
+  owner_domain: MOBILE
+  source_sections:
+  - 43
+  - 298
+  - 316
+  release_profile: R0
+  risk: HIGH
+  priority: P0
+  status: IN_PROGRESS
+  dependencies: []
+  implementation_refs:
+  - apps/web/
+  - apps/mobile/
+  - contracts/openapi/apgic-v1.yaml
+  contract_refs:
+  - contracts/openapi/apgic-v1.yaml
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: существуют web и native clients
+    when: они выполняют одинаковую business command
+    then: server state transition/reason/audit идентичны по semantics; client не владеет отдельной truth
+    required_evidence:
+    - ARCHITECTURE_TEST
+    - CONTRACT_TEST
+- requirement_id: APGIC-MOBILE-002
+  title: Canonical native stack and shared-code boundary
+  statement: Native iOS/Android реализуются TypeScript + React Native; shared code ограничен contracts/schemas/tokens/localization/analytics
+    и не переносит server business logic.
+  owner_domain: MOBILE
+  source_sections:
+  - 96
+  - 298
+  - 317
+  release_profile: R0
+  risk: HIGH
+  priority: P0
+  status: IN_PROGRESS
+  dependencies:
+  - APGIC-MOBILE-001
+  implementation_refs:
+  - apps/mobile/
+  - packages/contracts/
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: создан native workspace
+    when: проверяются imports/shared packages
+    then: server domain logic не импортируется в client; generated contracts shared и iOS/Android builds проходят
+    required_evidence:
+    - ARCHITECTURE_TEST
+    - BUILD_PROOF
+- requirement_id: APGIC-MOBILE-003
+  title: Parallel R0-R4 client delivery
+  statement: Launch-critical requirements R0–R4 имеют SERVER+WEB+IOS+ANDROID tracks; WEB_ONLY completion запрещён.
+  owner_domain: MOBILE
+  source_sections:
+  - 298
+  - 307
+  - 323
+  release_profile: R0
+  risk: HIGH
+  priority: P0
+  status: IN_PROGRESS
+  dependencies:
+  - APGIC-MOBILE-001
+  implementation_refs:
+  - apps/web/
+  - apps/mobile/
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: launch-critical requirement входит в R0–R4
+    when: его заявляют VERIFIED/RELEASED
+    then: registry/evidence содержит applicable web+iOS+Android consumer proof либо formal CompatibilityException
+    required_evidence:
+    - REGISTRY_LINT
+    - E2E_OR_STAGING_PROOF
+- requirement_id: APGIC-MOBILE-004
+  title: Typed device capability and permission model
+  statement: OS permissions/capabilities моделируются typed states и adapters; бренд/модель не являются business rule.
+  owner_domain: MOBILE
+  source_sections:
+  - 298
+  - 318
+  release_profile: R0
+  risk: HIGH
+  priority: P0
+  status: IN_PROGRESS
+  dependencies:
+  - APGIC-MOBILE-002
+  implementation_refs:
+  - apps/mobile/src/device-capability.ts
+  contract_refs: []
+  test_refs:
+  - apps/mobile/src/device-capability.test.ts
+  - .github/workflows/ci.yml
+  evidence_refs: []
+  acceptance:
+    given: capability требует microphone/camera/calendar/secure storage
+    when: permission denied/restricted/unavailable
+    then: native UI даёт deterministic fallback/state; server business truth не искажается
+    required_evidence:
+    - NATIVE_UNIT_TEST
+    - NATIVE_E2E
+- requirement_id: APGIC-MOBILE-005
+  title: Device installation and push identity
+  statement: PushEndpoint/ClientInstallation/DeviceSession отделены от user Identity и поддерживают rotation/revoke/reinstall/multi-device.
+  owner_domain: MOBILE
+  source_sections:
+  - 298
+  - 319
+  release_profile: R0
+  risk: HIGH
+  priority: P0
+  status: IN_PROGRESS
+  dependencies:
+  - APGIC-ID-001
+  implementation_refs:
+  - backend/internal/mobile/installation.go
+  - backend/migrations/000002_legal_acceptance_mobile_installation.sql
+  contract_refs: []
+  test_refs:
+  - backend/internal/mobile/installation_test.go
+  evidence_refs: []
+  acceptance:
+    given: user имеет несколько устройств или token rotated
+    when: server получает registration/update/revoke
+    then: Identity не дублируется; stale endpoint не получает новые notifications
+    required_evidence:
+    - DOMAIN_OR_CONTRACT_TEST
+    - NATIVE_E2E
+- requirement_id: APGIC-MOBILE-006
+  title: Universal links and safe deep-link routing
+  statement: iOS/Android universal/app links имеют canonical web fallback и server-side auth/scope/expiry validation.
+  owner_domain: MOBILE
+  source_sections:
+  - 298
+  - 319
+  release_profile: R1
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-MOBILE-005
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: пользователь открывает booking/specialist/notification link
+    when: app установлен или отсутствует
+    then: открывается canonical resource/app-or-web fallback; link не обходит authorization
+    required_evidence:
+    - CONTRACT_TEST
+    - NATIVE_E2E
+    - SECURITY_TEST
+- requirement_id: APGIC-MOBILE-007
+  title: Notification transport parity
+  statement: Push является transport NotificationIntent и соблюдает единые preferences/idempotency/audit/sensitive-content
+    rules.
+  owner_domain: MOBILE
+  source_sections:
+  - 36
+  - 298
+  - 319
+  release_profile: R2
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-MOBILE-005
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: transactional NotificationIntent создан
+    when: delivery идёт через push и другие каналы
+    then: каналы не создают разные business notification states; duplicate delivery idempotent/auditable
+    required_evidence:
+    - DOMAIN_OR_CONTRACT_TEST
+    - NATIVE_E2E
+- requirement_id: APGIC-MOBILE-008
+  title: Offline mutation and idempotent sync
+  statement: Offline/retry не создаёт duplicate Booking/Payment/Entitlement; queued state явно отделён от server-confirmed.
+  owner_domain: MOBILE
+  source_sections:
+  - 298
+  - 321
+  release_profile: R2
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-MOBILE-003
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: сеть исчезает после отправки critical mutation
+    when: client retry/restart occurs
+    then: один server side-effect; UI показывает pending/conflict until acknowledgement
+    required_evidence:
+    - NATIVE_E2E
+    - CONCURRENCY_TEST
+    - IDEMPOTENCY_TEST
+- requirement_id: APGIC-MOBILE-009
+  title: Native realtime lifecycle and reconnect
+  statement: Native CommunicationProvider flow покрывает permissions, network transitions, reconnect, audio routes, background/foreground
+    и interruption без ложных business transitions.
+  owner_domain: MOBILE
+  source_sections:
+  - 38
+  - 298
+  - 320
+  release_profile: R3
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-MOBILE-004
+  - APGIC-MOBILE-008
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: активна consultation/avatar realtime session
+    when: network/app/audio lifecycle меняется
+    then: session reconnects/degrades per policy; crash/background не превращается автоматически в completed/no-show
+    required_evidence:
+    - NATIVE_E2E
+    - REALTIME_E2E
+    - STAGING_PROOF
+- requirement_id: APGIC-MOBILE-010
+  title: Secure local storage and sensitive-data minimization
+  statement: Native local storage/cache не хранит raw sensitive consultation/avatar/financial data без explicit policy; credentials
+    используют approved secure storage.
+  owner_domain: MOBILE
+  source_sections:
+  - 95
+  - 298
+  - 318
+  - 321
+  release_profile: R0
+  risk: HIGH
+  priority: P0
+  status: IN_PROGRESS
+  dependencies:
+  - APGIC-MOBILE-002
+  implementation_refs:
+  - apps/mobile/src/storage-policy.ts
+  contract_refs: []
+  test_refs:
+  - apps/mobile/src/storage-policy.test.ts
+  - .github/workflows/ci.yml
+  evidence_refs: []
+  acceptance:
+    given: native client обрабатывает sensitive/session data
+    when: данные кешируются или logout/revoke
+    then: retention/storage соответствует DataClass policy; запрещённые raw data не остаются локально
+    required_evidence:
+    - SECURITY_TEST
+    - NATIVE_STORAGE_AUDIT
+- requirement_id: APGIC-MOBILE-011
+  title: Generated client contract compatibility
+  statement: Server contract совместим с generated web/native clients; breaking change требует version/deprecation/migration
+    plan.
+  owner_domain: MOBILE
+  source_sections:
+  - 97
+  - 304
+  - 305
+  - 317
+  - 322
+  release_profile: R0
+  risk: HIGH
+  priority: P0
+  status: IN_PROGRESS
+  dependencies:
+  - APGIC-EXEC-001
+  - APGIC-MOBILE-002
+  implementation_refs:
+  - apps/web/src/foundation-contract.ts
+  - apps/mobile/src/foundation-contract.ts
+  contract_refs:
+  - packages/contracts/src/foundation.ts
+  - packages/contracts/src/index.ts
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: OpenAPI/schema меняется
+    when: CI генерирует web+iOS/Android client packages
+    then: supported clients compile/conform либо breaking change имеет governed migration/update policy
+    required_evidence:
+    - CONTRACT_TEST
+    - GENERATED_CLIENT_BUILD
+- requirement_id: APGIC-MOBILE-012
+  title: Native CI and signed release artifacts
+  statement: iOS/Android production candidates воспроизводимо собираются, подписываются и связываются с commit/registry/config/evidence;
+    secrets не попадают в repo/logs.
+  owner_domain: MOBILE
+  source_sections:
+  - 305
+  - 322
+  release_profile: R0
+  risk: HIGH
+  priority: P0
+  status: IN_PROGRESS
+  dependencies:
+  - APGIC-MOBILE-002
+  - APGIC-EXEC-001
+  implementation_refs:
+  - config/mobile/r0-ci-release-governance.yaml
+  - config/mobile/release-governance.example.yaml
+  - tools/mobile_release_guard.py
+  - canon/evidence/mobile-release-evidence-v1.schema.json
+  contract_refs:
+  - canon/evidence/mobile-release-evidence-v1.schema.json
+  test_refs:
+  - tools/mobile_release_guard.py
+  - .github/workflows/ci.yml
+  evidence_refs: []
+  acceptance:
+    given: release candidate создаётся
+    when: mobile CI/release pipeline выполняется
+    then: есть signed artifact identity/hash + linked evidence; signing secrets защищены
+    required_evidence:
+    - IOS_BUILD_PROOF
+    - ANDROID_BUILD_PROOF
+    - SECRET_SCAN
+    - RELEASE_EVIDENCE
+- requirement_id: APGIC-MOBILE-013
+  title: App version compatibility and safe update policy
+  statement: Backend не ломает поддерживаемые installed app versions без versioned min-supported/deprecation/forced-update
+    policy и безопасного UX.
+  owner_domain: MOBILE
+  source_sections:
+  - 322
+  release_profile: R0
+  risk: HIGH
+  priority: P0
+  status: IN_PROGRESS
+  dependencies:
+  - APGIC-MOBILE-011
+  - APGIC-MOBILE-012
+  implementation_refs:
+  - backend/internal/clientcompat/compatibility.go
+  - packages/contracts/src/mobile-policy.ts
+  contract_refs:
+  - contracts/jsonschema/mobile-policy-v1.schema.json
+  test_refs:
+  - backend/internal/clientcompat/compatibility_test.go
+  - .github/workflows/ci.yml
+  evidence_refs: []
+  acceptance:
+    given: installed client использует поддерживаемую предыдущую contract version
+    when: backend обновлён
+    then: client продолжает работать либо получает governed update-required state без data/payment corruption
+    required_evidence:
+    - CONTRACT_COMPATIBILITY_TEST
+    - NATIVE_E2E
+- requirement_id: APGIC-MOBILE-014
+  title: Multi-surface analytics semantic parity
+  statement: Одинаковый user/business event имеет одну canonical schema на web/iOS/Android; platform diagnostics namespaced
+    и не меняют business meaning.
+  owner_domain: MOBILE
+  source_sections:
+  - 91
+  - 323
+  release_profile: R1
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-MOBILE-003
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: один canonical journey выполнен на web/iOS/Android
+    when: события отправлены
+    then: event names/required properties/business semantics совпадают; platform fields остаются extension
+    required_evidence:
+    - ANALYTICS_SCHEMA_TEST
+    - E2E_OR_STAGING_PROOF
+- requirement_id: APGIC-MOBILE-015
+  title: Native launch Definition of Done
+  statement: Launch v1 R0–R4 имеет native E2E, deep-link/push/offline/realtime evidence и app-distribution readiness; launch-critical
+    requirement не остаётся WEB_ONLY.
+  owner_domain: MOBILE
+  source_sections:
+  - 307
+  - 323
+  release_profile: R4
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-MOBILE-003
+  - APGIC-MOBILE-006
+  - APGIC-MOBILE-007
+  - APGIC-MOBILE-008
+  - APGIC-MOBILE-009
+  - APGIC-MOBILE-012
+  - APGIC-MOBILE-013
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: R4 готов к production promotion
+    when: release gate оценивает multi-surface evidence
+    then: SERVER+WEB+IOS+ANDROID critical path VERIFIED; signed mobile candidates и compatibility evidence присутствуют
+    required_evidence:
+    - NATIVE_E2E
+    - STAGING_PROOF
+    - RELEASE_EVIDENCE
+- requirement_id: APGIC-MOBILE-016
+  title: Organization-owned store identities and governed release lifecycle
+  statement: Production developer/store accounts, app identifiers, signing identities and StoreRelease lifecycle are organization-governed
+    and auditable.
+  owner_domain: MOBILE
+  source_sections:
+  - 324
+  release_profile: R0
+  risk: HIGH
+  priority: P0
+  status: IN_PROGRESS
+  dependencies:
+  - APGIC-MOBILE-012
+  implementation_refs:
+  - config/mobile/r0-ci-release-governance.yaml
+  - config/mobile/release-governance.example.yaml
+  - tools/mobile_release_guard.py
+  contract_refs:
+  - canon/evidence/mobile-release-evidence-v1.schema.json
+  test_refs:
+  - tools/mobile_release_guard.py
+  - .github/workflows/ci.yml
+  evidence_refs: []
+  acceptance:
+    given: native app identity создана
+    when: candidate проходит release pipeline
+    then: app identifiers/signing/store owner связаны с APGIC organization; personal developer ownership не требуется для
+      production
+    required_evidence:
+    - STORE_ACCOUNT_EVIDENCE
+    - SIGNING_AUDIT
+    - RELEASE_PIPELINE_TEST
+- requirement_id: APGIC-MOBILE-017
+  title: Versioned StorePolicySnapshot and commerce decision matrix
+  statement: Mobile payment rail вычисляется server-side из product/service/surface/store/storefront/jurisdiction/current
+    policy snapshot; hardcoded if iOS/Android запрещён.
+  owner_domain: COMMERCE
+  source_sections:
+  - 87
+  - 325
+  release_profile: R2
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-CONFIG-001
+  - APGIC-MOBILE-013
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: enabled mobile offer известен
+    when: пользователь инициирует purchase
+    then: StoreCommerceDecision возвращает ровно один допустимый rail либо PURCHASE_DISABLED с versioned reason
+    required_evidence:
+    - STORE_POLICY_SNAPSHOT
+    - COMMERCE_POLICY_TEST
+    - NEGATIVE_PATH_TEST
+- requirement_id: APGIC-MOBILE-018
+  title: Server-verified store purchase entitlement bridge
+  statement: Store transaction activates APGIC entitlement only after server verification and canonical order/payment/ledger
+    transition.
+  owner_domain: COMMERCE
+  source_sections:
+  - 87
+  - 325
+  release_profile: R2
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-PAY-001
+  - APGIC-MOBILE-017
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: store reports successful purchase
+    when: client/server submit transaction evidence
+    then: one verified Payment/ledger basis exists and exactly one entitlement/subscription transition occurs
+    required_evidence:
+    - STORE_SANDBOX_E2E
+    - LEDGER_ASSERTION
+    - IDEMPOTENCY_TEST
+- requirement_id: APGIC-MOBILE-019
+  title: Store renewal refund revocation reconciliation
+  statement: Renewal, refund, revocation, chargeback, grace/hold/expiry events are idempotently reconciled into canonical
+    ledger/subscription/entitlement state.
+  owner_domain: FINANCE
+  source_sections:
+  - 325
+  release_profile: R4
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-MOBILE-018
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: external store lifecycle event occurs
+    when: notification/poll reconciliation processes it repeatedly/out of order
+    then: canonical state converges once with auditable movements and no silent history rewrite
+    required_evidence:
+    - STORE_SERVER_EVENT_TEST
+    - RECONCILIATION_PROOF
+    - LEDGER_ASSERTION
+- requirement_id: APGIC-MOBILE-020
+  title: Cross-platform account deletion contract
+  statement: Account creation implies in-app deletion initiation plus authenticated web deletion path, with retention classification
+    and provider erasure evidence.
+  owner_domain: PRIVACY
+  source_sections:
+  - 315
+  - 326
+  release_profile: R1
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-ID-001
+  - APGIC-CONFIG-004
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: user has APGIC account
+    when: user requests deletion from native or web
+    then: same canonical DeleteAccountRequest reaches completed/retained-with-reason state; deactivation is not presented
+      as deletion
+    required_evidence:
+    - IOS_DELETION_E2E
+    - ANDROID_DELETION_E2E
+    - WEB_DELETION_E2E
+    - RETENTION_TEST
+- requirement_id: APGIC-MOBILE-021
+  title: Store subscription exit handling during account deletion
+  statement: Account deletion clearly handles external store subscriptions without falsely promising billing cancellation.
+  owner_domain: COMMERCE
+  source_sections:
+  - 326
+  release_profile: R2
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-MOBILE-020
+  - APGIC-MOBILE-018
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: user with active store subscription requests account deletion
+    when: deletion flow runs
+    then: user receives correct store management/cancellation path and APGIC account/data lifecycle remains auditable
+    required_evidence:
+    - SUBSCRIPTION_EXIT_E2E
+    - UX_ACCEPTANCE
+- requirement_id: APGIC-MOBILE-022
+  title: MobileDependencyRegistry and privacy supply-chain gate
+  statement: Every native SDK/dependency is registered with purpose, data classes, egress, permissions, provenance, privacy/security
+    status and removal/kill strategy.
+  owner_domain: SECURITY
+  source_sections:
+  - 95
+  - 327
+  release_profile: R0
+  risk: HIGH
+  priority: P0
+  status: IN_PROGRESS
+  dependencies:
+  - APGIC-MOBILE-002
+  implementation_refs:
+  - apps/mobile/dependency-registry.yaml
+  - tools/mobile_dependency_guard.py
+  contract_refs: []
+  test_refs:
+  - tools/mobile_dependency_guard.py
+  - .github/workflows/ci.yml
+  evidence_refs: []
+  acceptance:
+    given: mobile dependency is added/upgraded
+    when: CI evaluates build graph
+    then: unregistered/undeclared/privacy-inconsistent dependency blocks release
+    required_evidence:
+    - SBOM
+    - DEPENDENCY_REGISTRY_LINT
+    - PRIVACY_AUDIT
+    - SECRET_SCAN
+- requirement_id: APGIC-MOBILE-023
+  title: Mobile privacy declarations match actual build
+  statement: Apple privacy manifests/App Privacy and Google Data Safety declarations are derived/verified against actual build,
+    DataClass/Consent and dependency registries.
+  owner_domain: PRIVACY
+  source_sections:
+  - 95
+  - 327
+  release_profile: R0
+  risk: HIGH
+  priority: P0
+  status: IN_PROGRESS
+  dependencies:
+  - APGIC-MOBILE-022
+  implementation_refs:
+  - apps/mobile/privacy-declaration.yaml
+  - tools/mobile_privacy_guard.py
+  contract_refs: []
+  test_refs:
+  - tools/mobile_privacy_guard.py
+  - .github/workflows/ci.yml
+  evidence_refs: []
+  acceptance:
+    given: release candidate contains native SDKs/APIs
+    when: privacy preflight compares declarations and build
+    then: no undisclosed collected/egressed/tracking data or required-reason API remains
+    required_evidence:
+    - PRIVACY_MANIFEST_CHECK
+    - DATA_SAFETY_DIFF
+    - BUILD_INSPECTION
+- requirement_id: APGIC-MOBILE-024
+  title: Device integrity as provider-neutral risk evidence
+  statement: App/device integrity signals are server-verified typed evidence and cannot by themselves become identity or unexplained
+    automatic ban.
+  owner_domain: SECURITY
+  source_sections:
+  - 328
+  release_profile: R2
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-MOBILE-004
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: integrity signal is unsupported/negative/valid
+    when: risk engine processes evidence
+    then: authorization/business truth remains server-owned; action has reason/policy/audit and graceful unsupported handling
+    required_evidence:
+    - ATTESTATION_TEST
+    - RISK_POLICY_TEST
+    - APPEAL_PATH_TEST
+- requirement_id: APGIC-MOBILE-025
+  title: Mobile observability and performance SLO gate
+  statement: Crash/ANR/startup/push/deep-link/checkout/realtime/reconnect/resource metrics have versioned SLO/rollout guardrails
+    without sensitive-content telemetry.
+  owner_domain: SRE
+  source_sections:
+  - 315
+  - 329
+  release_profile: R0
+  risk: HIGH
+  priority: P0
+  status: IN_PROGRESS
+  dependencies:
+  - APGIC-CONFIG-005
+  - APGIC-MOBILE-012
+  implementation_refs:
+  - config/mobile/r0-ci-observability.yaml
+  - packages/contracts/src/mobile-observability.ts
+  - tools/mobile_observability_guard.py
+  contract_refs:
+  - packages/contracts/src/mobile-observability.ts
+  test_refs:
+  - tools/mobile_observability_guard.py
+  - .github/workflows/ci.yml
+  evidence_refs: []
+  acceptance:
+    given: candidate enters staged rollout
+    when: mobile telemetry is evaluated
+    then: guardrail breach halts/limits rollout and logs decision; logs contain no prohibited raw content/tokens
+    required_evidence:
+    - MOBILE_SLO_CONFIG
+    - DASHBOARD_EVIDENCE
+    - PERFORMANCE_TEST
+- requirement_id: APGIC-MOBILE-026
+  title: Privacy-preserving Diagnostics Center
+  statement: User/support can run diagnostics for network, push, permissions, realtime and version state; export is explicit,
+    redacted and expiring.
+  owner_domain: MOBILE
+  source_sections:
+  - 329
+  release_profile: R3
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-MOBILE-009
+  - APGIC-MOBILE-025
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: user reports mobile issue
+    when: Diagnostics Center runs and optionally exports bundle
+    then: bundle identifies relevant technical state without tokens/payment secrets/raw consultation/avatar content
+    required_evidence:
+    - DIAGNOSTICS_E2E
+    - REDACTION_TEST
+- requirement_id: APGIC-MOBILE-027
+  title: Remote config, compatibility window and emergency kill switches
+  statement: Remote config is signed/versioned, has last-known-safe behavior, and can gate capabilities without owning financial/qualification
+    truth.
+  owner_domain: SRE
+  source_sections:
+  - 322
+  - 330
+  release_profile: R0
+  risk: HIGH
+  priority: P0
+  status: IN_PROGRESS
+  dependencies:
+  - APGIC-MOBILE-013
+  implementation_refs:
+  - backend/internal/remoteconfig/config.go
+  - packages/contracts/src/mobile-policy.ts
+  contract_refs:
+  - contracts/jsonschema/mobile-policy-v1.schema.json
+  test_refs:
+  - backend/internal/remoteconfig/config_test.go
+  - .github/workflows/ci.yml
+  evidence_refs: []
+  acceptance:
+    given: installed versions span compatibility window
+    when: config/backend changes or incident occurs
+    then: supported clients degrade/disable safely; no remote-only decision grants money/entitlement/qualification
+    required_evidence:
+    - REMOTE_CONFIG_TEST
+    - COMPATIBILITY_TEST
+    - KILL_SWITCH_DRILL
+- requirement_id: APGIC-MOBILE-028
+  title: One app multi-role workspace topology
+  statement: Launch uses one iOS/Android app and one Identity with authorization-safe role/workspace switching; future split
+    apps require RFC and share same backend truth.
+  owner_domain: IDENTITY
+  source_sections:
+  - 4
+  - 298
+  - 331
+  release_profile: R1
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-ID-001
+  - APGIC-MOBILE-001
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: user has multiple profiles/memberships
+    when: user switches workspace or opens scoped link/push
+    then: only authorized workspace data/actions appear; no duplicate account/domain truth is created
+    required_evidence:
+    - ROLE_SWITCH_E2E
+    - TENANT_ISOLATION_TEST
+    - DEEP_LINK_SCOPE_TEST
+- requirement_id: APGIC-MOBILE-029
+  title: Native accessibility and MobileSupportPolicy
+  statement: VoiceOver/TalkBack/text scaling/reduced motion/focus/touch targets and supported OS/device policy are tested
+    launch requirements.
+  owner_domain: ACCESSIBILITY
+  source_sections:
+  - 303
+  - 318
+  - 332
+  release_profile: R1
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-MOBILE-004
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: critical screen/journey exists
+    when: tested with native accessibility and support matrix
+    then: critical content/actions remain perceivable/operable and unsupported OS path is governed
+    required_evidence:
+    - IOS_A11Y_TEST
+    - ANDROID_A11Y_TEST
+    - DEVICE_MATRIX_EVIDENCE
+- requirement_id: APGIC-MOBILE-030
+  title: Store production release Definition of Done
+  statement: Public store rollout requires architecture, commerce, deletion/privacy, dependency, integrity, observability,
+    compatibility, accessibility and store-review evidence in addition to signed builds.
+  owner_domain: MOBILE
+  source_sections:
+  - 323
+  - 333
+  release_profile: R4
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-MOBILE-015
+  - APGIC-MOBILE-016
+  - APGIC-MOBILE-017
+  - APGIC-MOBILE-018
+  - APGIC-MOBILE-019
+  - APGIC-MOBILE-020
+  - APGIC-MOBILE-022
+  - APGIC-MOBILE-023
+  - APGIC-MOBILE-025
+  - APGIC-MOBILE-027
+  - APGIC-MOBILE-029
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: native candidate готов к public rollout
+    when: store production gate оценивается
+    then: все обязательные evidence present; missing commerce/deletion/privacy/signing/SLO/compatibility evidence блокирует
+      RELEASED
+    required_evidence:
+    - STORE_RELEASE_EVIDENCE
+    - MOBILE_E2E
+    - PREPROD_PREFLIGHT
+    - STAGED_ROLLOUT_PROOF
+- requirement_id: APGIC-PAY-003
+  title: Multiple active PaymentProvider instances
+  statement: APGIC supports multiple PaymentProvider instances active simultaneously without changing canonical Commerce/Ledger
+    models.
+  owner_domain: PAYMENTS
+  source_sections:
+  - 87
+  - 334
+  release_profile: R2
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-PAY-001
+  - APGIC-CONFIG-007
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: two certified provider instances are configured
+    when: both are activated for overlapping or distinct scopes
+    then: both remain independently routable and historical payment/ledger truth is unchanged
+    required_evidence:
+    - MULTI_PROVIDER_E2E
+    - CONNECTOR_CONFORMANCE
+    - LEDGER_ASSERTION
+- requirement_id: APGIC-PAY-004
+  title: Separate provider method and rail taxonomy
+  statement: PaymentProvider, PaymentMethod and PaymentRail are separate typed/versioned fields in contracts, storage and
+    analytics.
+  owner_domain: PAYMENTS
+  source_sections:
+  - 335
+  release_profile: R0
+  risk: HIGH
+  priority: P0
+  status: IN_PROGRESS
+  dependencies:
+  - APGIC-PAY-001
+  implementation_refs:
+  - backend/internal/payments/taxonomy.go
+  - contracts/openapi/apgic-v1.yaml
+  contract_refs:
+  - contracts/openapi/apgic-v1.yaml
+  test_refs:
+  - backend/internal/payments/taxonomy_test.go
+  evidence_refs: []
+  acceptance:
+    given: payment contracts are generated
+    when: provider/method/rail values are created or processed
+    then: no mixed payment_type field can represent bank + method + rail semantics
+    required_evidence:
+    - SCHEMA_CONTRACT_TEST
+    - ENUM_REASON_TEST
+    - ARCHITECTURE_GATE
+- requirement_id: APGIC-PAY-005
+  title: Payment connector manifest and certification
+  statement: Every payment provider exposes a versioned manifest and passes credential/webhook/idempotency/payment/refund/status/reconciliation
+    conformance before ACTIVE.
+  owner_domain: CONNECTORS
+  source_sections:
+  - 336
+  release_profile: R2
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-PAY-001
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: new provider is selected for onboarding
+    when: credentials and capabilities are configured
+    then: ACTIVE is impossible until declared capabilities have certification evidence
+    required_evidence:
+    - PAYMENT_CONNECTOR_MANIFEST
+    - SANDBOX_PAYMENT_E2E
+    - WEBHOOK_SIGNATURE_TEST
+    - RECONCILIATION_TEST
+- requirement_id: APGIC-PAY-006
+  title: Super Admin payment provider control plane
+  statement: Authorized Super Admin can connect, test, activate, prioritize, scope, pause, rotate and disable payment providers
+    without core code change/deploy.
+  owner_domain: ADMIN
+  source_sections:
+  - 90
+  - 337
+  release_profile: R2
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-PAY-005
+  - APGIC-AUTH-002
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: certified provider is available
+    when: super admin changes provider status/priority/scope
+    then: routing configuration changes via audited versioned control plane; secrets remain protected
+    required_evidence:
+    - ADMIN_PAYMENT_UI_E2E
+    - STEP_UP_TEST
+    - AUDIT_ASSERTION
+- requirement_id: APGIC-PAY-007
+  title: User selectable payment method catalog
+  statement: Checkout presents all and only eligible PaymentMethods for the current transaction and allows user choice where
+    more than one exists.
+  owner_domain: COMMERCE
+  source_sections:
+  - 338
+  release_profile: R2
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-PAY-003
+  - APGIC-PAY-004
+  - APGIC-MOBILE-017
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: transaction has multiple eligible methods
+    when: user opens checkout and selects a method
+    then: UI exposes valid methods only and confirmed economic terms remain immutable through routing
+    required_evidence:
+    - CHECKOUT_METHOD_E2E
+    - NEGATIVE_ELIGIBILITY_TEST
+    - PRICE_SNAPSHOT_ASSERTION
+- requirement_id: APGIC-PAY-008
+  title: Deterministic versioned payment routing policy
+  statement: Server selects provider using versioned deterministic eligibility/routing policy with reproducible evidence and
+    hard gates above cost optimization.
+  owner_domain: PAYMENTS
+  source_sections:
+  - 339
+  release_profile: R2
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-PAY-003
+  - APGIC-PAY-007
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: multiple providers can execute selected method
+    when: payment attempt is created
+    then: one eligible provider is selected with policy version/candidate exclusions/health snapshot recorded
+    required_evidence:
+    - ROUTING_POLICY_TEST
+    - DECISION_REPLAY_TEST
+    - POLICY_VERSION_ASSERTION
+- requirement_id: APGIC-PAY-009
+  title: Safe fallback and ambiguous outcome protection
+  statement: Provider failure/timeout never causes blind cross-provider retry; fallback occurs only before irreversible send
+    or after proven safe-to-retry outcome.
+  owner_domain: PAYMENTS
+  source_sections:
+  - 340
+  release_profile: R2
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-PAY-002
+  - APGIC-PAY-008
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: primary provider times out or degrades
+    when: orchestrator evaluates fallback/retry
+    then: unsafe duplicate attempt is blocked until terminal failure/reconciliation; no double ledger effect occurs
+    required_evidence:
+    - TIMEOUT_CHAOS_TEST
+    - AMBIGUOUS_OUTCOME_TEST
+    - DOUBLE_CHARGE_NEGATIVE_TEST
+    - RECONCILIATION_PROOF
+- requirement_id: APGIC-PAY-010
+  title: Historical provider affinity for transaction lifecycle
+  statement: Refund/cancel/status/reconciliation for an authorized/captured transaction remain bound to original provider
+    instance even after routing priority changes.
+  owner_domain: PAYMENTS
+  source_sections:
+  - 340
+  release_profile: R4
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-PAY-009
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: transaction was captured by provider A
+    when: admin changes primary provider to B and refund/status is requested
+    then: operation uses provider A reference and ledger remains auditable
+    required_evidence:
+    - PROVIDER_AFFINITY_TEST
+    - REFUND_E2E
+    - STATUS_RECONCILIATION_TEST
+- requirement_id: APGIC-PAY-011
+  title: Provider-executed settlement/payout boundary
+  statement: Payment/split/refund/settlement/payout являются внешними provider capabilities. APGIC типизирует и оркестрирует
+    их, но не исполняет денежные переводы и не служит cross-provider custodial bridge.
+  owner_domain: FINANCE
+  source_sections:
+  - 341
+  release_profile: R4
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-PAYOUT-001
+  - APGIC-PAY-003
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: transaction требует marketplace split/settlement/payout
+    when: выбран provider execution chain
+    then: вся денежная цепочка исполняется provider-ом; если capability отсутствует, provider неeligible. APGIC-held intermediary
+      balance не создаётся
+    required_evidence:
+    - PROVIDER_EXECUTION_E2E
+    - NO_CUSTODIAL_BALANCE_ASSERTION
+    - LEDGER_RECONCILIATION
+- requirement_id: APGIC-PAY-012
+  title: Jurisdiction currency and international provider eligibility
+  statement: Provider eligibility is fail-closed across jurisdiction/currency/product/store/legal and provider-reported merchant/beneficiary
+    eligibility constraints; APGIC supports multiple countries/providers without implementing its own banking KYC/AML/FX engine.
+  owner_domain: LEGAL_COMMERCE
+  source_sections:
+  - 315
+  - 342
+  release_profile: R2
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-CONFIG-001
+  - APGIC-PAY-005
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: international provider or currency is configured
+    when: transaction is evaluated in a jurisdiction/product scope
+    then: only explicitly eligible provider/currency/method combinations can proceed; unknown combination returns versioned
+      reason
+    required_evidence:
+    - JURISDICTION_MATRIX_TEST
+    - MULTICURRENCY_E2E
+    - FAIL_CLOSED_TEST
+- requirement_id: APGIC-PAY-013
+  title: Provider health economics and routing observability
+  statement: APGIC observes provider health, conversion, latency, provider-reported fees and reconciliation evidence for routing/governance;
+    it does not build its own acquiring, antifraud, FX or payout processor.
+  owner_domain: SRE_FINANCE
+  source_sections:
+  - 343
+  release_profile: R2
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-PAY-008
+  - APGIC-CONFIG-005
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: providers receive production/sandbox traffic
+    when: health and economics are calculated
+    then: admin sees canonical status/metrics and guardrail breach can stop new attempts without corrupting in-flight reconciliation
+    required_evidence:
+    - PAYMENT_PROVIDER_DASHBOARD
+    - HEALTH_STATE_TEST
+    - ROUTING_GUARDRAIL_TEST
+- requirement_id: APGIC-PAY-014
+  title: Versioned audited routing and provider configuration changes
+  statement: Payment provider activation/priority/scope/weights/credential status changes are versioned, audited and safely
+    effective-dated.
+  owner_domain: GOVERNANCE
+  source_sections:
+  - 337
+  - 339
+  - 343
+  release_profile: R2
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-PAY-006
+  - APGIC-PAY-008
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: payment routing configuration is changed
+    when: new configuration is approved/applied
+    then: old/new snapshots, actor, reason, version and effective time are preserved and rollback does not rewrite history
+    required_evidence:
+    - CONFIG_AUDIT_TEST
+    - EFFECTIVE_DATE_TEST
+    - ROLLBACK_TEST
+- requirement_id: APGIC-PAY-015
+  title: Non-custodial multi-provider payment production Definition of Done
+  statement: Multi-provider release requires control-plane, user-choice, routing, safe fallback, original-provider affinity,
+    provider-executed split/refund/settlement/payout and non-custodial proof.
+  owner_domain: PAYMENTS
+  source_sections:
+  - 344
+  release_profile: R4
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-PAY-003
+  - APGIC-PAY-005
+  - APGIC-PAY-006
+  - APGIC-PAY-007
+  - APGIC-PAY-008
+  - APGIC-PAY-009
+  - APGIC-PAY-010
+  - APGIC-PAY-011
+  - APGIC-PAY-012
+  - APGIC-PAY-013
+  - APGIC-PAY-014
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: candidate is proposed as multi-provider production ready
+    when: release gate runs
+    then: missing provider/routing/fallback/affinity/provider-executed money-flow/reconciliation/non-custodial evidence blocks
+      RELEASED
+    required_evidence:
+    - TWO_PROVIDER_CERTIFICATION
+    - MULTI_PROVIDER_CHECKOUT_E2E
+    - FAILOVER_CHAOS_PROOF
+    - PROVIDER_EXECUTED_SPLIT_PAYOUT_PROOF
+    - NO_APGIC_CUSTODY_PROOF
+    - LEDGER_RECONCILIATION
+    - ADMIN_AUDIT_EVIDENCE
+- requirement_id: APGIC-PAY-016
+  title: No APGIC custody of user/specialist funds
+  statement: APGIC never receives, stores or transfers client/specialist/organization funds through its own custodial balance.
+    Money execution remains with bank/PSP/store/regulated provider.
+  owner_domain: PAYMENTS
+  source_sections:
+  - 85
+  - 87
+  - 345
+  release_profile: R2
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-PAY-001
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: any paid flow is executed
+    when: architecture/runtime path is inspected
+    then: payer funds go directly to external provider and then to permitted recipients; no APGIC-held user/specialist monetary
+      balance exists
+    required_evidence:
+    - ARCHITECTURE_GATE
+    - PAYMENT_E2E
+    - NO_CUSTODIAL_BALANCE_ASSERTION
+- requirement_id: APGIC-PAY-017
+  title: Provider-owned regulated/payment infrastructure
+  statement: Acquiring/card processing, tokenization/PCI, 3DS, bank antifraud, KYC/KYB/AML, FX, fiscalization, chargeback
+    execution and payout rails are delegated to external provider capabilities where supported and are not reimplemented in
+    APGIC Core.
+  owner_domain: CONNECTORS
+  source_sections:
+  - 336
+  - 342
+  - 345
+  release_profile: R2
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-PAY-005
+  - APGIC-PAY-016
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: provider declares a regulated/payment capability
+    when: APGIC uses that capability
+    then: core sends scoped instruction/receives normalized evidence; no duplicate in-house processor is introduced
+    required_evidence:
+    - ARCHITECTURE_IMPORT_GATE
+    - CONNECTOR_CONFORMANCE
+    - THREAT_MODEL
+- requirement_id: APGIC-PAY-018
+  title: No APGIC cross-provider money bridge
+  statement: APGIC does not move funds from Provider A to Provider B. In-flight/captured/refund/split/payout lifecycle keeps
+    original provider affinity unless providers themselves execute an explicitly permitted provider-to-provider flow with
+    zero APGIC custody.
+  owner_domain: PAYMENTS
+  source_sections:
+  - 340
+  - 341
+  - 345
+  release_profile: R4
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-PAY-010
+  - APGIC-PAY-016
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: admin changes primary provider after a transaction started
+    when: refund/split/payout/reconciliation occurs
+    then: original provider chain is used; APGIC never receives funds for re-forwarding
+    required_evidence:
+    - PROVIDER_AFFINITY_TEST
+    - NO_CROSS_PROVIDER_CUSTODY_TEST
+    - RECONCILIATION_PROOF
+- requirement_id: APGIC-PAY-019
+  title: Credits and budgets are non-cash entitlements
+  statement: APGIC Credits, Organization Budget and GrowthBudget are non-cash entitlement/budget units, not stored value.
+    No cash-out, user-to-user money transfer or APGIC-held monetary wallet is allowed without a separate regulated provider/legal
+    model.
+  owner_domain: COMMERCE
+  source_sections:
+  - 79
+  - 172
+  - 191
+  - 265
+  - 271
+  - 345
+  release_profile: R2
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-PAY-016
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: Credits/Budget units exist
+    when: user/organization attempts to withdraw or transfer them as money
+    then: operation is impossible under baseline canon; units only authorize/entitle approved purchases/spend
+    required_evidence:
+    - SCHEMA_CONTRACT_TEST
+    - NEGATIVE_CASHOUT_TEST
+    - COMMERCE_E2E
+- requirement_id: APGIC-PAY-020
+  title: Provider-executed marketplace split and platform commission
+  statement: APGIC may calculate contractual allocation/commission snapshot and send it to a certified provider, but provider
+    receives payer funds and directly settles beneficiaries/platform fee according to its marketplace/split capability.
+  owner_domain: FINANCE
+  source_sections:
+  - 269
+  - 341
+  - 345
+  release_profile: R4
+  risk: HIGH
+  priority: P0
+  status: APPROVED
+  dependencies:
+  - APGIC-PAY-011
+  - APGIC-PAY-016
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
+  acceptance:
+    given: marketplace transaction completes
+    when: commission/split is released
+    then: provider transfers money directly to specialist/organization and APGIC fee recipient; APGIC only records allocation
+      and provider evidence
+    required_evidence:
+    - MARKETPLACE_SPLIT_E2E
+    - PROVIDER_PAYOUT_EVIDENCE
+    - NON_CUSTODIAL_LEDGER_RECONCILIATION
+canon_coverage_summary:
+  sections_expected: 345
+  sections_found: 345
+  linked_to_explicit_launch_or_guardrail_requirement: 145
+  remaining_section_owner_baseline: 200
+artifact_contract:
+  required_next_repo_paths:
+  - canon/requirements/registry.yaml
+  - canon/requirements/coverage.json
+  - canon/policies/
+  - canon/contracts/
+  - canon/evidence/
+  ci_rules:
+  - reject_duplicate_or_unknown_requirement_id
+  - reject_invalid_dependency
+  - reject_verified_or_released_critical_requirement_without_required_refs
+  - reject_provider_sdk_import_outside_connector_boundary
+  - reject_unsynchronized_canon_registry_coverage_change
+  - reject_web_only_launch_critical_requirement_without_native_consumer_evidence
+  - reject_generated_server_web_native_contract_incompatibility
+  - reject_native_release_without_signed_artifact_and_required_mobile_evidence
+  - reject_mobile_offer_without_store_commerce_decision_for_enabled_storefront
+  - reject_store_entitlement_without_server_verified_transaction_and_ledger_basis
+  - reject_public_mobile_release_without_account_deletion_paths_and_privacy_build_match
+  - reject_unregistered_native_sdk_or_dependency_privacy_mismatch
+  - reject_mobile_public_rollout_without_mobile_slo_compatibility_accessibility_and_store_release_evidence
+  - reject_mixed_payment_provider_method_rail_semantics_in_one_untyped_field
+  - reject_payment_provider_activation_without_manifest_conformance_and_reconciliation_evidence
+  - reject_cross_provider_retry_on_ambiguous_payment_outcome_without_safe_reconciliation
+  - reject_refund_status_reconciliation_without_original_provider_affinity
+  - reject_payment_routing_change_without_version_audit_and_effective_scope
+  - reject_payment_path_that_requires_apgic_to_receive_hold_or_forward_user_or_specialist_funds
+  - reject_internal_wallet_or_mutable_balance_used_as_custodial_payment_or_payout_source
+  - reject_cross_provider_money_bridge_through_apgic
+  - reject_reimplementation_of_provider_card_processing_kyc_aml_fx_fiscalization_or_payout_without_explicit_regulated_provider_requirement
+  - reject_multi_provider_release_without_provider_executed_split_refund_payout_and_non_custodial_reconciliation_evidence
+launch_configuration_v1:
+  missing_value_semantics: CONFIG_REQUIRED_FAIL_CLOSED
+  jurisdiction_legal_matrix:
+    status: CONFIG_REQUIRED
+    silent_defaults: false
+  pricing_commission:
+    status: CONFIG_REQUIRED
+    missing_rule: BLOCK_POLICY_NOT_CONFIGURED
+    silent_defaults: false
+  cancellation_no_show_refund:
+    status: CONFIG_REQUIRED
+    silent_defaults: false
+  retention_matrix:
+    status: CONFIG_REQUIRED
+    avatar_default: PRIVATE_EPHEMERAL
+    raw_avatar_without_targeted_consent_to_growth: false
+  slo_rpo_rto:
+    status: CONFIG_REQUIRED
+    release_blocking_for_critical_paths: true
+  market_cell_thresholds:
+    status: CONFIG_REQUIRED
+    missing_thresholds: NOT_SCALE_READY
+  provider_matrix:
+    status: CONFIG_REQUIRED
+    provider_neutral_core: true
+  preflight:
+    required: true
+    fail_on_active_config_required: true
+mobile_native_delivery_v1:
+  canonical_stack: TypeScript + React Native
+  surfaces:
+  - WEB
+  - PWA
+  - IOS
+  - ANDROID
+  parallel_release_profiles:
+  - R0
+  - R1
+  - R2
+  - R3
+  - R4
+  shared_by_default:
+  - generated_api_clients
+  - schemas_enums_reason_codes
+  - validation
+  - design_tokens
+  - localization
+  - analytics_event_schemas
+  - capability_registry
+  not_shared_as_truth:
+  - server_domain_logic
+  - authorization_policy
+  - booking_payment_ledger_state_machines
+  webview_for_critical_journeys: false
+  server_ack_required_for:
+  - payment_capture
+  - final_booking
+  - provider_payout_instruction_or_eligibility
+  - qualification_approval
+  - legal_acceptance
+  mobile_release_gate: true
+mobile_store_production_v1:
+  policy_checked_at: '2026-09-23'
+  store_policy_sources:
+  - provider: APPLE
+    name: App Review Guidelines
+    url: https://developer.apple.com/app-store/review/guidelines/
+  - provider: APPLE
+    name: Account deletion
+    url: https://developer.apple.com/support/offering-account-deletion-in-your-app
+  - provider: APPLE
+    name: Third-party SDK requirements
+    url: https://developer.apple.com/support/third-party-SDK-requirements/
+  - provider: APPLE
+    name: Privacy manifests
+    url: https://developer.apple.com/documentation/BundleResources/privacy-manifest-files
+  - provider: APPLE
+    name: App Attest
+    url: https://developer.apple.com/documentation/DeviceCheck/establishing-your-app-s-integrity
+  - provider: GOOGLE_PLAY
+    name: Payments policy
+    url: https://support.google.com/googleplay/android-developer/answer/10281818
+  - provider: GOOGLE_PLAY
+    name: Account deletion
+    url: https://support.google.com/googleplay/android-developer/answer/13327111
+  - provider: GOOGLE_PLAY
+    name: Billing API deprecations
+    url: https://developer.android.com/google/play/billing/play-developer-apis-deprecations
+  launch_app_topology: ONE_APP_ROLE_AWARE_WORKSPACES
+  store_commerce_decision_dimensions:
+  - product_type
+  - service_mode
+  - surface
+  - distribution_channel
+  - storefront
+  - jurisdiction
+  - policy_version
+  entitlement_source_of_truth: APGIC_SERVER_LEDGER_ENTITLEMENT
+  account_deletion_entrypoints:
+  - IN_APP
+  - WEB
+  store_policy_revalidation: BEFORE_MATERIAL_MONETIZATION_PRIVACY_DISTRIBUTION_CHANGE_AND_SCHEDULED
+  public_store_release_gate: true
+payment_provider_control_plane_v1:
+  multi_provider_active: true
+  money_execution_owner: EXTERNAL_REGULATED_PROVIDER
+  apgic_custody: FORBIDDEN
+  apgic_ledger_semantics: NON_CUSTODIAL_ACCOUNTING_AND_EVIDENCE
+  admin_surface: SUPER_ADMIN_PAYMENT_PROVIDER_CONTROL_PLANE
+  taxonomy:
+  - PAYMENT_PROVIDER
+  - PAYMENT_METHOD
+  - PAYMENT_RAIL
+  provider_capability_roles:
+  - CUSTOMER_PAYMENT_EXECUTION
+  - STORE_BILLING
+  - MARKETPLACE_SPLIT
+  - SAFE_DEAL_HOLD
+  - REFUND_EXECUTION
+  - SETTLEMENT_EXECUTION
+  - PAYOUT_EXECUTION
+  - FX_EXECUTION
+  - FISCALIZATION
+  - KYC_KYB_COMPLIANCE
+  - ANTIFRAUD
+  routing_roles:
+  - PRIMARY
+  - SECONDARY
+  - FALLBACK
+  - DISABLED
+  routing_dimensions:
+  - jurisdiction
+  - currency
+  - product_type
+  - service_mode
+  - surface
+  - storefront
+  - payment_method
+  - payment_rail
+  - merchant_legal_entity
+  - provider_capabilities
+  - provider_health
+  - limits
+  - fees
+  - success_rate
+  - latency
+  - priority
+  - cooldown
+  ambiguous_outcome_policy: RECONCILE_BEFORE_NEW_ECONOMIC_ATTEMPT
+  transaction_execution_affinity: SAME_ORIGINAL_PROVIDER_CHAIN_BY_DEFAULT
+  cross_provider_money_bridge: FORBIDDEN_UNLESS_PROVIDER_TO_PROVIDER_AND_ZERO_APGIC_CUSTODY
+  historical_provider_affinity: true
+  stored_value_wallets_in_apgic: FORBIDDEN
+  raw_card_data_or_card_vault_in_apgic_core: FORBIDDEN
+  credits_and_budgets: NON_CASH_ENTITLEMENT_OR_AUTHORIZATION_ONLY
+  regulated_capabilities_default: DELEGATE_TO_PROVIDER
+  unknown_scope: FAIL_CLOSED_CONFIG_REQUIRED
+  user_choice: SHOW_ELIGIBLE_PAYMENT_METHODS_NOT_INTERNAL_PROVIDER_TOPOLOGY_BY_DEFAULT

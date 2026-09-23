@@ -1,0 +1,19 @@
+{
+  "name": "@apgic/mobile",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "start": "react-native start",
+    "test": "node --test src/*.test.ts"
+  },
+  "dependencies": {
+    "react": "19.3.0",
+    "react-native": "0.87.1"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "typescript": "^5.9.0",
+    "@types/node": "^24.0.0"
+  },
+  "type": "module"
+}

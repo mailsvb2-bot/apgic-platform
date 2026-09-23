@@ -1,0 +1,203 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+
+import yaml
+
+ROOT = Path(__file__).resolve().parents[1]
+
+POLICIES = {
+    "jurisdiction": ("jurisdiction_matrix_version", "jurisdiction_matrix_path"),
+    "retention": ("retention_policy_version", "retention_policy_path"),
+    "slo": ("slo_policy_version", "slo_policy_path"),
+    "providers": ("provider_matrix_version", "provider_matrix_path"),
+}
+
+def fail(message: str) -> None:
+    print(f"LAUNCH CONFIG PRECHECK: FAIL: {message}", file=sys.stderr)
+    raise SystemExit(1)
+
+def contains_config_required(value: object) -> bool:
+    if isinstance(value, str):
+        return value.strip() == "CONFIG_REQUIRED"
+    if isinstance(value, dict):
+        return any(contains_config_required(item) for item in value.values())
+    if isinstance(value, list):
+        return any(contains_config_required(item) for item in value)
+    return False
+
+def positive_number(value: object, allow_zero: bool = False) -> bool:
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return False
+    return value >= 0 if allow_zero else value > 0
+
+def load_repo_yaml(raw_path: object, label: str) -> tuple[Path, dict]:
+    if not isinstance(raw_path, str) or not raw_path.strip():
+        fail(f"{label} path is required")
+    path = (ROOT / raw_path).resolve()
+    if ROOT not in path.parents or not path.is_file():
+        fail(f"{label} path is missing or outside repository")
+    doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    if not isinstance(doc, dict):
+        fail(f"{label} policy must be a mapping")
+    if contains_config_required(doc):
+        fail(f"{label} policy contains CONFIG_REQUIRED")
+    return path, doc
+
+def validate_scope(policy: dict, mode: str, label: str) -> None:
+    if mode == "production":
+        if policy.get("production_approved") is not True:
+            fail(f"{label} policy is not production-approved")
+        if policy.get("scope") != "PRODUCTION":
+            fail(f"{label} policy must have scope=PRODUCTION")
+    else:
+        if policy.get("scope") != "CI_ONLY":
+            fail(f"{label} policy must have scope=CI_ONLY in CI mode")
+
+def validate_jurisdiction(policy: dict) -> None:
+    if policy.get("unknown_combination") != "BLOCK":
+        fail("jurisdiction unknown_combination must be BLOCK")
+    rows = policy.get("jurisdictions")
+    if not isinstance(rows, list) or not rows:
+        fail("jurisdiction matrix must contain at least one row")
+    required_roles = {
+        "seller_or_service_provider",
+        "commercial_owner",
+        "payment_recipient",
+        "fiscal_responsibility",
+        "refund_responsibility",
+        "payout_beneficiary",
+    }
+    for row in rows:
+        if not isinstance(row, dict) or not row.get("code"):
+            fail("jurisdiction row requires code")
+        if row.get("enabled") is not True:
+            continue
+        if not row.get("product_types") or not row.get("currencies"):
+            fail(f"{row.get('code')}: enabled jurisdiction requires product_types and currencies")
+        roles = row.get("legal_financial_roles") or {}
+        missing = sorted(required_roles - set(roles))
+        if missing:
+            fail(f"{row.get('code')}: missing legal/financial roles {missing}")
+
+def validate_retention(policy: dict) -> None:
+    rows = policy.get("data_classes")
+    if not isinstance(rows, dict) or not rows:
+        fail("retention matrix must contain data_classes")
+    required_classes = {
+        "PUBLIC", "INTERNAL", "SENSITIVE", "RAW_CONSULTATION",
+        "RAW_PERSONA", "FINANCIAL_EVIDENCE", "CREDENTIAL",
+    }
+    missing = sorted(required_classes - set(rows))
+    if missing:
+        fail(f"retention matrix missing DataClass entries: {missing}")
+    for name, row in rows.items():
+        if not isinstance(row, dict):
+            fail(f"{name}: retention row must be mapping")
+        if not positive_number(row.get("retention_seconds"), allow_zero=True):
+            fail(f"{name}: invalid retention_seconds")
+        if not row.get("deletion") or not row.get("legal_hold"):
+            fail(f"{name}: deletion/legal_hold rules are required")
+
+def validate_slo(policy: dict) -> None:
+    paths = policy.get("critical_paths")
+    if not isinstance(paths, list) or not paths:
+        fail("critical_paths must be non-empty")
+    for item in paths:
+        if not isinstance(item, dict) or not item.get("id"):
+            fail("critical path entry requires id")
+        availability = item.get("availability_target_percent")
+        if not positive_number(availability) or availability > 100:
+            fail(f"{item.get('id')}: invalid availability target")
+        if "latency_p95_ms" in item and not positive_number(item.get("latency_p95_ms")):
+            fail(f"{item.get('id')}: invalid latency_p95_ms")
+        if "rpo_seconds" in item and not positive_number(item.get("rpo_seconds"), allow_zero=True):
+            fail(f"{item.get('id')}: invalid rpo_seconds")
+        if "rto_seconds" in item and not positive_number(item.get("rto_seconds")):
+            fail(f"{item.get('id')}: invalid rto_seconds")
+
+def validate_providers(policy: dict) -> None:
+    capabilities = policy.get("capabilities")
+    providers = policy.get("providers")
+    if not isinstance(capabilities, dict) or not capabilities:
+        fail("provider matrix requires capabilities")
+    if not isinstance(providers, dict) or not providers:
+        fail("provider matrix requires providers")
+    for capability, row in capabilities.items():
+        if not isinstance(row, dict):
+            fail(f"{capability}: capability row must be mapping")
+        if row.get("enabled") is not True:
+            continue
+        primary = row.get("primary_provider")
+        fallback = row.get("fallback_providers")
+        if not primary or primary not in providers:
+            fail(f"{capability}: primary provider missing from provider registry")
+        if not isinstance(fallback, list):
+            fail(f"{capability}: fallback_providers must be a list")
+        for provider in fallback:
+            if provider not in providers:
+                fail(f"{capability}: fallback provider {provider} is unknown")
+        for field in (
+            "degraded_behavior",
+            "certification_status",
+            "exit_semantics",
+            "provider_neutral_contract",
+        ):
+            if field not in row:
+                fail(f"{capability}: missing {field}")
+        if row.get("provider_neutral_contract") is not True:
+            fail(f"{capability}: canonical contract must remain provider-neutral")
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("config")
+    parser.add_argument("--mode", choices=("ci", "production"), required=True)
+    args = parser.parse_args()
+
+    config_path = (ROOT / args.config).resolve()
+    if ROOT not in config_path.parents or not config_path.is_file():
+        fail("config path missing or outside repository")
+
+    config = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+    if contains_config_required(config):
+        fail("active config contains CONFIG_REQUIRED")
+
+    if args.mode == "production":
+        if config.get("environment") != "PRODUCTION":
+            fail("production preflight requires environment=PRODUCTION")
+        if config.get("production_approved") is not True:
+            fail("production config is not approved")
+    else:
+        if config.get("environment") != "CI":
+            fail("CI preflight requires environment=CI")
+
+    loaded: dict[str, tuple[Path, dict]] = {}
+    for label, (version_field, path_field) in POLICIES.items():
+        version = config.get(version_field)
+        if not isinstance(version, str) or not version.strip():
+            fail(f"missing explicit version: {version_field}")
+        path, policy = load_repo_yaml(config.get(path_field), label)
+        if policy.get("version", policy.get("policy_version")) != version:
+            fail(f"{label} policy version mismatch")
+        validate_scope(policy, args.mode, label)
+        loaded[label] = (path, policy)
+
+    validate_jurisdiction(loaded["jurisdiction"][1])
+    validate_retention(loaded["retention"][1])
+    validate_slo(loaded["slo"][1])
+    validate_providers(loaded["providers"][1])
+
+    refs = ", ".join(
+        f"{label}={path.relative_to(ROOT)}"
+        for label, (path, _) in loaded.items()
+    )
+    print(
+        "LAUNCH CONFIG PRECHECK: PASS "
+        f"(mode={args.mode}, config={config_path.relative_to(ROOT)}, {refs})"
+    )
+
+if __name__ == "__main__":
+    main()

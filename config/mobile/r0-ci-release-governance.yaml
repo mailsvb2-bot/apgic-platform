@@ -1,0 +1,26 @@
+version: mobile-release-ci-v1
+scope: CI_ONLY
+production_approved: false
+organization:
+  organization_id: CI_APGIC_ORG
+  organization_owned: true
+  personal_owner_allowed: false
+applications:
+  ios:
+    bundle_id: com.apgic.ci
+    team_id: CI_TEAM
+    store_account_id: CI_APP_STORE_ACCOUNT
+    signing_identity_ref: ci://ios-signing-identity
+  android:
+    application_id: com.apgic.ci
+    developer_account_id: CI_PLAY_ACCOUNT
+    signing_identity_ref: ci://android-signing-identity
+required_evidence:
+  - IOS_BUILD_PROOF
+  - ANDROID_BUILD_PROOF
+  - SECRET_SCAN
+  - STORE_ACCOUNT_EVIDENCE
+  - SIGNING_AUDIT
+  - RELEASE_EVIDENCE
+notes:
+  - "Synthetic CI-only ownership/signing references. Not valid for production publication."

@@ -1,0 +1,11 @@
+version: 1
+environment: CI
+production_approved: false
+jurisdiction_matrix_version: jurisdiction-ci-v1
+jurisdiction_matrix_path: config/jurisdiction/r0-ci-matrix.yaml
+retention_policy_version: retention-ci-v1
+retention_policy_path: config/retention/r0-ci-matrix.yaml
+slo_policy_version: slo-r0-ci-v1
+slo_policy_path: config/slo/r0-ci-policy.yaml
+provider_matrix_version: providers-ci-v1
+provider_matrix_path: config/providers/r0-ci-matrix.yaml

@@ -1,0 +1,202 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  canon:
+    name: Canon / architecture conformance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: python -m pip install -r requirements-dev.txt
+      - run: python tools/canon_lint.py
+      - run: python tools/architecture_guard.py
+      - run: python tools/mobile_dependency_guard.py
+      - run: python tools/mobile_privacy_guard.py
+      - run: python tools/terminology_guard.py
+      - run: python tools/launch_config_guard.py config/launch.ci.yaml --mode ci
+      - run: python tools/mobile_release_guard.py config/mobile/r0-ci-release-governance.yaml --mode ci
+      - run: python tools/mobile_observability_guard.py config/mobile/r0-ci-observability.yaml --mode ci
+      - shell: bash
+        run: |
+          if python tools/launch_config_guard.py config/launch.example.yaml --mode production; then
+            echo "production placeholder config unexpectedly passed" >&2
+            exit 1
+          fi
+          echo "fail-closed production preflight proof: PASS"
+          if python tools/mobile_release_guard.py config/mobile/release-governance.example.yaml --mode production; then
+            echo "production mobile release placeholder unexpectedly passed" >&2
+            exit 1
+          fi
+          echo "fail-closed production mobile release proof: PASS"
+
+  backend:
+    name: Go format / vet / race tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.1'
+          cache-dependency-path: backend/go.mod
+      - working-directory: backend
+        shell: bash
+        run: |
+          test -z "$(gofmt -l .)"
+          go vet ./...
+          go test -race ./...
+
+  postgres-invariants:
+    name: PostgreSQL migration / invariant proof
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: apgic
+          POSTGRES_PASSWORD: apgic
+          POSTGRES_DB: apgic_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U apgic -d apgic_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGPASSWORD: apgic
+    steps:
+      - uses: actions/checkout@v4
+      - shell: bash
+        run: |
+          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000001_r0_foundation.sql
+          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000002_legal_acceptance_mobile_installation.sql
+          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000003_r0_semantic_invariants.sql
+          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_invariants.sql
+
+  restore-drill:
+    name: PostgreSQL isolated restore drill
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: apgic
+          POSTGRES_PASSWORD: apgic
+          POSTGRES_DB: apgic_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U apgic -d apgic_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGUSER: apgic
+      PGPASSWORD: apgic
+      PGDATABASE: apgic_ci
+      APGIC_CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - shell: bash
+        run: |
+          psql -v ON_ERROR_STOP=1 -f backend/migrations/000001_r0_foundation.sql
+          psql -v ON_ERROR_STOP=1 -f backend/migrations/000002_legal_acceptance_mobile_installation.sql
+          psql -v ON_ERROR_STOP=1 -f backend/migrations/000003_r0_semantic_invariants.sql
+          bash backend/ci/restore_drill.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: r0-restore-drill-evidence
+          path: evidence/restore-drill.json
+          if-no-files-found: error
+          retention-days: 30
+
+  web-build:
+    name: Web / Next.js production build
+    runs-on: ubuntu-latest
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - working-directory: apps/web
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - working-directory: apps/web
+        run: npx playwright install --with-deps chromium
+      - working-directory: apps/web
+        run: npm run build
+      - run: git diff --exit-code -- apps/web/tsconfig.json
+      - working-directory: apps/web
+        run: npm run test:e2e
+
+  mobile-typecheck:
+    name: Native / React Native typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - working-directory: apps/mobile
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - working-directory: apps/mobile
+        run: npx tsc --noEmit
+      - working-directory: apps/mobile
+        run: npm test
+
+  client-contract-presence:
+    name: Multi-surface contract guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - shell: bash
+        run: |
+          test -f contracts/openapi/apgic-v1.yaml
+          test -f apps/web/package.json
+          test -f apps/mobile/package.json
+          test -f packages/contracts/src/index.ts
+          grep -q '"next": "16.3.6"' apps/web/package.json
+          grep -q '"react-native": "0.87.1"' apps/mobile/package.json
+
+  r0-gate:
+    name: R0 bootstrap gate
+    if: always()
+    needs: [canon, backend, postgres-invariants, restore-drill, web-build, mobile-typecheck, client-contract-presence]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - shell: bash
+        run: |
+          test "${{ needs.canon.result }}" = "success"
+          test "${{ needs.backend.result }}" = "success"
+          test "${{ needs.postgres-invariants.result }}" = "success"
+          test "${{ needs.restore-drill.result }}" = "success"
+          test "${{ needs.web-build.result }}" = "success"
+          test "${{ needs.mobile-typecheck.result }}" = "success"
+          test "${{ needs.client-contract-presence.result }}" = "success"
+      - shell: bash
+        run: |
+          python tools/release_evidence.py             --candidate-sha "${{ github.event.pull_request.head.sha || github.sha }}"             --output evidence/r0-release-evidence.json             --gate "canon=${{ needs.canon.result }}"             --gate "backend=${{ needs.backend.result }}"             --gate "postgres-invariants=${{ needs.postgres-invariants.result }}"             --gate "restore-drill=${{ needs.restore-drill.result }}"             --gate "web-build=${{ needs.web-build.result }}"             --gate "mobile-typecheck=${{ needs.mobile-typecheck.result }}"             --gate "client-contract-presence=${{ needs.client-contract-presence.result }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: r0-release-evidence
+          path: evidence/r0-release-evidence.json
+          if-no-files-found: error
+          retention-days: 30

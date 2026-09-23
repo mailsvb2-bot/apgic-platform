@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apgic.local/evidence/mobile-release-evidence-v1.schema.json",
+  "title": "APGIC Mobile Release Evidence v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "candidate_sha",
+    "production_release",
+    "organization_id",
+    "ios",
+    "android",
+    "secret_scan",
+    "store_account_evidence",
+    "signing_audit"
+  ],
+  "properties": {
+    "schema_version": { "const": "mobile-release-evidence-v1" },
+    "candidate_sha": { "type": "string", "minLength": 7 },
+    "production_release": { "type": "boolean" },
+    "organization_id": { "type": "string", "minLength": 1 },
+    "ios": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bundle_id", "team_id", "artifact_sha256", "signed"],
+      "properties": {
+        "bundle_id": { "type": "string", "minLength": 1 },
+        "team_id": { "type": "string", "minLength": 1 },
+        "artifact_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "signed": { "const": true }
+      }
+    },
+    "android": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["application_id", "developer_account_id", "artifact_sha256", "signed"],
+      "properties": {
+        "application_id": { "type": "string", "minLength": 1 },
+        "developer_account_id": { "type": "string", "minLength": 1 },
+        "artifact_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "signed": { "const": true }
+      }
+    },
+    "secret_scan": { "const": "PASS" },
+    "store_account_evidence": { "type": "string", "minLength": 1 },
+    "signing_audit": { "type": "string", "minLength": 1 }
+  }
+}

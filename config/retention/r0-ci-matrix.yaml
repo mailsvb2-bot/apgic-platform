@@ -1,0 +1,35 @@
+version: retention-ci-v1
+scope: CI_ONLY
+production_approved: false
+data_classes:
+  PUBLIC:
+    retention_seconds: 86400
+    deletion: DELETE_ON_POLICY_EXPIRY
+    legal_hold: ALLOWED
+  INTERNAL:
+    retention_seconds: 3600
+    deletion: DELETE_ON_POLICY_EXPIRY
+    legal_hold: ALLOWED
+  SENSITIVE:
+    retention_seconds: 900
+    deletion: DELETE_ON_POLICY_EXPIRY
+    legal_hold: REVIEW_REQUIRED
+  RAW_CONSULTATION:
+    retention_seconds: 0
+    deletion: NO_PERSISTENCE_BY_DEFAULT
+    legal_hold: FORBIDDEN_IN_CI
+  RAW_PERSONA:
+    retention_seconds: 0
+    deletion: NO_PERSISTENCE_BY_DEFAULT
+    legal_hold: FORBIDDEN_IN_CI
+  FINANCIAL_EVIDENCE:
+    retention_seconds: 3600
+    deletion: APPEND_ONLY_TEST_EVIDENCE
+    legal_hold: ALLOWED
+  CREDENTIAL:
+    retention_seconds: 0
+    deletion: SECURE_STORAGE_ONLY_NO_GENERAL_CACHE
+    legal_hold: FORBIDDEN_IN_CI
+notes:
+  - "Synthetic CI-only values used to prove fail-closed retention coverage."
+  - "Production retention periods require separately approved legal/data policy."
