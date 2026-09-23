@@ -6,4 +6,5 @@ exceptions:
     subject_requirement: APGIC-PAY-004
     dependency_requirement: APGIC-PAY-001
     observed: "APGIC-PAY-004 is R0 while APGIC-PAY-001 is R2"
-    treatment: "Do not rewrite canon. Track through Requirement Change/RFC; bootstrap only enforces the taxonomy invariant."\n    github_issue: 1
+    treatment: "Do not rewrite canon. Track through Requirement Change/RFC; bootstrap only enforces the taxonomy invariant."
+    github_issue: 1
