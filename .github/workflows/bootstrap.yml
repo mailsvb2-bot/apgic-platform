@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - feat/r0-foundation-bootstrap
+  pull_request:
+    branches:
+      - main
+    types: [opened, reopened, synchronize]
 
 permissions:
   contents: write
@@ -13,9 +17,10 @@ jobs:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout feature branch
         uses: actions/checkout@v4
         with:
+          ref: feat/r0-foundation-bootstrap
           fetch-depth: 0
 
       - name: Expand verified bootstrap archive
