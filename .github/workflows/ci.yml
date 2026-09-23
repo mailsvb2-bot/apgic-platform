@@ -187,7 +187,7 @@ jobs:
 
   r0-gate:
     name: R0 bootstrap gate
-    if: always()
+    if: ${{ always() && !cancelled() }}
     needs: [canon, backend, postgres-invariants, restore-drill, web-build, mobile-typecheck, client-contract-presence]
     runs-on: ubuntu-latest
     steps:
