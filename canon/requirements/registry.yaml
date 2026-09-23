@@ -527,11 +527,18 @@ requirements:
   release_profile: R0
   risk: HIGH
   priority: P1
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies: []
-  implementation_refs: []
-  contract_refs: []
-  test_refs: []
+  implementation_refs:
+  - config/slo/r0-ci-policy.yaml
+  - backend/internal/httpapi/handler.go
+  - tools/launch_config_guard.py
+  contract_refs:
+  - contracts/openapi/apgic-v1.yaml
+  test_refs:
+  - backend/internal/httpapi/handler_test.go
+  - tools/launch_config_guard.py
+  - .github/workflows/ci.yml
   evidence_refs: []
   acceptance:
     given: critical endpoint/job/provider path развёрнут
@@ -1689,9 +1696,16 @@ requirements:
   dependencies: []
   implementation_refs:
   - backend/internal/launchconfig/config.go
-  contract_refs: []
+  - config/slo/r0-ci-policy.yaml
+  - tools/launch_config_guard.py
+  - backend/ci/restore_drill.sh
+  contract_refs:
+  - contracts/openapi/apgic-v1.yaml
   test_refs:
   - backend/internal/launchconfig/config_test.go
+  - backend/internal/httpapi/handler_test.go
+  - tools/launch_config_guard.py
+  - .github/workflows/ci.yml
   evidence_refs: []
   acceptance:
     given: соответствующий capability включён в launch/release profile
@@ -1767,9 +1781,16 @@ requirements:
   dependencies: []
   implementation_refs:
   - backend/internal/launchconfig/config.go
-  contract_refs: []
+  - backend/internal/httpapi/handler.go
+  - tools/launch_config_guard.py
+  - .github/workflows/ci.yml
+  contract_refs:
+  - contracts/openapi/apgic-v1.yaml
   test_refs:
   - backend/internal/launchconfig/config_test.go
+  - backend/internal/httpapi/handler_test.go
+  - tools/launch_config_guard.py
+  - .github/workflows/ci.yml
   evidence_refs: []
   acceptance:
     given: соответствующий capability включён в launch/release profile
