@@ -10,6 +10,18 @@ paths:
       responses:
         '200':
           description: Service health
+  /readyz:
+    get:
+      operationId: readiness
+      responses:
+        '200':
+          description: Launch configuration is ready
+        '503':
+          description: Launch configuration is not ready and fails closed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
   /v1/meta:
     get:
       operationId: getMeta
@@ -52,6 +64,13 @@ components:
           type: array
           items: { type: string }
         documentation_ref: { type: string }
+    Status:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status: { type: string }
+        reason_code: { type: string }
     Meta:
       type: object
       required: [service, release_track, surfaces, time]
