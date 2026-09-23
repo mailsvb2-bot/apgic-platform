@@ -86,7 +86,7 @@ backup_ms=$((backup_finished_ms - backup_started_ms))
 cat >"$evidence_dir/restore-drill.json" <<JSON
 {
   "evidence_type": "CI_RESTORE_DRILL",
-  "candidate_sha": "${GITHUB_SHA:-unknown}",
+  "candidate_sha": "${APGIC_CANDIDATE_SHA:-${GITHUB_SHA:-unknown}}",
   "source_database": "$PGDATABASE",
   "target_database": "$RESTORE_DATABASE",
   "sentinel_created_at": "$sentinel_time",

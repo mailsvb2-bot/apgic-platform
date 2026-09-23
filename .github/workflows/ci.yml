@@ -110,6 +110,7 @@ jobs:
       PGUSER: apgic
       PGPASSWORD: apgic
       PGDATABASE: apgic_ci
+      APGIC_CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - uses: actions/checkout@v4
       - shell: bash
@@ -141,6 +142,7 @@ jobs:
         run: npx playwright install --with-deps chromium
       - working-directory: apps/web
         run: npm run build
+      - run: git diff --exit-code -- apps/web/tsconfig.json
       - working-directory: apps/web
         run: npm run test:e2e
 
