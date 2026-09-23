@@ -64,6 +64,15 @@ product_owner_trigger_count="$(
 outbox_delivery_constraint_count="$(
   psql --dbname="$RESTORE_DATABASE" -Atc     "SELECT count(*) FROM pg_constraint WHERE conname = 'outbox_delivery_evidence_check';"
 )"
+outbox_transition_trigger_count="$(
+  psql --dbname="$RESTORE_DATABASE" -Atc     "SELECT count(*) FROM pg_trigger WHERE tgname = 'outbox_events_transition_guard' AND NOT tgisinternal;"
+)"
+direction_archive_constraint_count="$(
+  psql --dbname="$RESTORE_DATABASE" -Atc     "SELECT count(*) FROM pg_constraint WHERE conname = 'organization_directions_archive_timestamp_check';"
+)"
+legal_transaction_snapshot_trigger_count="$(
+  psql --dbname="$RESTORE_DATABASE" -Atc     "SELECT count(*) FROM pg_trigger WHERE tgname = 'legal_transaction_snapshots_append_only' AND NOT tgisinternal;"
+)"
 
 if [[ "$identity_count" != "1" || "$organization_count" != "1" ]]; then
   echo "restore drill failed: business sentinel missing" >&2
@@ -75,7 +84,7 @@ if [[ "$audit_trigger_count" != "1" || "$ledger_trigger_count" != "1" || "$legal
   exit 1
 fi
 
-if [[ "$direction_trigger_count" != "1" || "$product_owner_trigger_count" != "1" || "$outbox_delivery_constraint_count" != "1" ]]; then
+if [[ "$direction_trigger_count" != "1" || "$product_owner_trigger_count" != "1" || "$outbox_delivery_constraint_count" != "1" || "$outbox_transition_trigger_count" != "1" || "$direction_archive_constraint_count" != "1" || "$legal_transaction_snapshot_trigger_count" != "1" ]]; then
   echo "restore drill failed: semantic invariant object missing" >&2
   exit 1
 fi
@@ -101,6 +110,9 @@ cat >"$evidence_dir/restore-drill.json" <<JSON
   "integrity_probe_direction_trigger_count": $direction_trigger_count,
   "integrity_probe_product_owner_trigger_count": $product_owner_trigger_count,
   "integrity_probe_outbox_delivery_constraint_count": $outbox_delivery_constraint_count,
+  "integrity_probe_outbox_transition_trigger_count": $outbox_transition_trigger_count,
+  "integrity_probe_direction_archive_constraint_count": $direction_archive_constraint_count,
+  "integrity_probe_legal_transaction_snapshot_trigger_count": $legal_transaction_snapshot_trigger_count,
   "production_evidence": false
 }
 JSON
