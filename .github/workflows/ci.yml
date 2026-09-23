@@ -64,6 +64,8 @@ jobs:
         run: npm install --ignore-scripts --no-audit --no-fund
       - working-directory: apps/mobile
         run: npx tsc --noEmit
+      - working-directory: apps/mobile
+        run: npm test
 
   client-contract-presence:
     name: Multi-surface contract guard
