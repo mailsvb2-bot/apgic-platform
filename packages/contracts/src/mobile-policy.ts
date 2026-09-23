@@ -1,4 +1,4 @@
-export type ClientPlatform = "IOS" | "ANDROID";
+export type MobilePlatform = "IOS" | "ANDROID";
 
 export type ClientCompatibilityStatus =
   | "SUPPORTED"
