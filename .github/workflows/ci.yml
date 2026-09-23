@@ -22,6 +22,14 @@ jobs:
       - run: python tools/architecture_guard.py
       - run: python tools/mobile_dependency_guard.py
       - run: python tools/mobile_privacy_guard.py
+      - run: python tools/launch_config_guard.py config/launch.ci.yaml --mode ci
+      - shell: bash
+        run: |
+          if python tools/launch_config_guard.py config/launch.example.yaml --mode production; then
+            echo "production placeholder config unexpectedly passed" >&2
+            exit 1
+          fi
+          echo "fail-closed production preflight proof: PASS"
 
   backend:
     name: Go format / vet / race tests
