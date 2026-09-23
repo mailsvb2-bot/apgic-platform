@@ -1,44 +1,31 @@
 package main
 
 import (
-	"encoding/json"
 	"log"
 	"net/http"
 	"os"
 	"time"
+
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/httpapi"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/launchconfig"
 )
 
-type metaResponse struct {
-	Service      string   `json:"service"`
-	ReleaseTrack string   `json:"release_track"`
-	Surfaces     []string `json:"surfaces"`
-	CommitSHA    string   `json:"commit_sha,omitempty"`
-	Time         string   `json:"time"`
-}
-
 func main() {
-	mux := http.NewServeMux()
-
-	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("content-type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
-	})
-
-	mux.HandleFunc("GET /v1/meta", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("content-type", "application/json")
-		_ = json.NewEncoder(w).Encode(metaResponse{
-			Service:      "apgic-api",
-			ReleaseTrack: "R0",
-			Surfaces:     []string{"WEB", "PWA", "IOS", "ANDROID"},
-			CommitSHA:    os.Getenv("APGIC_COMMIT_SHA"),
-			Time:         time.Now().UTC().Format(time.RFC3339),
-		})
+	handler := httpapi.New(httpapi.Options{
+		CommitSHA:    os.Getenv("APGIC_COMMIT_SHA"),
+		ReleaseTrack: "R0",
+		LaunchConfig: launchconfig.Config{
+			JurisdictionMatrixVersion: os.Getenv("APGIC_JURISDICTION_MATRIX_VERSION"),
+			RetentionPolicyVersion:    os.Getenv("APGIC_RETENTION_POLICY_VERSION"),
+			SLOPolicyVersion:          os.Getenv("APGIC_SLO_POLICY_VERSION"),
+			ProviderMatrixVersion:     os.Getenv("APGIC_PROVIDER_MATRIX_VERSION"),
+		},
 	})
 
 	addr := envOr("APGIC_HTTP_ADDR", ":8080")
 	server := &http.Server{
 		Addr:              addr,
-		Handler:           mux,
+		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      15 * time.Second,
