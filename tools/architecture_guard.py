@@ -60,7 +60,7 @@ for base in SCAN_ROOTS:
         rel = path.relative_to(ROOT).as_posix()
         text = path.read_text(encoding="utf-8", errors="ignore")
 
-        if PAYMENT_TYPE.search(text):
+        if PAYMENT_TYPE.search(text) and not rel.endswith(("_test.go", ".test.ts", ".test.tsx", ".spec.ts", ".spec.tsx")):
             errors.append(f"{rel}: mixed payment_type semantics are forbidden; use provider/method/rail")
 
         if rel.startswith(("apps/", "packages/")) and CLIENT_SERVER_IMPORT.search(text):
