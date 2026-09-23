@@ -55,6 +55,15 @@ ledger_trigger_count="$(
 legal_trigger_count="$(
   psql --dbname="$RESTORE_DATABASE" -Atc     "SELECT count(*) FROM pg_trigger WHERE tgname = 'legal_acceptances_append_only' AND NOT tgisinternal;"
 )"
+direction_trigger_count="$(
+  psql --dbname="$RESTORE_DATABASE" -Atc     "SELECT count(*) FROM pg_trigger WHERE tgname = 'organization_directions_no_delete' AND NOT tgisinternal;"
+)"
+product_owner_trigger_count="$(
+  psql --dbname="$RESTORE_DATABASE" -Atc     "SELECT count(*) FROM pg_trigger WHERE tgname = 'products_owner_exists' AND NOT tgisinternal;"
+)"
+outbox_delivery_constraint_count="$(
+  psql --dbname="$RESTORE_DATABASE" -Atc     "SELECT count(*) FROM pg_constraint WHERE conname = 'outbox_delivery_evidence_check';"
+)"
 
 if [[ "$identity_count" != "1" || "$organization_count" != "1" ]]; then
   echo "restore drill failed: business sentinel missing" >&2
