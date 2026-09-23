@@ -37,6 +37,33 @@ jobs:
           go vet ./...
           go test -race ./...
 
+  postgres-invariants:
+    name: PostgreSQL migration / invariant proof
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: apgic
+          POSTGRES_PASSWORD: apgic
+          POSTGRES_DB: apgic_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U apgic -d apgic_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGPASSWORD: apgic
+    steps:
+      - uses: actions/checkout@v4
+      - shell: bash
+        run: |
+          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000001_r0_foundation.sql
+          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000002_legal_acceptance_mobile_installation.sql
+          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_invariants.sql
+
   web-build:
     name: Web / Next.js production build
     runs-on: ubuntu-latest
@@ -84,13 +111,14 @@ jobs:
   r0-gate:
     name: R0 bootstrap gate
     if: always()
-    needs: [canon, backend, web-build, mobile-typecheck, client-contract-presence]
+    needs: [canon, backend, postgres-invariants, web-build, mobile-typecheck, client-contract-presence]
     runs-on: ubuntu-latest
     steps:
       - shell: bash
         run: |
           test "${{ needs.canon.result }}" = "success"
           test "${{ needs.backend.result }}" = "success"
+          test "${{ needs.postgres-invariants.result }}" = "success"
           test "${{ needs.web-build.result }}" = "success"
           test "${{ needs.mobile-typecheck.result }}" = "success"
           test "${{ needs.client-contract-presence.result }}" = "success"
