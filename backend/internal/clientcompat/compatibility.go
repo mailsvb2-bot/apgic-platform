@@ -76,11 +76,11 @@ func compareInt(left, right int) int {
 }
 
 type Policy struct {
-	Platform          Platform
-	MinimumSupported  Version
-	Recommended       Version
-	ContractVersion   string
-	PolicyVersion     string
+	Platform         Platform
+	MinimumSupported Version
+	Recommended      Version
+	ContractVersion  string
+	PolicyVersion    string
 }
 
 type Decision struct {

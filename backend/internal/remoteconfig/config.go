@@ -10,10 +10,10 @@ import (
 )
 
 var (
-	ErrInvalidEnvelope     = errors.New("invalid remote config envelope")
-	ErrInvalidSignature    = errors.New("invalid remote config signature")
-	ErrStaleVersion        = errors.New("remote config version is not monotonic")
-	ErrExpiredConfig       = errors.New("remote config expired")
+	ErrInvalidEnvelope      = errors.New("invalid remote config envelope")
+	ErrInvalidSignature     = errors.New("invalid remote config signature")
+	ErrStaleVersion         = errors.New("remote config version is not monotonic")
+	ErrExpiredConfig        = errors.New("remote config expired")
 	ErrPrivilegedCapability = errors.New("remote config cannot own privileged business truth")
 )
 
@@ -26,20 +26,20 @@ const (
 )
 
 var privilegedCapabilityNames = map[string]struct{}{
-	"PAYMENT_CAPTURE":          {},
-	"PAYOUT_ELIGIBILITY":       {},
-	"QUALIFICATION_APPROVAL":   {},
-	"ENTITLEMENT_GRANT":        {},
-	"LEGAL_ACCEPTANCE":         {},
+	"PAYMENT_CAPTURE":        {},
+	"PAYOUT_ELIGIBILITY":     {},
+	"QUALIFICATION_APPROVAL": {},
+	"ENTITLEMENT_GRANT":      {},
+	"LEGAL_ACCEPTANCE":       {},
 }
 
 type Payload struct {
-	Version      uint64              `json:"version"`
-	IssuedAt     time.Time           `json:"issued_at"`
-	ExpiresAt    time.Time           `json:"expires_at"`
-	PolicyID     string              `json:"policy_id"`
-	Disabled     []Capability        `json:"disabled_capabilities"`
-	ReasonCodes  map[Capability]string `json:"reason_codes,omitempty"`
+	Version     uint64                `json:"version"`
+	IssuedAt    time.Time             `json:"issued_at"`
+	ExpiresAt   time.Time             `json:"expires_at"`
+	PolicyID    string                `json:"policy_id"`
+	Disabled    []Capability          `json:"disabled_capabilities"`
+	ReasonCodes map[Capability]string `json:"reason_codes,omitempty"`
 }
 
 type SignedEnvelope struct {

@@ -10,7 +10,7 @@ const (
 )
 
 var (
-	ErrDirectionNotFound  = errors.New("organization direction not found")
+	ErrDirectionNotFound   = errors.New("organization direction not found")
 	ErrHardDeleteForbidden = errors.New("hard delete forbidden: archive direction to preserve business truth")
 )
 
