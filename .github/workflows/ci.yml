@@ -85,6 +85,7 @@ jobs:
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000001_r0_foundation.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000002_legal_acceptance_mobile_installation.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000003_r0_semantic_invariants.sql
+          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000004_r0_outbox_terminality.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_invariants.sql
 
   restore-drill:
@@ -118,6 +119,7 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f backend/migrations/000001_r0_foundation.sql
           psql -v ON_ERROR_STOP=1 -f backend/migrations/000002_legal_acceptance_mobile_installation.sql
           psql -v ON_ERROR_STOP=1 -f backend/migrations/000003_r0_semantic_invariants.sql
+          psql -v ON_ERROR_STOP=1 -f backend/migrations/000004_r0_outbox_terminality.sql
           bash backend/ci/restore_drill.sh
       - uses: actions/upload-artifact@v4
         with:

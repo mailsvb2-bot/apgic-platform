@@ -244,3 +244,103 @@ BEGIN
   END IF;
 END
 $$;
+
+
+-- R0 database semantic hardening added by migration 000004.
+DO $$
+DECLARE
+  invalid_archive_blocked boolean := false;
+BEGIN
+  BEGIN
+    UPDATE organization_directions
+    SET status = 'ARCHIVED'
+    WHERE id = '00000000-0000-0000-0000-000000000501';
+  EXCEPTION WHEN check_violation THEN
+    invalid_archive_blocked := true;
+  END;
+
+  IF NOT invalid_archive_blocked THEN
+    RAISE EXCEPTION 'ARCHIVED direction without archived_at was accepted';
+  END IF;
+
+  UPDATE organization_directions
+  SET status = 'ARCHIVED',
+      archived_at = now()
+  WHERE id = '00000000-0000-0000-0000-000000000501';
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM organization_directions
+    WHERE id = '00000000-0000-0000-0000-000000000501'
+      AND status = 'ARCHIVED'
+      AND archived_at IS NOT NULL
+  ) THEN
+    RAISE EXCEPTION 'valid archive transition was not persisted';
+  END IF;
+END
+$$;
+
+DO $$
+DECLARE
+  payload_rewrite_blocked boolean := false;
+  attempts_decrease_blocked boolean := false;
+  terminal_revert_blocked boolean := false;
+  delivered_at_rewrite_blocked boolean := false;
+BEGIN
+  BEGIN
+    UPDATE outbox_events
+    SET payload = '{"role":"CLIENT"}'::jsonb
+    WHERE event_id = '00000000-0000-0000-0000-000000000701';
+  EXCEPTION WHEN raise_exception THEN
+    payload_rewrite_blocked := true;
+  END;
+
+  UPDATE outbox_events
+  SET attempts = 2
+  WHERE event_id = '00000000-0000-0000-0000-000000000701';
+
+  BEGIN
+    UPDATE outbox_events
+    SET attempts = 1
+    WHERE event_id = '00000000-0000-0000-0000-000000000701';
+  EXCEPTION WHEN raise_exception THEN
+    attempts_decrease_blocked := true;
+  END;
+
+  UPDATE outbox_events
+  SET delivery_status = 'DELIVERED',
+      delivered_at = now(),
+      attempts = 3
+  WHERE event_id = '00000000-0000-0000-0000-000000000701';
+
+  BEGIN
+    UPDATE outbox_events
+    SET delivery_status = 'PENDING',
+        delivered_at = NULL
+    WHERE event_id = '00000000-0000-0000-0000-000000000701';
+  EXCEPTION WHEN raise_exception THEN
+    terminal_revert_blocked := true;
+  END;
+
+  BEGIN
+    UPDATE outbox_events
+    SET delivered_at = delivered_at + interval '1 second'
+    WHERE event_id = '00000000-0000-0000-0000-000000000701';
+  EXCEPTION WHEN raise_exception THEN
+    delivered_at_rewrite_blocked := true;
+  END;
+
+  IF NOT payload_rewrite_blocked THEN
+    RAISE EXCEPTION 'outbox payload rewrite was not blocked';
+  END IF;
+  IF NOT attempts_decrease_blocked THEN
+    RAISE EXCEPTION 'outbox attempts decrease was not blocked';
+  END IF;
+  IF NOT terminal_revert_blocked THEN
+    RAISE EXCEPTION 'DELIVERED outbox record reverted to PENDING';
+  END IF;
+  IF NOT delivered_at_rewrite_blocked THEN
+    RAISE EXCEPTION 'first delivered_at evidence was rewritten';
+  END IF;
+END
+$$;

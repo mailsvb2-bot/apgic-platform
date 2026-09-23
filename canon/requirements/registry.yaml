@@ -281,6 +281,7 @@ requirements:
   dependencies:
   - APGIC-ORG-001
   implementation_refs:
+  - backend/migrations/000004_r0_outbox_terminality.sql
   - backend/internal/organization/organization.go
   - backend/migrations/000003_r0_semantic_invariants.sql
   contract_refs: []
@@ -367,6 +368,8 @@ requirements:
   status: IN_PROGRESS
   dependencies: []
   implementation_refs:
+  - backend/migrations/000004_r0_outbox_terminality.sql
+  - backend/migrations/000003_r0_semantic_invariants.sql
   - backend/internal/eventspine/outbox.go
   - backend/migrations/000001_r0_foundation.sql
   contract_refs: []
