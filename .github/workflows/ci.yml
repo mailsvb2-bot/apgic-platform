@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  canon:
+    name: Canon / architecture conformance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: python -m pip install -r requirements-dev.txt
+      - run: python tools/canon_lint.py
+      - run: python tools/architecture_guard.py
+
+  backend:
+    name: Go R0 domain tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.1'
+          cache-dependency-path: backend/go.mod
+      - working-directory: backend
+        run: go test ./...
+
+  client-contract-presence:
+    name: Multi-surface contract guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - shell: bash
+        run: |
+          test -f contracts/openapi/apgic-v1.yaml
+          test -f apps/web/package.json
+          test -f apps/mobile/package.json
+          test -f packages/contracts/src/index.ts
+          grep -q '"next": "16.3.6"' apps/web/package.json
+          grep -q '"react-native": "0.87.1"' apps/mobile/package.json
