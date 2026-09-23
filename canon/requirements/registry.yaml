@@ -2118,13 +2118,18 @@ requirements:
   release_profile: R0
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies:
   - APGIC-MOBILE-011
   - APGIC-MOBILE-012
-  implementation_refs: []
-  contract_refs: []
-  test_refs: []
+  implementation_refs:
+  - backend/internal/clientcompat/compatibility.go
+  - packages/contracts/src/mobile-policy.ts
+  contract_refs:
+  - contracts/jsonschema/mobile-policy-v1.schema.json
+  test_refs:
+  - backend/internal/clientcompat/compatibility_test.go
+  - .github/workflows/ci.yml
   evidence_refs: []
   acceptance:
     given: installed client использует поддерживаемую предыдущую contract version
@@ -2493,12 +2498,17 @@ requirements:
   release_profile: R0
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies:
   - APGIC-MOBILE-013
-  implementation_refs: []
-  contract_refs: []
-  test_refs: []
+  implementation_refs:
+  - backend/internal/remoteconfig/config.go
+  - packages/contracts/src/mobile-policy.ts
+  contract_refs:
+  - contracts/jsonschema/mobile-policy-v1.schema.json
+  test_refs:
+  - backend/internal/remoteconfig/config_test.go
+  - .github/workflows/ci.yml
   evidence_refs: []
   acceptance:
     given: installed versions span compatibility window
