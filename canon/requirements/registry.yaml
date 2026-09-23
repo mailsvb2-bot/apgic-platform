@@ -551,11 +551,16 @@ requirements:
   release_profile: R0
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies: []
-  implementation_refs: []
+  implementation_refs:
+  - backend/ci/restore_drill.sh
+  - docs/operations/restore-drill.md
+  - .github/workflows/ci.yml
   contract_refs: []
-  test_refs: []
+  test_refs:
+  - backend/ci/restore_drill.sh
+  - .github/workflows/ci.yml
   evidence_refs: []
   acceptance:
     given: существует production backup
