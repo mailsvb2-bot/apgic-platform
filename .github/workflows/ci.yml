@@ -27,6 +27,9 @@ jobs:
       - run: python tools/mobile_dependency_guard.py
       - run: python tools/mobile_privacy_guard.py
       - run: python tools/terminology_guard.py
+      - run: python tools/generate_client_contract.py --check
+      - run: python tools/multisurface_guard.py
+      - run: python -m unittest discover -s tools/tests -p 'test_*.py'
       - run: python tools/launch_config_guard.py config/launch.ci.yaml --mode ci
       - run: python tools/mobile_release_guard.py config/mobile/r0-ci-release-governance.yaml --mode ci
       - run: python tools/mobile_observability_guard.py config/mobile/r0-ci-observability.yaml --mode ci
@@ -176,12 +179,15 @@ jobs:
           test -f apps/web/package.json
           test -f apps/mobile/package.json
           test -f packages/contracts/src/index.ts
+          test -f packages/contracts/src/generated/apgic-v1.ts
+          test -f apps/web/src/api-contract.ts
+          test -f apps/mobile/src/api-contract.ts
           grep -q '"next": "16.3.6"' apps/web/package.json
           grep -q '"react-native": "0.87.1"' apps/mobile/package.json
 
   r0-gate:
     name: R0 bootstrap gate
-    if: always()
+    if: ${{ always() && !cancelled() }}
     needs: [canon, backend, postgres-invariants, restore-drill, web-build, mobile-typecheck, client-contract-presence]
     runs-on: ubuntu-latest
     steps:

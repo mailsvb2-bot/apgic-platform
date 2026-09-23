@@ -1854,12 +1854,16 @@ requirements:
   status: IN_PROGRESS
   dependencies: []
   implementation_refs:
+  - canon/contracts/client-surface-manifest.yaml
   - apps/web/
   - apps/mobile/
   - contracts/openapi/apgic-v1.yaml
   contract_refs:
+  - packages/contracts/src/generated/apgic-v1.ts
   - contracts/openapi/apgic-v1.yaml
-  test_refs: []
+  test_refs:
+  - .github/workflows/ci.yml
+  - tools/multisurface_guard.py
   evidence_refs: []
   acceptance:
     given: существуют web и native clients
@@ -1884,10 +1888,14 @@ requirements:
   dependencies:
   - APGIC-MOBILE-001
   implementation_refs:
+  - canon/contracts/client-surface-manifest.yaml
   - apps/mobile/
   - packages/contracts/
-  contract_refs: []
-  test_refs: []
+  contract_refs:
+  - packages/contracts/src/generated/apgic-v1.ts
+  test_refs:
+  - .github/workflows/ci.yml
+  - tools/multisurface_guard.py
   evidence_refs: []
   acceptance:
     given: создан native workspace
@@ -1911,10 +1919,15 @@ requirements:
   dependencies:
   - APGIC-MOBILE-001
   implementation_refs:
+  - canon/contracts/client-surface-manifest.yaml
   - apps/web/
   - apps/mobile/
-  contract_refs: []
-  test_refs: []
+  contract_refs:
+  - canon/evidence/compatibility-exceptions.yaml
+  test_refs:
+  - tools/tests/test_multisurface_guard.py
+  - .github/workflows/ci.yml
+  - tools/multisurface_guard.py
   evidence_refs: []
   acceptance:
     given: launch-critical requirement входит в R0–R4
@@ -2130,12 +2143,21 @@ requirements:
   - APGIC-EXEC-001
   - APGIC-MOBILE-002
   implementation_refs:
+  - apps/mobile/src/api-contract.ts
+  - apps/web/src/api-contract.ts
+  - packages/contracts/src/generated/apgic-v1.ts
+  - tools/generate_client_contract.py
+  - canon/contracts/client-surface-manifest.yaml
   - apps/web/src/foundation-contract.ts
   - apps/mobile/src/foundation-contract.ts
   contract_refs:
+  - contracts/openapi/apgic-v1.yaml
   - packages/contracts/src/foundation.ts
   - packages/contracts/src/index.ts
-  test_refs: []
+  test_refs:
+  - tools/tests/test_client_contract_generation.py
+  - .github/workflows/ci.yml
+  - tools/multisurface_guard.py
   evidence_refs: []
   acceptance:
     given: OpenAPI/schema меняется
