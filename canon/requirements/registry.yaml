@@ -1540,11 +1540,16 @@ requirements:
   release_profile: R0
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies: []
-  implementation_refs: []
+  implementation_refs:
+  - tools/canon_lint.py
+  - docs/governance/requirement-change.md
+  - .github/ISSUE_TEMPLATE/requirement-change.yml
   contract_refs: []
-  test_refs: []
+  test_refs:
+  - tools/canon_lint.py
+  - .github/workflows/ci.yml
   evidence_refs: []
   acceptance:
     given: R0–R4 утверждены
