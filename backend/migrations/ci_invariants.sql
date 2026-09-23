@@ -345,3 +345,96 @@ BEGIN
   END IF;
 END
 $$;
+
+
+-- Immutable legal/financial role snapshot required by APGIC-LEGAL-001.
+INSERT INTO legal_transaction_snapshots (
+  id,
+  transaction_ref,
+  seller_or_service_provider_id,
+  commercial_owner_id,
+  payment_recipient_id,
+  platform_role,
+  fiscal_responsibility_id,
+  refund_responsibility_id,
+  payout_beneficiary_id,
+  policy_version,
+  occurred_at
+) VALUES (
+  '00000000-0000-0000-0000-000000000801',
+  'order/00000000-0000-0000-0000-00000000a001',
+  'identity/specialist-1',
+  'organization/00000000-0000-0000-0000-000000000010',
+  'identity/specialist-1',
+  'MARKETPLACE_INTERMEDIARY',
+  'identity/specialist-1',
+  'identity/specialist-1',
+  'identity/specialist-1',
+  'legal-ci-v1',
+  now()
+);
+
+DO $$
+DECLARE
+  mutation_blocked boolean := false;
+  deletion_blocked boolean := false;
+  duplicate_transaction_blocked boolean := false;
+BEGIN
+  BEGIN
+    UPDATE legal_transaction_snapshots
+    SET policy_version = 'legal-ci-v2'
+    WHERE id = '00000000-0000-0000-0000-000000000801';
+  EXCEPTION WHEN raise_exception THEN
+    mutation_blocked := true;
+  END;
+
+  BEGIN
+    DELETE FROM legal_transaction_snapshots
+    WHERE id = '00000000-0000-0000-0000-000000000801';
+  EXCEPTION WHEN raise_exception THEN
+    deletion_blocked := true;
+  END;
+
+  BEGIN
+    INSERT INTO legal_transaction_snapshots (
+      id,
+      transaction_ref,
+      seller_or_service_provider_id,
+      commercial_owner_id,
+      payment_recipient_id,
+      platform_role,
+      fiscal_responsibility_id,
+      refund_responsibility_id,
+      payout_beneficiary_id,
+      policy_version,
+      occurred_at
+    )
+    SELECT
+      '00000000-0000-0000-0000-000000000802',
+      transaction_ref,
+      seller_or_service_provider_id,
+      commercial_owner_id,
+      payment_recipient_id,
+      platform_role,
+      fiscal_responsibility_id,
+      refund_responsibility_id,
+      payout_beneficiary_id,
+      policy_version,
+      occurred_at
+    FROM legal_transaction_snapshots
+    WHERE id = '00000000-0000-0000-0000-000000000801';
+  EXCEPTION WHEN unique_violation THEN
+    duplicate_transaction_blocked := true;
+  END;
+
+  IF NOT mutation_blocked THEN
+    RAISE EXCEPTION 'legal transaction snapshot mutation was not blocked';
+  END IF;
+  IF NOT deletion_blocked THEN
+    RAISE EXCEPTION 'legal transaction snapshot deletion was not blocked';
+  END IF;
+  IF NOT duplicate_transaction_blocked THEN
+    RAISE EXCEPTION 'multiple legal snapshots for one transaction were accepted';
+  END IF;
+END
+$$;

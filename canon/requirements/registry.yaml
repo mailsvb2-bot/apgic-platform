@@ -715,9 +715,11 @@ requirements:
   status: IN_PROGRESS
   dependencies: []
   implementation_refs:
+  - backend/migrations/000005_r0_legal_transaction_snapshot.sql
   - backend/internal/legal/transaction_snapshot.go
   contract_refs: []
   test_refs:
+  - backend/migrations/ci_invariants.sql
   - backend/internal/legal/transaction_snapshot_test.go
   evidence_refs: []
   acceptance:
