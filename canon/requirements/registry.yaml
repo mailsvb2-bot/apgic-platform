@@ -677,9 +677,13 @@ requirements:
   - APGIC-TEST-001
   implementation_refs:
   - .github/workflows/ci.yml
-  contract_refs: []
+  - tools/release_evidence.py
+  - canon/evidence/release-evidence-v1.schema.json
+  contract_refs:
+  - canon/evidence/release-evidence-v1.schema.json
   test_refs:
   - .github/workflows/ci.yml
+  - tools/release_evidence.py
   evidence_refs: []
   acceptance:
     given: build-кандидат предназначен для production

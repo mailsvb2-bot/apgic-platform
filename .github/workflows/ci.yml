@@ -169,6 +169,7 @@ jobs:
     needs: [canon, backend, postgres-invariants, restore-drill, web-build, mobile-typecheck, client-contract-presence]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - shell: bash
         run: |
           test "${{ needs.canon.result }}" = "success"
@@ -178,3 +179,12 @@ jobs:
           test "${{ needs.web-build.result }}" = "success"
           test "${{ needs.mobile-typecheck.result }}" = "success"
           test "${{ needs.client-contract-presence.result }}" = "success"
+      - shell: bash
+        run: |
+          python tools/release_evidence.py             --candidate-sha "${{ github.event.pull_request.head.sha || github.sha }}"             --output evidence/r0-release-evidence.json             --gate "canon=${{ needs.canon.result }}"             --gate "backend=${{ needs.backend.result }}"             --gate "postgres-invariants=${{ needs.postgres-invariants.result }}"             --gate "restore-drill=${{ needs.restore-drill.result }}"             --gate "web-build=${{ needs.web-build.result }}"             --gate "mobile-typecheck=${{ needs.mobile-typecheck.result }}"             --gate "client-contract-presence=${{ needs.client-contract-presence.result }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: r0-release-evidence
+          path: evidence/r0-release-evidence.json
+          if-no-files-found: error
+          retention-days: 30

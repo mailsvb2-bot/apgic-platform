@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apgic.local/evidence/release-evidence-v1.schema.json",
+  "title": "APGIC Release Evidence v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "evidence_class",
+    "production_release",
+    "candidate_sha",
+    "generated_at",
+    "surfaces",
+    "gate_results",
+    "artifacts"
+  ],
+  "properties": {
+    "schema_version": { "const": "release-evidence-v1" },
+    "evidence_class": { "enum": ["CI_CANDIDATE", "PRODUCTION_RELEASE"] },
+    "production_release": { "type": "boolean" },
+    "candidate_sha": { "type": "string", "minLength": 7 },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "surfaces": {
+      "type": "array",
+      "minItems": 4,
+      "items": { "enum": ["WEB", "PWA", "IOS", "ANDROID"] }
+    },
+    "gate_results": {
+      "type": "object",
+      "additionalProperties": { "enum": ["success", "failure", "cancelled", "skipped"] }
+    },
+    "artifacts": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["sha256"],
+        "properties": {
+          "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+        }
+      }
+    }
+  }
+}
