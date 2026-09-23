@@ -1,0 +1,65 @@
+openapi: 3.1.0
+info:
+  title: APGIC Public API
+  version: 0.1.0-r0
+servers: []
+paths:
+  /healthz:
+    get:
+      operationId: health
+      responses:
+        '200':
+          description: Service health
+  /v1/meta:
+    get:
+      operationId: getMeta
+      responses:
+        '200':
+          description: APGIC service metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Meta'
+components:
+  schemas:
+    Surface:
+      type: string
+      enum: [WEB, PWA, IOS, ANDROID]
+    PaymentSelection:
+      type: object
+      additionalProperties: false
+      required: [provider_id, method_code, rail_code]
+      properties:
+        provider_id:
+          type: string
+        method_code:
+          type: string
+        rail_code:
+          type: string
+    ErrorEnvelope:
+      type: object
+      additionalProperties: false
+      required: [code, message_safe, correlation_id, retryable]
+      properties:
+        code: { type: string }
+        message_safe: { type: string }
+        correlation_id: { type: string }
+        retryable: { type: boolean }
+        field_errors:
+          type: array
+          items: { type: object }
+        policy_reason_codes:
+          type: array
+          items: { type: string }
+        documentation_ref: { type: string }
+    Meta:
+      type: object
+      required: [service, release_track, surfaces, time]
+      properties:
+        service: { type: string }
+        release_track: { type: string }
+        surfaces:
+          type: array
+          items: { $ref: '#/components/schemas/Surface' }
+        commit_sha: { type: string }
+        time: { type: string, format: date-time }
