@@ -574,11 +574,16 @@ requirements:
   release_profile: R0
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies: []
-  implementation_refs: []
+  implementation_refs:
+  - apps/web/app/page.tsx
+  - apps/web/app/globals.css
+  - apps/web/playwright.config.ts
   contract_refs: []
-  test_refs: []
+  test_refs:
+  - apps/web/e2e/foundation.spec.ts
+  - .github/workflows/ci.yml
   evidence_refs: []
   acceptance:
     given: один и тот же critical journey
@@ -598,11 +603,15 @@ requirements:
   release_profile: R0
   risk: HIGH
   priority: P1
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies: []
-  implementation_refs: []
+  implementation_refs:
+  - apps/web/app/page.tsx
+  - apps/web/playwright.config.ts
   contract_refs: []
-  test_refs: []
+  test_refs:
+  - apps/web/e2e/foundation.spec.ts
+  - .github/workflows/ci.yml
   evidence_refs: []
   acceptance:
     given: пользователь использует keyboard/assistive compatible flow
