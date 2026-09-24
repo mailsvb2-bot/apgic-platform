@@ -45,10 +45,10 @@ func TestOrderSnapshotCapturesEconomicAndLegalTruth(t *testing.T) {
 
 func TestOrderSnapshotRejectsSilentEconomicDefaults(t *testing.T) {
 	for name, mutate := range map[string]func(*OrderSnapshot){
-		"missing pricing policy": func(s *OrderSnapshot) { s.PricingPolicyVersion = "" },
+		"missing pricing policy":    func(s *OrderSnapshot) { s.PricingPolicyVersion = "" },
 		"missing commission policy": func(s *OrderSnapshot) { s.CommissionPolicyVersion = "" },
-		"missing legal snapshot": func(s *OrderSnapshot) { s.LegalSnapshotRef = "" },
-		"zero amount": func(s *OrderSnapshot) { s.AmountMinor = 0 },
+		"missing legal snapshot":    func(s *OrderSnapshot) { s.LegalSnapshotRef = "" },
+		"zero amount":               func(s *OrderSnapshot) { s.AmountMinor = 0 },
 		"commission exceeds amount": func(s *OrderSnapshot) { s.CommissionMinor = s.AmountMinor + 1 },
 	} {
 		t.Run(name, func(t *testing.T) {

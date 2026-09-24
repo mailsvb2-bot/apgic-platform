@@ -5,6 +5,7 @@ set -euo pipefail
 : "${PGPORT:=5432}"
 : "${PGUSER:=apgic}"
 : "${PGDATABASE:=apgic_ci}"
+export PGHOST PGPORT PGUSER PGDATABASE
 
 slot_id="00000000-0000-0000-0000-00000000c101"
 specialist_id="00000000-0000-0000-0000-00000000c001"

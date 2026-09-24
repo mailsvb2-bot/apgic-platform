@@ -115,9 +115,11 @@ jobs:
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000004_r0_outbox_terminality.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000005_r0_legal_transaction_snapshot.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000006_r1_account_deletion.sql
-          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000007_r2_booking_order.sql
+          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000007_r1_marketplace_discovery.sql
+          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000008_r2_booking_order.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r1_mobile_invariants.sql
+          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r1_marketplace_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r2_booking_order_invariants.sql
           bash backend/ci/r2_booking_concurrency.sh
 
@@ -155,7 +157,8 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f backend/migrations/000004_r0_outbox_terminality.sql
           psql -v ON_ERROR_STOP=1 -f backend/migrations/000005_r0_legal_transaction_snapshot.sql
           psql -v ON_ERROR_STOP=1 -f backend/migrations/000006_r1_account_deletion.sql
-          psql -v ON_ERROR_STOP=1 -f backend/migrations/000007_r2_booking_order.sql
+          psql -v ON_ERROR_STOP=1 -f backend/migrations/000007_r1_marketplace_discovery.sql
+          psql -v ON_ERROR_STOP=1 -f backend/migrations/000008_r2_booking_order.sql
           bash backend/ci/restore_drill.sh
       - uses: actions/upload-artifact@v4
         with:

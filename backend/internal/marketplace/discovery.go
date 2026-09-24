@@ -83,14 +83,17 @@ const (
 func Publish(profile *SpecialistProfile, policy QualificationPolicy, context PublishContext) PublishDecision {
 	decision := PublishDecision{PolicyVersion: policy.Version}
 	if !profile.Complete {
+		blockPublication(profile)
 		decision.ReasonCodes = []string{ReasonProfileIncomplete}
 		return decision
 	}
 	if profile.Review != ReviewApproved {
+		blockPublication(profile)
 		decision.ReasonCodes = []string{ReasonReviewIncomplete}
 		return decision
 	}
 	if len(profile.Capabilities) == 0 {
+		blockPublication(profile)
 		decision.ReasonCodes = []string{ReasonNoCapability}
 		return decision
 	}
@@ -108,6 +111,7 @@ func Publish(profile *SpecialistProfile, policy QualificationPolicy, context Pub
 		}
 	}
 	if len(eligibleTopics) == 0 {
+		blockPublication(profile)
 		decision.ReasonCodes = []string{ReasonNoEligibleTopic}
 		return decision
 	}
@@ -125,6 +129,13 @@ func Unpublish(profile *SpecialistProfile) PublishDecision {
 	profile.PublishState = PublishUnpublished
 	profile.PublishedTopics = nil
 	return PublishDecision{Allowed: true, ReasonCodes: []string{ReasonUnpublished}}
+}
+
+func blockPublication(profile *SpecialistProfile) {
+	if profile.PublishState == PublishPublished {
+		profile.PublishState = PublishUnpublished
+	}
+	profile.PublishedTopics = nil
 }
 
 type Candidate struct {
