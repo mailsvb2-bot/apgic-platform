@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apgic.ru/contracts/transaction-edge-v1.schema.json",
+  "title": "APGIC R2 Transaction Edge v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "notification_intent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["intent_id","booking_id","purpose","idempotency_key","transactional","data_class"],
+      "properties": {
+        "intent_id": {"type":"string","minLength":1},
+        "booking_id": {"type":"string","minLength":1},
+        "purpose": {"type":"string","minLength":1},
+        "idempotency_key": {"type":"string","minLength":1},
+        "transactional": {"const":true},
+        "data_class": {"type":"string","minLength":1}
+      }
+    },
+    "calendar_sync": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["booking_id","booking_version","provider_instance_id","target_ref","idempotency_key","state"],
+      "properties": {
+        "booking_id": {"type":"string","minLength":1},
+        "booking_version": {"type":"integer","minimum":1},
+        "provider_instance_id": {"type":"string","minLength":1},
+        "target_ref": {"type":"string","minLength":1},
+        "idempotency_key": {"type":"string","minLength":1},
+        "state": {"enum":["PENDING","SYNCED","CONFLICT","FAILED_RETRYABLE"]},
+        "provider_event_ref": {"type":["string","null"]}
+      }
+    },
+    "offline_mutation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["identity_id","operation","idempotency_key","request_digest"],
+      "properties": {
+        "identity_id": {"type":"string","minLength":1},
+        "operation": {"type":"string","minLength":1},
+        "idempotency_key": {"type":"string","minLength":1},
+        "request_digest": {"type":"string","minLength":1}
+      }
+    }
+  },
+  "anyOf": [
+    {"required":["notification_intent"]},
+    {"required":["calendar_sync"]},
+    {"required":["offline_mutation"]}
+  ]
+}
