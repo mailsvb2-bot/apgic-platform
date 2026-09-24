@@ -42,10 +42,10 @@ const (
 )
 
 var (
-	ErrInvalidDeletionRequest   = errors.New("invalid delete account request")
-	ErrInvalidDeletionState     = errors.New("invalid delete account state transition")
-	ErrRetentionReasonRequired  = errors.New("retained data requires explicit reason")
-	ErrErasureIncomplete        = errors.New("provider erasure is incomplete")
+	ErrInvalidDeletionRequest  = errors.New("invalid delete account request")
+	ErrInvalidDeletionState    = errors.New("invalid delete account state transition")
+	ErrRetentionReasonRequired = errors.New("retained data requires explicit reason")
+	ErrErasureIncomplete       = errors.New("provider erasure is incomplete")
 )
 
 type RetentionItem struct {
