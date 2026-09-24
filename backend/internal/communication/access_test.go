@@ -109,3 +109,16 @@ func TestJoinRequiresConfirmedBooking(t *testing.T) {
 		t.Fatalf("cancelled booking decision = %#v", decision)
 	}
 }
+
+
+func TestJoinFailsClosedAtEntitlementExpiryBoundary(t *testing.T) {
+	request, access, entitlement, window, provider, policy := validJoinFixture()
+	entitlement.ExpiresAt = request.Now
+	decision, err := AuthorizeJoin(request, access, entitlement, window, provider, policy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decision.Decision != Deny || decision.ReasonCode != ReasonEntitlementMissing {
+		t.Fatalf("expired entitlement decision = %#v", decision)
+	}
+}
