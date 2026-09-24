@@ -70,12 +70,12 @@ type StoreLifecycleEffect struct {
 }
 
 type StoreLifecycleProjection struct {
-	ProviderInstanceID string
-	SubscriptionRef    string
-	LastSequence       int64
+	ProviderInstanceID  string
+	SubscriptionRef     string
+	LastSequence        int64
 	LastProviderEventID string
-	State              SubscriptionState
-	AppliedEventCount  int64
+	State               SubscriptionState
+	AppliedEventCount   int64
 }
 
 type StoreLifecycleDecision struct {
@@ -102,14 +102,14 @@ func ReconcileStoreLifecycle(
 	}
 	if _, exists := seenProviderEventIDs[event.ProviderEventID]; exists {
 		return StoreLifecycleDecision{
-			Duplicate: true,
+			Duplicate:  true,
 			Projection: current,
 			ReasonCode: "STORE_EVENT_DUPLICATE",
 		}, nil
 	}
 	if current.LastSequence > 0 && event.Sequence <= current.LastSequence {
 		return StoreLifecycleDecision{
-			Stale: true,
+			Stale:      true,
 			Projection: current,
 			ReasonCode: "STORE_EVENT_STALE",
 		}, nil
@@ -130,9 +130,9 @@ func ReconcileStoreLifecycle(
 	next.AppliedEventCount++
 
 	return StoreLifecycleDecision{
-		Applied: true,
+		Applied:    true,
 		Projection: next,
-		Effect: effect,
+		Effect:     effect,
 		ReasonCode: "STORE_EVENT_APPLIED",
 	}, nil
 }
@@ -172,43 +172,43 @@ func storeLifecycleEffect(kind StoreLifecycleEventType) (StoreLifecycleEffect, e
 		return StoreLifecycleEffect{
 			SubscriptionState: SubscriptionActive,
 			EntitlementEffect: EntitlementActivate,
-			LedgerEffect: LedgerEffectRenewal,
+			LedgerEffect:      LedgerEffectRenewal,
 		}, nil
 	case StoreEventRefund:
 		return StoreLifecycleEffect{
 			SubscriptionState: SubscriptionRevoked,
 			EntitlementEffect: EntitlementRevoke,
-			LedgerEffect: LedgerEffectRefund,
+			LedgerEffect:      LedgerEffectRefund,
 		}, nil
 	case StoreEventChargeback:
 		return StoreLifecycleEffect{
 			SubscriptionState: SubscriptionRevoked,
 			EntitlementEffect: EntitlementRevoke,
-			LedgerEffect: LedgerEffectChargeback,
+			LedgerEffect:      LedgerEffectChargeback,
 		}, nil
 	case StoreEventRevocation:
 		return StoreLifecycleEffect{
 			SubscriptionState: SubscriptionRevoked,
 			EntitlementEffect: EntitlementRevoke,
-			LedgerEffect: LedgerEffectNone,
+			LedgerEffect:      LedgerEffectNone,
 		}, nil
 	case StoreEventGraceStarted:
 		return StoreLifecycleEffect{
 			SubscriptionState: SubscriptionGrace,
 			EntitlementEffect: EntitlementKeep,
-			LedgerEffect: LedgerEffectNone,
+			LedgerEffect:      LedgerEffectNone,
 		}, nil
 	case StoreEventHoldStarted:
 		return StoreLifecycleEffect{
 			SubscriptionState: SubscriptionHold,
 			EntitlementEffect: EntitlementKeep,
-			LedgerEffect: LedgerEffectNone,
+			LedgerEffect:      LedgerEffectNone,
 		}, nil
 	case StoreEventExpired:
 		return StoreLifecycleEffect{
 			SubscriptionState: SubscriptionExpired,
 			EntitlementEffect: EntitlementExpire,
-			LedgerEffect: LedgerEffectNone,
+			LedgerEffect:      LedgerEffectNone,
 		}, nil
 	default:
 		return StoreLifecycleEffect{}, ErrInvalidStoreLifecycleEvent
