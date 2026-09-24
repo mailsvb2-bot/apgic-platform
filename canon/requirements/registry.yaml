@@ -1801,11 +1801,17 @@ requirements:
   release_profile: R3
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies: []
-  implementation_refs: []
-  contract_refs: []
-  test_refs: []
+  implementation_refs:
+  - config/booking/r3-ci-fulfillment-policy.yaml
+  - tools/launch_config_guard.py
+  - config/launch.r3-ci.yaml
+  contract_refs:
+  - config/booking/r3-ci-fulfillment-policy.yaml
+  test_refs:
+  - tools/tests/test_r3_policy.py
+  - .github/workflows/ci.yml
   evidence_refs: []
   acceptance:
     given: соответствующий capability включён в launch/release profile
@@ -2239,13 +2245,20 @@ requirements:
   release_profile: R3
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies:
   - APGIC-MOBILE-004
   - APGIC-MOBILE-008
-  implementation_refs: []
-  contract_refs: []
-  test_refs: []
+  implementation_refs:
+  - apps/mobile/src/r3-realtime.ts
+  - config/mobile/r3-ci-realtime-policy.yaml
+  - tools/mobile_realtime_guard.py
+  contract_refs:
+  - packages/contracts/src/r3-mobile-realtime.ts
+  test_refs:
+  - apps/mobile/src/r3-realtime.test.ts
+  - tools/tests/test_r3_policy.py
+  - .github/workflows/ci.yml
   evidence_refs: []
   acceptance:
     given: активна consultation/avatar realtime session
@@ -2796,13 +2809,20 @@ requirements:
   release_profile: R3
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies:
   - APGIC-MOBILE-009
   - APGIC-MOBILE-025
-  implementation_refs: []
-  contract_refs: []
-  test_refs: []
+  implementation_refs:
+  - apps/mobile/src/diagnostics-center.ts
+  - config/mobile/r3-ci-realtime-policy.yaml
+  - tools/mobile_realtime_guard.py
+  contract_refs:
+  - packages/contracts/src/mobile-diagnostics.ts
+  test_refs:
+  - apps/mobile/src/diagnostics-center.test.ts
+  - tools/tests/test_r3_policy.py
+  - .github/workflows/ci.yml
   evidence_refs: []
   acceptance:
     given: user reports mobile issue
