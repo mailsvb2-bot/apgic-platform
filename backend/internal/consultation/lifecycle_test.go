@@ -88,8 +88,8 @@ func TestCompletionRequiresExplicitProviderEvidenceNotTimer(t *testing.T) {
 	if err := session.Complete(CompletionEvidence{
 		ID: "completion-2", IdempotencyKey: "completion-idem-2",
 		ProviderReference: "room/1",
-		EvidenceRef: "provider-evidence/room-ended",
-		ObservedAt: now.Add(2*time.Hour + time.Second),
+		EvidenceRef:       "provider-evidence/room-ended",
+		ObservedAt:        now.Add(2*time.Hour + time.Second),
 	}); err != nil {
 		t.Fatal(err)
 	}
