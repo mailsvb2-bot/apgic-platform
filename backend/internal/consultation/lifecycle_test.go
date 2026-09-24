@@ -29,7 +29,7 @@ func participantFact(id string, kind FactType, role ParticipantRole, identity st
 		ID: id, IdempotencyKey: "idem-" + id,
 		Type: kind, Role: role, IdentityID: identity,
 		ProviderInstanceID: "communication-provider-1",
-		ProviderReference: "room/1", EvidenceRef: "provider-evidence/" + id,
+		ProviderReference:  "room/1", EvidenceRef: "provider-evidence/" + id,
 		OccurredAt: at,
 	}
 }
@@ -39,7 +39,7 @@ func systemFact(id string, kind FactType, at time.Time) Fact {
 		ID: id, IdempotencyKey: "idem-" + id,
 		Type: kind, Role: RoleSystem,
 		ProviderInstanceID: "communication-provider-1",
-		ProviderReference: "room/1", EvidenceRef: "provider-evidence/" + id,
+		ProviderReference:  "room/1", EvidenceRef: "provider-evidence/" + id,
 		OccurredAt: at,
 	}
 }
@@ -91,9 +91,9 @@ func TestCompletionRequiresExplicitProviderEvidenceNotTimer(t *testing.T) {
 	if err := session.Complete(CompletionEvidence{
 		ID: "completion-2", IdempotencyKey: "completion-idem-2",
 		ProviderInstanceID: "communication-provider-1",
-		ProviderReference: "room/1",
-		EvidenceRef:       "provider-evidence/room-ended",
-		ObservedAt:        now.Add(2*time.Hour + time.Second),
+		ProviderReference:  "room/1",
+		EvidenceRef:        "provider-evidence/room-ended",
+		ObservedAt:         now.Add(2*time.Hour + time.Second),
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +122,7 @@ func TestTechnicalFailureIsExplicitAndCannotBecomeCompletion(t *testing.T) {
 	if err := session.Complete(CompletionEvidence{
 		ID: "completion", IdempotencyKey: "completion-idem",
 		ProviderInstanceID: "communication-provider-1",
-		ProviderReference: "room/1", EvidenceRef: "provider-evidence/end",
+		ProviderReference:  "room/1", EvidenceRef: "provider-evidence/end",
 		ObservedAt: now.Add(5 * time.Minute),
 	}); !errors.Is(err, ErrTransitionDenied) {
 		t.Fatalf("technical failure must not silently complete, got %v", err)
@@ -145,7 +145,6 @@ func TestLifecycleFactsAreIdempotentAndContentMinimized(t *testing.T) {
 		}
 	}
 }
-
 
 func TestLifecycleFactDoesNotContainRawSessionContentFields(t *testing.T) {
 	typ := reflect.TypeOf(Fact{})
