@@ -23,20 +23,20 @@ const (
 )
 
 var (
-	ErrInvalidNonCashEntry = errors.New("invalid non-cash entitlement entry")
+	ErrInvalidNonCashEntry    = errors.New("invalid non-cash entitlement entry")
 	ErrCashOperationForbidden = errors.New("cash-out and user-to-user money transfer are forbidden for non-cash entitlements")
-	ErrInsufficientUnits = errors.New("insufficient non-cash entitlement units")
+	ErrInsufficientUnits      = errors.New("insufficient non-cash entitlement units")
 )
 
 type NonCashEntry struct {
-	ID             string
-	AccountRef     string
-	UnitKind       NonCashUnitKind
-	EventKind      NonCashEventKind
-	Units          int64
-	SourceRef      string
-	PolicyVersion  string
-	OccurredAt     time.Time
+	ID            string
+	AccountRef    string
+	UnitKind      NonCashUnitKind
+	EventKind     NonCashEventKind
+	Units         int64
+	SourceRef     string
+	PolicyVersion string
+	OccurredAt    time.Time
 }
 
 func (e NonCashEntry) Validate() error {
