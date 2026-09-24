@@ -51,17 +51,19 @@ type Fact struct {
 	IdempotencyKey    string
 	Type              FactType
 	Role              ParticipantRole
-	IdentityID        string
-	ProviderReference string
-	EvidenceRef       string
+	IdentityID         string
+	ProviderInstanceID string
+	ProviderReference  string
+	EvidenceRef        string
 	OccurredAt        time.Time
 }
 
 type CompletionEvidence struct {
 	ID                string
 	IdempotencyKey    string
-	ProviderReference string
-	EvidenceRef       string
+	ProviderInstanceID string
+	ProviderReference  string
+	EvidenceRef        string
 	ObservedAt        time.Time
 }
 
@@ -126,6 +128,7 @@ func (s *Session) RecordFact(fact Fact) error {
 func (s *Session) Complete(evidence CompletionEvidence) error {
 	if strings.TrimSpace(evidence.ID) == "" ||
 		strings.TrimSpace(evidence.IdempotencyKey) == "" ||
+		strings.TrimSpace(evidence.ProviderInstanceID) == "" ||
 		strings.TrimSpace(evidence.ProviderReference) == "" ||
 		strings.TrimSpace(evidence.EvidenceRef) == "" ||
 		evidence.ObservedAt.IsZero() {
@@ -167,6 +170,7 @@ func (s *Session) Facts() []Fact {
 func (s *Session) validateFact(fact Fact) error {
 	if strings.TrimSpace(fact.ID) == "" ||
 		strings.TrimSpace(fact.IdempotencyKey) == "" ||
+		strings.TrimSpace(fact.ProviderInstanceID) == "" ||
 		fact.OccurredAt.IsZero() ||
 		fact.OccurredAt.Before(s.CreatedAt) ||
 		fact.OccurredAt.Before(s.UpdatedAt) {
