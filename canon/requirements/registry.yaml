@@ -2470,6 +2470,9 @@ requirements:
   - backend/internal/commerce/store.go
   - backend/migrations/000013_r2_mobile_store_entitlements.sql
   - apps/mobile/src/r2-mobile-commerce.ts
+  - tools/launch_config_guard.py
+  - config/mobile/r2-ci-store-policy.yaml
+  - config/launch.r2-ci.yaml
   contract_refs:
   - packages/contracts/src/r2-mobile-commerce.ts
   - contracts/jsonschema/r2-mobile-store-v1.schema.json
@@ -2477,6 +2480,7 @@ requirements:
   - backend/internal/commerce/store_test.go
   - apps/mobile/src/r2-mobile-commerce.test.ts
   - backend/migrations/ci_r2_mobile_store_invariants.sql
+  - tools/tests/test_store_policy_guard.py
   - .github/workflows/ci.yml
   evidence_refs: []
   acceptance:
@@ -2603,7 +2607,6 @@ requirements:
   implementation_refs:
   - backend/migrations/000013_r2_mobile_store_entitlements.sql
   - apps/mobile/src/r2-mobile-commerce.ts
-  - backend/internal/privacy/deletion.go
   contract_refs:
   - packages/contracts/src/r2-mobile-commerce.ts
   - contracts/jsonschema/r2-mobile-store-v1.schema.json
