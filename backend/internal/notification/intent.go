@@ -49,5 +49,5 @@ func DeliveryIdempotencyKey(intent Intent, channel Channel, endpointRef string) 
 		strings.TrimSpace(endpointRef) == "" {
 		return "", ErrInvalidIntent
 	}
-	return strings.Join([]string{intent.ID, string(channel), endpointRef}, ":") , nil
+	return strings.Join([]string{intent.ID, string(channel), endpointRef}, ":"), nil
 }
