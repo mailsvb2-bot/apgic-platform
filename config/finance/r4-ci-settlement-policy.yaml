@@ -1,0 +1,26 @@
+version: finance-r4-ci-v1
+scope: CI_ONLY
+production_approved: false
+policy_kind: PROVIDER_SETTLEMENT
+unknown_path: BLOCK_POLICY_NOT_CONFIGURED
+commission_rules:
+  - id: organic-consultation-ru
+    commission_policy_version: commission-r2-ci-v1
+    demand_source: MARKETPLACE_ORGANIC
+    product_ref: consultation_booking
+    jurisdiction: RU
+    currency: RUB
+    basis_points: 1000
+    rounding_mode: FLOOR_MINOR
+    platform_fee_recipient_ref: platform/apgic-fee
+provider_execution:
+  required_settlement_capabilities:
+    - MARKETPLACE_SPLIT
+    - SETTLEMENT_EXECUTION
+  required_payout_capabilities:
+    - PAYOUT_EXECUTION
+  execution_owner: EXTERNAL_PROVIDER
+  historical_provider_affinity: REQUIRED
+  cross_provider_money_bridge: FORBIDDEN
+notes:
+  - "CI-only policy proves fail-closed commission and provider-executed settlement mechanics; it is not production commercial approval."

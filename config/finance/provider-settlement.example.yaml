@@ -1,0 +1,14 @@
+version: CONFIG_REQUIRED
+scope: PRODUCTION
+production_approved: false
+policy_kind: PROVIDER_SETTLEMENT
+unknown_path: BLOCK_POLICY_NOT_CONFIGURED
+commission_rules: []
+provider_execution:
+  required_settlement_capabilities:
+    - CONFIG_REQUIRED
+  required_payout_capabilities:
+    - CONFIG_REQUIRED
+  execution_owner: CONFIG_REQUIRED
+  historical_provider_affinity: CONFIG_REQUIRED
+  cross_provider_money_bridge: CONFIG_REQUIRED

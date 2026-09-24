@@ -1519,12 +1519,19 @@ requirements:
   release_profile: R4
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies:
   - APGIC-ORDER-001
-  implementation_refs: []
-  contract_refs: []
-  test_refs: []
+  implementation_refs:
+  - backend/internal/finance/settlement.go
+  - config/finance/r4-ci-settlement-policy.yaml
+  - tools/launch_config_guard.py
+  contract_refs:
+  - contracts/jsonschema/provider-settlement-v1.schema.json
+  test_refs:
+  - backend/internal/finance/settlement_test.go
+  - tools/tests/test_r4_finance_policy.py
+  - .github/workflows/ci.yml
   evidence_refs: []
   acceptance:
     given: completed payable transaction имеет demand source
@@ -1546,14 +1553,20 @@ requirements:
   release_profile: R4
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies:
   - APGIC-CONSULT-002
   - APGIC-COMMISSION-001
   - APGIC-LEDGER-001
-  implementation_refs: []
-  contract_refs: []
-  test_refs: []
+  implementation_refs:
+  - backend/internal/finance/settlement.go
+  - config/finance/r4-ci-settlement-policy.yaml
+  contract_refs:
+  - contracts/jsonschema/provider-settlement-v1.schema.json
+  - docs/architecture/0002-non-custodial-payment-control-plane.md
+  test_refs:
+  - backend/internal/finance/settlement_test.go
+  - .github/workflows/ci.yml
   evidence_refs: []
   acceptance:
     given: transaction eligible for settlement
@@ -1575,12 +1588,17 @@ requirements:
   release_profile: R4
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies:
   - APGIC-SETTLE-001
-  implementation_refs: []
-  contract_refs: []
-  test_refs: []
+  implementation_refs:
+  - backend/internal/finance/settlement.go
+  - config/finance/r4-ci-settlement-policy.yaml
+  contract_refs:
+  - contracts/jsonschema/provider-settlement-v1.schema.json
+  test_refs:
+  - backend/internal/finance/settlement_test.go
+  - .github/workflows/ci.yml
   evidence_refs: []
   acceptance:
     given: по APGIC economic snapshot/fulfillment policy существует ожидаемая выплата beneficiary
@@ -3201,12 +3219,15 @@ requirements:
   release_profile: R4
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies:
   - APGIC-PAY-009
-  implementation_refs: []
-  contract_refs: []
-  test_refs: []
+  implementation_refs:
+  - backend/internal/finance/settlement.go
+  contract_refs:
+  - contracts/jsonschema/provider-settlement-v1.schema.json
+  test_refs:
+  - backend/internal/finance/settlement_test.go
   evidence_refs: []
   acceptance:
     given: transaction was captured by provider A
@@ -3226,13 +3247,19 @@ requirements:
   release_profile: R4
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies:
   - APGIC-PAYOUT-001
   - APGIC-PAY-003
-  implementation_refs: []
-  contract_refs: []
-  test_refs: []
+  implementation_refs:
+  - backend/internal/finance/settlement.go
+  - config/finance/r4-ci-settlement-policy.yaml
+  contract_refs:
+  - contracts/jsonschema/provider-settlement-v1.schema.json
+  - docs/architecture/0002-non-custodial-payment-control-plane.md
+  test_refs:
+  - backend/internal/finance/settlement_test.go
+  - tools/tests/test_r4_finance_policy.py
   evidence_refs: []
   acceptance:
     given: transaction требует marketplace split/settlement/payout
@@ -3465,13 +3492,18 @@ requirements:
   release_profile: R4
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies:
   - APGIC-PAY-010
   - APGIC-PAY-016
-  implementation_refs: []
-  contract_refs: []
-  test_refs: []
+  implementation_refs:
+  - backend/internal/finance/settlement.go
+  - config/finance/r4-ci-settlement-policy.yaml
+  contract_refs:
+  - docs/architecture/0002-non-custodial-payment-control-plane.md
+  test_refs:
+  - backend/internal/finance/settlement_test.go
+  - tools/tests/test_r4_finance_policy.py
   evidence_refs: []
   acceptance:
     given: admin changes primary provider after a transaction started
@@ -3531,13 +3563,18 @@ requirements:
   release_profile: R4
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies:
   - APGIC-PAY-011
   - APGIC-PAY-016
-  implementation_refs: []
-  contract_refs: []
-  test_refs: []
+  implementation_refs:
+  - backend/internal/finance/settlement.go
+  - config/finance/r4-ci-settlement-policy.yaml
+  contract_refs:
+  - contracts/jsonschema/provider-settlement-v1.schema.json
+  test_refs:
+  - backend/internal/finance/settlement_test.go
+  - tools/tests/test_r4_finance_policy.py
   evidence_refs: []
   acceptance:
     given: marketplace transaction completes
