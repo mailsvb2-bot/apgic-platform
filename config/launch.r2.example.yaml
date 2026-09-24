@@ -1,0 +1,11 @@
+version: 1
+environment: PRODUCTION
+production_approved: false
+jurisdiction_matrix_version: CONFIG_REQUIRED
+retention_policy_version: CONFIG_REQUIRED
+slo_policy_version: CONFIG_REQUIRED
+provider_matrix_version: CONFIG_REQUIRED
+market_cell_thresholds_version: CONFIG_REQUIRED
+commerce_policy_version: CONFIG_REQUIRED
+notes:
+  - "R2 example only. Production order/payment paths remain blocked until pricing and commission policies are explicitly approved."
