@@ -67,7 +67,7 @@ func (s ProviderConfigSnapshot) Validate() error {
 		return ErrInvalidAdminChange
 	}
 	switch s.Status {
-	case ProviderActive, ProviderDegraded, ProviderPaused, ProviderDisabled:
+	case ProviderActive, ProviderPaused, ProviderDisabled:
 	default:
 		return ErrInvalidAdminChange
 	}
