@@ -65,10 +65,14 @@ func ResolveDeepLink(claims DeepLinkClaims, principal authz.Principal, now time.
 		!validAccessClass(claims.AccessClass) {
 		return deny(ReasonLinkInvalid)
 	}
+	expectedPath, ok := canonicalPathFor(claims.Kind, claims.TargetID)
+	if !ok || claims.CanonicalPath != expectedPath {
+		return deny(ReasonLinkInvalid)
+	}
 	if !claims.ExpiresAt.After(now) {
 		return deny(ReasonLinkExpired)
 	}
-	if !validCanonicalFallback(claims.WebFallback) {
+	if !validCanonicalFallback(claims.WebFallback, expectedPath) {
 		return deny(ReasonLinkFallbackInvalid)
 	}
 	if claims.SubjectIdentityID != "" && claims.SubjectIdentityID != principal.ID {
@@ -104,13 +108,29 @@ func ResolveDeepLink(claims DeepLinkClaims, principal authz.Principal, now time.
 	}
 }
 
-func validCanonicalFallback(raw string) bool {
+func validCanonicalFallback(raw, expectedPath string) bool {
 	parsed, err := url.Parse(raw)
-	if err != nil || parsed.Scheme != "https" {
+	if err != nil || parsed.Scheme != "https" || parsed.Path != expectedPath {
 		return false
 	}
 	host := strings.ToLower(parsed.Hostname())
 	return host == "apgic.ru" || strings.HasSuffix(host, ".apgic.ru")
+}
+
+func canonicalPathFor(kind LinkKind, targetID string) (string, bool) {
+	if strings.TrimSpace(targetID) == "" || strings.Contains(targetID, "/") {
+		return "", false
+	}
+	switch kind {
+	case LinkBooking:
+		return "/bookings/" + targetID, true
+	case LinkSpecialist:
+		return "/specialists/" + targetID, true
+	case LinkNotification:
+		return "/notifications/" + targetID, true
+	default:
+		return "", false
+	}
 }
 
 func validLinkKind(kind LinkKind) bool {
