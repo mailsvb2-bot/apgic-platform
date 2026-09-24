@@ -71,7 +71,7 @@ INSERT INTO provider_erasure_jobs (
   now()
 );
 
-DO $
+DO $$
 DECLARE
   premature_completion_blocked boolean := false;
 BEGIN
@@ -89,7 +89,7 @@ BEGIN
     RAISE EXCEPTION 'delete account completed before provider erasure evidence';
   END IF;
 END
-$;
+$$;
 
 UPDATE provider_erasure_jobs
 SET state = 'SUCCEEDED',
