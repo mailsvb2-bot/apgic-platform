@@ -92,7 +92,7 @@ BEGIN
     RAISE EXCEPTION 'communication join allowed role/identity mismatch';
   END IF;
 END
-$;
+$$;
 
 INSERT INTO communication_join_authorizations (
   id, booking_id, identity_id, role, provider_instance_id,
