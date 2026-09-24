@@ -119,7 +119,6 @@ func TestBookingRejectsHoldOutsideSlotTimeline(t *testing.T) {
 	}
 }
 
-
 func TestBookingCompletionRequiresExplicitEvidence(t *testing.T) {
 	booking, now := newBooking(t)
 	if _, err := booking.Transition(StateConfirmed, now.Add(time.Minute)); err != nil {
