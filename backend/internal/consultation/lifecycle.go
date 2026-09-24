@@ -150,9 +150,10 @@ func (s *Session) Complete(evidence CompletionEvidence) error {
 	fact := Fact{
 		ID: evidence.ID, IdempotencyKey: evidence.IdempotencyKey,
 		Type: FactEnded, Role: RoleSystem,
-		ProviderReference: evidence.ProviderReference,
-		EvidenceRef:       evidence.EvidenceRef,
-		OccurredAt:        evidence.ObservedAt,
+		ProviderInstanceID: evidence.ProviderInstanceID,
+		ProviderReference:  evidence.ProviderReference,
+		EvidenceRef:        evidence.EvidenceRef,
+		OccurredAt:         evidence.ObservedAt,
 	}
 	if err := s.RecordFact(fact); err != nil {
 		return err
