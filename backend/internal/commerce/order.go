@@ -12,7 +12,7 @@ type OrderSnapshot struct {
 	ID                      string
 	BookingID               string
 	OfferRef                string
-	PriceSourceRef           string
+	PriceSourceRef          string
 	AmountMinor             int64
 	Currency                string
 	CommissionMinor         int64
@@ -21,8 +21,8 @@ type OrderSnapshot struct {
 	LegalSnapshotRef        string
 	SellerRef               string
 	CommercialOwnerRef      string
-	PaymentRecipientRef      string
-	PlatformRole             string
+	PaymentRecipientRef     string
+	PlatformRole            string
 	FiscalResponsibilityRef string
 	RefundResponsibilityRef string
 	PayoutBeneficiaryRef    string
