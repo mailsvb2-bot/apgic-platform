@@ -21,6 +21,11 @@ R1_POLICIES = {
     "market_cell": ("market_cell_thresholds_version", "market_cell_thresholds_path"),
 }
 
+R2_POLICIES = {
+    **R1_POLICIES,
+    "commerce": ("commerce_policy_version", "commerce_policy_path"),
+}
+
 def fail(message: str) -> None:
     print(f"LAUNCH CONFIG PRECHECK: FAIL: {message}", file=sys.stderr)
     raise SystemExit(1)
@@ -223,11 +228,45 @@ def validate_market_cell(policy: dict) -> None:
         if cell.get("state") == "SCALE_READY" and not evidence:
             fail(f"{cell.get('id')}: SCALE_READY requires recorded evidence_refs")
 
+def validate_commerce(policy: dict) -> None:
+    if policy.get("policy_kind") != "PRICING_COMMISSION":
+        fail("commerce policy_kind must be PRICING_COMMISSION")
+    if policy.get("unknown_path") != "BLOCK":
+        fail("commerce unknown_path must be BLOCK")
+
+    paths = policy.get("monetized_paths")
+    if not isinstance(paths, dict) or not paths:
+        fail("commerce policy requires monetized_paths")
+
+    for path_id, row in paths.items():
+        if not isinstance(path_id, str) or not path_id.strip() or not isinstance(row, dict):
+            fail("commerce monetized path must be a named mapping")
+        for field in (
+            "pricing_policy_version",
+            "commission_policy_version",
+            "price_source_ref",
+            "currency",
+        ):
+            value = row.get(field)
+            if not isinstance(value, str) or not value.strip() or value == "CONFIG_REQUIRED":
+                fail(f"{path_id}: explicit {field} is required")
+        currency = row["currency"]
+        if len(currency) != 3 or currency != currency.upper():
+            fail(f"{path_id}: currency must be uppercase ISO-style code")
+
+        commission = row.get("commission")
+        if not isinstance(commission, dict) or commission.get("kind") != "PERCENT_BPS":
+            fail(f"{path_id}: explicit PERCENT_BPS commission is required")
+        bps = commission.get("basis_points")
+        if not isinstance(bps, int) or isinstance(bps, bool) or not 0 <= bps <= 10000:
+            fail(f"{path_id}: commission basis_points must be within 0..10000")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("config")
     parser.add_argument("--mode", choices=("ci", "production"), required=True)
-    parser.add_argument("--profile", choices=("R0", "R1"), default="R0")
+    parser.add_argument("--profile", choices=("R0", "R1", "R2"), default="R0")
     args = parser.parse_args()
 
     config_path = (ROOT / args.config).resolve()
@@ -247,7 +286,11 @@ def main() -> None:
         if config.get("environment") != "CI":
             fail("CI preflight requires environment=CI")
 
-    selected_policies = R1_POLICIES if args.profile == "R1" else POLICIES
+    selected_policies = {
+        "R0": POLICIES,
+        "R1": R1_POLICIES,
+        "R2": R2_POLICIES,
+    }[args.profile]
 
     loaded: dict[str, tuple[Path, dict]] = {}
     for label, (version_field, path_field) in selected_policies.items():
@@ -266,6 +309,8 @@ def main() -> None:
     validate_providers(loaded["providers"][1])
     if "market_cell" in loaded:
         validate_market_cell(loaded["market_cell"][1])
+    if "commerce" in loaded:
+        validate_commerce(loaded["commerce"][1])
 
     refs = ", ".join(
         f"{label}={path.relative_to(ROOT)}"

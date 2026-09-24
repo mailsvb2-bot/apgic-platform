@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apgic.ru/contracts/booking-order-v1.schema.json",
+  "title": "APGIC Booking and Order v1",
+  "type": "object",
+  "$defs": {
+    "BookingState": {
+      "type": "string",
+      "enum": [
+        "HELD",
+        "PENDING_PAYMENT",
+        "CONFIRMED",
+        "CANCELLED",
+        "EXPIRED",
+        "COMPLETED",
+        "NO_SHOW"
+      ]
+    },
+    "HoldOutcome": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["acquired", "reason_code"],
+      "properties": {
+        "acquired": { "type": "boolean" },
+        "reason_code": {
+          "type": "string",
+          "enum": [
+            "BOOK_HOLD_ACQUIRED",
+            "BOOK_SLOT_HELD",
+            "BOOK_HOLD_INVALID",
+            "BOOK_SLOT_NOT_FOUND",
+            "BOOK_SLOT_NOT_EXCLUSIVE",
+            "BOOK_SLOT_NOT_AVAILABLE",
+            "BOOK_SLOT_BOOKED"
+          ]
+        }
+      }
+    },
+    "OrderSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "booking_id",
+        "offer_ref",
+        "price_source_ref",
+        "amount_minor",
+        "currency",
+        "commission_minor",
+        "pricing_policy_version",
+        "commission_policy_version",
+        "legal_snapshot_ref",
+        "seller_ref",
+        "commercial_owner_ref",
+        "payment_recipient_ref",
+        "platform_role",
+        "fiscal_responsibility_ref",
+        "refund_responsibility_ref",
+        "payout_beneficiary_ref",
+        "captured_at"
+      ],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "booking_id": { "type": "string", "minLength": 1 },
+        "offer_ref": { "type": "string", "minLength": 1 },
+        "price_source_ref": { "type": "string", "minLength": 1 },
+        "amount_minor": { "type": "integer", "minimum": 1 },
+        "currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+        "commission_minor": { "type": "integer", "minimum": 0 },
+        "pricing_policy_version": { "type": "string", "minLength": 1 },
+        "commission_policy_version": { "type": "string", "minLength": 1 },
+        "legal_snapshot_ref": { "type": "string", "minLength": 1 },
+        "seller_ref": { "type": "string", "minLength": 1 },
+        "commercial_owner_ref": { "type": "string", "minLength": 1 },
+        "payment_recipient_ref": { "type": "string", "minLength": 1 },
+        "platform_role": { "type": "string", "minLength": 1 },
+        "fiscal_responsibility_ref": { "type": "string", "minLength": 1 },
+        "refund_responsibility_ref": { "type": "string", "minLength": 1 },
+        "payout_beneficiary_ref": { "type": "string", "minLength": 1 },
+        "captured_at": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}
