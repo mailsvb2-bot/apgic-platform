@@ -181,6 +181,30 @@ payment_health_guard_count="$(
 payment_health_append_only_count="$(
   psql --dbname="$RESTORE_DATABASE" -Atc     "SELECT count(*) FROM pg_trigger WHERE tgname = 'payment_provider_health_snapshots_append_only' AND NOT tgisinternal;"
 )"
+store_policy_append_only_count="$(
+  psql --dbname="$RESTORE_DATABASE" -Atc     "SELECT count(*) FROM pg_trigger WHERE tgname = 'store_policy_snapshots_append_only' AND NOT tgisinternal;"
+)"
+store_decision_guard_count="$(
+  psql --dbname="$RESTORE_DATABASE" -Atc     "SELECT count(*) FROM pg_trigger WHERE tgname = 'store_commerce_decisions_insert_guard' AND NOT tgisinternal;"
+)"
+store_verification_guard_count="$(
+  psql --dbname="$RESTORE_DATABASE" -Atc     "SELECT count(*) FROM pg_trigger WHERE tgname = 'store_transaction_verifications_insert_guard' AND NOT tgisinternal;"
+)"
+store_entitlement_guard_count="$(
+  psql --dbname="$RESTORE_DATABASE" -Atc     "SELECT count(*) FROM pg_trigger WHERE tgname = 'store_entitlements_insert_guard' AND NOT tgisinternal;"
+)"
+store_exit_guard_count="$(
+  psql --dbname="$RESTORE_DATABASE" -Atc     "SELECT count(*) FROM pg_trigger WHERE tgname = 'store_subscription_exit_actions_insert_guard' AND NOT tgisinternal;"
+)"
+device_integrity_evidence_guard_count="$(
+  psql --dbname="$RESTORE_DATABASE" -Atc     "SELECT count(*) FROM pg_trigger WHERE tgname = 'device_integrity_evidence_insert_guard' AND NOT tgisinternal;"
+)"
+device_integrity_risk_guard_count="$(
+  psql --dbname="$RESTORE_DATABASE" -Atc     "SELECT count(*) FROM pg_trigger WHERE tgname = 'device_integrity_risk_decisions_insert_guard' AND NOT tgisinternal;"
+)"
+noncash_entitlement_guard_count="$(
+  psql --dbname="$RESTORE_DATABASE" -Atc     "SELECT count(*) FROM pg_trigger WHERE tgname = 'noncash_entitlement_entries_insert_guard' AND NOT tgisinternal;"
+)"
 
 if [[ "$identity_count" != "1" || "$organization_count" != "1" ]]; then
   echo "restore drill failed: business sentinel missing" >&2
@@ -192,7 +216,7 @@ if [[ "$audit_trigger_count" != "1" || "$ledger_trigger_count" != "1" || "$legal
   exit 1
 fi
 
-if [[ "$direction_trigger_count" != "1" || "$product_owner_trigger_count" != "1" || "$outbox_delivery_constraint_count" != "1" || "$outbox_transition_trigger_count" != "1" || "$direction_archive_constraint_count" != "1" || "$legal_transaction_snapshot_trigger_count" != "1" || "$delete_request_transition_trigger_count" != "1" || "$delete_request_no_delete_trigger_count" != "1" || "$provider_erasure_trigger_count" != "1" || "$specialist_publication_guard_count" != "1" || "$specialist_profile_revalidation_guard_count" != "1" || "$specialist_capability_revalidation_guard_count" != "1" || "$qualification_append_only_trigger_count" != "1" || "$booking_hold_transition_trigger_count" != "1" || "$booking_hold_insert_trigger_count" != "1" || "$booking_transition_trigger_count" != "1" || "$booking_insert_trigger_count" != "1" || "$booking_consume_hold_trigger_count" != "1" || "$orders_append_only_trigger_count" != "1" || "$orders_snapshot_guard_trigger_count" != "1" || "$booking_acquire_function_count" != "1" || "$payment_provider_config_append_only_count" != "1" || "$payment_routing_append_only_count" != "1" || "$payment_attempt_transition_guard_count" != "1" || "$payment_attempt_no_delete_count" != "1" || "$payment_webhook_append_only_count" != "1" || "$payment_effect_append_only_count" != "1" || "$payment_webhook_function_count" != "1" || "$refund_transition_guard_count" != "1" || "$refund_no_delete_count" != "1" || "$refund_effect_append_only_count" != "1" || "$refund_apply_function_count" != "1" || "$notification_intent_append_only_count" != "1" || "$notification_delivery_guard_count" != "1" || "$calendar_sync_guard_count" != "1" || "$client_mutation_guard_count" != "1" || "$notification_intent_function_count" != "1" || "$client_mutation_claim_function_count" != "1" || "$payment_control_event_guard_count" != "1" || "$payment_control_event_append_only_count" != "1" || "$payment_health_guard_count" != "1" || "$payment_health_append_only_count" != "1" ]]; then
+if [[ "$direction_trigger_count" != "1" || "$product_owner_trigger_count" != "1" || "$outbox_delivery_constraint_count" != "1" || "$outbox_transition_trigger_count" != "1" || "$direction_archive_constraint_count" != "1" || "$legal_transaction_snapshot_trigger_count" != "1" || "$delete_request_transition_trigger_count" != "1" || "$delete_request_no_delete_trigger_count" != "1" || "$provider_erasure_trigger_count" != "1" || "$specialist_publication_guard_count" != "1" || "$specialist_profile_revalidation_guard_count" != "1" || "$specialist_capability_revalidation_guard_count" != "1" || "$qualification_append_only_trigger_count" != "1" || "$booking_hold_transition_trigger_count" != "1" || "$booking_hold_insert_trigger_count" != "1" || "$booking_transition_trigger_count" != "1" || "$booking_insert_trigger_count" != "1" || "$booking_consume_hold_trigger_count" != "1" || "$orders_append_only_trigger_count" != "1" || "$orders_snapshot_guard_trigger_count" != "1" || "$booking_acquire_function_count" != "1" || "$payment_provider_config_append_only_count" != "1" || "$payment_routing_append_only_count" != "1" || "$payment_attempt_transition_guard_count" != "1" || "$payment_attempt_no_delete_count" != "1" || "$payment_webhook_append_only_count" != "1" || "$payment_effect_append_only_count" != "1" || "$payment_webhook_function_count" != "1" || "$refund_transition_guard_count" != "1" || "$refund_no_delete_count" != "1" || "$refund_effect_append_only_count" != "1" || "$refund_apply_function_count" != "1" || "$notification_intent_append_only_count" != "1" || "$notification_delivery_guard_count" != "1" || "$calendar_sync_guard_count" != "1" || "$client_mutation_guard_count" != "1" || "$notification_intent_function_count" != "1" || "$client_mutation_claim_function_count" != "1" || "$payment_control_event_guard_count" != "1" || "$payment_control_event_append_only_count" != "1" || "$payment_health_guard_count" != "1" || "$payment_health_append_only_count" != "1" || "$store_policy_append_only_count" != "1" || "$store_decision_guard_count" != "1" || "$store_verification_guard_count" != "1" || "$store_entitlement_guard_count" != "1" || "$store_exit_guard_count" != "1" || "$device_integrity_evidence_guard_count" != "1" || "$device_integrity_risk_guard_count" != "1" || "$noncash_entitlement_guard_count" != "1" ]]; then
   echo "restore drill failed: semantic invariant object missing" >&2
   exit 1
 fi
@@ -257,6 +281,14 @@ cat >"$evidence_dir/restore-drill.json" <<JSON
   "integrity_probe_payment_control_event_append_only_count": $payment_control_event_append_only_count,
   "integrity_probe_payment_health_guard_count": $payment_health_guard_count,
   "integrity_probe_payment_health_append_only_count": $payment_health_append_only_count,
+  "integrity_probe_store_policy_append_only_count": $store_policy_append_only_count,
+  "integrity_probe_store_decision_guard_count": $store_decision_guard_count,
+  "integrity_probe_store_verification_guard_count": $store_verification_guard_count,
+  "integrity_probe_store_entitlement_guard_count": $store_entitlement_guard_count,
+  "integrity_probe_store_exit_guard_count": $store_exit_guard_count,
+  "integrity_probe_device_integrity_evidence_guard_count": $device_integrity_evidence_guard_count,
+  "integrity_probe_device_integrity_risk_guard_count": $device_integrity_risk_guard_count,
+  "integrity_probe_noncash_entitlement_guard_count": $noncash_entitlement_guard_count,
   "production_evidence": false
 }
 JSON
