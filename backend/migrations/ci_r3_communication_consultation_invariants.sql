@@ -141,7 +141,7 @@ INSERT INTO consultation_sessions (
 
 INSERT INTO consultation_lifecycle_facts (
   id, session_id, fact_type, role, identity_id,
-  provider_reference, evidence_ref, idempotency_key, occurred_at
+  provider_instance_id, provider_reference, evidence_ref, idempotency_key, occurred_at
 ) VALUES
 (
   '00000000-0000-0000-0000-00000000c401',
@@ -149,6 +149,7 @@ INSERT INTO consultation_lifecycle_facts (
   'JOINED',
   'CLIENT',
   '00000000-0000-0000-0000-00000000b002',
+  '00000000-0000-0000-0000-00000000c001',
   'room/r3-ci-1',
   'provider-evidence/client-joined',
   'fact-client-joined',
@@ -160,6 +161,7 @@ INSERT INTO consultation_lifecycle_facts (
   'JOINED',
   'SPECIALIST',
   '00000000-0000-0000-0000-00000000b001',
+  '00000000-0000-0000-0000-00000000c001',
   'room/r3-ci-1',
   'provider-evidence/specialist-joined',
   'fact-specialist-joined',
@@ -179,13 +181,14 @@ $$;
 
 INSERT INTO consultation_lifecycle_facts (
   id, session_id, fact_type, role, identity_id,
-  provider_reference, evidence_ref, idempotency_key, occurred_at
+  provider_instance_id, provider_reference, evidence_ref, idempotency_key, occurred_at
 ) VALUES (
   '00000000-0000-0000-0000-00000000c403',
   '00000000-0000-0000-0000-00000000c301',
   'STARTED',
   'SYSTEM',
   NULL,
+  '00000000-0000-0000-0000-00000000c001',
   'room/r3-ci-1',
   'provider-evidence/session-started',
   'fact-session-started',
@@ -211,13 +214,14 @@ $$;
 
 INSERT INTO consultation_lifecycle_facts (
   id, session_id, fact_type, role, identity_id,
-  provider_reference, evidence_ref, idempotency_key, occurred_at
+  provider_instance_id, provider_reference, evidence_ref, idempotency_key, occurred_at
 ) VALUES (
   '00000000-0000-0000-0000-00000000c404',
   '00000000-0000-0000-0000-00000000c301',
   'RECOVERY_STARTED',
   'SYSTEM',
   NULL,
+  '00000000-0000-0000-0000-00000000c001',
   'room/r3-ci-1',
   'provider-evidence/recovery-started',
   'fact-recovery-started',
@@ -226,13 +230,14 @@ INSERT INTO consultation_lifecycle_facts (
 
 INSERT INTO consultation_lifecycle_facts (
   id, session_id, fact_type, role, identity_id,
-  provider_reference, evidence_ref, idempotency_key, occurred_at
+  provider_instance_id, provider_reference, evidence_ref, idempotency_key, occurred_at
 ) VALUES (
   '00000000-0000-0000-0000-00000000c405',
   '00000000-0000-0000-0000-00000000c301',
   'RECOVERY_SUCCEEDED',
   'SYSTEM',
   NULL,
+  '00000000-0000-0000-0000-00000000c001',
   'room/r3-ci-2',
   'provider-evidence/recovery-succeeded',
   'fact-recovery-succeeded',
@@ -241,13 +246,14 @@ INSERT INTO consultation_lifecycle_facts (
 
 INSERT INTO consultation_lifecycle_facts (
   id, session_id, fact_type, role, identity_id,
-  provider_reference, evidence_ref, idempotency_key, occurred_at
+  provider_instance_id, provider_reference, evidence_ref, idempotency_key, occurred_at
 ) VALUES (
   '00000000-0000-0000-0000-00000000c406',
   '00000000-0000-0000-0000-00000000c301',
   'ENDED',
   'SYSTEM',
   NULL,
+  '00000000-0000-0000-0000-00000000c001',
   'room/r3-ci-2',
   'provider-evidence/session-ended',
   'fact-session-ended',
