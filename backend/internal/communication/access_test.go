@@ -110,7 +110,6 @@ func TestJoinRequiresConfirmedBooking(t *testing.T) {
 	}
 }
 
-
 func TestJoinFailsClosedAtEntitlementExpiryBoundary(t *testing.T) {
 	request, access, entitlement, window, provider, policy := validJoinFixture()
 	entitlement.ExpiresAt = request.Now
