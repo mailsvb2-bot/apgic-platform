@@ -103,3 +103,24 @@ test("negative integrity evidence becomes step-up, not local ban", () => {
     appealPath: "/support/integrity-appeal",
   });
 });
+
+
+test("unverified negative integrity signal cannot become trusted native decision", () => {
+  const evidence = {
+    contract_version: "device-integrity-v1",
+    evidence_id: "integrity-unverified",
+    installation_id: "installation-1",
+    verdict: "NEGATIVE",
+    server_verified: false,
+    reason_code: "LOCAL_SIGNAL_ONLY",
+    policy_version: "integrity-v1",
+    appeal_path: "/support/integrity-appeal",
+    action: "STEP_UP",
+  } satisfies DeviceIntegrityEvidenceV1;
+
+  assert.deepEqual(consumeIntegrityEvidence(evidence), {
+    action: "REVIEW",
+    reasonCode: "DEVICE_INTEGRITY_NOT_SERVER_VERIFIED",
+    appealPath: "/support/integrity-appeal",
+  });
+});
