@@ -39,6 +39,7 @@ jobs:
       - run: python tools/launch_config_guard.py config/launch.r1-ci.yaml --mode ci --profile R1
       - run: python tools/launch_config_guard.py config/launch.r2-ci.yaml --mode ci --profile R2
       - run: python tools/launch_config_guard.py config/launch.r3-ci.yaml --mode ci --profile R3
+      - run: python tools/launch_config_guard.py config/launch.r4-ci.yaml --mode ci --profile R4
       - run: python tools/mobile_release_guard.py config/mobile/r0-ci-release-governance.yaml --mode ci
       - run: python tools/mobile_observability_guard.py config/mobile/r0-ci-observability.yaml --mode ci
       - run: python tools/mobile_realtime_guard.py config/mobile/r3-ci-realtime-policy.yaml --mode ci
@@ -64,6 +65,11 @@ jobs:
             exit 1
           fi
           echo "fail-closed R3 booking fulfillment preflight proof: PASS"
+          if python tools/launch_config_guard.py config/launch.r4.example.yaml --mode production --profile R4; then
+            echo "R4 production provider settlement placeholder unexpectedly passed" >&2
+            exit 1
+          fi
+          echo "fail-closed R4 provider settlement preflight proof: PASS"
           if python tools/mobile_support_guard.py config/mobile/support-policy.example.yaml --mode production; then
             echo "production mobile support placeholder unexpectedly passed" >&2
             exit 1
