@@ -47,24 +47,24 @@ var (
 )
 
 type Fact struct {
-	ID                string
-	IdempotencyKey    string
-	Type              FactType
-	Role              ParticipantRole
+	ID                 string
+	IdempotencyKey     string
+	Type               FactType
+	Role               ParticipantRole
 	IdentityID         string
 	ProviderInstanceID string
 	ProviderReference  string
 	EvidenceRef        string
-	OccurredAt        time.Time
+	OccurredAt         time.Time
 }
 
 type CompletionEvidence struct {
-	ID                string
-	IdempotencyKey    string
+	ID                 string
+	IdempotencyKey     string
 	ProviderInstanceID string
 	ProviderReference  string
 	EvidenceRef        string
-	ObservedAt        time.Time
+	ObservedAt         time.Time
 }
 
 type Session struct {
