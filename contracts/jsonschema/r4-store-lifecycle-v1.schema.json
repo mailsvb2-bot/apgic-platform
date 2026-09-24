@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apgic.ru/contracts/r4-store-lifecycle-v1.schema.json",
+  "title": "APGIC R4 Store Lifecycle",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "event": {
+      "type":"object",
+      "additionalProperties":false,
+      "required":["provider_event_id","provider_instance_id","external_transaction_id","subscription_ref","sequence","event_type","provider_evidence_ref","occurred_at"],
+      "properties":{
+        "provider_event_id":{"type":"string","minLength":1},
+        "provider_instance_id":{"type":"string","minLength":1},
+        "external_transaction_id":{"type":"string","minLength":1},
+        "subscription_ref":{"type":"string","minLength":1},
+        "sequence":{"type":"integer","minimum":1},
+        "event_type":{"enum":["RENEWAL","REFUND","REVOCATION","CHARGEBACK","GRACE_STARTED","HOLD_STARTED","EXPIRED"]},
+        "provider_evidence_ref":{"type":"string","minLength":1},
+        "ledger_evidence_ref":{"type":["string","null"]},
+        "occurred_at":{"type":"string","format":"date-time"}
+      }
+    },
+    "projection": {
+      "type":"object",
+      "additionalProperties":false,
+      "required":["provider_instance_id","subscription_ref","state","entitlement_state","last_sequence","applied_event_count"],
+      "properties":{
+        "provider_instance_id":{"type":"string","minLength":1},
+        "subscription_ref":{"type":"string","minLength":1},
+        "state":{"enum":["ACTIVE","GRACE","HOLD","EXPIRED","REVOKED"]},
+        "entitlement_state":{"enum":["ACTIVE","EXPIRED","REVOKED"]},
+        "last_sequence":{"type":"integer","minimum":1},
+        "applied_event_count":{"type":"integer","minimum":1}
+      }
+    }
+  },
+  "anyOf":[{"required":["event"]},{"required":["projection"]}]
+}
