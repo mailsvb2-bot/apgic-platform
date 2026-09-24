@@ -39,11 +39,11 @@ const (
 )
 
 var (
-	ErrInvalidSession      = errors.New("invalid consultation session")
-	ErrInvalidFact         = errors.New("invalid consultation lifecycle fact")
-	ErrDuplicateFact       = errors.New("duplicate consultation lifecycle fact")
-	ErrTransitionDenied    = errors.New("consultation transition denied")
-	ErrCompletionEvidence  = errors.New("consultation completion evidence required")
+	ErrInvalidSession     = errors.New("invalid consultation session")
+	ErrInvalidFact        = errors.New("invalid consultation lifecycle fact")
+	ErrDuplicateFact      = errors.New("duplicate consultation lifecycle fact")
+	ErrTransitionDenied   = errors.New("consultation transition denied")
+	ErrCompletionEvidence = errors.New("consultation completion evidence required")
 )
 
 type Fact struct {
@@ -97,10 +97,10 @@ func New(
 	}
 	return &Session{
 		ID: id, BookingID: bookingID,
-		ClientIdentityID: clientIdentityID,
+		ClientIdentityID:     clientIdentityID,
 		SpecialistIdentityID: specialistIdentityID,
-		ProviderInstanceID: providerInstanceID,
-		State: StateScheduled, CreatedAt: now, UpdatedAt: now,
+		ProviderInstanceID:   providerInstanceID,
+		State:                StateScheduled, CreatedAt: now, UpdatedAt: now,
 		idempotencyKeys: map[string]struct{}{},
 	}, nil
 }
@@ -148,8 +148,8 @@ func (s *Session) Complete(evidence CompletionEvidence) error {
 		ID: evidence.ID, IdempotencyKey: evidence.IdempotencyKey,
 		Type: FactEnded, Role: RoleSystem,
 		ProviderReference: evidence.ProviderReference,
-		EvidenceRef: evidence.EvidenceRef,
-		OccurredAt: evidence.ObservedAt,
+		EvidenceRef:       evidence.EvidenceRef,
+		OccurredAt:        evidence.ObservedAt,
 	}
 	if err := s.RecordFact(fact); err != nil {
 		return err
