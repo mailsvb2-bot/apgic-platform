@@ -2477,7 +2477,7 @@ requirements:
   release_profile: R4
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies:
   - APGIC-MOBILE-003
   - APGIC-MOBILE-006
@@ -2486,9 +2486,16 @@ requirements:
   - APGIC-MOBILE-009
   - APGIC-MOBILE-012
   - APGIC-MOBILE-013
-  implementation_refs: []
-  contract_refs: []
-  test_refs: []
+  implementation_refs:
+  - tools/r4_release_gate.py
+  - config/release/r4-ci-gate-evidence.yaml
+  - tools/mobile_release_guard.py
+  contract_refs:
+  - canon/evidence/r4-release-gate-v1.schema.json
+  - canon/evidence/mobile-release-evidence-v1.schema.json
+  test_refs:
+  - tools/tests/test_r4_release_gate.py
+  - .github/workflows/ci.yml
   evidence_refs: []
   acceptance:
     given: R4 готов к production promotion
@@ -2616,12 +2623,20 @@ requirements:
   release_profile: R4
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies:
   - APGIC-MOBILE-018
-  implementation_refs: []
-  contract_refs: []
-  test_refs: []
+  implementation_refs:
+  - backend/internal/commerce/store_lifecycle.go
+  - backend/migrations/000015_r4_store_lifecycle_reconciliation.sql
+  contract_refs:
+  - packages/contracts/src/r4-store-lifecycle.ts
+  - contracts/jsonschema/r4-store-lifecycle-v1.schema.json
+  test_refs:
+  - backend/internal/commerce/store_lifecycle_test.go
+  - backend/migrations/ci_r4_store_lifecycle_invariants.sql
+  - backend/ci/restore_drill.sh
+  - .github/workflows/ci.yml
   evidence_refs: []
   acceptance:
     given: external store lifecycle event occurs
@@ -2973,7 +2988,7 @@ requirements:
   release_profile: R4
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies:
   - APGIC-MOBILE-015
   - APGIC-MOBILE-016
@@ -2986,9 +3001,20 @@ requirements:
   - APGIC-MOBILE-025
   - APGIC-MOBILE-027
   - APGIC-MOBILE-029
-  implementation_refs: []
-  contract_refs: []
-  test_refs: []
+  implementation_refs:
+  - tools/r4_release_gate.py
+  - config/release/r4-ci-gate-evidence.yaml
+  - tools/mobile_release_guard.py
+  - tools/mobile_privacy_guard.py
+  - tools/mobile_dependency_guard.py
+  - tools/mobile_observability_guard.py
+  - tools/mobile_support_guard.py
+  contract_refs:
+  - canon/evidence/r4-release-gate-v1.schema.json
+  - canon/evidence/mobile-release-evidence-v1.schema.json
+  test_refs:
+  - tools/tests/test_r4_release_gate.py
+  - .github/workflows/ci.yml
   evidence_refs: []
   acceptance:
     given: native candidate готов к public rollout
@@ -3391,7 +3417,7 @@ requirements:
   release_profile: R4
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies:
   - APGIC-PAY-003
   - APGIC-PAY-005
@@ -3404,9 +3430,21 @@ requirements:
   - APGIC-PAY-012
   - APGIC-PAY-013
   - APGIC-PAY-014
-  implementation_refs: []
-  contract_refs: []
-  test_refs: []
+  implementation_refs:
+  - tools/r4_release_gate.py
+  - config/release/r4-ci-gate-evidence.yaml
+  - backend/internal/finance/settlement.go
+  - backend/internal/finance/reconciliation.go
+  contract_refs:
+  - canon/evidence/r4-release-gate-v1.schema.json
+  - contracts/jsonschema/provider-settlement-v1.schema.json
+  - contracts/jsonschema/financial-evidence-v1.schema.json
+  - docs/architecture/0002-non-custodial-payment-control-plane.md
+  test_refs:
+  - tools/tests/test_r4_release_gate.py
+  - backend/internal/finance/settlement_test.go
+  - backend/internal/finance/reconciliation_test.go
+  - .github/workflows/ci.yml
   evidence_refs: []
   acceptance:
     given: candidate is proposed as multi-provider production ready

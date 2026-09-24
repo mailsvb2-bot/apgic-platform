@@ -1,0 +1,95 @@
+schema_version: r4-release-gate-v1
+candidate_sha: ci-candidate-sha
+synthetic: true
+production_candidate: false
+evidence:
+  SERVER_CRITICAL_PATH_E2E:
+    status: PASS
+    ref: ci://server_critical_path_e2e
+  WEB_CRITICAL_PATH_E2E:
+    status: PASS
+    ref: ci://web_critical_path_e2e
+  IOS_NATIVE_E2E:
+    status: PASS
+    ref: ci://ios_native_e2e
+  ANDROID_NATIVE_E2E:
+    status: PASS
+    ref: ci://android_native_e2e
+  DEEP_LINK_E2E:
+    status: PASS
+    ref: ci://deep_link_e2e
+  PUSH_E2E:
+    status: PASS
+    ref: ci://push_e2e
+  OFFLINE_SYNC_E2E:
+    status: PASS
+    ref: ci://offline_sync_e2e
+  REALTIME_E2E:
+    status: PASS
+    ref: ci://realtime_e2e
+  IOS_SIGNED_BUILD:
+    status: PASS
+    ref: ci://ios_signed_build
+  ANDROID_SIGNED_BUILD:
+    status: PASS
+    ref: ci://android_signed_build
+  COMPATIBILITY_EVIDENCE:
+    status: PASS
+    ref: ci://compatibility_evidence
+  STAGING_PROOF:
+    status: PASS
+    ref: ci://staging_proof
+  RELEASE_EVIDENCE:
+    status: PASS
+    ref: ci://release_evidence
+  STORE_ARCHITECTURE_REVIEW:
+    status: PASS
+    ref: ci://store_architecture_review
+  STORE_COMMERCE_E2E:
+    status: PASS
+    ref: ci://store_commerce_e2e
+  ACCOUNT_DELETION_E2E:
+    status: PASS
+    ref: ci://account_deletion_e2e
+  PRIVACY_MANIFEST_CHECK:
+    status: PASS
+    ref: ci://privacy_manifest_check
+  DEPENDENCY_REGISTRY_LINT:
+    status: PASS
+    ref: ci://dependency_registry_lint
+  DEVICE_INTEGRITY_E2E:
+    status: PASS
+    ref: ci://device_integrity_e2e
+  MOBILE_SLO_EVIDENCE:
+    status: PASS
+    ref: ci://mobile_slo_evidence
+  ACCESSIBILITY_EVIDENCE:
+    status: PASS
+    ref: ci://accessibility_evidence
+  STORE_REVIEW_EVIDENCE:
+    status: PASS
+    ref: ci://store_review_evidence
+  STAGED_ROLLOUT_PROOF:
+    status: PASS
+    ref: ci://staged_rollout_proof
+  TWO_PROVIDER_CERTIFICATION:
+    status: PASS
+    ref: ci://two_provider_certification
+  MULTI_PROVIDER_CHECKOUT_E2E:
+    status: PASS
+    ref: ci://multi_provider_checkout_e2e
+  FAILOVER_CHAOS_PROOF:
+    status: PASS
+    ref: ci://failover_chaos_proof
+  PROVIDER_EXECUTED_SPLIT_PAYOUT_PROOF:
+    status: PASS
+    ref: ci://provider_executed_split_payout_proof
+  NO_APGIC_CUSTODY_PROOF:
+    status: PASS
+    ref: ci://no_apgic_custody_proof
+  LEDGER_RECONCILIATION:
+    status: PASS
+    ref: ci://ledger_reconciliation
+  ADMIN_AUDIT_EVIDENCE:
+    status: PASS
+    ref: ci://admin_audit_evidence
