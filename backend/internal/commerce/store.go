@@ -29,14 +29,14 @@ var (
 )
 
 type StorePolicyRule struct {
-	ProductType      string
-	Surface          ClientSurface
-	Store            string
-	Storefront       string
-	Jurisdiction     string
-	Enabled          bool
-	Rail             payments.RailCode
-	ReasonCode       string
+	ProductType  string
+	Surface      ClientSurface
+	Store        string
+	Storefront   string
+	Jurisdiction string
+	Enabled      bool
+	Rail         payments.RailCode
+	ReasonCode   string
 }
 
 type StorePolicySnapshot struct {
