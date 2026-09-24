@@ -69,7 +69,7 @@ BEGIN
     ELSIF OLD.state = 'IDENTITY_RECONFIRMED' AND NEW.state = 'RETENTION_CLASSIFIED' THEN
       NULL;
     ELSIF OLD.state = 'RETENTION_CLASSIFIED'
-      AND NEW.state IN ('PROVIDER_ERASURE_PENDING','WAITING_FOR_LEGAL_HOLD_EXPIRY','PARTIALLY_RETAINED_WITH_REASON','COMPLETED') THEN
+      AND NEW.state = 'PROVIDER_ERASURE_PENDING' THEN
       NULL;
     ELSIF OLD.state = 'PROVIDER_ERASURE_PENDING'
       AND NEW.state IN ('WAITING_FOR_LEGAL_HOLD_EXPIRY','PARTIALLY_RETAINED_WITH_REASON','COMPLETED') THEN
@@ -80,6 +80,16 @@ BEGIN
     ELSE
       RAISE EXCEPTION 'invalid delete account state transition: % -> %', OLD.state, NEW.state;
     END IF;
+  END IF;
+
+  IF NEW.state IN ('WAITING_FOR_LEGAL_HOLD_EXPIRY','PARTIALLY_RETAINED_WITH_REASON','COMPLETED')
+    AND EXISTS (
+      SELECT 1
+      FROM provider_erasure_jobs
+      WHERE delete_request_id = OLD.id
+        AND state <> 'SUCCEEDED'
+    ) THEN
+    RAISE EXCEPTION 'delete account cannot reach terminal/retained state before provider erasure evidence';
   END IF;
 
   IF NEW.updated_at < OLD.updated_at THEN
