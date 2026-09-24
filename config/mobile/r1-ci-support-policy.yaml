@@ -1,0 +1,23 @@
+policy_version: mobile-support-r1-ci-v1
+scope: CI_ONLY
+production_approved: false
+production_evidence: false
+minimum_ios_major: 16
+minimum_android_api: 29
+accessibility:
+  voice_over: true
+  talk_back: true
+  text_scaling: true
+  reduced_motion: true
+  focus_order: true
+  touch_target_min_dp: 44
+device_test_classes:
+  - PHONE_COMPACT
+  - PHONE_LARGE
+  - TABLET
+targeted_physical_capability_paths:
+  - CAMERA_MICROPHONE
+  - PUSH_BACKGROUND
+  - UNIVERSAL_APP_LINKS
+  - AUDIO_ROUTE
+evidence_refs: []

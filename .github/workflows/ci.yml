@@ -29,6 +29,8 @@ jobs:
       - run: python tools/terminology_guard.py
       - run: python tools/generate_client_contract.py --check
       - run: python tools/multisurface_guard.py
+      - run: python tools/r1_multisurface_guard.py
+      - run: python tools/mobile_support_guard.py config/mobile/r1-ci-support-policy.yaml --mode ci
       - run: python -m unittest discover -s tools/tests -p 'test_*.py'
       - run: python tools/launch_config_guard.py config/launch.ci.yaml --mode ci
       - run: python tools/launch_config_guard.py config/launch.r1-ci.yaml --mode ci --profile R1
@@ -46,6 +48,11 @@ jobs:
             exit 1
           fi
           echo "fail-closed R1 MarketCell preflight proof: PASS"
+          if python tools/mobile_support_guard.py config/mobile/support-policy.example.yaml --mode production; then
+            echo "production mobile support placeholder unexpectedly passed" >&2
+            exit 1
+          fi
+          echo "fail-closed production mobile support proof: PASS"
           if python tools/mobile_release_guard.py config/mobile/release-governance.example.yaml --mode production; then
             echo "production mobile release placeholder unexpectedly passed" >&2
             exit 1
@@ -64,7 +71,12 @@ jobs:
       - working-directory: backend
         shell: bash
         run: |
-          test -z "$(gofmt -l .)"
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "gofmt required for:"
+            printf '%s\n' "$unformatted"
+            exit 1
+          fi
           go vet ./...
           go test -race ./...
 
@@ -96,7 +108,9 @@ jobs:
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000003_r0_semantic_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000004_r0_outbox_terminality.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000005_r0_legal_transaction_snapshot.sql
+          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000006_r1_account_deletion.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_invariants.sql
+          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r1_mobile_invariants.sql
 
   restore-drill:
     name: PostgreSQL isolated restore drill
@@ -131,6 +145,7 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f backend/migrations/000003_r0_semantic_invariants.sql
           psql -v ON_ERROR_STOP=1 -f backend/migrations/000004_r0_outbox_terminality.sql
           psql -v ON_ERROR_STOP=1 -f backend/migrations/000005_r0_legal_transaction_snapshot.sql
+          psql -v ON_ERROR_STOP=1 -f backend/migrations/000006_r1_account_deletion.sql
           bash backend/ci/restore_drill.sh
       - uses: actions/upload-artifact@v4
         with:

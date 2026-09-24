@@ -1,0 +1,16 @@
+policy_version: CONFIG_REQUIRED
+scope: PRODUCTION
+production_approved: false
+production_evidence: false
+minimum_ios_major: 0
+minimum_android_api: 0
+accessibility:
+  voice_over: false
+  talk_back: false
+  text_scaling: false
+  reduced_motion: false
+  focus_order: false
+  touch_target_min_dp: 0
+device_test_classes: []
+targeted_physical_capability_paths: []
+evidence_refs: []

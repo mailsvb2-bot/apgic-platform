@@ -4,3 +4,5 @@ export * from "./generated/apgic-v1";
 export * from "./foundation";
 export * from "./mobile-policy";
 export * from "./mobile-observability";
+
+export * from "./r1-mobile";

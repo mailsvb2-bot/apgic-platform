@@ -3,18 +3,30 @@ export type DeviceCapability =
   | "MICROPHONE"
   | "CALENDAR"
   | "SECURE_STORAGE"
-  | "PUSH_NOTIFICATIONS";
+  | "PUSH_NOTIFICATIONS"
+  | "UNIVERSAL_LINKS"
+  | "SHARE_SHEET"
+  | "FILE_PICKER"
+  | "PHOTO_PICKER"
+  | "BIOMETRIC"
+  | "NETWORK_STATUS"
+  | "AUDIO_ROUTE"
+  | "BACKGROUND_LIFECYCLE";
 
 export type CapabilityState =
-  | "AVAILABLE"
+  | "UNKNOWN"
+  | "NOT_REQUESTED"
+  | "GRANTED"
   | "DENIED"
   | "RESTRICTED"
   | "UNAVAILABLE";
 
 export type CapabilityDecision =
-  | { state: "AVAILABLE"; action: "CONTINUE" }
+  | { state: "GRANTED"; action: "CONTINUE" }
+  | { state: "NOT_REQUESTED"; action: "REQUEST_PERMISSION" }
+  | { state: "UNKNOWN"; action: "REFRESH_STATE" }
   | {
-      state: Exclude<CapabilityState, "AVAILABLE">;
+      state: "DENIED" | "RESTRICTED" | "UNAVAILABLE";
       action: "FALLBACK";
       reason:
         | "PERMISSION_DENIED"
@@ -24,8 +36,12 @@ export type CapabilityDecision =
 
 export function decideCapability(state: CapabilityState): CapabilityDecision {
   switch (state) {
-    case "AVAILABLE":
+    case "GRANTED":
       return { state, action: "CONTINUE" };
+    case "NOT_REQUESTED":
+      return { state, action: "REQUEST_PERMISSION" };
+    case "UNKNOWN":
+      return { state, action: "REFRESH_STATE" };
     case "DENIED":
       return { state, action: "FALLBACK", reason: "PERMISSION_DENIED" };
     case "RESTRICTED":
