@@ -433,73 +433,7 @@ CREATE TABLE orders (
   offer_ref text NOT NULL CHECK (btrim(offer_ref) <> ''),
   price_source_ref text NOT NULL CHECK (btrim(price_source_ref) <> ''),
   amount_minor bigint NOT NULL CHECK (amount_minor > 0),
-  currency text NOT NULL CHECK (currency ~ '^[A-Z]{3}
-  commission_minor bigint NOT NULL CHECK (
-    commission_minor >= 0 AND commission_minor <= amount_minor
-  ),
-  pricing_policy_version text NOT NULL CHECK (btrim(pricing_policy_version) <> ''),
-  commission_policy_version text NOT NULL CHECK (btrim(commission_policy_version) <> ''),
-  legal_snapshot_id uuid NOT NULL REFERENCES legal_transaction_snapshots(id),
-  seller_ref text NOT NULL CHECK (btrim(seller_ref) <> ''),
-  commercial_owner_ref text NOT NULL CHECK (btrim(commercial_owner_ref) <> ''),
-  payment_recipient_ref text NOT NULL CHECK (btrim(payment_recipient_ref) <> ''),
-  platform_role text NOT NULL CHECK (btrim(platform_role) <> ''),
-  fiscal_responsibility_ref text NOT NULL CHECK (btrim(fiscal_responsibility_ref) <> ''),
-  refund_responsibility_ref text NOT NULL CHECK (btrim(refund_responsibility_ref) <> ''),
-  payout_beneficiary_ref text NOT NULL CHECK (btrim(payout_beneficiary_ref) <> ''),
-  captured_at timestamptz NOT NULL
-);
-
-CREATE OR REPLACE FUNCTION apgic_order_snapshot_guard()
-RETURNS trigger
-LANGUAGE plpgsql
-AS $$
-DECLARE
-  legal legal_transaction_snapshots%ROWTYPE;
-BEGIN
-  SELECT *
-  INTO legal
-  FROM legal_transaction_snapshots
-  WHERE id = NEW.legal_snapshot_id;
-
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'order legal snapshot not found';
-  END IF;
-
-  IF legal.transaction_ref <> 'order/' || NEW.id::text OR
-     legal.seller_or_service_provider_id <> NEW.seller_ref OR
-     legal.commercial_owner_id <> NEW.commercial_owner_ref OR
-     legal.payment_recipient_id <> NEW.payment_recipient_ref OR
-     legal.platform_role <> NEW.platform_role OR
-     legal.fiscal_responsibility_id <> NEW.fiscal_responsibility_ref OR
-     legal.refund_responsibility_id <> NEW.refund_responsibility_ref OR
-     legal.payout_beneficiary_id <> NEW.payout_beneficiary_ref THEN
-    RAISE EXCEPTION 'order/legal snapshot role mismatch';
-  END IF;
-
-  IF NOT EXISTS (
-    SELECT 1
-    FROM bookings
-    WHERE id = NEW.booking_id
-      AND state IN ('HELD','PENDING_PAYMENT','CONFIRMED')
-  ) THEN
-    RAISE EXCEPTION 'order requires a live booking';
-  END IF;
-
-  RETURN NEW;
-END;
-$$;
-
-CREATE TRIGGER orders_snapshot_guard
-BEFORE INSERT ON orders
-FOR EACH ROW EXECUTE FUNCTION apgic_order_snapshot_guard();
-
-CREATE TRIGGER orders_append_only
-BEFORE UPDATE OR DELETE ON orders
-FOR EACH ROW EXECUTE FUNCTION apgic_reject_mutation();
-
-COMMIT;
-),
+  currency text NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
   commission_minor bigint NOT NULL CHECK (
     commission_minor >= 0 AND commission_minor <= amount_minor
   ),
