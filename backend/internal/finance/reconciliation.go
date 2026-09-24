@@ -25,37 +25,37 @@ var (
 )
 
 type ExpectedFinancialState struct {
-	EconomicRef             string
-	OriginalProviderID      string
-	GrossMinor              int64
-	ProviderFeeMinor        int64
-	Currency                string
-	LedgerEvidenceRef       string
-	SettlementEvidenceRef   string
-	PayoutEvidenceRef       string
+	EconomicRef           string
+	OriginalProviderID    string
+	GrossMinor            int64
+	ProviderFeeMinor      int64
+	Currency              string
+	LedgerEvidenceRef     string
+	SettlementEvidenceRef string
+	PayoutEvidenceRef     string
 }
 
 type ProviderStatementFact struct {
-	ProviderID          string
-	EconomicRef         string
-	GrossMinor          int64
-	ProviderFeeMinor    int64
-	Currency            string
+	ProviderID           string
+	EconomicRef          string
+	GrossMinor           int64
+	ProviderFeeMinor     int64
+	Currency             string
 	StatementEvidenceRef string
 }
 
 type ReconciliationDiscrepancy struct {
-	EconomicRef          string
-	ProviderID           string
-	Kind                 string
-	ExpectedGrossMinor   int64
-	ProviderGrossMinor   int64
-	ExpectedFeeMinor     int64
-	ProviderFeeMinor     int64
-	Currency             string
-	Owner                string
-	Status               DiscrepancyStatus
-	EvidenceRefs         []string
+	EconomicRef        string
+	ProviderID         string
+	Kind               string
+	ExpectedGrossMinor int64
+	ProviderGrossMinor int64
+	ExpectedFeeMinor   int64
+	ProviderFeeMinor   int64
+	Currency           string
+	Owner              string
+	Status             DiscrepancyStatus
+	EvidenceRefs       []string
 }
 
 type ReconciliationResult struct {
@@ -90,9 +90,9 @@ func Reconcile(expected ExpectedFinancialState, statement ProviderStatementFact)
 	}
 
 	result := ReconciliationResult{
-		Outcome: ReconciliationMatched,
+		Outcome:     ReconciliationMatched,
 		EconomicRef: expected.EconomicRef,
-		ProviderID: expected.OriginalProviderID,
+		ProviderID:  expected.OriginalProviderID,
 	}
 	if statement.GrossMinor == expected.GrossMinor &&
 		statement.ProviderFeeMinor == expected.ProviderFeeMinor &&
@@ -102,16 +102,16 @@ func Reconcile(expected ExpectedFinancialState, statement ProviderStatementFact)
 
 	result.Outcome = ReconciliationMismatch
 	result.Discrepancy = &ReconciliationDiscrepancy{
-		EconomicRef: expected.EconomicRef,
-		ProviderID: expected.OriginalProviderID,
-		Kind: "PROVIDER_LEDGER_MISMATCH",
+		EconomicRef:        expected.EconomicRef,
+		ProviderID:         expected.OriginalProviderID,
+		Kind:               "PROVIDER_LEDGER_MISMATCH",
 		ExpectedGrossMinor: expected.GrossMinor,
 		ProviderGrossMinor: statement.GrossMinor,
-		ExpectedFeeMinor: expected.ProviderFeeMinor,
-		ProviderFeeMinor: statement.ProviderFeeMinor,
-		Currency: expected.Currency,
-		Owner: "FINANCE_OPERATIONS",
-		Status: DiscrepancyOpen,
+		ExpectedFeeMinor:   expected.ProviderFeeMinor,
+		ProviderFeeMinor:   statement.ProviderFeeMinor,
+		Currency:           expected.Currency,
+		Owner:              "FINANCE_OPERATIONS",
+		Status:             DiscrepancyOpen,
 		EvidenceRefs: []string{
 			expected.LedgerEvidenceRef,
 			expected.SettlementEvidenceRef,
@@ -131,17 +131,17 @@ const (
 )
 
 type DisputeEffect struct {
-	EffectID             string
-	EconomicRef          string
-	OriginalProviderID   string
-	ProviderID           string
-	Kind                 DisputeKind
-	AmountMinor          int64
-	Currency             string
-	ProviderEvidenceRef  string
-	LedgerEvidenceRef    string
-	AuditEvidenceRef     string
-	ExecutionOwner       string
+	EffectID            string
+	EconomicRef         string
+	OriginalProviderID  string
+	ProviderID          string
+	Kind                DisputeKind
+	AmountMinor         int64
+	Currency            string
+	ProviderEvidenceRef string
+	LedgerEvidenceRef   string
+	AuditEvidenceRef    string
+	ExecutionOwner      string
 }
 
 func NewDisputeEffect(effect DisputeEffect) (DisputeEffect, error) {
@@ -170,15 +170,15 @@ func NewDisputeEffect(effect DisputeEffect) (DisputeEffect, error) {
 }
 
 type RevenueEvidence struct {
-	PaymentEvidenceRef      string
-	LedgerEvidenceRef       string
-	FulfillmentEvidenceRef  string
-	CommissionEvidenceRef   string
-	SettlementEvidenceRef   string
-	PayoutEvidenceRef       string
-	ReconciliationOutcome   ReconciliationOutcome
-	DiscrepancyEvidenceRef  string
-	APGICCustody            bool
+	PaymentEvidenceRef     string
+	LedgerEvidenceRef      string
+	FulfillmentEvidenceRef string
+	CommissionEvidenceRef  string
+	SettlementEvidenceRef  string
+	PayoutEvidenceRef      string
+	ReconciliationOutcome  ReconciliationOutcome
+	DiscrepancyEvidenceRef string
+	APGICCustody           bool
 }
 
 type RevenueAssuranceResult struct {
