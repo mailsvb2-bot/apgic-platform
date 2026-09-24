@@ -1,0 +1,14 @@
+version: commerce-r2-ci-v1
+scope: CI_ONLY
+production_approved: false
+policy_kind: PRICING_COMMISSION
+unknown_path: BLOCK
+monetized_paths:
+  consultation_booking:
+    pricing_policy_version: pricing-r2-ci-v1
+    commission_policy_version: commission-r2-ci-v1
+    price_source_ref: catalog/consultation-r2-ci
+    currency: RUB
+    commission:
+      kind: PERCENT_BPS
+      basis_points: 1000
