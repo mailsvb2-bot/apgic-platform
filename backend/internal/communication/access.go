@@ -24,14 +24,14 @@ const (
 )
 
 const (
-	ReasonAllowed               = "COMM_JOIN_ALLOWED"
-	ReasonBookingNotJoinable    = "COMM_BOOKING_NOT_JOINABLE"
-	ReasonRoleMismatch          = "COMM_ROLE_MISMATCH"
-	ReasonEntitlementMissing    = "COMM_ENTITLEMENT_REQUIRED"
-	ReasonOutsideJoinWindow     = "COMM_OUTSIDE_JOIN_WINDOW"
-	ReasonProviderUnavailable   = "COMM_PROVIDER_UNAVAILABLE"
-	ReasonInvalidJoinRequest    = "COMM_JOIN_REQUEST_INVALID"
-	ReasonInvalidJoinPolicy     = "COMM_JOIN_POLICY_INVALID"
+	ReasonAllowed             = "COMM_JOIN_ALLOWED"
+	ReasonBookingNotJoinable  = "COMM_BOOKING_NOT_JOINABLE"
+	ReasonRoleMismatch        = "COMM_ROLE_MISMATCH"
+	ReasonEntitlementMissing  = "COMM_ENTITLEMENT_REQUIRED"
+	ReasonOutsideJoinWindow   = "COMM_OUTSIDE_JOIN_WINDOW"
+	ReasonProviderUnavailable = "COMM_PROVIDER_UNAVAILABLE"
+	ReasonInvalidJoinRequest  = "COMM_JOIN_REQUEST_INVALID"
+	ReasonInvalidJoinPolicy   = "COMM_JOIN_POLICY_INVALID"
 )
 
 var (
@@ -83,11 +83,11 @@ type CredentialRequest struct {
 }
 
 type JoinDecision struct {
-	Decision          Decision
-	ReasonCode        string
-	PolicyVersion     string
+	Decision           Decision
+	ReasonCode         string
+	PolicyVersion      string
 	ProviderInstanceID string
-	CredentialRequest *CredentialRequest
+	CredentialRequest  *CredentialRequest
 }
 
 func AuthorizeJoin(
