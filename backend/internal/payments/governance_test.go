@@ -143,7 +143,6 @@ func TestHealthGuardrailCanBlockNewAttemptsWithoutChangingHistoricalRouting(t *t
 	}
 }
 
-
 func TestProviderTestOperationRequiresStepUpAndWritesAudit(t *testing.T) {
 	t0 := time.Now().UTC()
 	stepUp := t0.Add(-time.Minute)
