@@ -34,7 +34,7 @@ func TestProtectedDeepLinkRechecksServerAuthorization(t *testing.T) {
 		principal("identity-1", "tenant-a", "deeplink.open.booking"),
 		now,
 	)
-	if !allowed.Allowed || allowed.CanonicalPath != claims.CanonicalPath {
+	if !allowed.Allowed || allowed.CanonicalPath != claims.CanonicalPath || !allowed.ExpiresAt.Equal(claims.ExpiresAt) {
 		t.Fatalf("allowed resolution = %#v", allowed)
 	}
 
