@@ -2982,13 +2982,19 @@ requirements:
   release_profile: R2
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies:
   - APGIC-PAY-005
   - APGIC-AUTH-002
-  implementation_refs: []
-  contract_refs: []
-  test_refs: []
+  implementation_refs:
+  - backend/internal/payments/governance.go
+  - backend/migrations/000012_r2_payment_governance.sql
+  contract_refs:
+  - contracts/jsonschema/payment-governance-v1.schema.json
+  test_refs:
+  - backend/internal/payments/governance_test.go
+  - backend/migrations/ci_r2_payment_governance_invariants.sql
+  - .github/workflows/ci.yml
   evidence_refs: []
   acceptance:
     given: certified provider is available
@@ -3187,13 +3193,19 @@ requirements:
   release_profile: R2
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies:
   - APGIC-PAY-008
   - APGIC-CONFIG-005
-  implementation_refs: []
-  contract_refs: []
-  test_refs: []
+  implementation_refs:
+  - backend/internal/payments/governance.go
+  - backend/migrations/000012_r2_payment_governance.sql
+  contract_refs:
+  - contracts/jsonschema/payment-governance-v1.schema.json
+  test_refs:
+  - backend/internal/payments/governance_test.go
+  - backend/migrations/ci_r2_payment_governance_invariants.sql
+  - backend/ci/restore_drill.sh
   evidence_refs: []
   acceptance:
     given: providers receive production/sandbox traffic
@@ -3215,13 +3227,19 @@ requirements:
   release_profile: R2
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies:
   - APGIC-PAY-006
   - APGIC-PAY-008
-  implementation_refs: []
-  contract_refs: []
-  test_refs: []
+  implementation_refs:
+  - backend/internal/payments/governance.go
+  - backend/migrations/000012_r2_payment_governance.sql
+  contract_refs:
+  - contracts/jsonschema/payment-governance-v1.schema.json
+  test_refs:
+  - backend/internal/payments/governance_test.go
+  - backend/migrations/ci_r2_payment_governance_invariants.sql
+  - backend/ci/restore_drill.sh
   evidence_refs: []
   acceptance:
     given: payment routing configuration is changed
