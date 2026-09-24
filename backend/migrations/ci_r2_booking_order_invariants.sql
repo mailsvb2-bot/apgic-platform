@@ -17,8 +17,8 @@ INSERT INTO booking_slots (
   '00000000-0000-0000-0000-00000000b101',
   '00000000-0000-0000-0000-00000000b001',
   'tenant/r2-ci',
-  '2030-01-01T12:00:00Z',
-  '2030-01-01T13:00:00Z',
+  now() + interval '2 hours',
+  now() + interval '3 hours',
   true
 );
 
@@ -27,15 +27,15 @@ FROM apgic_acquire_slot_hold(
   '00000000-0000-0000-0000-00000000b201',
   '00000000-0000-0000-0000-00000000b101',
   '00000000-0000-0000-0000-00000000b002',
-  '2029-12-31T12:10:00Z',
-  '2029-12-31T12:00:00Z'
+  now() + interval '10 minutes',
+  now()
 );
 
 SELECT *
 FROM apgic_create_booking_from_hold(
   '00000000-0000-0000-0000-00000000b301',
   '00000000-0000-0000-0000-00000000b201',
-  '2029-12-31T12:01:00Z'
+  now() + interval '1 minute'
 );
 
 DO $$
@@ -46,7 +46,7 @@ BEGIN
   BEGIN
     UPDATE bookings
     SET state = 'COMPLETED',
-        updated_at = '2029-12-31T12:02:00Z'
+        updated_at = now() + interval '2 minutes'
     WHERE id = '00000000-0000-0000-0000-00000000b301';
   EXCEPTION WHEN raise_exception THEN
     invalid_transition_blocked := true;
@@ -55,7 +55,7 @@ BEGIN
   BEGIN
     UPDATE bookings
     SET client_identity_id = '00000000-0000-0000-0000-00000000b003',
-        updated_at = '2029-12-31T12:02:00Z'
+        updated_at = now() + interval '2 minutes'
     WHERE id = '00000000-0000-0000-0000-00000000b301';
   EXCEPTION WHEN raise_exception THEN
     identity_rewrite_blocked := true;
@@ -72,7 +72,7 @@ $$;
 
 UPDATE bookings
 SET state = 'CONFIRMED',
-    updated_at = '2029-12-31T12:02:00Z'
+    updated_at = now() + interval '2 minutes'
 WHERE id = '00000000-0000-0000-0000-00000000b301';
 
 INSERT INTO legal_transaction_snapshots (
@@ -98,7 +98,7 @@ INSERT INTO legal_transaction_snapshots (
   'identity/specialist-r2',
   'identity/specialist-r2',
   'legal-r2-ci-v1',
-  '2029-12-31T12:02:00Z'
+  now() + interval '2 minutes'
 );
 
 INSERT INTO orders (
@@ -134,7 +134,7 @@ INSERT INTO orders (
   'identity/specialist-r2',
   'identity/specialist-r2',
   'identity/specialist-r2',
-  '2029-12-31T12:02:00Z'
+  now() + interval '2 minutes'
 );
 
 DO $$
