@@ -2,6 +2,7 @@ package consultation
 
 import (
 	"errors"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -137,6 +138,19 @@ func TestLifecycleFactsAreIdempotentAndContentMinimized(t *testing.T) {
 	for _, got := range session.Facts() {
 		if got.EvidenceRef == "" || got.ProviderReference == "" {
 			t.Fatalf("fact lost minimal lifecycle evidence: %#v", got)
+		}
+	}
+}
+
+
+func TestLifecycleFactDoesNotContainRawSessionContentFields(t *testing.T) {
+	typ := reflect.TypeOf(Fact{})
+	for _, forbidden := range []string{
+		"Transcript", "RawTranscript", "Audio", "Video", "Media",
+		"RawContent", "Recording", "AvatarMedia",
+	} {
+		if _, ok := typ.FieldByName(forbidden); ok {
+			t.Fatalf("consultation business fact must not contain raw session content field %s", forbidden)
 		}
 	}
 }
