@@ -8,12 +8,12 @@ import (
 
 func commissionRule() CommissionRule {
 	return CommissionRule{
-		PolicyVersion: "commission-r4-v1",
-		DemandSource: "MARKETPLACE_ORGANIC",
-		ProductRef: "consultation",
-		Jurisdiction: "RU",
-		BasisPoints: 1000,
-		RoundingMode: "FLOOR_MINOR",
+		PolicyVersion:           "commission-r4-v1",
+		DemandSource:            "MARKETPLACE_ORGANIC",
+		ProductRef:              "consultation",
+		Jurisdiction:            "RU",
+		BasisPoints:             1000,
+		RoundingMode:            "FLOOR_MINOR",
 		PlatformFeeRecipientRef: "platform/apgic-fee",
 	}
 }
@@ -40,7 +40,7 @@ func TestCommissionRequiresExplicitSourceProductJurisdictionRule(t *testing.T) {
 
 func provider(id string) ProviderExecutionProfile {
 	return ProviderExecutionProfile{
-		ProviderID: id,
+		ProviderID:     id,
 		ExecutionOwner: ExternalExecutionOwner,
 		Capabilities: []string{
 			CapabilityMarketplaceSplit,
@@ -61,18 +61,18 @@ func settlementContext(t *testing.T) SettlementContext {
 		t.Fatal(err)
 	}
 	return SettlementContext{
-		InstructionID: "settlement-1",
-		IdempotencyKey: "settlement-key-1",
-		OrderID: "order-1",
-		PaymentAttemptID: "payment-1",
-		OriginalProviderID: "provider-a",
-		AmountMinor: 10000,
-		Currency: "RUB",
-		CaptureLedgerEntryRef: "ledger/capture-1",
+		InstructionID:              "settlement-1",
+		IdempotencyKey:             "settlement-key-1",
+		OrderID:                    "order-1",
+		PaymentAttemptID:           "payment-1",
+		OriginalProviderID:         "provider-a",
+		AmountMinor:                10000,
+		Currency:                   "RUB",
+		CaptureLedgerEntryRef:      "ledger/capture-1",
 		CaptureProviderEvidenceRef: "provider-evidence/capture-1",
-		CompletionEvidenceRef: "consultation/evidence-ended-1",
-		PayoutBeneficiaryRef: "identity/specialist-1",
-		Commission: commission,
+		CompletionEvidenceRef:      "consultation/evidence-ended-1",
+		PayoutBeneficiaryRef:       "identity/specialist-1",
+		Commission:                 commission,
 	}
 }
 
@@ -103,21 +103,21 @@ func TestPayoutRequiresProviderCapabilityComplianceAndAffinity(t *testing.T) {
 	}
 	evidence := SettlementEvidence{
 		SettlementInstructionID: settlement.InstructionID,
-		ProviderID: "provider-a",
-		ProviderSettlementRef: "provider/settlement-1",
-		ProviderEvidenceRef: "provider-evidence/settlement-1",
-		LedgerEvidenceRef: settlement.LedgerEvidenceRef,
+		ProviderID:              "provider-a",
+		ProviderSettlementRef:   "provider/settlement-1",
+		ProviderEvidenceRef:     "provider-evidence/settlement-1",
+		LedgerEvidenceRef:       settlement.LedgerEvidenceRef,
 	}
 	eligibility := PayoutEligibility{
-		DecisionID: "payout-1",
-		SettlementInstructionID: settlement.InstructionID,
-		OriginalProviderID: "provider-a",
-		BeneficiaryRef: "identity/specialist-1",
-		AmountMinor: 9000,
-		Currency: "RUB",
+		DecisionID:               "payout-1",
+		SettlementInstructionID:  settlement.InstructionID,
+		OriginalProviderID:       "provider-a",
+		BeneficiaryRef:           "identity/specialist-1",
+		AmountMinor:              9000,
+		Currency:                 "RUB",
 		ProviderReportedEligible: true,
-		ComplianceEvidenceRef: "provider-evidence/compliance-1",
-		IdempotencyKey: "payout-key-1",
+		ComplianceEvidenceRef:    "provider-evidence/compliance-1",
+		IdempotencyKey:           "payout-key-1",
 	}
 	if _, err := BuildPayoutInstruction(eligibility, evidence, provider("provider-a")); err != nil {
 		t.Fatal(err)
