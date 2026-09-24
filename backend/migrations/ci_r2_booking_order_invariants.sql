@@ -1,0 +1,167 @@
+\set ON_ERROR_STOP on
+
+INSERT INTO identities (id)
+VALUES
+  ('00000000-0000-0000-0000-00000000b001'),
+  ('00000000-0000-0000-0000-00000000b002'),
+  ('00000000-0000-0000-0000-00000000b003');
+
+INSERT INTO booking_slots (
+  id,
+  specialist_identity_id,
+  tenant_scope,
+  starts_at,
+  ends_at,
+  exclusive
+) VALUES (
+  '00000000-0000-0000-0000-00000000b101',
+  '00000000-0000-0000-0000-00000000b001',
+  'tenant/r2-ci',
+  '2030-01-01T12:00:00Z',
+  '2030-01-01T13:00:00Z',
+  true
+);
+
+SELECT *
+FROM apgic_acquire_slot_hold(
+  '00000000-0000-0000-0000-00000000b201',
+  '00000000-0000-0000-0000-00000000b101',
+  '00000000-0000-0000-0000-00000000b002',
+  '2029-12-31T12:10:00Z',
+  '2029-12-31T12:00:00Z'
+);
+
+SELECT *
+FROM apgic_create_booking_from_hold(
+  '00000000-0000-0000-0000-00000000b301',
+  '00000000-0000-0000-0000-00000000b201',
+  '2029-12-31T12:01:00Z'
+);
+
+DO $$
+DECLARE
+  invalid_transition_blocked boolean := false;
+  identity_rewrite_blocked boolean := false;
+BEGIN
+  BEGIN
+    UPDATE bookings
+    SET state = 'COMPLETED',
+        updated_at = '2029-12-31T12:02:00Z'
+    WHERE id = '00000000-0000-0000-0000-00000000b301';
+  EXCEPTION WHEN raise_exception THEN
+    invalid_transition_blocked := true;
+  END;
+
+  BEGIN
+    UPDATE bookings
+    SET client_identity_id = '00000000-0000-0000-0000-00000000b003',
+        updated_at = '2029-12-31T12:02:00Z'
+    WHERE id = '00000000-0000-0000-0000-00000000b301';
+  EXCEPTION WHEN raise_exception THEN
+    identity_rewrite_blocked := true;
+  END;
+
+  IF NOT invalid_transition_blocked THEN
+    RAISE EXCEPTION 'invalid booking transition was accepted';
+  END IF;
+  IF NOT identity_rewrite_blocked THEN
+    RAISE EXCEPTION 'booking identity rewrite was accepted';
+  END IF;
+END
+$$;
+
+UPDATE bookings
+SET state = 'CONFIRMED',
+    updated_at = '2029-12-31T12:02:00Z'
+WHERE id = '00000000-0000-0000-0000-00000000b301';
+
+INSERT INTO legal_transaction_snapshots (
+  id,
+  transaction_ref,
+  seller_or_service_provider_id,
+  commercial_owner_id,
+  payment_recipient_id,
+  platform_role,
+  fiscal_responsibility_id,
+  refund_responsibility_id,
+  payout_beneficiary_id,
+  policy_version,
+  occurred_at
+) VALUES (
+  '00000000-0000-0000-0000-00000000b401',
+  'order/00000000-0000-0000-0000-00000000b501',
+  'identity/specialist-r2',
+  'identity/specialist-r2',
+  'identity/specialist-r2',
+  'MARKETPLACE_INTERMEDIARY',
+  'identity/specialist-r2',
+  'identity/specialist-r2',
+  'identity/specialist-r2',
+  'legal-r2-ci-v1',
+  '2029-12-31T12:02:00Z'
+);
+
+INSERT INTO orders (
+  id,
+  booking_id,
+  offer_ref,
+  price_source_ref,
+  amount_minor,
+  currency,
+  commission_minor,
+  pricing_policy_version,
+  commission_policy_version,
+  legal_snapshot_id,
+  seller_ref,
+  commercial_owner_ref,
+  payment_recipient_ref,
+  refund_responsibility_ref,
+  payout_beneficiary_ref,
+  captured_at
+) VALUES (
+  '00000000-0000-0000-0000-00000000b501',
+  '00000000-0000-0000-0000-00000000b301',
+  'offer/r2-ci',
+  'price/r2-ci',
+  10000,
+  'RUB',
+  1000,
+  'pricing-r2-ci-v1',
+  'commission-r2-ci-v1',
+  '00000000-0000-0000-0000-00000000b401',
+  'identity/specialist-r2',
+  'identity/specialist-r2',
+  'identity/specialist-r2',
+  'identity/specialist-r2',
+  'identity/specialist-r2',
+  '2029-12-31T12:02:00Z'
+);
+
+DO $$
+DECLARE
+  economic_rewrite_blocked boolean := false;
+  order_delete_blocked boolean := false;
+BEGIN
+  BEGIN
+    UPDATE orders
+    SET amount_minor = 1
+    WHERE id = '00000000-0000-0000-0000-00000000b501';
+  EXCEPTION WHEN raise_exception THEN
+    economic_rewrite_blocked := true;
+  END;
+
+  BEGIN
+    DELETE FROM orders
+    WHERE id = '00000000-0000-0000-0000-00000000b501';
+  EXCEPTION WHEN raise_exception THEN
+    order_delete_blocked := true;
+  END;
+
+  IF NOT economic_rewrite_blocked THEN
+    RAISE EXCEPTION 'captured order economics were rewritten';
+  END IF;
+  IF NOT order_delete_blocked THEN
+    RAISE EXCEPTION 'captured order history was deleted';
+  END IF;
+END
+$$;
