@@ -8,15 +8,15 @@ import (
 
 func storeEvent(sequence int64, kind StoreLifecycleEventType) StoreLifecycleEvent {
 	event := StoreLifecycleEvent{
-		EventID: "event-" + string(rune('a'+sequence)),
-		ProviderEventID: "provider-event-" + string(rune('a'+sequence)),
-		ProviderInstanceID: "store-provider-a",
+		EventID:               "event-" + string(rune('a'+sequence)),
+		ProviderEventID:       "provider-event-" + string(rune('a'+sequence)),
+		ProviderInstanceID:    "store-provider-a",
 		ExternalTransactionID: "store-transaction-1",
-		SubscriptionRef: "subscription-1",
-		Sequence: sequence,
-		Type: kind,
-		ProviderEvidenceRef: "provider-evidence/store-event",
-		OccurredAt: time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC).Add(time.Duration(sequence) * time.Minute),
+		SubscriptionRef:       "subscription-1",
+		Sequence:              sequence,
+		Type:                  kind,
+		ProviderEvidenceRef:   "provider-evidence/store-event",
+		OccurredAt:            time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC).Add(time.Duration(sequence) * time.Minute),
 	}
 	if kind == StoreEventRenewal || kind == StoreEventRefund || kind == StoreEventChargeback {
 		event.AmountMinor = 10000
@@ -115,10 +115,10 @@ func TestStoreLifecycleMapsProviderEventsToExplicitCanonicalEffects(t *testing.T
 func TestStoreLifecycleCannotCrossProviderOrSubscription(t *testing.T) {
 	current := StoreLifecycleProjection{
 		ProviderInstanceID: "store-provider-a",
-		SubscriptionRef: "subscription-1",
-		LastSequence: 1,
-		State: SubscriptionActive,
-		AppliedEventCount: 1,
+		SubscriptionRef:    "subscription-1",
+		LastSequence:       1,
+		State:              SubscriptionActive,
+		AppliedEventCount:  1,
 	}
 	event := storeEvent(2, StoreEventRenewal)
 	event.ProviderInstanceID = "store-provider-b"
