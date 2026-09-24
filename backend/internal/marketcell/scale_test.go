@@ -111,3 +111,41 @@ func TestEvidenceForAnotherMarketCellCannotUnlockScale(t *testing.T) {
 		t.Fatalf("cross-cell evidence must fail closed, got %v", err)
 	}
 }
+
+
+func TestScaleReadyStateTransitionRequiresEligibleDecision(t *testing.T) {
+	cell := &MarketCell{ID: "ci-ru-anxiety-online", State: StateDemandTest}
+	if err := cell.Transition(StateScaleReady, ScaleDecision{
+		Eligible: false,
+		ReasonCode: ReasonThresholdsNotMet,
+		PolicyVersion: "market-cell-r5-ci-v1",
+		EvidenceID: "market-cell-evidence-1",
+	}); err != ErrScaleTransitionDenied {
+		t.Fatalf("ineligible decision must block SCALE_READY, got %v", err)
+	}
+	if cell.State != StateDemandTest {
+		t.Fatalf("blocked scale transition mutated state to %s", cell.State)
+	}
+
+	decision, err := EvaluateScaleReadiness(policy(), passingEvidence())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := cell.Transition(StateScaleReady, decision); err != nil {
+		t.Fatal(err)
+	}
+	if cell.State != StateScaleReady {
+		t.Fatalf("state = %s", cell.State)
+	}
+}
+
+func TestScaleReadyCannotBeSkippedFromDiscovery(t *testing.T) {
+	cell := &MarketCell{ID: "ci-ru-anxiety-online", State: StateDiscovery}
+	decision, err := EvaluateScaleReadiness(policy(), passingEvidence())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := cell.Transition(StateScaleReady, decision); err != ErrScaleTransitionDenied {
+		t.Fatalf("discovery cannot jump directly to scale-ready, got %v", err)
+	}
+}
