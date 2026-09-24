@@ -110,6 +110,48 @@ func TestSupplyMinPublishGate(t *testing.T) {
 	}
 }
 
+func TestPublishRevalidationRemovesStaleDiscoverability(t *testing.T) {
+	topic := "anxiety"
+	profile := verifiedProfile(t, "s1", topic)
+	policy := policyFor(topic)
+	context := PublishContext{Jurisdiction: "RU", Format: "ONLINE", AgeGroup: "ADULT"}
+
+	if !Publish(&profile, policy, context).Allowed || !profile.IsPublishedFor(topic) {
+		t.Fatalf("initial publish failed: %#v", profile)
+	}
+
+	profile.Review = ReviewPending
+	blocked := Publish(&profile, policy, context)
+	if blocked.Allowed || blocked.ReasonCodes[0] != ReasonReviewIncomplete {
+		t.Fatalf("review revalidation result = %#v", blocked)
+	}
+	if profile.PublishState != PublishUnpublished || profile.IsPublishedFor(topic) || len(profile.PublishedTopics) != 0 {
+		t.Fatalf("stale published profile survived review revocation: %#v", profile)
+	}
+
+	profile.Review = ReviewApproved
+	if !Publish(&profile, policy, context).Allowed {
+		t.Fatal("republish after review approval failed")
+	}
+	downgraded, err := NewCapability(topic, EvidenceDocumentSupported, "doc:downgraded")
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile.AddCapability(downgraded)
+	blocked = Publish(&profile, policy, context)
+	if blocked.Allowed || blocked.ReasonCodes[0] != ReasonNoEligibleTopic {
+		t.Fatalf("evidence revalidation result = %#v", blocked)
+	}
+	if profile.PublishState != PublishUnpublished || profile.IsPublishedFor(topic) || len(profile.PublishedTopics) != 0 {
+		t.Fatalf("stale published profile survived evidence downgrade: %#v", profile)
+	}
+
+	projection := RebuildSearchProjection("search-v2", []SpecialistProfile{profile})
+	if got := projection.SearchTopic(topic); len(got) != 0 {
+		t.Fatalf("rebuild retained ineligible profile: %#v", got)
+	}
+}
+
 func TestHelpIntentIsUserCorrectableAndCannotAssertDiagnosis(t *testing.T) {
 	_, err := NewHelpIntent("h1", "Мне тревожно перед выступлениями", HelpIntentInterpretation{
 		Topics:         []string{"anxiety"},
