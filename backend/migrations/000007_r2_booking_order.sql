@@ -54,6 +54,33 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION apgic_booking_hold_insert_guard()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  slot_start timestamptz;
+  slot_exclusive boolean;
+BEGIN
+  SELECT starts_at, exclusive
+  INTO slot_start, slot_exclusive
+  FROM booking_slots
+  WHERE id = NEW.slot_id;
+
+  IF NOT FOUND OR NOT slot_exclusive THEN
+    RAISE EXCEPTION 'booking hold requires an exclusive canonical slot';
+  END IF;
+  IF NEW.expires_at <= NEW.created_at OR NEW.expires_at >= slot_start THEN
+    RAISE EXCEPTION 'booking hold expiry must be before slot start';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER booking_holds_insert_guard
+BEFORE INSERT ON booking_holds
+FOR EACH ROW EXECUTE FUNCTION apgic_booking_hold_insert_guard();
+
 CREATE TRIGGER booking_holds_transition_guard
 BEFORE UPDATE ON booking_holds
 FOR EACH ROW EXECUTE FUNCTION apgic_booking_hold_transition_guard();
@@ -95,6 +122,11 @@ BEGIN
 
   IF NOT v_exclusive THEN
     RETURN QUERY SELECT false, 'BOOK_SLOT_NOT_EXCLUSIVE';
+    RETURN;
+  END IF;
+
+  IF p_expires_at >= v_starts_at THEN
+    RETURN QUERY SELECT false, 'BOOK_HOLD_INVALID';
     RETURN;
   END IF;
 
@@ -252,6 +284,49 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION apgic_booking_insert_guard()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  hold booking_holds%ROWTYPE;
+  slot booking_slots%ROWTYPE;
+BEGIN
+  SELECT *
+  INTO hold
+  FROM booking_holds
+  WHERE id = NEW.hold_id;
+
+  IF NOT FOUND OR hold.state <> 'ACTIVE' THEN
+    RAISE EXCEPTION 'booking requires an active hold';
+  END IF;
+
+  SELECT *
+  INTO slot
+  FROM booking_slots
+  WHERE id = NEW.slot_id;
+
+  IF NOT FOUND OR
+     hold.slot_id <> NEW.slot_id OR
+     hold.client_identity_id <> NEW.client_identity_id OR
+     hold.expires_at <> NEW.hold_expires_at OR
+     slot.starts_at <> NEW.starts_at OR
+     slot.ends_at <> NEW.ends_at THEN
+    RAISE EXCEPTION 'booking does not match canonical hold/slot truth';
+  END IF;
+
+  IF NEW.state <> 'HELD' THEN
+    RAISE EXCEPTION 'new booking must start in HELD state';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER bookings_insert_guard
+BEFORE INSERT ON bookings
+FOR EACH ROW EXECUTE FUNCTION apgic_booking_insert_guard();
+
 CREATE TRIGGER bookings_transition_guard
 BEFORE UPDATE ON bookings
 FOR EACH ROW EXECUTE FUNCTION apgic_booking_transition_guard();
@@ -358,7 +433,73 @@ CREATE TABLE orders (
   offer_ref text NOT NULL CHECK (btrim(offer_ref) <> ''),
   price_source_ref text NOT NULL CHECK (btrim(price_source_ref) <> ''),
   amount_minor bigint NOT NULL CHECK (amount_minor > 0),
-  currency char(3) NOT NULL CHECK (currency = upper(currency)),
+  currency text NOT NULL CHECK (currency ~ '^[A-Z]{3}
+  commission_minor bigint NOT NULL CHECK (
+    commission_minor >= 0 AND commission_minor <= amount_minor
+  ),
+  pricing_policy_version text NOT NULL CHECK (btrim(pricing_policy_version) <> ''),
+  commission_policy_version text NOT NULL CHECK (btrim(commission_policy_version) <> ''),
+  legal_snapshot_id uuid NOT NULL REFERENCES legal_transaction_snapshots(id),
+  seller_ref text NOT NULL CHECK (btrim(seller_ref) <> ''),
+  commercial_owner_ref text NOT NULL CHECK (btrim(commercial_owner_ref) <> ''),
+  payment_recipient_ref text NOT NULL CHECK (btrim(payment_recipient_ref) <> ''),
+  platform_role text NOT NULL CHECK (btrim(platform_role) <> ''),
+  fiscal_responsibility_ref text NOT NULL CHECK (btrim(fiscal_responsibility_ref) <> ''),
+  refund_responsibility_ref text NOT NULL CHECK (btrim(refund_responsibility_ref) <> ''),
+  payout_beneficiary_ref text NOT NULL CHECK (btrim(payout_beneficiary_ref) <> ''),
+  captured_at timestamptz NOT NULL
+);
+
+CREATE OR REPLACE FUNCTION apgic_order_snapshot_guard()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  legal legal_transaction_snapshots%ROWTYPE;
+BEGIN
+  SELECT *
+  INTO legal
+  FROM legal_transaction_snapshots
+  WHERE id = NEW.legal_snapshot_id;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'order legal snapshot not found';
+  END IF;
+
+  IF legal.transaction_ref <> 'order/' || NEW.id::text OR
+     legal.seller_or_service_provider_id <> NEW.seller_ref OR
+     legal.commercial_owner_id <> NEW.commercial_owner_ref OR
+     legal.payment_recipient_id <> NEW.payment_recipient_ref OR
+     legal.platform_role <> NEW.platform_role OR
+     legal.fiscal_responsibility_id <> NEW.fiscal_responsibility_ref OR
+     legal.refund_responsibility_id <> NEW.refund_responsibility_ref OR
+     legal.payout_beneficiary_id <> NEW.payout_beneficiary_ref THEN
+    RAISE EXCEPTION 'order/legal snapshot role mismatch';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM bookings
+    WHERE id = NEW.booking_id
+      AND state IN ('HELD','PENDING_PAYMENT','CONFIRMED')
+  ) THEN
+    RAISE EXCEPTION 'order requires a live booking';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER orders_snapshot_guard
+BEFORE INSERT ON orders
+FOR EACH ROW EXECUTE FUNCTION apgic_order_snapshot_guard();
+
+CREATE TRIGGER orders_append_only
+BEFORE UPDATE OR DELETE ON orders
+FOR EACH ROW EXECUTE FUNCTION apgic_reject_mutation();
+
+COMMIT;
+),
   commission_minor bigint NOT NULL CHECK (
     commission_minor >= 0 AND commission_minor <= amount_minor
   ),
