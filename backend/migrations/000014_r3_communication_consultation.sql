@@ -623,6 +623,42 @@ CREATE TRIGGER consultation_recovery_decisions_append_only
 BEFORE UPDATE OR DELETE ON consultation_recovery_decisions
 FOR EACH ROW EXECUTE FUNCTION apgic_reject_mutation();
 
+CREATE OR REPLACE FUNCTION apgic_consultation_provider_evidence_guard()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $
+DECLARE
+  initial_provider_id uuid;
+BEGIN
+  SELECT provider_instance_id
+  INTO initial_provider_id
+  FROM consultation_sessions
+  WHERE id = NEW.session_id;
+
+  IF initial_provider_id IS NULL THEN
+    RAISE EXCEPTION 'consultation provider evidence requires session';
+  END IF;
+
+  IF NEW.provider_instance_id <> initial_provider_id
+    AND NOT EXISTS (
+      SELECT 1
+      FROM consultation_recovery_decisions
+      WHERE session_id = NEW.session_id
+        AND action = 'FALLBACK_PROVIDER'
+        AND target_provider_instance_id = NEW.provider_instance_id
+        AND decided_at <= NEW.occurred_at
+    ) THEN
+    RAISE EXCEPTION 'consultation evidence from alternate provider requires fallback decision';
+  END IF;
+
+  RETURN NEW;
+END;
+$;
+
+CREATE TRIGGER consultation_lifecycle_facts_provider_guard
+BEFORE INSERT ON consultation_lifecycle_facts
+FOR EACH ROW EXECUTE FUNCTION apgic_consultation_provider_evidence_guard();
+
 CREATE OR REPLACE FUNCTION apgic_booking_transition_guard()
 RETURNS trigger
 LANGUAGE plpgsql
