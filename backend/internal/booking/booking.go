@@ -19,19 +19,19 @@ const (
 )
 
 const (
-	ReasonTransitionAllowed           = "BOOK_TRANSITION_ALLOWED"
-	ReasonTransitionDenied            = "BOOK_TRANSITION_DENIED"
-	ReasonTooEarly                    = "BOOK_TRANSITION_TOO_EARLY"
-	ReasonHoldExpired                 = "BOOK_HOLD_EXPIRED"
-	ReasonCompletionEvidenceRequired  = "BOOK_COMPLETION_EVIDENCE_REQUIRED"
+	ReasonTransitionAllowed          = "BOOK_TRANSITION_ALLOWED"
+	ReasonTransitionDenied           = "BOOK_TRANSITION_DENIED"
+	ReasonTooEarly                   = "BOOK_TRANSITION_TOO_EARLY"
+	ReasonHoldExpired                = "BOOK_HOLD_EXPIRED"
+	ReasonCompletionEvidenceRequired = "BOOK_COMPLETION_EVIDENCE_REQUIRED"
 )
 
 var (
-	ErrInvalidBooking              = errors.New("invalid booking")
-	ErrTransitionDenied            = errors.New("booking transition denied")
-	ErrTransitionTooEarly          = errors.New("booking transition is too early")
-	ErrHoldExpired                 = errors.New("booking hold expired")
-	ErrCompletionEvidenceRequired  = errors.New("booking completion evidence required")
+	ErrInvalidBooking             = errors.New("invalid booking")
+	ErrTransitionDenied           = errors.New("booking transition denied")
+	ErrTransitionTooEarly         = errors.New("booking transition is too early")
+	ErrHoldExpired                = errors.New("booking hold expired")
+	ErrCompletionEvidenceRequired = errors.New("booking completion evidence required")
 )
 
 type Booking struct {
