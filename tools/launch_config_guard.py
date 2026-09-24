@@ -248,7 +248,7 @@ def validate_commerce(policy: dict) -> None:
             "currency",
         ):
             value = row.get(field)
-            if not isinstance(value, str) or not value.strip() or value == ReasonConfigRequired:
+            if not isinstance(value, str) or not value.strip() or value == "CONFIG_REQUIRED":
                 fail(f"{path_id}: explicit {field} is required")
         currency = row["currency"]
         if len(currency) != 3 or currency != currency.upper():
