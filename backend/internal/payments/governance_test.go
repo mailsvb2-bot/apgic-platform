@@ -142,3 +142,55 @@ func TestHealthGuardrailCanBlockNewAttemptsWithoutChangingHistoricalRouting(t *t
 		t.Fatal("blocking health snapshot must stop new payment attempts")
 	}
 }
+
+
+func TestProviderTestOperationRequiresStepUpAndWritesAudit(t *testing.T) {
+	t0 := time.Now().UTC()
+	stepUp := t0.Add(-time.Minute)
+	appender := &collectingAuditAppender{}
+	control := ControlPlane{
+		PolicyVersion: "payment-governance-v1",
+		Authorizer: authz.Evaluator{PolicyVersion: "auth-v1", Appender: appender},
+		Appender: appender,
+	}
+
+	err := control.AuthorizeOperation(
+		governanceAuth(t0, "auth-audit-operation", &stepUp),
+		AdminOperationRequest{
+			Action: AdminTest, ActorID: "admin-1", Reason: "sandbox provider test",
+			AuditRecordID: "operation-audit-1", ProviderID: "provider-a",
+			EvidenceRefs: []string{"sandbox/test-run-1"}, Now: t0,
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(appender.records) != 2 {
+		t.Fatalf("expected authorization and operation audit records, got %d", len(appender.records))
+	}
+	if appender.records[1].Action != "payment.provider.control_operation" {
+		t.Fatalf("unexpected operation audit action: %s", appender.records[1].Action)
+	}
+}
+
+func TestProviderConnectOperationWithoutStepUpFailsClosed(t *testing.T) {
+	t0 := time.Now().UTC()
+	appender := &collectingAuditAppender{}
+	control := ControlPlane{
+		PolicyVersion: "payment-governance-v1",
+		Authorizer: authz.Evaluator{PolicyVersion: "auth-v1", Appender: appender},
+		Appender: appender,
+	}
+
+	err := control.AuthorizeOperation(
+		governanceAuth(t0, "auth-audit-connect", nil),
+		AdminOperationRequest{
+			Action: AdminConnect, ActorID: "admin-1", Reason: "connect provider",
+			AuditRecordID: "operation-audit-connect", ProviderID: "provider-a",
+			EvidenceRefs: []string{"connector/handshake-1"}, Now: t0,
+		},
+	)
+	if !errors.Is(err, ErrAdminChangeNotAuthorized) {
+		t.Fatalf("connect without step-up must fail closed, got %v", err)
+	}
+}
