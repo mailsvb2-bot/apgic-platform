@@ -1,0 +1,23 @@
+version: booking-fulfillment-r3-ci-v1
+scope: CI_ONLY
+production_approved: false
+policy_kind: BOOKING_FULFILLMENT
+unknown_path: BLOCK
+cancellation:
+  free_cancel_until_seconds_before_start: 86400
+  late_cancel_until_seconds_before_start: 3600
+  late_cancel_refund_basis_points: 5000
+  after_start_action: MANUAL_REVIEW
+no_show:
+  participant_grace_seconds: 900
+  client_no_show_action: MANUAL_REVIEW
+  specialist_no_show_action: RESCHEDULE_OR_REFUND
+refund:
+  technical_failure_action: REFUND_OR_RESCHEDULE
+  late_cancel_refund_basis_points: 5000
+  no_show_refund_basis_points: 0
+reschedule:
+  minimum_seconds_before_start: 3600
+  max_reschedules_per_booking: 2
+notes:
+  - "CI-only values prove versioned policy/preflight mechanics and are not production commercial commitments."
