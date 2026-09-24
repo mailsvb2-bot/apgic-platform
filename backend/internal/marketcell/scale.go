@@ -219,3 +219,53 @@ func validateMetrics(metrics Metrics) error {
 	}
 	return nil
 }
+
+
+type State string
+
+const (
+	StateDiscovery     State = "DISCOVERY"
+	StateSupplySeeding State = "SUPPLY_SEEDING"
+	StateDemandTest    State = "DEMAND_TEST"
+	StateScaleReady    State = "SCALE_READY"
+)
+
+var ErrScaleTransitionDenied = errors.New("market cell scale transition denied")
+
+type MarketCell struct {
+	ID    string
+	State State
+}
+
+func (m *MarketCell) Transition(to State, decision ScaleDecision) error {
+	if strings.TrimSpace(m.ID) == "" {
+		return ErrInvalidScaleInput
+	}
+	if to == m.State {
+		return nil
+	}
+	switch m.State {
+	case StateDiscovery:
+		if to != StateSupplySeeding {
+			return ErrScaleTransitionDenied
+		}
+	case StateSupplySeeding:
+		if to != StateDemandTest {
+			return ErrScaleTransitionDenied
+		}
+	case StateDemandTest:
+		if to != StateScaleReady ||
+			!decision.Eligible ||
+			decision.ReasonCode != ReasonScaleReady ||
+			strings.TrimSpace(decision.PolicyVersion) == "" ||
+			strings.TrimSpace(decision.EvidenceID) == "" {
+			return ErrScaleTransitionDenied
+		}
+	case StateScaleReady:
+		return ErrScaleTransitionDenied
+	default:
+		return ErrScaleTransitionDenied
+	}
+	m.State = to
+	return nil
+}
