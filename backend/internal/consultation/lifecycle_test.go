@@ -28,6 +28,8 @@ func participantFact(id string, kind FactType, role ParticipantRole, identity st
 	return Fact{
 		ID: id, IdempotencyKey: "idem-" + id,
 		Type: kind, Role: role, IdentityID: identity,
+		ProviderInstanceID: "communication-provider-1",
+		ProviderInstanceID: "communication-provider-1",
 		ProviderReference: "room/1", EvidenceRef: "provider-evidence/" + id,
 		OccurredAt: at,
 	}
@@ -118,6 +120,7 @@ func TestTechnicalFailureIsExplicitAndCannotBecomeCompletion(t *testing.T) {
 	}
 	if err := session.Complete(CompletionEvidence{
 		ID: "completion", IdempotencyKey: "completion-idem",
+		ProviderInstanceID: "communication-provider-1",
 		ProviderReference: "room/1", EvidenceRef: "provider-evidence/end",
 		ObservedAt: now.Add(5 * time.Minute),
 	}); !errors.Is(err, ErrTransitionDenied) {
