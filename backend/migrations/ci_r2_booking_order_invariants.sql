@@ -38,7 +38,28 @@ FROM apgic_create_booking_from_hold(
   now() + interval '1 minute'
 );
 
-DO $$
+DO $
+DECLARE
+  acquired boolean;
+  reason text;
+BEGIN
+  SELECT outcome.acquired, outcome.reason_code
+  INTO acquired, reason
+  FROM apgic_acquire_slot_hold(
+    '00000000-0000-0000-0000-00000000b202',
+    '00000000-0000-0000-0000-00000000b101',
+    '00000000-0000-0000-0000-00000000b003',
+    now() + interval '10 minutes',
+    now() + interval '2 minutes'
+  ) AS outcome;
+
+  IF acquired OR reason <> 'BOOK_SLOT_BOOKED' THEN
+    RAISE EXCEPTION 'live booking allowed a second slot hold: acquired=%, reason=%', acquired, reason;
+  END IF;
+END
+$;
+
+DO $
 DECLARE
   invalid_transition_blocked boolean := false;
   identity_rewrite_blocked boolean := false;
