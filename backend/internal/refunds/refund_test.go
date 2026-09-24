@@ -10,7 +10,7 @@ func validRequest(t0 time.Time) Request {
 	return Request{
 		ID: "refund-1", BookingID: "booking-1", OrderID: "order-1",
 		OriginalPaymentAttemptID: "payment-1",
-		OriginalProviderID: "provider-a", ProviderID: "provider-a",
+		OriginalProviderID:       "provider-a", ProviderID: "provider-a",
 		AmountMinor: 10000, Currency: "rub",
 		PolicyVersion: "refund-policy-v1", PolicyDecision: "ALLOW",
 		ReasonCode: "CLIENT_CANCEL_ALLOWED", IdempotencyKey: "refund-key-1",
