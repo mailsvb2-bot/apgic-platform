@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apgic.ru/evidence/r4-release-gate-v1.schema.json",
+  "title": "APGIC R4 Release Gate Evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version","candidate_sha","synthetic","production_candidate","evidence"],
+  "properties": {
+    "schema_version": {"const":"r4-release-gate-v1"},
+    "candidate_sha": {"type":"string","minLength":7},
+    "synthetic": {"type":"boolean"},
+    "production_candidate": {"type":"boolean"},
+    "evidence": {
+      "type":"object",
+      "additionalProperties": {
+        "type":"object",
+        "additionalProperties":false,
+        "required":["status","ref"],
+        "properties":{
+          "status":{"const":"PASS"},
+          "ref":{"type":"string","minLength":1}
+        }
+      }
+    }
+  }
+}
