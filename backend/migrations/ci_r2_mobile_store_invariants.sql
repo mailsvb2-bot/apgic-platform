@@ -486,7 +486,37 @@ INSERT INTO device_integrity_risk_decisions (
   now()
 );
 
-DO $$
+INSERT INTO device_integrity_evidence (
+  id, identity_id, installation_id, provider_kind, provider_evidence_ref,
+  verdict, server_verified, observed_at
+) VALUES (
+  '00000000-0000-0000-0000-00000000a933',
+  '00000000-0000-0000-0000-00000000b003',
+  '00000000-0000-0000-0000-00000000a910',
+  'CI_INTEGRITY_PROVIDER',
+  'integrity-evidence/negative-ban-ci',
+  'NEGATIVE',
+  true,
+  now()
+);
+
+INSERT INTO audit_records (
+  id, actor_id, action, scope, resource_ref, new_state, reason,
+  policy_version, correlation_id, occurred_at
+) VALUES (
+  '00000000-0000-0000-0000-00000000a934',
+  'system/integrity-risk',
+  'device_integrity.risk_decision',
+  'platform',
+  'identity/00000000-0000-0000-0000-00000000b003',
+  '{"action":"DENY","verdict":"NEGATIVE"}'::jsonb,
+  'DEVICE_INTEGRITY_AUTOMATIC_BAN',
+  'integrity-policy-ci-v1',
+  'corr-integrity-ban-ci',
+  now()
+);
+
+DO $
 DECLARE blocked boolean := false;
 BEGIN
   BEGIN
@@ -494,13 +524,13 @@ BEGIN
       id, evidence_id, action, reason_code, policy_version,
       appeal_path, audit_record_id, decided_at
     ) VALUES (
+      '00000000-0000-0000-0000-00000000a935',
       '00000000-0000-0000-0000-00000000a933',
-      '00000000-0000-0000-0000-00000000a930',
       'DENY',
       'DEVICE_INTEGRITY_AUTOMATIC_BAN',
       'integrity-policy-ci-v1',
       '/support/integrity-appeal',
-      '00000000-0000-0000-0000-00000000a931',
+      '00000000-0000-0000-0000-00000000a934',
       now()
     );
   EXCEPTION WHEN check_violation THEN
@@ -510,7 +540,7 @@ BEGIN
     RAISE EXCEPTION 'device integrity signal allowed unexplained automatic ban';
   END IF;
 END
-$$;
+$;
 
 INSERT INTO noncash_entitlement_entries (
   id, account_ref, unit_kind, event_kind, units,
@@ -542,9 +572,10 @@ INSERT INTO noncash_entitlement_entries (
   now() + interval '1 second'
 );
 
-DO $$
-DECLARE cashout_blocked boolean := false;
-DECLARE overspend_blocked boolean := false;
+DO $
+DECLARE
+  cashout_blocked boolean := false;
+  overspend_blocked boolean := false;
 BEGIN
   BEGIN
     INSERT INTO noncash_entitlement_entries (
