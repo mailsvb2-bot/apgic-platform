@@ -16,6 +16,7 @@ capabilities:
     primary_provider: CI_PAYMENT_A
     fallback_providers:
       - CI_PAYMENT_B
+      - CI_STORE_PROVIDER
     degraded_behavior: BLOCK_NEW_IRREVERSIBLE_ATTEMPTS_AND_RECONCILE_IN_FLIGHT
     certification_status: CI_SYNTHETIC_ONLY
     exit_semantics: STOP_NEW_ATTEMPTS_PRESERVE_PAYMENT_AND_LEDGER_HISTORY
@@ -37,6 +38,11 @@ providers:
     capabilities:
       - PAYMENT_PROVIDER
   CI_PAYMENT_B:
+    kind: SYNTHETIC
+    certified: true
+    capabilities:
+      - PAYMENT_PROVIDER
+  CI_STORE_PROVIDER:
     kind: SYNTHETIC
     certified: true
     capabilities:
