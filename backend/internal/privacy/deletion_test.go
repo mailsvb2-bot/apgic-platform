@@ -62,6 +62,36 @@ func TestDeletionNeverTreatsDeactivationAsDeletionAndRequiresRetentionReason(t *
 	}
 }
 
+func TestProviderErasureEvidenceCannotBeRewritten(t *testing.T) {
+	now := time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC)
+	request, _ := NewDeleteAccountRequest("request-rewrite", "identity-1", DeletionSourceWeb, now)
+	_ = request.ReconfirmIdentity(now.Add(time.Minute))
+	_ = request.ClassifyRetention([]RetentionItem{
+		{DataClass: "PROFILE", Disposition: RetentionErase},
+	}, now.Add(2*time.Minute))
+	_ = request.BeginProviderErasure([]ProviderErasureJob{
+		{ProviderRef: "processor-1", State: ErasurePending},
+	}, now.Add(3*time.Minute))
+	if err := request.MarkProviderErased("processor-1", "evidence:first", now.Add(4*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	if err := request.MarkProviderErased("processor-1", "evidence:rewritten", now.Add(5*time.Minute)); err != ErrInvalidDeletionState {
+		t.Fatalf("erasure evidence rewrite err = %v", err)
+	}
+}
+
+func TestLegalHoldRequiresRetainedDisposition(t *testing.T) {
+	now := time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC)
+	request, _ := NewDeleteAccountRequest("request-hold", "identity-1", DeletionSourceWeb, now)
+	_ = request.ReconfirmIdentity(now.Add(time.Minute))
+	err := request.ClassifyRetention([]RetentionItem{
+		{DataClass: "PROFILE", Disposition: RetentionErase, LegalHoldRef: "hold-1"},
+	}, now.Add(2*time.Minute))
+	if err != ErrInvalidDeletionRequest {
+		t.Fatalf("legal hold on erase disposition err = %v", err)
+	}
+}
+
 func TestDeletionCannotCompleteBeforeProviderEvidence(t *testing.T) {
 	now := time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC)
 	request, _ := NewDeleteAccountRequest("request-1", "identity-1", DeletionSourceAndroid, now)
