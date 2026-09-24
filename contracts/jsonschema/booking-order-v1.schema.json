@@ -30,7 +30,8 @@
             "BOOK_HOLD_INVALID",
             "BOOK_SLOT_NOT_FOUND",
             "BOOK_SLOT_NOT_EXCLUSIVE",
-            "BOOK_SLOT_NOT_AVAILABLE"
+            "BOOK_SLOT_NOT_AVAILABLE",
+            "BOOK_SLOT_BOOKED"
           ]
         }
       }
