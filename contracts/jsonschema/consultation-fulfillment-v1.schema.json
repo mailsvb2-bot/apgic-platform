@@ -31,7 +31,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "session_id","fact_type","role","provider_reference",
+        "session_id","fact_type","role","provider_instance_id","provider_reference",
         "evidence_ref","idempotency_key","occurred_at"
       ],
       "properties": {
@@ -39,6 +39,7 @@
         "fact_type":{"enum":["READY","JOINED","LEFT","STARTED","RECOVERY_STARTED","RECOVERY_SUCCEEDED","TECHNICAL_FAILURE","ENDED"]},
         "role":{"enum":["CLIENT","SPECIALIST","SYSTEM"]},
         "identity_id":{"type":["string","null"]},
+        "provider_instance_id":{"type":"string","minLength":1},
         "provider_reference":{"type":"string","minLength":1},
         "evidence_ref":{"type":"string","minLength":1},
         "idempotency_key":{"type":"string","minLength":1},
