@@ -1715,11 +1715,18 @@ requirements:
   release_profile: R5
   risk: MEDIUM
   priority: P1
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies: []
-  implementation_refs: []
-  contract_refs: []
-  test_refs: []
+  implementation_refs:
+  - backend/internal/marketcell/scale.go
+  - config/marketcell/r5-ci-scale-ready.yaml
+  - tools/launch_config_guard.py
+  contract_refs:
+  - contracts/jsonschema/market-cell-thresholds-v1.schema.json
+  test_refs:
+  - backend/internal/marketcell/scale_test.go
+  - tools/tests/test_market_cell_launch_config.py
+  - .github/workflows/ci.yml
   evidence_refs: []
   acceptance:
     given: MarketCell создан, но thresholds не настроены/не достигнуты
