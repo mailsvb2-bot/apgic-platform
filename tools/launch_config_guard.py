@@ -35,6 +35,14 @@ R3_POLICIES = {
     ),
 }
 
+R4_POLICIES = {
+    **R3_POLICIES,
+    "provider_settlement": (
+        "provider_settlement_policy_version",
+        "provider_settlement_policy_path",
+    ),
+}
+
 def fail(message: str) -> None:
     print(f"LAUNCH CONFIG PRECHECK: FAIL: {message}", file=sys.stderr)
     raise SystemExit(1)
@@ -329,6 +337,62 @@ def validate_booking_fulfillment(policy: dict) -> None:
             fail(f"{field} must be explicit")
 
 
+def validate_provider_settlement(policy: dict) -> None:
+    if policy.get("policy_kind") != "PROVIDER_SETTLEMENT":
+        fail("provider_settlement policy_kind must be PROVIDER_SETTLEMENT")
+    if policy.get("unknown_path") != "BLOCK_POLICY_NOT_CONFIGURED":
+        fail("provider_settlement unknown_path must be BLOCK_POLICY_NOT_CONFIGURED")
+
+    rules = policy.get("commission_rules")
+    if not isinstance(rules, list) or not rules:
+        fail("provider_settlement requires commission_rules")
+
+    seen: set[tuple[str, str, str]] = set()
+    for rule in rules:
+        if not isinstance(rule, dict):
+            fail("provider_settlement commission rule must be a mapping")
+        for field in (
+            "id",
+            "commission_policy_version",
+            "demand_source",
+            "product_ref",
+            "jurisdiction",
+            "currency",
+            "rounding_mode",
+            "platform_fee_recipient_ref",
+        ):
+            value = rule.get(field)
+            if not isinstance(value, str) or not value.strip() or value == "CONFIG_REQUIRED":
+                fail(f"provider_settlement rule requires explicit {field}")
+        if rule["currency"] != rule["currency"].upper() or len(rule["currency"]) != 3:
+            fail("provider_settlement currency must be uppercase ISO-style code")
+        bps = rule.get("basis_points")
+        if not isinstance(bps, int) or isinstance(bps, bool) or not 0 <= bps <= 10000:
+            fail("provider_settlement basis_points must be within 0..10000")
+        if rule["rounding_mode"] != "FLOOR_MINOR":
+            fail("provider_settlement rounding_mode must be FLOOR_MINOR")
+        key = (rule["demand_source"], rule["product_ref"], rule["jurisdiction"])
+        if key in seen:
+            fail(f"provider_settlement duplicate source/product/jurisdiction rule: {key}")
+        seen.add(key)
+
+    execution = policy.get("provider_execution")
+    if not isinstance(execution, dict):
+        fail("provider_settlement provider_execution is required")
+    required_settlement = set(execution.get("required_settlement_capabilities") or [])
+    if not {"MARKETPLACE_SPLIT", "SETTLEMENT_EXECUTION"}.issubset(required_settlement):
+        fail("provider_settlement requires MARKETPLACE_SPLIT and SETTLEMENT_EXECUTION")
+    required_payout = set(execution.get("required_payout_capabilities") or [])
+    if "PAYOUT_EXECUTION" not in required_payout:
+        fail("provider_settlement requires PAYOUT_EXECUTION")
+    if execution.get("execution_owner") != "EXTERNAL_PROVIDER":
+        fail("provider_settlement execution_owner must be EXTERNAL_PROVIDER")
+    if execution.get("historical_provider_affinity") != "REQUIRED":
+        fail("provider_settlement historical_provider_affinity must be REQUIRED")
+    if execution.get("cross_provider_money_bridge") != "FORBIDDEN":
+        fail("provider_settlement cross_provider_money_bridge must be FORBIDDEN")
+
+
 def validate_commerce(policy: dict) -> None:
     if policy.get("policy_kind") != "PRICING_COMMISSION":
         fail("commerce policy_kind must be PRICING_COMMISSION")
@@ -367,7 +431,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("config")
     parser.add_argument("--mode", choices=("ci", "production"), required=True)
-    parser.add_argument("--profile", choices=("R0", "R1", "R2", "R3"), default="R0")
+    parser.add_argument("--profile", choices=("R0", "R1", "R2", "R3", "R4"), default="R0")
     args = parser.parse_args()
 
     config_path = (ROOT / args.config).resolve()
@@ -392,6 +456,7 @@ def main() -> None:
         "R1": R1_POLICIES,
         "R2": R2_POLICIES,
         "R3": R3_POLICIES,
+        "R4": R4_POLICIES,
     }[args.profile]
 
     loaded: dict[str, tuple[Path, dict]] = {}
@@ -417,6 +482,8 @@ def main() -> None:
         validate_store_commerce(loaded["store_commerce"][1])
     if "booking_fulfillment" in loaded:
         validate_booking_fulfillment(loaded["booking_fulfillment"][1])
+    if "provider_settlement" in loaded:
+        validate_provider_settlement(loaded["provider_settlement"][1])
 
     refs = ", ".join(
         f"{label}={path.relative_to(ROOT)}"
