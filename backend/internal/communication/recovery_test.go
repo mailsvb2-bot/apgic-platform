@@ -7,24 +7,24 @@ import (
 
 func recoveryFixture() (TechnicalFailure, RecoveryPolicy, RecoveryContext) {
 	failure := TechnicalFailure{
-		ConsultationID: "consultation-1",
-		BookingID: "booking-1",
+		ConsultationID:     "consultation-1",
+		BookingID:          "booking-1",
 		ProviderInstanceID: "communication-a",
-		Kind: FailureProviderDisconnect,
-		Attempt: 0,
-		EvidenceRef: "provider-evidence/disconnect-1",
-		OccurredAt: time.Date(2026, 9, 24, 12, 30, 0, 0, time.UTC),
+		Kind:               FailureProviderDisconnect,
+		Attempt:            0,
+		EvidenceRef:        "provider-evidence/disconnect-1",
+		OccurredAt:         time.Date(2026, 9, 24, 12, 30, 0, 0, time.UTC),
 	}
 	policy := RecoveryPolicy{
-		Version: "communication-recovery-v1",
+		Version:             "communication-recovery-v1",
 		MaxRecoveryAttempts: 2,
-		AllowFallback: true,
-		ExhaustedAction: RecoveryRefund,
+		AllowFallback:       true,
+		ExhaustedAction:     RecoveryRefund,
 	}
 	ctx := RecoveryContext{
-		CurrentProviderID: "communication-a",
-		FallbackProviderID: "communication-b",
-		RefundEligible: true,
+		CurrentProviderID:   "communication-a",
+		FallbackProviderID:  "communication-b",
+		RefundEligible:      true,
 		RescheduleAvailable: true,
 	}
 	return failure, policy, ctx
