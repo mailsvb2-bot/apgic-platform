@@ -1,0 +1,17 @@
+version: 1
+environment: PRODUCTION
+production_approved: false
+jurisdiction_matrix_version: CONFIG_REQUIRED
+retention_policy_version: CONFIG_REQUIRED
+slo_policy_version: CONFIG_REQUIRED
+provider_matrix_version: CONFIG_REQUIRED
+market_cell_thresholds_version: CONFIG_REQUIRED
+commerce_policy_version: CONFIG_REQUIRED
+store_policy_version: CONFIG_REQUIRED
+store_policy_path: config/mobile/store-policy.example.yaml
+booking_fulfillment_policy_version: CONFIG_REQUIRED
+booking_fulfillment_policy_path: config/booking/fulfillment-policy.example.yaml
+provider_settlement_policy_version: CONFIG_REQUIRED
+provider_settlement_policy_path: config/finance/provider-settlement.example.yaml
+notes:
+  - "R4 example only. Provider split/settlement/payout remains blocked until explicit approved source-based commission and provider-execution policy exists."
