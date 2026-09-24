@@ -70,8 +70,14 @@ BEGIN
   IF NOT FOUND OR NOT slot_exclusive THEN
     RAISE EXCEPTION 'booking hold requires an exclusive canonical slot';
   END IF;
+  IF NEW.state <> 'ACTIVE' THEN
+    RAISE EXCEPTION 'new booking hold must start ACTIVE';
+  END IF;
   IF NEW.expires_at <= NEW.created_at OR NEW.expires_at >= slot_start THEN
     RAISE EXCEPTION 'booking hold expiry must be before slot start';
+  END IF;
+  IF NEW.expires_at <= clock_timestamp() THEN
+    RAISE EXCEPTION 'new booking hold is already expired';
   END IF;
   RETURN NEW;
 END;
@@ -318,14 +324,49 @@ BEGIN
   IF NEW.state <> 'HELD' THEN
     RAISE EXCEPTION 'new booking must start in HELD state';
   END IF;
+  IF hold.expires_at <= clock_timestamp() THEN
+    RAISE EXCEPTION 'booking cannot use an expired hold';
+  END IF;
+  IF slot.starts_at <= clock_timestamp() THEN
+    RAISE EXCEPTION 'booking cannot be created after slot start';
+  END IF;
+  IF NEW.created_at < hold.created_at OR NEW.created_at >= hold.expires_at THEN
+    RAISE EXCEPTION 'booking creation time must be inside hold lifetime';
+  END IF;
+  IF NEW.updated_at <> NEW.created_at THEN
+    RAISE EXCEPTION 'new booking updated_at must equal created_at';
+  END IF;
 
   RETURN NEW;
 END;
-$$;
+$;
+
+CREATE OR REPLACE FUNCTION apgic_booking_consume_hold()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $
+BEGIN
+  UPDATE booking_holds
+  SET state = 'CONSUMED',
+      updated_at = NEW.created_at
+  WHERE id = NEW.hold_id
+    AND state = 'ACTIVE';
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'booking hold was not consumable';
+  END IF;
+
+  RETURN NEW;
+END;
+$;
 
 CREATE TRIGGER bookings_insert_guard
 BEFORE INSERT ON bookings
 FOR EACH ROW EXECUTE FUNCTION apgic_booking_insert_guard();
+
+CREATE TRIGGER bookings_consume_hold
+AFTER INSERT ON bookings
+FOR EACH ROW EXECUTE FUNCTION apgic_booking_consume_hold();
 
 CREATE TRIGGER bookings_transition_guard
 BEFORE UPDATE ON bookings

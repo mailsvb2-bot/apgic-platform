@@ -69,6 +69,7 @@ func New(
 		startsAt.IsZero() ||
 		endsAt.IsZero() ||
 		!holdExpiresAt.After(now) ||
+		!startsAt.After(holdExpiresAt) ||
 		!endsAt.After(startsAt) {
 		return nil, ErrInvalidBooking
 	}

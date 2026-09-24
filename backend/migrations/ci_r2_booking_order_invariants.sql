@@ -54,6 +54,38 @@ BEGIN
 END
 $$;
 
+DO $
+DECLARE
+  stale_hold_blocked boolean := false;
+BEGIN
+  BEGIN
+    INSERT INTO booking_holds (
+      id,
+      slot_id,
+      client_identity_id,
+      state,
+      expires_at,
+      created_at,
+      updated_at
+    ) VALUES (
+      '00000000-0000-0000-0000-00000000b298',
+      '00000000-0000-0000-0000-00000000b101',
+      '00000000-0000-0000-0000-00000000b003',
+      'ACTIVE',
+      now() - interval '10 minutes',
+      now() - interval '20 minutes',
+      now() - interval '20 minutes'
+    );
+  EXCEPTION WHEN raise_exception THEN
+    stale_hold_blocked := true;
+  END;
+
+  IF NOT stale_hold_blocked THEN
+    RAISE EXCEPTION 'already-expired ACTIVE hold was accepted';
+  END IF;
+END
+$;
+
 SELECT *
 FROM apgic_acquire_slot_hold(
   '00000000-0000-0000-0000-00000000b201',
@@ -160,6 +192,19 @@ BEGIN
   END IF;
 END
 $$;
+
+DO $
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM booking_holds
+    WHERE id = '00000000-0000-0000-0000-00000000b201'
+      AND state = 'CONSUMED'
+  ) THEN
+    RAISE EXCEPTION 'booking insert did not atomically consume hold';
+  END IF;
+END
+$;
 
 UPDATE bookings
 SET state = 'CONFIRMED',

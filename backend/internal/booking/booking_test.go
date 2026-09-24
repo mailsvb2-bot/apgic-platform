@@ -101,3 +101,20 @@ func TestTerminalBookingCannotReopen(t *testing.T) {
 		t.Fatal("terminal booking reopened")
 	}
 }
+
+func TestBookingRejectsHoldOutsideSlotTimeline(t *testing.T) {
+	now := time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC)
+	_, err := New(
+		"booking-invalid",
+		"slot-invalid",
+		"hold-invalid",
+		"identity-1",
+		now.Add(90*time.Minute),
+		now.Add(time.Hour),
+		now.Add(2*time.Hour),
+		now,
+	)
+	if err != ErrInvalidBooking {
+		t.Fatalf("err=%v", err)
+	}
+}

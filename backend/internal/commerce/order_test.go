@@ -50,6 +50,7 @@ func TestOrderSnapshotRejectsSilentEconomicDefaults(t *testing.T) {
 		"missing legal snapshot":    func(s *OrderSnapshot) { s.LegalSnapshotRef = "" },
 		"zero amount":               func(s *OrderSnapshot) { s.AmountMinor = 0 },
 		"commission exceeds amount": func(s *OrderSnapshot) { s.CommissionMinor = s.AmountMinor + 1 },
+		"invalid currency code":      func(s *OrderSnapshot) { s.Currency = "1$?" },
 	} {
 		t.Run(name, func(t *testing.T) {
 			input := validOrderSnapshot()

@@ -55,9 +55,21 @@ func NewOrderSnapshot(snapshot OrderSnapshot) (OrderSnapshot, error) {
 	if snapshot.AmountMinor <= 0 ||
 		snapshot.CommissionMinor < 0 ||
 		snapshot.CommissionMinor > snapshot.AmountMinor ||
-		len(snapshot.Currency) != 3 ||
+		!validCurrencyCode(snapshot.Currency) ||
 		snapshot.CapturedAt.IsZero() {
 		return OrderSnapshot{}, ErrInvalidOrderSnapshot
 	}
 	return snapshot, nil
+}
+
+func validCurrencyCode(code string) bool {
+	if len(code) != 3 {
+		return false
+	}
+	for i := 0; i < len(code); i++ {
+		if code[i] < 'A' || code[i] > 'Z' {
+			return false
+		}
+	}
+	return true
 }
