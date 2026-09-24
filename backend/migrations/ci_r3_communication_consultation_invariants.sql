@@ -18,6 +18,38 @@ INSERT INTO connector_instances (
   'secret://ci/communication-b'
 );
 
+INSERT INTO booking_slots (
+  id, specialist_identity_id, tenant_scope, starts_at, ends_at, exclusive
+) VALUES (
+  '00000000-0000-0000-0000-00000000c010',
+  '00000000-0000-0000-0000-00000000b001',
+  'tenant/r3-ci',
+  now() + interval '1 hour',
+  now() + interval '2 hours',
+  true
+);
+
+SELECT *
+FROM apgic_acquire_slot_hold(
+  '00000000-0000-0000-0000-00000000c011',
+  '00000000-0000-0000-0000-00000000c010',
+  '00000000-0000-0000-0000-00000000b002',
+  now() + interval '10 minutes',
+  now()
+);
+
+SELECT *
+FROM apgic_create_booking_from_hold(
+  '00000000-0000-0000-0000-00000000c012',
+  '00000000-0000-0000-0000-00000000c011',
+  now() + interval '1 minute'
+);
+
+UPDATE bookings
+SET state = 'CONFIRMED',
+    updated_at = now() + interval '2 minutes'
+WHERE id = '00000000-0000-0000-0000-00000000c012';
+
 INSERT INTO communication_access_policy_versions (
   version, join_early_seconds, join_late_seconds,
   max_credential_ttl_seconds, created_at
@@ -35,11 +67,11 @@ INSERT INTO booking_access_entitlement_versions (
 ) VALUES
 (
   '00000000-0000-0000-0000-00000000c101',
-  '00000000-0000-0000-0000-00000000b301',
+  '00000000-0000-0000-0000-00000000c012',
   '00000000-0000-0000-0000-00000000b002',
   'CLIENT',
   'ACTIVE',
-  'order/00000000-0000-0000-0000-00000000b501',
+  'booking/00000000-0000-0000-0000-00000000c012',
   'fulfillment-r3-ci-v1',
   NULL,
   now(),
@@ -48,11 +80,11 @@ INSERT INTO booking_access_entitlement_versions (
 ),
 (
   '00000000-0000-0000-0000-00000000c102',
-  '00000000-0000-0000-0000-00000000b301',
+  '00000000-0000-0000-0000-00000000c012',
   '00000000-0000-0000-0000-00000000b001',
   'SPECIALIST',
   'ACTIVE',
-  'booking/00000000-0000-0000-0000-00000000b301',
+  'booking/00000000-0000-0000-0000-00000000c012',
   'fulfillment-r3-ci-v1',
   NULL,
   now(),
@@ -71,7 +103,7 @@ BEGIN
       idempotency_key, decided_at
     ) VALUES (
       '00000000-0000-0000-0000-00000000c199',
-      '00000000-0000-0000-0000-00000000b301',
+      '00000000-0000-0000-0000-00000000c012',
       '00000000-0000-0000-0000-00000000b003',
       'CLIENT',
       '00000000-0000-0000-0000-00000000c001',
@@ -101,7 +133,7 @@ INSERT INTO communication_join_authorizations (
   idempotency_key, decided_at
 ) VALUES (
   '00000000-0000-0000-0000-00000000c198',
-  '00000000-0000-0000-0000-00000000b301',
+  '00000000-0000-0000-0000-00000000c012',
   '00000000-0000-0000-0000-00000000b003',
   'CLIENT',
   '00000000-0000-0000-0000-00000000c001',
@@ -124,7 +156,7 @@ INSERT INTO communication_join_authorizations (
 ) VALUES
 (
   '00000000-0000-0000-0000-00000000c201',
-  '00000000-0000-0000-0000-00000000b301',
+  '00000000-0000-0000-0000-00000000c012',
   '00000000-0000-0000-0000-00000000b002',
   'CLIENT',
   '00000000-0000-0000-0000-00000000c001',
@@ -140,7 +172,7 @@ INSERT INTO communication_join_authorizations (
 ),
 (
   '00000000-0000-0000-0000-00000000c202',
-  '00000000-0000-0000-0000-00000000b301',
+  '00000000-0000-0000-0000-00000000c012',
   '00000000-0000-0000-0000-00000000b001',
   'SPECIALIST',
   '00000000-0000-0000-0000-00000000c001',
@@ -160,7 +192,7 @@ INSERT INTO consultation_sessions (
   provider_instance_id, state, created_at, updated_at
 ) VALUES (
   '00000000-0000-0000-0000-00000000c301',
-  '00000000-0000-0000-0000-00000000b301',
+  '00000000-0000-0000-0000-00000000c012',
   '00000000-0000-0000-0000-00000000b002',
   '00000000-0000-0000-0000-00000000b001',
   '00000000-0000-0000-0000-00000000c001',
@@ -232,7 +264,7 @@ BEGIN
     UPDATE bookings
     SET state = 'COMPLETED',
         updated_at = now() + interval '4 hours'
-    WHERE id = '00000000-0000-0000-0000-00000000b301';
+    WHERE id = '00000000-0000-0000-0000-00000000c012';
   EXCEPTION WHEN raise_exception THEN
     blocked := true;
   END;
@@ -309,7 +341,7 @@ INSERT INTO consultation_lifecycle_facts (
 UPDATE bookings
 SET state = 'COMPLETED',
     updated_at = now() + interval '7 minutes'
-WHERE id = '00000000-0000-0000-0000-00000000b301';
+WHERE id = '00000000-0000-0000-0000-00000000c012';
 
 DO $$
 DECLARE mutation_blocked boolean := false;
@@ -323,7 +355,7 @@ BEGIN
 
   IF (
     SELECT state FROM bookings
-    WHERE id = '00000000-0000-0000-0000-00000000b301'
+    WHERE id = '00000000-0000-0000-0000-00000000c012'
   ) <> 'COMPLETED' THEN
     RAISE EXCEPTION 'booking did not complete from consultation evidence';
   END IF;
