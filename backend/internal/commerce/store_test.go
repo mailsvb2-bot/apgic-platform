@@ -64,8 +64,8 @@ func TestStorePolicyFailsClosedWhenCombinationMissing(t *testing.T) {
 		Storefront: "RU",
 		Jurisdiction: "RU",
 	})
-	if !errors.Is(err, ErrStorePolicyNoMatch) {
-		t.Fatalf("unknown store path must fail closed, got %v", err)
+	if err != nil {
+		t.Fatal(err)
 	}
 	if decision.Outcome != StoreCommerceDisabled || decision.Rail != payments.RailPurchaseDisabled {
 		t.Fatalf("unknown store path must be PURCHASE_DISABLED: %#v", decision)
