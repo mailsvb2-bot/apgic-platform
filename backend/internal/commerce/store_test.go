@@ -10,26 +10,26 @@ import (
 
 func TestStorePolicyReturnsExactlyOneConfiguredRail(t *testing.T) {
 	policy := StorePolicySnapshot{
-		Version: "store-policy-v1",
+		Version:     "store-policy-v1",
 		EffectiveAt: time.Now().UTC(),
 		Rules: []StorePolicyRule{
 			{
-				ProductType: "SUBSCRIPTION",
-				Surface: SurfaceIOS,
-				Store: "STORE_A",
-				Storefront: "RU",
+				ProductType:  "SUBSCRIPTION",
+				Surface:      SurfaceIOS,
+				Store:        "STORE_A",
+				Storefront:   "RU",
 				Jurisdiction: "RU",
-				Enabled: true,
-				Rail: payments.RailStoreBilling,
-				ReasonCode: "STORE_BILLING_REQUIRED",
+				Enabled:      true,
+				Rail:         payments.RailStoreBilling,
+				ReasonCode:   "STORE_BILLING_REQUIRED",
 			},
 		},
 	}
 	decision, err := policy.Decide(StoreCommerceContext{
-		ProductType: "SUBSCRIPTION",
-		Surface: SurfaceIOS,
-		Store: "STORE_A",
-		Storefront: "RU",
+		ProductType:  "SUBSCRIPTION",
+		Surface:      SurfaceIOS,
+		Store:        "STORE_A",
+		Storefront:   "RU",
 		Jurisdiction: "RU",
 	})
 	if err != nil {
@@ -42,26 +42,26 @@ func TestStorePolicyReturnsExactlyOneConfiguredRail(t *testing.T) {
 
 func TestStorePolicyFailsClosedWhenCombinationMissing(t *testing.T) {
 	policy := StorePolicySnapshot{
-		Version: "store-policy-v1",
+		Version:     "store-policy-v1",
 		EffectiveAt: time.Now().UTC(),
 		Rules: []StorePolicyRule{
 			{
-				ProductType: "SUBSCRIPTION",
-				Surface: SurfaceAndroid,
-				Store: "STORE_B",
-				Storefront: "RU",
+				ProductType:  "SUBSCRIPTION",
+				Surface:      SurfaceAndroid,
+				Store:        "STORE_B",
+				Storefront:   "RU",
 				Jurisdiction: "RU",
-				Enabled: true,
-				Rail: payments.RailStoreBilling,
-				ReasonCode: "STORE_BILLING_REQUIRED",
+				Enabled:      true,
+				Rail:         payments.RailStoreBilling,
+				ReasonCode:   "STORE_BILLING_REQUIRED",
 			},
 		},
 	}
 	decision, err := policy.Decide(StoreCommerceContext{
-		ProductType: "SUBSCRIPTION",
-		Surface: SurfaceIOS,
-		Store: "STORE_A",
-		Storefront: "RU",
+		ProductType:  "SUBSCRIPTION",
+		Surface:      SurfaceIOS,
+		Store:        "STORE_A",
+		Storefront:   "RU",
 		Jurisdiction: "RU",
 	})
 	if err != nil {
@@ -74,25 +74,25 @@ func TestStorePolicyFailsClosedWhenCombinationMissing(t *testing.T) {
 
 func TestStorePolicyRejectsAmbiguousRules(t *testing.T) {
 	rule := StorePolicyRule{
-		ProductType: "ONE_TIME",
-		Surface: SurfaceIOS,
-		Store: "STORE_A",
-		Storefront: "US",
+		ProductType:  "ONE_TIME",
+		Surface:      SurfaceIOS,
+		Store:        "STORE_A",
+		Storefront:   "US",
 		Jurisdiction: "US",
-		Enabled: true,
-		Rail: payments.RailStoreBilling,
-		ReasonCode: "STORE_BILLING_ALLOWED",
+		Enabled:      true,
+		Rail:         payments.RailStoreBilling,
+		ReasonCode:   "STORE_BILLING_ALLOWED",
 	}
 	policy := StorePolicySnapshot{
-		Version: "store-policy-v1",
+		Version:     "store-policy-v1",
 		EffectiveAt: time.Now().UTC(),
-		Rules: []StorePolicyRule{rule, rule},
+		Rules:       []StorePolicyRule{rule, rule},
 	}
 	_, err := policy.Decide(StoreCommerceContext{
-		ProductType: "ONE_TIME",
-		Surface: SurfaceIOS,
-		Store: "STORE_A",
-		Storefront: "US",
+		ProductType:  "ONE_TIME",
+		Surface:      SurfaceIOS,
+		Store:        "STORE_A",
+		Storefront:   "US",
 		Jurisdiction: "US",
 	})
 	if !errors.Is(err, ErrStorePolicyAmbiguous) {
@@ -102,19 +102,19 @@ func TestStorePolicyRejectsAmbiguousRules(t *testing.T) {
 
 func TestVerifiedStorePurchaseRequiresCanonicalFinancialBasis(t *testing.T) {
 	purchase := VerifiedStorePurchase{
-		ID: "verification-1",
-		IdentityID: "identity-1",
-		OrderID: "order-1",
-		PaymentAttemptID: "attempt-1",
-		PaymentEffectID: "effect-1",
-		LedgerEntryID: "ledger-1",
-		ProviderInstanceID: "store-provider-1",
+		ID:                    "verification-1",
+		IdentityID:            "identity-1",
+		OrderID:               "order-1",
+		PaymentAttemptID:      "attempt-1",
+		PaymentEffectID:       "effect-1",
+		LedgerEntryID:         "ledger-1",
+		ProviderInstanceID:    "store-provider-1",
 		ExternalTransactionID: "store-tx-1",
-		ProductRef: "product/subscription-1",
-		EntitlementKind: "SUBSCRIPTION",
-		PolicyVersion: "store-policy-v1",
-		ProviderEvidenceRef: "store-evidence/verified-1",
-		VerifiedAt: time.Now().UTC(),
+		ProductRef:            "product/subscription-1",
+		EntitlementKind:       "SUBSCRIPTION",
+		PolicyVersion:         "store-policy-v1",
+		ProviderEvidenceRef:   "store-evidence/verified-1",
+		VerifiedAt:            time.Now().UTC(),
 	}
 	if err := purchase.Validate(); err != nil {
 		t.Fatal(err)
