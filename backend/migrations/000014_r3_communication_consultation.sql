@@ -313,6 +313,7 @@ CREATE TABLE consultation_lifecycle_facts (
   ),
   role text NOT NULL CHECK (role IN ('CLIENT','SPECIALIST','SYSTEM')),
   identity_id uuid REFERENCES identities(id),
+  provider_instance_id uuid NOT NULL REFERENCES connector_instances(id),
   provider_reference text NOT NULL CHECK (btrim(provider_reference) <> ''),
   evidence_ref text NOT NULL CHECK (btrim(evidence_ref) <> ''),
   idempotency_key text NOT NULL CHECK (btrim(idempotency_key) <> ''),
@@ -331,6 +332,7 @@ DECLARE
   session_row consultation_sessions%ROWTYPE;
   client_joined boolean;
   specialist_joined boolean;
+  provider_capability text;
 BEGIN
   SELECT *
   INTO session_row
@@ -344,6 +346,15 @@ BEGIN
 
   IF NEW.occurred_at < session_row.created_at OR NEW.occurred_at < session_row.updated_at THEN
     RAISE EXCEPTION 'consultation lifecycle fact time cannot move backwards';
+  END IF;
+
+  SELECT capability_class
+  INTO provider_capability
+  FROM connector_instances
+  WHERE id = NEW.provider_instance_id;
+
+  IF NOT FOUND OR provider_capability <> 'COMMUNICATION_PROVIDER' THEN
+    RAISE EXCEPTION 'consultation lifecycle fact requires COMMUNICATION_PROVIDER evidence';
   END IF;
 
   IF NEW.fact_type IN ('READY','JOINED','LEFT') THEN
