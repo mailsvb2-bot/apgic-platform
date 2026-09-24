@@ -20,6 +20,8 @@ func validOrderSnapshot() OrderSnapshot {
 		SellerRef:               "identity/specialist-1",
 		CommercialOwnerRef:      "identity/specialist-1",
 		PaymentRecipientRef:     "identity/specialist-1",
+		PlatformRole:            "MARKETPLACE_INTERMEDIARY",
+		FiscalResponsibilityRef: "identity/specialist-1",
 		RefundResponsibilityRef: "identity/specialist-1",
 		PayoutBeneficiaryRef:    "identity/specialist-1",
 		CapturedAt:              time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC),
