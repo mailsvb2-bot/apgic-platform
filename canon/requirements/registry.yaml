@@ -1788,11 +1788,17 @@ requirements:
   release_profile: R1
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies: []
-  implementation_refs: []
-  contract_refs: []
-  test_refs: []
+  implementation_refs:
+  - tools/launch_config_guard.py
+  - config/launch.r1-ci.yaml
+  - config/marketcell/r1-ci-thresholds.yaml
+  contract_refs:
+  - contracts/jsonschema/market-cell-thresholds-v1.schema.json
+  test_refs:
+  - tools/tests/test_market_cell_launch_config.py
+  - .github/workflows/ci.yml
   evidence_refs: []
   acceptance:
     given: соответствующий capability включён в launch/release profile
