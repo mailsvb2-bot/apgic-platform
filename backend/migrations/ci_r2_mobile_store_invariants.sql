@@ -533,7 +533,7 @@ BEGIN
       '00000000-0000-0000-0000-00000000a934',
       now()
     );
-  EXCEPTION WHEN check_violation THEN
+  EXCEPTION WHEN raise_exception THEN
     blocked := true;
   END;
   IF NOT blocked THEN
