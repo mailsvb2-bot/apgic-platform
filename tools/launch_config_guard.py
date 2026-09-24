@@ -27,6 +27,14 @@ R2_POLICIES = {
     "store_commerce": ("store_policy_version", "store_policy_path"),
 }
 
+R3_POLICIES = {
+    **R2_POLICIES,
+    "booking_fulfillment": (
+        "booking_fulfillment_policy_version",
+        "booking_fulfillment_policy_path",
+    ),
+}
+
 def fail(message: str) -> None:
     print(f"LAUNCH CONFIG PRECHECK: FAIL: {message}", file=sys.stderr)
     raise SystemExit(1)
@@ -272,6 +280,55 @@ def validate_store_commerce(policy: dict) -> None:
             fail("disabled store_commerce rule must use PURCHASE_DISABLED")
 
 
+def validate_booking_fulfillment(policy: dict) -> None:
+    if policy.get("policy_kind") != "BOOKING_FULFILLMENT":
+        fail("booking_fulfillment policy_kind must be BOOKING_FULFILLMENT")
+    if policy.get("unknown_path") != "BLOCK":
+        fail("booking_fulfillment unknown_path must be BLOCK")
+
+    cancellation = policy.get("cancellation")
+    no_show = policy.get("no_show")
+    refund = policy.get("refund")
+    reschedule = policy.get("reschedule")
+    for name, row in (
+        ("cancellation", cancellation),
+        ("no_show", no_show),
+        ("refund", refund),
+        ("reschedule", reschedule),
+    ):
+        if not isinstance(row, dict):
+            fail(f"booking_fulfillment {name} policy is required")
+
+    numeric_fields = (
+        ("cancellation.free_cancel_until_seconds_before_start", cancellation.get("free_cancel_until_seconds_before_start"), 0, None),
+        ("cancellation.late_cancel_until_seconds_before_start", cancellation.get("late_cancel_until_seconds_before_start"), 0, None),
+        ("cancellation.late_cancel_refund_basis_points", cancellation.get("late_cancel_refund_basis_points"), 0, 10000),
+        ("no_show.participant_grace_seconds", no_show.get("participant_grace_seconds"), 0, None),
+        ("refund.late_cancel_refund_basis_points", refund.get("late_cancel_refund_basis_points"), 0, 10000),
+        ("refund.no_show_refund_basis_points", refund.get("no_show_refund_basis_points"), 0, 10000),
+        ("reschedule.minimum_seconds_before_start", reschedule.get("minimum_seconds_before_start"), 0, None),
+        ("reschedule.max_reschedules_per_booking", reschedule.get("max_reschedules_per_booking"), 0, None),
+    )
+    for field, value, minimum, maximum in numeric_fields:
+        if not isinstance(value, int) or isinstance(value, bool) or value < minimum:
+            fail(f"{field} must be an explicit non-negative integer")
+        if maximum is not None and value > maximum:
+            fail(f"{field} must be within 0..{maximum}")
+
+    if cancellation["late_cancel_until_seconds_before_start"] > cancellation["free_cancel_until_seconds_before_start"]:
+        fail("late cancellation window cannot exceed free cancellation window")
+
+    required_actions = (
+        ("cancellation.after_start_action", cancellation.get("after_start_action")),
+        ("no_show.client_no_show_action", no_show.get("client_no_show_action")),
+        ("no_show.specialist_no_show_action", no_show.get("specialist_no_show_action")),
+        ("refund.technical_failure_action", refund.get("technical_failure_action")),
+    )
+    for field, value in required_actions:
+        if not isinstance(value, str) or not value.strip() or value == "CONFIG_REQUIRED":
+            fail(f"{field} must be explicit")
+
+
 def validate_commerce(policy: dict) -> None:
     if policy.get("policy_kind") != "PRICING_COMMISSION":
         fail("commerce policy_kind must be PRICING_COMMISSION")
@@ -310,7 +367,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("config")
     parser.add_argument("--mode", choices=("ci", "production"), required=True)
-    parser.add_argument("--profile", choices=("R0", "R1", "R2"), default="R0")
+    parser.add_argument("--profile", choices=("R0", "R1", "R2", "R3"), default="R0")
     args = parser.parse_args()
 
     config_path = (ROOT / args.config).resolve()
@@ -334,6 +391,7 @@ def main() -> None:
         "R0": POLICIES,
         "R1": R1_POLICIES,
         "R2": R2_POLICIES,
+        "R3": R3_POLICIES,
     }[args.profile]
 
     loaded: dict[str, tuple[Path, dict]] = {}
@@ -357,6 +415,8 @@ def main() -> None:
         validate_commerce(loaded["commerce"][1])
     if "store_commerce" in loaded:
         validate_store_commerce(loaded["store_commerce"][1])
+    if "booking_fulfillment" in loaded:
+        validate_booking_fulfillment(loaded["booking_fulfillment"][1])
 
     refs = ", ".join(
         f"{label}={path.relative_to(ROOT)}"
