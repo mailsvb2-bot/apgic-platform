@@ -19,6 +19,7 @@ const (
 )
 
 type QualificationRule struct {
+	Profession      string
 	Topic           string
 	Jurisdiction    string
 	Format          string
@@ -68,7 +69,7 @@ func (p QualificationPolicy) Evaluate(profile SpecialistProfile, request Qualifi
 		return result
 	}
 
-	rule, ok := p.findRule(request)
+	rule, ok := p.findRule(profile, request)
 	if !ok {
 		result.Decision = EligibilityIneligible
 		result.ReasonCodes = []string{ReasonRuleMissing}
@@ -96,8 +97,11 @@ func (p QualificationPolicy) Evaluate(profile SpecialistProfile, request Qualifi
 	return result
 }
 
-func (p QualificationPolicy) findRule(request QualificationRequest) (QualificationRule, bool) {
+func (p QualificationPolicy) findRule(profile SpecialistProfile, request QualificationRequest) (QualificationRule, bool) {
 	for _, rule := range p.Rules {
+		if rule.Profession == "" || rule.Profession != profile.Profession {
+			continue
+		}
 		if rule.Topic != request.Topic {
 			continue
 		}
