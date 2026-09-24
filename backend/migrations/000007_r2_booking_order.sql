@@ -378,7 +378,7 @@ CREATE TABLE orders (
 CREATE OR REPLACE FUNCTION apgic_order_snapshot_guard()
 RETURNS trigger
 LANGUAGE plpgsql
-AS $
+AS $$
 DECLARE
   legal legal_transaction_snapshots%ROWTYPE;
 BEGIN
@@ -413,7 +413,7 @@ BEGIN
 
   RETURN NEW;
 END;
-$;
+$$;
 
 CREATE TRIGGER orders_snapshot_guard
 BEFORE INSERT ON orders
