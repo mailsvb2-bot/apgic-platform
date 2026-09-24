@@ -339,12 +339,12 @@ BEGIN
 
   RETURN NEW;
 END;
-$;
+$$;
 
 CREATE OR REPLACE FUNCTION apgic_booking_consume_hold()
 RETURNS trigger
 LANGUAGE plpgsql
-AS $
+AS $$
 BEGIN
   UPDATE booking_holds
   SET state = 'CONSUMED',
@@ -358,7 +358,7 @@ BEGIN
 
   RETURN NEW;
 END;
-$;
+$$;
 
 CREATE TRIGGER bookings_insert_guard
 BEFORE INSERT ON bookings
