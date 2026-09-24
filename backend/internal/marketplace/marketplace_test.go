@@ -13,6 +13,7 @@ func verifiedProfile(t *testing.T, id, topic string) SpecialistProfile {
 		t.Fatal(err)
 	}
 	profile.AddCapability(capability)
+	profile.Profession = "PSYCHOLOGIST"
 	profile.Complete = true
 	profile.Review = ReviewApproved
 	return *profile
@@ -22,6 +23,7 @@ func policyFor(topic string) QualificationPolicy {
 	return QualificationPolicy{
 		Version: "qualification-v1",
 		Rules: []QualificationRule{{
+			Profession:      "PSYCHOLOGIST",
 			Topic:           topic,
 			Jurisdiction:    "RU",
 			Format:          "ONLINE",
