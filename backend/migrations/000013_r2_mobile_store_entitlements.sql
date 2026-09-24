@@ -497,7 +497,8 @@ BEGIN
   FROM audit_records
   WHERE id = NEW.audit_record_id;
 
-  IF NOT FOUND
+  IF evidence.id IS NULL
+    OR audit_row.id IS NULL
     OR audit_row.action <> 'device_integrity.risk_decision'
     OR audit_row.policy_version <> NEW.policy_version
     OR audit_row.reason <> NEW.reason_code
