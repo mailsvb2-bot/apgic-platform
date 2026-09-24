@@ -22,6 +22,8 @@ type OrderSnapshot struct {
 	SellerRef               string
 	CommercialOwnerRef      string
 	PaymentRecipientRef     string
+	PlatformRole            string
+	FiscalResponsibilityRef string
 	RefundResponsibilityRef string
 	PayoutBeneficiaryRef    string
 	CapturedAt              time.Time
@@ -40,6 +42,8 @@ func NewOrderSnapshot(snapshot OrderSnapshot) (OrderSnapshot, error) {
 		snapshot.SellerRef,
 		snapshot.CommercialOwnerRef,
 		snapshot.PaymentRecipientRef,
+		snapshot.PlatformRole,
+		snapshot.FiscalResponsibilityRef,
 		snapshot.RefundResponsibilityRef,
 		snapshot.PayoutBeneficiaryRef,
 	}
