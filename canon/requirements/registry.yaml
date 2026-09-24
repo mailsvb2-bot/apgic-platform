@@ -2035,12 +2035,20 @@ requirements:
   release_profile: R1
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies:
   - APGIC-MOBILE-005
-  implementation_refs: []
-  contract_refs: []
-  test_refs: []
+  implementation_refs:
+  - backend/internal/mobile/deeplink.go
+  - apps/mobile/src/r1-cross-surface.ts
+  - apps/web/src/r1-cross-surface.ts
+  contract_refs:
+  - packages/contracts/src/r1-mobile.ts
+  - contracts/jsonschema/r1-mobile-cross-surface-v1.schema.json
+  test_refs:
+  - backend/internal/mobile/r1_mobile_test.go
+  - apps/mobile/src/r1-cross-surface.test.ts
+  - tools/r1_multisurface_guard.py
   evidence_refs: []
   acceptance:
     given: пользователь открывает booking/specialist/notification link
@@ -2277,12 +2285,19 @@ requirements:
   release_profile: R1
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies:
   - APGIC-MOBILE-003
-  implementation_refs: []
-  contract_refs: []
-  test_refs: []
+  implementation_refs:
+  - apps/mobile/src/r1-cross-surface.ts
+  - apps/web/src/r1-cross-surface.ts
+  contract_refs:
+  - packages/contracts/src/r1-mobile.ts
+  - contracts/jsonschema/r1-mobile-cross-surface-v1.schema.json
+  test_refs:
+  - apps/mobile/src/r1-cross-surface.test.ts
+  - tools/r1_multisurface_guard.py
+  - .github/workflows/ci.yml
   evidence_refs: []
   acceptance:
     given: один canonical journey выполнен на web/iOS/Android
@@ -2445,13 +2460,23 @@ requirements:
   release_profile: R1
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies:
   - APGIC-ID-001
   - APGIC-CONFIG-004
-  implementation_refs: []
-  contract_refs: []
-  test_refs: []
+  implementation_refs:
+  - backend/internal/privacy/deletion.go
+  - backend/migrations/000006_r1_account_deletion.sql
+  - apps/mobile/src/r1-cross-surface.ts
+  - apps/web/src/r1-cross-surface.ts
+  contract_refs:
+  - packages/contracts/src/r1-mobile.ts
+  - contracts/jsonschema/r1-mobile-cross-surface-v1.schema.json
+  test_refs:
+  - backend/internal/privacy/deletion_test.go
+  - backend/migrations/ci_r1_mobile_invariants.sql
+  - apps/mobile/src/r1-cross-surface.test.ts
+  - .github/workflows/ci.yml
   evidence_refs: []
   acceptance:
     given: user has APGIC account
@@ -2674,13 +2699,20 @@ requirements:
   release_profile: R1
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies:
   - APGIC-ID-001
   - APGIC-MOBILE-001
-  implementation_refs: []
-  contract_refs: []
-  test_refs: []
+  implementation_refs:
+  - backend/internal/mobile/workspace.go
+  - apps/mobile/src/r1-cross-surface.ts
+  contract_refs:
+  - packages/contracts/src/r1-mobile.ts
+  - contracts/jsonschema/r1-mobile-cross-surface-v1.schema.json
+  test_refs:
+  - backend/internal/mobile/r1_mobile_test.go
+  - apps/mobile/src/r1-cross-surface.test.ts
+  - tools/r1_multisurface_guard.py
   evidence_refs: []
   acceptance:
     given: user has multiple profiles/memberships
@@ -2702,12 +2734,21 @@ requirements:
   release_profile: R1
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies:
   - APGIC-MOBILE-004
-  implementation_refs: []
-  contract_refs: []
-  test_refs: []
+  implementation_refs:
+  - apps/mobile/src/device-capability.ts
+  - apps/mobile/src/accessibility-policy.ts
+  - tools/mobile_support_guard.py
+  - config/mobile/r1-ci-support-policy.yaml
+  contract_refs:
+  - packages/contracts/src/r1-mobile.ts
+  test_refs:
+  - apps/mobile/src/device-capability.test.ts
+  - apps/mobile/src/accessibility-policy.test.ts
+  - tools/tests/test_mobile_support_guard.py
+  - .github/workflows/ci.yml
   evidence_refs: []
   acceptance:
     given: critical screen/journey exists
