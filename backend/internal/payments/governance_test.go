@@ -37,10 +37,10 @@ func governanceAuth(t0 time.Time, auditID string, stepUp *time.Time) authz.Input
 		Principal: authz.Principal{
 			ID: "admin-1", TenantID: "platform",
 			Permissions: map[string]struct{}{"payment.provider.manage": {}},
-			StepUpAt: stepUp,
+			StepUpAt:    stepUp,
 		},
 		Resource: authz.ResourceRef{ID: "payments", TenantID: "platform"},
-		Now: t0, MaxStepUpAge: 10 * time.Minute,
+		Now:      t0, MaxStepUpAge: 10 * time.Minute,
 		CorrelationID: "corr-governance-1", AuditRecordID: auditID,
 	}
 }
@@ -50,8 +50,8 @@ func TestPaymentProviderChangeRequiresHighRiskStepUp(t *testing.T) {
 	appender := &collectingAuditAppender{}
 	control := ControlPlane{
 		PolicyVersion: "payment-governance-v1",
-		Authorizer: authz.Evaluator{PolicyVersion: "auth-v1", Appender: appender},
-		Appender: appender,
+		Authorizer:    authz.Evaluator{PolicyVersion: "auth-v1", Appender: appender},
+		Appender:      appender,
 	}
 	current := governanceConfig(t0.Add(-time.Hour))
 	next := current
@@ -81,8 +81,8 @@ func TestAuthorizedProviderChangePreservesOldAndNewAuditSnapshots(t *testing.T) 
 	appender := &collectingAuditAppender{}
 	control := ControlPlane{
 		PolicyVersion: "payment-governance-v1",
-		Authorizer: authz.Evaluator{PolicyVersion: "auth-v1", Appender: appender},
-		Appender: appender,
+		Authorizer:    authz.Evaluator{PolicyVersion: "auth-v1", Appender: appender},
+		Appender:      appender,
 	}
 	current := governanceConfig(t0.Add(-time.Hour))
 	next := current
@@ -131,9 +131,9 @@ func TestHealthGuardrailCanBlockNewAttemptsWithoutChangingHistoricalRouting(t *t
 		ProviderID: "provider-a", ConfigVersion: "cfg-v2", Health: HealthDegraded,
 		ConversionRateBPS: 8700, LatencyP95MS: 1800, ProviderReportedFeeBPS: 250,
 		ReconciliationPendingCount: 3, ReconciliationMismatchCount: 1,
-		Guardrail: GuardrailBlockNewAttempts,
-		EvidenceRefs: []string{"metrics/provider-a/window-1","reconciliation/run-1"},
-		ObservedAt: t0,
+		Guardrail:    GuardrailBlockNewAttempts,
+		EvidenceRefs: []string{"metrics/provider-a/window-1", "reconciliation/run-1"},
+		ObservedAt:   t0,
 	}
 	if err := snapshot.Validate(); err != nil {
 		t.Fatal(err)
@@ -150,8 +150,8 @@ func TestProviderTestOperationRequiresStepUpAndWritesAudit(t *testing.T) {
 	appender := &collectingAuditAppender{}
 	control := ControlPlane{
 		PolicyVersion: "payment-governance-v1",
-		Authorizer: authz.Evaluator{PolicyVersion: "auth-v1", Appender: appender},
-		Appender: appender,
+		Authorizer:    authz.Evaluator{PolicyVersion: "auth-v1", Appender: appender},
+		Appender:      appender,
 	}
 
 	err := control.AuthorizeOperation(
@@ -178,8 +178,8 @@ func TestProviderConnectOperationWithoutStepUpFailsClosed(t *testing.T) {
 	appender := &collectingAuditAppender{}
 	control := ControlPlane{
 		PolicyVersion: "payment-governance-v1",
-		Authorizer: authz.Evaluator{PolicyVersion: "auth-v1", Appender: appender},
-		Appender: appender,
+		Authorizer:    authz.Evaluator{PolicyVersion: "auth-v1", Appender: appender},
+		Appender:      appender,
 	}
 
 	err := control.AuthorizeOperation(
