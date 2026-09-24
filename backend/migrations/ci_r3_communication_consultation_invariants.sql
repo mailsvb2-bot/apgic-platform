@@ -92,7 +92,29 @@ BEGIN
     RAISE EXCEPTION 'communication join allowed role/identity mismatch';
   END IF;
 END
-$$;
+$;
+
+INSERT INTO communication_join_authorizations (
+  id, booking_id, identity_id, role, provider_instance_id,
+  policy_version, entitlement_version_id, decision, reason_code,
+  credential_scope, provider_credential_ref, credential_expires_at,
+  idempotency_key, decided_at
+) VALUES (
+  '00000000-0000-0000-0000-00000000c198',
+  '00000000-0000-0000-0000-00000000b301',
+  '00000000-0000-0000-0000-00000000b003',
+  'CLIENT',
+  '00000000-0000-0000-0000-00000000c001',
+  'communication-access-r3-ci-v1',
+  NULL,
+  'DENY',
+  'COMM_ROLE_MISMATCH',
+  NULL,
+  NULL,
+  NULL,
+  'join-deny-role-mismatch',
+  now()
+);
 
 INSERT INTO communication_join_authorizations (
   id, booking_id, identity_id, role, provider_instance_id,
