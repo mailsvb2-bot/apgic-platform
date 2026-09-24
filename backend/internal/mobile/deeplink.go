@@ -49,6 +49,7 @@ type DeepLinkResolution struct {
 	ReasonCode    string
 	CanonicalPath string
 	WebFallback   string
+	ExpiresAt     time.Time
 }
 
 func ResolveDeepLink(claims DeepLinkClaims, principal authz.Principal, now time.Time) DeepLinkResolution {
@@ -99,6 +100,7 @@ func ResolveDeepLink(claims DeepLinkClaims, principal authz.Principal, now time.
 		ReasonCode:    ReasonLinkAllowed,
 		CanonicalPath: claims.CanonicalPath,
 		WebFallback:   claims.WebFallback,
+		ExpiresAt:     claims.ExpiresAt,
 	}
 }
 
