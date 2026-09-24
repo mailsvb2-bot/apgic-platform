@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apgic.ru/contracts/refund-reversal-v1.schema.json",
+  "title": "APGIC Refund/Reversal v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "refund_id","booking_id","order_id","original_payment_attempt_id",
+    "original_provider_id","amount_minor","currency","policy_version",
+    "policy_decision","reason_code","idempotency_key","execution_owner","state"
+  ],
+  "properties": {
+    "refund_id": {"type":"string","minLength":1},
+    "booking_id": {"type":"string","minLength":1},
+    "order_id": {"type":"string","minLength":1},
+    "original_payment_attempt_id": {"type":"string","minLength":1},
+    "original_provider_id": {"type":"string","minLength":1},
+    "amount_minor": {"type":"integer","minimum":1},
+    "currency": {"type":"string","pattern":"^[A-Z]{3}$"},
+    "policy_version": {"type":"string","minLength":1},
+    "policy_decision": {"const":"ALLOW"},
+    "reason_code": {"type":"string","minLength":1},
+    "idempotency_key": {"type":"string","minLength":1},
+    "execution_owner": {"const":"EXTERNAL_PROVIDER"},
+    "state": {"enum":["REQUESTED","SENT","PENDING","SUCCEEDED","FAILED_TERMINAL","AMBIGUOUS"]},
+    "provider_reference": {"type":["string","null"]},
+    "provider_evidence_ref": {"type":["string","null"]}
+  }
+}
