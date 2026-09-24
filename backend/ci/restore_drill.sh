@@ -73,6 +73,15 @@ direction_archive_constraint_count="$(
 legal_transaction_snapshot_trigger_count="$(
   psql --dbname="$RESTORE_DATABASE" -Atc     "SELECT count(*) FROM pg_trigger WHERE tgname = 'legal_transaction_snapshots_append_only' AND NOT tgisinternal;"
 )"
+delete_request_transition_trigger_count="$(
+  psql --dbname="$RESTORE_DATABASE" -Atc     "SELECT count(*) FROM pg_trigger WHERE tgname = 'delete_account_requests_transition_guard' AND NOT tgisinternal;"
+)"
+delete_request_no_delete_trigger_count="$(
+  psql --dbname="$RESTORE_DATABASE" -Atc     "SELECT count(*) FROM pg_trigger WHERE tgname = 'delete_account_requests_no_delete' AND NOT tgisinternal;"
+)"
+provider_erasure_trigger_count="$(
+  psql --dbname="$RESTORE_DATABASE" -Atc     "SELECT count(*) FROM pg_trigger WHERE tgname = 'provider_erasure_jobs_transition_guard' AND NOT tgisinternal;"
+)"
 
 if [[ "$identity_count" != "1" || "$organization_count" != "1" ]]; then
   echo "restore drill failed: business sentinel missing" >&2
@@ -84,7 +93,7 @@ if [[ "$audit_trigger_count" != "1" || "$ledger_trigger_count" != "1" || "$legal
   exit 1
 fi
 
-if [[ "$direction_trigger_count" != "1" || "$product_owner_trigger_count" != "1" || "$outbox_delivery_constraint_count" != "1" || "$outbox_transition_trigger_count" != "1" || "$direction_archive_constraint_count" != "1" || "$legal_transaction_snapshot_trigger_count" != "1" ]]; then
+if [[ "$direction_trigger_count" != "1" || "$product_owner_trigger_count" != "1" || "$outbox_delivery_constraint_count" != "1" || "$outbox_transition_trigger_count" != "1" || "$direction_archive_constraint_count" != "1" || "$legal_transaction_snapshot_trigger_count" != "1" || "$delete_request_transition_trigger_count" != "1" || "$delete_request_no_delete_trigger_count" != "1" || "$provider_erasure_trigger_count" != "1" ]]; then
   echo "restore drill failed: semantic invariant object missing" >&2
   exit 1
 fi
@@ -113,6 +122,9 @@ cat >"$evidence_dir/restore-drill.json" <<JSON
   "integrity_probe_outbox_transition_trigger_count": $outbox_transition_trigger_count,
   "integrity_probe_direction_archive_constraint_count": $direction_archive_constraint_count,
   "integrity_probe_legal_transaction_snapshot_trigger_count": $legal_transaction_snapshot_trigger_count,
+  "integrity_probe_delete_request_transition_trigger_count": $delete_request_transition_trigger_count,
+  "integrity_probe_delete_request_no_delete_trigger_count": $delete_request_no_delete_trigger_count,
+  "integrity_probe_provider_erasure_trigger_count": $provider_erasure_trigger_count,
   "production_evidence": false
 }
 JSON
