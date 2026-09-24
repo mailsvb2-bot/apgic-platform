@@ -17,13 +17,13 @@ const (
 type DeletionState string
 
 const (
-	DeletionRequested                 DeletionState = "REQUESTED"
-	DeletionIdentityReconfirmed       DeletionState = "IDENTITY_RECONFIRMED"
-	DeletionRetentionClassified       DeletionState = "RETENTION_CLASSIFIED"
-	DeletionProviderErasurePending    DeletionState = "PROVIDER_ERASURE_PENDING"
-	DeletionWaitingLegalHoldExpiry    DeletionState = "WAITING_FOR_LEGAL_HOLD_EXPIRY"
-	DeletionPartiallyRetainedReason   DeletionState = "PARTIALLY_RETAINED_WITH_REASON"
-	DeletionCompleted                 DeletionState = "COMPLETED"
+	DeletionRequested               DeletionState = "REQUESTED"
+	DeletionIdentityReconfirmed     DeletionState = "IDENTITY_RECONFIRMED"
+	DeletionRetentionClassified     DeletionState = "RETENTION_CLASSIFIED"
+	DeletionProviderErasurePending  DeletionState = "PROVIDER_ERASURE_PENDING"
+	DeletionWaitingLegalHoldExpiry  DeletionState = "WAITING_FOR_LEGAL_HOLD_EXPIRY"
+	DeletionPartiallyRetainedReason DeletionState = "PARTIALLY_RETAINED_WITH_REASON"
+	DeletionCompleted               DeletionState = "COMPLETED"
 )
 
 type RetentionDisposition string
@@ -42,10 +42,10 @@ const (
 )
 
 var (
-	ErrInvalidDeletionRequest = errors.New("invalid delete account request")
-	ErrInvalidDeletionState   = errors.New("invalid delete account state transition")
-	ErrRetentionReasonRequired = errors.New("retained data requires explicit reason")
-	ErrErasureIncomplete      = errors.New("provider erasure is incomplete")
+	ErrInvalidDeletionRequest   = errors.New("invalid delete account request")
+	ErrInvalidDeletionState     = errors.New("invalid delete account state transition")
+	ErrRetentionReasonRequired  = errors.New("retained data requires explicit reason")
+	ErrErasureIncomplete        = errors.New("provider erasure is incomplete")
 )
 
 type RetentionItem struct {
