@@ -2,12 +2,20 @@
 
 INSERT INTO connector_instances (
   id, capability_class, provider_kind, status, config_ref
-) VALUES (
+) VALUES
+(
   '00000000-0000-0000-0000-00000000c001',
   'COMMUNICATION_PROVIDER',
   'CI_COMMUNICATION_A',
   'ACTIVE',
   'secret://ci/communication-a'
+),
+(
+  '00000000-0000-0000-0000-00000000c002',
+  'COMMUNICATION_PROVIDER',
+  'CI_COMMUNICATION_B',
+  'ACTIVE',
+  'secret://ci/communication-b'
 );
 
 INSERT INTO communication_access_policy_versions (
@@ -228,6 +236,22 @@ INSERT INTO consultation_lifecycle_facts (
   now() + interval '4 minutes'
 );
 
+INSERT INTO consultation_recovery_decisions (
+  id, session_id, source_fact_id, policy_version, action,
+  target_provider_instance_id, followup_path_ref, reason_code, decided_at
+) VALUES (
+  '00000000-0000-0000-0000-00000000c450',
+  '00000000-0000-0000-0000-00000000c301',
+  '00000000-0000-0000-0000-00000000c404',
+  'communication-recovery-r3-ci-v1',
+  'FALLBACK_PROVIDER',
+  '00000000-0000-0000-0000-00000000c002',
+  NULL,
+  'COMM_RECOVERY_FALLBACK',
+  now() + interval '4 minutes 30 seconds'
+);
+
+
 INSERT INTO consultation_lifecycle_facts (
   id, session_id, fact_type, role, identity_id,
   provider_instance_id, provider_reference, evidence_ref, idempotency_key, occurred_at
@@ -237,7 +261,7 @@ INSERT INTO consultation_lifecycle_facts (
   'RECOVERY_SUCCEEDED',
   'SYSTEM',
   NULL,
-  '00000000-0000-0000-0000-00000000c001',
+  '00000000-0000-0000-0000-00000000c002',
   'room/r3-ci-2',
   'provider-evidence/recovery-succeeded',
   'fact-recovery-succeeded',
@@ -253,7 +277,7 @@ INSERT INTO consultation_lifecycle_facts (
   'ENDED',
   'SYSTEM',
   NULL,
-  '00000000-0000-0000-0000-00000000c001',
+  '00000000-0000-0000-0000-00000000c002',
   'room/r3-ci-2',
   'provider-evidence/session-ended',
   'fact-session-ended',
