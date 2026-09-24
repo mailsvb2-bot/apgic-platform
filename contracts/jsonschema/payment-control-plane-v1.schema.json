@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apgic.ru/contracts/payment-control-plane-v1.schema.json",
+  "title": "APGIC Payment Control Plane v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "provider_manifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version","provider_id","certified","certification_evidence_refs","execution_owner","methods","rails","currencies","jurisdictions"],
+      "properties": {
+        "version": {"type":"string","minLength":1},
+        "provider_id": {"type":"string","minLength":1},
+        "certified": {"const":true},
+        "certification_evidence_refs": {"type":"array","minItems":1,"items":{"type":"string","minLength":1}},
+        "execution_owner": {"const":"EXTERNAL_PROVIDER"},
+        "methods": {"type":"array","minItems":1,"uniqueItems":true,"items":{"type":"string","minLength":1}},
+        "rails": {"type":"array","minItems":1,"uniqueItems":true,"items":{"type":"string","minLength":1}},
+        "currencies": {"type":"array","minItems":1,"uniqueItems":true,"items":{"type":"string","pattern":"^[A-Z]{3}$"}},
+        "jurisdictions": {"type":"array","minItems":1,"uniqueItems":true,"items":{"type":"string","minLength":1}},
+        "regulated_capabilities": {"type":"array","uniqueItems":true,"items":{"type":"string","minLength":1}}
+      }
+    },
+    "routing_decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decision_id","order_id","policy_version","provider_id","method_code","rail_code","jurisdiction_code","candidate_evidence","health_snapshot"],
+      "properties": {
+        "decision_id": {"type":"string","minLength":1},
+        "order_id": {"type":"string","minLength":1},
+        "policy_version": {"type":"string","minLength":1},
+        "provider_id": {"type":"string","minLength":1},
+        "method_code": {"type":"string","minLength":1},
+        "rail_code": {"type":"string","minLength":1},
+        "jurisdiction_code": {"type":"string","minLength":1},
+        "candidate_evidence": {"type":"array","minItems":1,"items":{"type":"object"}},
+        "health_snapshot": {"type":"object"}
+      }
+    },
+    "payment_attempt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["attempt_id","order_id","routing_decision_id","idempotency_key","amount_minor","currency","state"],
+      "properties": {
+        "attempt_id": {"type":"string","minLength":1},
+        "order_id": {"type":"string","minLength":1},
+        "routing_decision_id": {"type":"string","minLength":1},
+        "idempotency_key": {"type":"string","minLength":1},
+        "amount_minor": {"type":"integer","minimum":1},
+        "currency": {"type":"string","pattern":"^[A-Z]{3}$"},
+        "state": {"enum":["CREATED","SENT","PENDING","SUCCEEDED","FAILED_TERMINAL","AMBIGUOUS"]},
+        "provider_reference": {"type":["string","null"]},
+        "provider_evidence_ref": {"type":["string","null"]}
+      }
+    },
+    "webhook_receipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider_id","provider_event_id","payload_digest","signature_verified"],
+      "properties": {
+        "provider_id": {"type":"string","minLength":1},
+        "provider_event_id": {"type":"string","minLength":1},
+        "payload_digest": {"type":"string","minLength":1},
+        "signature_verified": {"const":true}
+      }
+    }
+  },
+  "anyOf": [
+    {"required":["provider_manifest"]},
+    {"required":["routing_decision"]},
+    {"required":["payment_attempt"]},
+    {"required":["webhook_receipt"]}
+  ]
+}
