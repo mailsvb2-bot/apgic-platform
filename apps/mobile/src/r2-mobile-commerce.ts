@@ -69,6 +69,13 @@ export function consumeIntegrityEvidence(
   | { action: "CONTINUE" }
   | { action: "STEP_UP"; reasonCode: string; appealPath: string }
   | { action: "REVIEW"; reasonCode: string; appealPath: string } {
+  if (evidence.server_verified !== true && evidence.verdict !== "UNSUPPORTED") {
+    return {
+      action: "REVIEW",
+      reasonCode: "DEVICE_INTEGRITY_NOT_SERVER_VERIFIED",
+      appealPath: evidence.appeal_path,
+    };
+  }
   switch (evidence.action) {
     case "ALLOW":
       return { action: "CONTINUE" };
