@@ -6,3 +6,5 @@ export * from "./mobile-policy";
 export * from "./mobile-observability";
 
 export * from "./r1-mobile";
+
+export * from "./r2-transaction-edge";
