@@ -32,7 +32,7 @@ const (
 )
 
 var (
-	ErrInvalidAdminChange      = errors.New("invalid payment provider admin change")
+	ErrInvalidAdminChange       = errors.New("invalid payment provider admin change")
 	ErrAdminChangeNotAuthorized = errors.New("payment provider admin change is not authorized")
 	ErrAdminAuditUnavailable    = errors.New("payment provider admin change audit unavailable")
 	ErrInvalidHealthSnapshot    = errors.New("invalid payment provider health snapshot")
