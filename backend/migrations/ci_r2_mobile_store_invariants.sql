@@ -516,7 +516,7 @@ INSERT INTO audit_records (
   now()
 );
 
-DO $
+DO $$
 DECLARE blocked boolean := false;
 BEGIN
   BEGIN
@@ -540,7 +540,7 @@ BEGIN
     RAISE EXCEPTION 'device integrity signal allowed unexplained automatic ban';
   END IF;
 END
-$;
+$$;
 
 INSERT INTO noncash_entitlement_entries (
   id, account_ref, unit_kind, event_kind, units,
@@ -572,7 +572,7 @@ INSERT INTO noncash_entitlement_entries (
   now() + interval '1 second'
 );
 
-DO $
+DO $$
 DECLARE
   cashout_blocked boolean := false;
   overspend_blocked boolean := false;
