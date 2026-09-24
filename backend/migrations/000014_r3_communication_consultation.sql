@@ -551,7 +551,7 @@ CREATE TABLE consultation_recovery_decisions (
 CREATE OR REPLACE FUNCTION apgic_consultation_recovery_decision_guard()
 RETURNS trigger
 LANGUAGE plpgsql
-AS $
+AS $$
 DECLARE
   source_fact consultation_lifecycle_facts%ROWTYPE;
   session_row consultation_sessions%ROWTYPE;
@@ -613,7 +613,7 @@ BEGIN
 
   RETURN NEW;
 END;
-$;
+$$;
 
 CREATE TRIGGER consultation_recovery_decisions_insert_guard
 BEFORE INSERT ON consultation_recovery_decisions
@@ -626,7 +626,7 @@ FOR EACH ROW EXECUTE FUNCTION apgic_reject_mutation();
 CREATE OR REPLACE FUNCTION apgic_consultation_provider_evidence_guard()
 RETURNS trigger
 LANGUAGE plpgsql
-AS $
+AS $$
 DECLARE
   initial_provider_id uuid;
 BEGIN
@@ -653,7 +653,7 @@ BEGIN
 
   RETURN NEW;
 END;
-$;
+$$;
 
 CREATE TRIGGER consultation_lifecycle_facts_provider_guard
 BEFORE INSERT ON consultation_lifecycle_facts
