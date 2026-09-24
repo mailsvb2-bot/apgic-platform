@@ -54,7 +54,7 @@ BEGIN
 END
 $$;
 
-DO $
+DO $$
 DECLARE
   stale_hold_blocked boolean := false;
 BEGIN
@@ -84,7 +84,7 @@ BEGIN
     RAISE EXCEPTION 'already-expired ACTIVE hold was accepted';
   END IF;
 END
-$;
+$$;
 
 SELECT *
 FROM apgic_acquire_slot_hold(
