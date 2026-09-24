@@ -128,6 +128,7 @@ DECLARE
   latest_entitlement_id uuid;
   window_opens_at timestamptz;
   window_closes_at timestamptz;
+  role_matches boolean;
 BEGIN
   SELECT *
   INTO booking_row
@@ -143,10 +144,10 @@ BEGIN
   FROM booking_slots
   WHERE id = booking_row.slot_id;
 
-  IF (NEW.role = 'CLIENT' AND NEW.identity_id <> booking_row.client_identity_id)
-    OR (NEW.role = 'SPECIALIST' AND NEW.identity_id <> specialist_id) THEN
-    RAISE EXCEPTION 'communication join role/identity mismatch';
-  END IF;
+  role_matches := (
+    (NEW.role = 'CLIENT' AND NEW.identity_id = booking_row.client_identity_id)
+    OR (NEW.role = 'SPECIALIST' AND NEW.identity_id = specialist_id)
+  );
 
   SELECT capability_class, status
   INTO provider_capability, provider_status
@@ -170,6 +171,9 @@ BEGIN
   window_closes_at := booking_row.ends_at + make_interval(secs => policy.join_late_seconds);
 
   IF NEW.decision = 'ALLOW' THEN
+    IF NOT role_matches THEN
+      RAISE EXCEPTION 'communication join allow requires canonical participant role';
+    END IF;
     IF booking_row.state <> 'CONFIRMED' THEN
       RAISE EXCEPTION 'communication join allow requires CONFIRMED booking';
     END IF;
@@ -577,7 +581,8 @@ BEGIN
   END IF;
 
   IF NEW.action IN ('RETRY_SAME_PROVIDER','FALLBACK_PROVIDER') THEN
-    IF source_fact.fact_type <> 'RECOVERY_STARTED'
+    IF session_row.state <> 'RECOVERING'
+      OR source_fact.fact_type <> 'RECOVERY_STARTED'
       OR NEW.target_provider_instance_id IS NULL
       OR NEW.followup_path_ref IS NOT NULL THEN
       RAISE EXCEPTION 'provider recovery decision requires RECOVERY_STARTED and target provider';
@@ -604,7 +609,8 @@ BEGIN
       RAISE EXCEPTION 'fallback recovery must select a different provider';
     END IF;
   ELSE
-    IF source_fact.fact_type <> 'TECHNICAL_FAILURE'
+    IF session_row.state <> 'TECHNICAL_FAILURE'
+      OR source_fact.fact_type <> 'TECHNICAL_FAILURE'
       OR NEW.target_provider_instance_id IS NOT NULL
       OR nullif(btrim(NEW.followup_path_ref), '') IS NULL THEN
       RAISE EXCEPTION 'terminal technical recovery requires reschedule/refund follow-up path';
