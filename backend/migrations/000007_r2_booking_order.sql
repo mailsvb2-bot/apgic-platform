@@ -112,6 +112,16 @@ BEGIN
 
   IF EXISTS (
     SELECT 1
+    FROM bookings
+    WHERE slot_id = p_slot_id
+      AND state IN ('HELD','PENDING_PAYMENT','CONFIRMED')
+  ) THEN
+    RETURN QUERY SELECT false, 'BOOK_SLOT_BOOKED';
+    RETURN;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
     FROM booking_holds
     WHERE slot_id = p_slot_id
       AND state = 'ACTIVE'
@@ -291,7 +301,8 @@ BEGIN
   SELECT *
   INTO v_slot
   FROM booking_slots
-  WHERE id = v_hold.slot_id;
+  WHERE id = v_hold.slot_id
+  FOR UPDATE;
 
   IF NOT FOUND OR v_slot.starts_at <= p_now THEN
     RETURN QUERY SELECT false, 'BOOK_SLOT_NOT_AVAILABLE';
