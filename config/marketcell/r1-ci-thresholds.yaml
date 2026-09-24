@@ -1,0 +1,30 @@
+version: market-cell-r1-ci-v1
+scope: CI_ONLY
+production_approved: false
+policy_kind: MARKET_CELL_THRESHOLDS
+market_cells:
+  - id: ci-ru-anxiety-online
+    jurisdiction: RU
+    topic: anxiety
+    format: ONLINE
+    time_window: ALL
+    state: DEMAND_TEST
+    thresholds:
+      eligible_verified_supply_min: 3
+      active_specialists_min: 3
+      bookable_slot_coverage_min_percent: 50
+      duty_supply_min: 0
+      time_to_available_slot_median_max_minutes: 1440
+      time_to_available_slot_p95_max_minutes: 4320
+      fill_conversion_min_percent: 10
+      booking_conversion_min_percent: 5
+      cancellation_max_percent: 30
+      no_show_max_percent: 20
+      response_time_p95_max_minutes: 120
+      acceptance_time_p95_max_minutes: 240
+      unfilled_demand_max_percent: 80
+      complaint_rate_max_percent: 20
+      safety_incident_rate_max_percent: 5
+      contribution_margin_min_percent: -20
+    evidence_refs:
+      - ci://market-cell/ru-anxiety-online/threshold-fixture

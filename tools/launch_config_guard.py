@@ -16,6 +16,11 @@ POLICIES = {
     "providers": ("provider_matrix_version", "provider_matrix_path"),
 }
 
+R1_POLICIES = {
+    **POLICIES,
+    "market_cell": ("market_cell_thresholds_version", "market_cell_thresholds_path"),
+}
+
 def fail(message: str) -> None:
     print(f"LAUNCH CONFIG PRECHECK: FAIL: {message}", file=sys.stderr)
     raise SystemExit(1)
@@ -33,6 +38,11 @@ def positive_number(value: object, allow_zero: bool = False) -> bool:
     if not isinstance(value, (int, float)) or isinstance(value, bool):
         return False
     return value >= 0 if allow_zero else value > 0
+
+def bounded_number(value: object, minimum: float, maximum: float) -> bool:
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return False
+    return minimum <= value <= maximum
 
 def load_repo_yaml(raw_path: object, label: str) -> tuple[Path, dict]:
     if not isinstance(raw_path, str) or not raw_path.strip():
@@ -151,10 +161,73 @@ def validate_providers(policy: dict) -> None:
         if row.get("provider_neutral_contract") is not True:
             fail(f"{capability}: canonical contract must remain provider-neutral")
 
+def validate_market_cell(policy: dict) -> None:
+    if policy.get("policy_kind") != "MARKET_CELL_THRESHOLDS":
+        fail("market_cell policy_kind must be MARKET_CELL_THRESHOLDS")
+    cells = policy.get("market_cells")
+    if not isinstance(cells, list) or not cells:
+        fail("market_cell policy requires at least one market cell")
+
+    nonnegative = {
+        "eligible_verified_supply_min",
+        "active_specialists_min",
+        "duty_supply_min",
+        "time_to_available_slot_median_max_minutes",
+        "time_to_available_slot_p95_max_minutes",
+        "response_time_p95_max_minutes",
+        "acceptance_time_p95_max_minutes",
+    }
+    percentages = {
+        "bookable_slot_coverage_min_percent",
+        "fill_conversion_min_percent",
+        "booking_conversion_min_percent",
+        "cancellation_max_percent",
+        "no_show_max_percent",
+        "unfilled_demand_max_percent",
+        "complaint_rate_max_percent",
+        "safety_incident_rate_max_percent",
+    }
+    states = {"DISCOVERY", "SUPPLY_SEEDING", "DEMAND_TEST", "SCALE_READY"}
+
+    for cell in cells:
+        if not isinstance(cell, dict) or not cell.get("id"):
+            fail("market_cell row requires id")
+        for field in ("jurisdiction", "topic", "format", "time_window"):
+            if not isinstance(cell.get(field), str) or not cell.get(field).strip():
+                fail(f"{cell.get('id')}: missing {field}")
+        if cell.get("state") not in states:
+            fail(f"{cell.get('id')}: invalid market cell state")
+
+        thresholds = cell.get("thresholds")
+        if not isinstance(thresholds, dict):
+            fail(f"{cell.get('id')}: thresholds must be a mapping")
+        missing = sorted((nonnegative | percentages | {"contribution_margin_min_percent"}) - set(thresholds))
+        if missing:
+            fail(f"{cell.get('id')}: missing MarketCell thresholds {missing}")
+        unknown = sorted(set(thresholds) - (nonnegative | percentages | {"contribution_margin_min_percent"}))
+        if unknown:
+            fail(f"{cell.get('id')}: unknown MarketCell thresholds {unknown}")
+
+        for field in nonnegative:
+            if not positive_number(thresholds.get(field), allow_zero=True):
+                fail(f"{cell.get('id')}: invalid {field}")
+        for field in percentages:
+            if not bounded_number(thresholds.get(field), 0, 100):
+                fail(f"{cell.get('id')}: invalid {field}")
+        if not bounded_number(thresholds.get("contribution_margin_min_percent"), -100, 100):
+            fail(f"{cell.get('id')}: invalid contribution_margin_min_percent")
+
+        evidence = cell.get("evidence_refs")
+        if not isinstance(evidence, list):
+            fail(f"{cell.get('id')}: evidence_refs must be a list")
+        if cell.get("state") == "SCALE_READY" and not evidence:
+            fail(f"{cell.get('id')}: SCALE_READY requires recorded evidence_refs")
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("config")
     parser.add_argument("--mode", choices=("ci", "production"), required=True)
+    parser.add_argument("--profile", choices=("R0", "R1"), default="R0")
     args = parser.parse_args()
 
     config_path = (ROOT / args.config).resolve()
@@ -174,8 +247,10 @@ def main() -> None:
         if config.get("environment") != "CI":
             fail("CI preflight requires environment=CI")
 
+    selected_policies = R1_POLICIES if args.profile == "R1" else POLICIES
+
     loaded: dict[str, tuple[Path, dict]] = {}
-    for label, (version_field, path_field) in POLICIES.items():
+    for label, (version_field, path_field) in selected_policies.items():
         version = config.get(version_field)
         if not isinstance(version, str) or not version.strip():
             fail(f"missing explicit version: {version_field}")
@@ -189,6 +264,8 @@ def main() -> None:
     validate_retention(loaded["retention"][1])
     validate_slo(loaded["slo"][1])
     validate_providers(loaded["providers"][1])
+    if "market_cell" in loaded:
+        validate_market_cell(loaded["market_cell"][1])
 
     refs = ", ".join(
         f"{label}={path.relative_to(ROOT)}"
@@ -196,7 +273,7 @@ def main() -> None:
     )
     print(
         "LAUNCH CONFIG PRECHECK: PASS "
-        f"(mode={args.mode}, config={config_path.relative_to(ROOT)}, {refs})"
+        f"(mode={args.mode}, profile={args.profile}, config={config_path.relative_to(ROOT)}, {refs})"
     )
 
 if __name__ == "__main__":

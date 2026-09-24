@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apgic.ru/contracts/marketplace-discovery-v1.schema.json",
+  "title": "APGIC Marketplace Discovery v1",
+  "type": "object",
+  "$defs": {
+    "EvidenceState": {
+      "type": "string",
+      "enum": ["SELF_DECLARED", "DOCUMENT_SUPPORTED", "APGIC_VERIFIED"]
+    },
+    "Eligibility": {
+      "type": "string",
+      "enum": ["ELIGIBLE", "INELIGIBLE", "MANUAL_REVIEW"]
+    },
+    "HelpIntentStatus": {
+      "type": "string",
+      "enum": ["DRAFT", "CONFIRMED"]
+    },
+    "PublishState": {
+      "type": "string",
+      "enum": ["DRAFT", "PUBLISHED", "UNPUBLISHED"]
+    },
+    "QualificationResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decision", "policy_version", "reason_codes", "evidence_refs"],
+      "properties": {
+        "decision": { "$ref": "#/$defs/Eligibility" },
+        "policy_version": { "type": "string", "minLength": 1 },
+        "reason_codes": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "RankedMatch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "specialist_id",
+        "relevance_tier",
+        "expertise_tier",
+        "reliability_tier",
+        "reputation_tier",
+        "availability_response_tier",
+        "platform_experience_tier",
+        "commercial_boost_tier",
+        "ranking_policy_version",
+        "sponsored",
+        "reason_codes"
+      ],
+      "properties": {
+        "specialist_id": { "type": "string", "minLength": 1 },
+        "relevance_tier": { "type": "integer", "minimum": 0 },
+        "expertise_tier": { "type": "integer", "minimum": 0 },
+        "reliability_tier": { "type": "integer", "minimum": 0 },
+        "reputation_tier": { "type": "integer", "minimum": 0 },
+        "availability_response_tier": { "type": "integer", "minimum": 0 },
+        "platform_experience_tier": { "type": "integer", "minimum": 0 },
+        "commercial_boost_tier": { "type": "integer", "minimum": 0 },
+        "ranking_policy_version": { "type": "string", "minLength": 1 },
+        "sponsored": { "type": "boolean" },
+        "reason_codes": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}
