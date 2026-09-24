@@ -118,3 +118,28 @@ func TestBookingRejectsHoldOutsideSlotTimeline(t *testing.T) {
 		t.Fatalf("err=%v", err)
 	}
 }
+
+
+func TestBookingCompletionRequiresExplicitEvidence(t *testing.T) {
+	booking, now := newBooking(t)
+	if _, err := booking.Transition(StateConfirmed, now.Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+
+	before := *booking
+	result, err := booking.Transition(StateCompleted, now.Add(3*time.Hour))
+	if err != ErrCompletionEvidenceRequired || result.ReasonCode != ReasonCompletionEvidenceRequired {
+		t.Fatalf("timer-only completion result=%#v err=%v", result, err)
+	}
+	if *booking != before {
+		t.Fatal("timer-only completion mutated booking")
+	}
+
+	result, err = booking.Complete("consultation-evidence/ended-1", now.Add(30*time.Minute))
+	if err != nil || result.ReasonCode != ReasonTransitionAllowed {
+		t.Fatalf("evidence completion result=%#v err=%v", result, err)
+	}
+	if booking.State != StateCompleted {
+		t.Fatalf("state = %s", booking.State)
+	}
+}
