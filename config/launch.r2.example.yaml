@@ -9,3 +9,5 @@ market_cell_thresholds_version: CONFIG_REQUIRED
 commerce_policy_version: CONFIG_REQUIRED
 notes:
   - "R2 example only. Production order/payment paths remain blocked until pricing and commission policies are explicitly approved."
+store_policy_version: CONFIG_REQUIRED
+store_policy_path: config/mobile/store-policy.example.yaml
