@@ -8,14 +8,14 @@ import (
 
 func TestNegativeIntegritySignalDoesNotBecomeAutomaticBan(t *testing.T) {
 	evidence := DeviceIntegrityEvidence{
-		ID: "integrity-1",
-		IdentityID: "identity-1",
-		InstallationID: "installation-1",
-		ProviderKind: "PROVIDER_A",
+		ID:                  "integrity-1",
+		IdentityID:          "identity-1",
+		InstallationID:      "installation-1",
+		ProviderKind:        "PROVIDER_A",
 		ProviderEvidenceRef: "evidence/integrity-1",
-		Verdict: IntegrityNegative,
-		ServerVerified: true,
-		ObservedAt: time.Now().UTC(),
+		Verdict:             IntegrityNegative,
+		ServerVerified:      true,
+		ObservedAt:          time.Now().UTC(),
 	}
 	decision, err := EvaluateIntegrity(evidence, "integrity-policy-v1", "/support/integrity-appeal")
 	if err != nil {
@@ -28,11 +28,11 @@ func TestNegativeIntegritySignalDoesNotBecomeAutomaticBan(t *testing.T) {
 
 func TestUnsupportedIntegrityHasGracefulTypedPath(t *testing.T) {
 	evidence := DeviceIntegrityEvidence{
-		ID: "integrity-2",
-		IdentityID: "identity-1",
+		ID:             "integrity-2",
+		IdentityID:     "identity-1",
 		InstallationID: "installation-2",
-		Verdict: IntegrityUnsupported,
-		ObservedAt: time.Now().UTC(),
+		Verdict:        IntegrityUnsupported,
+		ObservedAt:     time.Now().UTC(),
 	}
 	decision, err := EvaluateIntegrity(evidence, "integrity-policy-v1", "/support/integrity-appeal")
 	if err != nil {
@@ -45,13 +45,13 @@ func TestUnsupportedIntegrityHasGracefulTypedPath(t *testing.T) {
 
 func TestVerifiedIntegrityEvidenceRequiresProviderEvidence(t *testing.T) {
 	evidence := DeviceIntegrityEvidence{
-		ID: "integrity-3",
-		IdentityID: "identity-1",
+		ID:             "integrity-3",
+		IdentityID:     "identity-1",
 		InstallationID: "installation-3",
-		ProviderKind: "PROVIDER_A",
-		Verdict: IntegrityValid,
+		ProviderKind:   "PROVIDER_A",
+		Verdict:        IntegrityValid,
 		ServerVerified: true,
-		ObservedAt: time.Now().UTC(),
+		ObservedAt:     time.Now().UTC(),
 	}
 	if !errors.Is(evidence.Validate(), ErrInvalidIntegrityEvidence) {
 		t.Fatal("verified signal without provider evidence must be rejected")
