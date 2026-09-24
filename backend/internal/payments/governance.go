@@ -161,7 +161,7 @@ func (c ControlPlane) PlanChange(
 func actionMatchesChange(action AdminAction, current, next ProviderConfigSnapshot) bool {
 	switch action {
 	case AdminTest:
-		return current == next
+		return false
 	case AdminActivate:
 		return next.Status == ProviderActive
 	case AdminPrioritize:
