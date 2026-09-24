@@ -1300,13 +1300,20 @@ requirements:
   release_profile: R2
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies:
   - APGIC-PAY-002
   - APGIC-BOOK-002
-  implementation_refs: []
-  contract_refs: []
-  test_refs: []
+  implementation_refs:
+  - backend/internal/refunds/refund.go
+  - backend/migrations/000010_r2_refund_reversal.sql
+  contract_refs:
+  - contracts/jsonschema/refund-reversal-v1.schema.json
+  test_refs:
+  - backend/internal/refunds/refund_test.go
+  - backend/migrations/ci_r2_refund_invariants.sql
+  - backend/ci/restore_drill.sh
+  - .github/workflows/ci.yml
   evidence_refs: []
   acceptance:
     given: подтверждённая booking отменяется по допустимой причине
