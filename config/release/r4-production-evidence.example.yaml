@@ -1,0 +1,5 @@
+schema_version: r4-release-gate-v1
+candidate_sha: CONFIG_REQUIRED
+synthetic: false
+production_candidate: false
+evidence: {}
