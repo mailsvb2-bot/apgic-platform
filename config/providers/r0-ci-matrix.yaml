@@ -21,6 +21,15 @@ capabilities:
     certification_status: CI_SYNTHETIC_ONLY
     exit_semantics: STOP_NEW_ATTEMPTS_PRESERVE_PAYMENT_AND_LEDGER_HISTORY
     provider_neutral_contract: true
+  COMMUNICATION_PROVIDER:
+    enabled: true
+    primary_provider: CI_COMMUNICATION_A
+    fallback_providers:
+      - CI_COMMUNICATION_B
+    degraded_behavior: RECOVER_THEN_RESCHEDULE_OR_REFUND
+    certification_status: CI_SYNTHETIC_ONLY
+    exit_semantics: STOP_NEW_JOINS_PRESERVE_LIFECYCLE_AND_RECOVERY_EVIDENCE
+    provider_neutral_contract: true
 providers:
   CI_NOTIFICATION_A:
     kind: SYNTHETIC
@@ -47,5 +56,15 @@ providers:
     certified: true
     capabilities:
       - PAYMENT_PROVIDER
+  CI_COMMUNICATION_A:
+    kind: SYNTHETIC
+    certified: true
+    capabilities:
+      - COMMUNICATION_PROVIDER
+  CI_COMMUNICATION_B:
+    kind: SYNTHETIC
+    certified: true
+    capabilities:
+      - COMMUNICATION_PROVIDER
 notes:
   - "Synthetic CI-only providers. Brand/vendor names are not canonical domain types."

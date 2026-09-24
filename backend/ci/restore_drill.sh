@@ -205,6 +205,30 @@ device_integrity_risk_guard_count="$(
 noncash_entitlement_guard_count="$(
   psql --dbname="$RESTORE_DATABASE" -Atc     "SELECT count(*) FROM pg_trigger WHERE tgname = 'noncash_entitlement_entries_insert_guard' AND NOT tgisinternal;"
 )"
+communication_access_policy_append_only_count="$(
+  psql --dbname="$RESTORE_DATABASE" -Atc     "SELECT count(*) FROM pg_trigger WHERE tgname = 'communication_access_policy_versions_append_only' AND NOT tgisinternal;"
+)"
+booking_access_entitlement_append_only_count="$(
+  psql --dbname="$RESTORE_DATABASE" -Atc     "SELECT count(*) FROM pg_trigger WHERE tgname = 'booking_access_entitlement_versions_append_only' AND NOT tgisinternal;"
+)"
+communication_join_append_only_count="$(
+  psql --dbname="$RESTORE_DATABASE" -Atc     "SELECT count(*) FROM pg_trigger WHERE tgname = 'communication_join_authorizations_append_only' AND NOT tgisinternal;"
+)"
+consultation_session_transition_guard_count="$(
+  psql --dbname="$RESTORE_DATABASE" -Atc     "SELECT count(*) FROM pg_trigger WHERE tgname = 'consultation_sessions_transition_guard' AND NOT tgisinternal;"
+)"
+consultation_fact_append_only_count="$(
+  psql --dbname="$RESTORE_DATABASE" -Atc     "SELECT count(*) FROM pg_trigger WHERE tgname = 'consultation_lifecycle_facts_append_only' AND NOT tgisinternal;"
+)"
+consultation_provider_guard_count="$(
+  psql --dbname="$RESTORE_DATABASE" -Atc     "SELECT count(*) FROM pg_trigger WHERE tgname = 'consultation_lifecycle_facts_provider_guard' AND NOT tgisinternal;"
+)"
+consultation_fact_apply_state_count="$(
+  psql --dbname="$RESTORE_DATABASE" -Atc     "SELECT count(*) FROM pg_trigger WHERE tgname = 'consultation_lifecycle_facts_apply_state' AND NOT tgisinternal;"
+)"
+consultation_recovery_append_only_count="$(
+  psql --dbname="$RESTORE_DATABASE" -Atc     "SELECT count(*) FROM pg_trigger WHERE tgname = 'consultation_recovery_decisions_append_only' AND NOT tgisinternal;"
+)"
 
 if [[ "$identity_count" != "1" || "$organization_count" != "1" ]]; then
   echo "restore drill failed: business sentinel missing" >&2
@@ -216,7 +240,7 @@ if [[ "$audit_trigger_count" != "1" || "$ledger_trigger_count" != "1" || "$legal
   exit 1
 fi
 
-if [[ "$direction_trigger_count" != "1" || "$product_owner_trigger_count" != "1" || "$outbox_delivery_constraint_count" != "1" || "$outbox_transition_trigger_count" != "1" || "$direction_archive_constraint_count" != "1" || "$legal_transaction_snapshot_trigger_count" != "1" || "$delete_request_transition_trigger_count" != "1" || "$delete_request_no_delete_trigger_count" != "1" || "$provider_erasure_trigger_count" != "1" || "$specialist_publication_guard_count" != "1" || "$specialist_profile_revalidation_guard_count" != "1" || "$specialist_capability_revalidation_guard_count" != "1" || "$qualification_append_only_trigger_count" != "1" || "$booking_hold_transition_trigger_count" != "1" || "$booking_hold_insert_trigger_count" != "1" || "$booking_transition_trigger_count" != "1" || "$booking_insert_trigger_count" != "1" || "$booking_consume_hold_trigger_count" != "1" || "$orders_append_only_trigger_count" != "1" || "$orders_snapshot_guard_trigger_count" != "1" || "$booking_acquire_function_count" != "1" || "$payment_provider_config_append_only_count" != "1" || "$payment_routing_append_only_count" != "1" || "$payment_attempt_transition_guard_count" != "1" || "$payment_attempt_no_delete_count" != "1" || "$payment_webhook_append_only_count" != "1" || "$payment_effect_append_only_count" != "1" || "$payment_webhook_function_count" != "1" || "$refund_transition_guard_count" != "1" || "$refund_no_delete_count" != "1" || "$refund_effect_append_only_count" != "1" || "$refund_apply_function_count" != "1" || "$notification_intent_append_only_count" != "1" || "$notification_delivery_guard_count" != "1" || "$calendar_sync_guard_count" != "1" || "$client_mutation_guard_count" != "1" || "$notification_intent_function_count" != "1" || "$client_mutation_claim_function_count" != "1" || "$payment_control_event_guard_count" != "1" || "$payment_control_event_append_only_count" != "1" || "$payment_health_guard_count" != "1" || "$payment_health_append_only_count" != "1" || "$store_policy_append_only_count" != "1" || "$store_decision_guard_count" != "1" || "$store_verification_guard_count" != "1" || "$store_entitlement_guard_count" != "1" || "$store_exit_guard_count" != "1" || "$device_integrity_evidence_guard_count" != "1" || "$device_integrity_risk_guard_count" != "1" || "$noncash_entitlement_guard_count" != "1" ]]; then
+if [[ "$direction_trigger_count" != "1" || "$product_owner_trigger_count" != "1" || "$outbox_delivery_constraint_count" != "1" || "$outbox_transition_trigger_count" != "1" || "$direction_archive_constraint_count" != "1" || "$legal_transaction_snapshot_trigger_count" != "1" || "$delete_request_transition_trigger_count" != "1" || "$delete_request_no_delete_trigger_count" != "1" || "$provider_erasure_trigger_count" != "1" || "$specialist_publication_guard_count" != "1" || "$specialist_profile_revalidation_guard_count" != "1" || "$specialist_capability_revalidation_guard_count" != "1" || "$qualification_append_only_trigger_count" != "1" || "$booking_hold_transition_trigger_count" != "1" || "$booking_hold_insert_trigger_count" != "1" || "$booking_transition_trigger_count" != "1" || "$booking_insert_trigger_count" != "1" || "$booking_consume_hold_trigger_count" != "1" || "$orders_append_only_trigger_count" != "1" || "$orders_snapshot_guard_trigger_count" != "1" || "$booking_acquire_function_count" != "1" || "$payment_provider_config_append_only_count" != "1" || "$payment_routing_append_only_count" != "1" || "$payment_attempt_transition_guard_count" != "1" || "$payment_attempt_no_delete_count" != "1" || "$payment_webhook_append_only_count" != "1" || "$payment_effect_append_only_count" != "1" || "$payment_webhook_function_count" != "1" || "$refund_transition_guard_count" != "1" || "$refund_no_delete_count" != "1" || "$refund_effect_append_only_count" != "1" || "$refund_apply_function_count" != "1" || "$notification_intent_append_only_count" != "1" || "$notification_delivery_guard_count" != "1" || "$calendar_sync_guard_count" != "1" || "$client_mutation_guard_count" != "1" || "$notification_intent_function_count" != "1" || "$client_mutation_claim_function_count" != "1" || "$payment_control_event_guard_count" != "1" || "$payment_control_event_append_only_count" != "1" || "$payment_health_guard_count" != "1" || "$payment_health_append_only_count" != "1" || "$store_policy_append_only_count" != "1" || "$store_decision_guard_count" != "1" || "$store_verification_guard_count" != "1" || "$store_entitlement_guard_count" != "1" || "$store_exit_guard_count" != "1" || "$device_integrity_evidence_guard_count" != "1" || "$device_integrity_risk_guard_count" != "1" || "$noncash_entitlement_guard_count" != "1" || "$communication_access_policy_append_only_count" != "1" || "$booking_access_entitlement_append_only_count" != "1" || "$communication_join_append_only_count" != "1" || "$consultation_session_transition_guard_count" != "1" || "$consultation_fact_append_only_count" != "1" || "$consultation_provider_guard_count" != "1" || "$consultation_fact_apply_state_count" != "1" || "$consultation_recovery_append_only_count" != "1" ]]; then
   echo "restore drill failed: semantic invariant object missing" >&2
   exit 1
 fi
@@ -289,6 +313,14 @@ cat >"$evidence_dir/restore-drill.json" <<JSON
   "integrity_probe_device_integrity_evidence_guard_count": $device_integrity_evidence_guard_count,
   "integrity_probe_device_integrity_risk_guard_count": $device_integrity_risk_guard_count,
   "integrity_probe_noncash_entitlement_guard_count": $noncash_entitlement_guard_count,
+  "integrity_probe_communication_access_policy_append_only_count": $communication_access_policy_append_only_count,
+  "integrity_probe_booking_access_entitlement_append_only_count": $booking_access_entitlement_append_only_count,
+  "integrity_probe_communication_join_append_only_count": $communication_join_append_only_count,
+  "integrity_probe_consultation_session_transition_guard_count": $consultation_session_transition_guard_count,
+  "integrity_probe_consultation_fact_append_only_count": $consultation_fact_append_only_count,
+  "integrity_probe_consultation_provider_guard_count": $consultation_provider_guard_count,
+  "integrity_probe_consultation_fact_apply_state_count": $consultation_fact_apply_state_count,
+  "integrity_probe_consultation_recovery_append_only_count": $consultation_recovery_append_only_count,
   "production_evidence": false
 }
 JSON

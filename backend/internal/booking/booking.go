@@ -19,17 +19,19 @@ const (
 )
 
 const (
-	ReasonTransitionAllowed = "BOOK_TRANSITION_ALLOWED"
-	ReasonTransitionDenied  = "BOOK_TRANSITION_DENIED"
-	ReasonTooEarly          = "BOOK_TRANSITION_TOO_EARLY"
-	ReasonHoldExpired       = "BOOK_HOLD_EXPIRED"
+	ReasonTransitionAllowed          = "BOOK_TRANSITION_ALLOWED"
+	ReasonTransitionDenied           = "BOOK_TRANSITION_DENIED"
+	ReasonTooEarly                   = "BOOK_TRANSITION_TOO_EARLY"
+	ReasonHoldExpired                = "BOOK_HOLD_EXPIRED"
+	ReasonCompletionEvidenceRequired = "BOOK_COMPLETION_EVIDENCE_REQUIRED"
 )
 
 var (
-	ErrInvalidBooking     = errors.New("invalid booking")
-	ErrTransitionDenied   = errors.New("booking transition denied")
-	ErrTransitionTooEarly = errors.New("booking transition is too early")
-	ErrHoldExpired        = errors.New("booking hold expired")
+	ErrInvalidBooking             = errors.New("invalid booking")
+	ErrTransitionDenied           = errors.New("booking transition denied")
+	ErrTransitionTooEarly         = errors.New("booking transition is too early")
+	ErrHoldExpired                = errors.New("booking hold expired")
+	ErrCompletionEvidenceRequired = errors.New("booking completion evidence required")
 )
 
 type Booking struct {
@@ -112,10 +114,8 @@ func (b *Booking) Transition(to State, now time.Time) (TransitionResult, error) 
 		}
 	}
 	if to == StateCompleted {
-		if b.State != StateConfirmed || now.Before(b.EndsAt) {
-			result.ReasonCode = ReasonTooEarly
-			return result, ErrTransitionTooEarly
-		}
+		result.ReasonCode = ReasonCompletionEvidenceRequired
+		return result, ErrCompletionEvidenceRequired
 	}
 	if !allowedTransition(b.State, to) {
 		result.ReasonCode = ReasonTransitionDenied
@@ -123,6 +123,23 @@ func (b *Booking) Transition(to State, now time.Time) (TransitionResult, error) 
 	}
 
 	b.State = to
+	b.UpdatedAt = now
+	result.ReasonCode = ReasonTransitionAllowed
+	return result, nil
+}
+
+func (b *Booking) Complete(evidenceRef string, now time.Time) (TransitionResult, error) {
+	result := TransitionResult{From: b.State, To: StateCompleted}
+	if strings.TrimSpace(evidenceRef) == "" || now.IsZero() {
+		result.ReasonCode = ReasonCompletionEvidenceRequired
+		return result, ErrCompletionEvidenceRequired
+	}
+	if b.State != StateConfirmed {
+		result.ReasonCode = ReasonTransitionDenied
+		return result, ErrTransitionDenied
+	}
+
+	b.State = StateCompleted
 	b.UpdatedAt = now
 	result.ReasonCode = ReasonTransitionAllowed
 	return result, nil

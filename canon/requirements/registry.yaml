@@ -1350,13 +1350,21 @@ requirements:
   release_profile: R3
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies:
   - APGIC-BOOK-002
   - APGIC-CONN-001
-  implementation_refs: []
-  contract_refs: []
-  test_refs: []
+  implementation_refs:
+  - backend/internal/communication/access.go
+  - backend/migrations/000014_r3_communication_consultation.sql
+  - config/providers/r0-ci-matrix.yaml
+  contract_refs:
+  - contracts/jsonschema/consultation-fulfillment-v1.schema.json
+  - docs/architecture/0003-provider-neutral-consultation-fulfillment.md
+  test_refs:
+  - backend/internal/communication/access_test.go
+  - backend/migrations/ci_r3_communication_consultation_invariants.sql
+  - .github/workflows/ci.yml
   evidence_refs: []
   acceptance:
     given: Booking CONFIRMED/READY
@@ -1376,12 +1384,19 @@ requirements:
   release_profile: R3
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies:
   - APGIC-COMM-001
-  implementation_refs: []
-  contract_refs: []
-  test_refs: []
+  implementation_refs:
+  - backend/internal/consultation/lifecycle.go
+  - backend/migrations/000014_r3_communication_consultation.sql
+  contract_refs:
+  - contracts/jsonschema/consultation-fulfillment-v1.schema.json
+  - docs/architecture/0003-provider-neutral-consultation-fulfillment.md
+  test_refs:
+  - backend/internal/consultation/lifecycle_test.go
+  - backend/migrations/ci_r3_communication_consultation_invariants.sql
+  - backend/ci/restore_drill.sh
   evidence_refs: []
   acceptance:
     given: участники проходят Ready/Join
@@ -1402,13 +1417,21 @@ requirements:
   release_profile: R3
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies:
   - APGIC-CONSULT-001
   - APGIC-REFUND-001
-  implementation_refs: []
-  contract_refs: []
-  test_refs: []
+  implementation_refs:
+  - backend/internal/communication/recovery.go
+  - backend/migrations/000014_r3_communication_consultation.sql
+  - config/providers/r0-ci-matrix.yaml
+  contract_refs:
+  - contracts/jsonschema/consultation-fulfillment-v1.schema.json
+  - docs/architecture/0003-provider-neutral-consultation-fulfillment.md
+  test_refs:
+  - backend/internal/communication/recovery_test.go
+  - backend/migrations/ci_r3_communication_consultation_invariants.sql
+  - backend/ci/restore_drill.sh
   evidence_refs: []
   acceptance:
     given: идёт консультация
@@ -1429,12 +1452,20 @@ requirements:
   release_profile: R3
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies:
   - APGIC-CONSULT-001
-  implementation_refs: []
-  contract_refs: []
-  test_refs: []
+  implementation_refs:
+  - backend/internal/booking/booking.go
+  - backend/internal/consultation/lifecycle.go
+  - backend/migrations/000014_r3_communication_consultation.sql
+  contract_refs:
+  - contracts/jsonschema/consultation-fulfillment-v1.schema.json
+  - docs/architecture/0003-provider-neutral-consultation-fulfillment.md
+  test_refs:
+  - backend/internal/booking/booking_test.go
+  - backend/internal/consultation/lifecycle_test.go
+  - backend/migrations/ci_r3_communication_consultation_invariants.sql
   evidence_refs: []
   acceptance:
     given: Booking/Consultation IN_PROGRESS
@@ -1456,12 +1487,18 @@ requirements:
   release_profile: R3
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies:
   - APGIC-DATA-001
-  implementation_refs: []
-  contract_refs: []
-  test_refs: []
+  implementation_refs:
+  - backend/internal/consultation/lifecycle.go
+  - backend/migrations/000014_r3_communication_consultation.sql
+  - docs/architecture/0003-provider-neutral-consultation-fulfillment.md
+  contract_refs:
+  - contracts/jsonschema/consultation-fulfillment-v1.schema.json
+  test_refs:
+  - backend/internal/consultation/lifecycle_test.go
+  - backend/migrations/ci_r3_communication_consultation_invariants.sql
   evidence_refs: []
   acceptance:
     given: live/persona session завершается

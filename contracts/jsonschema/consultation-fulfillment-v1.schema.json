@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apgic.ru/contracts/consultation-fulfillment-v1.schema.json",
+  "title": "APGIC Consultation Fulfillment v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "join_authorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "booking_id","identity_id","role","provider_instance_id",
+        "policy_version","decision","reason_code","decided_at"
+      ],
+      "properties": {
+        "booking_id":{"type":"string","minLength":1},
+        "identity_id":{"type":"string","minLength":1},
+        "role":{"enum":["CLIENT","SPECIALIST"]},
+        "provider_instance_id":{"type":"string","minLength":1},
+        "policy_version":{"type":"string","minLength":1},
+        "entitlement_version_id":{"type":["string","null"]},
+        "decision":{"enum":["ALLOW","DENY"]},
+        "reason_code":{"type":"string","minLength":1},
+        "credential_scope":{"type":["string","null"]},
+        "provider_credential_ref":{"type":["string","null"]},
+        "credential_expires_at":{"type":["string","null"],"format":"date-time"},
+        "decided_at":{"type":"string","format":"date-time"}
+      }
+    },
+    "lifecycle_fact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "session_id","fact_type","role","provider_instance_id","provider_reference",
+        "evidence_ref","idempotency_key","occurred_at"
+      ],
+      "properties": {
+        "session_id":{"type":"string","minLength":1},
+        "fact_type":{"enum":["READY","JOINED","LEFT","STARTED","RECOVERY_STARTED","RECOVERY_SUCCEEDED","TECHNICAL_FAILURE","ENDED"]},
+        "role":{"enum":["CLIENT","SPECIALIST","SYSTEM"]},
+        "identity_id":{"type":["string","null"]},
+        "provider_instance_id":{"type":"string","minLength":1},
+        "provider_reference":{"type":"string","minLength":1},
+        "evidence_ref":{"type":"string","minLength":1},
+        "idempotency_key":{"type":"string","minLength":1},
+        "occurred_at":{"type":"string","format":"date-time"}
+      }
+    },
+    "recovery_decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required":["consultation_id","source_fact_id","policy_version","action","reason_code","decided_at"],
+      "properties": {
+        "consultation_id":{"type":"string","minLength":1},
+        "source_fact_id":{"type":"string","minLength":1},
+        "policy_version":{"type":"string","minLength":1},
+        "action":{"enum":["RETRY_SAME_PROVIDER","FALLBACK_PROVIDER","RESCHEDULE","REFUND"]},
+        "target_provider_instance_id":{"type":["string","null"]},
+        "followup_path_ref":{"type":["string","null"]},
+        "reason_code":{"type":"string","minLength":1},
+        "decided_at":{"type":"string","format":"date-time"}
+      }
+    }
+  },
+  "anyOf":[
+    {"required":["join_authorization"]},
+    {"required":["lifecycle_fact"]},
+    {"required":["recovery_decision"]}
+  ]
+}
