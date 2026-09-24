@@ -50,12 +50,12 @@ type RecoveryContext struct {
 }
 
 type RecoveryDecision struct {
-	Action              RecoveryAction
-	PolicyVersion       string
-	ProviderInstanceID  string
-	ReasonCode          string
-	RefundPathRequired  bool
-	RescheduleRequired  bool
+	Action             RecoveryAction
+	PolicyVersion      string
+	ProviderInstanceID string
+	ReasonCode         string
+	RefundPathRequired bool
+	RescheduleRequired bool
 }
 
 func DecideRecovery(
