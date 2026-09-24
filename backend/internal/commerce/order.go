@@ -21,10 +21,10 @@ type OrderSnapshot struct {
 	LegalSnapshotRef        string
 	SellerRef               string
 	CommercialOwnerRef      string
-	PaymentRecipientRef     string
-	PlatformRole            string
-	FiscalResponsibilityRef string
-	RefundResponsibilityRef string
+	PaymentRecipientRef      string
+	PlatformRole             string
+	FiscalResponsibilityRef  string
+	RefundResponsibilityRef  string
 	PayoutBeneficiaryRef    string
 	CapturedAt              time.Time
 }
