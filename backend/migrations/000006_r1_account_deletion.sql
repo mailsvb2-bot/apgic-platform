@@ -51,7 +51,10 @@ CREATE TABLE provider_erasure_jobs (
   evidence_ref text,
   updated_at timestamptz NOT NULL,
   UNIQUE (delete_request_id, provider_ref),
-  CHECK (state <> 'SUCCEEDED' OR nullif(btrim(evidence_ref), '') IS NOT NULL)
+  CHECK (
+    (state = 'PENDING' AND evidence_ref IS NULL)
+    OR (state = 'SUCCEEDED' AND nullif(btrim(evidence_ref), '') IS NOT NULL)
+  )
 );
 
 CREATE OR REPLACE FUNCTION apgic_delete_request_transition_guard()
