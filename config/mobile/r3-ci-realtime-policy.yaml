@@ -1,0 +1,33 @@
+policy_version: mobile-realtime-r3-ci-v1
+scope: CI_ONLY
+production_approved: false
+reconnect:
+  max_attempts: 3
+  backoff_ms:
+    - 250
+    - 1000
+    - 3000
+  allow_in_background: true
+permissions:
+  microphone_required: true
+network:
+  offline_action: RECONNECT_WHEN_ONLINE
+  degraded_action: KEEP_SESSION_DEGRADED
+audio:
+  route_change_action: REFRESH_ROUTE
+interruption:
+  action: PAUSE_MEDIA_AND_RECONNECT
+diagnostics:
+  export_requires_confirmation: true
+  max_export_ttl_seconds: 900
+  prohibited_export_fields:
+    - token
+    - password
+    - payment_secret
+    - raw_consultation
+    - raw_transcript
+    - raw_audio
+    - raw_video
+    - avatar_raw
+notes:
+  - "CI-only reconnect timings and diagnostics TTL prove lifecycle mechanics, not production tuning."
