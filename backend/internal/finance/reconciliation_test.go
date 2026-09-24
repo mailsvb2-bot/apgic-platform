@@ -7,25 +7,25 @@ import (
 
 func expectedFinancialState() ExpectedFinancialState {
 	return ExpectedFinancialState{
-		EconomicRef: "order/order-1",
-		OriginalProviderID: "provider-a",
-		GrossMinor: 10000,
-		ProviderFeeMinor: 200,
-		Currency: "RUB",
-		LedgerEvidenceRef: "ledger/capture-1",
+		EconomicRef:           "order/order-1",
+		OriginalProviderID:    "provider-a",
+		GrossMinor:            10000,
+		ProviderFeeMinor:      200,
+		Currency:              "RUB",
+		LedgerEvidenceRef:     "ledger/capture-1",
 		SettlementEvidenceRef: "provider/settlement-1",
-		PayoutEvidenceRef: "provider/payout-1",
+		PayoutEvidenceRef:     "provider/payout-1",
 	}
 }
 
 func TestReconciliationClosesExactMatchAndTypesMismatch(t *testing.T) {
 	expected := expectedFinancialState()
 	statement := ProviderStatementFact{
-		ProviderID: "provider-a",
-		EconomicRef: expected.EconomicRef,
-		GrossMinor: 10000,
-		ProviderFeeMinor: 200,
-		Currency: "RUB",
+		ProviderID:           "provider-a",
+		EconomicRef:          expected.EconomicRef,
+		GrossMinor:           10000,
+		ProviderFeeMinor:     200,
+		Currency:             "RUB",
 		StatementEvidenceRef: "provider-statement/1",
 	}
 	result, err := Reconcile(expected, statement)
@@ -53,11 +53,11 @@ func TestReconciliationClosesExactMatchAndTypesMismatch(t *testing.T) {
 func TestReconciliationCannotMoveToAnotherProvider(t *testing.T) {
 	expected := expectedFinancialState()
 	statement := ProviderStatementFact{
-		ProviderID: "provider-b",
-		EconomicRef: expected.EconomicRef,
-		GrossMinor: 10000,
-		ProviderFeeMinor: 200,
-		Currency: "RUB",
+		ProviderID:           "provider-b",
+		EconomicRef:          expected.EconomicRef,
+		GrossMinor:           10000,
+		ProviderFeeMinor:     200,
+		Currency:             "RUB",
 		StatementEvidenceRef: "provider-statement/b",
 	}
 	if _, err := Reconcile(expected, statement); !errors.Is(err, ErrProviderAffinity) {
@@ -67,17 +67,17 @@ func TestReconciliationCannotMoveToAnotherProvider(t *testing.T) {
 
 func TestDisputeEffectIsProviderExecutedAndAppendOnlyShaped(t *testing.T) {
 	effect, err := NewDisputeEffect(DisputeEffect{
-		EffectID: "dispute-effect-1",
-		EconomicRef: "order/order-1",
-		OriginalProviderID: "provider-a",
-		ProviderID: "provider-a",
-		Kind: DisputeChargeback,
-		AmountMinor: 10000,
-		Currency: "rub",
+		EffectID:            "dispute-effect-1",
+		EconomicRef:         "order/order-1",
+		OriginalProviderID:  "provider-a",
+		ProviderID:          "provider-a",
+		Kind:                DisputeChargeback,
+		AmountMinor:         10000,
+		Currency:            "rub",
 		ProviderEvidenceRef: "provider-evidence/chargeback-1",
-		LedgerEvidenceRef: "ledger/reversal-1",
-		AuditEvidenceRef: "audit/dispute-1",
-		ExecutionOwner: ExternalExecutionOwner,
+		LedgerEvidenceRef:   "ledger/reversal-1",
+		AuditEvidenceRef:    "audit/dispute-1",
+		ExecutionOwner:      ExternalExecutionOwner,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -94,13 +94,13 @@ func TestDisputeEffectIsProviderExecutedAndAppendOnlyShaped(t *testing.T) {
 
 func TestRevenueAssuranceRequiresCompleteChainOrTypedException(t *testing.T) {
 	base := RevenueEvidence{
-		PaymentEvidenceRef: "payment/capture-1",
-		LedgerEvidenceRef: "ledger/capture-1",
+		PaymentEvidenceRef:     "payment/capture-1",
+		LedgerEvidenceRef:      "ledger/capture-1",
 		FulfillmentEvidenceRef: "consultation/end-1",
-		CommissionEvidenceRef: "commission/1",
-		SettlementEvidenceRef: "settlement/1",
-		PayoutEvidenceRef: "payout/1",
-		ReconciliationOutcome: ReconciliationMatched,
+		CommissionEvidenceRef:  "commission/1",
+		SettlementEvidenceRef:  "settlement/1",
+		PayoutEvidenceRef:      "payout/1",
+		ReconciliationOutcome:  ReconciliationMatched,
 	}
 	result, err := EvaluateRevenueAssurance(base)
 	if err != nil || result.Outcome != "PASS" {
