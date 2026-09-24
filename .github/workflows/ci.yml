@@ -31,6 +31,7 @@ jobs:
       - run: python tools/multisurface_guard.py
       - run: python -m unittest discover -s tools/tests -p 'test_*.py'
       - run: python tools/launch_config_guard.py config/launch.ci.yaml --mode ci
+      - run: python tools/launch_config_guard.py config/launch.r1-ci.yaml --mode ci --profile R1
       - run: python tools/mobile_release_guard.py config/mobile/r0-ci-release-governance.yaml --mode ci
       - run: python tools/mobile_observability_guard.py config/mobile/r0-ci-observability.yaml --mode ci
       - shell: bash
@@ -40,6 +41,11 @@ jobs:
             exit 1
           fi
           echo "fail-closed production preflight proof: PASS"
+          if python tools/launch_config_guard.py config/launch.r1.example.yaml --mode production --profile R1; then
+            echo "R1 production placeholder config unexpectedly passed" >&2
+            exit 1
+          fi
+          echo "fail-closed R1 MarketCell preflight proof: PASS"
           if python tools/mobile_release_guard.py config/mobile/release-governance.example.yaml --mode production; then
             echo "production mobile release placeholder unexpectedly passed" >&2
             exit 1
