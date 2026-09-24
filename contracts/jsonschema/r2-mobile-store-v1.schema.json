@@ -8,17 +8,48 @@
     "store_commerce_decision": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["policy_version","outcome","rail","reason_code"],
+      "required": [
+        "policy_version",
+        "outcome",
+        "rail",
+        "reason_code"
+      ],
       "properties": {
-        "policy_version": {"type":"string","minLength":1},
-        "outcome": {"enum":["ALLOWED","PURCHASE_DISABLED"]},
-        "rail": {"type":"string","minLength":1},
-        "reason_code": {"type":"string","minLength":1}
+        "policy_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "outcome": {
+          "enum": [
+            "ALLOWED",
+            "PURCHASE_DISABLED"
+          ]
+        },
+        "rail": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reason_code": {
+          "type": "string",
+          "minLength": 1
+        }
       },
       "allOf": [
         {
-          "if": {"properties":{"outcome":{"const":"PURCHASE_DISABLED"}}},
-          "then": {"properties":{"rail":{"const":"PURCHASE_DISABLED"}}}
+          "if": {
+            "properties": {
+              "outcome": {
+                "const": "PURCHASE_DISABLED"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "rail": {
+                "const": "PURCHASE_DISABLED"
+              }
+            }
+          }
         }
       ]
     },
@@ -26,76 +57,227 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "verification_id","identity_id","order_id","payment_attempt_id",
-        "payment_effect_id","ledger_entry_id","provider_instance_id",
-        "external_transaction_id","provider_evidence_ref","server_verified"
+        "verification_id",
+        "identity_id",
+        "order_id",
+        "payment_attempt_id",
+        "payment_effect_id",
+        "ledger_entry_id",
+        "provider_instance_id",
+        "external_transaction_id",
+        "provider_evidence_ref",
+        "server_verified"
       ],
       "properties": {
-        "verification_id":{"type":"string","minLength":1},
-        "identity_id":{"type":"string","minLength":1},
-        "order_id":{"type":"string","minLength":1},
-        "payment_attempt_id":{"type":"string","minLength":1},
-        "payment_effect_id":{"type":"string","minLength":1},
-        "ledger_entry_id":{"type":"string","minLength":1},
-        "provider_instance_id":{"type":"string","minLength":1},
-        "external_transaction_id":{"type":"string","minLength":1},
-        "provider_evidence_ref":{"type":"string","minLength":1},
-        "server_verified":{"const":true}
+        "verification_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "identity_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "order_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "payment_attempt_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "payment_effect_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ledger_entry_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "provider_instance_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "external_transaction_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "provider_evidence_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "server_verified": {
+          "const": true
+        }
       }
     },
     "store_subscription_exit": {
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "delete_request_id","entitlement_id","action",
-        "billing_cancelled_by_apgic","reason_code"
+        "delete_request_id",
+        "entitlement_id",
+        "action",
+        "billing_cancelled_by_apgic",
+        "reason_code"
       ],
       "properties": {
-        "delete_request_id":{"type":"string","minLength":1},
-        "entitlement_id":{"type":"string","minLength":1},
-        "action":{"enum":["MANAGE_EXTERNALLY","NOT_APPLICABLE"]},
-        "management_target":{"type":"string","minLength":1},
-        "billing_cancelled_by_apgic":{"const":false},
-        "reason_code":{"type":"string","minLength":1}
+        "delete_request_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "entitlement_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "action": {
+          "enum": [
+            "MANAGE_EXTERNALLY",
+            "NOT_APPLICABLE"
+          ]
+        },
+        "management_target": {
+          "type": "string",
+          "minLength": 1
+        },
+        "billing_cancelled_by_apgic": {
+          "const": false
+        },
+        "reason_code": {
+          "type": "string",
+          "minLength": 1
+        }
       },
       "allOf": [
         {
-          "if":{"properties":{"action":{"const":"MANAGE_EXTERNALLY"}}},
-          "then":{"required":["management_target"]}
+          "if": {
+            "properties": {
+              "action": {
+                "const": "MANAGE_EXTERNALLY"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "management_target"
+            ]
+          }
         }
       ]
     },
     "device_integrity_decision": {
-      "type":"object",
-      "additionalProperties":false,
-      "required":[
-        "verdict","server_verified","action","reason_code",
-        "policy_version","appeal_path"
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "verdict",
+        "server_verified",
+        "action",
+        "reason_code",
+        "policy_version",
+        "appeal_path"
       ],
-      "properties":{
-        "verdict":{"enum":["VALID","NEGATIVE","UNSUPPORTED","UNAVAILABLE"]},
-        "server_verified":{"type":"boolean"},
-        "action":{"enum":["ALLOW","STEP_UP","REVIEW"]},
-        "reason_code":{"type":"string","minLength":1},
-        "policy_version":{"type":"string","minLength":1},
-        "appeal_path":{"type":"string","minLength":1}
+      "properties": {
+        "verdict": {
+          "enum": [
+            "VALID",
+            "NEGATIVE",
+            "UNSUPPORTED",
+            "UNAVAILABLE"
+          ]
+        },
+        "server_verified": {
+          "type": "boolean"
+        },
+        "action": {
+          "enum": [
+            "ALLOW",
+            "STEP_UP",
+            "REVIEW"
+          ]
+        },
+        "reason_code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "policy_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "appeal_path": {
+          "type": "string",
+          "minLength": 1
+        }
       }
     },
     "noncash_entitlement_entry": {
-      "type":"object",
-      "additionalProperties":false,
-      "required":[
-        "account_ref","unit_kind","event_kind","units",
-        "source_ref","policy_version"
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "account_ref",
+        "unit_kind",
+        "event_kind",
+        "units",
+        "source_ref",
+        "policy_version"
       ],
-      "properties":{
-        "account_ref":{"type":"string","minLength":1},
-        "unit_kind":{"enum":["CREDITS","ORGANIZATION_BUDGET","GROWTH_BUDGET"]},
-        "event_kind":{"enum":["GRANT","SPEND","EXPIRE"]},
-        "units":{"type":"integer","minimum":1},
-        "source_ref":{"type":"string","minLength":1},
-        "policy_version":{"type":"string","minLength":1}
+      "properties": {
+        "account_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "unit_kind": {
+          "enum": [
+            "CREDITS",
+            "ORGANIZATION_BUDGET",
+            "GROWTH_BUDGET"
+          ]
+        },
+        "event_kind": {
+          "enum": [
+            "GRANT",
+            "SPEND",
+            "EXPIRE"
+          ]
+        },
+        "units": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "source_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "policy_version": {
+          "type": "string",
+          "minLength": 1
+        }
       }
     }
-  }
+  },
+  "anyOf": [
+    {
+      "required": [
+        "store_commerce_decision"
+      ]
+    },
+    {
+      "required": [
+        "store_purchase_verification"
+      ]
+    },
+    {
+      "required": [
+        "store_subscription_exit"
+      ]
+    },
+    {
+      "required": [
+        "device_integrity_decision"
+      ]
+    },
+    {
+      "required": [
+        "noncash_entitlement_entry"
+      ]
+    }
+  ]
 }
