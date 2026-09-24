@@ -83,10 +83,23 @@ func TestDeepLinkExpirySubjectAndCanonicalFallbackFailClosed(t *testing.T) {
 		t.Fatalf("subject-mismatched link = %#v", got)
 	}
 
+	pathConfusion := base
+	pathConfusion.CanonicalPath = "/bookings/booking-1"
+	pathConfusion.WebFallback = "https://apgic.ru/bookings/booking-1"
+	if got := ResolveDeepLink(pathConfusion, p, now); got.Allowed || got.ReasonCode != ReasonLinkInvalid {
+		t.Fatalf("kind/path confusion = %#v", got)
+	}
+
 	openRedirect := base
-	openRedirect.WebFallback = "https://evil.example/steal"
+	openRedirect.WebFallback = "https://evil.example/notifications/notification-1"
 	if got := ResolveDeepLink(openRedirect, p, now); got.Allowed || got.ReasonCode != ReasonLinkFallbackInvalid {
 		t.Fatalf("foreign fallback = %#v", got)
+	}
+
+	wrongFallbackPath := base
+	wrongFallbackPath.WebFallback = "https://apgic.ru/specialists/specialist-1"
+	if got := ResolveDeepLink(wrongFallbackPath, p, now); got.Allowed || got.ReasonCode != ReasonLinkFallbackInvalid {
+		t.Fatalf("wrong fallback resource = %#v", got)
 	}
 }
 
