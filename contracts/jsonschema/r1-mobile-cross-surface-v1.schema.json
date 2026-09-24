@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apgic.ru/contracts/r1-mobile-cross-surface-v1.schema.json",
+  "title": "APGIC R1 Mobile Cross-Surface Contract v1",
+  "type": "object",
+  "$defs": {
+    "ClientSurface": {
+      "type": "string",
+      "enum": ["WEB", "IOS", "ANDROID"]
+    },
+    "DeepLinkResolution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decision", "reason_code", "expires_at"],
+      "properties": {
+        "decision": { "type": "string", "enum": ["ALLOW", "DENY"] },
+        "reason_code": { "type": "string", "minLength": 1 },
+        "canonical_path": { "type": "string", "minLength": 1 },
+        "canonical_web_fallback": { "type": "string", "format": "uri" },
+        "expires_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "CanonicalAnalyticsEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event_name", "event_version", "occurred_at", "journey_id", "business_properties"],
+      "properties": {
+        "event_name": {
+          "type": "string",
+          "enum": [
+            "specialist_discovery_viewed",
+            "workspace_switched",
+            "account_deletion_requested"
+          ]
+        },
+        "event_version": { "const": "1" },
+        "occurred_at": { "type": "string", "format": "date-time" },
+        "journey_id": { "type": "string", "minLength": 1 },
+        "identity_ref": { "type": "string", "minLength": 1 },
+        "business_properties": {
+          "type": "object",
+          "additionalProperties": {
+            "type": ["string", "number", "boolean", "null"]
+          }
+        },
+        "platform_extensions": {
+          "type": "object",
+          "propertyNames": { "enum": ["WEB", "IOS", "ANDROID"] },
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": {
+              "type": ["string", "number", "boolean", "null"]
+            }
+          }
+        }
+      }
+    },
+    "DeleteAccountInitiation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contract_version", "request_id", "identity_id", "source"],
+      "properties": {
+        "contract_version": { "const": "delete-account-v1" },
+        "request_id": { "type": "string", "minLength": 1 },
+        "identity_id": { "type": "string", "minLength": 1 },
+        "source": { "$ref": "#/$defs/ClientSurface" }
+      }
+    },
+    "DeleteAccountState": {
+      "type": "string",
+      "enum": [
+        "REQUESTED",
+        "IDENTITY_RECONFIRMED",
+        "RETENTION_CLASSIFIED",
+        "PROVIDER_ERASURE_PENDING",
+        "WAITING_FOR_LEGAL_HOLD_EXPIRY",
+        "PARTIALLY_RETAINED_WITH_REASON",
+        "COMPLETED"
+      ]
+    },
+    "AuthorizedWorkspace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workspace_id",
+        "identity_id",
+        "tenant_id",
+        "kind",
+        "authorization_decision",
+        "reason_code"
+      ],
+      "properties": {
+        "workspace_id": { "type": "string", "minLength": 1 },
+        "identity_id": { "type": "string", "minLength": 1 },
+        "tenant_id": { "type": "string", "minLength": 1 },
+        "kind": { "type": "string", "enum": ["CLIENT", "SPECIALIST", "ORGANIZATION"] },
+        "authorization_decision": { "const": "ALLOW" },
+        "reason_code": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}
