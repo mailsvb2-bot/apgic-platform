@@ -118,11 +118,13 @@ jobs:
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000007_r1_marketplace_discovery.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000008_r2_booking_order.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000009_r2_payment_control_plane.sql
+          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000010_r2_refund_reversal.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r1_mobile_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r1_marketplace_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r2_booking_order_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r2_payment_invariants.sql
+          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r2_refund_invariants.sql
           bash backend/ci/r2_booking_concurrency.sh
 
   restore-drill:
@@ -162,6 +164,7 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f backend/migrations/000007_r1_marketplace_discovery.sql
           psql -v ON_ERROR_STOP=1 -f backend/migrations/000008_r2_booking_order.sql
           psql -v ON_ERROR_STOP=1 -f backend/migrations/000009_r2_payment_control_plane.sql
+          psql -v ON_ERROR_STOP=1 -f backend/migrations/000010_r2_refund_reversal.sql
           bash backend/ci/restore_drill.sh
       - uses: actions/upload-artifact@v4
         with:
