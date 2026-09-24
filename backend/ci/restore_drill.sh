@@ -82,6 +82,18 @@ delete_request_no_delete_trigger_count="$(
 provider_erasure_trigger_count="$(
   psql --dbname="$RESTORE_DATABASE" -Atc     "SELECT count(*) FROM pg_trigger WHERE tgname = 'provider_erasure_jobs_transition_guard' AND NOT tgisinternal;"
 )"
+booking_hold_transition_trigger_count="$(
+  psql --dbname="$RESTORE_DATABASE" -Atc     "SELECT count(*) FROM pg_trigger WHERE tgname = 'booking_holds_transition_guard' AND NOT tgisinternal;"
+)"
+booking_transition_trigger_count="$(
+  psql --dbname="$RESTORE_DATABASE" -Atc     "SELECT count(*) FROM pg_trigger WHERE tgname = 'bookings_transition_guard' AND NOT tgisinternal;"
+)"
+orders_append_only_trigger_count="$(
+  psql --dbname="$RESTORE_DATABASE" -Atc     "SELECT count(*) FROM pg_trigger WHERE tgname = 'orders_append_only' AND NOT tgisinternal;"
+)"
+booking_acquire_function_count="$(
+  psql --dbname="$RESTORE_DATABASE" -Atc     "SELECT count(*) FROM pg_proc WHERE proname = 'apgic_acquire_slot_hold';"
+)"
 
 if [[ "$identity_count" != "1" || "$organization_count" != "1" ]]; then
   echo "restore drill failed: business sentinel missing" >&2
@@ -93,7 +105,7 @@ if [[ "$audit_trigger_count" != "1" || "$ledger_trigger_count" != "1" || "$legal
   exit 1
 fi
 
-if [[ "$direction_trigger_count" != "1" || "$product_owner_trigger_count" != "1" || "$outbox_delivery_constraint_count" != "1" || "$outbox_transition_trigger_count" != "1" || "$direction_archive_constraint_count" != "1" || "$legal_transaction_snapshot_trigger_count" != "1" || "$delete_request_transition_trigger_count" != "1" || "$delete_request_no_delete_trigger_count" != "1" || "$provider_erasure_trigger_count" != "1" ]]; then
+if [[ "$direction_trigger_count" != "1" || "$product_owner_trigger_count" != "1" || "$outbox_delivery_constraint_count" != "1" || "$outbox_transition_trigger_count" != "1" || "$direction_archive_constraint_count" != "1" || "$legal_transaction_snapshot_trigger_count" != "1" || "$delete_request_transition_trigger_count" != "1" || "$delete_request_no_delete_trigger_count" != "1" || "$provider_erasure_trigger_count" != "1" || "$booking_hold_transition_trigger_count" != "1" || "$booking_transition_trigger_count" != "1" || "$orders_append_only_trigger_count" != "1" || "$booking_acquire_function_count" != "1" ]]; then
   echo "restore drill failed: semantic invariant object missing" >&2
   exit 1
 fi
@@ -125,6 +137,10 @@ cat >"$evidence_dir/restore-drill.json" <<JSON
   "integrity_probe_delete_request_transition_trigger_count": $delete_request_transition_trigger_count,
   "integrity_probe_delete_request_no_delete_trigger_count": $delete_request_no_delete_trigger_count,
   "integrity_probe_provider_erasure_trigger_count": $provider_erasure_trigger_count,
+  "integrity_probe_booking_hold_transition_trigger_count": $booking_hold_transition_trigger_count,
+  "integrity_probe_booking_transition_trigger_count": $booking_transition_trigger_count,
+  "integrity_probe_orders_append_only_trigger_count": $orders_append_only_trigger_count,
+  "integrity_probe_booking_acquire_function_count": $booking_acquire_function_count,
   "production_evidence": false
 }
 JSON
