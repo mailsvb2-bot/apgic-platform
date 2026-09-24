@@ -1,0 +1,22 @@
+version: store-policy-r2-ci-v1
+scope: CI_ONLY
+production_approved: false
+policy_kind: STORE_COMMERCE
+unknown_path: PURCHASE_DISABLED
+rules:
+  - product_type: SUBSCRIPTION
+    surface: IOS
+    store: STORE_A
+    storefront: RU
+    jurisdiction: RU
+    enabled: true
+    rail: STORE_BILLING
+    reason_code: STORE_BILLING_REQUIRED
+  - product_type: SUBSCRIPTION
+    surface: ANDROID
+    store: STORE_B
+    storefront: RU
+    jurisdiction: RU
+    enabled: true
+    rail: STORE_BILLING
+    reason_code: STORE_BILLING_REQUIRED

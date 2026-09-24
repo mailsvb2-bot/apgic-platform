@@ -1,0 +1,14 @@
+version: CONFIG_REQUIRED
+scope: PRODUCTION
+production_approved: false
+policy_kind: STORE_COMMERCE
+unknown_path: PURCHASE_DISABLED
+rules:
+  - product_type: CONFIG_REQUIRED
+    surface: IOS
+    store: CONFIG_REQUIRED
+    storefront: CONFIG_REQUIRED
+    jurisdiction: CONFIG_REQUIRED
+    enabled: false
+    rail: PURCHASE_DISABLED
+    reason_code: CONFIG_REQUIRED

@@ -24,6 +24,7 @@ R1_POLICIES = {
 R2_POLICIES = {
     **R1_POLICIES,
     "commerce": ("commerce_policy_version", "commerce_policy_path"),
+    "store_commerce": ("store_policy_version", "store_policy_path"),
 }
 
 def fail(message: str) -> None:
@@ -228,6 +229,49 @@ def validate_market_cell(policy: dict) -> None:
         if cell.get("state") == "SCALE_READY" and not evidence:
             fail(f"{cell.get('id')}: SCALE_READY requires recorded evidence_refs")
 
+def validate_store_commerce(policy: dict) -> None:
+    if policy.get("policy_kind") != "STORE_COMMERCE":
+        fail("store_commerce policy_kind must be STORE_COMMERCE")
+    if policy.get("unknown_path") != "PURCHASE_DISABLED":
+        fail("store_commerce unknown_path must be PURCHASE_DISABLED")
+
+    rules = policy.get("rules")
+    if not isinstance(rules, list) or not rules:
+        fail("store_commerce policy requires explicit rules")
+
+    seen: set[tuple[str, str, str, str, str]] = set()
+    for rule in rules:
+        if not isinstance(rule, dict):
+            fail("store_commerce rule must be a mapping")
+        key_fields = ("product_type", "surface", "store", "storefront", "jurisdiction")
+        values: list[str] = []
+        for field in key_fields:
+            value = rule.get(field)
+            if not isinstance(value, str) or not value.strip():
+                fail(f"store_commerce rule requires {field}")
+            values.append(value)
+        key = tuple(values)
+        if key in seen:
+            fail(f"store_commerce duplicate rule for {key}")
+        seen.add(key)
+
+        if rule.get("surface") not in {"IOS", "ANDROID"}:
+            fail("store_commerce surface must be IOS or ANDROID")
+        enabled = rule.get("enabled")
+        rail = rule.get("rail")
+        reason = rule.get("reason_code")
+        if not isinstance(enabled, bool):
+            fail("store_commerce enabled must be boolean")
+        if not isinstance(rail, str) or not rail.strip():
+            fail("store_commerce rail is required")
+        if not isinstance(reason, str) or not reason.strip():
+            fail("store_commerce reason_code is required")
+        if enabled and rail == "PURCHASE_DISABLED":
+            fail("enabled store_commerce rule cannot use PURCHASE_DISABLED")
+        if not enabled and rail != "PURCHASE_DISABLED":
+            fail("disabled store_commerce rule must use PURCHASE_DISABLED")
+
+
 def validate_commerce(policy: dict) -> None:
     if policy.get("policy_kind") != "PRICING_COMMISSION":
         fail("commerce policy_kind must be PRICING_COMMISSION")
@@ -311,6 +355,8 @@ def main() -> None:
         validate_market_cell(loaded["market_cell"][1])
     if "commerce" in loaded:
         validate_commerce(loaded["commerce"][1])
+    if "store_commerce" in loaded:
+        validate_store_commerce(loaded["store_commerce"][1])
 
     refs = ", ".join(
         f"{label}={path.relative_to(ROOT)}"
