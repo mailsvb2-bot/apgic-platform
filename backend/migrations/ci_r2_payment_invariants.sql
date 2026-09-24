@@ -73,7 +73,7 @@ WHERE id='00000000-0000-0000-0000-00000000d301';
 
 INSERT INTO payment_routing_decisions (
   id, order_id, policy_version, provider_config_id, jurisdiction_code,
-  selected_method_code, selected_rail_code, candidate_evidence, health_snapshot, decided_at
+  selected_method_code, selected_rail_code, candidate_evidence, health_snapshot, health_snapshot_id, decided_at
 ) VALUES (
   '00000000-0000-0000-0000-00000000d202',
   '00000000-0000-0000-0000-00000000b501',
