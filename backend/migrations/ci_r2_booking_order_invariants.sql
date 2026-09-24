@@ -136,6 +136,8 @@ INSERT INTO orders (
   seller_ref,
   commercial_owner_ref,
   payment_recipient_ref,
+  platform_role,
+  fiscal_responsibility_ref,
   refund_responsibility_ref,
   payout_beneficiary_ref,
   captured_at
@@ -152,6 +154,8 @@ INSERT INTO orders (
   '00000000-0000-0000-0000-00000000b401',
   'identity/specialist-r2',
   'identity/specialist-r2',
+  'identity/specialist-r2',
+  'MARKETPLACE_INTERMEDIARY',
   'identity/specialist-r2',
   'identity/specialist-r2',
   'identity/specialist-r2',
