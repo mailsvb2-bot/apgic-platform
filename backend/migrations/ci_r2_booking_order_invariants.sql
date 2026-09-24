@@ -22,6 +22,38 @@ INSERT INTO booking_slots (
   true
 );
 
+DO $$
+DECLARE
+  invalid_hold_blocked boolean := false;
+BEGIN
+  BEGIN
+    INSERT INTO booking_holds (
+      id,
+      slot_id,
+      client_identity_id,
+      state,
+      expires_at,
+      created_at,
+      updated_at
+    ) VALUES (
+      '00000000-0000-0000-0000-00000000b299',
+      '00000000-0000-0000-0000-00000000b101',
+      '00000000-0000-0000-0000-00000000b003',
+      'ACTIVE',
+      now() + interval '3 hours',
+      now(),
+      now()
+    );
+  EXCEPTION WHEN raise_exception THEN
+    invalid_hold_blocked := true;
+  END;
+
+  IF NOT invalid_hold_blocked THEN
+    RAISE EXCEPTION 'hold extending beyond slot start was accepted';
+  END IF;
+END
+$$;
+
 SELECT *
 FROM apgic_acquire_slot_hold(
   '00000000-0000-0000-0000-00000000b201',
@@ -30,6 +62,44 @@ FROM apgic_acquire_slot_hold(
   now() + interval '10 minutes',
   now()
 );
+
+DO $$
+DECLARE
+  mismatched_booking_blocked boolean := false;
+BEGIN
+  BEGIN
+    INSERT INTO bookings (
+      id,
+      slot_id,
+      hold_id,
+      client_identity_id,
+      state,
+      hold_expires_at,
+      starts_at,
+      ends_at,
+      created_at,
+      updated_at
+    ) VALUES (
+      '00000000-0000-0000-0000-00000000b399',
+      '00000000-0000-0000-0000-00000000b101',
+      '00000000-0000-0000-0000-00000000b201',
+      '00000000-0000-0000-0000-00000000b003',
+      'HELD',
+      now() + interval '10 minutes',
+      now() + interval '2 hours',
+      now() + interval '3 hours',
+      now(),
+      now()
+    );
+  EXCEPTION WHEN raise_exception THEN
+    mismatched_booking_blocked := true;
+  END;
+
+  IF NOT mismatched_booking_blocked THEN
+    RAISE EXCEPTION 'booking/hold client mismatch was accepted';
+  END IF;
+END
+$$;
 
 SELECT *
 FROM apgic_create_booking_from_hold(
