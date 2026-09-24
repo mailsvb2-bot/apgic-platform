@@ -80,31 +80,31 @@ func EvaluateIntegrity(e DeviceIntegrityEvidence, policyVersion, appealPath stri
 	switch e.Verdict {
 	case IntegrityValid:
 		return IntegrityRiskDecision{
-			Action: IntegrityAllow,
-			ReasonCode: "DEVICE_INTEGRITY_VALID",
+			Action:        IntegrityAllow,
+			ReasonCode:    "DEVICE_INTEGRITY_VALID",
 			PolicyVersion: policyVersion,
-			AppealPath: appealPath,
+			AppealPath:    appealPath,
 		}, nil
 	case IntegrityNegative:
 		return IntegrityRiskDecision{
-			Action: IntegrityStepUp,
-			ReasonCode: "DEVICE_INTEGRITY_NEGATIVE_STEP_UP",
+			Action:        IntegrityStepUp,
+			ReasonCode:    "DEVICE_INTEGRITY_NEGATIVE_STEP_UP",
 			PolicyVersion: policyVersion,
-			AppealPath: appealPath,
+			AppealPath:    appealPath,
 		}, nil
 	case IntegrityUnsupported:
 		return IntegrityRiskDecision{
-			Action: IntegrityReview,
-			ReasonCode: "DEVICE_INTEGRITY_UNSUPPORTED",
+			Action:        IntegrityReview,
+			ReasonCode:    "DEVICE_INTEGRITY_UNSUPPORTED",
 			PolicyVersion: policyVersion,
-			AppealPath: appealPath,
+			AppealPath:    appealPath,
 		}, nil
 	case IntegrityUnavailable:
 		return IntegrityRiskDecision{
-			Action: IntegrityReview,
-			ReasonCode: "DEVICE_INTEGRITY_UNAVAILABLE",
+			Action:        IntegrityReview,
+			ReasonCode:    "DEVICE_INTEGRITY_UNAVAILABLE",
 			PolicyVersion: policyVersion,
-			AppealPath: appealPath,
+			AppealPath:    appealPath,
 		}, nil
 	default:
 		return IntegrityRiskDecision{}, ErrInvalidIntegrityEvidence
