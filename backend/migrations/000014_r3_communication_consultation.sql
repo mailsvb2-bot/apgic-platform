@@ -533,6 +533,96 @@ CREATE TRIGGER consultation_lifecycle_facts_apply_state
 AFTER INSERT ON consultation_lifecycle_facts
 FOR EACH ROW EXECUTE FUNCTION apgic_consultation_fact_apply_state();
 
+CREATE TABLE consultation_recovery_decisions (
+  id uuid PRIMARY KEY,
+  session_id uuid NOT NULL REFERENCES consultation_sessions(id),
+  source_fact_id uuid NOT NULL REFERENCES consultation_lifecycle_facts(id),
+  policy_version text NOT NULL CHECK (btrim(policy_version) <> ''),
+  action text NOT NULL CHECK (
+    action IN ('RETRY_SAME_PROVIDER','FALLBACK_PROVIDER','RESCHEDULE','REFUND')
+  ),
+  target_provider_instance_id uuid REFERENCES connector_instances(id),
+  followup_path_ref text,
+  reason_code text NOT NULL CHECK (btrim(reason_code) <> ''),
+  decided_at timestamptz NOT NULL,
+  UNIQUE (session_id, source_fact_id, policy_version)
+);
+
+CREATE OR REPLACE FUNCTION apgic_consultation_recovery_decision_guard()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $
+DECLARE
+  source_fact consultation_lifecycle_facts%ROWTYPE;
+  session_row consultation_sessions%ROWTYPE;
+  target_capability text;
+  target_status text;
+BEGIN
+  SELECT *
+  INTO source_fact
+  FROM consultation_lifecycle_facts
+  WHERE id = NEW.source_fact_id;
+
+  IF NOT FOUND OR source_fact.session_id <> NEW.session_id THEN
+    RAISE EXCEPTION 'consultation recovery decision requires matching lifecycle fact';
+  END IF;
+
+  SELECT *
+  INTO session_row
+  FROM consultation_sessions
+  WHERE id = NEW.session_id;
+
+  IF NOT FOUND OR NEW.decided_at < source_fact.occurred_at THEN
+    RAISE EXCEPTION 'consultation recovery decision time/session invalid';
+  END IF;
+
+  IF NEW.action IN ('RETRY_SAME_PROVIDER','FALLBACK_PROVIDER') THEN
+    IF source_fact.fact_type <> 'RECOVERY_STARTED'
+      OR NEW.target_provider_instance_id IS NULL
+      OR NEW.followup_path_ref IS NOT NULL THEN
+      RAISE EXCEPTION 'provider recovery decision requires RECOVERY_STARTED and target provider';
+    END IF;
+
+    SELECT capability_class, status
+    INTO target_capability, target_status
+    FROM connector_instances
+    WHERE id = NEW.target_provider_instance_id;
+
+    IF NOT FOUND
+      OR target_capability <> 'COMMUNICATION_PROVIDER'
+      OR target_status NOT IN ('ACTIVE','DEGRADED') THEN
+      RAISE EXCEPTION 'recovery target must be routable COMMUNICATION_PROVIDER';
+    END IF;
+
+    IF NEW.action = 'RETRY_SAME_PROVIDER'
+      AND NEW.target_provider_instance_id <> source_fact.provider_instance_id THEN
+      RAISE EXCEPTION 'retry-same recovery must retain provider identity';
+    END IF;
+
+    IF NEW.action = 'FALLBACK_PROVIDER'
+      AND NEW.target_provider_instance_id = source_fact.provider_instance_id THEN
+      RAISE EXCEPTION 'fallback recovery must select a different provider';
+    END IF;
+  ELSE
+    IF source_fact.fact_type <> 'TECHNICAL_FAILURE'
+      OR NEW.target_provider_instance_id IS NOT NULL
+      OR nullif(btrim(NEW.followup_path_ref), '') IS NULL THEN
+      RAISE EXCEPTION 'terminal technical recovery requires reschedule/refund follow-up path';
+    END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$;
+
+CREATE TRIGGER consultation_recovery_decisions_insert_guard
+BEFORE INSERT ON consultation_recovery_decisions
+FOR EACH ROW EXECUTE FUNCTION apgic_consultation_recovery_decision_guard();
+
+CREATE TRIGGER consultation_recovery_decisions_append_only
+BEFORE UPDATE OR DELETE ON consultation_recovery_decisions
+FOR EACH ROW EXECUTE FUNCTION apgic_reject_mutation();
+
 CREATE OR REPLACE FUNCTION apgic_booking_transition_guard()
 RETURNS trigger
 LANGUAGE plpgsql
