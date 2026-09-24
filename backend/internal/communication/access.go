@@ -127,7 +127,7 @@ func AuthorizeJoin(
 		entitlement.IdentityID != request.IdentityID ||
 		!entitlement.Active ||
 		strings.TrimSpace(entitlement.EvidenceRef) == "" ||
-		entitlement.ExpiresAt.Before(request.Now) {
+		!entitlement.ExpiresAt.After(request.Now) {
 		base.ReasonCode = ReasonEntitlementMissing
 		return base, nil
 	}
