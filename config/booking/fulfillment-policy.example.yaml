@@ -1,0 +1,21 @@
+version: CONFIG_REQUIRED
+scope: PRODUCTION
+production_approved: false
+policy_kind: BOOKING_FULFILLMENT
+unknown_path: BLOCK
+cancellation:
+  free_cancel_until_seconds_before_start: CONFIG_REQUIRED
+  late_cancel_until_seconds_before_start: CONFIG_REQUIRED
+  late_cancel_refund_basis_points: CONFIG_REQUIRED
+  after_start_action: CONFIG_REQUIRED
+no_show:
+  participant_grace_seconds: CONFIG_REQUIRED
+  client_no_show_action: CONFIG_REQUIRED
+  specialist_no_show_action: CONFIG_REQUIRED
+refund:
+  technical_failure_action: CONFIG_REQUIRED
+  late_cancel_refund_basis_points: CONFIG_REQUIRED
+  no_show_refund_basis_points: CONFIG_REQUIRED
+reschedule:
+  minimum_seconds_before_start: CONFIG_REQUIRED
+  max_reschedules_per_booking: CONFIG_REQUIRED
