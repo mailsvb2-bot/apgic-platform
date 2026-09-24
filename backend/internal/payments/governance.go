@@ -94,6 +94,76 @@ type ControlPlane struct {
 	Appender      audit.Appender
 }
 
+type AdminOperationRequest struct {
+	Action        AdminAction
+	ActorID       string
+	Reason        string
+	AuditRecordID string
+	ProviderID    ProviderID
+	EvidenceRefs  []string
+	Now           time.Time
+}
+
+func (c ControlPlane) AuthorizeOperation(
+	authInput authz.Input,
+	request AdminOperationRequest,
+) error {
+	if (request.Action != AdminConnect && request.Action != AdminTest) ||
+		strings.TrimSpace(request.ActorID) == "" ||
+		strings.TrimSpace(request.Reason) == "" ||
+		strings.TrimSpace(request.AuditRecordID) == "" ||
+		strings.TrimSpace(string(request.ProviderID)) == "" ||
+		len(request.EvidenceRefs) == 0 ||
+		request.Now.IsZero() {
+		return ErrInvalidAdminChange
+	}
+	for _, ref := range request.EvidenceRefs {
+		if strings.TrimSpace(ref) == "" {
+			return ErrInvalidAdminChange
+		}
+	}
+	if strings.TrimSpace(c.PolicyVersion) == "" || c.Appender == nil {
+		return ErrAdminAuditUnavailable
+	}
+
+	authInput.Action = "payment.provider.manage"
+	authInput.Risk = authz.RiskHigh
+	authInput.Now = request.Now
+	result, err := c.Authorizer.Authorize(authInput)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrAdminAuditUnavailable, err)
+	}
+	if result.Decision != authz.Allow {
+		return ErrAdminChangeNotAuthorized
+	}
+
+	state, err := json.Marshal(struct {
+		Action       AdminAction `json:"action"`
+		ProviderID   ProviderID  `json:"provider_id"`
+		EvidenceRefs []string    `json:"evidence_refs"`
+	}{
+		Action: request.Action, ProviderID: request.ProviderID, EvidenceRefs: request.EvidenceRefs,
+	})
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrAdminAuditUnavailable, err)
+	}
+	record, err := audit.New(audit.Record{
+		ID: request.AuditRecordID, ActorID: request.ActorID,
+		Action: "payment.provider.control_operation",
+		Scope: authInput.Principal.TenantID,
+		ResourceRef: "payment-provider/" + string(request.ProviderID),
+		NewState: state, Reason: request.Reason, PolicyVersion: c.PolicyVersion,
+		OccurredAt: request.Now, CorrelationID: authInput.CorrelationID,
+	})
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrAdminAuditUnavailable, err)
+	}
+	if err := c.Appender.Append(record); err != nil {
+		return fmt.Errorf("%w: %v", ErrAdminAuditUnavailable, err)
+	}
+	return nil
+}
+
 func (c ControlPlane) PlanChange(
 	authInput authz.Input,
 	current ProviderConfigSnapshot,
