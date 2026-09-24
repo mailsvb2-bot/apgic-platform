@@ -53,6 +53,8 @@
         "seller_ref",
         "commercial_owner_ref",
         "payment_recipient_ref",
+        "platform_role",
+        "fiscal_responsibility_ref",
         "refund_responsibility_ref",
         "payout_beneficiary_ref",
         "captured_at"
@@ -71,6 +73,8 @@
         "seller_ref": { "type": "string", "minLength": 1 },
         "commercial_owner_ref": { "type": "string", "minLength": 1 },
         "payment_recipient_ref": { "type": "string", "minLength": 1 },
+        "platform_role": { "type": "string", "minLength": 1 },
+        "fiscal_responsibility_ref": { "type": "string", "minLength": 1 },
         "refund_responsibility_ref": { "type": "string", "minLength": 1 },
         "payout_beneficiary_ref": { "type": "string", "minLength": 1 },
         "captured_at": { "type": "string", "format": "date-time" }
