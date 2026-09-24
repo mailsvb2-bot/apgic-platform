@@ -8,3 +8,5 @@ export * from "./mobile-observability";
 export * from "./r1-mobile";
 
 export * from "./r2-transaction-edge";
+
+export * from "./r2-mobile-commerce";
