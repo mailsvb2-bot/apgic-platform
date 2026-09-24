@@ -7,12 +7,20 @@ INSERT INTO connector_instances (id, capability_class, provider_kind, status, co
 INSERT INTO payment_provider_config_versions (
   id, provider_instance_id, config_version, status, priority, manifest_version,
   certification_evidence_refs, jurisdiction_codes, currencies, method_codes,
-  rail_codes, execution_owner, effective_from
+  rail_codes, execution_owner, credential_version_ref, effective_from
 ) VALUES
 ('00000000-0000-0000-0000-00000000d101','00000000-0000-0000-0000-00000000d001','cfg-a-v1','ACTIVE',10,'manifest-v1',
- ARRAY['evidence/sandbox-a'],ARRAY['RU'],ARRAY['RUB'],ARRAY['BANK_CARD','SBP'],ARRAY['APGIC_PAYMENT_PROVIDER'],'EXTERNAL_PROVIDER',now()),
+ ARRAY['evidence/sandbox-a'],ARRAY['RU'],ARRAY['RUB'],ARRAY['BANK_CARD','SBP'],ARRAY['APGIC_PAYMENT_PROVIDER'],'EXTERNAL_PROVIDER','secret-version/ci-payment-a/v1',now()),
 ('00000000-0000-0000-0000-00000000d102','00000000-0000-0000-0000-00000000d002','cfg-b-v1','ACTIVE',20,'manifest-v1',
- ARRAY['evidence/sandbox-b'],ARRAY['RU'],ARRAY['RUB'],ARRAY['BANK_CARD','SBP'],ARRAY['APGIC_PAYMENT_PROVIDER'],'EXTERNAL_PROVIDER',now());
+ ARRAY['evidence/sandbox-b'],ARRAY['RU'],ARRAY['RUB'],ARRAY['BANK_CARD','SBP'],ARRAY['APGIC_PAYMENT_PROVIDER'],'EXTERNAL_PROVIDER','secret-version/ci-payment-b/v1',now());
+
+INSERT INTO payment_provider_health_snapshots (
+  id, provider_config_id, health, conversion_rate_bps, latency_p95_ms,
+  provider_reported_fee_bps, reconciliation_pending_count,
+  reconciliation_mismatch_count, guardrail_action, evidence_refs, observed_at
+) VALUES
+('00000000-0000-0000-0000-00000000d111','00000000-0000-0000-0000-00000000d101','HEALTHY',9000,200,150,0,0,'ALLOW_NEW_ATTEMPTS',ARRAY['metrics/ci-a'],'2026-09-24T12:00:00Z'),
+('00000000-0000-0000-0000-00000000d112','00000000-0000-0000-0000-00000000d102','HEALTHY',9100,190,140,0,0,'ALLOW_NEW_ATTEMPTS',ARRAY['metrics/ci-b'],'2026-09-24T12:00:00Z');
 
 DO $$
 DECLARE blocked boolean := false;
@@ -32,7 +40,7 @@ $$;
 
 INSERT INTO payment_routing_decisions (
   id, order_id, policy_version, provider_config_id, jurisdiction_code,
-  selected_method_code, selected_rail_code, candidate_evidence, health_snapshot, decided_at
+  selected_method_code, selected_rail_code, candidate_evidence, health_snapshot, health_snapshot_id, decided_at
 ) VALUES (
   '00000000-0000-0000-0000-00000000d201',
   '00000000-0000-0000-0000-00000000b501',
@@ -41,6 +49,7 @@ INSERT INTO payment_routing_decisions (
   'RU','SBP','APGIC_PAYMENT_PROVIDER',
   '[{"provider":"CI_PAYMENT_A","eligible":true},{"provider":"CI_PAYMENT_B","eligible":true}]'::jsonb,
   '{"CI_PAYMENT_A":"HEALTHY","CI_PAYMENT_B":"HEALTHY"}'::jsonb,
+  '00000000-0000-0000-0000-00000000d111',
   now()
 );
 
@@ -73,6 +82,7 @@ INSERT INTO payment_routing_decisions (
   'RU','SBP','APGIC_PAYMENT_PROVIDER',
   '[{"provider":"CI_PAYMENT_A","eligible":false,"reason":"AMBIGUOUS"},{"provider":"CI_PAYMENT_B","eligible":true}]'::jsonb,
   '{"CI_PAYMENT_A":"DEGRADED","CI_PAYMENT_B":"HEALTHY"}'::jsonb,
+  '00000000-0000-0000-0000-00000000d112',
   now()+interval '3 seconds'
 );
 
