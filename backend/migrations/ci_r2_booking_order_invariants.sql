@@ -193,7 +193,7 @@ BEGIN
 END
 $$;
 
-DO $
+DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1
@@ -204,7 +204,7 @@ BEGIN
     RAISE EXCEPTION 'booking insert did not atomically consume hold';
   END IF;
 END
-$;
+$$;
 
 UPDATE bookings
 SET state = 'CONFIRMED',
