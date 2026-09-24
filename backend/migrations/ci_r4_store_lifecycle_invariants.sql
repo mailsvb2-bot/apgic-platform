@@ -28,8 +28,9 @@ INSERT INTO ledger_entries (
 );
 
 DO $$
-DECLARE applied boolean;
-DECLARE reason text;
+DECLARE
+  applied boolean;
+  reason text;
 BEGIN
   SELECT result.applied, result.reason_code
   INTO applied, reason
@@ -58,8 +59,9 @@ END
 $$;
 
 DO $$
-DECLARE applied boolean;
-DECLARE reason text;
+DECLARE
+  applied boolean;
+  reason text;
 BEGIN
   SELECT result.applied, result.reason_code
   INTO applied, reason
@@ -114,8 +116,9 @@ FROM apgic_apply_store_lifecycle_event(
 );
 
 DO $$
-DECLARE applied boolean;
-DECLARE reason text;
+DECLARE
+  applied boolean;
+  reason text;
 BEGIN
   SELECT result.applied, result.reason_code
   INTO applied, reason
@@ -151,8 +154,9 @@ END
 $$;
 
 DO $$
-DECLARE applied boolean;
-DECLARE reason text;
+DECLARE
+  applied boolean;
+  reason text;
 BEGIN
   SELECT result.applied, result.reason_code
   INTO applied, reason
