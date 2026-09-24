@@ -13,3 +13,5 @@ export * from "./r2-mobile-commerce";
 
 export * from "./r3-mobile-realtime";
 export * from "./mobile-diagnostics";
+
+export * from "./r4-store-lifecycle";
