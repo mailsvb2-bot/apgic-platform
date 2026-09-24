@@ -1,0 +1,29 @@
+version: CONFIG_REQUIRED
+scope: PRODUCTION
+production_approved: false
+policy_kind: MARKET_CELL_THRESHOLDS
+market_cells:
+  - id: CONFIG_REQUIRED
+    jurisdiction: CONFIG_REQUIRED
+    topic: CONFIG_REQUIRED
+    format: CONFIG_REQUIRED
+    time_window: CONFIG_REQUIRED
+    state: DEMAND_TEST
+    thresholds:
+      eligible_verified_supply_min: CONFIG_REQUIRED
+      active_specialists_min: CONFIG_REQUIRED
+      bookable_slot_coverage_min_percent: CONFIG_REQUIRED
+      duty_supply_min: CONFIG_REQUIRED
+      time_to_available_slot_median_max_minutes: CONFIG_REQUIRED
+      time_to_available_slot_p95_max_minutes: CONFIG_REQUIRED
+      fill_conversion_min_percent: CONFIG_REQUIRED
+      booking_conversion_min_percent: CONFIG_REQUIRED
+      cancellation_max_percent: CONFIG_REQUIRED
+      no_show_max_percent: CONFIG_REQUIRED
+      response_time_p95_max_minutes: CONFIG_REQUIRED
+      acceptance_time_p95_max_minutes: CONFIG_REQUIRED
+      unfilled_demand_max_percent: CONFIG_REQUIRED
+      complaint_rate_max_percent: CONFIG_REQUIRED
+      safety_incident_rate_max_percent: CONFIG_REQUIRED
+      contribution_margin_min_percent: CONFIG_REQUIRED
+    evidence_refs: []
