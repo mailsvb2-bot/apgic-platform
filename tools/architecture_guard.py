@@ -16,7 +16,7 @@ FORBIDDEN_IMPORT_PATTERNS = [
     re.compile(r'["\'][^"\']*Virtual-Persona-Runtime[^"\']*["\']', re.I),
 ]
 PAYMENT_TYPE = re.compile(r"\bpayment_type\b", re.I)
-CLIENT_SERVER_IMPORT = re.compile(r"(?:backend[/\\]internal|from\s+['\"][^'\"]*backend)", re.I)
+CUSTODIAL_MONEY_TYPE = re.compile(\n    r"\\b(?:CustodialBalance|MonetaryWallet|StoredValueAccount|UserMoneyBalance|SpecialistMoneyBalance|PayoutBalance)\\b"\n)\nCLIENT_SERVER_IMPORT = re.compile(r"(?:backend[/\\]internal|from\s+['\"][^'\"]*backend)", re.I)
 
 FORBIDDEN_DUPLICATE_ROOTS = [
     ROOT / "go.mod",
