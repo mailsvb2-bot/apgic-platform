@@ -18,7 +18,7 @@
         "role":{"enum":["CLIENT","SPECIALIST"]},
         "provider_instance_id":{"type":"string","minLength":1},
         "policy_version":{"type":"string","minLength":1},
-        "entitlement_evidence_ref":{"type":["string","null"]},
+        "entitlement_version_id":{"type":["string","null"]},
         "decision":{"enum":["ALLOW","DENY"]},
         "reason_code":{"type":"string","minLength":1},
         "credential_scope":{"type":["string","null"]},
@@ -49,14 +49,16 @@
     "recovery_decision": {
       "type": "object",
       "additionalProperties": false,
-      "required":["consultation_id","policy_version","action","reason_code"],
+      "required":["consultation_id","source_fact_id","policy_version","action","reason_code","decided_at"],
       "properties": {
         "consultation_id":{"type":"string","minLength":1},
+        "source_fact_id":{"type":"string","minLength":1},
         "policy_version":{"type":"string","minLength":1},
         "action":{"enum":["RETRY_SAME_PROVIDER","FALLBACK_PROVIDER","RESCHEDULE","REFUND"]},
-        "provider_instance_id":{"type":["string","null"]},
+        "target_provider_instance_id":{"type":["string","null"]},
+        "followup_path_ref":{"type":["string","null"]},
         "reason_code":{"type":"string","minLength":1},
-        "failure_evidence_ref":{"type":"string","minLength":1}
+        "decided_at":{"type":"string","format":"date-time"}
       }
     }
   },
