@@ -149,10 +149,10 @@ func (c ControlPlane) AuthorizeOperation(
 	}
 	record, err := audit.New(audit.Record{
 		ID: request.AuditRecordID, ActorID: request.ActorID,
-		Action: "payment.provider.control_operation",
-		Scope: authInput.Principal.TenantID,
+		Action:      "payment.provider.control_operation",
+		Scope:       authInput.Principal.TenantID,
 		ResourceRef: "payment-provider/" + string(request.ProviderID),
-		NewState: state, Reason: request.Reason, PolicyVersion: c.PolicyVersion,
+		NewState:    state, Reason: request.Reason, PolicyVersion: c.PolicyVersion,
 		OccurredAt: request.Now, CorrelationID: authInput.CorrelationID,
 	})
 	if err != nil {
@@ -255,17 +255,17 @@ func actionMatchesChange(action AdminAction, current, next ProviderConfigSnapsho
 }
 
 type ProviderHealthSnapshot struct {
-	ProviderID                    ProviderID      `json:"provider_id"`
-	ConfigVersion                 string          `json:"config_version"`
-	Health                        ProviderHealth  `json:"health"`
-	ConversionRateBPS             int             `json:"conversion_rate_bps"`
-	LatencyP95MS                  int             `json:"latency_p95_ms"`
-	ProviderReportedFeeBPS        int             `json:"provider_reported_fee_bps"`
-	ReconciliationPendingCount    int             `json:"reconciliation_pending_count"`
-	ReconciliationMismatchCount   int             `json:"reconciliation_mismatch_count"`
-	Guardrail                     GuardrailAction `json:"guardrail"`
-	EvidenceRefs                  []string        `json:"evidence_refs"`
-	ObservedAt                    time.Time       `json:"observed_at"`
+	ProviderID                  ProviderID      `json:"provider_id"`
+	ConfigVersion               string          `json:"config_version"`
+	Health                      ProviderHealth  `json:"health"`
+	ConversionRateBPS           int             `json:"conversion_rate_bps"`
+	LatencyP95MS                int             `json:"latency_p95_ms"`
+	ProviderReportedFeeBPS      int             `json:"provider_reported_fee_bps"`
+	ReconciliationPendingCount  int             `json:"reconciliation_pending_count"`
+	ReconciliationMismatchCount int             `json:"reconciliation_mismatch_count"`
+	Guardrail                   GuardrailAction `json:"guardrail"`
+	EvidenceRefs                []string        `json:"evidence_refs"`
+	ObservedAt                  time.Time       `json:"observed_at"`
 }
 
 func (s ProviderHealthSnapshot) Validate() error {
