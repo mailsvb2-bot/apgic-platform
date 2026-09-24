@@ -2462,13 +2462,22 @@ requirements:
   release_profile: R2
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies:
   - APGIC-CONFIG-001
   - APGIC-MOBILE-013
-  implementation_refs: []
-  contract_refs: []
-  test_refs: []
+  implementation_refs:
+  - backend/internal/commerce/store.go
+  - backend/migrations/000013_r2_mobile_store_entitlements.sql
+  - apps/mobile/src/r2-mobile-commerce.ts
+  contract_refs:
+  - packages/contracts/src/r2-mobile-commerce.ts
+  - contracts/jsonschema/r2-mobile-store-v1.schema.json
+  test_refs:
+  - backend/internal/commerce/store_test.go
+  - apps/mobile/src/r2-mobile-commerce.test.ts
+  - backend/migrations/ci_r2_mobile_store_invariants.sql
+  - .github/workflows/ci.yml
   evidence_refs: []
   acceptance:
     given: enabled mobile offer известен
@@ -2489,13 +2498,22 @@ requirements:
   release_profile: R2
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies:
   - APGIC-PAY-001
   - APGIC-MOBILE-017
-  implementation_refs: []
-  contract_refs: []
-  test_refs: []
+  implementation_refs:
+  - backend/internal/commerce/store.go
+  - backend/migrations/000013_r2_mobile_store_entitlements.sql
+  - apps/mobile/src/r2-mobile-commerce.ts
+  contract_refs:
+  - packages/contracts/src/r2-mobile-commerce.ts
+  - contracts/jsonschema/r2-mobile-store-v1.schema.json
+  test_refs:
+  - backend/internal/commerce/store_test.go
+  - apps/mobile/src/r2-mobile-commerce.test.ts
+  - backend/migrations/ci_r2_mobile_store_invariants.sql
+  - backend/ci/restore_drill.sh
   evidence_refs: []
   acceptance:
     given: store reports successful purchase
@@ -2578,13 +2596,21 @@ requirements:
   release_profile: R2
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies:
   - APGIC-MOBILE-020
   - APGIC-MOBILE-018
-  implementation_refs: []
-  contract_refs: []
-  test_refs: []
+  implementation_refs:
+  - backend/migrations/000013_r2_mobile_store_entitlements.sql
+  - apps/mobile/src/r2-mobile-commerce.ts
+  - backend/internal/privacy/deletion.go
+  contract_refs:
+  - packages/contracts/src/r2-mobile-commerce.ts
+  - contracts/jsonschema/r2-mobile-store-v1.schema.json
+  test_refs:
+  - apps/mobile/src/r2-mobile-commerce.test.ts
+  - backend/migrations/ci_r2_mobile_store_invariants.sql
+  - backend/ci/restore_drill.sh
   evidence_refs: []
   acceptance:
     given: user with active store subscription requests account deletion
@@ -2664,12 +2690,20 @@ requirements:
   release_profile: R2
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies:
   - APGIC-MOBILE-004
-  implementation_refs: []
-  contract_refs: []
-  test_refs: []
+  implementation_refs:
+  - backend/internal/security/device_integrity.go
+  - backend/migrations/000013_r2_mobile_store_entitlements.sql
+  - apps/mobile/src/r2-mobile-commerce.ts
+  contract_refs:
+  - packages/contracts/src/r2-mobile-commerce.ts
+  - contracts/jsonschema/r2-mobile-store-v1.schema.json
+  test_refs:
+  - backend/internal/security/device_integrity_test.go
+  - apps/mobile/src/r2-mobile-commerce.test.ts
+  - backend/migrations/ci_r2_mobile_store_invariants.sql
   evidence_refs: []
   acceptance:
     given: integrity signal is unsupported/negative/valid
@@ -3403,12 +3437,19 @@ requirements:
   release_profile: R2
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies:
   - APGIC-PAY-016
-  implementation_refs: []
-  contract_refs: []
-  test_refs: []
+  implementation_refs:
+  - backend/internal/commerce/noncash.go
+  - backend/migrations/000013_r2_mobile_store_entitlements.sql
+  contract_refs:
+  - packages/contracts/src/r2-mobile-commerce.ts
+  - contracts/jsonschema/r2-mobile-store-v1.schema.json
+  test_refs:
+  - backend/internal/commerce/noncash_test.go
+  - backend/migrations/ci_r2_mobile_store_invariants.sql
+  - tools/architecture_guard.py
   evidence_refs: []
   acceptance:
     given: Credits/Budget units exist
