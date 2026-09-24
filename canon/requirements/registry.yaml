@@ -809,10 +809,12 @@ requirements:
   implementation_refs:
   - backend/internal/marketplace/model.go
   - backend/internal/marketplace/qualification.go
+  - backend/migrations/000007_r1_marketplace_discovery.sql
   contract_refs:
   - contracts/jsonschema/marketplace-discovery-v1.schema.json
   test_refs:
   - backend/internal/marketplace/marketplace_test.go
+  - backend/migrations/ci_r1_marketplace_invariants.sql
   evidence_refs: []
   acceptance:
     given: специалист заявляет topic capability
@@ -843,10 +845,12 @@ requirements:
   implementation_refs:
   - backend/internal/marketplace/model.go
   - backend/internal/marketplace/discovery.go
+  - backend/migrations/000007_r1_marketplace_discovery.sql
   contract_refs:
   - contracts/jsonschema/marketplace-discovery-v1.schema.json
   test_refs:
   - backend/internal/marketplace/marketplace_test.go
+  - backend/migrations/ci_r1_marketplace_invariants.sql
   evidence_refs: []
   acceptance:
     given: профиль специалиста неполон или review не завершён
@@ -871,10 +875,12 @@ requirements:
   dependencies: []
   implementation_refs:
   - backend/internal/marketplace/discovery.go
+  - backend/migrations/000007_r1_marketplace_discovery.sql
   contract_refs:
   - contracts/jsonschema/marketplace-discovery-v1.schema.json
   test_refs:
   - backend/internal/marketplace/marketplace_test.go
+  - backend/migrations/ci_r1_marketplace_invariants.sql
   evidence_refs: []
   acceptance:
     given: пользователь описывает запрос свободным текстом
@@ -899,10 +905,12 @@ requirements:
   - APGIC-SPEC-001
   implementation_refs:
   - backend/internal/marketplace/qualification.go
+  - backend/migrations/000007_r1_marketplace_discovery.sql
   contract_refs:
   - contracts/jsonschema/marketplace-discovery-v1.schema.json
   test_refs:
   - backend/internal/marketplace/marketplace_test.go
+  - backend/migrations/ci_r1_marketplace_invariants.sql
   evidence_refs: []
   acceptance:
     given: нет явного разрешающего policy rule/evidence
@@ -1053,10 +1061,12 @@ requirements:
   - APGIC-SPEC-002
   implementation_refs:
   - backend/internal/marketplace/discovery.go
+  - backend/migrations/000007_r1_marketplace_discovery.sql
   contract_refs:
   - contracts/jsonschema/marketplace-discovery-v1.schema.json
   test_refs:
   - backend/internal/marketplace/marketplace_test.go
+  - backend/migrations/ci_r1_marketplace_invariants.sql
   evidence_refs: []
   acceptance:
     given: search index потерян/устарел
