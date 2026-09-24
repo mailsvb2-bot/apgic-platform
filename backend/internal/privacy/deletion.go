@@ -109,6 +109,9 @@ func (r *DeleteAccountRequest) ClassifyRetention(items []RetentionItem, now time
 		if item.Disposition == RetentionRetain && strings.TrimSpace(item.Reason) == "" {
 			return ErrRetentionReasonRequired
 		}
+		if strings.TrimSpace(item.LegalHoldRef) != "" && item.Disposition != RetentionRetain {
+			return ErrInvalidDeletionRequest
+		}
 	}
 	r.RetentionItems = append([]RetentionItem(nil), items...)
 	r.State = DeletionRetentionClassified
@@ -140,6 +143,9 @@ func (r *DeleteAccountRequest) MarkProviderErased(providerRef, evidenceRef strin
 	}
 	for i := range r.ProviderJobs {
 		if r.ProviderJobs[i].ProviderRef == providerRef {
+			if r.ProviderJobs[i].State != ErasurePending || strings.TrimSpace(r.ProviderJobs[i].EvidenceRef) != "" {
+				return ErrInvalidDeletionState
+			}
 			r.ProviderJobs[i].State = ErasureSucceeded
 			r.ProviderJobs[i].EvidenceRef = evidenceRef
 			r.UpdatedAt = now
