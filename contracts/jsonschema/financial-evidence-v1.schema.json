@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apgic.ru/contracts/financial-evidence-v1.schema.json",
+  "title": "APGIC Financial Evidence v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "reconciliation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["economic_ref","provider_id","outcome"],
+      "properties": {
+        "economic_ref":{"type":"string","minLength":1},
+        "provider_id":{"type":"string","minLength":1},
+        "outcome":{"enum":["MATCHED","MISMATCH"]},
+        "discrepancy":{
+          "type":["object","null"],
+          "additionalProperties":false,
+          "required":["kind","owner","status","evidence_refs"],
+          "properties":{
+            "kind":{"type":"string","minLength":1},
+            "owner":{"type":"string","minLength":1},
+            "status":{"const":"OPEN"},
+            "evidence_refs":{"type":"array","minItems":1,"items":{"type":"string","minLength":1}}
+          }
+        }
+      }
+    },
+    "dispute_effect": {
+      "type":"object",
+      "additionalProperties":false,
+      "required":["economic_ref","provider_id","kind","amount_minor","currency","execution_owner","provider_evidence_ref","ledger_evidence_ref","audit_evidence_ref"],
+      "properties":{
+        "economic_ref":{"type":"string","minLength":1},
+        "provider_id":{"type":"string","minLength":1},
+        "kind":{"enum":["CHARGEBACK","REFUND","REVERSAL"]},
+        "amount_minor":{"type":"integer","minimum":1},
+        "currency":{"type":"string","pattern":"^[A-Z]{3}$"},
+        "execution_owner":{"const":"EXTERNAL_PROVIDER"},
+        "provider_evidence_ref":{"type":"string","minLength":1},
+        "ledger_evidence_ref":{"type":"string","minLength":1},
+        "audit_evidence_ref":{"type":"string","minLength":1}
+      }
+    },
+    "revenue_assurance": {
+      "type":"object",
+      "additionalProperties":false,
+      "required":["outcome","reason_code"],
+      "properties":{
+        "outcome":{"enum":["PASS","PASS_WITH_EXCEPTION","BLOCK"]},
+        "reason_code":{"type":"string","minLength":1}
+      }
+    }
+  },
+  "anyOf":[{"required":["reconciliation"]},{"required":["dispute_effect"]},{"required":["revenue_assurance"]}]
+}

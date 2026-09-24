@@ -1621,13 +1621,16 @@ requirements:
   release_profile: R4
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies:
   - APGIC-PAY-002
   - APGIC-PAYOUT-001
-  implementation_refs: []
-  contract_refs: []
-  test_refs: []
+  implementation_refs:
+  - backend/internal/finance/reconciliation.go
+  contract_refs:
+  - contracts/jsonschema/financial-evidence-v1.schema.json
+  test_refs:
+  - backend/internal/finance/reconciliation_test.go
   evidence_refs: []
   acceptance:
     given: есть APGIC ledger period и provider statement/webhook facts
@@ -1648,12 +1651,16 @@ requirements:
   release_profile: R4
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies:
   - APGIC-SETTLE-001
-  implementation_refs: []
-  contract_refs: []
-  test_refs: []
+  implementation_refs:
+  - backend/internal/finance/reconciliation.go
+  contract_refs:
+  - contracts/jsonschema/financial-evidence-v1.schema.json
+  - docs/architecture/0002-non-custodial-payment-control-plane.md
+  test_refs:
+  - backend/internal/finance/reconciliation_test.go
   evidence_refs: []
   acceptance:
     given: завершённая транзакция получает dispute/chargeback
@@ -1675,13 +1682,17 @@ requirements:
   release_profile: R4
   risk: HIGH
   priority: P0
-  status: APPROVED
+  status: IN_PROGRESS
   dependencies:
   - APGIC-RECON-001
   - APGIC-DISPUTE-001
-  implementation_refs: []
-  contract_refs: []
-  test_refs: []
+  implementation_refs:
+  - backend/internal/finance/reconciliation.go
+  contract_refs:
+  - contracts/jsonschema/financial-evidence-v1.schema.json
+  test_refs:
+  - backend/internal/finance/reconciliation_test.go
+  - .github/workflows/ci.yml
   evidence_refs: []
   acceptance:
     given: release candidate R4
