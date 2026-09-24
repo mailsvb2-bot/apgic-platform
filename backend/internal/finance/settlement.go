@@ -9,7 +9,7 @@ import (
 const ExternalExecutionOwner = "EXTERNAL_PROVIDER"
 
 const (
-	CapabilityMarketplaceSplit   = "MARKETPLACE_SPLIT"
+	CapabilityMarketplaceSplit    = "MARKETPLACE_SPLIT"
 	CapabilitySettlementExecution = "SETTLEMENT_EXECUTION"
 	CapabilityPayoutExecution     = "PAYOUT_EXECUTION"
 )
@@ -91,16 +91,16 @@ func CalculateCommission(ctx CommissionContext, rules []CommissionRule) (Commiss
 	}
 	commission := ctx.AmountMinor * matched.BasisPoints / 10000
 	return CommissionSnapshot{
-		OrderID: ctx.OrderID,
-		PolicyVersion: matched.PolicyVersion,
-		DemandSource: ctx.DemandSource,
-		ProductRef: ctx.ProductRef,
-		Jurisdiction: ctx.Jurisdiction,
-		BasisPoints: matched.BasisPoints,
-		RoundingMode: matched.RoundingMode,
-		BasisAmountMinor: ctx.AmountMinor,
-		CommissionMinor: commission,
-		Currency: ctx.Currency,
+		OrderID:                 ctx.OrderID,
+		PolicyVersion:           matched.PolicyVersion,
+		DemandSource:            ctx.DemandSource,
+		ProductRef:              ctx.ProductRef,
+		Jurisdiction:            ctx.Jurisdiction,
+		BasisPoints:             matched.BasisPoints,
+		RoundingMode:            matched.RoundingMode,
+		BasisAmountMinor:        ctx.AmountMinor,
+		CommissionMinor:         commission,
+		Currency:                ctx.Currency,
 		PlatformFeeRecipientRef: matched.PlatformFeeRecipientRef,
 	}, nil
 }
@@ -135,18 +135,18 @@ func (p ProviderExecutionProfile) Has(capability string) bool {
 }
 
 type SettlementContext struct {
-	InstructionID                string
-	IdempotencyKey               string
-	OrderID                      string
-	PaymentAttemptID             string
-	OriginalProviderID           string
-	AmountMinor                  int64
-	Currency                     string
-	CaptureLedgerEntryRef        string
-	CaptureProviderEvidenceRef   string
-	CompletionEvidenceRef        string
-	PayoutBeneficiaryRef         string
-	Commission                   CommissionSnapshot
+	InstructionID              string
+	IdempotencyKey             string
+	OrderID                    string
+	PaymentAttemptID           string
+	OriginalProviderID         string
+	AmountMinor                int64
+	Currency                   string
+	CaptureLedgerEntryRef      string
+	CaptureProviderEvidenceRef string
+	CompletionEvidenceRef      string
+	PayoutBeneficiaryRef       string
+	Commission                 CommissionSnapshot
 }
 
 type Allocation struct {
@@ -156,18 +156,18 @@ type Allocation struct {
 }
 
 type SettlementInstruction struct {
-	InstructionID      string
-	IdempotencyKey     string
-	OrderID            string
-	PaymentAttemptID   string
-	ProviderID         string
-	ExecutionOwner     string
-	Currency           string
-	TotalAmountMinor   int64
-	PolicyVersion      string
-	LedgerEvidenceRef  string
+	InstructionID       string
+	IdempotencyKey      string
+	OrderID             string
+	PaymentAttemptID    string
+	ProviderID          string
+	ExecutionOwner      string
+	Currency            string
+	TotalAmountMinor    int64
+	PolicyVersion       string
+	LedgerEvidenceRef   string
 	ProviderEvidenceRef string
-	Allocations        []Allocation
+	Allocations         []Allocation
 }
 
 func BuildSettlementInstruction(
@@ -204,39 +204,39 @@ func BuildSettlementInstruction(
 
 	allocations := []Allocation{{
 		BeneficiaryRef: ctx.PayoutBeneficiaryRef,
-		AmountMinor: ctx.AmountMinor - ctx.Commission.CommissionMinor,
-		Kind: "SERVICE_BENEFICIARY",
+		AmountMinor:    ctx.AmountMinor - ctx.Commission.CommissionMinor,
+		Kind:           "SERVICE_BENEFICIARY",
 	}}
 	if ctx.Commission.CommissionMinor > 0 {
 		allocations = append(allocations, Allocation{
 			BeneficiaryRef: ctx.Commission.PlatformFeeRecipientRef,
-			AmountMinor: ctx.Commission.CommissionMinor,
-			Kind: "PLATFORM_FEE",
+			AmountMinor:    ctx.Commission.CommissionMinor,
+			Kind:           "PLATFORM_FEE",
 		})
 	}
 
 	return SettlementInstruction{
-		InstructionID: ctx.InstructionID,
-		IdempotencyKey: ctx.IdempotencyKey,
-		OrderID: ctx.OrderID,
-		PaymentAttemptID: ctx.PaymentAttemptID,
-		ProviderID: provider.ProviderID,
-		ExecutionOwner: ExternalExecutionOwner,
-		Currency: ctx.Currency,
-		TotalAmountMinor: ctx.AmountMinor,
-		PolicyVersion: ctx.Commission.PolicyVersion,
-		LedgerEvidenceRef: ctx.CaptureLedgerEntryRef,
+		InstructionID:       ctx.InstructionID,
+		IdempotencyKey:      ctx.IdempotencyKey,
+		OrderID:             ctx.OrderID,
+		PaymentAttemptID:    ctx.PaymentAttemptID,
+		ProviderID:          provider.ProviderID,
+		ExecutionOwner:      ExternalExecutionOwner,
+		Currency:            ctx.Currency,
+		TotalAmountMinor:    ctx.AmountMinor,
+		PolicyVersion:       ctx.Commission.PolicyVersion,
+		LedgerEvidenceRef:   ctx.CaptureLedgerEntryRef,
 		ProviderEvidenceRef: ctx.CaptureProviderEvidenceRef,
-		Allocations: allocations,
+		Allocations:         allocations,
 	}, nil
 }
 
 type SettlementEvidence struct {
 	SettlementInstructionID string
-	ProviderID               string
-	ProviderSettlementRef    string
-	ProviderEvidenceRef      string
-	LedgerEvidenceRef        string
+	ProviderID              string
+	ProviderSettlementRef   string
+	ProviderEvidenceRef     string
+	LedgerEvidenceRef       string
 }
 
 type PayoutEligibility struct {
@@ -252,15 +252,15 @@ type PayoutEligibility struct {
 }
 
 type PayoutInstruction struct {
-	DecisionID        string
+	DecisionID              string
 	SettlementInstructionID string
-	ProviderID        string
-	ExecutionOwner    string
-	BeneficiaryRef    string
-	AmountMinor       int64
-	Currency          string
-	IdempotencyKey    string
-	ComplianceEvidenceRef string
+	ProviderID              string
+	ExecutionOwner          string
+	BeneficiaryRef          string
+	AmountMinor             int64
+	Currency                string
+	IdempotencyKey          string
+	ComplianceEvidenceRef   string
 }
 
 func BuildPayoutInstruction(
@@ -296,14 +296,14 @@ func BuildPayoutInstruction(
 	}
 
 	return PayoutInstruction{
-		DecisionID: eligibility.DecisionID,
+		DecisionID:              eligibility.DecisionID,
 		SettlementInstructionID: eligibility.SettlementInstructionID,
-		ProviderID: provider.ProviderID,
-		ExecutionOwner: ExternalExecutionOwner,
-		BeneficiaryRef: eligibility.BeneficiaryRef,
-		AmountMinor: eligibility.AmountMinor,
-		Currency: eligibility.Currency,
-		IdempotencyKey: eligibility.IdempotencyKey,
-		ComplianceEvidenceRef: eligibility.ComplianceEvidenceRef,
+		ProviderID:              provider.ProviderID,
+		ExecutionOwner:          ExternalExecutionOwner,
+		BeneficiaryRef:          eligibility.BeneficiaryRef,
+		AmountMinor:             eligibility.AmountMinor,
+		Currency:                eligibility.Currency,
+		IdempotencyKey:          eligibility.IdempotencyKey,
+		ComplianceEvidenceRef:   eligibility.ComplianceEvidenceRef,
 	}, nil
 }
