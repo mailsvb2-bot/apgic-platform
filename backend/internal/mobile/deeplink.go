@@ -45,10 +45,10 @@ type DeepLinkClaims struct {
 }
 
 type DeepLinkResolution struct {
-	Allowed      bool
-	ReasonCode   string
+	Allowed       bool
+	ReasonCode    string
 	CanonicalPath string
-	WebFallback  string
+	WebFallback   string
 }
 
 func ResolveDeepLink(claims DeepLinkClaims, principal authz.Principal, now time.Time) DeepLinkResolution {
