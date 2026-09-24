@@ -56,6 +56,7 @@ type SpecialistProfile struct {
 	ID              string
 	IdentityID      string
 	DisplayName     string
+	Profession      string
 	Complete        bool
 	Review          ReviewState
 	Capabilities    []Capability
