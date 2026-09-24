@@ -24,7 +24,6 @@ const (
 
 var (
 	ErrInvalidStorePolicy   = errors.New("invalid store policy snapshot")
-	ErrStorePolicyNoMatch   = errors.New("store commerce policy has no matching rule")
 	ErrStorePolicyAmbiguous = errors.New("store commerce policy matched more than one rule")
 	ErrInvalidStorePurchase = errors.New("invalid verified store purchase")
 )
@@ -96,7 +95,7 @@ func (s StorePolicySnapshot) Decide(ctx StoreCommerceContext) (StoreCommerceDeci
 			Outcome:       StoreCommerceDisabled,
 			Rail:          payments.RailPurchaseDisabled,
 			ReasonCode:    "STORE_POLICY_NOT_CONFIGURED",
-		}, ErrStorePolicyNoMatch
+		}, nil
 	}
 	if !matched.Enabled {
 		return StoreCommerceDecision{
