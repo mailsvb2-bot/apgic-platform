@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apgic.ru/contracts/connector-runtime-v1.schema.json",
+  "title": "APGIC Connector Runtime v1",
+  "type": "object",
+  "additionalProperties": false,
+  "$defs": {
+    "capability_class": {
+      "type": "string",
+      "enum": [
+        "GROWTH_CRM_PROVIDER",
+        "COMMUNICATION_PROVIDER",
+        "PERSONA_PROVIDER",
+        "MANAGEMENT_INTELLIGENCE_PROVIDER",
+        "NOTIFICATION_PROVIDER",
+        "CALENDAR_PROVIDER",
+        "PAYMENT_PROVIDER",
+        "STORAGE_PROVIDER",
+        "CDN_PROVIDER",
+        "ANALYTICS_PROVIDER",
+        "LMS_PROVIDER",
+        "ERP_PROVIDER",
+        "IDENTITY_PROVIDER",
+        "AI_MODEL_PROVIDER"
+      ]
+    },
+    "status": {
+      "type": "string",
+      "enum": ["CONFIGURING", "ACTIVE", "DEGRADED", "DISABLED"]
+    },
+    "outcome": {
+      "type": "string",
+      "enum": ["SUCCESS", "RETRYABLE_FAILURE", "AMBIGUOUS", "TERMINAL_FAILURE"]
+    },
+    "delivery_decision": {
+      "type": "string",
+      "enum": ["APPLY", "DUPLICATE", "STALE", "DEFER"]
+    }
+  },
+  "properties": {
+    "instance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "capability_class", "provider_kind", "status", "config_ref", "execute_scope"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "capability_class": {"$ref": "#/$defs/capability_class"},
+        "provider_kind": {"type": "string", "minLength": 1},
+        "status": {"$ref": "#/$defs/status"},
+        "config_ref": {"type": "string", "minLength": 1},
+        "execute_scope": {"type": "string", "pattern": "^connector:execute:[A-Z0-9_]+$"}
+      }
+    },
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["idempotency_key", "subject_id"],
+      "properties": {
+        "idempotency_key": {"type": "string", "minLength": 1},
+        "subject_id": {"type": "string", "minLength": 1},
+        "payload": {"type": ["object", "array", "string", "number", "boolean", "null"]}
+      }
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outcome"],
+      "properties": {
+        "provider_reference": {"type": "string"},
+        "outcome": {"$ref": "#/$defs/outcome"},
+        "raw_evidence": {"type": ["object", "array", "string", "number", "boolean", "null"]}
+      }
+    },
+    "webhook_envelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "connector_instance_id",
+        "external_event_id",
+        "stream_id",
+        "sequence",
+        "key_id",
+        "occurred_at",
+        "payload",
+        "signature"
+      ],
+      "properties": {
+        "connector_instance_id": {"type": "string", "minLength": 1},
+        "external_event_id": {"type": "string", "minLength": 1},
+        "stream_id": {"type": "string", "minLength": 1},
+        "sequence": {"type": "integer", "minimum": 1},
+        "key_id": {"type": "string", "minLength": 1},
+        "occurred_at": {"type": "string", "format": "date-time"},
+        "payload": {"type": ["object", "array", "string", "number", "boolean", "null"]},
+        "signature": {"type": "string", "minLength": 1}
+      }
+    },
+    "delivery_decision": {"$ref": "#/$defs/delivery_decision"}
+  },
+  "anyOf": [
+    {"required": ["instance"]},
+    {"required": ["request"]},
+    {"required": ["result"]},
+    {"required": ["webhook_envelope"]},
+    {"required": ["delivery_decision"]}
+  ]
+}
