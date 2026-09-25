@@ -16,3 +16,10 @@ __pycache__/
 .pytest_cache/
 .venv/
 backend/bin/
+apps/mobile/android/.gradle/
+apps/mobile/android/local.properties
+apps/mobile/android/app/build/
+apps/mobile/ios/Pods/
+apps/mobile/ios/build/
+apps/mobile/ios/.xcode.env.local
+apps/mobile/ios/*.xcworkspace/

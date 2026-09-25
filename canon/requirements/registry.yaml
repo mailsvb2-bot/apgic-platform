@@ -2392,6 +2392,9 @@ requirements:
   - APGIC-MOBILE-002
   - APGIC-EXEC-001
   implementation_refs:
+  - apps/mobile/android/
+  - apps/mobile/ios/
+  - tools/mobile_native_build_guard.py
   - config/mobile/r0-ci-release-governance.yaml
   - config/mobile/release-governance.example.yaml
   - tools/mobile_release_guard.py
@@ -2399,6 +2402,7 @@ requirements:
   contract_refs:
   - canon/evidence/mobile-release-evidence-v1.schema.json
   test_refs:
+  - tools/tests/test_mobile_native_build_guard.py
   - tools/mobile_release_guard.py
   - .github/workflows/ci.yml
   evidence_refs: []
@@ -2526,12 +2530,16 @@ requirements:
   dependencies:
   - APGIC-MOBILE-012
   implementation_refs:
+  - apps/mobile/android/
+  - apps/mobile/ios/
+  - tools/mobile_native_build_guard.py
   - config/mobile/r0-ci-release-governance.yaml
   - config/mobile/release-governance.example.yaml
   - tools/mobile_release_guard.py
   contract_refs:
   - canon/evidence/mobile-release-evidence-v1.schema.json
   test_refs:
+  - tools/tests/test_mobile_native_build_guard.py
   - tools/mobile_release_guard.py
   - .github/workflows/ci.yml
   evidence_refs: []
@@ -2769,6 +2777,8 @@ requirements:
   dependencies:
   - APGIC-MOBILE-022
   implementation_refs:
+  - apps/mobile/ios/APGIC/PrivacyInfo.xcprivacy
+  - apps/mobile/android/data-safety.yaml
   - apps/mobile/privacy-declaration.yaml
   - tools/mobile_privacy_guard.py
   contract_refs: []

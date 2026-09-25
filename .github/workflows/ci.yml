@@ -42,6 +42,7 @@ jobs:
       - run: python tools/launch_config_guard.py config/launch.r4-ci.yaml --mode ci --profile R4
       - run: python tools/launch_config_guard.py config/launch.r5-ci.yaml --mode ci --profile R5
       - run: python tools/mobile_release_guard.py config/mobile/r0-ci-release-governance.yaml --mode ci
+      - run: python tools/mobile_native_build_guard.py config/mobile/r0-ci-release-governance.yaml
       - run: python tools/mobile_observability_guard.py config/mobile/r0-ci-observability.yaml --mode ci
       - run: python tools/mobile_realtime_guard.py config/mobile/r3-ci-realtime-policy.yaml --mode ci
       - run: python tools/r4_release_gate.py config/release/r4-ci-gate-evidence.yaml --gate all --mode ci
@@ -253,6 +254,75 @@ jobs:
       - working-directory: apps/mobile
         run: npm test
 
+  mobile-android-build:
+    name: Android native debug build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - working-directory: apps/mobile
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - working-directory: apps/mobile/android
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+      - shell: bash
+        run: |
+          mkdir -p evidence
+          test -f apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          sha256sum apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk > evidence/android-debug.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-native-debug-build
+          path: |
+            apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+            evidence/android-debug.sha256
+          if-no-files-found: error
+          retention-days: 30
+
+  mobile-ios-build:
+    name: iOS native simulator build
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - working-directory: apps/mobile
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - working-directory: apps/mobile/ios
+        run: pod install
+      - working-directory: apps/mobile/ios
+        run: |
+          xcodebuild \
+            -workspace APGIC.xcworkspace \
+            -scheme APGIC \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build/derived \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+      - shell: bash
+        run: |
+          mkdir -p evidence
+          APP="apps/mobile/ios/build/derived/Build/Products/Debug-iphonesimulator/APGIC.app"
+          test -d "$APP"
+          ditto -c -k --keepParent "$APP" evidence/APGIC-ios-simulator.zip
+          shasum -a 256 evidence/APGIC-ios-simulator.zip > evidence/ios-simulator.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios-native-simulator-build
+          path: |
+            evidence/APGIC-ios-simulator.zip
+            evidence/ios-simulator.sha256
+          if-no-files-found: error
+          retention-days: 30
+
   client-contract-presence:
     name: Multi-surface contract guard
     runs-on: ubuntu-latest
@@ -273,7 +343,7 @@ jobs:
   r0-gate:
     name: R0 bootstrap gate
     if: ${{ always() && !cancelled() }}
-    needs: [canon, backend, postgres-invariants, restore-drill, web-build, mobile-typecheck, client-contract-presence]
+    needs: [canon, backend, postgres-invariants, restore-drill, web-build, mobile-typecheck, mobile-android-build, mobile-ios-build, client-contract-presence]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -285,10 +355,12 @@ jobs:
           test "${{ needs.restore-drill.result }}" = "success"
           test "${{ needs.web-build.result }}" = "success"
           test "${{ needs.mobile-typecheck.result }}" = "success"
+          test "${{ needs.mobile-android-build.result }}" = "success"
+          test "${{ needs.mobile-ios-build.result }}" = "success"
           test "${{ needs.client-contract-presence.result }}" = "success"
       - shell: bash
         run: |
-          python tools/release_evidence.py             --candidate-sha "${{ github.event.pull_request.head.sha || github.sha }}"             --output evidence/r0-release-evidence.json             --gate "canon=${{ needs.canon.result }}"             --gate "backend=${{ needs.backend.result }}"             --gate "postgres-invariants=${{ needs.postgres-invariants.result }}"             --gate "restore-drill=${{ needs.restore-drill.result }}"             --gate "web-build=${{ needs.web-build.result }}"             --gate "mobile-typecheck=${{ needs.mobile-typecheck.result }}"             --gate "client-contract-presence=${{ needs.client-contract-presence.result }}"
+          python tools/release_evidence.py             --candidate-sha "${{ github.event.pull_request.head.sha || github.sha }}"             --output evidence/r0-release-evidence.json             --gate "canon=${{ needs.canon.result }}"             --gate "backend=${{ needs.backend.result }}"             --gate "postgres-invariants=${{ needs.postgres-invariants.result }}"             --gate "restore-drill=${{ needs.restore-drill.result }}"             --gate "web-build=${{ needs.web-build.result }}"             --gate "mobile-typecheck=${{ needs.mobile-typecheck.result }}"             --gate "android-native-build=${{ needs.mobile-android-build.result }}"             --gate "ios-native-build=${{ needs.mobile-ios-build.result }}"             --gate "client-contract-presence=${{ needs.client-contract-presence.result }}"
       - uses: actions/upload-artifact@v4
         with:
           name: r0-release-evidence
