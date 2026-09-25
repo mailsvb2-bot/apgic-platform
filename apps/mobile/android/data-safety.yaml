@@ -1,0 +1,10 @@
+version: 1
+scope: CI_NATIVE_BUILD
+production_submission: false
+tracking: false
+collected_data_classes: []
+shared_data_classes: []
+android_permissions:
+  - android.permission.INTERNET
+notes:
+  - "Repository artifact for build/privacy conformance only; not Google Play production evidence."
