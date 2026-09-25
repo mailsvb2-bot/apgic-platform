@@ -155,7 +155,9 @@ jobs:
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000013_r2_mobile_store_entitlements.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000014_r3_communication_consultation.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000015_r4_store_lifecycle_reconciliation.sql
+          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000016_r0_connector_delivery_semantics.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_invariants.sql
+          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r0_connector_delivery_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r1_mobile_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r1_marketplace_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r2_booking_order_invariants.sql
@@ -212,6 +214,7 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f backend/migrations/000013_r2_mobile_store_entitlements.sql
           psql -v ON_ERROR_STOP=1 -f backend/migrations/000014_r3_communication_consultation.sql
           psql -v ON_ERROR_STOP=1 -f backend/migrations/000015_r4_store_lifecycle_reconciliation.sql
+          psql -v ON_ERROR_STOP=1 -f backend/migrations/000016_r0_connector_delivery_semantics.sql
           bash backend/ci/restore_drill.sh
       - uses: actions/upload-artifact@v4
         with:
