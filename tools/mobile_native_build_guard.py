@@ -66,7 +66,7 @@ def validate(root: Path, config: dict) -> list[str]:
 
     project = required["ios_project"].read_text(encoding="utf-8")
     expected_ios = ios.get("bundle_id")
-    bundle_ids = sorted(set(re.findall(r"PRODUCT_BUNDLE_IDENTIFIER = ([^;]+);", project)))
+    bundle_ids = sorted(set(value.strip().strip('"') for value in re.findall(r"PRODUCT_BUNDLE_IDENTIFIER = ([^;]+);", project)))
     if bundle_ids != [expected_ios]:
         errors.append(f"iOS bundle identifiers {bundle_ids!r} != governance {expected_ios!r}")
     for forbidden in ("DEVELOPMENT_TEAM =", "PROVISIONING_PROFILE", "CODE_SIGN_IDENTITY[sdk=iphoneos"):

@@ -18,7 +18,7 @@ class MobileNativeBuildGuardTests(unittest.TestCase):
             "apps/mobile/android/app/src/main/java/com/apgic/ci/MainActivity.kt": 'package com.apgic.ci\noverride fun getMainComponentName(): String = "APGIC"\n',
             "apps/mobile/android/app/src/main/java/com/apgic/ci/MainApplication.kt": "package com.apgic.ci\n",
             "apps/mobile/android/gradle/wrapper/gradle-wrapper.jar": "wrapper",
-            "apps/mobile/ios/APGIC.xcodeproj/project.pbxproj": "PRODUCT_BUNDLE_IDENTIFIER = com.apgic.ci;\n",
+            "apps/mobile/ios/APGIC.xcodeproj/project.pbxproj": 'PRODUCT_BUNDLE_IDENTIFIER = "com.apgic.ci";\n',
             "apps/mobile/ios/APGIC/AppDelegate.swift": 'withModuleName: "APGIC"\n',
             "apps/mobile/ios/Podfile": "target 'APGIC' do\n",
             "apps/mobile/index.js": "APGIC\n",
