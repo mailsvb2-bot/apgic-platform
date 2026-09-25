@@ -81,6 +81,53 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /v1/search:
+    get:
+      operationId: searchProjection
+      parameters:
+        - name: topic
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Search projection for one topic. The index does not own qualification.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchView'
+  /v1/search/rebuild:
+    post:
+      operationId: rebuildSearchProjection
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchTopicRequest'
+      responses:
+        '200':
+          description: Projection rebuilt from canonical specialist profiles
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchView'
+  /v1/search/stale:
+    post:
+      operationId: markSearchProjectionStale
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchStaleRequest'
+      responses:
+        '200':
+          description: Index lost an entry. Qualification truth is unchanged.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchView'
   /v1/help-intents/{id}/matches:
     get:
       operationId: listHelpIntentMatches
@@ -401,6 +448,44 @@ components:
         context:
           type: object
           additionalProperties: { type: string }
+    SearchTopicRequest:
+      type: object
+      additionalProperties: false
+      required: [topic]
+      properties:
+        topic: { type: string }
+    SearchStaleRequest:
+      type: object
+      additionalProperties: false
+      required: [topic, specialist_id]
+      properties:
+        topic: { type: string }
+        specialist_id: { type: string }
+    SearchHit:
+      type: object
+      additionalProperties: false
+      required: [specialist_id, display_name, topics]
+      properties:
+        specialist_id: { type: string }
+        display_name: { type: string }
+        topics:
+          type: array
+          items: { type: string }
+    SearchView:
+      type: object
+      additionalProperties: false
+      required: [version, rebuilt, stale, owns_qualification, entries, notice]
+      properties:
+        version: { type: string }
+        topic: { type: string }
+        rebuilt: { type: boolean }
+        stale: { type: boolean }
+        owns_qualification: { type: boolean }
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/SearchHit'
+        notice: { type: string }
     HelpIntent:
       type: object
       additionalProperties: false

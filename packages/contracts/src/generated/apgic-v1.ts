@@ -2,7 +2,7 @@
 // DO NOT EDIT.
 export const apiContractVersion = "0.2.0-r1-demand" as const;
 
-export type ApiOperationId = "acquireSlotHold" | "applyProviderEvent" | "cancelOrder" | "completeConsultation" | "confirmHelpIntent" | "createCheckoutInstruction" | "createHelpIntent" | "getBookingFulfillment" | "getMeta" | "health" | "listCheckoutOptions" | "listHelpIntentMatches" | "listSpecialistSlots" | "readiness" | "recordConsultationPresence" | "reportConsultationFailure" | "succeedConsultationRecovery";
+export type ApiOperationId = "acquireSlotHold" | "applyProviderEvent" | "cancelOrder" | "completeConsultation" | "confirmHelpIntent" | "createCheckoutInstruction" | "createHelpIntent" | "getBookingFulfillment" | "getMeta" | "health" | "listCheckoutOptions" | "listHelpIntentMatches" | "listSpecialistSlots" | "markSearchProjectionStale" | "readiness" | "rebuildSearchProjection" | "recordConsultationPresence" | "reportConsultationFailure" | "searchProjection" | "succeedConsultationRecovery";
 
 export interface AcquireSlotHoldRequest {
   client_identity_id: string;
@@ -202,6 +202,31 @@ export interface ProviderEvent {
   outcome: string;
   provider_event_id: string;
   provider_id: string;
+}
+
+export interface SearchHit {
+  display_name: string;
+  specialist_id: string;
+  topics: Array<string>;
+}
+
+export interface SearchStaleRequest {
+  specialist_id: string;
+  topic: string;
+}
+
+export interface SearchTopicRequest {
+  topic: string;
+}
+
+export interface SearchView {
+  entries: Array<SearchHit>;
+  notice: string;
+  owns_qualification: boolean;
+  rebuilt: boolean;
+  stale: boolean;
+  topic?: string;
+  version: string;
 }
 
 export interface Slot {

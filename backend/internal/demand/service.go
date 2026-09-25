@@ -92,6 +92,8 @@ type Service struct {
 	reversals     map[string]*Cancellation
 	notices       map[string]*BookingNotice
 	sessions      map[string]*consultation.Session
+	projection    marketplace.SearchProjection
+	searchStale   bool
 }
 
 func NewConformanceService(now func() time.Time) *Service {

@@ -135,6 +135,7 @@ export function Journey() {
   const [intent, setIntent] = useState<Intent | null>(null);
   const [topics, setTopics] = useState<string[]>([]);
   const [matches, setMatches] = useState<MatchCard[] | null>(null);
+  const [search, setSearch] = useState<{ notice: string; stale: boolean; rebuilt: boolean; owns_qualification: boolean; entries: { specialist_id: string; display_name: string }[] } | null>(null);
   const [specialist, setSpecialist] = useState<MatchCard | null>(null);
   const [slots, setSlots] = useState<Slot[]>([]);
   const [hold, setHold] = useState<Hold | null>(null);
@@ -193,8 +194,51 @@ export function Journey() {
         return payload as { matches: MatchCard[] };
       });
       setMatches(listed.matches);
+      const topic = topics[0];
+      if (topic) {
+        const projected = await fetch(`/v1/search?topic=${encodeURIComponent(topic)}`);
+        const projection = await projected.json();
+        if (!projected.ok) throw new Error(projection.message_safe || "Поиск недоступен.");
+        if (projection.owns_qualification) throw new Error("Поиск не должен владеть допуском.");
+        setSearch(projection);
+      }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Не удалось подтвердить запрос.");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function staleSearch() {
+    const topic = topics[0];
+    if (!topic) return;
+    setError("");
+    setPending(true);
+    try {
+      const view = await postJSON<{ owns_qualification: boolean; stale: boolean; entries: { display_name: string }[]; notice: string; rebuilt: boolean }>("/v1/search/stale", {
+        topic,
+        specialist_id: "spec-lebedeva",
+      });
+      if (view.owns_qualification) throw new Error("Поиск не должен владеть допуском.");
+      setSearch(view);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Индекс не сброшен.");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function rebuildSearch() {
+    const topic = topics[0];
+    if (!topic) return;
+    setError("");
+    setPending(true);
+    try {
+      const view = await postJSON<{ owns_qualification: boolean; stale: boolean; rebuilt: boolean; entries: { display_name: string }[]; notice: string }>("/v1/search/rebuild", { topic });
+      if (view.owns_qualification || view.stale || !view.rebuilt) throw new Error("Проекция не восстановлена из каталога.");
+      setSearch(view);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Поиск не восстановлен.");
     } finally {
       setPending(false);
     }
@@ -467,6 +511,15 @@ export function Journey() {
               </li>
             ))}
           </ul>
+          {search ? (
+            <>
+              <p>{search.notice}</p>
+              <p>{search.entries.length === 0 ? "В проекции никого нет." : `В проекции: ${search.entries.map((entry) => entry.display_name).join(", ")}.`}</p>
+              <p>Индекс владеет допуском: {search.owns_qualification ? "да" : "нет"}.</p>
+              <button type="button" onClick={staleSearch} disabled={pending}>Сбросить поисковый индекс</button>
+              <button type="button" onClick={rebuildSearch} disabled={pending}>Восстановить поиск из каталога</button>
+            </>
+          ) : null}
         </section>
       ) : null}
 

@@ -20,6 +20,12 @@ test("help intent journey stays usable and accessible", async ({ page }) => {
   await expect(cards).toHaveCount(1);
   await expect(cards.first()).toHaveText("Марина Лебедева");
   await expect(page.getByText("Илья Соколов")).toHaveCount(0);
+  await expect(page.getByText("В проекции: Марина Лебедева.")).toBeVisible();
+  await page.getByRole("button", { name: "Сбросить поисковый индекс" }).click();
+  await expect(page.getByText("В проекции никого нет.")).toBeVisible();
+  await expect(page.getByRole("heading", { level: 3, name: "Марина Лебедева" })).toBeVisible();
+  await page.getByRole("button", { name: "Восстановить поиск из каталога" }).click();
+  await expect(page.getByText("В проекции: Марина Лебедева.")).toBeVisible();
 
   await page.getByRole("button", { name: "Выбрать время у Марина Лебедева" }).click();
   const holds = page.getByRole("button", { name: /Удержать слот/ });

@@ -299,6 +299,19 @@ func RebuildSearchProjection(version string, profiles []SpecialistProfile) Searc
 	return SearchProjection{Version: version, entries: entries}
 }
 
+func (p SearchProjection) Drop(specialistID string) SearchProjection {
+	kept := make([]SearchEntry, 0, len(p.entries))
+	for _, entry := range p.entries {
+		if entry.SpecialistID == specialistID {
+			continue
+		}
+		copyEntry := entry
+		copyEntry.Topics = cloneStrings(entry.Topics)
+		kept = append(kept, copyEntry)
+	}
+	return SearchProjection{Version: p.Version, entries: kept}
+}
+
 func (p SearchProjection) SearchTopic(topic string) []SearchEntry {
 	result := make([]SearchEntry, 0)
 	for _, entry := range p.entries {

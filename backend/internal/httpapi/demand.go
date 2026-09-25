@@ -90,6 +90,60 @@ func registerDemand(mux *http.ServeMux, service *demand.Service) {
 		writeJSON(w, http.StatusOK, intent)
 	})
 
+	mux.HandleFunc("GET /v1/search", func(w http.ResponseWriter, r *http.Request) {
+		if service == nil {
+			writeDemandError(w, r, http.StatusServiceUnavailable, "DEMAND_CATALOG_UNAVAILABLE", "Каталог спроса не подключён.", false, nil)
+			return
+		}
+		view, err := service.Search(r.URL.Query().Get("topic"))
+		if err != nil {
+			writeDemandFailure(w, r, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, view)
+	})
+
+	mux.HandleFunc("POST /v1/search/rebuild", func(w http.ResponseWriter, r *http.Request) {
+		if service == nil {
+			writeDemandError(w, r, http.StatusServiceUnavailable, "DEMAND_CATALOG_UNAVAILABLE", "Каталог спроса не подключён.", false, nil)
+			return
+		}
+		var body struct {
+			Topic string `json:"topic"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			writeDemandError(w, r, http.StatusBadRequest, "SEARCH_INVALID", "Запрос поиска не удалось прочитать.", false, nil)
+			return
+		}
+		view, err := service.RebuildSearch(body.Topic)
+		if err != nil {
+			writeDemandFailure(w, r, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, view)
+	})
+
+	mux.HandleFunc("POST /v1/search/stale", func(w http.ResponseWriter, r *http.Request) {
+		if service == nil {
+			writeDemandError(w, r, http.StatusServiceUnavailable, "DEMAND_CATALOG_UNAVAILABLE", "Каталог спроса не подключён.", false, nil)
+			return
+		}
+		var body struct {
+			Topic        string `json:"topic"`
+			SpecialistID string `json:"specialist_id"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			writeDemandError(w, r, http.StatusBadRequest, "SEARCH_INVALID", "Запрос поиска не удалось прочитать.", false, nil)
+			return
+		}
+		view, err := service.MarkSearchStale(body.Topic, body.SpecialistID)
+		if err != nil {
+			writeDemandFailure(w, r, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, view)
+	})
+
 	mux.HandleFunc("GET /v1/help-intents/{id}/matches", func(w http.ResponseWriter, r *http.Request) {
 		if service == nil {
 			writeDemandError(w, r, http.StatusServiceUnavailable, "DEMAND_CATALOG_UNAVAILABLE", "Каталог спроса не подключён.", false, nil)
