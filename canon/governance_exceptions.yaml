@@ -1,9 +1,10 @@
 version: 1
 exceptions:
   - id: APGIC-GOV-EX-001
-    status: OPEN
+    status: RESOLVED
     type: RELEASE_PROFILE_DEPENDENCY_ORDER
     subject_requirement: APGIC-PAY-004
     dependency_requirement: APGIC-PAY-001
-    observed: "APGIC-PAY-004 is R0 while APGIC-PAY-001 is R2"
-    treatment: "Do not rewrite canon. Track through Requirement Change/RFC; bootstrap only enforces the taxonomy invariant."
+    observed: "APGIC-PAY-004 was R0 while its dependency APGIC-PAY-001 was R2"
+    treatment: "Resolved by APGIC-RFC-001. Taxonomy stays in R0 with no dependency on payment execution. APGIC does not accept, store, or transfer funds."
+    resolved_by: APGIC-RFC-001

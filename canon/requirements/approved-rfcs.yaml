@@ -1,0 +1,17 @@
+version: 1
+rfcs:
+  - id: APGIC-RFC-001
+    status: APPROVED
+    reason_class: MISSING_DEPENDENCY_BLOCKER
+    requirement_id: APGIC-PAY-004
+    field: dependencies
+    baseline:
+      - APGIC-PAY-001
+    approved: []
+    decision: >
+      R0 keeps the PaymentProvider, PaymentMethod and PaymentRail taxonomy so
+      those concepts cannot collapse into one payment_type. The taxonomy does
+      not execute a payment and does not depend on APGIC-PAY-001. Payment
+      execution stays in R2: an external PaymentProvider moves the money.
+      APGIC does not accept, store, or transfer client, specialist, or
+      organization funds.

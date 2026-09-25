@@ -17,6 +17,7 @@ WORKING_COVERAGE = ROOT / "canon/requirements/coverage.json"
 BASELINE_REGISTRY = ROOT / "canon/baseline/APGIC_Requirement_Registry_v7_FINAL.yaml"
 BASELINE_COVERAGE = ROOT / "canon/baseline/APGIC_Canon_Coverage_v7_FINAL.json"
 EXCEPTIONS = ROOT / "canon/requirements/governance_exceptions.yaml"
+APPROVED_RFCS = ROOT / "canon/requirements/approved-rfcs.yaml"
 CANON = ROOT / "canon/APGIC_Единое_каноническое_ТЗ_исполняемый_канон_v7_FINAL.docx"
 
 ALLOWED_STATUS = {
@@ -38,6 +39,22 @@ baseline = yaml.safe_load(BASELINE_REGISTRY.read_text(encoding="utf-8"))
 coverage = json.loads(WORKING_COVERAGE.read_text(encoding="utf-8"))
 baseline_coverage = json.loads(BASELINE_COVERAGE.read_text(encoding="utf-8"))
 exceptions_doc = yaml.safe_load(EXCEPTIONS.read_text(encoding="utf-8")) or {}
+rfc_doc = yaml.safe_load(APPROVED_RFCS.read_text(encoding="utf-8")) if APPROVED_RFCS.is_file() else {}
+approved_deltas: dict[tuple[str, str], tuple[object, object]] = {}
+for item in (rfc_doc or {}).get("rfcs") or []:
+    if item.get("status") != "APPROVED":
+        continue
+    rfc_id = item.get("id")
+    requirement_id = item.get("requirement_id")
+    field = item.get("field")
+    if not rfc_id or not requirement_id or field not in IMMUTABLE_REQUIREMENT_FIELDS:
+        errors.append(f"approved RFC {rfc_id!r} must name a requirement and an immutable field")
+        continue
+    key = (str(requirement_id), str(field))
+    if key in approved_deltas:
+        errors.append(f"duplicate approved RFC for {key[0]} field {key[1]}")
+        continue
+    approved_deltas[key] = (item.get("baseline"), item.get("approved"))
 
 requirements = working.get("requirements") or []
 baseline_requirements = baseline.get("requirements") or []
@@ -65,8 +82,12 @@ for rid, req in by_id.items():
     base = baseline_by_id.get(rid)
     if base:
         for field in IMMUTABLE_REQUIREMENT_FIELDS:
-            if req.get(field) != base.get(field):
-                errors.append(f"{rid}: semantic field changed without Canon/RFC: {field}")
+            if req.get(field) == base.get(field):
+                continue
+            delta = approved_deltas.get((rid, field))
+            if delta == (base.get(field), req.get(field)):
+                continue
+            errors.append(f"{rid}: semantic field changed without Canon/RFC: {field}")
 
     if req.get("status") not in ALLOWED_STATUS:
         errors.append(f"{rid}: invalid status {req.get('status')!r}")
@@ -87,6 +108,17 @@ for rid, req in by_id.items():
         for key in ("implementation_refs", "test_refs", "evidence_refs"):
             if not req.get(key):
                 errors.append(f"{rid}: {req.get('status')} with empty {key}")
+
+for (requirement_id, field), (baseline_value, approved_value) in approved_deltas.items():
+    base = baseline_by_id.get(requirement_id)
+    current = by_id.get(requirement_id)
+    if base is None or current is None:
+        errors.append(f"approved RFC targets unknown requirement {requirement_id}")
+        continue
+    if base.get(field) != baseline_value:
+        errors.append(f"{requirement_id}: RFC baseline for {field} does not match frozen v7 FINAL")
+    if current.get(field) != approved_value:
+        errors.append(f"{requirement_id}: approved RFC for {field} is not applied")
 
 if coverage != baseline_coverage:
     errors.append("coverage map differs from immutable v7 FINAL baseline")
