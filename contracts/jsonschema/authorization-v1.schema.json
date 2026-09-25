@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apgic.local/contracts/authorization-v1.schema.json",
+  "title": "APGIC Authorization v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["input", "result"],
+  "$defs": {
+    "Risk": {
+      "enum": ["NORMAL", "HIGH_RISK"]
+    },
+    "AuthorizationDecision": {
+      "enum": ["ALLOW", "DENY", "STEP_UP_REQUIRED"]
+    }
+  },
+  "properties": {
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "principal_id",
+        "principal_tenant_id",
+        "resource_id",
+        "resource_tenant_id",
+        "permissions",
+        "action",
+        "risk",
+        "correlation_id",
+        "audit_record_id"
+      ],
+      "properties": {
+        "principal_id": {"type": "string", "minLength": 1},
+        "principal_tenant_id": {"type": "string", "minLength": 1},
+        "resource_id": {"type": "string"},
+        "resource_tenant_id": {"type": "string", "minLength": 1},
+        "permissions": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "action": {"type": "string", "minLength": 1},
+        "risk": {"$ref": "#/$defs/Risk"},
+        "step_up_at": {"type": ["string", "null"], "format": "date-time"},
+        "correlation_id": {"type": "string", "minLength": 1},
+        "audit_record_id": {"type": "string", "minLength": 1}
+      }
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decision", "reason_code"],
+      "properties": {
+        "decision": {"$ref": "#/$defs/AuthorizationDecision"},
+        "reason_code": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}
