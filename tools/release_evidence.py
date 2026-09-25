@@ -24,6 +24,12 @@ FIXED_ARTIFACTS = [
     "apps/mobile/package.json",
     "apps/mobile/dependency-registry.yaml",
     "apps/mobile/privacy-declaration.yaml",
+    "apps/mobile/android/app/build.gradle",
+    "apps/mobile/android/gradle/wrapper/gradle-wrapper.properties",
+    "apps/mobile/android/data-safety.yaml",
+    "apps/mobile/ios/Podfile",
+    "apps/mobile/ios/APGIC.xcodeproj/project.pbxproj",
+    "apps/mobile/ios/APGIC/PrivacyInfo.xcprivacy",
 ]
 
 def sha256(path: Path) -> str:

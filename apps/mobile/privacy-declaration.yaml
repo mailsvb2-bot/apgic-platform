@@ -1,10 +1,13 @@
 version: 1
-build_scope: R0_NATIVE_SHELL
+build_scope: R0_NATIVE_BUILD_GRAPH
 tracking: false
 collected_data_classes: []
 shared_data_classes: []
 required_permissions: []
-required_reason_apis: []
+required_reason_apis:
+  - NSPrivacyAccessedAPICategoryFileTimestamp
+  - NSPrivacyAccessedAPICategorySystemBootTime
+  - NSPrivacyAccessedAPICategoryUserDefaults
 runtime_dependency_assertions:
   react:
     egress: NONE
@@ -17,8 +20,12 @@ runtime_dependency_assertions:
     permissions: []
 store_artifacts:
   apple_privacy_manifest:
-    status: NOT_YET_GENERATED
-    reason: Native iOS build graph is not yet present; do not claim build-match evidence.
+    status: GENERATED_AND_VERIFIED
+    path: apps/mobile/ios/APGIC/PrivacyInfo.xcprivacy
+    production_submission: false
+    reason: "Verified against the committed CI native build graph; not App Store production evidence."
   google_data_safety:
-    status: NOT_YET_GENERATED
-    reason: Native Android build graph is not yet present; do not claim build-match evidence.
+    status: GENERATED_AND_VERIFIED
+    path: apps/mobile/android/data-safety.yaml
+    production_submission: false
+    reason: "Verified against the committed CI Android manifest; not Google Play production evidence."

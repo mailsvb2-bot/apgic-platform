@@ -65,3 +65,99 @@ dependencies:
     security_status: BUILD_ONLY
     removal_strategy: Remove development dependency after replacement compiler approval
     kill_strategy: Not shipped in runtime
+  - name: "@babel/core"
+    declared_version: "^7.25.2"
+    scope: BUILD_ONLY
+    purpose: Babel compiler core for React Native builds
+    data_classes: []
+    egress: NONE
+    permissions: []
+    provenance: "npm:@babel/core@^7.25.2"
+    privacy_status: BUILD_ONLY
+    security_status: BUILD_ONLY
+    removal_strategy: Remove development dependency and update native build graph
+    kill_strategy: Not shipped as an independent runtime capability
+  - name: "@babel/preset-env"
+    declared_version: "^7.25.3"
+    scope: BUILD_ONLY
+    purpose: Babel environment preset used by build tooling
+    data_classes: []
+    egress: NONE
+    permissions: []
+    provenance: "npm:@babel/preset-env@^7.25.3"
+    privacy_status: BUILD_ONLY
+    security_status: BUILD_ONLY
+    removal_strategy: Remove development dependency and update native build graph
+    kill_strategy: Not shipped as an independent runtime capability
+  - name: "@babel/runtime"
+    declared_version: "^7.25.0"
+    scope: BUILD_ONLY
+    purpose: Babel helper runtime for native bundle compilation
+    data_classes: []
+    egress: NONE
+    permissions: []
+    provenance: "npm:@babel/runtime@^7.25.0"
+    privacy_status: BUILD_ONLY
+    security_status: BUILD_ONLY
+    removal_strategy: Remove development dependency and update native build graph
+    kill_strategy: Not shipped as an independent runtime capability
+  - name: "@react-native-community/cli"
+    declared_version: "20.2.0"
+    scope: BUILD_ONLY
+    purpose: React Native native-project build CLI
+    data_classes: []
+    egress: NONE
+    permissions: []
+    provenance: "npm:@react-native-community/cli@20.2.0"
+    privacy_status: BUILD_ONLY
+    security_status: BUILD_ONLY
+    removal_strategy: Remove development dependency and update native build graph
+    kill_strategy: Not shipped as an independent runtime capability
+  - name: "@react-native-community/cli-platform-android"
+    declared_version: "20.2.0"
+    scope: BUILD_ONLY
+    purpose: Android native build CLI integration
+    data_classes: []
+    egress: NONE
+    permissions: []
+    provenance: "npm:@react-native-community/cli-platform-android@20.2.0"
+    privacy_status: BUILD_ONLY
+    security_status: BUILD_ONLY
+    removal_strategy: Remove development dependency and update native build graph
+    kill_strategy: Not shipped as an independent runtime capability
+  - name: "@react-native-community/cli-platform-ios"
+    declared_version: "20.2.0"
+    scope: BUILD_ONLY
+    purpose: iOS native build and CocoaPods CLI integration
+    data_classes: []
+    egress: NONE
+    permissions: []
+    provenance: "npm:@react-native-community/cli-platform-ios@20.2.0"
+    privacy_status: BUILD_ONLY
+    security_status: BUILD_ONLY
+    removal_strategy: Remove development dependency and update native build graph
+    kill_strategy: Not shipped as an independent runtime capability
+  - name: "@react-native/babel-preset"
+    declared_version: "0.87.1"
+    scope: BUILD_ONLY
+    purpose: React Native 0.87 Babel preset
+    data_classes: []
+    egress: NONE
+    permissions: []
+    provenance: "npm:@react-native/babel-preset@0.87.1"
+    privacy_status: BUILD_ONLY
+    security_status: BUILD_ONLY
+    removal_strategy: Remove development dependency and update native build graph
+    kill_strategy: Not shipped as an independent runtime capability
+  - name: "@react-native/metro-config"
+    declared_version: "0.87.1"
+    scope: BUILD_ONLY
+    purpose: React Native 0.87 Metro build configuration
+    data_classes: []
+    egress: NONE
+    permissions: []
+    provenance: "npm:@react-native/metro-config@0.87.1"
+    privacy_status: BUILD_ONLY
+    security_status: BUILD_ONLY
+    removal_strategy: Remove development dependency and update native build graph
+    kill_strategy: Not shipped as an independent runtime capability

@@ -82,15 +82,16 @@ def main() -> None:
     if not expected.issubset(required_evidence):
         fail(f"required_evidence missing {sorted(expected - required_evidence)}")
 
+    if not (ROOT / "apps/mobile/ios").is_dir():
+        fail("iOS build graph is absent")
+    if not (ROOT / "apps/mobile/android").is_dir():
+        fail("Android build graph is absent")
+
     if args.mode == "production":
         if config.get("scope") != "PRODUCTION" or config.get("production_approved") is not True:
             fail("production release governance is not approved")
         require_ref(ios.get("signing_identity_ref"), "secret://", "iOS signing_identity_ref")
         require_ref(android.get("signing_identity_ref"), "secret://", "Android signing_identity_ref")
-        if not (ROOT / "apps/mobile/ios").is_dir():
-            fail("production iOS build graph is absent")
-        if not (ROOT / "apps/mobile/android").is_dir():
-            fail("production Android build graph is absent")
     else:
         if config.get("scope") != "CI_ONLY":
             fail("CI release governance must have scope=CI_ONLY")
