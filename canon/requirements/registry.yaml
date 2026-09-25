@@ -152,10 +152,13 @@ requirements:
   dependencies: []
   implementation_refs:
   - tools/canon_lint.py
+  - tools/registry_ref_guard.py
   - .github/workflows/ci.yml
-  contract_refs: []
+  contract_refs:
+  - canon/contracts/requirement-traceability-v1.schema.json
   test_refs:
   - tools/canon_lint.py
+  - tools/tests/test_registry_ref_guard.py
   evidence_refs: []
   acceptance:
     given: утверждён launch-critical Requirement
