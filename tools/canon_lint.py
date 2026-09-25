@@ -9,7 +9,7 @@ from pathlib import Path
 
 import yaml
 
-from tools.registry_ref_guard import validate_repository_refs
+from registry_ref_guard import validate_repository_refs
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKING_REGISTRY = ROOT / "canon/requirements/registry.yaml"
