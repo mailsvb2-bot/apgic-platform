@@ -71,7 +71,7 @@ test("help intent journey stays usable and accessible", async ({ page }) => {
   await expect(page.getByText("Повторное списание: нет.")).toBeVisible();
   await expect(page.getByText("Сырая запись в деле: нет.")).toBeVisible();
   await page.getByRole("button", { name: "Передать сырую запись в рост" }).click();
-  await expect(page.locator(".alert")).toContainText("согласие");
+  await expect(page.locator(".alert")).toContainText("согласия");
   await page.getByRole("button", { name: "Отменить бронь через внешнего провайдера" }).click();
   await expect(page.getByRole("heading", { name: "Бронь отменена" })).toBeVisible();
   await expect(page.getByText("CANCELLED")).toBeVisible();
