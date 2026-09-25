@@ -15,11 +15,11 @@ const (
 )
 
 type ConsultationView struct {
-	ID            string `json:"id"`
-	BookingID     string `json:"booking_id"`
-	State         string `json:"state"`
-	ProviderID    string `json:"provider_id"`
-	EvidenceRef   string `json:"evidence_ref,omitempty"`
+	ID                string `json:"id"`
+	BookingID         string `json:"booking_id"`
+	State             string `json:"state"`
+	ProviderID        string `json:"provider_id"`
+	EvidenceRef       string `json:"evidence_ref,omitempty"`
 	APGICOwnsRoom     bool   `json:"apgic_owns_room"`
 	ChargedAgain      bool   `json:"charged_again"`
 	RefundPathOpened  bool   `json:"refund_path_opened"`
