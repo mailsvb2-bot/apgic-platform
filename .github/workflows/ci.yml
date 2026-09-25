@@ -28,6 +28,7 @@ jobs:
       - run: python tools/canon_lint.py
       - run: python tools/architecture_guard.py
       - run: python tools/identity_contract_guard.py
+      - run: python tools/auth_contract_guard.py
       - run: python tools/payment_custody_guard.py
       - run: python tools/mobile_dependency_guard.py
       - run: python tools/mobile_privacy_guard.py
