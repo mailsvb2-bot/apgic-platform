@@ -3562,6 +3562,7 @@ requirements:
   - backend/internal/demand/checkout_test.go
   - backend/migrations/ci_r2_payment_invariants.sql
   - tools/architecture_guard.py
+  - tools/payment_custody_guard.py
   evidence_refs: []
   acceptance:
     given: any paid flow is executed

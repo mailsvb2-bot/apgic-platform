@@ -23,7 +23,7 @@ type Entry struct {
 func NewEntry(e Entry) (Entry, error) {
 	e.Currency = strings.ToUpper(e.Currency)
 	if e.ID == "" || e.DebitAccountRef == "" || e.CreditAccountRef == "" ||
-		e.AmountMinor <= 0 || len(e.Currency) != 3 || e.ProviderEvidenceRef == "" ||
+		e.AmountMinor <= 0 || !validCurrencyCode(e.Currency) || e.ProviderEvidenceRef == "" ||
 		e.CorrelationID == "" {
 		return Entry{}, ErrInvalidEntry
 	}
@@ -31,4 +31,16 @@ func NewEntry(e Entry) (Entry, error) {
 		e.OccurredAt = time.Now().UTC()
 	}
 	return e, nil
+}
+
+func validCurrencyCode(code string) bool {
+	if len(code) != 3 {
+		return false
+	}
+	for i := 0; i < len(code); i++ {
+		if code[i] < 'A' || code[i] > 'Z' {
+			return false
+		}
+	}
+	return true
 }
