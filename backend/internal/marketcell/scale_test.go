@@ -7,7 +7,7 @@ import (
 
 func policy() Policy {
 	return Policy{
-		Version: "market-cell-r5-ci-v1",
+		Version:      "market-cell-r5-ci-v1",
 		MarketCellID: "ci-ru-anxiety-online",
 		Thresholds: Thresholds{
 			EligibleVerifiedSupplyMin:           3,
