@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from tools.registry_ref_guard import validate_repository_refs
+from tools.registry_ref_guard import validate_completion_traceability, validate_repository_refs
 
 
 class RegistryRefGuardTests(unittest.TestCase):
@@ -84,6 +84,29 @@ class RegistryRefGuardTests(unittest.TestCase):
                 errors,
                 ["APGIC-TEST-001: implementation_refs must be a list"],
             )
+
+
+    def test_completion_requires_contract_and_all_traceability_refs(self) -> None:
+        errors = validate_completion_traceability([{
+            "requirement_id": "APGIC-EXEC-001",
+            "status": "VERIFIED",
+            "implementation_refs": ["tools/canon_lint.py"],
+            "contract_refs": [],
+            "test_refs": ["tools/tests/test_registry_ref_guard.py"],
+            "evidence_refs": ["ci://candidate/example"],
+        }])
+        self.assertEqual(errors, ["APGIC-EXEC-001: VERIFIED with empty contract_refs"])
+
+    def test_in_progress_may_keep_external_evidence_open(self) -> None:
+        errors = validate_completion_traceability([{
+            "requirement_id": "APGIC-EXEC-001",
+            "status": "IN_PROGRESS",
+            "implementation_refs": ["tools/canon_lint.py"],
+            "contract_refs": [],
+            "test_refs": ["tools/tests/test_registry_ref_guard.py"],
+            "evidence_refs": [],
+        }])
+        self.assertEqual(errors, [])
 
 
 if __name__ == "__main__":

@@ -9,7 +9,7 @@ from pathlib import Path
 
 import yaml
 
-from registry_ref_guard import validate_repository_refs
+from registry_ref_guard import validate_completion_traceability, validate_repository_refs
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKING_REGISTRY = ROOT / "canon/requirements/registry.yaml"
@@ -62,6 +62,7 @@ by_id: dict[str, dict] = {}
 baseline_by_id = {item.get("requirement_id"): item for item in baseline_requirements}
 
 errors.extend(validate_repository_refs(ROOT, requirements))
+errors.extend(validate_completion_traceability(requirements))
 
 if working.get("meta") != baseline.get("meta"):
     errors.append("working registry meta differs from immutable v7 FINAL baseline")
@@ -104,10 +105,6 @@ for rid, req in by_id.items():
         required = (req.get("acceptance") or {}).get("required_evidence") or []
         if not required:
             errors.append(f"{rid}: launch-critical requirement has no evidence expectation")
-    if req.get("status") in {"VERIFIED", "RELEASED"}:
-        for key in ("implementation_refs", "test_refs", "evidence_refs"):
-            if not req.get(key):
-                errors.append(f"{rid}: {req.get('status')} with empty {key}")
 
 for (requirement_id, field), (baseline_value, approved_value) in approved_deltas.items():
     base = baseline_by_id.get(requirement_id)
