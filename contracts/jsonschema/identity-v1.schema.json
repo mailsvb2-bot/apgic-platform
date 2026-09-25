@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apgic.local/contracts/identity-v1.schema.json",
+  "title": "APGIC Identity v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["identity_id", "roles"],
+  "properties": {
+    "identity_id": {"type":"string","minLength":1},
+    "roles": {
+      "type":"array",
+      "uniqueItems": true,
+      "items": {
+        "enum": ["CLIENT", "SPECIALIST", "AUTHOR", "STUDENT"]
+      }
+    }
+  }
+}
