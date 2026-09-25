@@ -9,6 +9,8 @@ from pathlib import Path
 
 import yaml
 
+from tools.registry_ref_guard import validate_repository_refs
+
 ROOT = Path(__file__).resolve().parents[1]
 WORKING_REGISTRY = ROOT / "canon/requirements/registry.yaml"
 WORKING_COVERAGE = ROOT / "canon/requirements/coverage.json"
@@ -41,6 +43,8 @@ requirements = working.get("requirements") or []
 baseline_requirements = baseline.get("requirements") or []
 by_id: dict[str, dict] = {}
 baseline_by_id = {item.get("requirement_id"): item for item in baseline_requirements}
+
+errors.extend(validate_repository_refs(ROOT, requirements))
 
 if working.get("meta") != baseline.get("meta"):
     errors.append("working registry meta differs from immutable v7 FINAL baseline")
