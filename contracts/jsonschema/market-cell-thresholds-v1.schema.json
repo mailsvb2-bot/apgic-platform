@@ -4,28 +4,76 @@
   "title": "APGIC MarketCell Thresholds v1",
   "type": "object",
   "additionalProperties": false,
-  "required": ["version", "scope", "production_approved", "policy_kind", "market_cells"],
+  "required": [
+    "version",
+    "scope",
+    "production_approved",
+    "policy_kind",
+    "market_cells"
+  ],
   "properties": {
-    "version": { "type": "string", "minLength": 1 },
-    "scope": { "type": "string", "enum": ["CI_ONLY", "PRODUCTION"] },
-    "production_approved": { "type": "boolean" },
-    "policy_kind": { "const": "MARKET_CELL_THRESHOLDS" },
+    "version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "scope": {
+      "type": "string",
+      "enum": [
+        "CI_ONLY",
+        "PRODUCTION"
+      ]
+    },
+    "production_approved": {
+      "type": "boolean"
+    },
+    "policy_kind": {
+      "const": "MARKET_CELL_THRESHOLDS"
+    },
     "market_cells": {
       "type": "array",
       "minItems": 1,
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "jurisdiction", "topic", "format", "time_window", "state", "thresholds", "evidence_refs"],
+        "required": [
+          "id",
+          "jurisdiction",
+          "topic",
+          "format",
+          "time_window",
+          "state",
+          "thresholds",
+          "evidence_refs"
+        ],
         "properties": {
-          "id": { "type": "string", "minLength": 1 },
-          "jurisdiction": { "type": "string", "minLength": 1 },
-          "topic": { "type": "string", "minLength": 1 },
-          "format": { "type": "string", "minLength": 1 },
-          "time_window": { "type": "string", "minLength": 1 },
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "jurisdiction": {
+            "type": "string",
+            "minLength": 1
+          },
+          "topic": {
+            "type": "string",
+            "minLength": 1
+          },
+          "format": {
+            "type": "string",
+            "minLength": 1
+          },
+          "time_window": {
+            "type": "string",
+            "minLength": 1
+          },
           "state": {
             "type": "string",
-            "enum": ["DISCOVERY", "SUPPLY_SEEDING", "DEMAND_TEST", "SCALE_READY"]
+            "enum": [
+              "DISCOVERY",
+              "SUPPLY_SEEDING",
+              "DEMAND_TEST",
+              "SCALE_READY"
+            ]
           },
           "thresholds": {
             "type": "object",
@@ -49,29 +97,220 @@
               "contribution_margin_min_percent"
             ],
             "properties": {
-              "eligible_verified_supply_min": { "type": "number", "minimum": 0 },
-              "active_specialists_min": { "type": "number", "minimum": 0 },
-              "bookable_slot_coverage_min_percent": { "type": "number", "minimum": 0, "maximum": 100 },
-              "duty_supply_min": { "type": "number", "minimum": 0 },
-              "time_to_available_slot_median_max_minutes": { "type": "number", "minimum": 0 },
-              "time_to_available_slot_p95_max_minutes": { "type": "number", "minimum": 0 },
-              "fill_conversion_min_percent": { "type": "number", "minimum": 0, "maximum": 100 },
-              "booking_conversion_min_percent": { "type": "number", "minimum": 0, "maximum": 100 },
-              "cancellation_max_percent": { "type": "number", "minimum": 0, "maximum": 100 },
-              "no_show_max_percent": { "type": "number", "minimum": 0, "maximum": 100 },
-              "response_time_p95_max_minutes": { "type": "number", "minimum": 0 },
-              "acceptance_time_p95_max_minutes": { "type": "number", "minimum": 0 },
-              "unfilled_demand_max_percent": { "type": "number", "minimum": 0, "maximum": 100 },
-              "complaint_rate_max_percent": { "type": "number", "minimum": 0, "maximum": 100 },
-              "safety_incident_rate_max_percent": { "type": "number", "minimum": 0, "maximum": 100 },
-              "contribution_margin_min_percent": { "type": "number", "minimum": -100, "maximum": 100 }
+              "eligible_verified_supply_min": {
+                "type": "number",
+                "minimum": 0
+              },
+              "active_specialists_min": {
+                "type": "number",
+                "minimum": 0
+              },
+              "bookable_slot_coverage_min_percent": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "duty_supply_min": {
+                "type": "number",
+                "minimum": 0
+              },
+              "time_to_available_slot_median_max_minutes": {
+                "type": "number",
+                "minimum": 0
+              },
+              "time_to_available_slot_p95_max_minutes": {
+                "type": "number",
+                "minimum": 0
+              },
+              "fill_conversion_min_percent": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "booking_conversion_min_percent": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "cancellation_max_percent": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "no_show_max_percent": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "response_time_p95_max_minutes": {
+                "type": "number",
+                "minimum": 0
+              },
+              "acceptance_time_p95_max_minutes": {
+                "type": "number",
+                "minimum": 0
+              },
+              "unfilled_demand_max_percent": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "complaint_rate_max_percent": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "safety_incident_rate_max_percent": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "contribution_margin_min_percent": {
+                "type": "number",
+                "minimum": -100,
+                "maximum": 100
+              }
             }
           },
           "evidence_refs": {
             "type": "array",
-            "items": { "type": "string", "minLength": 1 }
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "evidence_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "observed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "observed_metrics": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "eligible_verified_supply",
+              "active_specialists",
+              "bookable_slot_coverage_percent",
+              "duty_supply",
+              "time_to_available_slot_median_minutes",
+              "time_to_available_slot_p95_minutes",
+              "fill_conversion_percent",
+              "booking_conversion_percent",
+              "cancellation_percent",
+              "no_show_percent",
+              "response_time_p95_minutes",
+              "acceptance_time_p95_minutes",
+              "unfilled_demand_percent",
+              "complaint_rate_percent",
+              "safety_incident_rate_percent",
+              "contribution_margin_percent"
+            ],
+            "properties": {
+              "eligible_verified_supply": {
+                "type": "number",
+                "minimum": 0
+              },
+              "active_specialists": {
+                "type": "number",
+                "minimum": 0
+              },
+              "bookable_slot_coverage_percent": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "duty_supply": {
+                "type": "number",
+                "minimum": 0
+              },
+              "time_to_available_slot_median_minutes": {
+                "type": "number",
+                "minimum": 0
+              },
+              "time_to_available_slot_p95_minutes": {
+                "type": "number",
+                "minimum": 0
+              },
+              "fill_conversion_percent": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "booking_conversion_percent": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "cancellation_percent": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "no_show_percent": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "response_time_p95_minutes": {
+                "type": "number",
+                "minimum": 0
+              },
+              "acceptance_time_p95_minutes": {
+                "type": "number",
+                "minimum": 0
+              },
+              "unfilled_demand_percent": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "complaint_rate_percent": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "safety_incident_rate_percent": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "contribution_margin_percent": {
+                "type": "number",
+                "minimum": -100,
+                "maximum": 100
+              }
+            }
           }
-        }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "state": {
+                  "const": "SCALE_READY"
+                }
+              },
+              "required": [
+                "state"
+              ]
+            },
+            "then": {
+              "required": [
+                "evidence_id",
+                "observed_at",
+                "observed_metrics"
+              ],
+              "properties": {
+                "evidence_refs": {
+                  "minItems": 1
+                }
+              }
+            }
+          }
+        ]
       }
     }
   }

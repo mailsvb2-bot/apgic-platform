@@ -1,0 +1,18 @@
+version: 1
+environment: PRODUCTION
+production_approved: false
+jurisdiction_matrix_version: CONFIG_REQUIRED
+retention_policy_version: CONFIG_REQUIRED
+slo_policy_version: CONFIG_REQUIRED
+provider_matrix_version: CONFIG_REQUIRED
+market_cell_thresholds_version: CONFIG_REQUIRED
+market_cell_thresholds_path: config/marketcell/market-cell-scale.example.yaml
+commerce_policy_version: CONFIG_REQUIRED
+store_policy_version: CONFIG_REQUIRED
+store_policy_path: config/mobile/store-policy.example.yaml
+booking_fulfillment_policy_version: CONFIG_REQUIRED
+booking_fulfillment_policy_path: config/booking/fulfillment-policy.example.yaml
+provider_settlement_policy_version: CONFIG_REQUIRED
+provider_settlement_policy_path: config/finance/provider-settlement.example.yaml
+notes:
+  - "R5 example only. Scale remains blocked until real measured MarketCell evidence satisfies explicit thresholds."

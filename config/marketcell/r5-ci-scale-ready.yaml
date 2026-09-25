@@ -1,0 +1,53 @@
+version: market-cell-r5-ci-v1
+scope: CI_ONLY
+production_approved: false
+policy_kind: MARKET_CELL_THRESHOLDS
+market_cells:
+  - id: ci-ru-anxiety-online
+    jurisdiction: RU
+    topic: anxiety
+    format: ONLINE
+    time_window: ALL
+    state: SCALE_READY
+    thresholds:
+      eligible_verified_supply_min: 3
+      active_specialists_min: 3
+      bookable_slot_coverage_min_percent: 50
+      duty_supply_min: 0
+      time_to_available_slot_median_max_minutes: 1440
+      time_to_available_slot_p95_max_minutes: 4320
+      fill_conversion_min_percent: 10
+      booking_conversion_min_percent: 5
+      cancellation_max_percent: 30
+      no_show_max_percent: 20
+      response_time_p95_max_minutes: 120
+      acceptance_time_p95_max_minutes: 240
+      unfilled_demand_max_percent: 80
+      complaint_rate_max_percent: 20
+      safety_incident_rate_max_percent: 5
+      contribution_margin_min_percent: -20
+    evidence_id: ci-market-cell-evidence-r5-1
+    observed_at: "2026-09-24T12:00:00Z"
+    observed_metrics:
+      eligible_verified_supply: 4
+      active_specialists: 4
+      bookable_slot_coverage_percent: 70
+      duty_supply: 1
+      time_to_available_slot_median_minutes: 120
+      time_to_available_slot_p95_minutes: 480
+      fill_conversion_percent: 35
+      booking_conversion_percent: 20
+      cancellation_percent: 10
+      no_show_percent: 5
+      response_time_p95_minutes: 30
+      acceptance_time_p95_minutes: 45
+      unfilled_demand_percent: 15
+      complaint_rate_percent: 2
+      safety_incident_rate_percent: 0
+      contribution_margin_percent: 5
+    evidence_refs:
+      - ci://market-cell/ru-anxiety-online/supply
+      - ci://market-cell/ru-anxiety-online/demand
+      - ci://market-cell/ru-anxiety-online/availability
+notes:
+  - "Synthetic CI evidence proves scale-gate mechanics only; it is not production or market launch evidence."

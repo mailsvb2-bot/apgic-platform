@@ -40,6 +40,7 @@ jobs:
       - run: python tools/launch_config_guard.py config/launch.r2-ci.yaml --mode ci --profile R2
       - run: python tools/launch_config_guard.py config/launch.r3-ci.yaml --mode ci --profile R3
       - run: python tools/launch_config_guard.py config/launch.r4-ci.yaml --mode ci --profile R4
+      - run: python tools/launch_config_guard.py config/launch.r5-ci.yaml --mode ci --profile R5
       - run: python tools/mobile_release_guard.py config/mobile/r0-ci-release-governance.yaml --mode ci
       - run: python tools/mobile_observability_guard.py config/mobile/r0-ci-observability.yaml --mode ci
       - run: python tools/mobile_realtime_guard.py config/mobile/r3-ci-realtime-policy.yaml --mode ci

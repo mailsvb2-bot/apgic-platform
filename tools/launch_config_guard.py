@@ -43,6 +43,10 @@ R4_POLICIES = {
     ),
 }
 
+R5_POLICIES = {
+    **R4_POLICIES,
+}
+
 def fail(message: str) -> None:
     print(f"LAUNCH CONFIG PRECHECK: FAIL: {message}", file=sys.stderr)
     raise SystemExit(1)
@@ -242,8 +246,63 @@ def validate_market_cell(policy: dict) -> None:
         evidence = cell.get("evidence_refs")
         if not isinstance(evidence, list):
             fail(f"{cell.get('id')}: evidence_refs must be a list")
-        if cell.get("state") == "SCALE_READY" and not evidence:
-            fail(f"{cell.get('id')}: SCALE_READY requires recorded evidence_refs")
+        if any(not isinstance(ref, str) or not ref.strip() for ref in evidence):
+            fail(f"{cell.get('id')}: evidence_refs cannot contain blank values")
+
+        if cell.get("state") == "SCALE_READY":
+            if not evidence:
+                fail(f"{cell.get('id')}: SCALE_READY requires recorded evidence_refs")
+            if not isinstance(cell.get("evidence_id"), str) or not cell.get("evidence_id").strip():
+                fail(f"{cell.get('id')}: SCALE_READY requires evidence_id")
+            if not isinstance(cell.get("observed_at"), str) or not cell.get("observed_at").strip():
+                fail(f"{cell.get('id')}: SCALE_READY requires observed_at")
+
+            observed = cell.get("observed_metrics")
+            if not isinstance(observed, dict):
+                fail(f"{cell.get('id')}: SCALE_READY requires observed_metrics")
+
+            minimum_checks = {
+                "eligible_verified_supply": "eligible_verified_supply_min",
+                "active_specialists": "active_specialists_min",
+                "bookable_slot_coverage_percent": "bookable_slot_coverage_min_percent",
+                "duty_supply": "duty_supply_min",
+                "fill_conversion_percent": "fill_conversion_min_percent",
+                "booking_conversion_percent": "booking_conversion_min_percent",
+                "contribution_margin_percent": "contribution_margin_min_percent",
+            }
+            maximum_checks = {
+                "time_to_available_slot_median_minutes": "time_to_available_slot_median_max_minutes",
+                "time_to_available_slot_p95_minutes": "time_to_available_slot_p95_max_minutes",
+                "cancellation_percent": "cancellation_max_percent",
+                "no_show_percent": "no_show_max_percent",
+                "response_time_p95_minutes": "response_time_p95_max_minutes",
+                "acceptance_time_p95_minutes": "acceptance_time_p95_max_minutes",
+                "unfilled_demand_percent": "unfilled_demand_max_percent",
+                "complaint_rate_percent": "complaint_rate_max_percent",
+                "safety_incident_rate_percent": "safety_incident_rate_max_percent",
+            }
+
+            for metric, threshold_name in minimum_checks.items():
+                value = observed.get(metric)
+                threshold = thresholds[threshold_name]
+                if not isinstance(value, (int, float)) or isinstance(value, bool):
+                    fail(f"{cell.get('id')}: observed metric {metric} must be numeric")
+                if value < threshold:
+                    fail(
+                        f"{cell.get('id')}: SCALE_READY blocked; "
+                        f"{metric}={value} is below {threshold_name}={threshold}"
+                    )
+
+            for metric, threshold_name in maximum_checks.items():
+                value = observed.get(metric)
+                threshold = thresholds[threshold_name]
+                if not isinstance(value, (int, float)) or isinstance(value, bool):
+                    fail(f"{cell.get('id')}: observed metric {metric} must be numeric")
+                if value > threshold:
+                    fail(
+                        f"{cell.get('id')}: SCALE_READY blocked; "
+                        f"{metric}={value} exceeds {threshold_name}={threshold}"
+                    )
 
 def validate_store_commerce(policy: dict) -> None:
     if policy.get("policy_kind") != "STORE_COMMERCE":
@@ -431,7 +490,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("config")
     parser.add_argument("--mode", choices=("ci", "production"), required=True)
-    parser.add_argument("--profile", choices=("R0", "R1", "R2", "R3", "R4"), default="R0")
+    parser.add_argument("--profile", choices=("R0", "R1", "R2", "R3", "R4", "R5"), default="R0")
     args = parser.parse_args()
 
     config_path = (ROOT / args.config).resolve()
@@ -457,6 +516,7 @@ def main() -> None:
         "R2": R2_POLICIES,
         "R3": R3_POLICIES,
         "R4": R4_POLICIES,
+        "R5": R5_POLICIES,
     }[args.profile]
 
     loaded: dict[str, tuple[Path, dict]] = {}
