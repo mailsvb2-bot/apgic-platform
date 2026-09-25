@@ -215,7 +215,7 @@ export function Journey() {
     setError("");
     setPending(true);
     try {
-      const view = await postJSON<{ owns_qualification: boolean; stale: boolean; entries: { display_name: string }[]; notice: string; rebuilt: boolean }>("/v1/search/stale", {
+      const view = await postJSON<{ owns_qualification: boolean; stale: boolean; entries: { specialist_id: string; display_name: string }[]; notice: string; rebuilt: boolean }>("/v1/search/stale", {
         topic,
         specialist_id: "spec-lebedeva",
       });
@@ -234,7 +234,7 @@ export function Journey() {
     setError("");
     setPending(true);
     try {
-      const view = await postJSON<{ owns_qualification: boolean; stale: boolean; rebuilt: boolean; entries: { display_name: string }[]; notice: string }>("/v1/search/rebuild", { topic });
+      const view = await postJSON<{ owns_qualification: boolean; stale: boolean; rebuilt: boolean; entries: { specialist_id: string; display_name: string }[]; notice: string }>("/v1/search/rebuild", { topic });
       if (view.owns_qualification || view.stale || !view.rebuilt) throw new Error("Проекция не восстановлена из каталога.");
       setSearch(view);
     } catch (cause) {
