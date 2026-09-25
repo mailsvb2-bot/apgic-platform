@@ -20,7 +20,7 @@ export default defineConfig({
     command: "bash scripts/start-with-api.sh",
     url: baseURL,
     reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
+    timeout: 180_000,
   },
   projects: [
     {

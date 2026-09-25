@@ -15,17 +15,22 @@ if ! command -v go >/dev/null 2>&1; then
   export PATH="$root/go/bin:$PATH"
 fi
 cd "$ROOT/backend"
-go run ./cmd/api > /tmp/apgic-api.log 2>&1 &
+echo "building API with $(go version)"
+go build -o /tmp/apgic-api ./cmd/api
+/tmp/apgic-api > /tmp/apgic-api.log 2>&1 &
 API_PID=$!
 cleanup() { kill "$API_PID" 2>/dev/null || true; }
 trap cleanup EXIT
 ready=0
-for _ in $(seq 1 50); do
+for _ in $(seq 1 30); do
   if curl -sf "${APGIC_API_ORIGIN}/healthz" >/dev/null; then
     ready=1
     break
   fi
-  sleep 0.2
+  if ! kill -0 "$API_PID" 2>/dev/null; then
+    break
+  fi
+  sleep 1
 done
 if [ "$ready" != 1 ]; then
   echo "API did not become ready at ${APGIC_API_ORIGIN}" >&2
