@@ -184,9 +184,13 @@ requirements:
   implementation_refs:
   - backend/internal/identity/identity.go
   - backend/migrations/000001_r0_foundation.sql
-  contract_refs: []
+  - tools/identity_contract_guard.py
+  contract_refs:
+  - packages/contracts/src/foundation.ts
+  - contracts/jsonschema/identity-v1.schema.json
   test_refs:
   - backend/internal/identity/identity_test.go
+  - tools/tests/test_identity_contract_guard.py
   evidence_refs: []
   acceptance:
     given: существует пользователь с ClientProfile

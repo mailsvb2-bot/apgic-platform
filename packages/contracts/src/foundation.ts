@@ -2,8 +2,7 @@ export type IdentityRole =
   | "CLIENT"
   | "SPECIALIST"
   | "AUTHOR"
-  | "STUDENT"
-  | "ORGANIZATION_MEMBER";
+  | "STUDENT";
 
 export type AuthorizationDecision = "ALLOW" | "DENY" | "REQUIRE_STEP_UP";
 
