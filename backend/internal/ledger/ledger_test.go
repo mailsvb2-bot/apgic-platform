@@ -25,3 +25,14 @@ func TestLedgerUsesMinorUnitsAndNormalizesCurrency(t *testing.T) {
 		t.Fatalf("currency must normalize to ISO-style uppercase code: %s", e.Currency)
 	}
 }
+
+func TestLedgerRejectsMalformedCurrency(t *testing.T) {
+	_, err := NewEntry(Entry{
+		ID: "le-invalid", DebitAccountRef: "buyer", CreditAccountRef: "specialist",
+		AmountMinor: 10000, Currency: "1$?", ProviderEvidenceRef: "provider:tx-invalid",
+		CorrelationID: "corr-invalid",
+	})
+	if err != ErrInvalidEntry {
+		t.Fatalf("expected malformed currency rejection, got %v", err)
+	}
+}
