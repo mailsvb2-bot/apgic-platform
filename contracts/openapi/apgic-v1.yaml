@@ -253,6 +253,22 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /v1/account-deletions:
+    post:
+      operationId: deleteAccount
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccountDeletionRequest'
+      responses:
+        '201':
+          description: Account deletion. Financial evidence is retained. Deactivation is not deletion.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountDeletion'
   /v1/cancellations:
     post:
       operationId: cancelOrder
@@ -669,6 +685,32 @@ components:
       properties:
         order_id: { type: string }
         reason_code: { type: string }
+    AccountDeletionRequest:
+      type: object
+      additionalProperties: false
+      required: [identity_id, source]
+      properties:
+        identity_id: { type: string }
+        source: { type: string }
+    AccountDeletion:
+      type: object
+      additionalProperties: false
+      required: [id, identity_id, source, state, deactivation, profile_erased, ledger_retained, ledger_reason, provider_ref, provider_evidence, apgic_deletes_ledger, idempotent, notice]
+      properties:
+        id: { type: string }
+        identity_id: { type: string }
+        source: { type: string }
+        state: { type: string }
+        deactivation: { type: boolean }
+        profile_erased: { type: boolean }
+        ledger_retained: { type: boolean }
+        ledger_id: { type: string }
+        ledger_reason: { type: string }
+        provider_ref: { type: string }
+        provider_evidence: { type: string }
+        apgic_deletes_ledger: { type: boolean }
+        idempotent: { type: boolean }
+        notice: { type: string }
     Cancellation:
       type: object
       additionalProperties: false

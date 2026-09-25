@@ -75,6 +75,13 @@ test("help intent journey stays usable and accessible", async ({ page }) => {
   await expect(page.getByText("APGIC возвращает деньги: нет.")).toBeVisible();
   await page.getByRole("button", { name: "Отменить бронь через внешнего провайдера" }).click();
   await expect(page.getByText("Повтор: уже учтён.").last()).toBeVisible();
+  await page.getByRole("button", { name: "Удалить учётную запись" }).click();
+  await expect(page.getByText("PARTIALLY_RETAINED_WITH_REASON")).toBeVisible();
+  await expect(page.getByText("Деактивация: нет.")).toBeVisible();
+  await expect(page.getByText("Запись учёта сохранена: да.")).toBeVisible();
+  await expect(page.getByText("APGIC уничтожает запись учёта: нет.")).toBeVisible();
+  await page.getByRole("button", { name: "Удалить учётную запись" }).click();
+  await expect(page.getByText("Повтор: уже учтён.").last()).toBeVisible();
 
   const layout = await page.evaluate(() => ({
     viewportWidth: window.innerWidth,

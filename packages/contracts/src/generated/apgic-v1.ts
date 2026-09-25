@@ -2,7 +2,29 @@
 // DO NOT EDIT.
 export const apiContractVersion = "0.2.0-r1-demand" as const;
 
-export type ApiOperationId = "acquireSlotHold" | "applyProviderEvent" | "cancelOrder" | "completeConsultation" | "confirmHelpIntent" | "createCheckoutInstruction" | "createHelpIntent" | "getBookingFulfillment" | "getMeta" | "health" | "listCheckoutOptions" | "listHelpIntentMatches" | "listSpecialistSlots" | "markSearchProjectionStale" | "readiness" | "rebuildSearchProjection" | "recordConsultationPresence" | "reportConsultationFailure" | "searchProjection" | "succeedConsultationRecovery";
+export type ApiOperationId = "acquireSlotHold" | "applyProviderEvent" | "cancelOrder" | "completeConsultation" | "confirmHelpIntent" | "createCheckoutInstruction" | "createHelpIntent" | "deleteAccount" | "getBookingFulfillment" | "getMeta" | "health" | "listCheckoutOptions" | "listHelpIntentMatches" | "listSpecialistSlots" | "markSearchProjectionStale" | "readiness" | "rebuildSearchProjection" | "recordConsultationPresence" | "reportConsultationFailure" | "searchProjection" | "succeedConsultationRecovery";
+
+export interface AccountDeletion {
+  apgic_deletes_ledger: boolean;
+  deactivation: boolean;
+  id: string;
+  idempotent: boolean;
+  identity_id: string;
+  ledger_id?: string;
+  ledger_reason: string;
+  ledger_retained: boolean;
+  notice: string;
+  profile_erased: boolean;
+  provider_evidence: string;
+  provider_ref: string;
+  source: string;
+  state: string;
+}
+
+export interface AccountDeletionRequest {
+  identity_id: string;
+  source: string;
+}
 
 export interface AcquireSlotHoldRequest {
   client_identity_id: string;

@@ -364,6 +364,31 @@ func registerDemand(mux *http.ServeMux, service *demand.Service) {
 		writeJSON(w, status, view)
 	})
 
+	mux.HandleFunc("POST /v1/account-deletions", func(w http.ResponseWriter, r *http.Request) {
+		if service == nil {
+			writeDemandError(w, r, http.StatusServiceUnavailable, "DEMAND_CATALOG_UNAVAILABLE", "Каталог спроса не подключён.", false, nil)
+			return
+		}
+		var body struct {
+			IdentityID string `json:"identity_id"`
+			Source     string `json:"source"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			writeDemandError(w, r, http.StatusBadRequest, "ACCOUNT_DELETION_INVALID", "Запрос удаления не удалось прочитать.", false, nil)
+			return
+		}
+		deletion, err := service.DeleteAccount(body.IdentityID, body.Source)
+		if err != nil {
+			writeDemandFailure(w, r, err)
+			return
+		}
+		status := http.StatusCreated
+		if deletion.Idempotent {
+			status = http.StatusOK
+		}
+		writeJSON(w, status, deletion)
+	})
+
 	mux.HandleFunc("POST /v1/cancellations", func(w http.ResponseWriter, r *http.Request) {
 		if service == nil {
 			writeDemandError(w, r, http.StatusServiceUnavailable, "DEMAND_CATALOG_UNAVAILABLE", "Каталог спроса не подключён.", false, nil)
@@ -429,6 +454,8 @@ func writeDemandFailure(w http.ResponseWriter, r *http.Request, err error) {
 		writeDemandError(w, r, http.StatusConflict, "CONSULT_EVIDENCE_REQUIRED", "Завершение требует доказательство провайдера связи, а не таймер.", false, []string{"CONSULT_EVIDENCE_REQUIRED"})
 	case errors.Is(err, demand.ErrRecoveryInvalid):
 		writeDemandError(w, r, http.StatusBadRequest, "COMM_RECOVERY_INVALID", "Сбой связи не распознан.", false, nil)
+	case errors.Is(err, demand.ErrNotDeletion):
+		writeDemandError(w, r, http.StatusConflict, "ACCOUNT_DEACTIVATION_IS_NOT_DELETION", "Деактивация не считается удалением учётной записи.", false, []string{"ACCOUNT_DEACTIVATION_IS_NOT_DELETION"})
 	default:
 		writeDemandError(w, r, http.StatusBadRequest, "DEMAND_REJECTED", "Запрос отклонён.", false, nil)
 	}

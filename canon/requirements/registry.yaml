@@ -2715,14 +2715,20 @@ requirements:
   - APGIC-CONFIG-004
   implementation_refs:
   - backend/internal/privacy/deletion.go
+  - backend/internal/demand/deletion.go
+  - backend/internal/httpapi/demand.go
+  - apps/web/app/journey.tsx
   - backend/migrations/000006_r1_account_deletion.sql
   - apps/mobile/src/r1-cross-surface.ts
   - apps/web/src/r1-cross-surface.ts
   contract_refs:
+  - contracts/openapi/apgic-v1.yaml
   - packages/contracts/src/r1-mobile.ts
   - contracts/jsonschema/r1-mobile-cross-surface-v1.schema.json
   test_refs:
   - backend/internal/privacy/deletion_test.go
+  - backend/internal/demand/deletion_test.go
+  - apps/web/e2e/foundation.spec.ts
   - backend/migrations/ci_r1_mobile_invariants.sql
   - apps/mobile/src/r1-cross-surface.test.ts
   - .github/workflows/ci.yml
