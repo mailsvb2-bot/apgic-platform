@@ -26,6 +26,7 @@ type ConsultationView struct {
 	APGICReturnsFunds bool   `json:"apgic_returns_funds"`
 	RecoveryAction    string `json:"recovery_action,omitempty"`
 	ReasonCode        string `json:"reason_code,omitempty"`
+	RawContentStored  bool   `json:"raw_content_stored"`
 	Idempotent        bool   `json:"idempotent"`
 	Notice            string `json:"notice"`
 }
@@ -136,6 +137,6 @@ func sessionView(session *consultation.Session, evidenceRef string, idempotent b
 	return &ConsultationView{
 		ID: session.ID, BookingID: session.BookingID, State: string(session.State),
 		ProviderID: session.ProviderInstanceID, EvidenceRef: evidenceRef,
-		APGICOwnsRoom: false, ChargedAgain: false, Idempotent: idempotent, Notice: sessionNotice,
+		APGICOwnsRoom: false, ChargedAgain: false, RawContentStored: false, Idempotent: idempotent, Notice: sessionNotice,
 	}
 }

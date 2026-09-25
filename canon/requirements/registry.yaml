@@ -492,9 +492,15 @@ requirements:
   dependencies: []
   implementation_refs:
   - backend/internal/privacy/classification.go
-  contract_refs: []
+  - backend/internal/demand/growth.go
+  - backend/internal/httpapi/demand.go
+  - apps/web/app/journey.tsx
+  contract_refs:
+  - contracts/openapi/apgic-v1.yaml
   test_refs:
   - backend/internal/privacy/classification_test.go
+  - backend/internal/demand/growth_test.go
+  - apps/web/e2e/foundation.spec.ts
   evidence_refs: []
   acceptance:
     given: raw session content существует
@@ -1529,12 +1535,18 @@ requirements:
   - APGIC-DATA-001
   implementation_refs:
   - backend/internal/consultation/lifecycle.go
+  - backend/internal/demand/session.go
+  - backend/internal/demand/growth.go
+  - apps/web/app/journey.tsx
   - backend/migrations/000014_r3_communication_consultation.sql
   - docs/architecture/0003-provider-neutral-consultation-fulfillment.md
   contract_refs:
+  - contracts/openapi/apgic-v1.yaml
   - contracts/jsonschema/consultation-fulfillment-v1.schema.json
   test_refs:
   - backend/internal/consultation/lifecycle_test.go
+  - backend/internal/demand/growth_test.go
+  - apps/web/e2e/foundation.spec.ts
   - backend/migrations/ci_r3_communication_consultation_invariants.sql
   evidence_refs: []
   acceptance:

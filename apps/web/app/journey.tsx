@@ -149,6 +149,7 @@ export function Journey() {
     notice: string;
     evidence_ref?: string;
     charged_again: boolean;
+    raw_content_stored?: boolean;
     refund_path_opened?: boolean;
     apgic_returns_funds?: boolean;
   } | null>(null);
@@ -406,6 +407,21 @@ export function Journey() {
     }
   }
 
+  async function exportToGrowth() {
+    if (!evidence) return;
+    setError("");
+    setPending(true);
+    try {
+      const created = await postJSON<{ raw_content_included: boolean }>("/v1/consultations/" + evidence.booking_id + "/growth-export", { purpose_consent: false });
+      if (!created.raw_content_included) throw new Error("Сырая запись не должна была уйти в рост.");
+      setError("Сырая запись не должна была уйти в рост.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Выгрузка отклонена.");
+    } finally {
+      setPending(false);
+    }
+  }
+
   async function completeWithoutEvidence() {
     if (!evidence) return;
     setError("");
@@ -630,9 +646,10 @@ export function Journey() {
           <button type="button" onClick={() => reportFailure(false)} disabled={pending}>Сбой без восстановления</button>
           <button type="button" onClick={completeWithoutEvidence} disabled={pending}>Завершить без доказательства</button>
           <button type="button" onClick={completeWithEvidence} disabled={pending}>Завершить по доказательству провайдера</button>
+          <button type="button" onClick={exportToGrowth} disabled={pending}>Передать сырую запись в рост</button>
           {session ? (
             <p>
-              Сессия {session.state}. {session.notice} Повторное списание: {session.charged_again ? "да" : "нет"}.
+              Сессия {session.state}. {session.notice} Повторное списание: {session.charged_again ? "да" : "нет"}. Сырая запись в деле: {session.raw_content_stored ? "да" : "нет"}.
               {session.refund_path_opened ? " Путь возврата открыт у внешнего провайдера." : ""}
               {session.apgic_returns_funds ? " APGIC возвращает деньги: да." : ""}
             </p>

@@ -367,6 +367,33 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ConsultationView'
+  /v1/consultations/{bookingID}/growth-export:
+    post:
+      operationId: exportConsultationToGrowth
+      parameters:
+        - name: bookingID
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GrowthExportRequest'
+      responses:
+        '200':
+          description: Minimal facts only. Raw consultation content is not included.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GrowthExport'
+        '409':
+          description: Purpose consent is required for raw consultation content
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /v1/consultations/{bookingID}/complete:
     post:
       operationId: completeConsultation
@@ -773,6 +800,23 @@ components:
       required: [evidence_ref]
       properties:
         evidence_ref: { type: string }
+    GrowthExportRequest:
+      type: object
+      additionalProperties: false
+      required: [purpose_consent]
+      properties:
+        purpose_consent: { type: boolean }
+    GrowthExport:
+      type: object
+      additionalProperties: false
+      required: [allowed, classification, purpose_consent, raw_content_included, state, notice]
+      properties:
+        allowed: { type: boolean }
+        classification: { type: string }
+        purpose_consent: { type: boolean }
+        raw_content_included: { type: boolean }
+        state: { type: string }
+        notice: { type: string }
     CompleteConsultationRequest:
       type: object
       additionalProperties: false
@@ -791,6 +835,7 @@ components:
         evidence_ref: { type: string }
         apgic_owns_room: { type: boolean }
         charged_again: { type: boolean }
+        raw_content_stored: { type: boolean }
         refund_path_opened: { type: boolean }
         apgic_returns_funds: { type: boolean }
         recovery_action: { type: string }

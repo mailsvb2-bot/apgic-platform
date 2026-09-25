@@ -40,6 +40,7 @@ var (
 	ErrConsultEvidence    = errors.New("consultation completion evidence required")
 	ErrRecoveryInvalid    = errors.New("invalid communication recovery input")
 	ErrNotDeletion        = errors.New("deactivation is not account deletion")
+	ErrPurposeConsent     = errors.New("purpose-specific consent required")
 )
 
 type Intent struct {

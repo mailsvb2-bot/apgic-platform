@@ -2,7 +2,7 @@
 // DO NOT EDIT.
 export const apiContractVersion = "0.2.0-r1-demand" as const;
 
-export type ApiOperationId = "acquireSlotHold" | "applyProviderEvent" | "cancelOrder" | "completeConsultation" | "confirmHelpIntent" | "createCheckoutInstruction" | "createHelpIntent" | "deleteAccount" | "getBookingFulfillment" | "getMeta" | "health" | "listCheckoutOptions" | "listHelpIntentMatches" | "listSpecialistSlots" | "markSearchProjectionStale" | "readiness" | "rebuildSearchProjection" | "recordConsultationPresence" | "reportConsultationFailure" | "searchProjection" | "succeedConsultationRecovery";
+export type ApiOperationId = "acquireSlotHold" | "applyProviderEvent" | "cancelOrder" | "completeConsultation" | "confirmHelpIntent" | "createCheckoutInstruction" | "createHelpIntent" | "deleteAccount" | "exportConsultationToGrowth" | "getBookingFulfillment" | "getMeta" | "health" | "listCheckoutOptions" | "listHelpIntentMatches" | "listSpecialistSlots" | "markSearchProjectionStale" | "readiness" | "rebuildSearchProjection" | "recordConsultationPresence" | "reportConsultationFailure" | "searchProjection" | "succeedConsultationRecovery";
 
 export interface AccountDeletion {
   apgic_deletes_ledger: boolean;
@@ -128,6 +128,7 @@ export interface ConsultationView {
   idempotent: boolean;
   notice: string;
   provider_id: string;
+  raw_content_stored?: boolean;
   reason_code?: string;
   recovery_action?: string;
   refund_path_opened?: boolean;
@@ -152,6 +153,19 @@ export interface ErrorEnvelope {
   message_safe: string;
   policy_reason_codes?: Array<string>;
   retryable: boolean;
+}
+
+export interface GrowthExport {
+  allowed: boolean;
+  classification: string;
+  notice: string;
+  purpose_consent: boolean;
+  raw_content_included: boolean;
+  state: string;
+}
+
+export interface GrowthExportRequest {
+  purpose_consent: boolean;
 }
 
 export interface HelpIntent {

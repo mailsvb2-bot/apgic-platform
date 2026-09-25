@@ -340,6 +340,26 @@ func registerDemand(mux *http.ServeMux, service *demand.Service) {
 		writeJSON(w, status, view)
 	})
 
+	mux.HandleFunc("POST /v1/consultations/{bookingID}/growth-export", func(w http.ResponseWriter, r *http.Request) {
+		if service == nil {
+			writeDemandError(w, r, http.StatusServiceUnavailable, "DEMAND_CATALOG_UNAVAILABLE", "Каталог спроса не подключён.", false, nil)
+			return
+		}
+		var body struct {
+			PurposeConsent bool `json:"purpose_consent"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			writeDemandError(w, r, http.StatusBadRequest, "GROWTH_EXPORT_INVALID", "Запрос выгрузки не удалось прочитать.", false, nil)
+			return
+		}
+		exported, err := service.ExportSessionToGrowth(r.PathValue("bookingID"), body.PurposeConsent)
+		if err != nil {
+			writeDemandFailure(w, r, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, exported)
+	})
+
 	mux.HandleFunc("POST /v1/consultations/{bookingID}/complete", func(w http.ResponseWriter, r *http.Request) {
 		if service == nil {
 			writeDemandError(w, r, http.StatusServiceUnavailable, "DEMAND_CATALOG_UNAVAILABLE", "Каталог спроса не подключён.", false, nil)
@@ -454,6 +474,8 @@ func writeDemandFailure(w http.ResponseWriter, r *http.Request, err error) {
 		writeDemandError(w, r, http.StatusConflict, "CONSULT_EVIDENCE_REQUIRED", "Завершение требует доказательство провайдера связи, а не таймер.", false, []string{"CONSULT_EVIDENCE_REQUIRED"})
 	case errors.Is(err, demand.ErrRecoveryInvalid):
 		writeDemandError(w, r, http.StatusBadRequest, "COMM_RECOVERY_INVALID", "Сбой связи не распознан.", false, nil)
+	case errors.Is(err, demand.ErrPurposeConsent):
+		writeDemandError(w, r, http.StatusConflict, "DATA_PURPOSE_CONSENT_REQUIRED", "Сырую запись консультации нельзя передать в рост без отдельного согласия.", false, []string{"DATA_PURPOSE_CONSENT_REQUIRED"})
 	case errors.Is(err, demand.ErrNotDeletion):
 		writeDemandError(w, r, http.StatusConflict, "ACCOUNT_DEACTIVATION_IS_NOT_DELETION", "Деактивация не считается удалением учётной записи.", false, []string{"ACCOUNT_DEACTIVATION_IS_NOT_DELETION"})
 	default:
