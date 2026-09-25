@@ -39,6 +39,8 @@ var (
 	ErrConsultNotReady    = errors.New("consultation is not ready")
 	ErrConsultEvidence    = errors.New("consultation completion evidence required")
 	ErrRecoveryInvalid    = errors.New("invalid communication recovery input")
+	ErrNotDeletion        = errors.New("deactivation is not account deletion")
+	ErrPurposeConsent     = errors.New("purpose-specific consent required")
 )
 
 type Intent struct {
@@ -92,6 +94,9 @@ type Service struct {
 	reversals     map[string]*Cancellation
 	notices       map[string]*BookingNotice
 	sessions      map[string]*consultation.Session
+	projection    marketplace.SearchProjection
+	searchStale   bool
+	deletions     map[string]*AccountDeletion
 }
 
 func NewConformanceService(now func() time.Time) *Service {
@@ -112,6 +117,7 @@ func NewConformanceService(now func() time.Time) *Service {
 		reversals:     map[string]*Cancellation{},
 		notices:       map[string]*BookingNotice{},
 		sessions:      map[string]*consultation.Session{},
+		deletions:     map[string]*AccountDeletion{},
 	}
 }
 

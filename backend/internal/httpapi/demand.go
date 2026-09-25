@@ -90,6 +90,60 @@ func registerDemand(mux *http.ServeMux, service *demand.Service) {
 		writeJSON(w, http.StatusOK, intent)
 	})
 
+	mux.HandleFunc("GET /v1/search", func(w http.ResponseWriter, r *http.Request) {
+		if service == nil {
+			writeDemandError(w, r, http.StatusServiceUnavailable, "DEMAND_CATALOG_UNAVAILABLE", "Каталог спроса не подключён.", false, nil)
+			return
+		}
+		view, err := service.Search(r.URL.Query().Get("topic"))
+		if err != nil {
+			writeDemandFailure(w, r, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, view)
+	})
+
+	mux.HandleFunc("POST /v1/search/rebuild", func(w http.ResponseWriter, r *http.Request) {
+		if service == nil {
+			writeDemandError(w, r, http.StatusServiceUnavailable, "DEMAND_CATALOG_UNAVAILABLE", "Каталог спроса не подключён.", false, nil)
+			return
+		}
+		var body struct {
+			Topic string `json:"topic"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			writeDemandError(w, r, http.StatusBadRequest, "SEARCH_INVALID", "Запрос поиска не удалось прочитать.", false, nil)
+			return
+		}
+		view, err := service.RebuildSearch(body.Topic)
+		if err != nil {
+			writeDemandFailure(w, r, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, view)
+	})
+
+	mux.HandleFunc("POST /v1/search/stale", func(w http.ResponseWriter, r *http.Request) {
+		if service == nil {
+			writeDemandError(w, r, http.StatusServiceUnavailable, "DEMAND_CATALOG_UNAVAILABLE", "Каталог спроса не подключён.", false, nil)
+			return
+		}
+		var body struct {
+			Topic        string `json:"topic"`
+			SpecialistID string `json:"specialist_id"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			writeDemandError(w, r, http.StatusBadRequest, "SEARCH_INVALID", "Запрос поиска не удалось прочитать.", false, nil)
+			return
+		}
+		view, err := service.MarkSearchStale(body.Topic, body.SpecialistID)
+		if err != nil {
+			writeDemandFailure(w, r, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, view)
+	})
+
 	mux.HandleFunc("GET /v1/help-intents/{id}/matches", func(w http.ResponseWriter, r *http.Request) {
 		if service == nil {
 			writeDemandError(w, r, http.StatusServiceUnavailable, "DEMAND_CATALOG_UNAVAILABLE", "Каталог спроса не подключён.", false, nil)
@@ -286,6 +340,26 @@ func registerDemand(mux *http.ServeMux, service *demand.Service) {
 		writeJSON(w, status, view)
 	})
 
+	mux.HandleFunc("POST /v1/consultations/{bookingID}/growth-export", func(w http.ResponseWriter, r *http.Request) {
+		if service == nil {
+			writeDemandError(w, r, http.StatusServiceUnavailable, "DEMAND_CATALOG_UNAVAILABLE", "Каталог спроса не подключён.", false, nil)
+			return
+		}
+		var body struct {
+			PurposeConsent bool `json:"purpose_consent"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			writeDemandError(w, r, http.StatusBadRequest, "GROWTH_EXPORT_INVALID", "Запрос выгрузки не удалось прочитать.", false, nil)
+			return
+		}
+		exported, err := service.ExportSessionToGrowth(r.PathValue("bookingID"), body.PurposeConsent)
+		if err != nil {
+			writeDemandFailure(w, r, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, exported)
+	})
+
 	mux.HandleFunc("POST /v1/consultations/{bookingID}/complete", func(w http.ResponseWriter, r *http.Request) {
 		if service == nil {
 			writeDemandError(w, r, http.StatusServiceUnavailable, "DEMAND_CATALOG_UNAVAILABLE", "Каталог спроса не подключён.", false, nil)
@@ -308,6 +382,31 @@ func registerDemand(mux *http.ServeMux, service *demand.Service) {
 			status = http.StatusOK
 		}
 		writeJSON(w, status, view)
+	})
+
+	mux.HandleFunc("POST /v1/account-deletions", func(w http.ResponseWriter, r *http.Request) {
+		if service == nil {
+			writeDemandError(w, r, http.StatusServiceUnavailable, "DEMAND_CATALOG_UNAVAILABLE", "Каталог спроса не подключён.", false, nil)
+			return
+		}
+		var body struct {
+			IdentityID string `json:"identity_id"`
+			Source     string `json:"source"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			writeDemandError(w, r, http.StatusBadRequest, "ACCOUNT_DELETION_INVALID", "Запрос удаления не удалось прочитать.", false, nil)
+			return
+		}
+		deletion, err := service.DeleteAccount(body.IdentityID, body.Source)
+		if err != nil {
+			writeDemandFailure(w, r, err)
+			return
+		}
+		status := http.StatusCreated
+		if deletion.Idempotent {
+			status = http.StatusOK
+		}
+		writeJSON(w, status, deletion)
 	})
 
 	mux.HandleFunc("POST /v1/cancellations", func(w http.ResponseWriter, r *http.Request) {
@@ -375,6 +474,10 @@ func writeDemandFailure(w http.ResponseWriter, r *http.Request, err error) {
 		writeDemandError(w, r, http.StatusConflict, "CONSULT_EVIDENCE_REQUIRED", "Завершение требует доказательство провайдера связи, а не таймер.", false, []string{"CONSULT_EVIDENCE_REQUIRED"})
 	case errors.Is(err, demand.ErrRecoveryInvalid):
 		writeDemandError(w, r, http.StatusBadRequest, "COMM_RECOVERY_INVALID", "Сбой связи не распознан.", false, nil)
+	case errors.Is(err, demand.ErrPurposeConsent):
+		writeDemandError(w, r, http.StatusConflict, "DATA_PURPOSE_CONSENT_REQUIRED", "Сырую запись консультации нельзя передать в рост без отдельного согласия.", false, []string{"DATA_PURPOSE_CONSENT_REQUIRED"})
+	case errors.Is(err, demand.ErrNotDeletion):
+		writeDemandError(w, r, http.StatusConflict, "ACCOUNT_DEACTIVATION_IS_NOT_DELETION", "Деактивация не считается удалением учётной записи.", false, []string{"ACCOUNT_DEACTIVATION_IS_NOT_DELETION"})
 	default:
 		writeDemandError(w, r, http.StatusBadRequest, "DEMAND_REJECTED", "Запрос отклонён.", false, nil)
 	}

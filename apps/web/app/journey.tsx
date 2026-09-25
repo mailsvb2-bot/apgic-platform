@@ -135,6 +135,7 @@ export function Journey() {
   const [intent, setIntent] = useState<Intent | null>(null);
   const [topics, setTopics] = useState<string[]>([]);
   const [matches, setMatches] = useState<MatchCard[] | null>(null);
+  const [search, setSearch] = useState<{ notice: string; stale: boolean; rebuilt: boolean; owns_qualification: boolean; entries: { specialist_id: string; display_name: string }[] } | null>(null);
   const [specialist, setSpecialist] = useState<MatchCard | null>(null);
   const [slots, setSlots] = useState<Slot[]>([]);
   const [hold, setHold] = useState<Hold | null>(null);
@@ -148,12 +149,22 @@ export function Journey() {
     notice: string;
     evidence_ref?: string;
     charged_again: boolean;
+    raw_content_stored?: boolean;
     refund_path_opened?: boolean;
     apgic_returns_funds?: boolean;
   } | null>(null);
   const [providerEventID] = useState(() => crypto.randomUUID());
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
+  const [deletion, setDeletion] = useState<{
+    state: string;
+    deactivation: boolean;
+    profile_erased: boolean;
+    ledger_retained: boolean;
+    apgic_deletes_ledger: boolean;
+    notice: string;
+    idempotent: boolean;
+  } | null>(null);
 
   async function interpret(event: FormEvent) {
     event.preventDefault();
@@ -193,8 +204,51 @@ export function Journey() {
         return payload as { matches: MatchCard[] };
       });
       setMatches(listed.matches);
+      const topic = topics[0];
+      if (topic) {
+        const projected = await fetch(`/v1/search?topic=${encodeURIComponent(topic)}`);
+        const projection = await projected.json();
+        if (!projected.ok) throw new Error(projection.message_safe || "Поиск недоступен.");
+        if (projection.owns_qualification) throw new Error("Поиск не должен владеть допуском.");
+        setSearch(projection);
+      }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Не удалось подтвердить запрос.");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function staleSearch() {
+    const topic = topics[0];
+    if (!topic) return;
+    setError("");
+    setPending(true);
+    try {
+      const view = await postJSON<{ owns_qualification: boolean; stale: boolean; entries: { specialist_id: string; display_name: string }[]; notice: string; rebuilt: boolean }>("/v1/search/stale", {
+        topic,
+        specialist_id: "spec-lebedeva",
+      });
+      if (view.owns_qualification) throw new Error("Поиск не должен владеть допуском.");
+      setSearch(view);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Индекс не сброшен.");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function rebuildSearch() {
+    const topic = topics[0];
+    if (!topic) return;
+    setError("");
+    setPending(true);
+    try {
+      const view = await postJSON<{ owns_qualification: boolean; stale: boolean; rebuilt: boolean; entries: { specialist_id: string; display_name: string }[]; notice: string }>("/v1/search/rebuild", { topic });
+      if (view.owns_qualification || view.stale || !view.rebuilt) throw new Error("Проекция не восстановлена из каталога.");
+      setSearch(view);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Поиск не восстановлен.");
     } finally {
       setPending(false);
     }
@@ -353,6 +407,21 @@ export function Journey() {
     }
   }
 
+  async function exportToGrowth() {
+    if (!evidence) return;
+    setError("");
+    setPending(true);
+    try {
+      const created = await postJSON<{ raw_content_included: boolean }>("/v1/consultations/" + evidence.booking_id + "/growth-export", { purpose_consent: false });
+      if (!created.raw_content_included) throw new Error("Сырая запись не должна была уйти в рост.");
+      setError("Сырая запись не должна была уйти в рост.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Выгрузка отклонена.");
+    } finally {
+      setPending(false);
+    }
+  }
+
   async function completeWithoutEvidence() {
     if (!evidence) return;
     setError("");
@@ -400,6 +469,31 @@ export function Journey() {
       setCancellation(created);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Отмена не выполнена.");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function deleteAccount() {
+    if (!intent) return;
+    setError("");
+    setPending(true);
+    try {
+      const created = await postJSON<{
+        state: string;
+        deactivation: boolean;
+        profile_erased: boolean;
+        ledger_retained: boolean;
+        apgic_deletes_ledger: boolean;
+        notice: string;
+        idempotent: boolean;
+      }>("/v1/account-deletions", { identity_id: intent.client_identity_id, source: "WEB" });
+      if (created.deactivation || created.apgic_deletes_ledger || !created.ledger_retained || !created.profile_erased) {
+        throw new Error("Удаление не должно быть деактивацией и не должно уничтожать запись учёта.");
+      }
+      setDeletion(created);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Учётная запись не удалена.");
     } finally {
       setPending(false);
     }
@@ -467,6 +561,15 @@ export function Journey() {
               </li>
             ))}
           </ul>
+          {search ? (
+            <>
+              <p>{search.notice}</p>
+              <p>{search.entries.length === 0 ? "В проекции никого нет." : `В проекции: ${search.entries.map((entry) => entry.display_name).join(", ")}.`}</p>
+              <p>Индекс владеет допуском: {search.owns_qualification ? "да" : "нет"}.</p>
+              <button type="button" onClick={staleSearch} disabled={pending}>Сбросить поисковый индекс</button>
+              <button type="button" onClick={rebuildSearch} disabled={pending}>Восстановить поиск из каталога</button>
+            </>
+          ) : null}
         </section>
       ) : null}
 
@@ -543,9 +646,10 @@ export function Journey() {
           <button type="button" onClick={() => reportFailure(false)} disabled={pending}>Сбой без восстановления</button>
           <button type="button" onClick={completeWithoutEvidence} disabled={pending}>Завершить без доказательства</button>
           <button type="button" onClick={completeWithEvidence} disabled={pending}>Завершить по доказательству провайдера</button>
+          <button type="button" onClick={exportToGrowth} disabled={pending}>Передать сырую запись в рост</button>
           {session ? (
             <p>
-              Сессия {session.state}. {session.notice} Повторное списание: {session.charged_again ? "да" : "нет"}.
+              Сессия {session.state}. {session.notice} Повторное списание: {session.charged_again ? "да" : "нет"}. Сырая запись в деле: {session.raw_content_stored ? "да" : "нет"}.
               {session.refund_path_opened ? " Путь возврата открыт у внешнего провайдера." : ""}
               {session.apgic_returns_funds ? " APGIC возвращает деньги: да." : ""}
             </p>
@@ -561,6 +665,22 @@ export function Journey() {
           <p>Состояние брони {cancellation.booking_state}. Возврат {cancellation.refund_state} у провайдера {cancellation.provider_id}.</p>
           <p>Исходная запись {cancellation.original_ledger_id} сохранена. Запись возврата {cancellation.reversal_ledger_id}.</p>
           <p>APGIC принимает деньги: {cancellation.apgic_accepts_funds ? "да" : "нет"}. APGIC возвращает деньги: {cancellation.apgic_returns_funds ? "да" : "нет"}. Повтор: {cancellation.idempotent ? "уже учтён" : "нет"}.</p>
+        </section>
+      ) : null}
+
+      {intent ? (
+        <section className="panel" aria-labelledby="deletion-title">
+          <h2 id="deletion-title">Удаление учётной записи</h2>
+          <p>Это удаление, не деактивация. Профиль стирается у внешнего провайдера. Запись учёта оплаты сохраняется.</p>
+          <button type="button" onClick={deleteAccount} disabled={pending}>Удалить учётную запись</button>
+          {deletion ? (
+            <>
+              <p>{deletion.notice}</p>
+              <p>Состояние {deletion.state}. Деактивация: {deletion.deactivation ? "да" : "нет"}.</p>
+              <p>Профиль стёрт: {deletion.profile_erased ? "да" : "нет"}. Запись учёта сохранена: {deletion.ledger_retained ? "да" : "нет"}.</p>
+              <p>APGIC уничтожает запись учёта: {deletion.apgic_deletes_ledger ? "да" : "нет"}. Повтор: {deletion.idempotent ? "уже учтён" : "нет"}.</p>
+            </>
+          ) : null}
         </section>
       ) : null}
     </div>

@@ -81,6 +81,53 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /v1/search:
+    get:
+      operationId: searchProjection
+      parameters:
+        - name: topic
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Search projection for one topic. The index does not own qualification.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchView'
+  /v1/search/rebuild:
+    post:
+      operationId: rebuildSearchProjection
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchTopicRequest'
+      responses:
+        '200':
+          description: Projection rebuilt from canonical specialist profiles
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchView'
+  /v1/search/stale:
+    post:
+      operationId: markSearchProjectionStale
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchStaleRequest'
+      responses:
+        '200':
+          description: Index lost an entry. Qualification truth is unchanged.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchView'
   /v1/help-intents/{id}/matches:
     get:
       operationId: listHelpIntentMatches
@@ -206,6 +253,22 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /v1/account-deletions:
+    post:
+      operationId: deleteAccount
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccountDeletionRequest'
+      responses:
+        '201':
+          description: Account deletion. Financial evidence is retained. Deactivation is not deletion.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountDeletion'
   /v1/cancellations:
     post:
       operationId: cancelOrder
@@ -304,6 +367,33 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ConsultationView'
+  /v1/consultations/{bookingID}/growth-export:
+    post:
+      operationId: exportConsultationToGrowth
+      parameters:
+        - name: bookingID
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GrowthExportRequest'
+      responses:
+        '200':
+          description: Minimal facts only. Raw consultation content is not included.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GrowthExport'
+        '409':
+          description: Purpose consent is required for raw consultation content
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /v1/consultations/{bookingID}/complete:
     post:
       operationId: completeConsultation
@@ -401,6 +491,44 @@ components:
         context:
           type: object
           additionalProperties: { type: string }
+    SearchTopicRequest:
+      type: object
+      additionalProperties: false
+      required: [topic]
+      properties:
+        topic: { type: string }
+    SearchStaleRequest:
+      type: object
+      additionalProperties: false
+      required: [topic, specialist_id]
+      properties:
+        topic: { type: string }
+        specialist_id: { type: string }
+    SearchHit:
+      type: object
+      additionalProperties: false
+      required: [specialist_id, display_name, topics]
+      properties:
+        specialist_id: { type: string }
+        display_name: { type: string }
+        topics:
+          type: array
+          items: { type: string }
+    SearchView:
+      type: object
+      additionalProperties: false
+      required: [version, rebuilt, stale, owns_qualification, entries, notice]
+      properties:
+        version: { type: string }
+        topic: { type: string }
+        rebuilt: { type: boolean }
+        stale: { type: boolean }
+        owns_qualification: { type: boolean }
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/SearchHit'
+        notice: { type: string }
     HelpIntent:
       type: object
       additionalProperties: false
@@ -584,6 +712,32 @@ components:
       properties:
         order_id: { type: string }
         reason_code: { type: string }
+    AccountDeletionRequest:
+      type: object
+      additionalProperties: false
+      required: [identity_id, source]
+      properties:
+        identity_id: { type: string }
+        source: { type: string }
+    AccountDeletion:
+      type: object
+      additionalProperties: false
+      required: [id, identity_id, source, state, deactivation, profile_erased, ledger_retained, ledger_reason, provider_ref, provider_evidence, apgic_deletes_ledger, idempotent, notice]
+      properties:
+        id: { type: string }
+        identity_id: { type: string }
+        source: { type: string }
+        state: { type: string }
+        deactivation: { type: boolean }
+        profile_erased: { type: boolean }
+        ledger_retained: { type: boolean }
+        ledger_id: { type: string }
+        ledger_reason: { type: string }
+        provider_ref: { type: string }
+        provider_evidence: { type: string }
+        apgic_deletes_ledger: { type: boolean }
+        idempotent: { type: boolean }
+        notice: { type: string }
     Cancellation:
       type: object
       additionalProperties: false
@@ -646,6 +800,23 @@ components:
       required: [evidence_ref]
       properties:
         evidence_ref: { type: string }
+    GrowthExportRequest:
+      type: object
+      additionalProperties: false
+      required: [purpose_consent]
+      properties:
+        purpose_consent: { type: boolean }
+    GrowthExport:
+      type: object
+      additionalProperties: false
+      required: [allowed, classification, purpose_consent, raw_content_included, state, notice]
+      properties:
+        allowed: { type: boolean }
+        classification: { type: string }
+        purpose_consent: { type: boolean }
+        raw_content_included: { type: boolean }
+        state: { type: string }
+        notice: { type: string }
     CompleteConsultationRequest:
       type: object
       additionalProperties: false
@@ -664,6 +835,7 @@ components:
         evidence_ref: { type: string }
         apgic_owns_room: { type: boolean }
         charged_again: { type: boolean }
+        raw_content_stored: { type: boolean }
         refund_path_opened: { type: boolean }
         apgic_returns_funds: { type: boolean }
         recovery_action: { type: string }

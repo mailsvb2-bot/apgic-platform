@@ -20,6 +20,12 @@ test("help intent journey stays usable and accessible", async ({ page }) => {
   await expect(cards).toHaveCount(1);
   await expect(cards.first()).toHaveText("Марина Лебедева");
   await expect(page.getByText("Илья Соколов")).toHaveCount(0);
+  await expect(page.getByText("В проекции: Марина Лебедева.")).toBeVisible();
+  await page.getByRole("button", { name: "Сбросить поисковый индекс" }).click();
+  await expect(page.getByText("В проекции никого нет.")).toBeVisible();
+  await expect(page.getByRole("heading", { level: 3, name: "Марина Лебедева" })).toBeVisible();
+  await page.getByRole("button", { name: "Восстановить поиск из каталога" }).click();
+  await expect(page.getByText("В проекции: Марина Лебедева.")).toBeVisible();
 
   await page.getByRole("button", { name: "Выбрать время у Марина Лебедева" }).click();
   const holds = page.getByRole("button", { name: /Удержать слот/ });
@@ -63,11 +69,21 @@ test("help intent journey stays usable and accessible", async ({ page }) => {
   await page.getByRole("button", { name: "Завершить по доказательству провайдера" }).click();
   await expect(page.getByText("Сессия COMPLETED.")).toBeVisible();
   await expect(page.getByText("Повторное списание: нет.")).toBeVisible();
+  await expect(page.getByText("Сырая запись в деле: нет.")).toBeVisible();
+  await page.getByRole("button", { name: "Передать сырую запись в рост" }).click();
+  await expect(page.locator(".alert")).toContainText("согласия");
   await page.getByRole("button", { name: "Отменить бронь через внешнего провайдера" }).click();
   await expect(page.getByRole("heading", { name: "Бронь отменена" })).toBeVisible();
   await expect(page.getByText("CANCELLED")).toBeVisible();
   await expect(page.getByText("APGIC возвращает деньги: нет.")).toBeVisible();
   await page.getByRole("button", { name: "Отменить бронь через внешнего провайдера" }).click();
+  await expect(page.getByText("Повтор: уже учтён.").last()).toBeVisible();
+  await page.getByRole("button", { name: "Удалить учётную запись" }).click();
+  await expect(page.getByText("PARTIALLY_RETAINED_WITH_REASON")).toBeVisible();
+  await expect(page.getByText("Деактивация: нет.")).toBeVisible();
+  await expect(page.getByText("Запись учёта сохранена: да.")).toBeVisible();
+  await expect(page.getByText("APGIC уничтожает запись учёта: нет.")).toBeVisible();
+  await page.getByRole("button", { name: "Удалить учётную запись" }).click();
   await expect(page.getByText("Повтор: уже учтён.").last()).toBeVisible();
 
   const layout = await page.evaluate(() => ({

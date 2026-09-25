@@ -2,7 +2,29 @@
 // DO NOT EDIT.
 export const apiContractVersion = "0.2.0-r1-demand" as const;
 
-export type ApiOperationId = "acquireSlotHold" | "applyProviderEvent" | "cancelOrder" | "completeConsultation" | "confirmHelpIntent" | "createCheckoutInstruction" | "createHelpIntent" | "getBookingFulfillment" | "getMeta" | "health" | "listCheckoutOptions" | "listHelpIntentMatches" | "listSpecialistSlots" | "readiness" | "recordConsultationPresence" | "reportConsultationFailure" | "succeedConsultationRecovery";
+export type ApiOperationId = "acquireSlotHold" | "applyProviderEvent" | "cancelOrder" | "completeConsultation" | "confirmHelpIntent" | "createCheckoutInstruction" | "createHelpIntent" | "deleteAccount" | "exportConsultationToGrowth" | "getBookingFulfillment" | "getMeta" | "health" | "listCheckoutOptions" | "listHelpIntentMatches" | "listSpecialistSlots" | "markSearchProjectionStale" | "readiness" | "rebuildSearchProjection" | "recordConsultationPresence" | "reportConsultationFailure" | "searchProjection" | "succeedConsultationRecovery";
+
+export interface AccountDeletion {
+  apgic_deletes_ledger: boolean;
+  deactivation: boolean;
+  id: string;
+  idempotent: boolean;
+  identity_id: string;
+  ledger_id?: string;
+  ledger_reason: string;
+  ledger_retained: boolean;
+  notice: string;
+  profile_erased: boolean;
+  provider_evidence: string;
+  provider_ref: string;
+  source: string;
+  state: string;
+}
+
+export interface AccountDeletionRequest {
+  identity_id: string;
+  source: string;
+}
 
 export interface AcquireSlotHoldRequest {
   client_identity_id: string;
@@ -106,6 +128,7 @@ export interface ConsultationView {
   idempotent: boolean;
   notice: string;
   provider_id: string;
+  raw_content_stored?: boolean;
   reason_code?: string;
   recovery_action?: string;
   refund_path_opened?: boolean;
@@ -130,6 +153,19 @@ export interface ErrorEnvelope {
   message_safe: string;
   policy_reason_codes?: Array<string>;
   retryable: boolean;
+}
+
+export interface GrowthExport {
+  allowed: boolean;
+  classification: string;
+  notice: string;
+  purpose_consent: boolean;
+  raw_content_included: boolean;
+  state: string;
+}
+
+export interface GrowthExportRequest {
+  purpose_consent: boolean;
 }
 
 export interface HelpIntent {
@@ -202,6 +238,31 @@ export interface ProviderEvent {
   outcome: string;
   provider_event_id: string;
   provider_id: string;
+}
+
+export interface SearchHit {
+  display_name: string;
+  specialist_id: string;
+  topics: Array<string>;
+}
+
+export interface SearchStaleRequest {
+  specialist_id: string;
+  topic: string;
+}
+
+export interface SearchTopicRequest {
+  topic: string;
+}
+
+export interface SearchView {
+  entries: Array<SearchHit>;
+  notice: string;
+  owns_qualification: boolean;
+  rebuilt: boolean;
+  stale: boolean;
+  topic?: string;
+  version: string;
 }
 
 export interface Slot {

@@ -492,9 +492,15 @@ requirements:
   dependencies: []
   implementation_refs:
   - backend/internal/privacy/classification.go
-  contract_refs: []
+  - backend/internal/demand/growth.go
+  - backend/internal/httpapi/demand.go
+  - apps/web/app/journey.tsx
+  contract_refs:
+  - contracts/openapi/apgic-v1.yaml
   test_refs:
   - backend/internal/privacy/classification_test.go
+  - backend/internal/demand/growth_test.go
+  - apps/web/e2e/foundation.spec.ts
   evidence_refs: []
   acceptance:
     given: raw session content существует
@@ -1068,11 +1074,17 @@ requirements:
   - APGIC-SPEC-002
   implementation_refs:
   - backend/internal/marketplace/discovery.go
+  - backend/internal/demand/search.go
+  - backend/internal/httpapi/demand.go
+  - apps/web/app/journey.tsx
   - backend/migrations/000007_r1_marketplace_discovery.sql
   contract_refs:
+  - contracts/openapi/apgic-v1.yaml
   - contracts/jsonschema/marketplace-discovery-v1.schema.json
   test_refs:
   - backend/internal/marketplace/marketplace_test.go
+  - backend/internal/demand/search_test.go
+  - apps/web/e2e/foundation.spec.ts
   - backend/migrations/ci_r1_marketplace_invariants.sql
   evidence_refs: []
   acceptance:
@@ -1523,12 +1535,18 @@ requirements:
   - APGIC-DATA-001
   implementation_refs:
   - backend/internal/consultation/lifecycle.go
+  - backend/internal/demand/session.go
+  - backend/internal/demand/growth.go
+  - apps/web/app/journey.tsx
   - backend/migrations/000014_r3_communication_consultation.sql
   - docs/architecture/0003-provider-neutral-consultation-fulfillment.md
   contract_refs:
+  - contracts/openapi/apgic-v1.yaml
   - contracts/jsonschema/consultation-fulfillment-v1.schema.json
   test_refs:
   - backend/internal/consultation/lifecycle_test.go
+  - backend/internal/demand/growth_test.go
+  - apps/web/e2e/foundation.spec.ts
   - backend/migrations/ci_r3_communication_consultation_invariants.sql
   evidence_refs: []
   acceptance:
@@ -2709,14 +2727,20 @@ requirements:
   - APGIC-CONFIG-004
   implementation_refs:
   - backend/internal/privacy/deletion.go
+  - backend/internal/demand/deletion.go
+  - backend/internal/httpapi/demand.go
+  - apps/web/app/journey.tsx
   - backend/migrations/000006_r1_account_deletion.sql
   - apps/mobile/src/r1-cross-surface.ts
   - apps/web/src/r1-cross-surface.ts
   contract_refs:
+  - contracts/openapi/apgic-v1.yaml
   - packages/contracts/src/r1-mobile.ts
   - contracts/jsonschema/r1-mobile-cross-surface-v1.schema.json
   test_refs:
   - backend/internal/privacy/deletion_test.go
+  - backend/internal/demand/deletion_test.go
+  - apps/web/e2e/foundation.spec.ts
   - backend/migrations/ci_r1_mobile_invariants.sql
   - apps/mobile/src/r1-cross-surface.test.ts
   - .github/workflows/ci.yml
