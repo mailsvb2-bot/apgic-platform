@@ -7,50 +7,50 @@ import (
 )
 
 const (
-	ReasonScaleReady          = "MARKET_CELL_SCALE_READY"
-	ReasonEvidenceRequired    = "MARKET_CELL_EVIDENCE_REQUIRED"
-	ReasonThresholdsNotMet    = "MARKET_CELL_THRESHOLDS_NOT_MET"
-	ReasonInvalidScaleInput   = "MARKET_CELL_SCALE_INPUT_INVALID"
+	ReasonScaleReady        = "MARKET_CELL_SCALE_READY"
+	ReasonEvidenceRequired  = "MARKET_CELL_EVIDENCE_REQUIRED"
+	ReasonThresholdsNotMet  = "MARKET_CELL_THRESHOLDS_NOT_MET"
+	ReasonInvalidScaleInput = "MARKET_CELL_SCALE_INPUT_INVALID"
 )
 
 var ErrInvalidScaleInput = errors.New("invalid market cell scale input")
 
 type Thresholds struct {
-	EligibleVerifiedSupplyMin              int
-	ActiveSpecialistsMin                   int
-	BookableSlotCoverageMinPercent         float64
-	DutySupplyMin                          int
-	TimeToAvailableSlotMedianMaxMinutes    float64
-	TimeToAvailableSlotP95MaxMinutes       float64
-	FillConversionMinPercent               float64
-	BookingConversionMinPercent            float64
-	CancellationMaxPercent                 float64
-	NoShowMaxPercent                       float64
-	ResponseTimeP95MaxMinutes              float64
-	AcceptanceTimeP95MaxMinutes            float64
-	UnfilledDemandMaxPercent               float64
-	ComplaintRateMaxPercent                float64
-	SafetyIncidentRateMaxPercent           float64
-	ContributionMarginMinPercent           float64
+	EligibleVerifiedSupplyMin           int
+	ActiveSpecialistsMin                int
+	BookableSlotCoverageMinPercent      float64
+	DutySupplyMin                       int
+	TimeToAvailableSlotMedianMaxMinutes float64
+	TimeToAvailableSlotP95MaxMinutes    float64
+	FillConversionMinPercent            float64
+	BookingConversionMinPercent         float64
+	CancellationMaxPercent              float64
+	NoShowMaxPercent                    float64
+	ResponseTimeP95MaxMinutes           float64
+	AcceptanceTimeP95MaxMinutes         float64
+	UnfilledDemandMaxPercent            float64
+	ComplaintRateMaxPercent             float64
+	SafetyIncidentRateMaxPercent        float64
+	ContributionMarginMinPercent        float64
 }
 
 type Metrics struct {
-	EligibleVerifiedSupply                 int
-	ActiveSpecialists                      int
-	BookableSlotCoveragePercent            float64
-	DutySupply                              int
-	TimeToAvailableSlotMedianMinutes        float64
-	TimeToAvailableSlotP95Minutes           float64
-	FillConversionPercent                  float64
-	BookingConversionPercent               float64
-	CancellationPercent                    float64
-	NoShowPercent                          float64
-	ResponseTimeP95Minutes                 float64
-	AcceptanceTimeP95Minutes               float64
-	UnfilledDemandPercent                  float64
-	ComplaintRatePercent                   float64
-	SafetyIncidentRatePercent              float64
-	ContributionMarginPercent              float64
+	EligibleVerifiedSupply           int
+	ActiveSpecialists                int
+	BookableSlotCoveragePercent      float64
+	DutySupply                       int
+	TimeToAvailableSlotMedianMinutes float64
+	TimeToAvailableSlotP95Minutes    float64
+	FillConversionPercent            float64
+	BookingConversionPercent         float64
+	CancellationPercent              float64
+	NoShowPercent                    float64
+	ResponseTimeP95Minutes           float64
+	AcceptanceTimeP95Minutes         float64
+	UnfilledDemandPercent            float64
+	ComplaintRatePercent             float64
+	SafetyIncidentRatePercent        float64
+	ContributionMarginPercent        float64
 }
 
 type Policy struct {
@@ -219,7 +219,6 @@ func validateMetrics(metrics Metrics) error {
 	}
 	return nil
 }
-
 
 type State string
 
