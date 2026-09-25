@@ -4,6 +4,23 @@ from pathlib import Path
 from typing import Any
 
 REFERENCE_KEYS = ("implementation_refs", "contract_refs", "test_refs")
+COMPLETION_STATUSES = {"VERIFIED", "RELEASED"}
+COMPLETION_REFERENCE_KEYS = ("implementation_refs", "contract_refs", "test_refs", "evidence_refs")
+
+
+def validate_completion_traceability(requirements: list[dict[str, Any]]) -> list[str]:
+    errors: list[str] = []
+    for requirement in requirements:
+        status = requirement.get("status")
+        if status not in COMPLETION_STATUSES:
+            continue
+        requirement_id = requirement.get("requirement_id") or "<unknown>"
+        for key in COMPLETION_REFERENCE_KEYS:
+            refs = requirement.get(key)
+            if not isinstance(refs, list) or not refs:
+                errors.append(f"{requirement_id}: {status} with empty {key}")
+    return errors
+
 
 
 def validate_repository_refs(
