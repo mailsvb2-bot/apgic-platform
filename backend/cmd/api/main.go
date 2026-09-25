@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/demand"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/httpapi"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/launchconfig"
 )
@@ -14,6 +15,7 @@ func main() {
 	handler := httpapi.New(httpapi.Options{
 		CommitSHA:    os.Getenv("APGIC_COMMIT_SHA"),
 		ReleaseTrack: "R0",
+		Demand:       demand.NewConformanceService(nil),
 		LaunchConfig: launchconfig.Config{
 			JurisdictionMatrixVersion: os.Getenv("APGIC_JURISDICTION_MATRIX_VERSION"),
 			RetentionPolicyVersion:    os.Getenv("APGIC_RETENTION_POLICY_VERSION"),

@@ -604,6 +604,7 @@ requirements:
   dependencies: []
   implementation_refs:
   - apps/web/app/page.tsx
+  - apps/web/app/journey.tsx
   - apps/web/app/globals.css
   - apps/web/playwright.config.ts
   contract_refs: []
@@ -633,6 +634,7 @@ requirements:
   dependencies: []
   implementation_refs:
   - apps/web/app/page.tsx
+  - apps/web/app/journey.tsx
   - apps/web/playwright.config.ts
   contract_refs: []
   test_refs:
@@ -875,11 +877,16 @@ requirements:
   dependencies: []
   implementation_refs:
   - backend/internal/marketplace/discovery.go
+  - backend/internal/demand/service.go
+  - backend/internal/httpapi/demand.go
   - backend/migrations/000007_r1_marketplace_discovery.sql
   contract_refs:
   - contracts/jsonschema/marketplace-discovery-v1.schema.json
+  - contracts/openapi/apgic-v1.yaml
   test_refs:
   - backend/internal/marketplace/marketplace_test.go
+  - backend/internal/demand/service_test.go
+  - apps/web/e2e/foundation.spec.ts
   - backend/migrations/ci_r1_marketplace_invariants.sql
   evidence_refs: []
   acceptance:
@@ -1090,6 +1097,7 @@ requirements:
   dependencies:
   - APGIC-AUTH-001
   implementation_refs:
+  - backend/internal/demand/service.go
   - backend/migrations/000008_r2_booking_order.sql
   contract_refs:
   - contracts/jsonschema/booking-order-v1.schema.json
@@ -1220,10 +1228,14 @@ requirements:
   - APGIC-PAY-001
   - APGIC-LEDGER-001
   implementation_refs:
+  - backend/internal/demand/evidence.go
   - backend/migrations/000009_r2_payment_control_plane.sql
   contract_refs:
   - contracts/jsonschema/payment-control-plane-v1.schema.json
+  - contracts/openapi/apgic-v1.yaml
   test_refs:
+  - backend/internal/demand/evidence_test.go
+  - apps/web/e2e/foundation.spec.ts
   - backend/migrations/ci_r2_payment_invariants.sql
   - .github/workflows/ci.yml
   evidence_refs: []
@@ -1251,12 +1263,15 @@ requirements:
   - APGIC-BOOK-002
   implementation_refs:
   - backend/internal/notification/intent.go
+  - backend/internal/demand/fulfillment.go
   - backend/migrations/000011_r2_transaction_edge.sql
   contract_refs:
   - contracts/jsonschema/transaction-edge-v1.schema.json
   - packages/contracts/src/r2-transaction-edge.ts
   test_refs:
   - backend/internal/notification/intent_test.go
+  - backend/internal/demand/fulfillment_test.go
+  - apps/web/e2e/foundation.spec.ts
   - backend/migrations/ci_r2_transaction_edge_invariants.sql
   - .github/workflows/ci.yml
   evidence_refs: []
@@ -1320,11 +1335,14 @@ requirements:
   - APGIC-BOOK-002
   implementation_refs:
   - backend/internal/refunds/refund.go
+  - backend/internal/demand/cancel.go
   - backend/migrations/000010_r2_refund_reversal.sql
   contract_refs:
   - contracts/jsonschema/refund-reversal-v1.schema.json
   test_refs:
   - backend/internal/refunds/refund_test.go
+  - backend/internal/demand/cancel_test.go
+  - apps/web/e2e/foundation.spec.ts
   - backend/migrations/ci_r2_refund_invariants.sql
   - backend/ci/restore_drill.sh
   - .github/workflows/ci.yml
@@ -1356,6 +1374,7 @@ requirements:
   - APGIC-CONN-001
   implementation_refs:
   - backend/internal/communication/access.go
+  - backend/internal/demand/fulfillment.go
   - backend/migrations/000014_r3_communication_consultation.sql
   - config/providers/r0-ci-matrix.yaml
   contract_refs:
@@ -1363,6 +1382,8 @@ requirements:
   - docs/architecture/0003-provider-neutral-consultation-fulfillment.md
   test_refs:
   - backend/internal/communication/access_test.go
+  - backend/internal/demand/fulfillment_test.go
+  - apps/web/e2e/foundation.spec.ts
   - backend/migrations/ci_r3_communication_consultation_invariants.sql
   - .github/workflows/ci.yml
   evidence_refs: []
@@ -1389,12 +1410,15 @@ requirements:
   - APGIC-COMM-001
   implementation_refs:
   - backend/internal/consultation/lifecycle.go
+  - backend/internal/demand/session.go
   - backend/migrations/000014_r3_communication_consultation.sql
   contract_refs:
   - contracts/jsonschema/consultation-fulfillment-v1.schema.json
   - docs/architecture/0003-provider-neutral-consultation-fulfillment.md
   test_refs:
   - backend/internal/consultation/lifecycle_test.go
+  - backend/internal/demand/session_test.go
+  - apps/web/e2e/foundation.spec.ts
   - backend/migrations/ci_r3_communication_consultation_invariants.sql
   - backend/ci/restore_drill.sh
   evidence_refs: []
@@ -1423,13 +1447,19 @@ requirements:
   - APGIC-REFUND-001
   implementation_refs:
   - backend/internal/communication/recovery.go
+  - backend/internal/demand/recovery.go
+  - backend/internal/httpapi/demand.go
+  - apps/web/app/journey.tsx
   - backend/migrations/000014_r3_communication_consultation.sql
   - config/providers/r0-ci-matrix.yaml
   contract_refs:
+  - contracts/openapi/apgic-v1.yaml
   - contracts/jsonschema/consultation-fulfillment-v1.schema.json
   - docs/architecture/0003-provider-neutral-consultation-fulfillment.md
   test_refs:
   - backend/internal/communication/recovery_test.go
+  - backend/internal/demand/recovery_test.go
+  - apps/web/e2e/foundation.spec.ts
   - backend/migrations/ci_r3_communication_consultation_invariants.sql
   - backend/ci/restore_drill.sh
   evidence_refs: []
@@ -1458,6 +1488,7 @@ requirements:
   implementation_refs:
   - backend/internal/booking/booking.go
   - backend/internal/consultation/lifecycle.go
+  - backend/internal/demand/session.go
   - backend/migrations/000014_r3_communication_consultation.sql
   contract_refs:
   - contracts/jsonschema/consultation-fulfillment-v1.schema.json
@@ -3087,8 +3118,7 @@ requirements:
   risk: HIGH
   priority: P0
   status: IN_PROGRESS
-  dependencies:
-  - APGIC-PAY-001
+  dependencies: []
   implementation_refs:
   - backend/internal/payments/taxonomy.go
   - contracts/openapi/apgic-v1.yaml
@@ -3187,10 +3217,15 @@ requirements:
   - APGIC-MOBILE-017
   implementation_refs:
   - backend/internal/payments/controlplane.go
+  - backend/internal/demand/checkout.go
+  - apps/web/app/journey.tsx
   contract_refs:
   - contracts/jsonschema/payment-control-plane-v1.schema.json
+  - contracts/openapi/apgic-v1.yaml
   test_refs:
   - backend/internal/payments/controlplane_test.go
+  - backend/internal/demand/checkout_test.go
+  - apps/web/e2e/foundation.spec.ts
   evidence_refs: []
   acceptance:
     given: transaction has multiple eligible methods
@@ -3493,12 +3528,14 @@ requirements:
   - APGIC-PAY-001
   implementation_refs:
   - backend/internal/payments/controlplane.go
+  - backend/internal/demand/checkout.go
   - backend/migrations/000009_r2_payment_control_plane.sql
   - docs/architecture/0002-non-custodial-payment-control-plane.md
   contract_refs:
   - contracts/jsonschema/payment-control-plane-v1.schema.json
   test_refs:
   - backend/internal/payments/controlplane_test.go
+  - backend/internal/demand/checkout_test.go
   - backend/migrations/ci_r2_payment_invariants.sql
   - tools/architecture_guard.py
   evidence_refs: []

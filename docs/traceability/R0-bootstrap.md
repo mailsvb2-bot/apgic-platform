@@ -20,6 +20,6 @@ This file records implementation locations created by the first APGIC bootstrap.
 | APGIC-MOBILE-001/002/003/011 | apps/web, apps/mobile, packages/contracts + architecture guard |
 | APGIC-PAY-004 | backend/internal/payments + schema + architecture guard |
 
-## Known governance conflict
+## Governance decision
 
-The supplied registry places APGIC-PAY-004 in R0 while its dependency APGIC-PAY-001 is R2. The bootstrap records this in canon/governance_exceptions.yaml and does not rewrite the supplied Canon. Resolution requires Requirement Change/RFC.
+APGIC-RFC-001 removed the R0 dependency from APGIC-PAY-004 to APGIC-PAY-001. The taxonomy stays in R0. Payment execution stays in R2 with an external provider. APGIC does not accept, store, or transfer funds. The frozen v7 FINAL baseline is unchanged; the approved delta is `canon/requirements/approved-rfcs.yaml`. APGIC-GOV-EX-001 is resolved.

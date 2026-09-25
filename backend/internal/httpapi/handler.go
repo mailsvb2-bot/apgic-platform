@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/demand"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/launchconfig"
 )
 
@@ -13,6 +14,7 @@ type Options struct {
 	ReleaseTrack string
 	Surfaces     []string
 	LaunchConfig launchconfig.Config
+	Demand       *demand.Service
 	Now          func() time.Time
 }
 
@@ -67,6 +69,7 @@ func New(options Options) http.Handler {
 		})
 	})
 
+	registerDemand(mux, options.Demand)
 	return mux
 }
 

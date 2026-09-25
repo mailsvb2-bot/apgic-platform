@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: APGIC Public API
-  version: 0.1.0-r0
+  version: 0.2.0-r1-demand
 servers: []
 paths:
   /healthz:
@@ -32,6 +32,305 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Meta'
+  /v1/help-intents:
+    post:
+      operationId: createHelpIntent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateHelpIntentRequest'
+      responses:
+        '201':
+          description: Draft HelpIntent awaiting user confirmation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HelpIntent'
+        '400':
+          description: Free text is missing or unreadable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /v1/help-intents/{id}/confirm:
+    post:
+      operationId: confirmHelpIntent
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfirmHelpIntentRequest'
+      responses:
+        '200':
+          description: User-confirmed HelpIntent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HelpIntent'
+        '400':
+          description: Confirmation rejected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /v1/help-intents/{id}/matches:
+    get:
+      operationId: listHelpIntentMatches
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: topic
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        '200':
+          description: Eligible ranked specialists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MatchList'
+  /v1/specialists/{id}/slots:
+    get:
+      operationId: listSpecialistSlots
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Exclusive future slots
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SlotList'
+  /v1/slot-holds:
+    post:
+      operationId: acquireSlotHold
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AcquireSlotHoldRequest'
+      responses:
+        '201':
+          description: Exclusive slot hold acquired
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SlotHold'
+        '409':
+          description: Slot already held
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /v1/slot-holds/{id}/checkout-options:
+    get:
+      operationId: listCheckoutOptions
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: client_identity_id
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: External payment methods. APGIC does not accept funds.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckoutOptionList'
+  /v1/checkout-instructions:
+    post:
+      operationId: createCheckoutInstruction
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCheckoutInstructionRequest'
+      responses:
+        '201':
+          description: External execution instruction. APGIC does not accept funds.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckoutInstruction'
+        '409':
+          description: Method is ineligible or custody is forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /v1/provider-events:
+    post:
+      operationId: applyProviderEvent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProviderEvent'
+      responses:
+        '201':
+          description: First captured provider evidence. APGIC does not accept funds.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentEvidence'
+        '200':
+          description: Duplicate provider event with the same economic effect
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentEvidence'
+        '409':
+          description: Evidence does not match the instruction or would create a second effect
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /v1/cancellations:
+    post:
+      operationId: cancelOrder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancellationRequest'
+      responses:
+        '201':
+          description: Provider-executed cancellation. APGIC does not return funds.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cancellation'
+        '200':
+          description: Repeated cancellation of the same order
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cancellation'
+  /v1/bookings/{id}/fulfillment:
+    get:
+      operationId: getBookingFulfillment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: identity_id
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Transactional notice and communication join decision
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingFulfillment'
+  /v1/consultations/{bookingID}/presence:
+    post:
+      operationId: recordConsultationPresence
+      parameters:
+        - name: bookingID
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '201':
+          description: Provider lifecycle facts recorded. APGIC does not own the room.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsultationView'
+  /v1/consultations/{bookingID}/failures:
+    post:
+      operationId: reportConsultationFailure
+      parameters:
+        - name: bookingID
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConsultationFailureRequest'
+      responses:
+        '201':
+          description: Provider failure starts recovery or an external refund path. APGIC does not charge again.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsultationView'
+  /v1/consultations/{bookingID}/recovery:
+    post:
+      operationId: succeedConsultationRecovery
+      parameters:
+        - name: bookingID
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConsultationRecoveryRequest'
+      responses:
+        '201':
+          description: Recovery returned the consultation to work without a second charge
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsultationView'
+  /v1/consultations/{bookingID}/complete:
+    post:
+      operationId: completeConsultation
+      parameters:
+        - name: bookingID
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompleteConsultationRequest'
+      responses:
+        '201':
+          description: Completed only with provider evidence
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsultationView'
+        '409':
+          description: Completion evidence is missing or the session is not ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
 components:
   schemas:
     Surface:
@@ -82,3 +381,292 @@ components:
           items: { $ref: '#/components/schemas/Surface' }
         commit_sha: { type: string }
         time: { type: string, format: date-time }
+    CreateHelpIntentRequest:
+      type: object
+      additionalProperties: false
+      required: [free_text]
+      properties:
+        free_text: { type: string }
+    ConfirmHelpIntentRequest:
+      type: object
+      additionalProperties: false
+      required: [topics]
+      properties:
+        topics:
+          type: array
+          items: { type: string }
+        goals:
+          type: array
+          items: { type: string }
+        context:
+          type: object
+          additionalProperties: { type: string }
+    HelpIntent:
+      type: object
+      additionalProperties: false
+      required: [id, client_identity_id, free_text, topics, goals, status, notice, diagnosis_asserted, catalog_mode]
+      properties:
+        id: { type: string }
+        client_identity_id: { type: string }
+        free_text: { type: string }
+        topics:
+          type: array
+          items: { type: string }
+        goals:
+          type: array
+          items: { type: string }
+        context:
+          type: object
+          additionalProperties: { type: string }
+        status: { type: string }
+        reason_codes:
+          type: array
+          items: { type: string }
+        notice: { type: string }
+        diagnosis_asserted: { type: boolean }
+        catalog_mode: { type: string }
+    MatchCard:
+      type: object
+      additionalProperties: false
+      required: [specialist_id, display_name, profession, price_minor, currency, format, sponsored]
+      properties:
+        specialist_id: { type: string }
+        display_name: { type: string }
+        profession: { type: string }
+        price_minor: { type: integer }
+        currency: { type: string }
+        format: { type: string }
+        sponsored: { type: boolean }
+        reason_codes:
+          type: array
+          items: { type: string }
+    MatchList:
+      type: object
+      additionalProperties: false
+      required: [topic, ranking_policy_version, catalog_mode, matches]
+      properties:
+        topic: { type: string }
+        ranking_policy_version: { type: string }
+        catalog_mode: { type: string }
+        matches:
+          type: array
+          items:
+            $ref: '#/components/schemas/MatchCard'
+    Slot:
+      type: object
+      additionalProperties: false
+      required: [id, specialist_id, starts_at, ends_at, exclusive]
+      properties:
+        id: { type: string }
+        specialist_id: { type: string }
+        starts_at: { type: string, format: date-time }
+        ends_at: { type: string, format: date-time }
+        exclusive: { type: boolean }
+    SlotList:
+      type: object
+      additionalProperties: false
+      required: [specialist_id, slots]
+      properties:
+        specialist_id: { type: string }
+        slots:
+          type: array
+          items:
+            $ref: '#/components/schemas/Slot'
+    AcquireSlotHoldRequest:
+      type: object
+      additionalProperties: false
+      required: [help_intent_id, slot_id, client_identity_id]
+      properties:
+        help_intent_id: { type: string }
+        slot_id: { type: string }
+        client_identity_id: { type: string }
+    SlotHold:
+      type: object
+      additionalProperties: false
+      required: [id, booking_id, slot_id, client_identity_id, state, booking_state, expires_at, reason_code]
+      properties:
+        id: { type: string }
+        booking_id: { type: string }
+        slot_id: { type: string }
+        client_identity_id: { type: string }
+        state: { type: string }
+        booking_state: { type: string }
+        expires_at: { type: string, format: date-time }
+        reason_code: { type: string }
+    CheckoutOption:
+      type: object
+      additionalProperties: false
+      required: [method_code, rail_code, provider_id, execution_owner, amount_minor, currency, payment_recipient_id, platform_role, apgic_accepts_funds]
+      properties:
+        method_code: { type: string }
+        rail_code: { type: string }
+        provider_id: { type: string }
+        execution_owner: { type: string }
+        amount_minor: { type: integer }
+        currency: { type: string }
+        payment_recipient_id: { type: string }
+        platform_role: { type: string }
+        apgic_accepts_funds: { type: boolean }
+    CheckoutOptionList:
+      type: object
+      additionalProperties: false
+      required: [hold_id, apgic_accepts_funds, options]
+      properties:
+        hold_id: { type: string }
+        apgic_accepts_funds: { type: boolean }
+        options:
+          type: array
+          items:
+            $ref: '#/components/schemas/CheckoutOption'
+    CreateCheckoutInstructionRequest:
+      type: object
+      additionalProperties: false
+      required: [hold_id, client_identity_id, method_code]
+      properties:
+        hold_id: { type: string }
+        client_identity_id: { type: string }
+        method_code: { type: string }
+    CheckoutInstruction:
+      type: object
+      additionalProperties: false
+      required: [id, hold_id, booking_id, booking_state, order_id, provider_id, method_code, rail_code, amount_minor, currency, execution_owner, payment_recipient_id, platform_role, apgic_accepts_funds, notice, reason_code]
+      properties:
+        id: { type: string }
+        hold_id: { type: string }
+        booking_id: { type: string }
+        booking_state: { type: string }
+        order_id: { type: string }
+        provider_id: { type: string }
+        method_code: { type: string }
+        rail_code: { type: string }
+        amount_minor: { type: integer }
+        currency: { type: string }
+        execution_owner: { type: string }
+        payment_recipient_id: { type: string }
+        platform_role: { type: string }
+        apgic_accepts_funds: { type: boolean }
+        notice: { type: string }
+        reason_code: { type: string }
+    ProviderEvent:
+      type: object
+      additionalProperties: false
+      required: [provider_id, provider_event_id, order_id, amount_minor, currency, outcome]
+      properties:
+        provider_id: { type: string }
+        provider_event_id: { type: string }
+        order_id: { type: string }
+        amount_minor: { type: integer }
+        currency: { type: string }
+        outcome: { type: string }
+    PaymentEvidence:
+      type: object
+      additionalProperties: false
+      required: [id, order_id, booking_id, booking_state, provider_id, provider_event_id, ledger_entry_id, amount_minor, currency, debit_account_ref, credit_account_ref, apgic_accepts_funds, idempotent, notice]
+      properties:
+        id: { type: string }
+        order_id: { type: string }
+        booking_id: { type: string }
+        booking_state: { type: string }
+        provider_id: { type: string }
+        provider_event_id: { type: string }
+        ledger_entry_id: { type: string }
+        amount_minor: { type: integer }
+        currency: { type: string }
+        debit_account_ref: { type: string }
+        credit_account_ref: { type: string }
+        apgic_accepts_funds: { type: boolean }
+        idempotent: { type: boolean }
+        notice: { type: string }
+    CancellationRequest:
+      type: object
+      additionalProperties: false
+      required: [order_id, reason_code]
+      properties:
+        order_id: { type: string }
+        reason_code: { type: string }
+    Cancellation:
+      type: object
+      additionalProperties: false
+      required: [id, order_id, booking_id, booking_state, refund_id, refund_state, provider_id, execution_owner, original_ledger_id, reversal_ledger_id, amount_minor, currency, apgic_accepts_funds, apgic_returns_funds, idempotent, notice]
+      properties:
+        id: { type: string }
+        order_id: { type: string }
+        booking_id: { type: string }
+        booking_state: { type: string }
+        refund_id: { type: string }
+        refund_state: { type: string }
+        provider_id: { type: string }
+        execution_owner: { type: string }
+        original_ledger_id: { type: string }
+        reversal_ledger_id: { type: string }
+        amount_minor: { type: integer }
+        currency: { type: string }
+        apgic_accepts_funds: { type: boolean }
+        apgic_returns_funds: { type: boolean }
+        idempotent: { type: boolean }
+        notice: { type: string }
+    BookingFulfillment:
+      type: object
+      additionalProperties: false
+      required: [join]
+      properties:
+        notice:
+          type: object
+          additionalProperties: false
+          required: [id, booking_id, purpose, transactional, requires_growth_opt_in]
+          properties:
+            id: { type: string }
+            booking_id: { type: string }
+            purpose: { type: string }
+            transactional: { type: boolean }
+            requires_growth_opt_in: { type: boolean }
+            idempotent: { type: boolean }
+        join:
+          type: object
+          additionalProperties: false
+          required: [decision, reason_code, opens_at, closes_at, notice]
+          properties:
+            decision: { type: string }
+            reason_code: { type: string }
+            provider_instance_id: { type: string }
+            opens_at: { type: string, format: date-time }
+            closes_at: { type: string, format: date-time }
+            notice: { type: string }
+    ConsultationFailureRequest:
+      type: object
+      additionalProperties: false
+      required: [kind, evidence_ref, recoverable]
+      properties:
+        kind: { type: string }
+        evidence_ref: { type: string }
+        recoverable: { type: boolean }
+    ConsultationRecoveryRequest:
+      type: object
+      additionalProperties: false
+      required: [evidence_ref]
+      properties:
+        evidence_ref: { type: string }
+    CompleteConsultationRequest:
+      type: object
+      additionalProperties: false
+      required: [evidence_ref]
+      properties:
+        evidence_ref: { type: string }
+    ConsultationView:
+      type: object
+      additionalProperties: false
+      required: [id, booking_id, state, provider_id, apgic_owns_room, charged_again, idempotent, notice]
+      properties:
+        id: { type: string }
+        booking_id: { type: string }
+        state: { type: string }
+        provider_id: { type: string }
+        evidence_ref: { type: string }
+        apgic_owns_room: { type: boolean }
+        charged_again: { type: boolean }
+        refund_path_opened: { type: boolean }
+        apgic_returns_funds: { type: boolean }
+        recovery_action: { type: string }
+        reason_code: { type: string }
+        idempotent: { type: boolean }
+        notice: { type: string }

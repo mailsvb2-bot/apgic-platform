@@ -41,7 +41,9 @@ The first implementation commit establishes R0 domain primitives and guardrails:
 11. machine-readable canon validation and architecture guard;
 12. Web and Native shells consuming the same server contract namespace.
 
-No requirement is marked VERIFIED or RELEASED by this bootstrap. Requirements touched by code are moved only to `IN_PROGRESS`.
+No requirement is marked VERIFIED or RELEASED. Requirements touched by code stay `IN_PROGRESS` until real release evidence exists.
+
+The first client critical journey is runnable: free-text HelpIntent, user correction without a diagnosis, eligible-only matching, and an exclusive slot hold. The web surface proxies `/v1` to the Go API. The seeded specialist catalog is a conformance catalog, not production supply.
 
 ## Local checks
 
