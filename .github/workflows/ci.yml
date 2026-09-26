@@ -1,5 +1,3 @@
-[Reading 435 lines from start (total: 435 lines, 0 remaining)]
-
 name: CI
 
 on:
@@ -435,5 +433,3 @@ jobs:
           path: evidence/r0-release-evidence.json
           if-no-files-found: error
           retention-days: 30
-
-[executed on device: 7557405-me744613.twc1.net (f78fb5c4-85ce-49a2-ae2f-bfed9c352431)]
