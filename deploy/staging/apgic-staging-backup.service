@@ -1,0 +1,21 @@
+[Unit]
+Description=APGIC staging PostgreSQL logical backup
+Requires=postgresql.service
+After=postgresql.service
+
+[Service]
+Type=oneshot
+User=postgres
+Group=postgres
+Environment=APGIC_BACKUP_DATABASE=apgic_staging
+Environment=APGIC_BACKUP_DIR=/var/backups/apgic
+Environment=APGIC_BACKUP_RETENTION_DAYS=7
+ExecStart=/opt/apgic/current/deploy/staging/backup-staging-postgres.sh
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/var/backups/apgic
+RestrictAddressFamilies=AF_UNIX
+UMask=0077
