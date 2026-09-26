@@ -478,6 +478,7 @@ requirements:
   - contracts/jsonschema/ledger-entry-v1.schema.json
   test_refs:
   - backend/internal/ledger/ledger_test.go
+  - backend/internal/demand/ledger_test.go
   - backend/internal/demand/evidence_test.go
   - backend/internal/demand/cancel_test.go
   - backend/migrations/ci_invariants.sql
