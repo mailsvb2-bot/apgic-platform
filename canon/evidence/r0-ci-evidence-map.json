@@ -187,7 +187,9 @@
           ],
           "proof_refs": [
             "backend/internal/ledger/ledger_test.go",
-            "tools/ledger_contract_guard.py"
+            "tools/ledger_contract_guard.py",
+            "backend/internal/demand/evidence_test.go",
+            "backend/internal/demand/cancel_test.go"
           ]
         },
         "DB_INVARIANT_TEST": {
