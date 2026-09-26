@@ -715,11 +715,13 @@ requirements:
   dependencies: []
   implementation_refs:
   - .github/workflows/ci.yml
-  contract_refs: []
+  contract_refs:
+  - contracts/testing/state-machine-invariant-test-canon-v1.yaml
   test_refs:
   - backend/internal/
   - tools/canon_lint.py
   - tools/architecture_guard.py
+  - tools/test_canon_contract_guard.py
   evidence_refs: []
   acceptance:
     given: новый critical state machine заявлен production-ready
