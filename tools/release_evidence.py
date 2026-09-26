@@ -128,6 +128,20 @@ def build_requirement_evidence(
     if unknown_supplied:
         fail(f"gate results contain gates not declared by evidence map: {sorted(unknown_supplied)}")
 
+    r0_requirements = {
+        requirement_id
+        for requirement_id, requirement in registry.items()
+        if requirement.get("release_profile") == "R0"
+    }
+    mapped_requirements = set(evidence_map["requirements"])
+    if mapped_requirements != r0_requirements:
+        missing = sorted(r0_requirements - mapped_requirements)
+        extra = sorted(mapped_requirements - r0_requirements)
+        fail(
+            "CI evidence map must cover exactly all R0 requirements "
+            f"missing={missing} extra={extra}"
+        )
+
     output: dict[str, dict[str, Any]] = {}
     for requirement_id, mapping in sorted(evidence_map["requirements"].items()):
         requirement = registry.get(requirement_id)
