@@ -764,6 +764,85 @@
       "unproven_evidence": [
         "ARCHITECTURE_GATE"
       ]
+    },
+    "APGIC-EXEC-001": {
+      "claims": {
+        "DOMAIN_OR_CONTRACT_TEST": {
+          "gates": [
+            "canon"
+          ],
+          "proof_refs": [
+            "tools/canon_lint.py",
+            "tools/registry_ref_guard.py"
+          ]
+        }
+      },
+      "unproven_evidence": [
+        "E2E_OR_STAGING_PROOF"
+      ]
+    },
+    "APGIC-NFR-001": {
+      "claims": {
+        "DOMAIN_OR_CONTRACT_TEST": {
+          "gates": [
+            "backend",
+            "canon"
+          ],
+          "proof_refs": [
+            "backend/internal/httpapi/handler_test.go",
+            "tools/launch_config_guard.py"
+          ]
+        }
+      },
+      "unproven_evidence": [
+        "E2E_OR_STAGING_PROOF"
+      ]
+    },
+    "APGIC-RELEASE-001": {
+      "claims": {
+        "DOMAIN_OR_CONTRACT_TEST": {
+          "gates": [
+            "canon"
+          ],
+          "proof_refs": [
+            "tools/tests/test_release_evidence.py"
+          ]
+        }
+      },
+      "unproven_evidence": [
+        "E2E_OR_STAGING_PROOF"
+      ]
+    },
+    "APGIC-TEST-001": {
+      "claims": {
+        "DOMAIN_OR_CONTRACT_TEST": {
+          "gates": [
+            "canon"
+          ],
+          "proof_refs": [
+            "tools/test_canon_contract_guard.py",
+            "tools/architecture_guard.py"
+          ]
+        }
+      },
+      "unproven_evidence": [
+        "E2E_OR_STAGING_PROOF"
+      ]
+    },
+    "APGIC-UI-001": {
+      "claims": {
+        "E2E": {
+          "gates": [
+            "web-build"
+          ],
+          "proof_refs": [
+            "apps/web/e2e/foundation.spec.ts"
+          ]
+        }
+      },
+      "unproven_evidence": [
+        "VISUAL_REGRESSION"
+      ]
     }
   }
 }
