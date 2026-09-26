@@ -124,7 +124,7 @@ test("critical journey survives 200% text scaling", async ({ page }) => {
 
   const request = page.getByLabel("С чем нужна помощь");
   await expect(request).toBeVisible();
-  await request.fill("Нужна помощь со сном");
+  await request.fill("Не могу спать, бессонница");
 
   const primary = page.getByRole("button", { name: "Разобрать запрос" });
   await expect(primary).toBeVisible();
