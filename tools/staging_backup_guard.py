@@ -92,6 +92,10 @@ def validate() -> list[str]:
 
     if "ReadWritePaths=/var/backups/apgic" not in backup_service:
         errors.append("backup service must restrict writes to /var/backups/apgic")
+    if "ExecStart=/usr/bin/bash /opt/apgic/current/deploy/staging/backup-staging-postgres.sh" not in backup_service:
+        errors.append("backup service must invoke non-executable repository script via /usr/bin/bash")
+    if "ExecStart=/usr/bin/bash /opt/apgic/current/deploy/staging/verify-staging-backup.sh" not in verify_service:
+        errors.append("restore verification service must invoke non-executable repository script via /usr/bin/bash")
     if "OnCalendar=*-*-* 02:15:00 UTC" not in backup_timer or "Persistent=true" not in backup_timer:
         errors.append("daily backup timer schedule/persistence mismatch")
     if "OnCalendar=Sun *-*-* 03:30:00 UTC" not in verify_timer or "Persistent=true" not in verify_timer:
