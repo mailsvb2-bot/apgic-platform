@@ -755,9 +755,9 @@ requirements:
   implementation_refs:
   - .github/workflows/ci.yml
   - tools/release_evidence.py
-  - canon/evidence/release-evidence-v1.schema.json
+  - canon/evidence/release-evidence-v2.schema.json
   contract_refs:
-  - canon/evidence/release-evidence-v1.schema.json
+  - canon/evidence/release-evidence-v2.schema.json
   test_refs:
   - .github/workflows/ci.yml
   - tools/release_evidence.py
