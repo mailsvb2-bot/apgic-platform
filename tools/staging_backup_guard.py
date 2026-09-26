@@ -55,8 +55,25 @@ def validate() -> list[str]:
         if item not in verify:
             errors.append(f"restore verification missing invariant: {item}")
 
-    if '--dbname="$APGIC_BACKUP_DATABASE"' in verify:
-        errors.append("restore verification must never restore into the live staging database")
+    apply_blocks: list[str] = []
+    verify_lines = verify.splitlines()
+    for index, line in enumerate(verify_lines):
+        if line.strip().startswith("pg_restore") and line.rstrip().endswith("\\"):
+            block_lines = [line]
+            for next_line in verify_lines[index + 1 : index + 12]:
+                block_lines.append(next_line)
+                if not next_line.rstrip().endswith("\\"):
+                    break
+            apply_blocks.append("\n".join(block_lines))
+
+    if len(apply_blocks) != 1:
+        errors.append(f"expected exactly one pg_restore apply block, got {len(apply_blocks)}")
+    else:
+        apply_block = apply_blocks[0]
+        if '--dbname="$verify_db"' not in apply_block:
+            errors.append("restore verification must target the temporary verify database")
+        if "APGIC_BACKUP_DATABASE" in apply_block:
+            errors.append("restore verification must never restore into the live staging database")
 
     for name, text in (("backup service", backup_service), ("verify service", verify_service)):
         for item in (
