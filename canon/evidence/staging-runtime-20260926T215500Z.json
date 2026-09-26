@@ -4,7 +4,7 @@
   "production_release": false,
   "environment": "staging",
   "candidate_sha": "08d06917f7575ad0aa7d129dfb6b6ed4370199f2",
-  "generated_at": "2026-09-26T21:55:00Z",
+  "generated_at": "2026-09-26T22:00:00Z",
   "public_host": "apgic.ru",
   "dns": {
     "authoritative_nameservers": [
