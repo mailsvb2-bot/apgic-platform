@@ -1,0 +1,769 @@
+{
+  "schema_version": "r0-ci-evidence-map-v1",
+  "release_profile": "R0",
+  "allowed_gates": [
+    "canon",
+    "backend",
+    "postgres-invariants",
+    "restore-drill",
+    "web-build",
+    "mobile-typecheck",
+    "android-native-build",
+    "ios-native-build",
+    "client-contract-presence"
+  ],
+  "requirements": {
+    "APGIC-ID-001": {
+      "claims": {
+        "DOMAIN_OR_CONTRACT_TEST": {
+          "gates": [
+            "backend",
+            "canon"
+          ],
+          "proof_refs": [
+            "backend/internal/identity/identity_test.go",
+            "tools/tests/test_identity_contract_guard.py"
+          ]
+        }
+      },
+      "unproven_evidence": [
+        "E2E_OR_STAGING_PROOF"
+      ]
+    },
+    "APGIC-AUTH-001": {
+      "claims": {
+        "SECURITY_TEST": {
+          "gates": [
+            "backend",
+            "canon"
+          ],
+          "proof_refs": [
+            "backend/internal/authz/evaluator_test.go",
+            "backend/internal/authz/authz_test.go",
+            "tools/tests/test_auth_contract_guard.py"
+          ]
+        }
+      },
+      "unproven_evidence": [
+        "DB/API_NEGATIVE_TEST"
+      ]
+    },
+    "APGIC-AUTH-002": {
+      "claims": {
+        "DOMAIN_OR_CONTRACT_TEST": {
+          "gates": [
+            "backend",
+            "canon"
+          ],
+          "proof_refs": [
+            "backend/internal/authz/evaluator_test.go",
+            "backend/internal/authz/authz_test.go",
+            "tools/tests/test_auth_contract_guard.py"
+          ]
+        }
+      },
+      "unproven_evidence": [
+        "E2E_OR_STAGING_PROOF"
+      ]
+    },
+    "APGIC-ORG-001": {
+      "claims": {
+        "DOMAIN_OR_CONTRACT_TEST": {
+          "gates": [
+            "backend",
+            "canon"
+          ],
+          "proof_refs": [
+            "backend/internal/organization/organization_test.go",
+            "tools/organization_contract_guard.py"
+          ]
+        }
+      },
+      "unproven_evidence": [
+        "E2E_OR_STAGING_PROOF"
+      ]
+    },
+    "APGIC-ORG-002": {
+      "claims": {
+        "DOMAIN_OR_CONTRACT_TEST": {
+          "gates": [
+            "backend",
+            "postgres-invariants",
+            "canon"
+          ],
+          "proof_refs": [
+            "backend/internal/organization/organization_test.go",
+            "backend/migrations/ci_invariants.sql",
+            "tools/organization_contract_guard.py"
+          ]
+        }
+      },
+      "unproven_evidence": [
+        "E2E_OR_STAGING_PROOF"
+      ]
+    },
+    "APGIC-CONN-001": {
+      "claims": {
+        "DOMAIN_OR_CONTRACT_TEST": {
+          "gates": [
+            "backend",
+            "postgres-invariants",
+            "canon"
+          ],
+          "proof_refs": [
+            "backend/internal/connector/executor_test.go",
+            "backend/internal/connector/registry_test.go",
+            "backend/migrations/ci_r0_connector_delivery_invariants.sql",
+            "tools/connector_contract_guard.py"
+          ]
+        }
+      },
+      "unproven_evidence": [
+        "E2E_OR_STAGING_PROOF"
+      ]
+    },
+    "APGIC-CONN-002": {
+      "claims": {
+        "DOMAIN_OR_CONTRACT_TEST": {
+          "gates": [
+            "backend",
+            "postgres-invariants",
+            "canon"
+          ],
+          "proof_refs": [
+            "backend/internal/connector/capability_test.go",
+            "backend/internal/connector/webhook_test.go",
+            "backend/migrations/ci_r0_connector_delivery_invariants.sql",
+            "tools/connector_contract_guard.py"
+          ]
+        }
+      },
+      "unproven_evidence": [
+        "E2E_OR_STAGING_PROOF"
+      ]
+    },
+    "APGIC-EVENT-001": {
+      "claims": {
+        "DOMAIN_OR_CONTRACT_TEST": {
+          "gates": [
+            "backend",
+            "postgres-invariants",
+            "canon"
+          ],
+          "proof_refs": [
+            "backend/internal/eventspine/outbox_test.go",
+            "backend/migrations/ci_invariants.sql",
+            "tools/event_contract_guard.py"
+          ]
+        }
+      },
+      "unproven_evidence": [
+        "E2E_OR_STAGING_PROOF"
+      ]
+    },
+    "APGIC-AUDIT-001": {
+      "claims": {
+        "DOMAIN_OR_CONTRACT_TEST": {
+          "gates": [
+            "backend",
+            "canon"
+          ],
+          "proof_refs": [
+            "backend/internal/audit/audit_test.go",
+            "tools/audit_contract_guard.py"
+          ]
+        }
+      },
+      "unproven_evidence": [
+        "E2E_OR_STAGING_PROOF"
+      ]
+    },
+    "APGIC-LEDGER-001": {
+      "claims": {
+        "FINANCIAL_TEST": {
+          "gates": [
+            "backend",
+            "canon"
+          ],
+          "proof_refs": [
+            "backend/internal/ledger/ledger_test.go",
+            "tools/ledger_contract_guard.py"
+          ]
+        }
+      },
+      "unproven_evidence": [
+        "DB_INVARIANT_TEST"
+      ]
+    },
+    "APGIC-PROD-001": {
+      "claims": {
+        "DOMAIN_OR_CONTRACT_TEST": {
+          "gates": [
+            "backend",
+            "postgres-invariants",
+            "canon"
+          ],
+          "proof_refs": [
+            "backend/internal/commerce/product_test.go",
+            "backend/migrations/ci_invariants.sql",
+            "tools/product_contract_guard.py"
+          ]
+        }
+      },
+      "unproven_evidence": [
+        "E2E_OR_STAGING_PROOF"
+      ]
+    },
+    "APGIC-DATA-001": {
+      "claims": {
+        "SECURITY_PRIVACY_TEST": {
+          "gates": [
+            "backend",
+            "web-build"
+          ],
+          "proof_refs": [
+            "backend/internal/privacy/classification_test.go",
+            "backend/internal/demand/growth_test.go",
+            "apps/web/e2e/foundation.spec.ts"
+          ]
+        }
+      },
+      "unproven_evidence": []
+    },
+    "APGIC-SEC-001": {
+      "claims": {
+        "DOMAIN_OR_CONTRACT_TEST": {
+          "gates": [
+            "backend",
+            "canon"
+          ],
+          "proof_refs": [
+            "backend/internal/security/service_principal_test.go",
+            "tools/security_contract_guard.py"
+          ]
+        }
+      },
+      "unproven_evidence": [
+        "E2E_OR_STAGING_PROOF"
+      ]
+    },
+    "APGIC-DR-001": {
+      "claims": {},
+      "unproven_evidence": [
+        "RESTORE_DR_PROOF"
+      ]
+    },
+    "APGIC-A11Y-001": {
+      "claims": {
+        "A11Y_AUTOMATED": {
+          "gates": [
+            "web-build",
+            "canon"
+          ],
+          "proof_refs": [
+            "apps/web/e2e/foundation.spec.ts",
+            "tools/accessibility_contract_guard.py"
+          ]
+        }
+      },
+      "unproven_evidence": [
+        "MANUAL_A11Y_EVIDENCE"
+      ]
+    },
+    "APGIC-LEGAL-001": {
+      "claims": {
+        "DOMAIN_OR_CONTRACT_TEST": {
+          "gates": [
+            "backend",
+            "postgres-invariants",
+            "canon"
+          ],
+          "proof_refs": [
+            "backend/migrations/ci_invariants.sql",
+            "backend/internal/legal/transaction_snapshot_test.go",
+            "tools/legal_snapshot_contract_guard.py"
+          ]
+        }
+      },
+      "unproven_evidence": [
+        "E2E_OR_STAGING_PROOF"
+      ]
+    },
+    "APGIC-LEGAL-002": {
+      "claims": {
+        "DOMAIN_OR_CONTRACT_TEST": {
+          "gates": [
+            "backend",
+            "canon"
+          ],
+          "proof_refs": [
+            "backend/internal/legal/acceptance_test.go",
+            "tools/legal_acceptance_contract_guard.py"
+          ]
+        }
+      },
+      "unproven_evidence": [
+        "E2E_OR_STAGING_PROOF"
+      ]
+    },
+    "APGIC-TERM-001": {
+      "claims": {
+        "DOMAIN_OR_CONTRACT_TEST": {
+          "gates": [
+            "canon"
+          ],
+          "proof_refs": [
+            "tools/terminology_guard.py",
+            ".github/workflows/ci.yml"
+          ]
+        }
+      },
+      "unproven_evidence": [
+        "E2E_OR_STAGING_PROOF"
+      ]
+    },
+    "APGIC-CANON-001": {
+      "claims": {
+        "DOMAIN_OR_CONTRACT_TEST": {
+          "gates": [
+            "canon"
+          ],
+          "proof_refs": [
+            "tools/canon_lint.py",
+            "tools/canon_freeze_contract_guard.py"
+          ]
+        }
+      },
+      "unproven_evidence": [
+        "E2E_OR_STAGING_PROOF"
+      ]
+    },
+    "APGIC-CONFIG-001": {
+      "claims": {
+        "CONFIG_SCHEMA_TEST": {
+          "gates": [
+            "canon"
+          ],
+          "proof_refs": [
+            "tools/jurisdiction_contract_guard.py",
+            "tools/launch_config_guard.py"
+          ]
+        },
+        "PREFLIGHT_PROOF": {
+          "gates": [
+            "canon"
+          ],
+          "proof_refs": [
+            "tools/launch_config_guard.py",
+            ".github/workflows/ci.yml"
+          ]
+        }
+      },
+      "unproven_evidence": [
+        "RELEASE_EVIDENCE"
+      ]
+    },
+    "APGIC-CONFIG-004": {
+      "claims": {
+        "CONFIG_SCHEMA_TEST": {
+          "gates": [
+            "canon"
+          ],
+          "proof_refs": [
+            "tools/retention_contract_guard.py",
+            "tools/launch_config_guard.py"
+          ]
+        },
+        "PREFLIGHT_PROOF": {
+          "gates": [
+            "canon"
+          ],
+          "proof_refs": [
+            "tools/launch_config_guard.py",
+            ".github/workflows/ci.yml"
+          ]
+        }
+      },
+      "unproven_evidence": [
+        "RELEASE_EVIDENCE"
+      ]
+    },
+    "APGIC-CONFIG-005": {
+      "claims": {
+        "CONFIG_SCHEMA_TEST": {
+          "gates": [
+            "backend",
+            "canon"
+          ],
+          "proof_refs": [
+            "backend/internal/launchconfig/config_test.go",
+            "tools/launch_config_guard.py"
+          ]
+        },
+        "PREFLIGHT_PROOF": {
+          "gates": [
+            "canon"
+          ],
+          "proof_refs": [
+            "tools/launch_config_guard.py",
+            ".github/workflows/ci.yml"
+          ]
+        }
+      },
+      "unproven_evidence": [
+        "RELEASE_EVIDENCE"
+      ]
+    },
+    "APGIC-CONFIG-007": {
+      "claims": {
+        "CONFIG_SCHEMA_TEST": {
+          "gates": [
+            "canon"
+          ],
+          "proof_refs": [
+            "tools/provider_matrix_contract_guard.py",
+            "tools/launch_config_guard.py"
+          ]
+        },
+        "PREFLIGHT_PROOF": {
+          "gates": [
+            "canon"
+          ],
+          "proof_refs": [
+            "tools/launch_config_guard.py",
+            ".github/workflows/ci.yml"
+          ]
+        }
+      },
+      "unproven_evidence": [
+        "RELEASE_EVIDENCE"
+      ]
+    },
+    "APGIC-CONFIG-008": {
+      "claims": {
+        "CONFIG_SCHEMA_TEST": {
+          "gates": [
+            "backend",
+            "canon"
+          ],
+          "proof_refs": [
+            "backend/internal/launchconfig/config_test.go",
+            "tools/launch_config_guard.py"
+          ]
+        },
+        "PREFLIGHT_PROOF": {
+          "gates": [
+            "backend",
+            "canon"
+          ],
+          "proof_refs": [
+            "backend/internal/httpapi/handler_test.go",
+            "tools/launch_config_guard.py",
+            ".github/workflows/ci.yml"
+          ]
+        }
+      },
+      "unproven_evidence": [
+        "RELEASE_EVIDENCE"
+      ]
+    },
+    "APGIC-MOBILE-001": {
+      "claims": {
+        "ARCHITECTURE_TEST": {
+          "gates": [
+            "canon",
+            "client-contract-presence"
+          ],
+          "proof_refs": [
+            ".github/workflows/ci.yml",
+            "tools/multisurface_guard.py"
+          ]
+        },
+        "CONTRACT_TEST": {
+          "gates": [
+            "canon",
+            "client-contract-presence"
+          ],
+          "proof_refs": [
+            ".github/workflows/ci.yml",
+            "tools/multisurface_guard.py"
+          ]
+        }
+      },
+      "unproven_evidence": []
+    },
+    "APGIC-MOBILE-002": {
+      "claims": {
+        "ARCHITECTURE_TEST": {
+          "gates": [
+            "canon",
+            "client-contract-presence"
+          ],
+          "proof_refs": [
+            ".github/workflows/ci.yml",
+            "tools/multisurface_guard.py"
+          ]
+        },
+        "BUILD_PROOF": {
+          "gates": [
+            "android-native-build",
+            "ios-native-build"
+          ],
+          "proof_refs": [
+            ".github/workflows/ci.yml"
+          ]
+        }
+      },
+      "unproven_evidence": []
+    },
+    "APGIC-MOBILE-003": {
+      "claims": {
+        "REGISTRY_LINT": {
+          "gates": [
+            "canon"
+          ],
+          "proof_refs": [
+            "tools/tests/test_multisurface_guard.py",
+            "tools/multisurface_guard.py"
+          ]
+        }
+      },
+      "unproven_evidence": [
+        "E2E_OR_STAGING_PROOF"
+      ]
+    },
+    "APGIC-MOBILE-004": {
+      "claims": {
+        "NATIVE_UNIT_TEST": {
+          "gates": [
+            "mobile-typecheck",
+            "canon"
+          ],
+          "proof_refs": [
+            "apps/mobile/src/device-capability.test.ts",
+            "tools/mobile_capability_contract_guard.py"
+          ]
+        }
+      },
+      "unproven_evidence": [
+        "NATIVE_E2E"
+      ]
+    },
+    "APGIC-MOBILE-005": {
+      "claims": {
+        "DOMAIN_OR_CONTRACT_TEST": {
+          "gates": [
+            "backend",
+            "canon"
+          ],
+          "proof_refs": [
+            "backend/internal/mobile/installation_test.go",
+            "tools/mobile_installation_contract_guard.py"
+          ]
+        }
+      },
+      "unproven_evidence": [
+        "NATIVE_E2E"
+      ]
+    },
+    "APGIC-MOBILE-010": {
+      "claims": {
+        "SECURITY_TEST": {
+          "gates": [
+            "mobile-typecheck",
+            "canon"
+          ],
+          "proof_refs": [
+            "apps/mobile/src/storage-policy.test.ts",
+            "tools/mobile_storage_contract_guard.py"
+          ]
+        }
+      },
+      "unproven_evidence": [
+        "NATIVE_STORAGE_AUDIT"
+      ]
+    },
+    "APGIC-MOBILE-011": {
+      "claims": {
+        "CONTRACT_TEST": {
+          "gates": [
+            "canon",
+            "client-contract-presence"
+          ],
+          "proof_refs": [
+            "tools/tests/test_client_contract_generation.py",
+            "tools/multisurface_guard.py"
+          ]
+        },
+        "GENERATED_CLIENT_BUILD": {
+          "gates": [
+            "client-contract-presence",
+            "web-build",
+            "mobile-typecheck"
+          ],
+          "proof_refs": [
+            ".github/workflows/ci.yml",
+            "tools/multisurface_guard.py"
+          ]
+        }
+      },
+      "unproven_evidence": []
+    },
+    "APGIC-MOBILE-012": {
+      "claims": {},
+      "unproven_evidence": [
+        "IOS_BUILD_PROOF",
+        "ANDROID_BUILD_PROOF",
+        "SECRET_SCAN",
+        "RELEASE_EVIDENCE"
+      ]
+    },
+    "APGIC-MOBILE-013": {
+      "claims": {
+        "CONTRACT_COMPATIBILITY_TEST": {
+          "gates": [
+            "backend"
+          ],
+          "proof_refs": [
+            "backend/internal/clientcompat/compatibility_test.go"
+          ]
+        }
+      },
+      "unproven_evidence": [
+        "NATIVE_E2E"
+      ]
+    },
+    "APGIC-MOBILE-016": {
+      "claims": {
+        "RELEASE_PIPELINE_TEST": {
+          "gates": [
+            "canon"
+          ],
+          "proof_refs": [
+            "tools/tests/test_mobile_native_build_guard.py",
+            "tools/mobile_release_guard.py",
+            ".github/workflows/ci.yml"
+          ]
+        }
+      },
+      "unproven_evidence": [
+        "STORE_ACCOUNT_EVIDENCE",
+        "SIGNING_AUDIT"
+      ]
+    },
+    "APGIC-MOBILE-022": {
+      "claims": {
+        "DEPENDENCY_REGISTRY_LINT": {
+          "gates": [
+            "canon"
+          ],
+          "proof_refs": [
+            "tools/mobile_dependency_guard.py",
+            "tools/mobile_dependency_contract_guard.py"
+          ]
+        },
+        "PRIVACY_AUDIT": {
+          "gates": [
+            "canon"
+          ],
+          "proof_refs": [
+            "tools/mobile_dependency_guard.py",
+            "tools/mobile_dependency_contract_guard.py"
+          ]
+        }
+      },
+      "unproven_evidence": [
+        "SBOM",
+        "SECRET_SCAN"
+      ]
+    },
+    "APGIC-MOBILE-023": {
+      "claims": {
+        "PRIVACY_MANIFEST_CHECK": {
+          "gates": [
+            "canon"
+          ],
+          "proof_refs": [
+            "tools/mobile_privacy_guard.py",
+            "tools/mobile_privacy_contract_guard.py"
+          ]
+        },
+        "DATA_SAFETY_DIFF": {
+          "gates": [
+            "canon"
+          ],
+          "proof_refs": [
+            "tools/mobile_privacy_guard.py",
+            "tools/mobile_privacy_contract_guard.py"
+          ]
+        }
+      },
+      "unproven_evidence": [
+        "BUILD_INSPECTION"
+      ]
+    },
+    "APGIC-MOBILE-025": {
+      "claims": {
+        "MOBILE_SLO_CONFIG": {
+          "gates": [
+            "canon"
+          ],
+          "proof_refs": [
+            "tools/mobile_observability_guard.py",
+            ".github/workflows/ci.yml"
+          ]
+        }
+      },
+      "unproven_evidence": [
+        "DASHBOARD_EVIDENCE",
+        "PERFORMANCE_TEST"
+      ]
+    },
+    "APGIC-MOBILE-027": {
+      "claims": {
+        "REMOTE_CONFIG_TEST": {
+          "gates": [
+            "backend"
+          ],
+          "proof_refs": [
+            "backend/internal/remoteconfig/config_test.go"
+          ]
+        },
+        "COMPATIBILITY_TEST": {
+          "gates": [
+            "backend"
+          ],
+          "proof_refs": [
+            "backend/internal/remoteconfig/config_test.go"
+          ]
+        }
+      },
+      "unproven_evidence": [
+        "KILL_SWITCH_DRILL"
+      ]
+    },
+    "APGIC-PAY-004": {
+      "claims": {
+        "SCHEMA_CONTRACT_TEST": {
+          "gates": [
+            "backend"
+          ],
+          "proof_refs": [
+            "backend/internal/payments/taxonomy_test.go"
+          ]
+        },
+        "ENUM_REASON_TEST": {
+          "gates": [
+            "backend"
+          ],
+          "proof_refs": [
+            "backend/internal/payments/taxonomy_test.go"
+          ]
+        }
+      },
+      "unproven_evidence": [
+        "ARCHITECTURE_GATE"
+      ]
+    }
+  }
+}
