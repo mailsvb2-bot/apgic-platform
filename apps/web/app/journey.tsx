@@ -102,10 +102,19 @@ const PROFESSIONS: Record<string, string> = {
   CAREER_COACH: "Карьерный консультант",
 };
 
+function clientUUID() {
+  const value = new Uint8Array(16);
+  globalThis.crypto.getRandomValues(value);
+  value[6] = (value[6] & 0x0f) | 0x40;
+  value[8] = (value[8] & 0x3f) | 0x80;
+  const hex = Array.from(value, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return [hex.slice(0, 8), hex.slice(8, 12), hex.slice(12, 16), hex.slice(16, 20), hex.slice(20)].join("-");
+}
+
 async function postJSON<T>(path: string, body: unknown): Promise<T> {
   const response = await fetch(path, {
     method: "POST",
-    headers: { "content-type": "application/json", "x-correlation-id": crypto.randomUUID() },
+    headers: { "content-type": "application/json", "x-correlation-id": clientUUID() },
     body: JSON.stringify(body),
   });
   const payload = await response.json();
@@ -153,7 +162,7 @@ export function Journey() {
     refund_path_opened?: boolean;
     apgic_returns_funds?: boolean;
   } | null>(null);
-  const [providerEventID] = useState(() => crypto.randomUUID());
+  const [providerEventID] = useState(() => clientUUID());
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
   const [deletion, setDeletion] = useState<{

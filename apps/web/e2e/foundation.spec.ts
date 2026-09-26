@@ -137,3 +137,16 @@ test("critical journey survives 200% text scaling", async ({ page }) => {
   }));
   expect(layout.documentWidth).toBeLessThanOrEqual(layout.viewportWidth + 1);
 });
+
+
+test("critical journey boots when crypto.randomUUID is unavailable", async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(globalThis.crypto, "randomUUID", {
+      value: undefined,
+      configurable: true,
+    });
+  });
+  await page.goto("/");
+  await expect(page.getByLabel("С чем нужна помощь")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Разобрать запрос" })).toBeVisible();
+});
