@@ -48,4 +48,21 @@ func TestCancellationReversesThroughOriginalProviderAndKeepsPayment(t *testing.T
 	if _, ok := service.evidence[instruction.ProviderID+"/evt-cancel"]; !ok {
 		t.Fatal("original provider capture was deleted")
 	}
+	reconciliation, err := service.LedgerReconciliation()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reconciliation.EntryCount != 2 || len(reconciliation.CurrencyTotals) != 1 {
+		t.Fatalf("cancel ledger reconciliation = %#v", reconciliation)
+	}
+	for _, balance := range reconciliation.Balances {
+		if balance.AmountMinor != 0 {
+			t.Fatalf("capture + reversal must net account balance to zero: %#v", reconciliation.Balances)
+		}
+	}
+	totals := reconciliation.CurrencyTotals[0]
+	if totals.DebitMinor != evidence.AmountMinor*2 ||
+		totals.CreditMinor != evidence.AmountMinor*2 {
+		t.Fatalf("capture + reversal totals = %#v", totals)
+	}
 }
