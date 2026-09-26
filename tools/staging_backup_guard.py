@@ -14,11 +14,15 @@ VERIFY_TIMER = ROOT / "deploy/staging/apgic-staging-restore-verify.timer"
 def validate() -> list[str]:
     errors: list[str] = []
     backup = BACKUP.read_text(encoding="utf-8")
+    bootstrap = (ROOT / "deploy/staging/bootstrap-dedicated-host.sh").read_text(encoding="utf-8")
     verify = VERIFY.read_text(encoding="utf-8")
     backup_service = BACKUP_SERVICE.read_text(encoding="utf-8")
     backup_timer = BACKUP_TIMER.read_text(encoding="utf-8")
     verify_service = VERIFY_SERVICE.read_text(encoding="utf-8")
     verify_timer = VERIFY_TIMER.read_text(encoding="utf-8")
+
+    if "\\n" in bootstrap:
+        errors.append("dedicated host bootstrap must not contain literal \\n escape sequences")
 
     backup_required = (
         "umask 077",

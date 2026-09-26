@@ -33,7 +33,12 @@ trap cleanup EXIT
 
 dropdb --if-exists "$verify_db"
 createdb -O "$APGIC_BACKUP_ROLE" "$verify_db"
-pg_restore   --exit-on-error   --no-owner   --role="$APGIC_BACKUP_ROLE"   --dbname="$verify_db"   "$latest"
+pg_restore \
+  --exit-on-error \
+  --no-owner \
+  --role="$APGIC_BACKUP_ROLE" \
+  --dbname="$verify_db" \
+  "$latest"
 
 source_tables="$(psql --dbname="$APGIC_BACKUP_DATABASE" -Atqc "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'")"
 restore_tables="$(psql --dbname="$verify_db" -Atqc "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'")"
