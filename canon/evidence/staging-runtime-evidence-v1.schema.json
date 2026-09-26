@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apgic.local/evidence/staging-runtime-evidence-v1.schema.json",
+  "title": "APGIC Staging Runtime Evidence v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "evidence_class",
+    "production_release",
+    "environment",
+    "candidate_sha",
+    "deployment_identity",
+    "generated_at",
+    "public_host",
+    "dns",
+    "tls",
+    "runtime",
+    "database",
+    "live_e2e",
+    "supported_requirements",
+    "limitations"
+  ],
+  "properties": {
+    "schema_version": { "const": "staging-runtime-evidence-v1" },
+    "evidence_class": { "const": "STAGING_RUNTIME" },
+    "production_release": { "const": false },
+    "environment": { "const": "staging" },
+    "candidate_sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "deployment_identity": { "type": "string", "minLength": 1 },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "public_host": { "const": "apgic.ru" },
+    "dns": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["authoritative_nameservers", "apex_ipv4", "www_ipv4", "recursive_resolvers_checked"],
+      "properties": {
+        "authoritative_nameservers": { "type": "array", "minItems": 4, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+        "apex_ipv4": { "type": "string", "const": "92.51.23.254" },
+        "www_ipv4": { "type": "string", "const": "92.51.23.254" },
+        "recursive_resolvers_checked": { "type": "array", "minItems": 2, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "tls": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["issuer", "not_before", "not_after", "sans", "http_redirect", "https_apex_status", "https_www_status"],
+      "properties": {
+        "issuer": { "type": "string", "minLength": 1 },
+        "not_before": { "type": "string", "format": "date-time" },
+        "not_after": { "type": "string", "format": "date-time" },
+        "sans": { "type": "array", "minItems": 2, "uniqueItems": true, "items": { "enum": ["apgic.ru", "www.apgic.ru"] } },
+        "http_redirect": { "const": 301 },
+        "https_apex_status": { "const": 200 },
+        "https_www_status": { "const": 200 }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["healthz", "readyz", "meta_commit_sha", "watchdog_result", "nginx_config_valid", "worktree_clean"],
+      "properties": {
+        "healthz": { "const": "ok" },
+        "readyz": { "const": "ready" },
+        "meta_commit_sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "watchdog_result": { "const": "success" },
+        "nginx_config_valid": { "const": true },
+        "worktree_clean": { "const": true }
+      }
+    },
+    "database": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["backup_result", "backup_artifact", "restore_verification_result", "restored_table_count"],
+      "properties": {
+        "backup_result": { "const": "success" },
+        "backup_artifact": { "type": "string", "minLength": 1 },
+        "restore_verification_result": { "const": "success" },
+        "restored_table_count": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "live_e2e": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["spec_path", "base_url", "projects", "tests_total", "tests_passed", "tests_failed", "tested_sha"],
+      "properties": {
+        "spec_path": { "const": "apps/web/e2e/foundation.spec.ts" },
+        "base_url": { "const": "https://apgic.ru" },
+        "projects": { "type": "array", "minItems": 3, "uniqueItems": true, "items": { "enum": ["phone", "tablet", "desktop"] } },
+        "tests_total": { "const": 12 },
+        "tests_passed": { "const": 12 },
+        "tests_failed": { "const": 0 },
+        "tested_sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" }
+      }
+    },
+    "supported_requirements": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^APGIC-[A-Z0-9-]+$" }
+    },
+    "limitations": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    }
+  }
+}

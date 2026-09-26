@@ -1,0 +1,86 @@
+{
+  "schema_version": "staging-runtime-evidence-v1",
+  "evidence_class": "STAGING_RUNTIME",
+  "production_release": false,
+  "environment": "staging",
+  "candidate_sha": "08d06917f7575ad0aa7d129dfb6b6ed4370199f2",
+  "deployment_identity": "staging-08d06917-20260926T2154Z",
+  "generated_at": "2026-09-26T22:00:00Z",
+  "public_host": "apgic.ru",
+  "dns": {
+    "authoritative_nameservers": [
+      "ns1.timeweb.ru",
+      "ns2.timeweb.ru",
+      "ns3.timeweb.org",
+      "ns4.timeweb.org"
+    ],
+    "apex_ipv4": "92.51.23.254",
+    "www_ipv4": "92.51.23.254",
+    "recursive_resolvers_checked": [
+      "8.8.8.8",
+      "1.1.1.1"
+    ]
+  },
+  "tls": {
+    "issuer": "Let's Encrypt YE2",
+    "not_before": "2026-09-26T20:48:20Z",
+    "not_after": "2026-12-25T20:48:19Z",
+    "sans": [
+      "apgic.ru",
+      "www.apgic.ru"
+    ],
+    "http_redirect": 301,
+    "https_apex_status": 200,
+    "https_www_status": 200
+  },
+  "runtime": {
+    "healthz": "ok",
+    "readyz": "ready",
+    "meta_commit_sha": "08d06917f7575ad0aa7d129dfb6b6ed4370199f2",
+    "watchdog_result": "success",
+    "nginx_config_valid": true,
+    "worktree_clean": true
+  },
+  "database": {
+    "backup_result": "success",
+    "backup_artifact": "/var/backups/apgic/apgic_staging_20260926T215440Z.dump",
+    "restore_verification_result": "success",
+    "restored_table_count": 57
+  },
+  "live_e2e": {
+    "spec_path": "apps/web/e2e/foundation.spec.ts",
+    "base_url": "https://apgic.ru",
+    "projects": [
+      "phone",
+      "tablet",
+      "desktop"
+    ],
+    "tests_total": 12,
+    "tests_passed": 12,
+    "tests_failed": 0,
+    "tested_sha": "08d06917f7575ad0aa7d129dfb6b6ed4370199f2"
+  },
+  "supported_requirements": [
+    "APGIC-EXEC-001",
+    "APGIC-NFR-001",
+    "APGIC-TEST-001",
+    "APGIC-RELEASE-001",
+    "APGIC-UI-001",
+    "APGIC-DEMAND-001",
+    "APGIC-MATCH-001",
+    "APGIC-SEARCH-001",
+    "APGIC-BOOK-002",
+    "APGIC-PAY-001",
+    "APGIC-NOTIF-001",
+    "APGIC-CONSULT-001",
+    "APGIC-COMM-002",
+    "APGIC-CONSULT-002",
+    "APGIC-PRIV-001"
+  ],
+  "limitations": [
+    "This is staging runtime evidence and is not production release approval.",
+    "APGIC-DR-001 remains unproven because its acceptance requires a scheduled restore drill from a production backup with measured RPO/RTO.",
+    "Signed iOS and Android production artifacts, organization-owned store evidence, rollout evidence and production mobile observability remain external blockers tracked by issue #3.",
+    "GitHub CI run 514 validated source PR head 187bf1c160d8c7a6d38ca985826bc03e4662d74e; this artifact relies on post-merge live checks and E2E executed directly against deployed SHA 08d06917f7575ad0aa7d129dfb6b6ed4370199f2."
+  ]
+}

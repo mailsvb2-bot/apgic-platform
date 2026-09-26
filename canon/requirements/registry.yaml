@@ -159,7 +159,8 @@ requirements:
   test_refs:
   - tools/canon_lint.py
   - tools/tests/test_registry_ref_guard.py
-  evidence_refs: []
+  evidence_refs:
+  - canon/evidence/staging-runtime-20260926T215500Z.json
   acceptance:
     given: утверждён launch-critical Requirement
     when: команда заявляет его VERIFIED/RELEASED
@@ -601,7 +602,8 @@ requirements:
   - backend/internal/httpapi/handler_test.go
   - tools/launch_config_guard.py
   - .github/workflows/ci.yml
-  evidence_refs: []
+  evidence_refs:
+  - canon/evidence/staging-runtime-20260926T215500Z.json
   acceptance:
     given: critical endpoint/job/provider path развёрнут
     when: происходит latency/error/outage
@@ -663,7 +665,8 @@ requirements:
   - apps/web/e2e/foundation.spec.ts
   - .github/workflows/ci.yml
   - tools/ui_adaptive_contract_guard.py
-  evidence_refs: []
+  evidence_refs:
+  - canon/evidence/staging-runtime-20260926T215500Z.json
   acceptance:
     given: один и тот же critical journey
     when: он проходит на phone, tablet и desktop viewports
@@ -725,7 +728,8 @@ requirements:
   - tools/canon_lint.py
   - tools/architecture_guard.py
   - tools/test_canon_contract_guard.py
-  evidence_refs: []
+  evidence_refs:
+  - canon/evidence/staging-runtime-20260926T215500Z.json
   acceptance:
     given: новый critical state machine заявлен production-ready
     when: CI выполняет required suite
@@ -757,7 +761,8 @@ requirements:
   test_refs:
   - .github/workflows/ci.yml
   - tools/release_evidence.py
-  evidence_refs: []
+  evidence_refs:
+  - canon/evidence/staging-runtime-20260926T215500Z.json
   acceptance:
     given: build-кандидат предназначен для production
     when: release gate выполняется
@@ -949,7 +954,8 @@ requirements:
   - backend/internal/demand/service_test.go
   - apps/web/e2e/foundation.spec.ts
   - backend/migrations/ci_r1_marketplace_invariants.sql
-  evidence_refs: []
+  evidence_refs:
+  - canon/evidence/staging-runtime-20260926T215500Z.json
   acceptance:
     given: пользователь описывает запрос свободным текстом
     when: система предлагает topics/goals/context
@@ -1038,7 +1044,8 @@ requirements:
   - contracts/jsonschema/marketplace-discovery-v1.schema.json
   test_refs:
   - backend/internal/marketplace/marketplace_test.go
-  evidence_refs: []
+  evidence_refs:
+  - canon/evidence/staging-runtime-20260926T215500Z.json
   acceptance:
     given: есть eligible и ineligible candidates
     when: пользователь запускает matching
@@ -1141,7 +1148,8 @@ requirements:
   - backend/internal/demand/search_test.go
   - apps/web/e2e/foundation.spec.ts
   - backend/migrations/ci_r1_marketplace_invariants.sql
-  evidence_refs: []
+  evidence_refs:
+  - canon/evidence/staging-runtime-20260926T215500Z.json
   acceptance:
     given: search index потерян/устарел
     when: выполняется rebuild
@@ -1201,7 +1209,8 @@ requirements:
   test_refs:
   - backend/internal/booking/booking_test.go
   - backend/migrations/ci_r2_booking_order_invariants.sql
-  evidence_refs: []
+  evidence_refs:
+  - canon/evidence/staging-runtime-20260926T215500Z.json
   acceptance:
     given: Booking находится в текущем state
     when: команда пытается разрешённый/запрещённый transition
@@ -1269,7 +1278,8 @@ requirements:
   - backend/internal/payments/controlplane_test.go
   - backend/migrations/ci_r2_payment_invariants.sql
   - .github/workflows/ci.yml
-  evidence_refs: []
+  evidence_refs:
+  - canon/evidence/staging-runtime-20260926T215500Z.json
   acceptance:
     given: PaymentProvider недоступен или не поддерживает требуемый monetary capability
     when: клиент пытается оплатить
@@ -1341,7 +1351,8 @@ requirements:
   - apps/web/e2e/foundation.spec.ts
   - backend/migrations/ci_r2_transaction_edge_invariants.sql
   - .github/workflows/ci.yml
-  evidence_refs: []
+  evidence_refs:
+  - canon/evidence/staging-runtime-20260926T215500Z.json
   acceptance:
     given: Booking подтверждён
     when: создаются reminders/confirmation
@@ -1488,7 +1499,8 @@ requirements:
   - apps/web/e2e/foundation.spec.ts
   - backend/migrations/ci_r3_communication_consultation_invariants.sql
   - backend/ci/restore_drill.sh
-  evidence_refs: []
+  evidence_refs:
+  - canon/evidence/staging-runtime-20260926T215500Z.json
   acceptance:
     given: участники проходят Ready/Join
     when: сессия начинается и завершается
@@ -1529,7 +1541,8 @@ requirements:
   - apps/web/e2e/foundation.spec.ts
   - backend/migrations/ci_r3_communication_consultation_invariants.sql
   - backend/ci/restore_drill.sh
-  evidence_refs: []
+  evidence_refs:
+  - canon/evidence/staging-runtime-20260926T215500Z.json
   acceptance:
     given: идёт консультация
     when: provider disconnect/room failure
@@ -1564,7 +1577,8 @@ requirements:
   - backend/internal/booking/booking_test.go
   - backend/internal/consultation/lifecycle_test.go
   - backend/migrations/ci_r3_communication_consultation_invariants.sql
-  evidence_refs: []
+  evidence_refs:
+  - canon/evidence/staging-runtime-20260926T215500Z.json
   acceptance:
     given: Booking/Consultation IN_PROGRESS
     when: приходит completion signal
@@ -1603,7 +1617,8 @@ requirements:
   - backend/internal/demand/growth_test.go
   - apps/web/e2e/foundation.spec.ts
   - backend/migrations/ci_r3_communication_consultation_invariants.sql
-  evidence_refs: []
+  evidence_refs:
+  - canon/evidence/staging-runtime-20260926T215500Z.json
   acceptance:
     given: live/persona session завершается
     when: создаётся business completion record
