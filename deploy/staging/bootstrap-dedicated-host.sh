@@ -14,9 +14,21 @@ fi
 
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
-apt-get install -y   nginx   postgresql   postgresql-contrib   git   curl   ca-certificates   ufw   certbot   python3-certbot-nginx
+apt-get install -y   nginx   postgresql   postgresql-contrib   git   curl   ca-certificates   ufw   certbot   python3-certbot-nginx \
+  fail2ban
 
 systemctl enable --now nginx postgresql
+
+install -d -m 0755 /etc/fail2ban/jail.d
+cat > /etc/fail2ban/jail.d/apgic-sshd.local <<'EOF'
+[sshd]
+enabled = true
+backend = systemd
+bantime = 1h
+findtime = 10m
+maxretry = 5
+EOF
+systemctl enable --now fail2ban
 
 ufw allow OpenSSH
 ufw allow "Nginx Full"
