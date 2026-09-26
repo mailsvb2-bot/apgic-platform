@@ -14,3 +14,9 @@ This deployment profile is intentionally isolated from other products on a share
 The staging vhost may share port 80 only through server_name 147.45.146.112. It MUST NOT bind 443 or become default_server while Metrotherapy shares the host.
 The committed environment file is a template only. Database credentials and commit SHA are written only during deployment.
 This is staging/conformance evidence only and MUST NOT be represented as production approval or production release evidence.
+
+## Runtime database gate
+
+STAGING and PRODUCTION runtime modes require APGIC_DATABASE_URL.
+The API verifies PostgreSQL connectivity and canonical tables before startup and rechecks storage from /readyz.
+An unavailable or incomplete database must make the service fail closed; staging must never silently fall back to in-memory readiness.

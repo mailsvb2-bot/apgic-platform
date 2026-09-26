@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"os"
@@ -9,13 +10,27 @@ import (
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/demand"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/httpapi"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/launchconfig"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/runtimepostgres"
 )
 
 func main() {
+	var readinessCheck func(context.Context) error
+	var storage *runtimepostgres.Checker
+	environment := os.Getenv("APGIC_ENVIRONMENT")
+	if runtimepostgres.RequiresDatabase(environment) {
+		var err error
+		storage, err = runtimepostgres.Open(context.Background(), os.Getenv("APGIC_DATABASE_URL"))
+		if err != nil {
+			log.Fatalf("APGIC PostgreSQL readiness failed: %v", err)
+		}
+		defer storage.Close()
+		readinessCheck = storage.Ready
+	}
 	handler := httpapi.New(httpapi.Options{
-		CommitSHA:    os.Getenv("APGIC_COMMIT_SHA"),
-		ReleaseTrack: "R0",
-		Demand:       demand.NewConformanceService(nil),
+		CommitSHA:      os.Getenv("APGIC_COMMIT_SHA"),
+		ReleaseTrack:   "R0",
+		Demand:         demand.NewConformanceService(nil),
+		ReadinessCheck: readinessCheck,
 		LaunchConfig: launchconfig.Config{
 			JurisdictionMatrixVersion: os.Getenv("APGIC_JURISDICTION_MATRIX_VERSION"),
 			RetentionPolicyVersion:    os.Getenv("APGIC_RETENTION_POLICY_VERSION"),
