@@ -4,7 +4,7 @@ export type IdentityRole =
   | "AUTHOR"
   | "STUDENT";
 
-export type AuthorizationDecision = "ALLOW" | "DENY" | "REQUIRE_STEP_UP";
+export type AuthorizationDecision = "ALLOW" | "DENY" | "STEP_UP_REQUIRED";
 
 export type PaymentProviderCode = string & { readonly __kind: "PaymentProviderCode" };
 export type PaymentMethodCode = string & { readonly __kind: "PaymentMethodCode" };
