@@ -26,6 +26,7 @@ jobs:
           python-version: '3.13'
       - run: python -m pip install -r requirements-dev.txt
       - run: python tools/canon_lint.py
+      - run: python tools/canon_freeze_contract_guard.py
       - run: python tools/architecture_guard.py
       - run: python tools/restore_evidence_contract_guard.py
       - run: python tools/identity_contract_guard.py

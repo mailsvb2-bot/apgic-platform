@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apgic.ru/contracts/requirement-change-rfc-v1.schema.json",
+  "title": "APGIC Requirement Change RFC v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "rfcs"],
+  "properties": {
+    "version": {"type": "integer", "minimum": 1},
+    "rfcs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "status",
+          "reason_class",
+          "requirement_id",
+          "field",
+          "baseline",
+          "approved",
+          "decision"
+        ],
+        "properties": {
+          "id": {"type": "string", "pattern": "^APGIC-RFC-[0-9]{3,}$"},
+          "status": {"const": "APPROVED"},
+          "reason_class": {
+            "type": "string",
+            "enum": [
+              "LEGAL_BLOCKER",
+              "SECURITY_BLOCKER",
+              "FINANCIAL_INTEGRITY_BLOCKER",
+              "MISSING_DEPENDENCY_BLOCKER",
+              "POST_LAUNCH_BACKLOG"
+            ]
+          },
+          "requirement_id": {"type": "string", "pattern": "^APGIC-[A-Z0-9_]+-[0-9]{3}$"},
+          "field": {
+            "type": "string",
+            "enum": [
+              "requirement_id",
+              "title",
+              "statement",
+              "owner_domain",
+              "source_sections",
+              "release_profile",
+              "risk",
+              "priority",
+              "dependencies",
+              "acceptance"
+            ]
+          },
+          "baseline": {},
+          "approved": {},
+          "decision": {"type": "string", "minLength": 1}
+        }
+      }
+    }
+  }
+}
