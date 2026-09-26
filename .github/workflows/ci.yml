@@ -32,6 +32,7 @@ jobs:
       - run: python tools/connector_contract_guard.py
       - run: python tools/organization_contract_guard.py
       - run: python tools/security_contract_guard.py
+      - run: python tools/mobile_installation_contract_guard.py
       - run: python tools/legal_snapshot_contract_guard.py
       - run: python tools/legal_acceptance_contract_guard.py
       - run: python tools/mobile_capability_contract_guard.py
