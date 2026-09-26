@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apgic.ru/contracts/legal-transaction-snapshot-v1.schema.json",
+  "title": "APGIC Legal Transaction Snapshot v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "transaction_ref",
+    "seller_or_service_provider_id",
+    "commercial_owner_id",
+    "payment_recipient_id",
+    "platform_role",
+    "fiscal_responsibility_id",
+    "refund_responsibility_id",
+    "payout_beneficiary_id",
+    "policy_version",
+    "occurred_at"
+  ],
+  "properties": {
+    "transaction_ref": {"type": "string", "minLength": 1},
+    "seller_or_service_provider_id": {"type": "string", "minLength": 1},
+    "commercial_owner_id": {"type": "string", "minLength": 1},
+    "payment_recipient_id": {"type": "string", "minLength": 1},
+    "platform_role": {"type": "string", "minLength": 1},
+    "fiscal_responsibility_id": {"type": "string", "minLength": 1},
+    "refund_responsibility_id": {"type": "string", "minLength": 1},
+    "payout_beneficiary_id": {"type": "string", "minLength": 1},
+    "policy_version": {"type": "string", "minLength": 1},
+    "occurred_at": {"type": "string", "format": "date-time"}
+  }
+}

@@ -772,10 +772,12 @@ requirements:
   implementation_refs:
   - backend/migrations/000005_r0_legal_transaction_snapshot.sql
   - backend/internal/legal/transaction_snapshot.go
-  contract_refs: []
+  contract_refs:
+  - contracts/jsonschema/legal-transaction-snapshot-v1.schema.json
   test_refs:
   - backend/migrations/ci_invariants.sql
   - backend/internal/legal/transaction_snapshot_test.go
+  - tools/legal_snapshot_contract_guard.py
   evidence_refs: []
   acceptance:
     given: Order создаётся
