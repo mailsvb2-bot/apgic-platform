@@ -328,12 +328,14 @@ requirements:
   - backend/internal/connector/registry.go
   - backend/internal/connector/executor.go
   - backend/migrations/000016_r0_connector_delivery_semantics.sql
-  contract_refs: []
+  contract_refs:
+  - contracts/jsonschema/connector-runtime-v1.schema.json
   test_refs:
   - tools/architecture_guard.py
   - backend/internal/connector/executor_test.go
   - backend/internal/connector/registry_test.go
   - backend/migrations/ci_r0_connector_delivery_invariants.sql
+  - tools/connector_contract_guard.py
   evidence_refs: []
   acceptance:
     given: CommunicationProvider reference недоступен
@@ -361,11 +363,13 @@ requirements:
   - backend/internal/connector/capability.go
   - backend/internal/connector/webhook.go
   - backend/migrations/000016_r0_connector_delivery_semantics.sql
-  contract_refs: []
+  contract_refs:
+  - contracts/jsonschema/connector-runtime-v1.schema.json
   test_refs:
   - backend/internal/connector/capability_test.go
   - backend/internal/connector/webhook_test.go
   - backend/migrations/ci_r0_connector_delivery_invariants.sql
+  - tools/connector_contract_guard.py
   evidence_refs: []
   acceptance:
     given: provider повторяет/переставляет webhook
