@@ -1850,10 +1850,12 @@ requirements:
   - tools/canon_lint.py
   - docs/governance/requirement-change.md
   - .github/ISSUE_TEMPLATE/requirement-change.yml
-  contract_refs: []
+  contract_refs:
+  - contracts/jsonschema/requirement-change-rfc-v1.schema.json
   test_refs:
   - tools/canon_lint.py
   - .github/workflows/ci.yml
+  - tools/canon_freeze_contract_guard.py
   evidence_refs: []
   acceptance:
     given: R0–R4 утверждены
