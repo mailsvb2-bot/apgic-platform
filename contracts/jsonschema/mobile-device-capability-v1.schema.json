@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apgic.ru/contracts/mobile-device-capability-v1.schema.json",
+  "title": "APGIC Mobile Device Capability v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["capability", "state", "action"],
+  "$defs": {
+    "capability": {
+      "type": "string",
+      "enum": [
+        "CAMERA",
+        "MICROPHONE",
+        "CALENDAR",
+        "SECURE_STORAGE",
+        "PUSH_NOTIFICATIONS",
+        "UNIVERSAL_LINKS",
+        "SHARE_SHEET",
+        "FILE_PICKER",
+        "PHOTO_PICKER",
+        "BIOMETRIC",
+        "NETWORK_STATUS",
+        "AUDIO_ROUTE",
+        "BACKGROUND_LIFECYCLE"
+      ]
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "UNKNOWN",
+        "NOT_REQUESTED",
+        "GRANTED",
+        "DENIED",
+        "RESTRICTED",
+        "UNAVAILABLE"
+      ]
+    },
+    "action": {
+      "type": "string",
+      "enum": [
+        "CONTINUE",
+        "REQUEST_PERMISSION",
+        "REFRESH_STATE",
+        "FALLBACK"
+      ]
+    },
+    "fallback_reason": {
+      "type": "string",
+      "enum": [
+        "PERMISSION_DENIED",
+        "OS_RESTRICTED",
+        "CAPABILITY_UNAVAILABLE"
+      ]
+    }
+  },
+  "properties": {
+    "capability": {"$ref": "#/$defs/capability"},
+    "state": {"$ref": "#/$defs/state"},
+    "action": {"$ref": "#/$defs/action"},
+    "reason": {"$ref": "#/$defs/fallback_reason"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"action": {"const": "FALLBACK"}}, "required": ["action"]},
+      "then": {"required": ["reason"]}
+    }
+  ]
+}

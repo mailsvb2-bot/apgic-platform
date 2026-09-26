@@ -2224,10 +2224,12 @@ requirements:
   - APGIC-MOBILE-002
   implementation_refs:
   - apps/mobile/src/device-capability.ts
-  contract_refs: []
+  contract_refs:
+  - contracts/jsonschema/mobile-device-capability-v1.schema.json
   test_refs:
   - apps/mobile/src/device-capability.test.ts
   - .github/workflows/ci.yml
+  - tools/mobile_capability_contract_guard.py
   evidence_refs: []
   acceptance:
     given: capability требует microphone/camera/calendar/secure storage
