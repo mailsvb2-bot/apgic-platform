@@ -24,10 +24,10 @@ def validate() -> list[str]:
         errors.append("API must remain loopback-only on 43111")
     if "--hostname 127.0.0.1 --port 43112" not in web:
         errors.append("Web must remain loopback-only on 43112")
-    if "listen 18081;" not in nginx:
-        errors.append("staging ingress must use isolated listener 18081")
-    if "listen 80" in nginx or "listen 443" in nginx:
-        errors.append("staging ingress must not take Metrotherapy ports 80/443")
+    if "listen 80;" not in nginx or "server_name 147.45.146.112;" not in nginx:
+        errors.append("staging ingress must use the dedicated IP host on port 80")
+    if "listen 443" in nginx or "default_server" in nginx:
+        errors.append("staging ingress must not take HTTPS or default-server ownership")
     if "proxy_pass http://127.0.0.1:43112;" not in nginx:
         errors.append("staging ingress must proxy only to APGIC web loopback")
     if "APGIC_ENVIRONMENT=STAGING" not in env:
