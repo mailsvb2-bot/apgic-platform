@@ -33,13 +33,64 @@ $$;
 INSERT INTO ledger_entries (
   id, debit_account_ref, credit_account_ref, amount_minor, currency,
   provider_evidence_ref, correlation_id
-) VALUES (
+) VALUES
+(
   '00000000-0000-0000-0000-000000000201',
-  'receivable', 'provider-clearing', 10000, 'RUB',
+  'receivable', 'provider-clearing', 10001, 'RUB',
   'provider-evidence-1', 'correlation-1'
+),
+(
+  '00000000-0000-0000-0000-000000000202',
+  'provider-clearing', 'specialist-payable', 7000, 'RUB',
+  'provider-evidence-2', 'correlation-2'
 );
 
-DO $$
+DO $
+DECLARE
+  receivable_balance bigint;
+  provider_clearing_balance bigint;
+  specialist_payable_balance bigint;
+  debit_total bigint;
+  credit_total bigint;
+BEGIN
+  WITH movements AS (
+    SELECT debit_account_ref AS account_ref, currency, -amount_minor AS amount_minor
+    FROM ledger_entries
+    WHERE currency = 'RUB'
+    UNION ALL
+    SELECT credit_account_ref AS account_ref, currency, amount_minor AS amount_minor
+    FROM ledger_entries
+    WHERE currency = 'RUB'
+  ),
+  balances AS (
+    SELECT account_ref, sum(amount_minor)::bigint AS amount_minor
+    FROM movements
+    GROUP BY account_ref
+  )
+  SELECT
+    max(amount_minor) FILTER (WHERE account_ref = 'receivable'),
+    max(amount_minor) FILTER (WHERE account_ref = 'provider-clearing'),
+    max(amount_minor) FILTER (WHERE account_ref = 'specialist-payable')
+  INTO receivable_balance, provider_clearing_balance, specialist_payable_balance
+  FROM balances;
+
+  SELECT sum(amount_minor)::bigint, sum(amount_minor)::bigint
+  INTO debit_total, credit_total
+  FROM ledger_entries
+  WHERE currency = 'RUB';
+
+  IF receivable_balance <> -10001
+     OR provider_clearing_balance <> 3001
+     OR specialist_payable_balance <> 7000 THEN
+    RAISE EXCEPTION 'ledger replay balances do not reconcile exactly in minor units';
+  END IF;
+  IF debit_total <> 17001 OR credit_total <> 17001 THEN
+    RAISE EXCEPTION 'ledger debit/credit totals do not reconcile';
+  END IF;
+END
+$;
+
+DO $
 DECLARE
   blocked boolean := false;
 BEGIN
