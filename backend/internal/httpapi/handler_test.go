@@ -1,6 +1,8 @@
 package httpapi
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -41,6 +43,24 @@ func TestReadinessRequiresExplicitVersionedLaunchConfig(t *testing.T) {
 
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("readiness status = %d, body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestReadinessFailsClosedWhenStorageIsUnavailable(t *testing.T) {
+	handler := New(Options{
+		LaunchConfig: readyConfig(),
+		ReadinessCheck: func(context.Context) error {
+			return errors.New("database unavailable")
+		},
+	})
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/readyz", nil))
+
+	if recorder.Code != http.StatusServiceUnavailable {
+		t.Fatalf("readiness status = %d, body=%s", recorder.Code, recorder.Body.String())
+	}
+	if !contains(recorder.Body.String(), "STORAGE_UNAVAILABLE") {
+		t.Fatalf("readiness reason missing: %s", recorder.Body.String())
 	}
 }
 

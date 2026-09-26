@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"time"
@@ -10,12 +11,13 @@ import (
 )
 
 type Options struct {
-	CommitSHA    string
-	ReleaseTrack string
-	Surfaces     []string
-	LaunchConfig launchconfig.Config
-	Demand       *demand.Service
-	Now          func() time.Time
+	CommitSHA      string
+	ReleaseTrack   string
+	Surfaces       []string
+	LaunchConfig   launchconfig.Config
+	ReadinessCheck func(context.Context) error
+	Demand         *demand.Service
+	Now            func() time.Time
 }
 
 type metaResponse struct {
@@ -48,11 +50,18 @@ func New(options Options) http.Handler {
 		writeJSON(w, http.StatusOK, statusResponse{Status: "ok"})
 	})
 
-	mux.HandleFunc("GET /readyz", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("GET /readyz", func(w http.ResponseWriter, r *http.Request) {
 		if !launchconfig.Ready(options.LaunchConfig) {
 			writeJSON(w, http.StatusServiceUnavailable, statusResponse{
 				Status:     "not_ready",
 				ReasonCode: launchconfig.ReasonConfigRequired,
+			})
+			return
+		}
+		if options.ReadinessCheck != nil && options.ReadinessCheck(r.Context()) != nil {
+			writeJSON(w, http.StatusServiceUnavailable, statusResponse{
+				Status:     "not_ready",
+				ReasonCode: "STORAGE_UNAVAILABLE",
 			})
 			return
 		}

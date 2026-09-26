@@ -15,9 +15,9 @@ paths:
       operationId: readiness
       responses:
         '200':
-          description: Launch configuration is ready
+          description: Launch configuration and required runtime dependencies are ready
         '503':
-          description: Launch configuration is not ready and fails closed
+          description: Launch configuration or required runtime dependency is not ready and fails closed
           content:
             application/json:
               schema:
