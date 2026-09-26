@@ -18,6 +18,7 @@ FIXED_ARTIFACTS = [
     "canon/requirements/registry.yaml",
     "canon/requirements/coverage.json",
     "canon/evidence/r0-ci-evidence-map.json",
+    "canon/evidence/release-evidence-v2.schema.json",
     "contracts/openapi/apgic-v1.yaml",
     "contracts/jsonschema/mobile-policy-v1.schema.json",
     "config/launch.ci.yaml",
