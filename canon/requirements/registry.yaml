@@ -688,6 +688,7 @@ requirements:
   - apps/web/app/page.tsx
   - apps/web/app/journey.tsx
   - apps/web/playwright.config.ts
+  - apps/web/app/globals.css
   contract_refs:
   - contracts/jsonschema/accessibility-critical-flow-v1.schema.json
   test_refs:
