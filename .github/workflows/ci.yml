@@ -53,6 +53,7 @@ jobs:
       - run: python tools/mobile_support_guard.py config/mobile/r1-ci-support-policy.yaml --mode ci
       - run: python -m unittest discover -s tools/tests -p 'test_*.py'
       - run: python tools/jurisdiction_contract_guard.py
+      - run: python tools/retention_contract_guard.py
       - run: python tools/launch_config_guard.py config/launch.ci.yaml --mode ci
       - run: python tools/launch_config_guard.py config/launch.r1-ci.yaml --mode ci --profile R1
       - run: python tools/launch_config_guard.py config/launch.r2-ci.yaml --mode ci --profile R2

@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apgic.ru/contracts/retention-matrix-v1.schema.json",
+  "title": "APGIC Retention Matrix v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "scope", "production_approved", "data_classes"],
+  "properties": {
+    "version": {"type": "string", "minLength": 1},
+    "scope": {"type": "string", "enum": ["CI_ONLY", "PRODUCTION"]},
+    "production_approved": {"type": "boolean"},
+    "data_classes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "PUBLIC",
+        "INTERNAL",
+        "SENSITIVE",
+        "RAW_CONSULTATION",
+        "RAW_PERSONA",
+        "FINANCIAL_EVIDENCE",
+        "CREDENTIAL"
+      ],
+      "properties": {
+        "PUBLIC": {"$ref": "#/$defs/row"},
+        "INTERNAL": {"$ref": "#/$defs/row"},
+        "SENSITIVE": {"$ref": "#/$defs/row"},
+        "RAW_CONSULTATION": {"$ref": "#/$defs/row"},
+        "RAW_PERSONA": {"$ref": "#/$defs/row"},
+        "FINANCIAL_EVIDENCE": {"$ref": "#/$defs/row"},
+        "CREDENTIAL": {"$ref": "#/$defs/row"}
+      }
+    },
+    "notes": {"type": "array", "items": {"type": "string", "minLength": 1}}
+  },
+  "$defs": {
+    "row": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["retention_seconds", "deletion", "legal_hold"],
+      "properties": {
+        "retention_seconds": {"type": "integer", "minimum": 0},
+        "deletion": {"type": "string", "minLength": 1},
+        "legal_hold": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}

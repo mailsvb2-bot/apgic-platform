@@ -1971,11 +1971,13 @@ requirements:
   - backend/internal/launchconfig/config.go
   - config/retention/r0-ci-matrix.yaml
   - tools/launch_config_guard.py
-  contract_refs: []
+  contract_refs:
+  - contracts/jsonschema/retention-matrix-v1.schema.json
   test_refs:
   - backend/internal/launchconfig/config_test.go
   - tools/launch_config_guard.py
   - .github/workflows/ci.yml
+  - tools/retention_contract_guard.py
   evidence_refs: []
   acceptance:
     given: соответствующий capability включён в launch/release profile
