@@ -755,12 +755,14 @@ requirements:
   implementation_refs:
   - .github/workflows/ci.yml
   - tools/release_evidence.py
-  - canon/evidence/release-evidence-v1.schema.json
+  - canon/evidence/r0-ci-evidence-map.json
+  - canon/evidence/release-evidence-v2.schema.json
   contract_refs:
-  - canon/evidence/release-evidence-v1.schema.json
+  - canon/evidence/release-evidence-v2.schema.json
   test_refs:
   - .github/workflows/ci.yml
   - tools/release_evidence.py
+  - tools/tests/test_release_evidence.py
   evidence_refs:
   - canon/evidence/staging-runtime-20260926T215500Z.json
   acceptance:
