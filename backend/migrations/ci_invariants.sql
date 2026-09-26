@@ -43,6 +43,11 @@ INSERT INTO ledger_entries (
   '00000000-0000-0000-0000-000000000202',
   'provider-clearing', 'specialist-payable', 7000, 'RUB',
   'provider-evidence-2', 'correlation-2'
+),
+(
+  '00000000-0000-0000-0000-000000000203',
+  'provider-clearing', 'provider-clearing', 123, 'RUB',
+  'provider-evidence-self', 'correlation-self'
 );
 
 DO $$
@@ -84,7 +89,7 @@ BEGIN
      OR specialist_payable_balance <> 7000 THEN
     RAISE EXCEPTION 'ledger replay balances do not reconcile exactly in minor units';
   END IF;
-  IF debit_total <> 17001 OR credit_total <> 17001 THEN
+  IF debit_total <> 17124 OR credit_total <> 17124 THEN
     RAISE EXCEPTION 'ledger debit/credit totals do not reconcile';
   END IF;
 END
