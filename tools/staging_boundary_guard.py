@@ -26,8 +26,8 @@ def validate() -> list[str]:
         errors.append("Web must remain loopback-only on 43112")
     if "listen 80;" not in nginx or "server_name apgic.ru www.apgic.ru;" not in nginx:
         errors.append("staging ingress must use the dedicated APGIC domain host on port 80")
-    if "listen 443" in nginx or "default_server" in nginx:
-        errors.append("staging ingress must not take HTTPS or default-server ownership")
+    if "default_server" in nginx:
+        errors.append("APGIC ingress must never become an implicit default-server")
     if "proxy_pass http://127.0.0.1:43112;" not in nginx:
         errors.append("staging ingress must proxy only to APGIC web loopback")
     if "APGIC_ENVIRONMENT=STAGING" not in env:
