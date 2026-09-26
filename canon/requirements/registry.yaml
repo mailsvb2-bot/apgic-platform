@@ -276,9 +276,11 @@ requirements:
   implementation_refs:
   - backend/internal/organization/organization.go
   - backend/migrations/000001_r0_foundation.sql
-  contract_refs: []
+  contract_refs:
+  - contracts/jsonschema/organization-v1.schema.json
   test_refs:
   - backend/internal/organization/organization_test.go
+  - tools/organization_contract_guard.py
   evidence_refs: []
   acceptance:
     given: создана Organization
@@ -303,10 +305,12 @@ requirements:
   - backend/migrations/000004_r0_outbox_terminality.sql
   - backend/internal/organization/organization.go
   - backend/migrations/000003_r0_semantic_invariants.sql
-  contract_refs: []
+  contract_refs:
+  - contracts/jsonschema/organization-v1.schema.json
   test_refs:
   - backend/internal/organization/organization_test.go
   - backend/migrations/ci_invariants.sql
+  - tools/organization_contract_guard.py
   evidence_refs: []
   acceptance:
     given: direction имеет продажи/booking

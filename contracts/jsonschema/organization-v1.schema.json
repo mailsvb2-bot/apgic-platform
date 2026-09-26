@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apgic.ru/contracts/organization-v1.schema.json",
+  "title": "APGIC Organization v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "name", "directions"],
+  "$defs": {
+    "direction_status": {
+      "type": "string",
+      "enum": ["ACTIVE", "ARCHIVED"]
+    },
+    "direction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "status", "has_dependent_truth"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "name": {"type": "string", "minLength": 1},
+        "status": {"$ref": "#/$defs/direction_status"},
+        "has_dependent_truth": {"type": "boolean"}
+      }
+    }
+  },
+  "properties": {
+    "id": {"type": "string", "minLength": 1},
+    "name": {"type": "string", "minLength": 1},
+    "directions": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/direction"}
+    }
+  }
+}
