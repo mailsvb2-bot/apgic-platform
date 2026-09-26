@@ -115,3 +115,25 @@ test("critical journey can be completed from the keyboard", async ({ page }) => 
   await page.keyboard.press("Enter");
   await expect(page.getByRole("heading", { level: 3, name: "Марина Лебедева" })).toBeVisible();
 });
+
+test("critical journey survives 200% text scaling", async ({ page }) => {
+  await page.goto("/");
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = "200%";
+  });
+
+  const request = page.getByLabel("С чем нужна помощь");
+  await expect(request).toBeVisible();
+  await request.fill("Нужна помощь со сном");
+
+  const primary = page.getByRole("button", { name: "Разобрать запрос" });
+  await expect(primary).toBeVisible();
+  await primary.click();
+  await expect(page.getByRole("button", { name: "Подтвердить и показать специалистов" })).toBeVisible();
+
+  const layout = await page.evaluate(() => ({
+    viewportWidth: window.innerWidth,
+    documentWidth: document.documentElement.scrollWidth,
+  }));
+  expect(layout.documentWidth).toBeLessThanOrEqual(layout.viewportWidth + 1);
+});

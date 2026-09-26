@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apgic.ru/contracts/accessibility-critical-flow-v1.schema.json",
+  "title": "APGIC Accessibility Critical Flow v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["surface", "critical_journey", "required_invariants"],
+  "properties": {
+    "surface": {"const": "WEB"},
+    "critical_journey": {"const": "help-intent-critical-journey"},
+    "required_invariants": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": [
+          "ACCESSIBLE_LABELS",
+          "KEYBOARD_COMPLETABLE",
+          "FOCUS_VISIBLE",
+          "WCAG_A_AA_AUTOMATED",
+          "TEXT_SCALING_200_PERCENT",
+          "NO_HORIZONTAL_OVERFLOW_AT_SCALE"
+        ]
+      },
+      "allOf": [
+        {"contains": {"const": "ACCESSIBLE_LABELS"}},
+        {"contains": {"const": "KEYBOARD_COMPLETABLE"}},
+        {"contains": {"const": "FOCUS_VISIBLE"}},
+        {"contains": {"const": "WCAG_A_AA_AUTOMATED"}},
+        {"contains": {"const": "TEXT_SCALING_200_PERCENT"}},
+        {"contains": {"const": "NO_HORIZONTAL_OVERFLOW_AT_SCALE"}}
+      ]
+    }
+  }
+}
