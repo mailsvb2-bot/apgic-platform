@@ -1,0 +1,20 @@
+[Unit]
+Description=Verify latest APGIC staging PostgreSQL backup can be restored
+Requires=postgresql.service
+After=postgresql.service
+
+[Service]
+Type=oneshot
+User=postgres
+Group=postgres
+Environment=APGIC_BACKUP_DATABASE=apgic_staging
+Environment=APGIC_BACKUP_ROLE=apgic_staging
+Environment=APGIC_BACKUP_DIR=/var/backups/apgic
+ExecStart=/opt/apgic/current/deploy/staging/verify-staging-backup.sh
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectHome=yes
+ProtectSystem=strict
+RestrictAddressFamilies=AF_UNIX
+UMask=0077
