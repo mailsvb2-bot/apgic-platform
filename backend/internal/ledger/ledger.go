@@ -87,14 +87,14 @@ func Reconcile(entries []Entry) (Reconciliation, error) {
 		creditKey := balanceKey{accountRef: entry.CreditAccountRef, currency: entry.Currency}
 
 		if debitKey != creditKey {
-			nextDebit, ok := addInt64(balances[debitKey], -entry.AmountMinor)
-			if !ok {
+			nextDebit, debitOK := addInt64(balances[debitKey], -entry.AmountMinor)
+			if !debitOK {
 				return Reconciliation{}, ErrReconcileOverflow
 			}
 			balances[debitKey] = nextDebit
 
-			nextCredit, ok := addInt64(balances[creditKey], entry.AmountMinor)
-			if !ok {
+			nextCredit, creditOK := addInt64(balances[creditKey], entry.AmountMinor)
+			if !creditOK {
 				return Reconciliation{}, ErrReconcileOverflow
 			}
 			balances[creditKey] = nextCredit
@@ -103,14 +103,16 @@ func Reconcile(entries []Entry) (Reconciliation, error) {
 		}
 
 		current := byCurrency[entry.Currency]
-		current.debit, ok = addInt64(current.debit, entry.AmountMinor)
-		if !ok {
+		nextDebitTotal, debitTotalOK := addInt64(current.debit, entry.AmountMinor)
+		if !debitTotalOK {
 			return Reconciliation{}, ErrReconcileOverflow
 		}
-		current.credit, ok = addInt64(current.credit, entry.AmountMinor)
-		if !ok {
+		nextCreditTotal, creditTotalOK := addInt64(current.credit, entry.AmountMinor)
+		if !creditTotalOK {
 			return Reconciliation{}, ErrReconcileOverflow
 		}
+		current.debit = nextDebitTotal
+		current.credit = nextCreditTotal
 		byCurrency[entry.Currency] = current
 	}
 
