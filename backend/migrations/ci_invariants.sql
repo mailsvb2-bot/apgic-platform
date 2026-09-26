@@ -81,8 +81,8 @@ BEGIN
   FROM balances;
 
   SELECT
-    sum(amount_minor) FILTER (WHERE side = 'DEBIT')::bigint,
-    sum(amount_minor) FILTER (WHERE side = 'CREDIT')::bigint
+    (sum(amount_minor) FILTER (WHERE side = 'DEBIT'))::bigint,
+    (sum(amount_minor) FILTER (WHERE side = 'CREDIT'))::bigint
   INTO debit_total, credit_total
   FROM (
     SELECT amount_minor, 'DEBIT'::text AS side
