@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import json
 from pathlib import Path
-import re
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -37,12 +36,21 @@ def _require(condition: bool, message: str, errors: list[str]) -> None:
 
 def _registry_blocks(text: str) -> dict[str, str]:
     blocks: dict[str, str] = {}
-    pattern = re.compile(
-        r"(?ms)^- requirement_id: (APGIC-[A-Z0-9-]+)\\n(.*?)(?=^- requirement_id: |\\Z)"
-    )
-    for match in pattern.finditer(text):
-        requirement_id = match.group(1)
-        blocks[requirement_id] = match.group(0)
+    current_id: str | None = None
+    current_lines: list[str] = []
+
+    def flush() -> None:
+        if current_id is not None:
+            blocks[current_id] = "\n".join(current_lines)
+
+    for line in text.splitlines():
+        if line.startswith("- requirement_id: "):
+            flush()
+            current_id = line.split(": ", 1)[1].strip()
+            current_lines = [line]
+        elif current_id is not None:
+            current_lines.append(line)
+    flush()
     return blocks
 
 
