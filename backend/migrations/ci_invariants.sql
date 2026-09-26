@@ -57,6 +57,7 @@ DECLARE
   specialist_payable_balance bigint;
   debit_total bigint;
   credit_total bigint;
+  net_balance_total bigint;
 BEGIN
   WITH movements AS (
     SELECT debit_account_ref AS account_ref, currency, -amount_minor AS amount_minor
@@ -79,10 +80,37 @@ BEGIN
   INTO receivable_balance, provider_clearing_balance, specialist_payable_balance
   FROM balances;
 
-  SELECT sum(amount_minor)::bigint, sum(amount_minor)::bigint
+  SELECT
+    sum(amount_minor) FILTER (WHERE side = 'DEBIT')::bigint,
+    sum(amount_minor) FILTER (WHERE side = 'CREDIT')::bigint
   INTO debit_total, credit_total
-  FROM ledger_entries
-  WHERE currency = 'RUB';
+  FROM (
+    SELECT amount_minor, 'DEBIT'::text AS side
+    FROM ledger_entries
+    WHERE currency = 'RUB'
+    UNION ALL
+    SELECT amount_minor, 'CREDIT'::text AS side
+    FROM ledger_entries
+    WHERE currency = 'RUB'
+  ) sides;
+
+  WITH movements AS (
+    SELECT debit_account_ref AS account_ref, -amount_minor AS amount_minor
+    FROM ledger_entries
+    WHERE currency = 'RUB'
+    UNION ALL
+    SELECT credit_account_ref AS account_ref, amount_minor AS amount_minor
+    FROM ledger_entries
+    WHERE currency = 'RUB'
+  ),
+  balances AS (
+    SELECT account_ref, sum(amount_minor)::bigint AS amount_minor
+    FROM movements
+    GROUP BY account_ref
+  )
+  SELECT coalesce(sum(amount_minor), 0)::bigint
+  INTO net_balance_total
+  FROM balances;
 
   IF receivable_balance <> -10001
      OR provider_clearing_balance <> 3001
@@ -91,6 +119,9 @@ BEGIN
   END IF;
   IF debit_total <> 17124 OR credit_total <> 17124 THEN
     RAISE EXCEPTION 'ledger debit/credit totals do not reconcile';
+  END IF;
+  IF net_balance_total <> 0 THEN
+    RAISE EXCEPTION 'ledger account balances do not net to zero';
   END IF;
 END
 $$;
