@@ -77,6 +77,8 @@ def validate() -> list[str]:
              "staging evidence environment mismatch", errors)
     _require(evidence.get("candidate_sha") == EXPECTED_SHA,
              "candidate SHA mismatch", errors)
+    _require(evidence.get("deployment_identity") == "staging-08d06917-20260926T2154Z",
+             "deployment identity mismatch", errors)
     _require(evidence.get("runtime", {}).get("meta_commit_sha") == EXPECTED_SHA,
              "runtime meta SHA mismatch", errors)
     _require(evidence.get("live_e2e", {}).get("tested_sha") == EXPECTED_SHA,
