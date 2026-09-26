@@ -1,0 +1,12 @@
+[Unit]
+Description=Schedule APGIC staging PostgreSQL restore verification
+
+[Timer]
+OnCalendar=Sun *-*-* 03:30:00 UTC
+RandomizedDelaySec=10m
+Persistent=true
+AccuracySec=5m
+Unit=apgic-staging-restore-verify.service
+
+[Install]
+WantedBy=timers.target
