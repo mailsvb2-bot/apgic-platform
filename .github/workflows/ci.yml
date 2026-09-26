@@ -1,3 +1,5 @@
+[Reading 435 lines from start (total: 435 lines, 0 remaining)]
+
 name: CI
 
 on:
@@ -163,6 +165,10 @@ jobs:
       PGPASSWORD: apgic
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
       - shell: bash
         run: |
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000001_r0_foundation.sql
@@ -195,6 +201,39 @@ jobs:
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r2_refund_invariants.sql
           bash backend/ci/r2_booking_concurrency.sh
           bash backend/ci/r2_mutation_concurrency.sh
+      - name: Prove staging API requires PostgreSQL readiness
+        working-directory: backend
+        shell: bash
+        env:
+          APGIC_ENVIRONMENT: STAGING
+          APGIC_HTTP_ADDR: 127.0.0.1:43111
+          APGIC_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable
+          APGIC_JURISDICTION_MATRIX_VERSION: jurisdiction-ci-v1
+          APGIC_RETENTION_POLICY_VERSION: retention-ci-v1
+          APGIC_SLO_POLICY_VERSION: slo-r0-ci-v1
+          APGIC_PROVIDER_MATRIX_VERSION: providers-ci-v1
+          APGIC_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          go build -o /tmp/apgic-api ./cmd/api
+          /tmp/apgic-api >/tmp/apgic-api.log 2>&1 &
+          api_pid=$!
+          trap 'kill "$api_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 20); do
+            if curl -fsS http://127.0.0.1:43111/readyz | grep -q '"status":"ready"'; then
+              break
+            fi
+            sleep 0.5
+          done
+          curl -fsS http://127.0.0.1:43111/readyz | grep -q '"status":"ready"'
+          kill "$api_pid"
+          wait "$api_pid" 2>/dev/null || true
+          trap - EXIT
+          if APGIC_DATABASE_URL='postgres://invalid@127.0.0.1:1/invalid?sslmode=disable'              APGIC_HTTP_ADDR=127.0.0.1:43112              /tmp/apgic-api >/tmp/apgic-api-negative.log 2>&1; then
+            echo "staging API unexpectedly started without PostgreSQL" >&2
+            exit 1
+          fi
+          grep -q 'PostgreSQL readiness failed' /tmp/apgic-api-negative.log
 
   restore-drill:
     name: PostgreSQL isolated restore drill
@@ -396,3 +435,5 @@ jobs:
           path: evidence/r0-release-evidence.json
           if-no-files-found: error
           retention-days: 30
+
+[executed on device: 7557405-me744613.twc1.net (f78fb5c4-85ce-49a2-ae2f-bfed9c352431)]
