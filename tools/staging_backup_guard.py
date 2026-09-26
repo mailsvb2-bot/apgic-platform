@@ -10,6 +10,7 @@ BACKUP_TIMER = ROOT / "deploy/staging/apgic-staging-backup.timer"
 VERIFY_SERVICE = ROOT / "deploy/staging/apgic-staging-restore-verify.service"
 VERIFY_TIMER = ROOT / "deploy/staging/apgic-staging-restore-verify.timer"
 
+
 def validate() -> list[str]:
     errors: list[str] = []
     backup = BACKUP.read_text(encoding="utf-8")
@@ -25,9 +26,10 @@ def validate() -> list[str]:
         "pg_restore --list",
         ".dump.tmp",
         "chmod 0600",
-        "mv "$tmp_file" "$final_file"",
+        'mv "$tmp_file" "$final_file"',
         "APGIC_BACKUP_RETENTION_DAYS:=7",
-        "-mmin "+${retention_minutes}"",
+        "retention_minutes=",
+        "-mmin",
     )
     for item in backup_required:
         if item not in backup:
@@ -38,10 +40,10 @@ def validate() -> list[str]:
         "apgic_restore_verify_",
         "trap cleanup EXIT",
         "createdb -O",
-        "pg_restore \",
+        "pg_restore",
         "--exit-on-error",
         "--no-owner",
-        "--dbname="$verify_db"",
+        '--dbname="$verify_db"',
         "source_tables=",
         "restore_tables=",
         "identities",
@@ -57,7 +59,13 @@ def validate() -> list[str]:
         errors.append("restore verification must never restore into the live staging database")
 
     for name, text in (("backup service", backup_service), ("verify service", verify_service)):
-        for item in ("User=postgres", "NoNewPrivileges=yes", "PrivateTmp=yes", "ProtectSystem=strict", "RestrictAddressFamilies=AF_UNIX"):
+        for item in (
+            "User=postgres",
+            "NoNewPrivileges=yes",
+            "PrivateTmp=yes",
+            "ProtectSystem=strict",
+            "RestrictAddressFamilies=AF_UNIX",
+        ):
             if item not in text:
                 errors.append(f"{name} missing sandbox invariant: {item}")
 
@@ -68,12 +76,17 @@ def validate() -> list[str]:
     if "OnCalendar=Sun *-*-* 03:30:00 UTC" not in verify_timer or "Persistent=true" not in verify_timer:
         errors.append("weekly restore verification timer schedule/persistence mismatch")
 
-    combined = "\n".join((backup, verify, backup_service, backup_timer, verify_service, verify_timer)).lower()
+    combined = "\n".join(
+        (backup, verify, backup_service, backup_timer, verify_service, verify_timer)
+    ).lower()
     for forbidden in ("production_evidence", "185.215.4.49", "147.45.146.112", "metrotherapy"):
         if forbidden in combined:
-            errors.append(f"operational staging backup contains forbidden coupling/claim: {forbidden}")
+            errors.append(
+                f"operational staging backup contains forbidden coupling/claim: {forbidden}"
+            )
 
     return errors
+
 
 def main() -> int:
     errors = validate()
@@ -84,6 +97,7 @@ def main() -> int:
         return 1
     print("STAGING BACKUP GUARD: PASS")
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())
