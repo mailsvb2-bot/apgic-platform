@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apgic.ru/contracts/adaptive-critical-flow-v1.schema.json",
+  "title": "APGIC Adaptive Critical Flow v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["journey_id", "viewports", "required_invariants"],
+  "properties": {
+    "journey_id": {"const": "help-intent-critical-journey"},
+    "viewports": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["phone", "tablet", "desktop"],
+      "properties": {
+        "phone": {"$ref": "#/$defs/viewport"},
+        "tablet": {"$ref": "#/$defs/viewport"},
+        "desktop": {"$ref": "#/$defs/viewport"}
+      }
+    },
+    "required_invariants": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": [
+          "SAME_BUSINESS_OUTCOME",
+          "NO_HORIZONTAL_OVERFLOW",
+          "PRIMARY_ACTION_VISIBLE",
+          "KEYBOARD_COMPLETABLE",
+          "WCAG_A_AA"
+        ]
+      },
+      "allOf": [
+        {
+          "contains": {"const": "SAME_BUSINESS_OUTCOME"}
+        },
+        {
+          "contains": {"const": "NO_HORIZONTAL_OVERFLOW"}
+        },
+        {
+          "contains": {"const": "PRIMARY_ACTION_VISIBLE"}
+        },
+        {
+          "contains": {"const": "KEYBOARD_COMPLETABLE"}
+        },
+        {
+          "contains": {"const": "WCAG_A_AA"}
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "viewport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["width", "height"],
+      "properties": {
+        "width": {"type": "integer", "minimum": 1},
+        "height": {"type": "integer", "minimum": 1}
+      }
+    }
+  }
+}

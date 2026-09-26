@@ -657,10 +657,12 @@ requirements:
   - apps/web/app/journey.tsx
   - apps/web/app/globals.css
   - apps/web/playwright.config.ts
-  contract_refs: []
+  contract_refs:
+  - contracts/jsonschema/adaptive-critical-flow-v1.schema.json
   test_refs:
   - apps/web/e2e/foundation.spec.ts
   - .github/workflows/ci.yml
+  - tools/ui_adaptive_contract_guard.py
   evidence_refs: []
   acceptance:
     given: один и тот же critical journey
