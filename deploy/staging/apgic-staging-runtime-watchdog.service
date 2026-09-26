@@ -10,7 +10,7 @@ DynamicUser=yes
 EnvironmentFile=/etc/apgic/staging.env
 Environment=APGIC_PUBLIC_HOST=apgic.ru
 Environment=APGIC_WEB_ORIGIN=http://127.0.0.1
-ExecStart=/opt/apgic/current/deploy/staging/check-staging-runtime.sh
+ExecStart=/usr/bin/bash /opt/apgic/current/deploy/staging/check-staging-runtime.sh
 NoNewPrivileges=yes
 PrivateTmp=yes
 PrivateDevices=yes
