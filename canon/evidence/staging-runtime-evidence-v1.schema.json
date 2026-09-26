@@ -10,6 +10,7 @@
     "production_release",
     "environment",
     "candidate_sha",
+    "deployment_identity",
     "generated_at",
     "public_host",
     "dns",
@@ -26,6 +27,7 @@
     "production_release": { "const": false },
     "environment": { "const": "staging" },
     "candidate_sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "deployment_identity": { "type": "string", "minLength": 1 },
     "generated_at": { "type": "string", "format": "date-time" },
     "public_host": { "const": "apgic.ru" },
     "dns": {
