@@ -6,6 +6,7 @@
   "additionalProperties": false,
   "required": [
     "event_id",
+    "idempotency_key",
     "event_type",
     "schema_version",
     "aggregate_ref",
@@ -17,6 +18,10 @@
   ],
   "properties": {
     "event_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "idempotency_key": {
       "type": "string",
       "minLength": 1
     },

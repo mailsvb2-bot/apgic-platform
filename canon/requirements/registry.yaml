@@ -408,10 +408,12 @@ requirements:
   - backend/migrations/000003_r0_semantic_invariants.sql
   - backend/internal/eventspine/outbox.go
   - backend/migrations/000001_r0_foundation.sql
-  contract_refs: []
+  contract_refs:
+  - contracts/jsonschema/event-envelope-v1.schema.json
   test_refs:
   - backend/internal/eventspine/outbox_test.go
   - backend/migrations/ci_invariants.sql
+  - tools/event_contract_guard.py
   evidence_refs: []
   acceptance:
     given: domain transaction создаёт событие
