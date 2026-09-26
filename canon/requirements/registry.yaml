@@ -439,10 +439,12 @@ requirements:
   implementation_refs:
   - backend/internal/audit/audit.go
   - backend/migrations/000001_r0_foundation.sql
-  contract_refs: []
+  contract_refs:
+  - contracts/jsonschema/audit-evidence-v1.schema.json
   test_refs:
   - backend/internal/authz/evaluator_test.go
   - backend/internal/audit/audit_test.go
+  - tools/audit_contract_guard.py
   evidence_refs: []
   acceptance:
     given: оператор выполняет high-risk override
