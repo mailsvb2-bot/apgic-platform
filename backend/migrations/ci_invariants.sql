@@ -112,9 +112,9 @@ BEGIN
   INTO net_balance_total
   FROM balances;
 
-  IF receivable_balance <> -10001
-     OR provider_clearing_balance <> 3001
-     OR specialist_payable_balance <> 7000 THEN
+  IF receivable_balance IS DISTINCT FROM -10001
+     OR provider_clearing_balance IS DISTINCT FROM 3001
+     OR specialist_payable_balance IS DISTINCT FROM 7000 THEN
     RAISE EXCEPTION 'ledger replay balances do not reconcile exactly in minor units';
   END IF;
   IF debit_total <> 17124 OR credit_total <> 17124 THEN
