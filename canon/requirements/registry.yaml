@@ -2254,9 +2254,11 @@ requirements:
   implementation_refs:
   - backend/internal/mobile/installation.go
   - backend/migrations/000002_legal_acceptance_mobile_installation.sql
-  contract_refs: []
+  contract_refs:
+  - contracts/jsonschema/mobile-installation-v1.schema.json
   test_refs:
   - backend/internal/mobile/installation_test.go
+  - tools/mobile_installation_contract_guard.py
   evidence_refs: []
   acceptance:
     given: user имеет несколько устройств или token rotated

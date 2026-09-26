@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apgic.ru/contracts/mobile-installation-v1.schema.json",
+  "title": "APGIC Mobile Installation v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "identity_id",
+    "platform",
+    "push_generation",
+    "state",
+    "updated_at"
+  ],
+  "$defs": {
+    "platform": {"type": "string", "enum": ["IOS", "ANDROID"]},
+    "state": {"type": "string", "enum": ["ACTIVE", "REVOKED"]}
+  },
+  "properties": {
+    "id": {"type": "string", "minLength": 1},
+    "identity_id": {"type": "string", "minLength": 1},
+    "platform": {"$ref": "#/$defs/platform"},
+    "push_endpoint": {"type": ["string", "null"]},
+    "push_generation": {"type": "integer", "minimum": 1},
+    "state": {"$ref": "#/$defs/state"},
+    "updated_at": {"type": "string", "format": "date-time"}
+  }
+}
