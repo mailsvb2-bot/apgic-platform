@@ -74,6 +74,19 @@ class LedgerContractGuardTest(unittest.TestCase):
         )
         self.assertTrue(any("replay invariant missing" in error for error in errors))
 
+    def test_null_unsafe_db_balance_assertion_is_rejected(self):
+        broken_invariants = self.ci_invariants.replace(
+            "IS DISTINCT FROM",
+            "<>",
+        )
+        errors = validate_ledger_contract(
+            self.go,
+            self.migration,
+            self.schema,
+            broken_invariants,
+        )
+        self.assertTrue(any("DB reconciliation proof missing" in error for error in errors))
+
     def test_missing_db_reconciliation_proof_is_rejected(self):
         broken_invariants = self.ci_invariants.replace(
             "ledger replay balances do not reconcile exactly in minor units",
