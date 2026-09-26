@@ -10,7 +10,7 @@ Group=postgres
 Environment=APGIC_BACKUP_DATABASE=apgic_staging
 Environment=APGIC_BACKUP_ROLE=apgic_staging
 Environment=APGIC_BACKUP_DIR=/var/backups/apgic
-ExecStart=/opt/apgic/current/deploy/staging/verify-staging-backup.sh
+ExecStart=/usr/bin/bash /opt/apgic/current/deploy/staging/verify-staging-backup.sh
 NoNewPrivileges=yes
 PrivateTmp=yes
 PrivateDevices=yes
