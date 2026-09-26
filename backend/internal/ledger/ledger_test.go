@@ -112,6 +112,29 @@ func TestReconcileIsIndependentOfInputOrder(t *testing.T) {
 	}
 }
 
+func TestReconcileSameAccountEntryNetsToZero(t *testing.T) {
+	entry := Entry{
+		ID: "le-self", DebitAccountRef: "provider", CreditAccountRef: "provider",
+		AmountMinor: 123, Currency: "RUB", ProviderEvidenceRef: "provider:self",
+		CorrelationID: "corr-self",
+	}
+	got, err := Reconcile([]Entry{entry})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []AccountBalance{
+		{AccountRef: "provider", Currency: "RUB", AmountMinor: 0},
+	}
+	if !reflect.DeepEqual(got.Balances, want) {
+		t.Fatalf("same-account movement must net to zero: got %#v want %#v", got.Balances, want)
+	}
+	if len(got.CurrencyTotals) != 1 ||
+		got.CurrencyTotals[0].DebitMinor != 123 ||
+		got.CurrencyTotals[0].CreditMinor != 123 {
+		t.Fatalf("same-account totals must remain balanced: %#v", got.CurrencyTotals)
+	}
+}
+
 func TestReconcileRejectsDuplicateEntryID(t *testing.T) {
 	entry := Entry{
 		ID: "le-dup", DebitAccountRef: "buyer", CreditAccountRef: "provider",
