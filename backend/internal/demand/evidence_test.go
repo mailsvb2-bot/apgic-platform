@@ -43,6 +43,19 @@ func TestProviderCaptureConfirmsOnceAndDoesNotPayAPGIC(t *testing.T) {
 	if !second.Idempotent || second.LedgerEntryID != first.LedgerEntryID || second.ID != first.ID {
 		t.Fatalf("replay = %#v", second)
 	}
+	reconciliation, err := service.LedgerReconciliation()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reconciliation.EntryCount != 1 || len(reconciliation.CurrencyTotals) != 1 {
+		t.Fatalf("capture ledger reconciliation = %#v", reconciliation)
+	}
+	totals := reconciliation.CurrencyTotals[0]
+	if totals.Currency != instruction.Currency ||
+		totals.DebitMinor != instruction.AmountMinor ||
+		totals.CreditMinor != instruction.AmountMinor {
+		t.Fatalf("capture ledger totals = %#v", totals)
+	}
 	if _, err := service.ApplyProviderEvent(ProviderEvent{
 		ProviderID:      instruction.ProviderID,
 		ProviderEventID: "evt-2",
