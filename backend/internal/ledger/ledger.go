@@ -90,11 +90,12 @@ func Reconcile(entries []Entry) (Reconciliation, error) {
 		if !ok {
 			return Reconciliation{}, ErrReconcileOverflow
 		}
+		balances[debitKey] = nextDebit
+
 		nextCredit, ok := addInt64(balances[creditKey], entry.AmountMinor)
 		if !ok {
 			return Reconciliation{}, ErrReconcileOverflow
 		}
-		balances[debitKey] = nextDebit
 		balances[creditKey] = nextCredit
 
 		current := byCurrency[entry.Currency]
