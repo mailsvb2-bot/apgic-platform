@@ -565,9 +565,11 @@ requirements:
   implementation_refs:
   - backend/internal/security/service_principal.go
   - tools/architecture_guard.py
-  contract_refs: []
+  contract_refs:
+  - contracts/jsonschema/service-principal-v1.schema.json
   test_refs:
   - backend/internal/security/service_principal_test.go
+  - tools/security_contract_guard.py
   evidence_refs: []
   acceptance:
     given: connector/service запускается в production
