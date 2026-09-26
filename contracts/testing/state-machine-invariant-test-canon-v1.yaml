@@ -1,0 +1,58 @@
+version: state-machine-invariant-test-canon-v1
+required_classes:
+  TRANSITIONS:
+    evidence:
+      - backend/internal/booking/booking_test.go
+      - backend/internal/consultation/lifecycle_test.go
+      - backend/internal/refunds/refund_test.go
+    semantic_markers:
+      - Transition
+      - ErrTransitionDenied
+  IDEMPOTENCY:
+    evidence:
+      - backend/internal/mutation/idempotency_test.go
+      - backend/internal/eventspine/outbox_test.go
+      - backend/internal/consultation/lifecycle_test.go
+    semantic_markers:
+      - Duplicate
+      - Idempotency
+  CONCURRENCY:
+    evidence:
+      - backend/ci/r2_booking_concurrency.sh
+      - backend/ci/r2_mutation_concurrency.sh
+    semantic_markers:
+      - CONCURRENCY
+      - concurrent
+  TIMEOUT_EXPIRY:
+    evidence:
+      - backend/internal/booking/booking_test.go
+      - backend/internal/mobile/r1_mobile_test.go
+      - backend/internal/remoteconfig/config_test.go
+    semantic_markers:
+      - Expired
+      - TooEarly
+  DEPENDENCY_FAILURE:
+    evidence:
+      - backend/internal/authz/evaluator_test.go
+      - backend/internal/connector/executor_test.go
+      - backend/internal/calendar/sync_test.go
+    semantic_markers:
+      - unavailable
+      - fail
+  RECOVERY:
+    evidence:
+      - backend/internal/communication/recovery_test.go
+      - backend/internal/demand/recovery_test.go
+      - backend/internal/demand/search_test.go
+    semantic_markers:
+      - Recovery
+      - Rebuild
+ci_requirements:
+  - go test -race ./...
+  - bash backend/ci/r2_booking_concurrency.sh
+  - bash backend/ci/r2_mutation_concurrency.sh
+  - python -m unittest discover -s tools/tests -p 'test_*.py'
+release_behavior:
+  missing_required_class: BLOCK
+  missing_evidence_file: BLOCK
+  missing_ci_invocation: BLOCK

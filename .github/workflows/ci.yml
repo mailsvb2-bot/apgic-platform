@@ -55,6 +55,7 @@ jobs:
       - run: python tools/r1_multisurface_guard.py
       - run: python tools/mobile_support_guard.py config/mobile/r1-ci-support-policy.yaml --mode ci
       - run: python -m unittest discover -s tools/tests -p 'test_*.py'
+      - run: python tools/test_canon_contract_guard.py
       - run: python tools/jurisdiction_contract_guard.py
       - run: python tools/retention_contract_guard.py
       - run: python tools/provider_matrix_contract_guard.py
