@@ -88,6 +88,17 @@ class ReleaseEvidenceTests(unittest.TestCase):
                 evidence_map=evidence_map,
             )
 
+    def test_every_r0_requirement_must_be_mapped(self) -> None:
+        evidence_map = copy.deepcopy(self.evidence_map)
+        evidence_map["requirements"].pop("APGIC-EXEC-001")
+
+        with self.assertRaises(SystemExit):
+            build_requirement_evidence(
+                ALL_GREEN_GATES,
+                registry=self.registry,
+                evidence_map=evidence_map,
+            )
+
     def test_unknown_requirement_is_rejected(self) -> None:
         evidence_map = copy.deepcopy(self.evidence_map)
         evidence_map["requirements"]["APGIC-NOT-REAL"] = {
