@@ -23,6 +23,17 @@ if payload.get("service") != "apgic-api":
     raise SystemExit(f"unexpected service metadata: {payload!r}")
 PY
 
-curl -fsS --max-time 5 -H "Host: ${APGIC_PUBLIC_HOST}" "${APGIC_WEB_ORIGIN}/" >/dev/null
+http_status="$(curl -sS --max-time 5 -o /dev/null -w '%{http_code}' -H "Host: ${APGIC_PUBLIC_HOST}" "${APGIC_WEB_ORIGIN}/")"
+case "$http_status" in
+    2??)
+        ;;
+    3??)
+        curl -fsS --max-time 5 --resolve "${APGIC_PUBLIC_HOST}:443:127.0.0.1" "https://${APGIC_PUBLIC_HOST}/" >/dev/null
+        ;;
+    *)
+        printf 'APGIC staging runtime watchdog: Nginx route failed status=%s host=%s\n' "$http_status" "$APGIC_PUBLIC_HOST" >&2
+        exit 1
+        ;;
+esac
 
 printf 'APGIC staging runtime watchdog: PASS sha=%s host=%s\n' "$APGIC_COMMIT_SHA" "$APGIC_PUBLIC_HOST"
