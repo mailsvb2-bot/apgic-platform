@@ -45,7 +45,7 @@ INSERT INTO ledger_entries (
   'provider-evidence-2', 'correlation-2'
 );
 
-DO $
+DO $$
 DECLARE
   receivable_balance bigint;
   provider_clearing_balance bigint;
@@ -88,9 +88,9 @@ BEGIN
     RAISE EXCEPTION 'ledger debit/credit totals do not reconcile';
   END IF;
 END
-$;
+$$;
 
-DO $
+DO $$
 DECLARE
   blocked boolean := false;
 BEGIN
