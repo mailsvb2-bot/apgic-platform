@@ -1,0 +1,24 @@
+[Unit]
+Description=APGIC staging Web
+After=network.target apgic-api-staging.service
+Wants=apgic-api-staging.service
+
+[Service]
+Type=simple
+DynamicUser=yes
+EnvironmentFile=/etc/apgic/staging.env
+WorkingDirectory=/opt/apgic/current/apps/web
+ExecStart=/usr/bin/npm start -- --hostname 127.0.0.1 --port 43112
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateDevices=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LockPersonality=yes
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target
