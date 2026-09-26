@@ -189,11 +189,17 @@
             "backend/internal/ledger/ledger_test.go",
             "tools/ledger_contract_guard.py"
           ]
+        },
+        "DB_INVARIANT_TEST": {
+          "gates": [
+            "postgres-invariants"
+          ],
+          "proof_refs": [
+            "backend/migrations/ci_invariants.sql"
+          ]
         }
       },
-      "unproven_evidence": [
-        "DB_INVARIANT_TEST"
-      ]
+      "unproven_evidence": []
     },
     "APGIC-PROD-001": {
       "claims": {
