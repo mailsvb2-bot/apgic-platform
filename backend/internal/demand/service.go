@@ -92,6 +92,7 @@ type Service struct {
 	evidence      map[string]*PaymentEvidence
 	orderEvidence map[string]string
 	reversals     map[string]*Cancellation
+	ledgerState   ledgerState
 	notices       map[string]*BookingNotice
 	sessions      map[string]*consultation.Session
 	projection    marketplace.SearchProjection
