@@ -33,6 +33,7 @@ jobs:
       - run: python tools/accessibility_contract_guard.py
       - run: python tools/staging_boundary_guard.py
       - run: python tools/staging_backup_guard.py
+      - run: python tools/staging_runtime_watchdog_guard.py
       - run: python tools/dedicated_host_bootstrap_guard.py
       - run: python tools/identity_contract_guard.py
       - run: python tools/auth_contract_guard.py
