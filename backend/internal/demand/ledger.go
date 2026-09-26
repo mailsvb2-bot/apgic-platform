@@ -7,9 +7,14 @@ type ledgerState struct {
 }
 
 func (s *ledgerState) preview(entry ledger.Entry) ([]ledger.Entry, ledger.Reconciliation, error) {
+	canonical, err := ledger.NewEntry(entry)
+	if err != nil {
+		return nil, ledger.Reconciliation{}, err
+	}
+
 	prospective := make([]ledger.Entry, 0, len(s.entries)+1)
 	prospective = append(prospective, s.entries...)
-	prospective = append(prospective, entry)
+	prospective = append(prospective, canonical)
 
 	reconciliation, err := ledger.Reconcile(prospective)
 	if err != nil {
