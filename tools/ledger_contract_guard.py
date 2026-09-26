@@ -94,6 +94,7 @@ def validate_ledger_contract(
         "WITH movements AS (",
         "ledger replay balances do not reconcile exactly in minor units",
         "ledger debit/credit totals do not reconcile",
+        "ledger account balances do not net to zero",
     )
     for snippet in db_reconciliation_snippets:
         if snippet not in ci_invariants_text:
