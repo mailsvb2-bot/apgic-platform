@@ -688,10 +688,13 @@ requirements:
   - apps/web/app/page.tsx
   - apps/web/app/journey.tsx
   - apps/web/playwright.config.ts
-  contract_refs: []
+  - apps/web/app/globals.css
+  contract_refs:
+  - contracts/jsonschema/accessibility-critical-flow-v1.schema.json
   test_refs:
   - apps/web/e2e/foundation.spec.ts
   - .github/workflows/ci.yml
+  - tools/accessibility_contract_guard.py
   evidence_refs: []
   acceptance:
     given: пользователь использует keyboard/assistive compatible flow

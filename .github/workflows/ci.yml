@@ -30,6 +30,7 @@ jobs:
       - run: python tools/architecture_guard.py
       - run: python tools/restore_evidence_contract_guard.py
       - run: python tools/ui_adaptive_contract_guard.py
+      - run: python tools/accessibility_contract_guard.py
       - run: python tools/identity_contract_guard.py
       - run: python tools/auth_contract_guard.py
       - run: python tools/connector_contract_guard.py
