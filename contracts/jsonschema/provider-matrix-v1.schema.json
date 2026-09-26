@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apgic.ru/contracts/provider-matrix-v1.schema.json",
+  "title": "APGIC Provider Matrix v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "scope", "production_approved", "capabilities", "providers"],
+  "properties": {
+    "version": {"type": "string", "minLength": 1},
+    "scope": {"type": "string", "enum": ["CI_ONLY", "PRODUCTION"]},
+    "production_approved": {"type": "boolean"},
+    "capabilities": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "enabled",
+          "primary_provider",
+          "fallback_providers",
+          "degraded_behavior",
+          "certification_status",
+          "exit_semantics",
+          "provider_neutral_contract"
+        ],
+        "properties": {
+          "enabled": {"type": "boolean"},
+          "primary_provider": {"type": "string", "minLength": 1},
+          "fallback_providers": {"type": "array", "items": {"type": "string", "minLength": 1}},
+          "degraded_behavior": {"type": "string", "minLength": 1},
+          "certification_status": {"type": "string", "minLength": 1},
+          "exit_semantics": {"type": "string", "minLength": 1},
+          "provider_neutral_contract": {"const": true}
+        }
+      }
+    },
+    "providers": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "certified", "capabilities"],
+        "properties": {
+          "kind": {"type": "string", "minLength": 1},
+          "certified": {"type": "boolean"},
+          "capabilities": {"type": "array", "items": {"type": "string", "minLength": 1}}
+        }
+      }
+    },
+    "notes": {"type": "array", "items": {"type": "string", "minLength": 1}}
+  }
+}
