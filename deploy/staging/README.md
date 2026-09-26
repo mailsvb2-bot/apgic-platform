@@ -44,3 +44,16 @@ Install the four systemd units/timers from deploy/staging, run systemctl daemon-
 - apgic-staging-restore-verify.timer
 
 Timeweb VM snapshots complement this logical backup path; they do not replace logical restore verification.
+
+
+## Runtime watchdog
+
+A systemd watchdog verifies the live staging runtime without using public DNS:
+
+- checks API /healthz and /readyz over loopback;
+- checks /v1/meta and requires commit_sha to equal APGIC_COMMIT_SHA from /etc/apgic/staging.env;
+- checks the APGIC Nginx Host route over 127.0.0.1;
+- starts two minutes after boot and repeats every five minutes with a small randomized delay;
+- failures are fail-closed oneshot failures recorded in the system journal.
+
+Enable apgic-staging-runtime-watchdog.timer after installing the service and timer units.
