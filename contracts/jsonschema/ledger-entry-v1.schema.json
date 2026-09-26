@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apgic.ru/contracts/ledger-entry-v1.schema.json",
+  "title": "APGIC Non-Custodial Ledger Entry v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "debit_account_ref",
+    "credit_account_ref",
+    "amount_minor",
+    "currency",
+    "provider_evidence_ref",
+    "correlation_id",
+    "occurred_at"
+  ],
+  "properties": {
+    "id": {"type": "string", "minLength": 1},
+    "debit_account_ref": {"type": "string", "minLength": 1},
+    "credit_account_ref": {"type": "string", "minLength": 1},
+    "amount_minor": {"type": "integer", "minimum": 1},
+    "currency": {"type": "string", "pattern": "^[A-Z]{3}$"},
+    "provider_evidence_ref": {"type": "string", "minLength": 1},
+    "economic_event_ref": {"type": "string"},
+    "correlation_id": {"type": "string", "minLength": 1},
+    "occurred_at": {"type": "string", "format": "date-time"}
+  }
+}
