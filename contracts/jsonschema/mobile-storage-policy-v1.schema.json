@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apgic.ru/contracts/mobile-storage-policy-v1.schema.json",
+  "title": "APGIC Mobile Storage Policy v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["data_class", "storage_target", "allowed"],
+  "$defs": {
+    "data_class": {
+      "type": "string",
+      "enum": [
+        "PUBLIC",
+        "INTERNAL",
+        "SENSITIVE",
+        "RAW_CONSULTATION",
+        "RAW_PERSONA",
+        "FINANCIAL_EVIDENCE",
+        "CREDENTIAL"
+      ]
+    },
+    "storage_target": {
+      "type": "string",
+      "enum": [
+        "MEMORY",
+        "EPHEMERAL_CACHE",
+        "SECURE_STORAGE",
+        "PERSISTENT_CACHE"
+      ]
+    }
+  },
+  "properties": {
+    "data_class": {"$ref": "#/$defs/data_class"},
+    "storage_target": {"$ref": "#/$defs/storage_target"},
+    "allowed": {"type": "boolean"}
+  }
+}

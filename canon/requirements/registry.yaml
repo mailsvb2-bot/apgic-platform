@@ -2421,10 +2421,12 @@ requirements:
   - APGIC-MOBILE-002
   implementation_refs:
   - apps/mobile/src/storage-policy.ts
-  contract_refs: []
+  contract_refs:
+  - contracts/jsonschema/mobile-storage-policy-v1.schema.json
   test_refs:
   - apps/mobile/src/storage-policy.test.ts
   - .github/workflows/ci.yml
+  - tools/mobile_storage_contract_guard.py
   evidence_refs: []
   acceptance:
     given: native client обрабатывает sensitive/session data
