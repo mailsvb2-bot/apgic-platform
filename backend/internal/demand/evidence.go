@@ -82,6 +82,10 @@ func (s *Service) ApplyProviderEvent(event ProviderEvent) (*PaymentEvidence, err
 	if err != nil {
 		return nil, err
 	}
+	prospectiveLedger, _, err := s.ledgerState.preview(entry)
+	if err != nil {
+		return nil, err
+	}
 	booked := s.bookings[instruction.BookingID]
 	result, err := booked.Transition(booking.StateConfirmed, now)
 	if err != nil {
@@ -91,6 +95,7 @@ func (s *Service) ApplyProviderEvent(event ProviderEvent) (*PaymentEvidence, err
 		hold.BookingState = result.To
 	}
 	instruction.BookingState = result.To
+	s.ledgerState.commit(prospectiveLedger)
 	created := &PaymentEvidence{
 		ID:                newID("evi-"),
 		OrderID:           instruction.OrderID,
