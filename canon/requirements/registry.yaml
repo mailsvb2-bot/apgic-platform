@@ -801,9 +801,11 @@ requirements:
   implementation_refs:
   - backend/internal/legal/acceptance.go
   - backend/migrations/000002_legal_acceptance_mobile_installation.sql
-  contract_refs: []
+  contract_refs:
+  - contracts/jsonschema/legal-acceptance-v1.schema.json
   test_refs:
   - backend/internal/legal/acceptance_test.go
+  - tools/legal_acceptance_contract_guard.py
   evidence_refs: []
   acceptance:
     given: пользователь принимает документ vN
