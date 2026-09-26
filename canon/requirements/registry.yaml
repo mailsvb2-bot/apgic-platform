@@ -626,10 +626,12 @@ requirements:
   - backend/ci/restore_drill.sh
   - docs/operations/restore-drill.md
   - .github/workflows/ci.yml
-  contract_refs: []
+  contract_refs:
+  - contracts/jsonschema/restore-drill-evidence-v1.schema.json
   test_refs:
   - backend/ci/restore_drill.sh
   - .github/workflows/ci.yml
+  - tools/restore_evidence_contract_guard.py
   evidence_refs: []
   acceptance:
     given: существует production backup
