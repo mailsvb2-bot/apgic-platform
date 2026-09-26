@@ -52,7 +52,7 @@ A systemd watchdog verifies the live staging runtime without using public DNS:
 
 - checks API /healthz and /readyz over loopback;
 - checks /v1/meta and requires commit_sha to equal APGIC_COMMIT_SHA from /etc/apgic/staging.env;
-- checks the APGIC Nginx Host route over 127.0.0.1;
+- checks the APGIC Nginx Host route over 127.0.0.1; after TLS cutover, an HTTP redirect is followed by a loopback HTTPS probe using the canonical hostname and certificate;
 - starts two minutes after boot and repeats every five minutes with a small randomized delay;
 - failures are fail-closed oneshot failures recorded in the system journal.
 
