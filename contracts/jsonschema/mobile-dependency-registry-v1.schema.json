@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apgic.ru/contracts/mobile-dependency-registry-v1.schema.json",
+  "title": "APGIC Mobile Dependency Registry v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "policy", "dependencies"],
+  "properties": {
+    "version": {"type": "integer", "minimum": 1},
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "unknown_dependency",
+        "wildcard_dependency",
+        "runtime_dependency_requires_privacy_review"
+      ],
+      "properties": {
+        "unknown_dependency": {"const": "BLOCK"},
+        "wildcard_dependency": {"const": "BLOCK"},
+        "runtime_dependency_requires_privacy_review": {"const": true}
+      }
+    },
+    "dependencies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "declared_version",
+          "scope",
+          "purpose",
+          "data_classes",
+          "egress",
+          "permissions",
+          "provenance",
+          "privacy_status",
+          "security_status",
+          "removal_strategy",
+          "kill_strategy"
+        ],
+        "properties": {
+          "name": {"type": "string", "minLength": 1},
+          "declared_version": {"type": "string", "minLength": 1},
+          "scope": {"type": "string", "enum": ["RUNTIME", "BUILD_ONLY"]},
+          "purpose": {"type": "string", "minLength": 1},
+          "data_classes": {"type": "array", "items": {"type": "string", "minLength": 1}},
+          "egress": {"type": "string", "minLength": 1},
+          "permissions": {"type": "array", "items": {"type": "string", "minLength": 1}},
+          "provenance": {"type": "string", "minLength": 1},
+          "privacy_status": {"type": "string", "minLength": 1},
+          "security_status": {"type": "string", "minLength": 1},
+          "removal_strategy": {"type": "string", "minLength": 1},
+          "kill_strategy": {"type": "string", "minLength": 1}
+        }
+      }
+    }
+  }
+}
