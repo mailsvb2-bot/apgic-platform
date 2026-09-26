@@ -26,3 +26,21 @@ HTTP may be used as a bootstrap ingress before DNS propagation. After certificat
 STAGING and PRODUCTION runtime modes require APGIC_DATABASE_URL.
 The API verifies PostgreSQL connectivity and canonical tables before startup and rechecks storage from /readyz.
 An unavailable or incomplete database must make the service fail closed; staging must never silently fall back to in-memory readiness.
+
+## Operational PostgreSQL backups
+
+Staging uses an operational backup path that is intentionally separate from CI restore evidence and production release evidence.
+
+- Daily custom-format logical backup: 02:15 UTC, with up to 10 minutes randomized delay.
+- Backup files live under /var/backups/apgic, owned by postgres, directory mode 0700 and dump mode 0600.
+- Backup creation is atomic: a hidden temporary dump is validated with pg_restore --list before rename.
+- Default retention is 7 days.
+- Weekly restore verification: Sunday 03:30 UTC into a temporary apgic_restore_verify_* database.
+- Verification compares source/restored public-table counts and checks critical R0 tables, then drops the temporary database.
+- The live apgic_staging database is never a restore target.
+
+Install the four systemd units/timers from deploy/staging, run systemctl daemon-reload, then enable:
+- apgic-staging-backup.timer
+- apgic-staging-restore-verify.timer
+
+Timeweb VM snapshots complement this logical backup path; they do not replace logical restore verification.

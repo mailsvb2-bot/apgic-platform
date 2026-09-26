@@ -1,0 +1,12 @@
+[Unit]
+Description=Schedule APGIC staging PostgreSQL backup
+
+[Timer]
+OnCalendar=*-*-* 02:15:00 UTC
+RandomizedDelaySec=10m
+Persistent=true
+AccuracySec=5m
+Unit=apgic-staging-backup.service
+
+[Install]
+WantedBy=timers.target

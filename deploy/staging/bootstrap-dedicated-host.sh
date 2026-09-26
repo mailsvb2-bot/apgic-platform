@@ -19,6 +19,8 @@ apt-get install -y   nginx   postgresql   postgresql-contrib   git   curl   ca-c
 
 systemctl enable --now nginx postgresql
 
+install -d -o postgres -g postgres -m 0700 /var/backups/apgic
+
 install -d -m 0755 /etc/fail2ban/jail.d
 cat > /etc/fail2ban/jail.d/apgic-sshd.local <<'EOF'
 [sshd]
