@@ -8,9 +8,9 @@ import (
 )
 
 var (
-	ErrInvalidEntry       = errors.New("ledger entry requires id, account refs, currency, non-zero amount, provider evidence and correlation id")
-	ErrDuplicateEntryID   = errors.New("ledger reconciliation contains duplicate entry id")
-	ErrReconcileOverflow  = errors.New("ledger reconciliation exceeds int64 minor-unit range")
+	ErrInvalidEntry      = errors.New("ledger entry requires id, account refs, currency, non-zero amount, provider evidence and correlation id")
+	ErrDuplicateEntryID  = errors.New("ledger reconciliation contains duplicate entry id")
+	ErrReconcileOverflow = errors.New("ledger reconciliation exceeds int64 minor-unit range")
 )
 
 type Entry struct {
@@ -112,8 +112,8 @@ func Reconcile(entries []Entry) (Reconciliation, error) {
 	result := Reconciliation{EntryCount: len(entries)}
 	for key, amount := range balances {
 		result.Balances = append(result.Balances, AccountBalance{
-			AccountRef: key.accountRef,
-			Currency: key.currency,
+			AccountRef:  key.accountRef,
+			Currency:    key.currency,
 			AmountMinor: amount,
 		})
 	}
@@ -129,8 +129,8 @@ func Reconcile(entries []Entry) (Reconciliation, error) {
 			return Reconciliation{}, ErrInvalidEntry
 		}
 		result.CurrencyTotals = append(result.CurrencyTotals, CurrencyTotals{
-			Currency: currency,
-			DebitMinor: total.debit,
+			Currency:    currency,
+			DebitMinor:  total.debit,
 			CreditMinor: total.credit,
 		})
 	}
