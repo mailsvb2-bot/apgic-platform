@@ -1,0 +1,19 @@
+[Unit]
+Description=APGIC staging runtime watchdog
+After=network-online.target nginx.service apgic-api-staging.service apgic-web-staging.service
+Wants=network-online.target
+Requires=apgic-api-staging.service apgic-web-staging.service
+
+[Service]
+Type=oneshot
+DynamicUser=yes
+EnvironmentFile=/etc/apgic/staging.env
+Environment=APGIC_PUBLIC_HOST=apgic.ru
+Environment=APGIC_WEB_ORIGIN=http://127.0.0.1
+ExecStart=/opt/apgic/current/deploy/staging/check-staging-runtime.sh
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectHome=yes
+ProtectSystem=strict
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
