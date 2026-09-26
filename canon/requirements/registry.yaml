@@ -214,10 +214,14 @@ requirements:
   implementation_refs:
   - backend/internal/authz/evaluator.go
   - backend/internal/authz/authz.go
-  contract_refs: []
+  - tools/auth_contract_guard.py
+  contract_refs:
+  - packages/contracts/src/foundation.ts
+  - contracts/jsonschema/authorization-v1.schema.json
   test_refs:
   - backend/internal/authz/evaluator_test.go
   - backend/internal/authz/authz_test.go
+  - tools/tests/test_auth_contract_guard.py
   evidence_refs: []
   acceptance:
     given: principal Organization A знает UUID private resource Organization B
@@ -241,10 +245,14 @@ requirements:
   implementation_refs:
   - backend/internal/authz/evaluator.go
   - backend/internal/authz/authz.go
-  contract_refs: []
+  - tools/auth_contract_guard.py
+  contract_refs:
+  - packages/contracts/src/foundation.ts
+  - contracts/jsonschema/authorization-v1.schema.json
   test_refs:
   - backend/internal/authz/evaluator_test.go
   - backend/internal/authz/authz_test.go
+  - tools/tests/test_auth_contract_guard.py
   evidence_refs: []
   acceptance:
     given: авторизованный пользователь пытается изменить payout requisites/ownership/secret
