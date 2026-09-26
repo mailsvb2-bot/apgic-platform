@@ -101,6 +101,10 @@ func (s *Service) cancelOrderLocked(orderID, reasonCode, notice string) (*Cancel
 	if strings.Contains(strings.ToLower(reversal.DebitAccountRef), "apgic") || strings.Contains(strings.ToLower(reversal.CreditAccountRef), "apgic") {
 		return nil, ErrCustodyForbidden
 	}
+	prospectiveLedger, _, err := s.ledgerState.preview(reversal)
+	if err != nil {
+		return nil, err
+	}
 	if _, err := booked.Transition(booking.StateCancelled, now); err != nil {
 		return nil, err
 	}
@@ -108,6 +112,7 @@ func (s *Service) cancelOrderLocked(orderID, reasonCode, notice string) (*Cancel
 		hold.BookingState = booking.StateCancelled
 	}
 	instruction.BookingState = booking.StateCancelled
+	s.ledgerState.commit(prospectiveLedger)
 	created := &Cancellation{
 		ID:                refund.ID,
 		OrderID:           orderID,
