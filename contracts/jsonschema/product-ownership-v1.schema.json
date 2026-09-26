@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apgic.ru/contracts/product-ownership-v1.schema.json",
+  "title": "APGIC Product Ownership v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "owner_type",
+    "owner_id",
+    "commercial_owner_ref",
+    "author_refs",
+    "revenue_beneficiary_ref"
+  ],
+  "$defs": {
+    "owner_type": {
+      "type": "string",
+      "enum": ["IDENTITY", "ORGANIZATION"]
+    }
+  },
+  "properties": {
+    "owner_type": {"$ref": "#/$defs/owner_type"},
+    "owner_id": {"type": "string", "minLength": 1},
+    "commercial_owner_ref": {"type": "string", "minLength": 1},
+    "author_refs": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "revenue_beneficiary_ref": {"type": "string", "minLength": 1}
+  }
+}

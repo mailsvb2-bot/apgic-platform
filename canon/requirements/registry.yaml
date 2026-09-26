@@ -502,10 +502,12 @@ requirements:
   - backend/internal/commerce/product.go
   - backend/migrations/000001_r0_foundation.sql
   - backend/migrations/000003_r0_semantic_invariants.sql
-  contract_refs: []
+  contract_refs:
+  - contracts/jsonschema/product-ownership-v1.schema.json
   test_refs:
   - backend/internal/commerce/product_test.go
   - backend/migrations/ci_invariants.sql
+  - tools/product_contract_guard.py
   evidence_refs: []
   acceptance:
     given: специалист создаёт продукт внутри Organization

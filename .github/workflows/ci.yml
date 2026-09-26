@@ -34,6 +34,7 @@ jobs:
       - run: python tools/event_contract_guard.py
       - run: python tools/audit_contract_guard.py
       - run: python tools/ledger_contract_guard.py
+      - run: python tools/product_contract_guard.py
       - run: python tools/payment_custody_guard.py
       - run: python tools/mobile_dependency_guard.py
       - run: python tools/mobile_privacy_guard.py
