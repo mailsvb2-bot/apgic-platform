@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apgic.ru/contracts/audit-evidence-v1.schema.json",
+  "title": "APGIC Audit Evidence v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "actor_id",
+    "action",
+    "scope",
+    "reason",
+    "policy_version",
+    "occurred_at"
+  ],
+  "properties": {
+    "id": {"type": "string", "minLength": 1},
+    "actor_id": {"type": "string", "minLength": 1},
+    "action": {"type": "string", "minLength": 1},
+    "scope": {"type": "string", "minLength": 1},
+    "resource_ref": {"type": "string"},
+    "old_state": {"type": ["object", "array", "string", "number", "boolean", "null"]},
+    "new_state": {"type": ["object", "array", "string", "number", "boolean", "null"]},
+    "reason": {"type": "string", "minLength": 1},
+    "policy_version": {"type": "string", "minLength": 1},
+    "occurred_at": {"type": "string", "format": "date-time"},
+    "correlation_id": {"type": "string"}
+  }
+}
