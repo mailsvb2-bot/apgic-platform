@@ -32,12 +32,12 @@ func TestLedgerStatePreviewCanonicalizesBeforeCommit(t *testing.T) {
 func TestLedgerStateRejectsInvalidEntryWithoutMutation(t *testing.T) {
 	state := ledgerState{}
 	if _, _, err := state.preview(ledger.Entry{
-		ID:              "led-invalid",
-		DebitAccountRef: "buyer",
+		ID:               "led-invalid",
+		DebitAccountRef:  "buyer",
 		CreditAccountRef: "seller",
-		AmountMinor:     100,
-		Currency:        "RUB",
-		CorrelationID:   "corr-invalid",
+		AmountMinor:      100,
+		Currency:         "RUB",
+		CorrelationID:    "corr-invalid",
 	}); err == nil {
 		t.Fatal("preview must reject missing provider evidence")
 	}
