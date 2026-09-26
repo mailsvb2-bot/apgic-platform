@@ -22,6 +22,9 @@ def validate() -> list[str]:
         "runtime SHA mismatch",
         'Host: ${APGIC_PUBLIC_HOST}',
         "--max-time 5",
+        '--resolve "${APGIC_PUBLIC_HOST}:443:127.0.0.1"',
+        '"https://${APGIC_PUBLIC_HOST}/"',
+        'case "$http_status" in',
     ):
         if item not in script:
             errors.append(f"watchdog script missing invariant: {item}")
@@ -29,6 +32,7 @@ def validate() -> list[str]:
     for item in (
         "DynamicUser=yes",
         "EnvironmentFile=/etc/apgic/staging.env",
+        "ExecStart=/usr/bin/bash /opt/apgic/current/deploy/staging/check-staging-runtime.sh",
         "NoNewPrivileges=yes",
         "ProtectSystem=strict",
         "PrivateTmp=yes",
