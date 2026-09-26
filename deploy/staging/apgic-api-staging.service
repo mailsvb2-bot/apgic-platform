@@ -1,0 +1,24 @@
+[Unit]
+Description=APGIC staging API
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+DynamicUser=yes
+EnvironmentFile=/etc/apgic/staging.env
+WorkingDirectory=/opt/apgic/current/backend
+ExecStart=/opt/apgic/current/backend/bin/apgic-api
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateDevices=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target
