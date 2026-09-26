@@ -2855,10 +2855,12 @@ requirements:
   implementation_refs:
   - apps/mobile/dependency-registry.yaml
   - tools/mobile_dependency_guard.py
-  contract_refs: []
+  contract_refs:
+  - contracts/jsonschema/mobile-dependency-registry-v1.schema.json
   test_refs:
   - tools/mobile_dependency_guard.py
   - .github/workflows/ci.yml
+  - tools/mobile_dependency_contract_guard.py
   evidence_refs: []
   acceptance:
     given: mobile dependency is added/upgraded
