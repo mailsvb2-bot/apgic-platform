@@ -2890,10 +2890,12 @@ requirements:
   - apps/mobile/android/data-safety.yaml
   - apps/mobile/privacy-declaration.yaml
   - tools/mobile_privacy_guard.py
-  contract_refs: []
+  contract_refs:
+  - contracts/jsonschema/mobile-privacy-declaration-v1.schema.json
   test_refs:
   - tools/mobile_privacy_guard.py
   - .github/workflows/ci.yml
+  - tools/mobile_privacy_contract_guard.py
   evidence_refs: []
   acceptance:
     given: release candidate contains native SDKs/APIs

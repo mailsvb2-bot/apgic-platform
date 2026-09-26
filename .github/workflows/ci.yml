@@ -45,6 +45,7 @@ jobs:
       - run: python tools/mobile_dependency_guard.py
       - run: python tools/mobile_dependency_contract_guard.py
       - run: python tools/mobile_privacy_guard.py
+      - run: python tools/mobile_privacy_contract_guard.py
       - run: python tools/terminology_guard.py
       - run: python tools/generate_client_contract.py --check
       - run: python tools/multisurface_guard.py

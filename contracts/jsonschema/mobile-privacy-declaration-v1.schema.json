@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apgic.ru/contracts/mobile-privacy-declaration-v1.schema.json",
+  "title": "APGIC Mobile Privacy Declaration v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "build_scope",
+    "tracking",
+    "collected_data_classes",
+    "shared_data_classes",
+    "required_permissions",
+    "required_reason_apis",
+    "runtime_dependency_assertions",
+    "store_artifacts"
+  ],
+  "properties": {
+    "version": {"type": "integer", "minimum": 1},
+    "build_scope": {"type": "string", "minLength": 1},
+    "tracking": {"type": "boolean"},
+    "collected_data_classes": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "shared_data_classes": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "required_permissions": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "required_reason_apis": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "runtime_dependency_assertions": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["egress", "data_classes", "permissions"],
+        "properties": {
+          "egress": {"type": "string", "minLength": 1},
+          "data_classes": {"type": "array", "items": {"type": "string", "minLength": 1}},
+          "permissions": {"type": "array", "items": {"type": "string", "minLength": 1}}
+        }
+      }
+    },
+    "store_artifacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["apple_privacy_manifest", "google_data_safety"],
+      "properties": {
+        "apple_privacy_manifest": {"$ref": "#/$defs/store_artifact"},
+        "google_data_safety": {"$ref": "#/$defs/store_artifact"}
+      }
+    }
+  },
+  "$defs": {
+    "store_artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "path", "production_submission", "reason"],
+      "properties": {
+        "status": {"type": "string", "enum": ["NOT_YET_GENERATED", "GENERATED_AND_VERIFIED"]},
+        "path": {"type": "string", "minLength": 1},
+        "production_submission": {"type": "boolean"},
+        "reason": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}
