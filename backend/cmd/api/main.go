@@ -17,6 +17,7 @@ func main() {
 	var readinessCheck func(context.Context) error
 	var storage *runtimepostgres.Checker
 	var ledgerStore demand.LedgerStore
+	var journeyStore demand.JourneyStore
 	environment := os.Getenv("APGIC_ENVIRONMENT")
 	if runtimepostgres.RequiresDatabase(environment) {
 		var err error
@@ -27,11 +28,22 @@ func main() {
 		defer storage.Close()
 		readinessCheck = storage.Ready
 		ledgerStore = storage
+		journeyStore = storage
+	}
+	var demandService *demand.Service
+	if journeyStore != nil {
+		var err error
+		demandService, err = demand.NewConformanceServiceWithStores(nil, ledgerStore, journeyStore)
+		if err != nil {
+			log.Fatalf("APGIC journey hydration failed: %v", err)
+		}
+	} else {
+		demandService = demand.NewConformanceServiceWithLedgerStore(nil, ledgerStore)
 	}
 	handler := httpapi.New(httpapi.Options{
 		CommitSHA:      os.Getenv("APGIC_COMMIT_SHA"),
 		ReleaseTrack:   "R0",
-		Demand:         demand.NewConformanceServiceWithLedgerStore(nil, ledgerStore),
+		Demand:         demandService,
 		ReadinessCheck: readinessCheck,
 		LaunchConfig: launchconfig.Config{
 			JurisdictionMatrixVersion: os.Getenv("APGIC_JURISDICTION_MATRIX_VERSION"),
