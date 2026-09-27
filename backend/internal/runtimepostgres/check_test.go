@@ -134,4 +134,28 @@ func TestLedgerStorePersistsAndReplays(t *testing.T) {
 	if _, err := store.AppendLedgerEntry(collision); err == nil {
 		t.Fatal("same economic event with different financial effect must fail")
 	}
+
+	if _, err := store.db.Exec("DROP INDEX ledger_entries_economic_event_ref_unique"); err != nil {
+		t.Fatal(err)
+	}
+	indexRestored := false
+	defer func() {
+		if !indexRestored {
+			_, _ = store.db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS ledger_entries_economic_event_ref_unique
+				ON ledger_entries (economic_event_ref)
+				WHERE economic_event_ref IS NOT NULL`)
+		}
+	}()
+	if err := store.Ready(context.Background()); err == nil {
+		t.Fatal("readiness must fail when ledger idempotency index is missing")
+	}
+	if _, err := store.db.Exec(`CREATE UNIQUE INDEX ledger_entries_economic_event_ref_unique
+		ON ledger_entries (economic_event_ref)
+		WHERE economic_event_ref IS NOT NULL`); err != nil {
+		t.Fatal(err)
+	}
+	indexRestored = true
+	if err := store.Ready(context.Background()); err != nil {
+		t.Fatalf("readiness must recover after idempotency index restore: %v", err)
+	}
 }
