@@ -29,7 +29,11 @@ PINNED_ARTIFACTS = {
 
 
 def discover_evidence_paths() -> list[Path]:
-    return sorted(EVIDENCE_DIR.glob("staging-runtime-*.json"))
+    return sorted(
+        path
+        for path in EVIDENCE_DIR.glob("staging-runtime-*.json")
+        if path != SCHEMA
+    )
 
 
 def _schema_errors(document: dict, schema: dict, ref: str) -> list[str]:
