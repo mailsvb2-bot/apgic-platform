@@ -3,7 +3,7 @@ package demand
 import "github.com/mailsvb2-bot/apgic-platform/backend/internal/ledger"
 
 type LedgerStore interface {
-	AppendLedgerEntry(entry ledger.Entry) error
+	AppendLedgerEntry(entry ledger.Entry) (ledger.Entry, error)
 	LedgerEntries() ([]ledger.Entry, error)
 }
 
@@ -53,12 +53,12 @@ func (s *Service) previewLedgerLocked(entry ledger.Entry) ([]ledger.Entry, ledge
 	return state.preview(entry)
 }
 
-func (s *Service) commitLedgerEntryLocked(entry ledger.Entry, prospective []ledger.Entry) error {
+func (s *Service) commitLedgerEntryLocked(entry ledger.Entry, prospective []ledger.Entry) (ledger.Entry, error) {
 	if s.ledgerStore != nil {
 		return s.ledgerStore.AppendLedgerEntry(entry)
 	}
 	s.ledgerState.commit(prospective)
-	return nil
+	return entry, nil
 }
 
 func (s *Service) LedgerReconciliation() (ledger.Reconciliation, error) {
