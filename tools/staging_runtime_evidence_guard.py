@@ -5,7 +5,7 @@ import hashlib
 import json
 import re
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import yaml
@@ -16,6 +16,15 @@ EVIDENCE_DIR = ROOT / "canon/evidence"
 SCHEMA = EVIDENCE_DIR / "staging-runtime-evidence-v1.schema.json"
 REGISTRY = ROOT / "canon/requirements/registry.yaml"
 RFC3339_RE = re.compile(r"^(?P<date>\d{4}-\d{2}-\d{2})T(?P<hour>\d{2}):(?P<minute>\d{2}):(?P<second>\d{2})(?P<fraction>\.\d+)?(?P<zone>Z|[+-]\d{2}:\d{2})$", re.IGNORECASE)
+KNOWN_UTC_LEAP_SECOND_DATES = frozenset({
+    "1972-06-30", "1972-12-31", "1973-12-31", "1974-12-31",
+    "1975-12-31", "1976-12-31", "1977-12-31", "1978-12-31",
+    "1979-12-31", "1981-06-30", "1982-06-30", "1983-06-30",
+    "1985-06-30", "1987-12-31", "1989-12-31", "1990-12-31",
+    "1992-06-30", "1993-06-30", "1994-06-30", "1995-12-31",
+    "1997-06-30", "1998-12-31", "2005-12-31", "2008-12-31",
+    "2012-06-30", "2015-06-30", "2016-12-31",
+})
 
 PINNED_ARTIFACTS = {
     "staging-runtime-20260926T215500Z.json": {
@@ -61,7 +70,18 @@ def _is_rfc3339_datetime(value: object) -> bool:
         parsed = datetime.fromisoformat(normalized)
     except ValueError:
         return False
-    return parsed.tzinfo is not None
+    if parsed.tzinfo is None:
+        return False
+    if second != 60:
+        return True
+
+    utc = parsed.astimezone(timezone.utc)
+    return (
+        utc.strftime("%Y-%m-%d") in KNOWN_UTC_LEAP_SECOND_DATES
+        and utc.hour == 23
+        and utc.minute == 59
+        and utc.second == 59
+    )
 
 
 def _schema_errors(document: dict, schema: dict, ref: str) -> list[str]:
