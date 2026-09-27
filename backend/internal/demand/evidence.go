@@ -102,7 +102,7 @@ func (s *Service) ApplyProviderEvent(event ProviderEvent) (*PaymentEvidence, err
 	if err != nil {
 		return nil, err
 	}
-	persistedEntry, err := s.commitBookingLedgerLocked(&bookedCopy, entry, prospectiveLedger)
+	persistedEntry, replayed, err := s.commitBookingLedgerLocked(&bookedCopy, entry, prospectiveLedger)
 	if err != nil {
 		return nil, err
 	}
@@ -129,6 +129,7 @@ func (s *Service) ApplyProviderEvent(event ProviderEvent) (*PaymentEvidence, err
 		DebitAccountRef:   entry.DebitAccountRef,
 		CreditAccountRef:  entry.CreditAccountRef,
 		APGICAcceptsFunds: false,
+		Idempotent:        replayed,
 		Notice:            evidenceNotice,
 	}
 	s.evidence[key] = created
