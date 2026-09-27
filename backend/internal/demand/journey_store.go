@@ -6,12 +6,23 @@ import (
 	"time"
 
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/booking"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/commerce"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/legal"
 )
 
 type JourneySnapshot struct {
-	Intents  []*Intent
-	Holds    []*Hold
-	Bookings []*booking.Booking
+	Intents      []*Intent
+	Holds        []*Hold
+	Bookings     []*booking.Booking
+	Instructions []*CheckoutInstruction
+}
+
+type CheckoutPersistence struct {
+	Booking       *booking.Booking
+	Instruction   *CheckoutInstruction
+	LegalSnapshot legal.TransactionSnapshot
+	Order         commerce.OrderSnapshot
+	DecidedAt     time.Time
 }
 
 var ErrJourneyStoreProtocol = errors.New("unknown journey store reason code")
@@ -22,7 +33,7 @@ type JourneyStore interface {
 	CreateIntent(intent *Intent) error
 	ConfirmIntent(intent *Intent, confirmedAt time.Time) error
 	AcquireHold(hold *Hold, slot Slot, now time.Time) (reasonCode string, err error)
-	CreateBooking(booked *booking.Booking, now time.Time) (reasonCode string, err error)
+	CreateCheckout(persistence CheckoutPersistence) (reasonCode string, err error)
 	Expire(now time.Time) error
 	UpdateBooking(booked *booking.Booking) error
 }
