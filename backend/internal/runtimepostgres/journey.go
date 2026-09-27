@@ -674,6 +674,13 @@ func (c *Checker) CreateCheckout(persistence demand.CheckoutPersistence) (string
 		return "", fmt.Errorf("persist immutable order: %w", err)
 	}
 
+	if _, err := tx.ExecContext(ctx,
+		`SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`,
+		"apgic:payment-provider-bootstrap:"+instruction.ProviderID,
+	); err != nil {
+		return "", fmt.Errorf("lock payment provider bootstrap: %w", err)
+	}
+
 	providerConfigRef := "conformance:" + instruction.ProviderID
 	var providerInstanceID string
 	if err := tx.QueryRowContext(ctx,
