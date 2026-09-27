@@ -54,15 +54,15 @@ func TestLedgerStorePersistsAndReplays(t *testing.T) {
 		t.Fatal(err)
 	}
 	entry := ledger.Entry{
-		ID: id,
-		DebitAccountRef: "external-provider/integration/settlement",
-		CreditAccountRef: "identity/integration-specialist",
-		AmountMinor: 4321,
-		Currency: "rub",
+		ID:                  id,
+		DebitAccountRef:     "external-provider/integration/settlement",
+		CreditAccountRef:    "identity/integration-specialist",
+		AmountMinor:         4321,
+		Currency:            "rub",
 		ProviderEvidenceRef: "integration/provider-event-1",
-		EconomicEventRef: "integration/order-1",
-		CorrelationID: "integration/correlation-1",
-		OccurredAt: time.Now().UTC().Truncate(time.Microsecond),
+		EconomicEventRef:    "integration/order-1",
+		CorrelationID:       "integration/correlation-1",
+		OccurredAt:          time.Now().UTC().Truncate(time.Microsecond),
 	}
 	if err := store.AppendLedgerEntry(entry); err != nil {
 		t.Fatal(err)
