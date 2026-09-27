@@ -105,16 +105,26 @@ func (s *Service) CheckoutOptions(holdID, clientIdentityID string) ([]CheckoutOp
 func (s *Service) CreateCheckout(holdID, clientIdentityID, methodCode string) (*CheckoutInstruction, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	hold, slot, err := s.activeHoldLocked(holdID, clientIdentityID)
+	hold, slot, err := s.ownedHoldLocked(holdID, clientIdentityID)
 	if err != nil {
 		return nil, err
 	}
 	if existing := s.instructions[hold.ID]; existing != nil {
-		if existing.MethodCode == methodCode {
-			copyInstruction := *existing
-			return &copyInstruction, nil
+		if existing.MethodCode != methodCode {
+			return nil, ErrCheckoutLocked
 		}
-		return nil, ErrCheckoutLocked
+		booked := s.bookings[existing.BookingID]
+		if booked == nil || booked.State == booking.StateExpired {
+			return nil, ErrHoldNotActive
+		}
+		copyInstruction := *existing
+		return &copyInstruction, nil
+	}
+	if hold.State != "ACTIVE" {
+		return nil, ErrHoldNotActive
+	}
+	if s.slotBookedLocked(slot.ID) {
+		return nil, ErrSlotBooked
 	}
 	method := payments.MethodCode(methodCode)
 	if method == payments.MethodWallet || method == "" {
@@ -189,12 +199,23 @@ func (s *Service) CreateCheckout(holdID, clientIdentityID, methodCode string) (*
 	if err := instruction.Validate(); err != nil {
 		return nil, err
 	}
-	booked := s.bookings[hold.BookingID]
+	booked, err := booking.New(
+		hold.BookingID,
+		slot.ID,
+		hold.ID,
+		hold.ClientIdentityID,
+		hold.ExpiresAt,
+		slot.StartsAt,
+		slot.EndsAt,
+		now,
+	)
+	if err != nil {
+		return nil, err
+	}
 	result, err := booked.Transition(booking.StatePendingPayment, now)
 	if err != nil {
 		return nil, err
 	}
-	hold.BookingState = result.To
 	created := &CheckoutInstruction{
 		ID:                 newID("chk-"),
 		HoldID:             hold.ID,
@@ -213,12 +234,16 @@ func (s *Service) CreateCheckout(holdID, clientIdentityID, methodCode string) (*
 		Notice:             checkoutNotice,
 		ReasonCode:         decision.ReasonCode,
 	}
+	s.bookings[booked.ID] = booked
+	hold.State = "CONSUMED"
+	hold.BookingState = result.To
+	delete(s.slotHolds, slot.ID)
 	s.instructions[hold.ID] = created
 	copyInstruction := *created
 	return &copyInstruction, nil
 }
 
-func (s *Service) activeHoldLocked(holdID, clientIdentityID string) (*Hold, Slot, error) {
+func (s *Service) ownedHoldLocked(holdID, clientIdentityID string) (*Hold, Slot, error) {
 	s.expireHoldsLocked()
 	hold, ok := s.holds[holdID]
 	if !ok {
@@ -227,12 +252,20 @@ func (s *Service) activeHoldLocked(holdID, clientIdentityID string) (*Hold, Slot
 	if hold.ClientIdentityID != clientIdentityID {
 		return nil, Slot{}, ErrIdentityMismatch
 	}
-	if hold.State != "ACTIVE" {
-		return nil, Slot{}, ErrHoldNotActive
-	}
 	slot, ok := s.slot(hold.SlotID)
 	if !ok {
 		return nil, Slot{}, ErrSlotNotFound
+	}
+	return hold, slot, nil
+}
+
+func (s *Service) activeHoldLocked(holdID, clientIdentityID string) (*Hold, Slot, error) {
+	hold, slot, err := s.ownedHoldLocked(holdID, clientIdentityID)
+	if err != nil {
+		return nil, Slot{}, err
+	}
+	if hold.State != "ACTIVE" {
+		return nil, Slot{}, ErrHoldNotActive
 	}
 	return hold, slot, nil
 }
@@ -253,3 +286,5 @@ func rejectCustody(recipient, executionOwner string) error {
 	}
 	return nil
 }
+
+[executed on device: msk-1-vm-9vrn (ce05cfe4-fa8e-495a-bd76-12d14a659df2)]
