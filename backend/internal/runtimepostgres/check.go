@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/ledger"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -76,6 +77,85 @@ func (c *Checker) Ready(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+func (c *Checker) AppendLedgerEntry(entry ledger.Entry) error {
+	if c == nil || c.db == nil {
+		return errors.New("postgres checker is not initialized")
+	}
+	canonical, err := ledger.NewEntry(entry)
+	if err != nil {
+		return err
+	}
+	writeCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	_, err = c.db.ExecContext(
+		writeCtx,
+		`INSERT INTO ledger_entries (
+			id, debit_account_ref, credit_account_ref, amount_minor, currency,
+			provider_evidence_ref, economic_event_ref, correlation_id, occurred_at
+		) VALUES ($1::uuid, $2, $3, $4, $5, $6, NULLIF($7, ''), $8, $9)`,
+		canonical.ID,
+		canonical.DebitAccountRef,
+		canonical.CreditAccountRef,
+		canonical.AmountMinor,
+		canonical.Currency,
+		canonical.ProviderEvidenceRef,
+		canonical.EconomicEventRef,
+		canonical.CorrelationID,
+		canonical.OccurredAt,
+	)
+	if err != nil {
+		return fmt.Errorf("append ledger entry: %w", err)
+	}
+	return nil
+}
+
+func (c *Checker) LedgerEntries() ([]ledger.Entry, error) {
+	if c == nil || c.db == nil {
+		return nil, errors.New("postgres checker is not initialized")
+	}
+	readCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	rows, err := c.db.QueryContext(
+		readCtx,
+		`SELECT
+			id::text, debit_account_ref, credit_account_ref, amount_minor, currency,
+			provider_evidence_ref, economic_event_ref, correlation_id, occurred_at
+		FROM ledger_entries
+		ORDER BY occurred_at, id`,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("read ledger entries: %w", err)
+	}
+	defer rows.Close()
+
+	entries := make([]ledger.Entry, 0)
+	for rows.Next() {
+		var entry ledger.Entry
+		var economicEvent sql.NullString
+		if err := rows.Scan(
+			&entry.ID,
+			&entry.DebitAccountRef,
+			&entry.CreditAccountRef,
+			&entry.AmountMinor,
+			&entry.Currency,
+			&entry.ProviderEvidenceRef,
+			&economicEvent,
+			&entry.CorrelationID,
+			&entry.OccurredAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan ledger entry: %w", err)
+		}
+		if economicEvent.Valid {
+			entry.EconomicEventRef = economicEvent.String
+		}
+		entries = append(entries, entry)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("read ledger entries: %w", err)
+	}
+	return entries, nil
 }
 
 func (c *Checker) Close() error {
