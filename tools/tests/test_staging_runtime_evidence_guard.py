@@ -6,6 +6,7 @@ from tools.staging_runtime_evidence_guard import (
     EVIDENCE_DIR,
     PINNED_ARTIFACTS,
     SCHEMA,
+    _is_rfc3339_datetime,
     _pin_errors,
     _registry_evidence_refs,
     _schema_errors,
@@ -36,6 +37,14 @@ class StagingRuntimeEvidenceGuardTest(unittest.TestCase):
         self.assertIn("not_after", joined)
         self.assertIn("generated_at", joined)
         self.assertIn("undeclared", joined)
+
+    def test_rfc3339_fallback_rejects_noncanonical_iso_forms(self):
+        self.assertTrue(_is_rfc3339_datetime("2026-09-27T07:23:52Z"))
+        self.assertTrue(_is_rfc3339_datetime("2026-09-27T07:23:52.123+03:00"))
+        self.assertFalse(_is_rfc3339_datetime("20260927T072352Z"))
+        self.assertFalse(_is_rfc3339_datetime("2026-09-27T07:23:52+03"))
+        self.assertFalse(_is_rfc3339_datetime("2026-09-27T07:23:52+03:00:30"))
+        self.assertFalse(_is_rfc3339_datetime("2026-02-30T07:23:52Z"))
 
     def test_registry_linkage_uses_only_actual_evidence_refs(self):
         ref = "canon/evidence/staging-runtime-example.json"
