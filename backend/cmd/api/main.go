@@ -16,6 +16,7 @@ import (
 func main() {
 	var readinessCheck func(context.Context) error
 	var storage *runtimepostgres.Checker
+	var ledgerStore demand.LedgerStore
 	environment := os.Getenv("APGIC_ENVIRONMENT")
 	if runtimepostgres.RequiresDatabase(environment) {
 		var err error
@@ -25,11 +26,12 @@ func main() {
 		}
 		defer storage.Close()
 		readinessCheck = storage.Ready
+		ledgerStore = storage
 	}
 	handler := httpapi.New(httpapi.Options{
 		CommitSHA:      os.Getenv("APGIC_COMMIT_SHA"),
 		ReleaseTrack:   "R0",
-		Demand:         demand.NewConformanceService(nil),
+		Demand:         demand.NewConformanceServiceWithLedgerStore(nil, ledgerStore),
 		ReadinessCheck: readinessCheck,
 		LaunchConfig: launchconfig.Config{
 			JurisdictionMatrixVersion: os.Getenv("APGIC_JURISDICTION_MATRIX_VERSION"),
