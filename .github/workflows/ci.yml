@@ -44,6 +44,7 @@ jobs:
       - run: python tools/mobile_installation_contract_guard.py
       - run: python tools/mobile_storage_contract_guard.py
       - run: python tools/mobile_native_storage_audit.py
+      - run: python tools/repository_secret_scan.py
       - run: python tools/legal_snapshot_contract_guard.py
       - run: python tools/legal_acceptance_contract_guard.py
       - run: python tools/mobile_capability_contract_guard.py
