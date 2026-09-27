@@ -2,6 +2,7 @@ package runtimepostgres
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -93,6 +94,11 @@ func (c *Checker) LoadJourney(slots []demand.Slot) (demand.JourneySnapshot, erro
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), journeyWriteTimeout)
 	defer cancel()
+	tx, err := c.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true, Isolation: sql.LevelRepeatableRead})
+	if err != nil {
+		return demand.JourneySnapshot{}, fmt.Errorf("begin journey snapshot: %w", err)
+	}
+	defer tx.Rollback()
 
 	specialistRefs := make(map[string]string)
 	for _, slot := range slots {
@@ -104,7 +110,7 @@ func (c *Checker) LoadJourney(slots []demand.Slot) (demand.JourneySnapshot, erro
 	}
 
 	var snapshot demand.JourneySnapshot
-	rows, err := c.db.QueryContext(ctx,
+	rows, err := tx.QueryContext(ctx,
 		`SELECT id::text, identity_id::text, free_text,
 		        to_json(topics)::text, to_json(goals)::text, context::text, state
 		 FROM help_intents
@@ -148,7 +154,7 @@ func (c *Checker) LoadJourney(slots []demand.Slot) (demand.JourneySnapshot, erro
 	}
 	rows.Close()
 
-	rows, err = c.db.QueryContext(ctx,
+	rows, err = tx.QueryContext(ctx,
 		`SELECT h.id::text, s.specialist_identity_id::text, s.starts_at,
 		        h.client_identity_id::text, h.state, h.expires_at
 		 FROM booking_holds h
@@ -195,7 +201,7 @@ func (c *Checker) LoadJourney(slots []demand.Slot) (demand.JourneySnapshot, erro
 	}
 	rows.Close()
 
-	rows, err = c.db.QueryContext(ctx,
+	rows, err = tx.QueryContext(ctx,
 		`SELECT b.id::text, s.specialist_identity_id::text, b.hold_id::text, b.client_identity_id::text,
 		        b.state, b.hold_expires_at, b.starts_at, b.ends_at, b.updated_at
 		 FROM bookings b
@@ -231,7 +237,7 @@ func (c *Checker) LoadJourney(slots []demand.Slot) (demand.JourneySnapshot, erro
 	}
 	rows.Close()
 
-	rows, err = c.db.QueryContext(ctx,
+	rows, err = tx.QueryContext(ctx,
 		`SELECT o.id::text, b.hold_id::text, b.id::text, b.state,
 		        connector.provider_kind, decision.selected_method_code, decision.selected_rail_code,
 		        o.amount_minor, o.currency, config.execution_owner,
@@ -296,7 +302,7 @@ func (c *Checker) LoadJourney(slots []demand.Slot) (demand.JourneySnapshot, erro
 			instructionsByOrder[instruction.OrderID] = instruction
 		}
 	}
-	rows, err = c.db.QueryContext(ctx,
+	rows, err = tx.QueryContext(ctx,
 		`SELECT le.id::text, le.debit_account_ref, le.credit_account_ref,
 		        le.amount_minor, le.currency, le.provider_evidence_ref,
 		        le.economic_event_ref, le.correlation_id
@@ -391,6 +397,9 @@ func (c *Checker) LoadJourney(slots []demand.Slot) (demand.JourneySnapshot, erro
 		return snapshot, fmt.Errorf("iterate journey ledger effects: %w", err)
 	}
 	rows.Close()
+	if err := tx.Commit(); err != nil {
+		return snapshot, fmt.Errorf("commit journey snapshot: %w", err)
+	}
 	return snapshot, nil
 }
 
