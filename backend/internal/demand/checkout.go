@@ -244,9 +244,9 @@ func (s *Service) CreateCheckout(holdID, clientIdentityID, methodCode string) (*
 	}
 	if s.journeyStore != nil {
 		reason, err := s.journeyStore.CreateCheckout(CheckoutPersistence{
-			Booking:       booked,
-			Instruction:   created,
-			LegalSnapshot: legalSnapshot,
+			Booking:              booked,
+			Instruction:          created,
+			LegalSnapshot:        legalSnapshot,
 			Order:                orderSnapshot,
 			RoutingPolicyVersion: decision.PolicyVersion,
 			DecidedAt:            now,
