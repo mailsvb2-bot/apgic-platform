@@ -6,7 +6,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/audit"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/ledger"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/persistentid"
 )
 
 func TestRequiresDatabaseOnlyForRuntimeEnvironments(t *testing.T) {
@@ -157,5 +159,68 @@ func TestLedgerStorePersistsAndReplays(t *testing.T) {
 	indexRestored = true
 	if err := store.Ready(context.Background()); err != nil {
 		t.Fatalf("readiness must recover after idempotency index restore: %v", err)
+	}
+}
+
+func TestAuditAppenderPersistsAuthorizationEvidence(t *testing.T) {
+	databaseURL := os.Getenv("APGIC_AUDIT_STORE_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("audit integration database not configured")
+	}
+	store, err := Open(context.Background(), databaseURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	id, err := persistentid.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	record, err := audit.New(audit.Record{
+		ID:            id,
+		ActorID:       "integration-principal",
+		Action:        "authorization.decision",
+		Scope:         "org-a",
+		ResourceRef:   "tenant/org-b/resource/private-resource",
+		NewState:      []byte(`{"decision":"DENY","reason_code":"AUTH_CROSS_TENANT_DENY"}`),
+		Reason:        "AUTH_CROSS_TENANT_DENY",
+		PolicyVersion: "authz-policy-v1",
+		OccurredAt:    now,
+		CorrelationID: "integration-authz-correlation",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Append(record); err != nil {
+		t.Fatal(err)
+	}
+
+	var actorID, action, scope, resourceRef, reason, policyVersion, correlationID string
+	var newState string
+	var occurredAt time.Time
+	if err := store.db.QueryRow(
+		`SELECT actor_id, action, scope, resource_ref, new_state::text, reason,
+		        policy_version, correlation_id, occurred_at
+		 FROM audit_records
+		 WHERE id = $1::uuid`,
+		id,
+	).Scan(
+		&actorID, &action, &scope, &resourceRef, &newState, &reason,
+		&policyVersion, &correlationID, &occurredAt,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if actorID != record.ActorID || action != record.Action || scope != record.Scope ||
+		resourceRef != record.ResourceRef || reason != record.Reason ||
+		policyVersion != record.PolicyVersion || correlationID != record.CorrelationID ||
+		newState == "" || !occurredAt.Equal(record.OccurredAt) {
+		t.Fatalf("persisted audit evidence mismatch: actor=%q action=%q scope=%q resource=%q state=%q reason=%q policy=%q correlation=%q occurred_at=%s",
+			actorID, action, scope, resourceRef, newState, reason, policyVersion, correlationID, occurredAt)
+	}
+	// Canonical authorization evidence is append-only; assert the database guard without cleanup.
+	if _, err := store.db.Exec("DELETE FROM audit_records WHERE id = $1::uuid", id); err == nil {
+		t.Fatal("canonical audit evidence hard delete must be rejected")
 	}
 }
