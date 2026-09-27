@@ -96,7 +96,7 @@ func (s *Service) cancelOrderLocked(orderID, reasonCode, notice string) (*Cancel
 		Currency:            evidence.Currency,
 		ProviderEvidenceRef: refund.ProviderEvidenceRef,
 		EconomicEventRef:    "reversal:" + orderID,
-		CorrelationID:       refund.ID,
+		CorrelationID:       "cancel:" + orderID,
 		OccurredAt:          now,
 	})
 	if err != nil {
