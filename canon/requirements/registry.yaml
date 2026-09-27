@@ -470,11 +470,22 @@ requirements:
   dependencies: []
   implementation_refs:
   - backend/internal/ledger/ledger.go
+  - backend/internal/demand/ledger.go
+  - backend/internal/demand/evidence.go
+  - backend/internal/demand/cancel.go
+  - backend/internal/runtimepostgres/check.go
   - backend/migrations/000001_r0_foundation.sql
+  - backend/migrations/000017_r0_ledger_economic_event_idempotency.sql
   contract_refs:
   - contracts/jsonschema/ledger-entry-v1.schema.json
   test_refs:
   - backend/internal/ledger/ledger_test.go
+  - backend/internal/demand/ledger_test.go
+  - backend/internal/demand/evidence_test.go
+  - backend/internal/demand/cancel_test.go
+  - backend/internal/runtimepostgres/check_test.go
+  - backend/migrations/ci_invariants.sql
+  - .github/workflows/ci.yml
   - tools/ledger_contract_guard.py
   evidence_refs: []
   acceptance:

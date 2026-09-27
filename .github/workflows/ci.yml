@@ -189,6 +189,7 @@ jobs:
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000014_r3_communication_consultation.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000015_r4_store_lifecycle_reconciliation.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000016_r0_connector_delivery_semantics.sql
+          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000017_r0_ledger_economic_event_idempotency.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r0_connector_delivery_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r1_mobile_invariants.sql
@@ -203,6 +204,11 @@ jobs:
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r2_refund_invariants.sql
           bash backend/ci/r2_booking_concurrency.sh
           bash backend/ci/r2_mutation_concurrency.sh
+      - name: Prove runtime ledger persists and replays from PostgreSQL
+        working-directory: backend
+        env:
+          APGIC_LEDGER_STORE_TEST_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable
+        run: go test ./internal/runtimepostgres -run TestLedgerStorePersistsAndReplays -count=1
       - name: Prove staging API requires PostgreSQL readiness
         working-directory: backend
         shell: bash
@@ -281,6 +287,7 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f backend/migrations/000014_r3_communication_consultation.sql
           psql -v ON_ERROR_STOP=1 -f backend/migrations/000015_r4_store_lifecycle_reconciliation.sql
           psql -v ON_ERROR_STOP=1 -f backend/migrations/000016_r0_connector_delivery_semantics.sql
+          psql -v ON_ERROR_STOP=1 -f backend/migrations/000017_r0_ledger_economic_event_idempotency.sql
           bash backend/ci/restore_drill.sh
       - uses: actions/upload-artifact@v4
         with:

@@ -84,15 +84,19 @@ func (s *Service) cancelOrderLocked(orderID, reasonCode, notice string) (*Cancel
 	if err := refund.ValidateExecutionProvider(evidence.ProviderID); err != nil {
 		return nil, err
 	}
+	ledgerID, err := ledger.NewPersistentID()
+	if err != nil {
+		return nil, err
+	}
 	reversal, err := ledger.NewEntry(ledger.Entry{
-		ID:                  newID("led-"),
+		ID:                  ledgerID,
 		DebitAccountRef:     evidence.CreditAccountRef,
 		CreditAccountRef:    evidence.DebitAccountRef,
 		AmountMinor:         evidence.AmountMinor,
 		Currency:            evidence.Currency,
 		ProviderEvidenceRef: refund.ProviderEvidenceRef,
 		EconomicEventRef:    "reversal:" + orderID,
-		CorrelationID:       refund.ID,
+		CorrelationID:       "cancel:" + orderID,
 		OccurredAt:          now,
 	})
 	if err != nil {
@@ -101,9 +105,20 @@ func (s *Service) cancelOrderLocked(orderID, reasonCode, notice string) (*Cancel
 	if strings.Contains(strings.ToLower(reversal.DebitAccountRef), "apgic") || strings.Contains(strings.ToLower(reversal.CreditAccountRef), "apgic") {
 		return nil, ErrCustodyForbidden
 	}
-	if _, err := booked.Transition(booking.StateCancelled, now); err != nil {
+	prospectiveLedger, reversal, _, err := s.previewLedgerLocked(reversal)
+	if err != nil {
 		return nil, err
 	}
+	bookedCopy := *booked
+	if _, err := bookedCopy.Transition(booking.StateCancelled, now); err != nil {
+		return nil, err
+	}
+	persistedReversal, err := s.commitLedgerEntryLocked(reversal, prospectiveLedger)
+	if err != nil {
+		return nil, err
+	}
+	reversal = persistedReversal
+	*booked = bookedCopy
 	if hold := s.holds[instruction.HoldID]; hold != nil {
 		hold.BookingState = booking.StateCancelled
 	}

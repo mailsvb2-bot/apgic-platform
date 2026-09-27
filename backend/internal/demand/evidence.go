@@ -68,8 +68,12 @@ func (s *Service) ApplyProviderEvent(event ProviderEvent) (*PaymentEvidence, err
 		return nil, ErrCustodyForbidden
 	}
 	now := s.now().UTC()
+	ledgerID, err := ledger.NewPersistentID()
+	if err != nil {
+		return nil, err
+	}
 	entry, err := ledger.NewEntry(ledger.Entry{
-		ID:                  newID("led-"),
+		ID:                  ledgerID,
 		DebitAccountRef:     debit,
 		CreditAccountRef:    credit,
 		AmountMinor:         instruction.AmountMinor,
@@ -82,11 +86,25 @@ func (s *Service) ApplyProviderEvent(event ProviderEvent) (*PaymentEvidence, err
 	if err != nil {
 		return nil, err
 	}
-	booked := s.bookings[instruction.BookingID]
-	result, err := booked.Transition(booking.StateConfirmed, now)
+	prospectiveLedger, entry, _, err := s.previewLedgerLocked(entry)
 	if err != nil {
 		return nil, err
 	}
+	booked := s.bookings[instruction.BookingID]
+	if booked == nil {
+		return nil, ErrOrderNotFound
+	}
+	bookedCopy := *booked
+	result, err := bookedCopy.Transition(booking.StateConfirmed, now)
+	if err != nil {
+		return nil, err
+	}
+	persistedEntry, err := s.commitLedgerEntryLocked(entry, prospectiveLedger)
+	if err != nil {
+		return nil, err
+	}
+	entry = persistedEntry
+	*booked = bookedCopy
 	if hold := s.holds[instruction.HoldID]; hold != nil {
 		hold.BookingState = result.To
 	}

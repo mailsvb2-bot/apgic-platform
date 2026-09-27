@@ -92,6 +92,8 @@ type Service struct {
 	evidence      map[string]*PaymentEvidence
 	orderEvidence map[string]string
 	reversals     map[string]*Cancellation
+	ledgerState   ledgerState
+	ledgerStore   LedgerStore
 	notices       map[string]*BookingNotice
 	sessions      map[string]*consultation.Session
 	projection    marketplace.SearchProjection
@@ -100,6 +102,10 @@ type Service struct {
 }
 
 func NewConformanceService(now func() time.Time) *Service {
+	return NewConformanceServiceWithLedgerStore(now, nil)
+}
+
+func NewConformanceServiceWithLedgerStore(now func() time.Time, ledgerStore LedgerStore) *Service {
 	if now == nil {
 		now = time.Now
 	}
@@ -118,6 +124,7 @@ func NewConformanceService(now func() time.Time) *Service {
 		notices:       map[string]*BookingNotice{},
 		sessions:      map[string]*consultation.Session{},
 		deletions:     map[string]*AccountDeletion{},
+		ledgerStore:   ledgerStore,
 	}
 }
 

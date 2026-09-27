@@ -9,6 +9,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 GO_LEDGER = ROOT / "backend/internal/ledger/ledger.go"
 MIGRATION = ROOT / "backend/migrations/000001_r0_foundation.sql"
+CI_INVARIANTS = ROOT / "backend/migrations/ci_invariants.sql"
+IDEMPOTENCY_MIGRATION = ROOT / "backend/migrations/000017_r0_ledger_economic_event_idempotency.sql"
 SCHEMA = ROOT / "contracts/jsonschema/ledger-entry-v1.schema.json"
 
 GO_FIELD_RE = re.compile(
@@ -38,8 +40,18 @@ REQUIRED_ENTRY_FIELDS = {
 }
 
 
-def validate_ledger_contract(go_text: str, migration_text: str, schema_doc: dict) -> list[str]:
+def validate_ledger_contract(
+    go_text: str,
+    migration_text: str,
+    schema_doc: dict,
+    ci_invariants_text: str | None = None,
+    idempotency_migration_text: str | None = None,
+) -> list[str]:
     errors: list[str] = []
+    if ci_invariants_text is None:
+        ci_invariants_text = CI_INVARIANTS.read_text(encoding="utf-8")
+    if idempotency_migration_text is None:
+        idempotency_migration_text = IDEMPOTENCY_MIGRATION.read_text(encoding="utf-8")
     schema_props = set(schema_doc.get("properties", {}))
     go_fields = {GO_TO_SCHEMA[name] for name in GO_FIELD_RE.findall(go_text)}
     if go_fields != schema_props:
@@ -72,6 +84,35 @@ def validate_ledger_contract(go_text: str, migration_text: str, schema_doc: dict
     for snippet in append_only_snippets:
         if snippet not in migration_text:
             errors.append(f"ledger SQL invariant missing: {snippet}")
+
+    replay_snippets = (
+        "func Reconcile(entries []Entry)",
+        "ErrDuplicateEntryID",
+        "ErrReconcileOverflow",
+    )
+    for snippet in replay_snippets:
+        if snippet not in go_text:
+            errors.append(f"ledger replay invariant missing: {snippet}")
+
+    db_reconciliation_snippets = (
+        "WITH movements AS (",
+        "ledger replay balances do not reconcile exactly in minor units",
+        "IS DISTINCT FROM",
+        "ledger debit/credit totals do not reconcile",
+        "ledger account balances do not net to zero",
+    )
+    for snippet in db_reconciliation_snippets:
+        if snippet not in ci_invariants_text:
+            errors.append(f"ledger DB reconciliation proof missing: {snippet}")
+
+    idempotency_snippets = (
+        "CREATE UNIQUE INDEX IF NOT EXISTS ledger_entries_economic_event_ref_unique",
+        "ON ledger_entries (economic_event_ref)",
+        "WHERE economic_event_ref IS NOT NULL",
+    )
+    for snippet in idempotency_snippets:
+        if snippet not in idempotency_migration_text:
+            errors.append(f"ledger idempotency invariant missing: {snippet}")
     return errors
 
 
@@ -80,6 +121,8 @@ def main() -> int:
         GO_LEDGER.read_text(encoding="utf-8"),
         MIGRATION.read_text(encoding="utf-8"),
         json.loads(SCHEMA.read_text(encoding="utf-8")),
+        CI_INVARIANTS.read_text(encoding="utf-8"),
+        IDEMPOTENCY_MIGRATION.read_text(encoding="utf-8"),
     )
     if errors:
         print("LEDGER CONTRACT GUARD: FAIL")

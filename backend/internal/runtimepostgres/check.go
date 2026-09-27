@@ -9,6 +9,7 @@ import (
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/ledger"
 )
 
 const ReasonStorageUnavailable = "STORAGE_UNAVAILABLE"
@@ -21,6 +22,10 @@ var requiredTables = []string{
 	"booking_slots",
 	"booking_holds",
 	"bookings",
+}
+
+var requiredIndexes = []string{
+	"ledger_entries_economic_event_ref_unique",
 }
 
 type Checker struct {
@@ -75,7 +80,159 @@ func (c *Checker) Ready(ctx context.Context) error {
 			return fmt.Errorf("required table missing: %s", table)
 		}
 	}
+	for _, index := range requiredIndexes {
+		var exists bool
+		err := c.db.QueryRowContext(
+			probeCtx,
+			"SELECT to_regclass($1) IS NOT NULL",
+			"public."+index,
+		).Scan(&exists)
+		if err != nil {
+			return fmt.Errorf("probe %s: %w", index, err)
+		}
+		if !exists {
+			return fmt.Errorf("required index missing: %s", index)
+		}
+	}
 	return nil
+}
+
+func (c *Checker) AppendLedgerEntry(entry ledger.Entry) (ledger.Entry, error) {
+	if c == nil || c.db == nil {
+		return ledger.Entry{}, errors.New("postgres checker is not initialized")
+	}
+	canonical, err := ledger.NewEntry(entry)
+	if err != nil {
+		return ledger.Entry{}, err
+	}
+	if strings.TrimSpace(canonical.EconomicEventRef) == "" {
+		return ledger.Entry{}, errors.New("ledger economic_event_ref is required for durable idempotency")
+	}
+
+	writeCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	var insertedID string
+	err = c.db.QueryRowContext(
+		writeCtx,
+		`INSERT INTO ledger_entries (
+			id, debit_account_ref, credit_account_ref, amount_minor, currency,
+			provider_evidence_ref, economic_event_ref, correlation_id, occurred_at
+		) VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9)
+		ON CONFLICT (economic_event_ref) WHERE economic_event_ref IS NOT NULL
+		DO NOTHING
+		RETURNING id::text`,
+		canonical.ID,
+		canonical.DebitAccountRef,
+		canonical.CreditAccountRef,
+		canonical.AmountMinor,
+		canonical.Currency,
+		canonical.ProviderEvidenceRef,
+		canonical.EconomicEventRef,
+		canonical.CorrelationID,
+		canonical.OccurredAt,
+	).Scan(&insertedID)
+	if err == nil {
+		canonical.ID = insertedID
+		return canonical, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return ledger.Entry{}, fmt.Errorf("append ledger entry: %w", err)
+	}
+
+	existing, err := c.ledgerEntryByEconomicEvent(writeCtx, canonical.EconomicEventRef)
+	if err != nil {
+		return ledger.Entry{}, fmt.Errorf("read idempotent ledger entry: %w", err)
+	}
+	if !sameEconomicEffect(existing, canonical) {
+		return ledger.Entry{}, fmt.Errorf("ledger economic event collision: %s", canonical.EconomicEventRef)
+	}
+	return existing, nil
+}
+
+func (c *Checker) ledgerEntryByEconomicEvent(ctx context.Context, economicEventRef string) (ledger.Entry, error) {
+	var entry ledger.Entry
+	var economicEvent sql.NullString
+	err := c.db.QueryRowContext(
+		ctx,
+		`SELECT
+			id::text, debit_account_ref, credit_account_ref, amount_minor, currency,
+			provider_evidence_ref, economic_event_ref, correlation_id, occurred_at
+		FROM ledger_entries
+		WHERE economic_event_ref = $1`,
+		economicEventRef,
+	).Scan(
+		&entry.ID,
+		&entry.DebitAccountRef,
+		&entry.CreditAccountRef,
+		&entry.AmountMinor,
+		&entry.Currency,
+		&entry.ProviderEvidenceRef,
+		&economicEvent,
+		&entry.CorrelationID,
+		&entry.OccurredAt,
+	)
+	if economicEvent.Valid {
+		entry.EconomicEventRef = economicEvent.String
+	}
+	return entry, err
+}
+
+func sameEconomicEffect(left, right ledger.Entry) bool {
+	return left.DebitAccountRef == right.DebitAccountRef &&
+		left.CreditAccountRef == right.CreditAccountRef &&
+		left.AmountMinor == right.AmountMinor &&
+		left.Currency == right.Currency &&
+		left.ProviderEvidenceRef == right.ProviderEvidenceRef &&
+		left.EconomicEventRef == right.EconomicEventRef &&
+		left.CorrelationID == right.CorrelationID
+}
+
+func (c *Checker) LedgerEntries() ([]ledger.Entry, error) {
+	if c == nil || c.db == nil {
+		return nil, errors.New("postgres checker is not initialized")
+	}
+	readCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	rows, err := c.db.QueryContext(
+		readCtx,
+		`SELECT
+			id::text, debit_account_ref, credit_account_ref, amount_minor, currency,
+			provider_evidence_ref, economic_event_ref, correlation_id, occurred_at
+		FROM ledger_entries
+		ORDER BY occurred_at, id`,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("read ledger entries: %w", err)
+	}
+	defer rows.Close()
+
+	entries := make([]ledger.Entry, 0)
+	for rows.Next() {
+		var entry ledger.Entry
+		var economicEvent sql.NullString
+		if err := rows.Scan(
+			&entry.ID,
+			&entry.DebitAccountRef,
+			&entry.CreditAccountRef,
+			&entry.AmountMinor,
+			&entry.Currency,
+			&entry.ProviderEvidenceRef,
+			&economicEvent,
+			&entry.CorrelationID,
+			&entry.OccurredAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan ledger entry: %w", err)
+		}
+		if economicEvent.Valid {
+			entry.EconomicEventRef = economicEvent.String
+		}
+		entries = append(entries, entry)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("read ledger entries: %w", err)
+	}
+	return entries, nil
 }
 
 func (c *Checker) Close() error {
