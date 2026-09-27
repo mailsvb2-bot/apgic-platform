@@ -194,6 +194,7 @@ func TestJourneyStoreSurvivesServiceRestart(t *testing.T) {
 	close(results)
 
 	var captured *demand.PaymentEvidence
+	idempotentCount := 0
 	for result := range results {
 		if result.err != nil {
 			t.Fatalf("concurrent provider capture failed: %v", result.err)
@@ -201,11 +202,17 @@ func TestJourneyStoreSurvivesServiceRestart(t *testing.T) {
 		if result.evidence == nil || result.evidence.BookingState != "CONFIRMED" {
 			t.Fatalf("concurrent capture=%#v", result.evidence)
 		}
+		if result.evidence.Idempotent {
+			idempotentCount++
+		}
 		if captured == nil {
 			captured = result.evidence
 		} else if captured.LedgerEntryID != result.evidence.LedgerEntryID {
 			t.Fatalf("concurrent capture created multiple ledger entries: first=%#v second=%#v", captured, result.evidence)
 		}
+	}
+	if idempotentCount != 1 {
+		t.Fatalf("concurrent capture idempotent responses=%d, want 1", idempotentCount)
 	}
 	entries, err := store.LedgerEntries()
 	if err != nil {
