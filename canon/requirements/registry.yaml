@@ -3283,10 +3283,12 @@ requirements:
   implementation_refs:
   - backend/internal/payments/taxonomy.go
   - contracts/openapi/apgic-v1.yaml
+  - tools/payment_taxonomy_architecture_guard.py
   contract_refs:
   - contracts/openapi/apgic-v1.yaml
   test_refs:
   - backend/internal/payments/taxonomy_test.go
+  - tools/tests/test_payment_taxonomy_architecture_guard.py
   evidence_refs: []
   acceptance:
     given: payment contracts are generated
