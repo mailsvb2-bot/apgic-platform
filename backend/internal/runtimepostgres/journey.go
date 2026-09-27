@@ -578,6 +578,29 @@ func (c *Checker) CreateCheckout(persistence demand.CheckoutPersistence) (string
 	}
 	defer tx.Rollback()
 
+	if _, err := tx.ExecContext(ctx,
+		`SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`,
+		"apgic:checkout:"+booked.HoldID,
+	); err != nil {
+		return "", fmt.Errorf("lock durable checkout: %w", err)
+	}
+	var existingOrderID string
+	if err := tx.QueryRowContext(ctx,
+		`SELECT COALESCE((
+		   SELECT o.id::text
+		   FROM bookings b
+		   JOIN orders o ON o.booking_id = b.id
+		   WHERE b.hold_id = $1::uuid
+		   LIMIT 1
+		 ), '')`,
+		booked.HoldID,
+	).Scan(&existingOrderID); err != nil {
+		return "", fmt.Errorf("read existing durable checkout: %w", err)
+	}
+	if existingOrderID != "" {
+		return "BOOK_CHECKOUT_ALREADY_EXISTS", nil
+	}
+
 	var created bool
 	var reason string
 	if err := tx.QueryRowContext(ctx,
