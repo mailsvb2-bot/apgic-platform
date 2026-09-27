@@ -209,6 +209,11 @@ jobs:
         env:
           APGIC_LEDGER_STORE_TEST_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable
         run: go test ./internal/runtimepostgres -run TestLedgerStorePersistsAndReplays -count=1
+      - name: Prove authorization audit evidence persists in PostgreSQL
+        working-directory: backend
+        env:
+          APGIC_AUDIT_STORE_TEST_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable
+        run: go test ./internal/runtimepostgres -run TestAuditAppenderPersistsAuthorizationEvidence -count=1
       - name: Prove booking journey survives PostgreSQL-backed restart
         working-directory: backend
         env:
