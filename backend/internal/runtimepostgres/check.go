@@ -9,6 +9,7 @@ import (
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/audit"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/booking"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/ledger"
 )
@@ -98,6 +99,50 @@ func (c *Checker) Ready(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+func (c *Checker) Append(record audit.Record) error {
+	if c == nil || c.db == nil {
+		return errors.New("postgres checker is not initialized")
+	}
+	canonical, err := audit.New(record)
+	if err != nil {
+		return err
+	}
+
+	writeCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if _, err := c.db.ExecContext(
+		writeCtx,
+		`INSERT INTO audit_records (
+			id, actor_id, action, scope, resource_ref, old_state, new_state,
+			reason, policy_version, correlation_id, occurred_at
+		) VALUES (
+			$1::uuid, $2, $3, $4, NULLIF($5, ''), $6::jsonb, $7::jsonb,
+			$8, $9, NULLIF($10, ''), $11
+		)`,
+		canonical.ID,
+		canonical.ActorID,
+		canonical.Action,
+		canonical.Scope,
+		canonical.ResourceRef,
+		nullableJSON(canonical.OldState),
+		nullableJSON(canonical.NewState),
+		canonical.Reason,
+		canonical.PolicyVersion,
+		canonical.CorrelationID,
+		canonical.OccurredAt,
+	); err != nil {
+		return fmt.Errorf("append audit record: %w", err)
+	}
+	return nil
+}
+
+func nullableJSON(value []byte) any {
+	if len(value) == 0 {
+		return nil
+	}
+	return string(value)
 }
 
 func (c *Checker) AppendLedgerEntry(entry ledger.Entry) (ledger.Entry, error) {
