@@ -47,10 +47,14 @@ class ReleaseEvidenceTests(unittest.TestCase):
             result["APGIC-DR-001"]["unproven_evidence"],
             ["RESTORE_DR_PROOF"],
         )
-        self.assertEqual(result["APGIC-MOBILE-012"]["status"], "UNPROVEN")
-        self.assertIn(
+        self.assertEqual(result["APGIC-MOBILE-012"]["status"], "PARTIAL")
+        self.assertNotIn(
             "SECRET_SCAN",
             result["APGIC-MOBILE-012"]["unproven_evidence"],
+        )
+        self.assertEqual(
+            result["APGIC-MOBILE-012"]["unproven_evidence"],
+            ["IOS_BUILD_PROOF", "ANDROID_BUILD_PROOF", "RELEASE_EVIDENCE"],
         )
 
     def test_non_green_gate_cannot_back_a_claim(self) -> None:
