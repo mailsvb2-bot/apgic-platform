@@ -9,3 +9,7 @@ func newJourneyID() (string, error) {
 func bookingIDForHold(holdID string) (string, error) {
 	return persistentid.FromRef("booking-for-hold", holdID)
 }
+
+func checkoutInstructionIDForOrder(orderID string) (string, error) {
+	return persistentid.FromRef("checkout-instruction", orderID)
+}
