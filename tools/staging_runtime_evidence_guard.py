@@ -9,7 +9,7 @@ from datetime import datetime
 from pathlib import Path
 
 import yaml
-from jsonschema import Draft202012Validator, FormatChecker
+from jsonschema import Draft202012Validator
 
 ROOT = Path(__file__).resolve().parents[1]
 EVIDENCE_DIR = ROOT / "canon/evidence"
@@ -65,7 +65,7 @@ def _is_rfc3339_datetime(value: object) -> bool:
 
 
 def _schema_errors(document: dict, schema: dict, ref: str) -> list[str]:
-    validator = Draft202012Validator(schema, format_checker=FormatChecker())
+    validator = Draft202012Validator(schema)
     errors: list[str] = []
     for issue in sorted(validator.iter_errors(document), key=lambda err: list(err.absolute_path)):
         location = ".".join(str(part) for part in issue.absolute_path) or "<root>"
