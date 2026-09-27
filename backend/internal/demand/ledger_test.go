@@ -14,12 +14,12 @@ type fakeLedgerStore struct {
 	readCalls int
 }
 
-func (s *fakeLedgerStore) AppendLedgerEntry(entry ledger.Entry) error {
+func (s *fakeLedgerStore) AppendLedgerEntry(entry ledger.Entry) (ledger.Entry, error) {
 	if s.appendErr != nil {
-		return s.appendErr
+		return ledger.Entry{}, s.appendErr
 	}
 	s.entries = append(s.entries, entry)
-	return nil
+	return entry, nil
 }
 
 func (s *fakeLedgerStore) LedgerEntries() ([]ledger.Entry, error) {
