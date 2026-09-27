@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -141,12 +142,53 @@ func TestJourneyStoreSurvivesServiceRestart(t *testing.T) {
 		Currency:        instruction.Currency,
 		Outcome:         "CAPTURED",
 	}
-	captured, err := third.ApplyProviderEvent(event)
+	type captureResult struct {
+		evidence *demand.PaymentEvidence
+		err      error
+	}
+	startCapture := make(chan struct{})
+	results := make(chan captureResult, 2)
+	var captureWG sync.WaitGroup
+	for _, service := range []*demand.Service{second, third} {
+		service := service
+		captureWG.Add(1)
+		go func() {
+			defer captureWG.Done()
+			<-startCapture
+			evidence, err := service.ApplyProviderEvent(event)
+			results <- captureResult{evidence: evidence, err: err}
+		}()
+	}
+	close(startCapture)
+	captureWG.Wait()
+	close(results)
+
+	var captured *demand.PaymentEvidence
+	for result := range results {
+		if result.err != nil {
+			t.Fatalf("concurrent provider capture failed: %v", result.err)
+		}
+		if result.evidence == nil || result.evidence.BookingState != "CONFIRMED" {
+			t.Fatalf("concurrent capture=%#v", result.evidence)
+		}
+		if captured == nil {
+			captured = result.evidence
+		} else if captured.LedgerEntryID != result.evidence.LedgerEntryID {
+			t.Fatalf("concurrent capture created multiple ledger entries: first=%#v second=%#v", captured, result.evidence)
+		}
+	}
+	entries, err := store.LedgerEntries()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if captured.BookingState != "CONFIRMED" || captured.Idempotent {
-		t.Fatalf("capture=%#v", captured)
+	effectCount := 0
+	for _, entry := range entries {
+		if entry.EconomicEventRef == instruction.OrderID {
+			effectCount++
+		}
+	}
+	if effectCount != 1 {
+		t.Fatalf("capture economic effect count=%d", effectCount)
 	}
 
 	fourth, err := demand.NewConformanceServiceWithStores(func() time.Time { return secondNow.Add(2 * time.Minute) }, store, store)
