@@ -43,6 +43,8 @@ class StagingRuntimeEvidenceGuardTest(unittest.TestCase):
         self.assertTrue(_is_rfc3339_datetime("2026-09-27t07:23:52z"))
         self.assertTrue(_is_rfc3339_datetime("2016-12-31T23:59:60Z"))
         self.assertTrue(_is_rfc3339_datetime("2017-01-01T02:59:60+03:00"))
+        self.assertTrue(_is_rfc3339_datetime("2026-09-27T07:23:52-00:00"))
+        self.assertFalse(_is_rfc3339_datetime("2016-12-31T23:59:60-00:00"))
         self.assertFalse(_is_rfc3339_datetime("2026-09-27T07:23:60Z"))
         self.assertFalse(_is_rfc3339_datetime("2016-12-31T23:59:61Z"))
         self.assertTrue(_is_rfc3339_datetime("2026-09-27T07:23:52.123+03:00"))
