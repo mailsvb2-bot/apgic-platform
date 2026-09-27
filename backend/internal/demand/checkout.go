@@ -1,6 +1,7 @@
 package demand
 
 import (
+	"errors"
 	"strings"
 
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/booking"
@@ -255,6 +256,18 @@ func (s *Service) CreateCheckout(holdID, clientIdentityID, methodCode string) (*
 			return nil, err
 		}
 		if err := journeyReasonError(reason); err != nil {
+			if errors.Is(err, ErrHoldNotActive) {
+				if refreshErr := s.refreshJourneyLocked(); refreshErr != nil {
+					return nil, refreshErr
+				}
+				if existing := s.instructions[hold.ID]; existing != nil {
+					if existing.MethodCode != methodCode {
+						return nil, ErrCheckoutLocked
+					}
+					copyInstruction := *existing
+					return &copyInstruction, nil
+				}
+			}
 			return nil, err
 		}
 	}
