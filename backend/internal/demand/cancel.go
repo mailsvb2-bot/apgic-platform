@@ -120,7 +120,7 @@ func (s *Service) cancelOrderLocked(orderID, reasonCode, notice string) (*Cancel
 	if _, err := bookedCopy.Transition(booking.StateCancelled, now); err != nil {
 		return nil, err
 	}
-	persistedReversal, err := s.commitBookingLedgerLocked(&bookedCopy, reversal, prospectiveLedger)
+	persistedReversal, replayed, err := s.commitBookingLedgerLocked(&bookedCopy, reversal, prospectiveLedger)
 	if err != nil {
 		return nil, err
 	}
@@ -145,6 +145,7 @@ func (s *Service) cancelOrderLocked(orderID, reasonCode, notice string) (*Cancel
 		Currency:          evidence.Currency,
 		APGICAcceptsFunds: false,
 		APGICReturnsFunds: false,
+		Idempotent:        replayed,
 		Notice:            notice,
 	}
 	if created.OriginalLedgerID == created.ReversalLedgerID || evidence.LedgerEntryID == "" {
