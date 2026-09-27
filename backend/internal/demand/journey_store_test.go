@@ -17,7 +17,6 @@ type fakeJourneyStore struct {
 	createCheckoutErr    error
 	createCheckoutReason string
 	expireErr            error
-	updateBookingErr     error
 }
 
 func (f *fakeJourneyStore) BootstrapCatalog(slots []Slot) ([]Slot, error) {
@@ -88,10 +87,6 @@ func (f *fakeJourneyStore) CreateCheckout(persistence CheckoutPersistence) (stri
 
 func (f *fakeJourneyStore) Expire(time.Time) error {
 	return f.expireErr
-}
-
-func (f *fakeJourneyStore) UpdateBooking(*booking.Booking) error {
-	return f.updateBookingErr
 }
 
 func TestJourneyReasonErrorRejectsUnknownProtocolReason(t *testing.T) {
