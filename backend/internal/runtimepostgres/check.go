@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mailsvb2-bot/apgic-platform/backend/internal/ledger"
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/ledger"
 )
 
 const ReasonStorageUnavailable = "STORAGE_UNAVAILABLE"
