@@ -11,6 +11,7 @@ type fakeLedgerStore struct {
 	entries   []ledger.Entry
 	appendErr error
 	readErr   error
+	readCalls int
 }
 
 func (s *fakeLedgerStore) AppendLedgerEntry(entry ledger.Entry) error {
@@ -22,6 +23,7 @@ func (s *fakeLedgerStore) AppendLedgerEntry(entry ledger.Entry) error {
 }
 
 func (s *fakeLedgerStore) LedgerEntries() ([]ledger.Entry, error) {
+	s.readCalls++
 	if s.readErr != nil {
 		return nil, s.readErr
 	}
@@ -65,6 +67,31 @@ func TestLedgerStateRejectsInvalidEntryWithoutMutation(t *testing.T) {
 	}
 	if len(state.entries) != 0 {
 		t.Fatalf("invalid preview mutated ledger state: %#v", state.entries)
+	}
+}
+
+func TestDurableWritePreviewDoesNotReplayFullLedger(t *testing.T) {
+	store := &fakeLedgerStore{readErr: errors.New("full replay must not run on write path")}
+	service := NewConformanceServiceWithLedgerStore(nil, store)
+	prospective, canonical, reconciliation, err := service.previewLedgerLocked(ledger.Entry{
+		ID:                  "11111111-1111-4111-8111-111111111111",
+		DebitAccountRef:     "external-provider/provider-a/settlement",
+		CreditAccountRef:    "identity-specialist-1",
+		AmountMinor:         101,
+		Currency:            "rub",
+		ProviderEvidenceRef: "provider-a/event-1",
+		EconomicEventRef:    "order-1",
+		CorrelationID:       "corr-preview-1",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if store.readCalls != 0 {
+		t.Fatalf("durable write path replayed full ledger %d time(s)", store.readCalls)
+	}
+	if prospective != nil || canonical.Currency != "RUB" || reconciliation.EntryCount != 0 {
+		t.Fatalf("unexpected durable preview result: prospective=%#v canonical=%#v reconciliation=%#v",
+			prospective, canonical, reconciliation)
 	}
 }
 
