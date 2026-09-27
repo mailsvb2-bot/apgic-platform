@@ -114,7 +114,7 @@ func (s *Service) CreateCheckout(holdID, clientIdentityID, methodCode string) (*
 			return nil, ErrCheckoutLocked
 		}
 		booked := s.bookings[existing.BookingID]
-		if booked == nil || booked.State == booking.StateExpired {
+		if booked == nil || booked.State != booking.StatePendingPayment {
 			return nil, ErrHoldNotActive
 		}
 		copyInstruction := *existing
