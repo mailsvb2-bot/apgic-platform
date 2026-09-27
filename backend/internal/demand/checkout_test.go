@@ -3,6 +3,7 @@ package demand
 import (
 	"errors"
 	"testing"
+	"time"
 )
 
 func TestCheckoutSendsMoneyToExternalProviderAndSpecialist(t *testing.T) {
@@ -47,6 +48,14 @@ func TestCheckoutSendsMoneyToExternalProviderAndSpecialist(t *testing.T) {
 	if instruction.PaymentRecipientID != "identity-spec-lebedeva" || instruction.ProviderID != "external-bank" {
 		t.Fatalf("funds owner = %#v", instruction)
 	}
+	storedHold := service.holds[hold.ID]
+	if storedHold == nil || storedHold.State != "CONSUMED" || storedHold.BookingState != "PENDING_PAYMENT" {
+		t.Fatalf("checkout must consume hold and create pending booking: %#v", storedHold)
+	}
+	booked := service.bookings[hold.BookingID]
+	if booked == nil || booked.State != "PENDING_PAYMENT" || booked.HoldID != hold.ID {
+		t.Fatalf("booking = %#v", booked)
+	}
 	again, err := service.CreateCheckout(hold.ID, intent.ClientIdentityID, "BANK_CARD")
 	if err != nil || again.ID != instruction.ID || again.AmountMinor != instruction.AmountMinor {
 		t.Fatalf("idempotent instruction = %#v err=%v", again, err)
@@ -54,4 +63,51 @@ func TestCheckoutSendsMoneyToExternalProviderAndSpecialist(t *testing.T) {
 	if _, err := service.CreateCheckout(hold.ID, intent.ClientIdentityID, "SBP"); !errors.Is(err, ErrCheckoutLocked) {
 		t.Fatalf("method change err = %v", err)
 	}
+	if _, err := service.CreateCheckout(hold.ID, "idn-stranger", "BANK_CARD"); !errors.Is(err, ErrIdentityMismatch) {
+		t.Fatalf("foreign replay err = %v", err)
+	}
 }
+
+func TestLiveBookingBlocksSecondHoldUntilPaymentTimeoutExpires(t *testing.T) {
+	now := time.Date(2026, 9, 27, 12, 0, 0, 0, time.UTC)
+	service := NewConformanceService(func() time.Time { return now })
+	first, _ := service.CreateIntent("нужна помощь со сном")
+	second, _ := service.CreateIntent("тоже не сплю")
+	_, _ = service.ConfirmIntent(first.ID, []string{"sleep"}, nil, nil)
+	_, _ = service.ConfirmIntent(second.ID, []string{"sleep"}, nil, nil)
+	slots, err := service.Slots("spec-lebedeva")
+	if err != nil || len(slots) == 0 {
+		t.Fatalf("slots=%#v err=%v", slots, err)
+	}
+	hold, err := service.AcquireHold(first.ID, slots[0].ID, first.ClientIdentityID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.CreateCheckout(hold.ID, first.ClientIdentityID, "SBP"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.AcquireHold(second.ID, slots[0].ID, second.ClientIdentityID); !errors.Is(err, ErrSlotBooked) {
+		t.Fatalf("second hold while booking live err=%v", err)
+	}
+
+	now = hold.ExpiresAt.Add(time.Second)
+	replacement, err := service.AcquireHold(second.ID, slots[0].ID, second.ClientIdentityID)
+	if err != nil {
+		t.Fatalf("replacement hold after timeout err=%v", err)
+	}
+	if replacement.State != "ACTIVE" {
+		t.Fatalf("replacement=%#v", replacement)
+	}
+	if booked := service.bookings[hold.BookingID]; booked == nil || booked.State != "EXPIRED" {
+		t.Fatalf("timed out booking=%#v", booked)
+	}
+	storedHold := service.holds[hold.ID]
+	if storedHold == nil || storedHold.State != "CONSUMED" || storedHold.BookingState != "EXPIRED" {
+		t.Fatalf("consumed hold after booking timeout=%#v", storedHold)
+	}
+	if _, err := service.CreateCheckout(hold.ID, first.ClientIdentityID, "SBP"); !errors.Is(err, ErrHoldNotActive) {
+		t.Fatalf("expired checkout replay err=%v", err)
+	}
+}
+
+[executed on device: msk-1-vm-9vrn (ce05cfe4-fa8e-495a-bd76-12d14a659df2)]
