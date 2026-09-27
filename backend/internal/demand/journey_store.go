@@ -18,9 +18,9 @@ type JourneySnapshot struct {
 }
 
 type CheckoutPersistence struct {
-	Booking       *booking.Booking
-	Instruction   *CheckoutInstruction
-	LegalSnapshot legal.TransactionSnapshot
+	Booking              *booking.Booking
+	Instruction          *CheckoutInstruction
+	LegalSnapshot        legal.TransactionSnapshot
 	Order                commerce.OrderSnapshot
 	RoutingPolicyVersion string
 	DecidedAt            time.Time
