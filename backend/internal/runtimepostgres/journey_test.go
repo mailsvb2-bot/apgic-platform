@@ -29,33 +29,6 @@ func TestJourneyStoreSurvivesServiceRestart(t *testing.T) {
 	defer store.Close()
 
 	now := time.Now().UTC().Truncate(time.Second)
-	var intentIDs []string
-	var identityIDs []string
-	var holdIDs []string
-	var bookingIDs []string
-	var orderIDs []string
-	defer func() {
-		for _, orderID := range orderIDs {
-			_, _ = store.db.Exec("DELETE FROM payment_attempts WHERE order_id = $1::uuid", orderID)
-			_, _ = store.db.Exec("DELETE FROM payment_routing_decisions WHERE order_id = $1::uuid", orderID)
-			_, _ = store.db.Exec("DELETE FROM ledger_entries WHERE economic_event_ref IN ($1, $2)", orderID, "reversal:"+orderID)
-			_, _ = store.db.Exec("DELETE FROM orders WHERE id = $1::uuid", orderID)
-			_, _ = store.db.Exec("DELETE FROM legal_transaction_snapshots WHERE transaction_ref = $1", "order/"+orderID)
-		}
-		for _, bookingID := range bookingIDs {
-			_, _ = store.db.Exec("DELETE FROM bookings WHERE id = $1::uuid", bookingID)
-		}
-		for _, holdID := range holdIDs {
-			_, _ = store.db.Exec("DELETE FROM booking_holds WHERE id = $1::uuid", holdID)
-		}
-		for _, intentID := range intentIDs {
-			_, _ = store.db.Exec("DELETE FROM help_intents WHERE id = $1::uuid", intentID)
-		}
-		for _, identityID := range identityIDs {
-			_, _ = store.db.Exec("DELETE FROM identity_roles WHERE identity_id = $1::uuid", identityID)
-			_, _ = store.db.Exec("DELETE FROM identities WHERE id = $1::uuid", identityID)
-		}
-	}()
 
 	first, err := demand.NewConformanceServiceWithStores(func() time.Time { return now }, store, store)
 	if err != nil {
@@ -69,8 +42,6 @@ func TestJourneyStoreSurvivesServiceRestart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	intentIDs = append(intentIDs, intent.ID)
-	identityIDs = append(identityIDs, intent.ClientIdentityID)
 	if _, err := peer.ConfirmIntent(intent.ID, []string{"sleep"}, nil, nil); err != nil {
 		t.Fatalf("long-lived peer did not refresh new intent: %v", err)
 	}
@@ -82,8 +53,6 @@ func TestJourneyStoreSurvivesServiceRestart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("origin instance did not refresh peer confirmation: %v", err)
 	}
-	holdIDs = append(holdIDs, hold.ID)
-	bookingIDs = append(bookingIDs, hold.BookingID)
 
 	secondNow := now.Add(time.Minute)
 	second, err := demand.NewConformanceServiceWithStores(func() time.Time { return secondNow }, store, store)
@@ -138,7 +107,6 @@ func TestJourneyStoreSurvivesServiceRestart(t *testing.T) {
 			t.Fatalf("concurrent checkout changed durable identity: first=%#v second=%#v", instruction, result.instruction)
 		}
 	}
-	orderIDs = append(orderIDs, instruction.OrderID)
 
 	third, err := demand.NewConformanceServiceWithStores(func() time.Time { return secondNow.Add(time.Minute) }, store, store)
 	if err != nil {
@@ -155,8 +123,6 @@ func TestJourneyStoreSurvivesServiceRestart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	intentIDs = append(intentIDs, other.ID)
-	identityIDs = append(identityIDs, other.ClientIdentityID)
 	if _, err := third.ConfirmIntent(other.ID, []string{"sleep"}, nil, nil); err != nil {
 		t.Fatal(err)
 	}
