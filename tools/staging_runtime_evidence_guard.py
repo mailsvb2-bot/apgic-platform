@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -14,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 EVIDENCE_DIR = ROOT / "canon/evidence"
 SCHEMA = EVIDENCE_DIR / "staging-runtime-evidence-v1.schema.json"
 REGISTRY = ROOT / "canon/requirements/registry.yaml"
+RFC3339_RE = re.compile(r"^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$")
 
 PINNED_ARTIFACTS = {
     "staging-runtime-20260926T215500Z.json": {
@@ -38,13 +40,13 @@ def discover_evidence_paths() -> list[Path]:
 
 
 def _is_rfc3339_datetime(value: object) -> bool:
-    if not isinstance(value, str) or not value:
+    if not isinstance(value, str) or RFC3339_RE.fullmatch(value) is None:
         return False
     try:
-        datetime.fromisoformat(value.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError:
         return False
-    return "T" in value and (value.endswith("Z") or "+" in value[10:] or "-" in value[10:])
+    return parsed.tzinfo is not None
 
 
 def _schema_errors(document: dict, schema: dict, ref: str) -> list[str]:
