@@ -24,9 +24,9 @@ func TestRequiresDatabaseOnlyForRuntimeEnvironments(t *testing.T) {
 
 func TestRequiredCanonicalTablesAndIndexesAreStable(t *testing.T) {
 	wantTables := map[string]bool{
-		"identities": true, "outbox_events": true, "audit_records": true,
-		"ledger_entries": true, "booking_slots": true, "booking_holds": true,
-		"bookings": true,
+		"identities": true, "identity_roles": true, "help_intents": true,
+		"outbox_events": true, "audit_records": true, "ledger_entries": true,
+		"booking_slots": true, "booking_holds": true, "bookings": true,
 	}
 	if len(requiredTables) != len(wantTables) {
 		t.Fatalf("required tables = %v", requiredTables)
