@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 EVIDENCE_DIR = ROOT / "canon/evidence"
 SCHEMA = EVIDENCE_DIR / "staging-runtime-evidence-v1.schema.json"
 REGISTRY = ROOT / "canon/requirements/registry.yaml"
-RFC3339_RE = re.compile(r"^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$")
+RFC3339_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$")
 
 PINNED_ARTIFACTS = {
     "staging-runtime-20260926T215500Z.json": {
