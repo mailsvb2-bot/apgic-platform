@@ -99,9 +99,11 @@ func (s *Service) ApplyProviderEvent(event ProviderEvent) (*PaymentEvidence, err
 	if err != nil {
 		return nil, err
 	}
-	if err := s.commitLedgerEntryLocked(entry, prospectiveLedger); err != nil {
+	persistedEntry, err := s.commitLedgerEntryLocked(entry, prospectiveLedger)
+	if err != nil {
 		return nil, err
 	}
+	entry = persistedEntry
 	*booked = bookedCopy
 	if hold := s.holds[instruction.HoldID]; hold != nil {
 		hold.BookingState = result.To
