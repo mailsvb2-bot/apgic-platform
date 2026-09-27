@@ -42,6 +42,9 @@ func TestCancellationReversesThroughOriginalProviderAndKeepsPayment(t *testing.T
 	if first.OriginalLedgerID != evidence.LedgerEntryID || first.ReversalLedgerID == evidence.LedgerEntryID {
 		t.Fatalf("ledger history = %#v", first)
 	}
+	if _, err := service.CreateCheckout(hold.ID, intent.ClientIdentityID, "SBP"); !errors.Is(err, ErrHoldNotActive) {
+		t.Fatalf("cancelled booking replay err = %v", err)
+	}
 	second, err := service.CancelOrder(instruction.OrderID, "CLIENT_CANCEL")
 	if err != nil || !second.Idempotent || second.RefundID != first.RefundID {
 		t.Fatalf("replay = %#v err=%v", second, err)
