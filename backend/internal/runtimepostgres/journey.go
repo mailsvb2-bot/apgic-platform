@@ -10,6 +10,7 @@ import (
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/booking"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/demand"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/marketplace"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/payments"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/persistentid"
 )
 
@@ -222,6 +223,65 @@ func (c *Checker) LoadJourney(slots []demand.Slot) (demand.JourneySnapshot, erro
 		return snapshot, fmt.Errorf("iterate bookings: %w", err)
 	}
 	rows.Close()
+
+	rows, err = c.db.QueryContext(ctx,
+		`SELECT o.id::text, b.hold_id::text, b.id::text, b.state,
+		        connector.provider_kind, decision.selected_method_code, decision.selected_rail_code,
+		        o.amount_minor, o.currency, config.execution_owner,
+		        o.payment_recipient_ref, o.platform_role
+		 FROM orders o
+		 JOIN bookings b ON b.id = o.booking_id
+		 JOIN booking_slots s ON s.id = b.slot_id
+		 JOIN LATERAL (
+		   SELECT candidate.routing_decision_id
+		   FROM payment_attempts candidate
+		   WHERE candidate.order_id = o.id
+		   ORDER BY candidate.created_at DESC, candidate.id DESC
+		   LIMIT 1
+		 ) attempt ON true
+		 JOIN payment_routing_decisions decision ON decision.id = attempt.routing_decision_id
+		 JOIN payment_provider_config_versions config ON config.id = decision.provider_config_id
+		 JOIN connector_instances connector ON connector.id = config.provider_instance_id
+		 WHERE s.tenant_scope = 'catalog/conformance'
+		 ORDER BY o.captured_at, o.id`)
+	if err != nil {
+		return snapshot, fmt.Errorf("load checkout instructions: %w", err)
+	}
+	for rows.Next() {
+		var instruction demand.CheckoutInstruction
+		var bookingState string
+		if err := rows.Scan(
+			&instruction.OrderID,
+			&instruction.HoldID,
+			&instruction.BookingID,
+			&bookingState,
+			&instruction.ProviderID,
+			&instruction.MethodCode,
+			&instruction.RailCode,
+			&instruction.AmountMinor,
+			&instruction.Currency,
+			&instruction.ExecutionOwner,
+			&instruction.PaymentRecipientID,
+			&instruction.PlatformRole,
+		); err != nil {
+			rows.Close()
+			return snapshot, fmt.Errorf("scan checkout instruction: %w", err)
+		}
+		instruction.ID, err = persistentid.FromRef("checkout-instruction", instruction.OrderID)
+		if err != nil {
+			rows.Close()
+			return snapshot, err
+		}
+		instruction.BookingState = booking.State(bookingState)
+		instruction.APGICAcceptsFunds = false
+		instruction.ReasonCode = payments.ReasonRouteSelected
+		snapshot.Instructions = append(snapshot.Instructions, &instruction)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return snapshot, fmt.Errorf("iterate checkout instructions: %w", err)
+	}
+	rows.Close()
 	return snapshot, nil
 }
 
@@ -374,18 +434,34 @@ func (c *Checker) AcquireHold(hold *demand.Hold, slot demand.Slot, now time.Time
 	return "BOOK_HOLD_ACQUIRED", nil
 }
 
-func (c *Checker) CreateBooking(booked *booking.Booking, now time.Time) (string, error) {
+func (c *Checker) CreateCheckout(persistence demand.CheckoutPersistence) (string, error) {
 	if c == nil || c.db == nil {
 		return "", errors.New("postgres checker is not initialized")
 	}
-	if booked == nil || now.IsZero() {
-		return "", errors.New("booking and timestamp are required")
+	booked := persistence.Booking
+	instruction := persistence.Instruction
+	order := persistence.Order
+	legalSnapshot := persistence.LegalSnapshot
+	if booked == nil || instruction == nil || persistence.DecidedAt.IsZero() ||
+		order.ID == "" || persistence.RoutingPolicyVersion == "" {
+		return "", errors.New("complete checkout persistence snapshot is required")
 	}
+	if order.ID != instruction.OrderID ||
+		order.BookingID != booked.ID ||
+		instruction.BookingID != booked.ID ||
+		instruction.HoldID != booked.HoldID ||
+		instruction.AmountMinor != order.AmountMinor ||
+		instruction.Currency != order.Currency ||
+		instruction.PaymentRecipientID != order.PaymentRecipientRef ||
+		instruction.PlatformRole != order.PlatformRole {
+		return "", errors.New("checkout persistence snapshot is inconsistent")
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), journeyWriteTimeout)
 	defer cancel()
 	tx, err := c.db.BeginTx(ctx, nil)
 	if err != nil {
-		return "", fmt.Errorf("begin booking create: %w", err)
+		return "", fmt.Errorf("begin checkout create: %w", err)
 	}
 	defer tx.Rollback()
 
@@ -396,7 +472,7 @@ func (c *Checker) CreateBooking(booked *booking.Booking, now time.Time) (string,
 		 FROM apgic_create_booking_from_hold($1::uuid, $2::uuid, $3)`,
 		booked.ID,
 		booked.HoldID,
-		now,
+		persistence.DecidedAt,
 	).Scan(&created, &reason); err != nil {
 		return "", fmt.Errorf("create canonical booking: %w", err)
 	}
@@ -424,8 +500,279 @@ func (c *Checker) CreateBooking(booked *booking.Booking, now time.Time) (string,
 			return "", fmt.Errorf("advance canonical booking affected %d rows", affected)
 		}
 	}
+
+	legalSnapshotID, err := persistentid.FromRef("legal-transaction", order.ID)
+	if err != nil {
+		return "", err
+	}
+	if _, err := tx.ExecContext(ctx,
+		`INSERT INTO legal_transaction_snapshots (
+			id, transaction_ref, seller_or_service_provider_id, commercial_owner_id,
+			payment_recipient_id, platform_role, fiscal_responsibility_id,
+			refund_responsibility_id, payout_beneficiary_id, policy_version, occurred_at
+		) VALUES (
+			$1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
+		)`,
+		legalSnapshotID,
+		"order/"+order.ID,
+		legalSnapshot.SellerOrServiceProviderID,
+		legalSnapshot.CommercialOwnerID,
+		legalSnapshot.PaymentRecipientID,
+		legalSnapshot.PlatformRole,
+		legalSnapshot.FiscalResponsibilityID,
+		legalSnapshot.RefundResponsibilityID,
+		legalSnapshot.PayoutBeneficiaryID,
+		legalSnapshot.PolicyVersion,
+		order.CapturedAt,
+	); err != nil {
+		return "", fmt.Errorf("persist legal transaction snapshot: %w", err)
+	}
+
+	if _, err := tx.ExecContext(ctx,
+		`INSERT INTO orders (
+			id, booking_id, offer_ref, price_source_ref, amount_minor, currency,
+			commission_minor, pricing_policy_version, commission_policy_version,
+			legal_snapshot_id, seller_ref, commercial_owner_ref, payment_recipient_ref,
+			platform_role, fiscal_responsibility_ref, refund_responsibility_ref,
+			payout_beneficiary_ref, captured_at
+		) VALUES (
+			$1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9,
+			$10::uuid, $11, $12, $13, $14, $15, $16, $17, $18
+		)`,
+		order.ID,
+		order.BookingID,
+		order.OfferRef,
+		order.PriceSourceRef,
+		order.AmountMinor,
+		order.Currency,
+		order.CommissionMinor,
+		order.PricingPolicyVersion,
+		order.CommissionPolicyVersion,
+		legalSnapshotID,
+		order.SellerRef,
+		order.CommercialOwnerRef,
+		order.PaymentRecipientRef,
+		order.PlatformRole,
+		order.FiscalResponsibilityRef,
+		order.RefundResponsibilityRef,
+		order.PayoutBeneficiaryRef,
+		order.CapturedAt,
+	); err != nil {
+		return "", fmt.Errorf("persist immutable order: %w", err)
+	}
+
+	providerConfigRef := "conformance:" + instruction.ProviderID
+	var providerInstanceID string
+	if err := tx.QueryRowContext(ctx,
+		`SELECT COALESCE((
+			SELECT id::text
+			FROM connector_instances
+			WHERE capability_class = 'PAYMENT_PROVIDER'
+			  AND provider_kind = $1
+			  AND config_ref = $2
+			LIMIT 1
+		), '')`,
+		instruction.ProviderID,
+		providerConfigRef,
+	).Scan(&providerInstanceID); err != nil {
+		return "", fmt.Errorf("find payment connector: %w", err)
+	}
+	if providerInstanceID == "" {
+		providerInstanceID, err = persistentid.FromRef("payment-connector", instruction.ProviderID)
+		if err != nil {
+			return "", err
+		}
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO connector_instances (
+				id, capability_class, provider_kind, status, config_ref
+			) VALUES ($1::uuid, 'PAYMENT_PROVIDER', $2, 'ACTIVE', $3)`,
+			providerInstanceID,
+			instruction.ProviderID,
+			providerConfigRef,
+		); err != nil {
+			return "", fmt.Errorf("persist payment connector: %w", err)
+		}
+	}
+	var connectorCapability, connectorStatus string
+	if err := tx.QueryRowContext(ctx,
+		`SELECT capability_class, status
+		 FROM connector_instances
+		 WHERE id = $1::uuid`,
+		providerInstanceID,
+	).Scan(&connectorCapability, &connectorStatus); err != nil {
+		return "", fmt.Errorf("read payment connector: %w", err)
+	}
+	if connectorCapability != "PAYMENT_PROVIDER" ||
+		(connectorStatus != "ACTIVE" && connectorStatus != "DEGRADED") {
+		return "", errors.New("payment connector is not routable")
+	}
+
+	var providerConfigID string
+	if err := tx.QueryRowContext(ctx,
+		`SELECT COALESCE((
+			SELECT id::text
+			FROM payment_provider_config_versions
+			WHERE provider_instance_id = $1::uuid
+			  AND config_version = $2
+			LIMIT 1
+		), '')`,
+		providerInstanceID,
+		persistence.RoutingPolicyVersion,
+	).Scan(&providerConfigID); err != nil {
+		return "", fmt.Errorf("find provider config: %w", err)
+	}
+	if providerConfigID == "" {
+		providerConfigID, err = persistentid.FromRef(
+			"payment-provider-config",
+			providerInstanceID+":"+persistence.RoutingPolicyVersion,
+		)
+		if err != nil {
+			return "", err
+		}
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO payment_provider_config_versions (
+				id, provider_instance_id, config_version, status, priority, manifest_version,
+				certification_evidence_refs, jurisdiction_codes, currencies, method_codes,
+				rail_codes, execution_owner, effective_from, routing_weight_bps,
+				credential_version_ref
+			) VALUES (
+				$1::uuid, $2::uuid, $3, 'ACTIVE', 0, 'conformance-external-v1',
+				ARRAY['conformance:not-production-psp'], ARRAY['RU'], ARRAY['RUB'],
+				ARRAY['BANK_CARD','SBP'], ARRAY['BANK_TRANSFER_RAIL'], $4,
+				$5, 10000, 'conformance:external-bank:v1'
+			)`,
+			providerConfigID,
+			providerInstanceID,
+			persistence.RoutingPolicyVersion,
+			instruction.ExecutionOwner,
+			persistence.DecidedAt.Add(-time.Second),
+		); err != nil {
+			return "", fmt.Errorf("persist provider config: %w", err)
+		}
+	}
+
+	var healthSnapshotID, health, guardrail string
+	if err := tx.QueryRowContext(ctx,
+		`SELECT COALESCE(id::text, ''), COALESCE(health, ''), COALESCE(guardrail_action, '')
+		 FROM (
+			SELECT id, health, guardrail_action
+			FROM payment_provider_health_snapshots
+			WHERE provider_config_id = $1::uuid
+			  AND observed_at <= $2
+			ORDER BY observed_at DESC, created_at DESC, id DESC
+			LIMIT 1
+		 ) latest
+		 RIGHT JOIN (SELECT 1) sentinel ON true`,
+		providerConfigID,
+		persistence.DecidedAt,
+	).Scan(&healthSnapshotID, &health, &guardrail); err != nil {
+		return "", fmt.Errorf("find provider health snapshot: %w", err)
+	}
+	if healthSnapshotID == "" {
+		healthSnapshotID, err = persistentid.FromRef(
+			"payment-provider-health",
+			providerConfigID+":baseline",
+		)
+		if err != nil {
+			return "", err
+		}
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO payment_provider_health_snapshots (
+				id, provider_config_id, health, conversion_rate_bps, latency_p95_ms,
+				provider_reported_fee_bps, reconciliation_pending_count,
+				reconciliation_mismatch_count, guardrail_action, evidence_refs, observed_at
+			) VALUES (
+				$1::uuid, $2::uuid, 'HEALTHY', 10000, 0, 0, 0, 0,
+				'ALLOW_NEW_ATTEMPTS', ARRAY['conformance:not-production-health'], $3
+			)`,
+			healthSnapshotID,
+			providerConfigID,
+			persistence.DecidedAt,
+		); err != nil {
+			return "", fmt.Errorf("persist provider health snapshot: %w", err)
+		}
+		health = "HEALTHY"
+		guardrail = "ALLOW_NEW_ATTEMPTS"
+	}
+	if health == "UNAVAILABLE" || guardrail != "ALLOW_NEW_ATTEMPTS" {
+		return "", errors.New("provider health blocks new payment attempts")
+	}
+
+	candidateEvidence, err := json.Marshal([]map[string]any{{
+		"provider_id": instruction.ProviderID,
+		"eligible":    true,
+	}})
+	if err != nil {
+		return "", fmt.Errorf("encode routing candidates: %w", err)
+	}
+	healthEvidence, err := json.Marshal(map[string]any{
+		"health":           health,
+		"guardrail_action": guardrail,
+	})
+	if err != nil {
+		return "", fmt.Errorf("encode routing health: %w", err)
+	}
+	routingDecisionID, err := persistentid.FromRef("payment-routing-decision", order.ID)
+	if err != nil {
+		return "", err
+	}
+	if _, err := tx.ExecContext(ctx,
+		`INSERT INTO payment_routing_decisions (
+			id, order_id, policy_version, provider_config_id, jurisdiction_code,
+			selected_method_code, selected_rail_code, candidate_evidence,
+			health_snapshot, decided_at, health_snapshot_id
+		) VALUES (
+			$1::uuid, $2::uuid, $3, $4::uuid, 'RU',
+			$5, $6, $7::jsonb, $8::jsonb, $9, $10::uuid
+		)`,
+		routingDecisionID,
+		order.ID,
+		persistence.RoutingPolicyVersion,
+		providerConfigID,
+		instruction.MethodCode,
+		instruction.RailCode,
+		string(candidateEvidence),
+		string(healthEvidence),
+		persistence.DecidedAt,
+		healthSnapshotID,
+	); err != nil {
+		return "", fmt.Errorf("persist routing decision: %w", err)
+	}
+
+	paymentAttemptID, err := persistentid.FromRef("payment-attempt", order.ID)
+	if err != nil {
+		return "", err
+	}
+	if _, err := tx.ExecContext(ctx,
+		`INSERT INTO payment_attempts (
+			id, order_id, routing_decision_id, idempotency_key, amount_minor,
+			currency, state, created_at, updated_at
+		) VALUES (
+			$1::uuid, $2::uuid, $3::uuid, $4, $5, $6, 'CREATED', $7, $7
+		)`,
+		paymentAttemptID,
+		order.ID,
+		routingDecisionID,
+		instruction.HoldID+":"+instruction.MethodCode,
+		instruction.AmountMinor,
+		instruction.Currency,
+		persistence.DecidedAt,
+	); err != nil {
+		return "", fmt.Errorf("persist payment attempt: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE payment_attempts
+		 SET state = 'SENT',
+		     updated_at = $2
+		 WHERE id = $1::uuid`,
+		paymentAttemptID,
+		persistence.DecidedAt,
+	); err != nil {
+		return "", fmt.Errorf("mark payment attempt sent: %w", err)
+	}
+
 	if err := tx.Commit(); err != nil {
-		return "", fmt.Errorf("commit canonical booking: %w", err)
+		return "", fmt.Errorf("commit durable checkout: %w", err)
 	}
 	return "BOOK_CREATED", nil
 }
