@@ -54,3 +54,53 @@ func TestConformanceCatalogUsesStableRollingFutureSlotRefs(t *testing.T) {
 		t.Fatalf("rolling horizon did not replenish: first=%v next=%v", firstIDs, nextIDs)
 	}
 }
+
+
+func TestConformanceCatalogSkipsSlotInsideHoldTTL(t *testing.T) {
+	tooLate := time.Date(2026, 9, 27, 9, 50, 0, 0, time.UTC)
+	catalog := conformanceCatalog(tooLate)
+	for _, slot := range catalog.slots {
+		if slot.SpecialistID != "spec-lebedeva" {
+			continue
+		}
+		want := time.Date(2026, 9, 28, 10, 0, 0, 0, time.UTC)
+		if !slot.StartsAt.Equal(want) {
+			t.Fatalf("first slot inside hold TTL was advertised: got=%s want=%s", slot.StartsAt, want)
+		}
+		break
+	}
+
+	earlyEnough := time.Date(2026, 9, 27, 9, 40, 0, 0, time.UTC)
+	catalog = conformanceCatalog(earlyEnough)
+	for _, slot := range catalog.slots {
+		if slot.SpecialistID != "spec-lebedeva" {
+			continue
+		}
+		want := time.Date(2026, 9, 27, 10, 0, 0, 0, time.UTC)
+		if !slot.StartsAt.Equal(want) {
+			t.Fatalf("valid same-day slot was skipped: got=%s want=%s", slot.StartsAt, want)
+		}
+		break
+	}
+}
+
+func TestLongLivedServiceRefreshesRollingSlotHorizon(t *testing.T) {
+	now := time.Date(2026, 9, 27, 12, 0, 0, 0, time.UTC)
+	service := NewConformanceService(func() time.Time { return now })
+	first, err := service.Slots("spec-lebedeva")
+	if err != nil || len(first) != 8 {
+		t.Fatalf("initial slots=%#v err=%v", first, err)
+	}
+
+	now = now.AddDate(0, 0, 9)
+	next, err := service.Slots("spec-lebedeva")
+	if err != nil || len(next) != 8 {
+		t.Fatalf("refreshed slots=%#v err=%v", next, err)
+	}
+	if !next[0].StartsAt.After(now) {
+		t.Fatalf("refreshed horizon starts in the past: %#v", next[0])
+	}
+	if first[0].ID == next[0].ID {
+		t.Fatalf("long-lived service did not roll slot horizon: first=%s next=%s", first[0].ID, next[0].ID)
+	}
+}
