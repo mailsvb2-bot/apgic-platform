@@ -52,22 +52,26 @@ func TestJourneyStoreSurvivesServiceRestart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	peer, err := demand.NewConformanceServiceWithStores(func() time.Time { return now }, store, store)
+	if err != nil {
+		t.Fatal(err)
+	}
 	intent, err := first.CreateIntent("нужна помощь со сном")
 	if err != nil {
 		t.Fatal(err)
 	}
 	intentIDs = append(intentIDs, intent.ID)
 	identityIDs = append(identityIDs, intent.ClientIdentityID)
-	if _, err := first.ConfirmIntent(intent.ID, []string{"sleep"}, nil, nil); err != nil {
-		t.Fatal(err)
+	if _, err := peer.ConfirmIntent(intent.ID, []string{"sleep"}, nil, nil); err != nil {
+		t.Fatalf("long-lived peer did not refresh new intent: %v", err)
 	}
-	slots, err := first.Slots("spec-lebedeva")
+	slots, err := peer.Slots("spec-lebedeva")
 	if err != nil || len(slots) == 0 {
 		t.Fatalf("slots=%#v err=%v", slots, err)
 	}
 	hold, err := first.AcquireHold(intent.ID, slots[0].ID, intent.ClientIdentityID)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("origin instance did not refresh peer confirmation: %v", err)
 	}
 	holdIDs = append(holdIDs, hold.ID)
 	bookingIDs = append(bookingIDs, hold.BookingID)
@@ -99,6 +103,13 @@ func TestJourneyStoreSurvivesServiceRestart(t *testing.T) {
 	third, err := demand.NewConformanceServiceWithStores(func() time.Time { return secondNow.Add(time.Minute) }, store, store)
 	if err != nil {
 		t.Fatal(err)
+	}
+	replayedInstruction, err := third.CreateCheckout(hold.ID, intent.ClientIdentityID, "SBP")
+	if err != nil {
+		t.Fatalf("checkout replay after restart failed: %v", err)
+	}
+	if replayedInstruction.ID != instruction.ID || replayedInstruction.OrderID != instruction.OrderID {
+		t.Fatalf("checkout replay changed durable identity: got=%#v want=%#v", replayedInstruction, instruction)
 	}
 	other, err := third.CreateIntent("тоже нужна помощь со сном")
 	if err != nil {
