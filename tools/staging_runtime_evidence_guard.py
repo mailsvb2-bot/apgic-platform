@@ -1,130 +1,240 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
+import hashlib
 import json
-from pathlib import Path
+import re
 import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+import yaml
+from jsonschema import Draft202012Validator
 
 ROOT = Path(__file__).resolve().parents[1]
-SCHEMA = ROOT / "canon/evidence/staging-runtime-evidence-v1.schema.json"
-EVIDENCE = ROOT / "canon/evidence/staging-runtime-20260926T215500Z.json"
+EVIDENCE_DIR = ROOT / "canon/evidence"
+SCHEMA = EVIDENCE_DIR / "staging-runtime-evidence-v1.schema.json"
 REGISTRY = ROOT / "canon/requirements/registry.yaml"
-EVIDENCE_REF = "canon/evidence/staging-runtime-20260926T215500Z.json"
+RFC3339_RE = re.compile(r"^(?P<date>\d{4}-\d{2}-\d{2})T(?P<hour>\d{2}):(?P<minute>\d{2}):(?P<second>\d{2})(?P<fraction>\.\d+)?(?P<zone>Z|[+-]\d{2}:\d{2})$", re.IGNORECASE)
+KNOWN_UTC_LEAP_SECOND_DATES = frozenset({
+    "1972-06-30", "1972-12-31", "1973-12-31", "1974-12-31",
+    "1975-12-31", "1976-12-31", "1977-12-31", "1978-12-31",
+    "1979-12-31", "1981-06-30", "1982-06-30", "1983-06-30",
+    "1985-06-30", "1987-12-31", "1989-12-31", "1990-12-31",
+    "1992-06-30", "1993-06-30", "1994-06-30", "1995-12-31",
+    "1997-06-30", "1998-12-31", "2005-12-31", "2008-12-31",
+    "2012-06-30", "2015-06-30", "2016-12-31",
+})
 
-EXPECTED_SHA = "08d06917f7575ad0aa7d129dfb6b6ed4370199f2"
-EXPECTED_REQUIREMENTS = {
-    "APGIC-EXEC-001",
-    "APGIC-NFR-001",
-    "APGIC-TEST-001",
-    "APGIC-RELEASE-001",
-    "APGIC-UI-001",
-    "APGIC-DEMAND-001",
-    "APGIC-MATCH-001",
-    "APGIC-SEARCH-001",
-    "APGIC-BOOK-002",
-    "APGIC-PAY-001",
-    "APGIC-NOTIF-001",
-    "APGIC-CONSULT-001",
-    "APGIC-COMM-002",
-    "APGIC-CONSULT-002",
-    "APGIC-PRIV-001",
+PINNED_ARTIFACTS = {
+    "staging-runtime-20260926T215500Z.json": {
+        "sha256": "c01a3207d528bfac38c8f5e0b8a4bf7b4cc61d4093959519370a9386f30e5eab",
+        "candidate_sha": "08d06917f7575ad0aa7d129dfb6b6ed4370199f2",
+        "deployment_identity": "staging-08d06917-20260926T2154Z",
+    },
+    "staging-runtime-20260927T072352Z.json": {
+        "sha256": "cc8e09a08a9dd832fce5f6efb480b122d0f3662f1dff02c4447ec38ec52abe8f",
+        "candidate_sha": "b55fd416c2a35cb22b6a5ea0b317a42f068e94b3",
+        "deployment_identity": "staging-b55fd416-20260927T0718Z",
+    },
 }
 
 
-def _require(condition: bool, message: str, errors: list[str]) -> None:
-    if not condition:
-        errors.append(message)
+def discover_evidence_paths() -> list[Path]:
+    return sorted(
+        path
+        for path in EVIDENCE_DIR.glob("staging-runtime-*.json")
+        if path != SCHEMA
+    )
 
 
-def _registry_blocks(text: str) -> dict[str, str]:
-    blocks: dict[str, str] = {}
-    current_id: str | None = None
-    current_lines: list[str] = []
+def _is_rfc3339_datetime(value: object) -> bool:
+    if not isinstance(value, str):
+        return False
+    match = RFC3339_RE.fullmatch(value)
+    if match is None:
+        return False
 
-    def flush() -> None:
-        if current_id is not None:
-            blocks[current_id] = "\n".join(current_lines)
+    hour = int(match.group("hour"))
+    minute = int(match.group("minute"))
+    second = int(match.group("second"))
+    if hour > 23 or minute > 59 or second > 60:
+        return False
 
-    for line in text.splitlines():
-        if line.startswith("- requirement_id: "):
-            flush()
-            current_id = line.split(": ", 1)[1].strip()
-            current_lines = [line]
-        elif current_id is not None:
-            current_lines.append(line)
-    flush()
-    return blocks
+    zone = match.group("zone")
+    if zone.lower() != "z":
+        offset_hour = int(zone[1:3])
+        offset_minute = int(zone[4:6])
+        if offset_hour > 23 or offset_minute > 59:
+            return False
+
+    normalized_second = "59" if second == 60 else match.group("second")
+    normalized = (
+        f"{match.group('date')}T{match.group('hour')}:{match.group('minute')}:"
+        f"{normalized_second}{match.group('fraction') or ''}{match.group('zone')}"
+    )
+    if normalized.endswith(("Z", "z")):
+        normalized = normalized[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError:
+        return False
+    if parsed.tzinfo is None:
+        return False
+    if second != 60:
+        return True
+    if zone == "-00:00":
+        return False
+
+    utc = parsed.astimezone(timezone.utc)
+    return (
+        utc.strftime("%Y-%m-%d") in KNOWN_UTC_LEAP_SECOND_DATES
+        and utc.hour == 23
+        and utc.minute == 59
+        and utc.second == 59
+    )
+
+
+def _schema_errors(document: dict, schema: dict, ref: str) -> list[str]:
+    validator = Draft202012Validator(schema)
+    errors: list[str] = []
+    for issue in sorted(validator.iter_errors(document), key=lambda err: list(err.absolute_path)):
+        location = ".".join(str(part) for part in issue.absolute_path) or "<root>"
+        errors.append(f"{ref}: schema violation at {location}: {issue.message}")
+
+    date_fields = (
+        ("generated_at", document.get("generated_at")),
+        ("tls.not_before", document.get("tls", {}).get("not_before") if isinstance(document.get("tls"), dict) else None),
+        ("tls.not_after", document.get("tls", {}).get("not_after") if isinstance(document.get("tls"), dict) else None),
+    )
+    for location, value in date_fields:
+        if value is not None and not _is_rfc3339_datetime(value):
+            message = f"{ref}: schema violation at {location}: {value!r} is not a valid RFC3339 date-time"
+            if message not in errors:
+                errors.append(message)
+    return errors
+
+
+def _registry_evidence_refs(registry_document: dict) -> dict[str, set[str]]:
+    result: dict[str, set[str]] = {}
+    for requirement in registry_document.get("requirements", []):
+        requirement_id = requirement.get("requirement_id")
+        if not isinstance(requirement_id, str) or not requirement_id:
+            continue
+        refs = requirement.get("evidence_refs") or []
+        result[requirement_id] = {
+            ref for ref in refs
+            if isinstance(ref, str) and ref
+        }
+    return result
+
+
+def _pin_errors(
+    filename: str,
+    raw: bytes,
+    document: dict,
+) -> list[str]:
+    pin = PINNED_ARTIFACTS.get(filename)
+    if pin is None:
+        return [f"{filename}: staging evidence artifact is not reviewed/pinned"]
+
+    errors: list[str] = []
+    digest = hashlib.sha256(raw).hexdigest()
+    if digest != pin["sha256"]:
+        errors.append(
+            f"{filename}: immutable digest mismatch expected={pin['sha256']} actual={digest}"
+        )
+    if document.get("candidate_sha") != pin["candidate_sha"]:
+        errors.append(
+            f"{filename}: candidate SHA changed from reviewed deployment identity"
+        )
+    if document.get("deployment_identity") != pin["deployment_identity"]:
+        errors.append(
+            f"{filename}: deployment identity changed from reviewed value"
+        )
+    return errors
+
+
+def _validate_artifact(
+    evidence_path: Path,
+    schema: dict,
+    registry_refs: dict[str, set[str]],
+) -> list[str]:
+    ref = f"canon/evidence/{evidence_path.name}"
+    try:
+        raw = evidence_path.read_bytes()
+        document = json.loads(raw)
+    except (OSError, json.JSONDecodeError) as exc:
+        return [f"{ref}: unreadable JSON: {exc}"]
+
+    errors = _schema_errors(document, schema, ref)
+    errors.extend(_pin_errors(evidence_path.name, raw, document))
+
+    supported_raw = document.get("supported_requirements", [])
+    supported = {
+        requirement_id for requirement_id in supported_raw
+        if isinstance(requirement_id, str)
+    } if isinstance(supported_raw, list) else set()
+
+    for requirement_id in supported:
+        if requirement_id not in registry_refs:
+            errors.append(f"{ref}: registry requirement missing: {requirement_id}")
+            continue
+        if ref not in registry_refs[requirement_id]:
+            errors.append(
+                f"{ref}: registry requirement missing exact evidence_refs entry: {requirement_id}"
+            )
+
+    for requirement_id, evidence_refs in registry_refs.items():
+        if ref in evidence_refs and requirement_id not in supported:
+            errors.append(
+                f"{ref}: evidence_refs over-claims unsupported requirement: {requirement_id}"
+            )
+
+    return errors
 
 
 def validate() -> list[str]:
     errors: list[str] = []
-    _require(SCHEMA.is_file(), "staging runtime evidence schema is missing", errors)
-    _require(EVIDENCE.is_file(), "staging runtime evidence artifact is missing", errors)
+    if not SCHEMA.is_file():
+        errors.append("staging runtime evidence schema is missing")
+    if not REGISTRY.is_file():
+        errors.append("requirement registry is missing")
     if errors:
         return errors
 
-    schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
-    evidence = json.loads(EVIDENCE.read_text(encoding="utf-8"))
-    registry = REGISTRY.read_text(encoding="utf-8")
+    try:
+        schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return [f"staging runtime evidence schema is invalid: {exc}"]
 
-    _require(schema.get("properties", {}).get("production_release", {}).get("const") is False,
-             "schema must fail closed with production_release=false", errors)
-    _require(evidence.get("schema_version") == "staging-runtime-evidence-v1",
-             "unexpected staging evidence schema version", errors)
-    _require(evidence.get("evidence_class") == "STAGING_RUNTIME",
-             "unexpected staging evidence class", errors)
-    _require(evidence.get("production_release") is False,
-             "staging evidence must never claim production release", errors)
-    _require(evidence.get("environment") == "staging",
-             "staging evidence environment mismatch", errors)
-    _require(evidence.get("candidate_sha") == EXPECTED_SHA,
-             "candidate SHA mismatch", errors)
-    _require(evidence.get("deployment_identity") == "staging-08d06917-20260926T2154Z",
-             "deployment identity mismatch", errors)
-    _require(evidence.get("runtime", {}).get("meta_commit_sha") == EXPECTED_SHA,
-             "runtime meta SHA mismatch", errors)
-    _require(evidence.get("live_e2e", {}).get("tested_sha") == EXPECTED_SHA,
-             "live E2E tested SHA mismatch", errors)
-    _require(evidence.get("runtime", {}).get("healthz") == "ok",
-             "healthz evidence is not ok", errors)
-    _require(evidence.get("runtime", {}).get("readyz") == "ready",
-             "readyz evidence is not ready", errors)
-    _require(evidence.get("runtime", {}).get("watchdog_result") == "success",
-             "runtime watchdog evidence is not success", errors)
-    _require(evidence.get("database", {}).get("backup_result") == "success",
-             "staging backup evidence is not success", errors)
-    _require(evidence.get("database", {}).get("restore_verification_result") == "success",
-             "staging restore verification evidence is not success", errors)
-    _require(evidence.get("live_e2e", {}).get("tests_total") == 12,
-             "live E2E total must remain 12 for this immutable evidence artifact", errors)
-    _require(evidence.get("live_e2e", {}).get("tests_passed") == 12,
-             "live E2E pass count mismatch", errors)
-    _require(evidence.get("live_e2e", {}).get("tests_failed") == 0,
-             "live E2E failure count must be zero", errors)
+    try:
+        registry_document = yaml.safe_load(REGISTRY.read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError) as exc:
+        return [f"requirement registry YAML is invalid: {exc}"]
 
-    supported = set(evidence.get("supported_requirements", []))
-    _require(supported == EXPECTED_REQUIREMENTS,
-             "supported requirement set drifted from reviewed evidence scope", errors)
-    _require("APGIC-DR-001" not in supported,
-             "staging evidence must not claim APGIC-DR-001 production restore proof", errors)
+    if not isinstance(registry_document, dict):
+        return ["requirement registry root must be an object"]
 
-    limitations = "\n".join(evidence.get("limitations", []))
-    _require("not production release approval" in limitations,
-             "production limitation must be explicit", errors)
-    _require("APGIC-DR-001 remains unproven" in limitations,
-             "production restore limitation must be explicit", errors)
-    _require("issue #3" in limitations,
-             "native production evidence blocker must remain explicit", errors)
+    registry_refs = _registry_evidence_refs(registry_document)
+    evidence_paths = discover_evidence_paths()
+    discovered = {path.name for path in evidence_paths}
+    pinned = set(PINNED_ARTIFACTS)
 
-    blocks = _registry_blocks(registry)
-    for requirement_id in EXPECTED_REQUIREMENTS:
-        block = blocks.get(requirement_id)
-        _require(block is not None, f"registry requirement missing: {requirement_id}", errors)
-        if block is not None:
-            _require(EVIDENCE_REF in block,
-                     f"registry requirement missing staging evidence ref: {requirement_id}", errors)
+    if discovered != pinned:
+        missing_pins = sorted(discovered - pinned)
+        missing_artifacts = sorted(pinned - discovered)
+        if missing_pins:
+            errors.append(
+                f"unreviewed staging evidence artifacts require immutable pins: {missing_pins}"
+            )
+        if missing_artifacts:
+            errors.append(
+                f"pinned staging evidence artifacts are missing: {missing_artifacts}"
+            )
 
-    for requirement_id, block in blocks.items():
-        if EVIDENCE_REF in block and requirement_id not in EXPECTED_REQUIREMENTS:
-            errors.append(f"staging evidence over-claimed by unsupported requirement: {requirement_id}")
+    for evidence_path in evidence_paths:
+        errors.extend(_validate_artifact(evidence_path, schema, registry_refs))
 
     return errors
 
@@ -136,7 +246,7 @@ def main() -> int:
         for error in errors:
             print(f"ERROR: {error}")
         return 1
-    print("STAGING RUNTIME EVIDENCE GUARD: PASS")
+    print(f"STAGING RUNTIME EVIDENCE GUARD: PASS ({len(discover_evidence_paths())} artifacts)")
     return 0
 
 
