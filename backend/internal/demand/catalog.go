@@ -64,7 +64,6 @@ func conformanceCatalog(now time.Time) catalog {
 		}
 	}
 
-	day := 26 * time.Hour
 	candidates := []marketplace.Candidate{
 		candidate(lebedeva, 450000, 5, 5, 4, 0),
 		candidate(sokolov, 320000, 2, 3, 3, 1),
@@ -73,11 +72,16 @@ func conformanceCatalog(now time.Time) catalog {
 		{Profile: draft, Formats: []string{FormatOnline}, Languages: []string{LanguageRU}, PriceMinor: 100000, Available: true},
 	}
 	slots := make([]Slot, 0, len(published)*8)
+	now = now.UTC()
+	first := time.Date(now.Year(), now.Month(), now.Day(), 10, 0, 0, 0, time.UTC)
+	if !first.After(now) {
+		first = first.AddDate(0, 0, 1)
+	}
 	for _, profile := range published {
-		for n := 1; n <= 8; n++ {
-			start := now.Add(time.Duration(n) * day)
+		for n := 0; n < 8; n++ {
+			start := first.AddDate(0, 0, n)
 			slots = append(slots, Slot{
-				ID:           fmt.Sprintf("%s-slot-%d", profile.ID, n),
+				ID:           fmt.Sprintf("%s-slot-%s", profile.ID, start.Format("20060102T1504Z")),
 				SpecialistID: profile.ID,
 				StartsAt:     start,
 				EndsAt:       start.Add(50 * time.Minute),
