@@ -38,7 +38,6 @@ type JourneyStore interface {
 	AcquireHold(hold *Hold, slot Slot, now time.Time) (reasonCode string, err error)
 	CreateCheckout(persistence CheckoutPersistence) (reasonCode string, err error)
 	Expire(now time.Time) error
-	UpdateBooking(booked *booking.Booking) error
 }
 
 func journeyReasonError(reason string) error {
