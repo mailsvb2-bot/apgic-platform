@@ -198,6 +198,7 @@
             "postgres-invariants"
           ],
           "proof_refs": [
+            "backend/migrations/000017_r0_ledger_economic_event_idempotency.sql",
             "backend/migrations/ci_invariants.sql",
             "backend/internal/runtimepostgres/check_test.go",
             ".github/workflows/ci.yml"
