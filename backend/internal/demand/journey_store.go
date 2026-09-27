@@ -28,7 +28,10 @@ type CheckoutPersistence struct {
 	DecidedAt            time.Time
 }
 
-var ErrJourneyStoreProtocol = errors.New("unknown journey store reason code")
+var (
+	ErrJourneyStoreProtocol    = errors.New("unknown journey store reason code")
+	ErrCheckoutAlreadyExists = errors.New("checkout already exists")
+)
 
 type JourneyStore interface {
 	BootstrapCatalog(slots []Slot) ([]Slot, error)
@@ -58,6 +61,8 @@ func journeyReasonError(reason string) error {
 		return ErrHoldNotFound
 	case "BOOK_HOLD_NOT_ACTIVE", "BOOK_HOLD_EXPIRED":
 		return ErrHoldNotActive
+	case "BOOK_CHECKOUT_ALREADY_EXISTS":
+		return ErrCheckoutAlreadyExists
 	default:
 		return fmt.Errorf("%w: %s", ErrJourneyStoreProtocol, reason)
 	}
