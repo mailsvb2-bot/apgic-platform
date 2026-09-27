@@ -9,15 +9,15 @@ import (
 )
 
 type fakeJourneyStore struct {
-	snapshot            JourneySnapshot
-	createIntentErr     error
-	confirmIntentErr    error
-	acquireHoldErr      error
-	acquireHoldReason   string
-	createCheckoutErr   error
+	snapshot             JourneySnapshot
+	createIntentErr      error
+	confirmIntentErr     error
+	acquireHoldErr       error
+	acquireHoldReason    string
+	createCheckoutErr    error
 	createCheckoutReason string
-	expireErr           error
-	updateBookingErr    error
+	expireErr            error
+	updateBookingErr     error
 }
 
 func (f *fakeJourneyStore) BootstrapCatalog(slots []Slot) ([]Slot, error) {
