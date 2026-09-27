@@ -252,9 +252,25 @@ func (s *Service) applyJourneySnapshotLocked(snapshot JourneySnapshot) error {
 	return nil
 }
 
+func (s *Service) refreshCatalogLocked() error {
+	fresh := conformanceCatalog(s.now().UTC())
+	if s.journeyStore != nil {
+		slots, err := s.journeyStore.BootstrapCatalog(fresh.slots)
+		if err != nil {
+			return err
+		}
+		fresh.slots = slots
+	}
+	s.catalog = fresh
+	return nil
+}
+
 func (s *Service) refreshJourneyLocked() error {
 	if s.journeyStore == nil {
 		return nil
+	}
+	if err := s.refreshCatalogLocked(); err != nil {
+		return err
 	}
 	snapshot, err := s.journeyStore.LoadJourney(s.catalog.slots)
 	if err != nil {
@@ -420,6 +436,11 @@ func (s *Service) Matches(intentID, topic string) ([]MatchCard, string, error) {
 func (s *Service) Slots(specialistID string) ([]Slot, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.journeyStore == nil {
+		if err := s.refreshCatalogLocked(); err != nil {
+			return nil, err
+		}
+	}
 	if _, ok := s.catalog.names[specialistID]; !ok || specialistID == "spec-draft" {
 		return nil, ErrSpecialistNotFound
 	}
