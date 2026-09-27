@@ -24,6 +24,10 @@ var requiredTables = []string{
 	"bookings",
 }
 
+var requiredIndexes = []string{
+	"ledger_entries_economic_event_ref_unique",
+}
+
 type Checker struct {
 	db *sql.DB
 }
@@ -76,19 +80,33 @@ func (c *Checker) Ready(ctx context.Context) error {
 			return fmt.Errorf("required table missing: %s", table)
 		}
 	}
+	for _, index := range requiredIndexes {
+		var exists bool
+		err := c.db.QueryRowContext(
+			probeCtx,
+			"SELECT to_regclass($1) IS NOT NULL",
+			"public."+index,
+		).Scan(&exists)
+		if err != nil {
+			return fmt.Errorf("probe %s: %w", index, err)
+		}
+		if !exists {
+			return fmt.Errorf("required index missing: %s", index)
+		}
+	}
 	return nil
 }
 
-func (c *Checker) AppendLedgerEntry(entry ledger.Entry) error {
+func (c *Checker) AppendLedgerEntry(entry ledger.Entry) (ledger.Entry, error) {
 	if c == nil || c.db == nil {
-		return errors.New("postgres checker is not initialized")
+		return ledger.Entry{}, errors.New("postgres checker is not initialized")
 	}
 	canonical, err := ledger.NewEntry(entry)
 	if err != nil {
-		return err
+		return ledger.Entry{}, err
 	}
 	if strings.TrimSpace(canonical.EconomicEventRef) == "" {
-		return errors.New("ledger economic_event_ref is required for durable idempotency")
+		return ledger.Entry{}, errors.New("ledger economic_event_ref is required for durable idempotency")
 	}
 
 	writeCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -115,20 +133,21 @@ func (c *Checker) AppendLedgerEntry(entry ledger.Entry) error {
 		canonical.OccurredAt,
 	).Scan(&insertedID)
 	if err == nil {
-		return nil
+		canonical.ID = insertedID
+		return canonical, nil
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
-		return fmt.Errorf("append ledger entry: %w", err)
+		return ledger.Entry{}, fmt.Errorf("append ledger entry: %w", err)
 	}
 
 	existing, err := c.ledgerEntryByEconomicEvent(writeCtx, canonical.EconomicEventRef)
 	if err != nil {
-		return fmt.Errorf("read idempotent ledger entry: %w", err)
+		return ledger.Entry{}, fmt.Errorf("read idempotent ledger entry: %w", err)
 	}
 	if !sameEconomicEffect(existing, canonical) {
-		return fmt.Errorf("ledger economic event collision: %s", canonical.EconomicEventRef)
+		return ledger.Entry{}, fmt.Errorf("ledger economic event collision: %s", canonical.EconomicEventRef)
 	}
-	return nil
+	return existing, nil
 }
 
 func (c *Checker) ledgerEntryByEconomicEvent(ctx context.Context, economicEventRef string) (ledger.Entry, error) {
