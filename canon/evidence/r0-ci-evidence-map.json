@@ -771,11 +771,18 @@
           "proof_refs": [
             "backend/internal/payments/taxonomy_test.go"
           ]
+        },
+        "ARCHITECTURE_GATE": {
+          "gates": [
+            "canon"
+          ],
+          "proof_refs": [
+            "tools/payment_taxonomy_architecture_guard.py",
+            "tools/tests/test_payment_taxonomy_architecture_guard.py"
+          ]
         }
       },
-      "unproven_evidence": [
-        "ARCHITECTURE_GATE"
-      ]
+      "unproven_evidence": []
     },
     "APGIC-EXEC-001": {
       "claims": {
