@@ -726,11 +726,21 @@
             "tools/mobile_privacy_guard.py",
             "tools/mobile_privacy_contract_guard.py"
           ]
+        },
+        "BUILD_INSPECTION": {
+          "gates": [
+            "android-native-build",
+            "ios-native-build"
+          ],
+          "proof_refs": [
+            "tools/mobile_build_privacy_inspection.py",
+            "tools/tests/test_mobile_build_privacy_inspection.py",
+            ".github/workflows/ci.yml",
+            "apps/mobile/ios/APGIC.xcodeproj/project.pbxproj"
+          ]
         }
       },
-      "unproven_evidence": [
-        "BUILD_INSPECTION"
-      ]
+      "unproven_evidence": []
     },
     "APGIC-MOBILE-025": {
       "claims": {
