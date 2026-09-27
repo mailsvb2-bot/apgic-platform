@@ -262,4 +262,14 @@ func TestJourneyStoreSurvivesServiceRestart(t *testing.T) {
 		replayedCancel.ID != cancelled.ID {
 		t.Fatalf("cancel replay changed durable reversal: got=%#v want=%#v", replayedCancel, cancelled)
 	}
+
+	futureNow := now.AddDate(0, 0, 10)
+	future, err := demand.NewConformanceServiceWithStores(func() time.Time { return futureNow }, store, store)
+	if err != nil {
+		t.Fatalf("historical journey hydration failed after slot horizon rolled: %v", err)
+	}
+	futureMatches, _, err := future.Matches(intent.ID, "sleep")
+	if err != nil || len(futureMatches) == 0 {
+		t.Fatalf("historical intent unavailable after horizon rollover: matches=%#v err=%v", futureMatches, err)
+	}
 }
