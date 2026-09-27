@@ -9,14 +9,15 @@ import (
 )
 
 type fakeJourneyStore struct {
-	createIntentErr   error
-	confirmIntentErr  error
-	acquireHoldErr    error
-	acquireHoldReason string
-	createBookingErr  error
-	createBookReason  string
-	expireErr         error
-	updateBookingErr  error
+	snapshot            JourneySnapshot
+	createIntentErr     error
+	confirmIntentErr    error
+	acquireHoldErr      error
+	acquireHoldReason   string
+	createCheckoutErr   error
+	createCheckoutReason string
+	expireErr           error
+	updateBookingErr    error
 }
 
 func (f *fakeJourneyStore) BootstrapCatalog(slots []Slot) ([]Slot, error) {
@@ -24,29 +25,65 @@ func (f *fakeJourneyStore) BootstrapCatalog(slots []Slot) ([]Slot, error) {
 }
 
 func (f *fakeJourneyStore) LoadJourney([]Slot) (JourneySnapshot, error) {
-	return JourneySnapshot{}, nil
+	return f.snapshot, nil
 }
 
-func (f *fakeJourneyStore) CreateIntent(*Intent) error {
-	return f.createIntentErr
+func (f *fakeJourneyStore) CreateIntent(intent *Intent) error {
+	if f.createIntentErr != nil {
+		return f.createIntentErr
+	}
+	f.snapshot.Intents = append(f.snapshot.Intents, cloneIntent(intent))
+	return nil
 }
 
-func (f *fakeJourneyStore) ConfirmIntent(*Intent, time.Time) error {
-	return f.confirmIntentErr
+func (f *fakeJourneyStore) ConfirmIntent(intent *Intent, _ time.Time) error {
+	if f.confirmIntentErr != nil {
+		return f.confirmIntentErr
+	}
+	for index, existing := range f.snapshot.Intents {
+		if existing != nil && existing.ID == intent.ID {
+			f.snapshot.Intents[index] = cloneIntent(intent)
+			return nil
+		}
+	}
+	f.snapshot.Intents = append(f.snapshot.Intents, cloneIntent(intent))
+	return nil
 }
 
-func (f *fakeJourneyStore) AcquireHold(*Hold, Slot, time.Time) (string, error) {
+func (f *fakeJourneyStore) AcquireHold(hold *Hold, _ Slot, _ time.Time) (string, error) {
+	if f.acquireHoldErr != nil {
+		return "", f.acquireHoldErr
+	}
 	if f.acquireHoldReason != "" {
-		return f.acquireHoldReason, f.acquireHoldErr
+		return f.acquireHoldReason, nil
 	}
-	return "BOOK_HOLD_ACQUIRED", f.acquireHoldErr
+	copyHold := *hold
+	f.snapshot.Holds = append(f.snapshot.Holds, &copyHold)
+	return "BOOK_HOLD_ACQUIRED", nil
 }
 
-func (f *fakeJourneyStore) CreateBooking(*booking.Booking, time.Time) (string, error) {
-	if f.createBookReason != "" {
-		return f.createBookReason, f.createBookingErr
+func (f *fakeJourneyStore) CreateCheckout(persistence CheckoutPersistence) (string, error) {
+	if f.createCheckoutErr != nil {
+		return "", f.createCheckoutErr
 	}
-	return "BOOK_CREATED", f.createBookingErr
+	if f.createCheckoutReason != "" {
+		return f.createCheckoutReason, nil
+	}
+	if persistence.Booking != nil {
+		copyBooking := *persistence.Booking
+		f.snapshot.Bookings = append(f.snapshot.Bookings, &copyBooking)
+	}
+	if persistence.Instruction != nil {
+		copyInstruction := *persistence.Instruction
+		f.snapshot.Instructions = append(f.snapshot.Instructions, &copyInstruction)
+		for _, hold := range f.snapshot.Holds {
+			if hold != nil && hold.ID == persistence.Instruction.HoldID {
+				hold.State = "CONSUMED"
+				hold.BookingState = persistence.Instruction.BookingState
+			}
+		}
+	}
+	return "BOOK_CREATED", nil
 }
 
 func (f *fakeJourneyStore) Expire(time.Time) error {
@@ -119,7 +156,7 @@ func TestAcquireHoldStoreFailureDoesNotReserveSlotInMemory(t *testing.T) {
 	}
 }
 
-func TestCreateBookingStoreFailureLeavesHoldActive(t *testing.T) {
+func TestCreateCheckoutStoreFailureLeavesHoldActive(t *testing.T) {
 	store := &fakeJourneyStore{}
 	service, err := NewConformanceServiceWithStores(nil, nil, store)
 	if err != nil {
@@ -132,9 +169,9 @@ func TestCreateBookingStoreFailureLeavesHoldActive(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store.createBookingErr = errors.New("db down")
+	store.createCheckoutErr = errors.New("db down")
 	if _, err := service.CreateCheckout(hold.ID, intent.ClientIdentityID, "SBP"); err == nil {
-		t.Fatal("checkout must fail when durable booking create fails")
+		t.Fatal("checkout must fail when durable checkout create fails")
 	}
 	stored := service.holds[hold.ID]
 	if stored == nil || stored.State != "ACTIVE" || stored.BookingState != booking.StateHeld {
