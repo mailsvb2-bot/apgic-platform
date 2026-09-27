@@ -49,6 +49,16 @@ class StagingRuntimeEvidenceGuardTest(unittest.TestCase):
         self.assertFalse(_is_rfc3339_datetime("2026-09-27T07:23:52+03:00:30"))
         self.assertFalse(_is_rfc3339_datetime("2026-02-30T07:23:52Z"))
 
+    def test_schema_errors_accepts_rfc3339_leap_seconds(self):
+        schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+        path = EVIDENCE_DIR / "staging-runtime-20260927T072352Z.json"
+        document = json.loads(path.read_text(encoding="utf-8"))
+        leap = copy.deepcopy(document)
+        leap["generated_at"] = "2016-12-31T23:59:60Z"
+        leap["tls"]["not_before"] = "2016-12-31T23:59:60z"
+        errors = _schema_errors(leap, schema, path.name)
+        self.assertEqual(errors, [])
+
     def test_registry_linkage_uses_only_actual_evidence_refs(self):
         ref = "canon/evidence/staging-runtime-example.json"
         parsed = _registry_evidence_refs({
