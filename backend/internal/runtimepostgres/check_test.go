@@ -162,7 +162,6 @@ func TestLedgerStorePersistsAndReplays(t *testing.T) {
 	}
 }
 
-
 func TestAuditAppenderPersistsAuthorizationEvidence(t *testing.T) {
 	databaseURL := os.Getenv("APGIC_AUDIT_STORE_TEST_DATABASE_URL")
 	if databaseURL == "" {
