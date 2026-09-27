@@ -244,7 +244,9 @@ func (s *Service) CreateCheckout(holdID, clientIdentityID, methodCode string) (*
 }
 
 func (s *Service) ownedHoldLocked(holdID, clientIdentityID string) (*Hold, Slot, error) {
-	s.expireHoldsLocked()
+	if err := s.expireHoldsLocked(); err != nil {
+		return nil, Slot{}, err
+	}
 	hold, ok := s.holds[holdID]
 	if !ok {
 		return nil, Slot{}, ErrHoldNotFound
