@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 EVIDENCE_DIR = ROOT / "canon/evidence"
 SCHEMA = EVIDENCE_DIR / "staging-runtime-evidence-v1.schema.json"
 REGISTRY = ROOT / "canon/requirements/registry.yaml"
-RFC3339_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$")
+RFC3339_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$", re.IGNORECASE)
 
 PINNED_ARTIFACTS = {
     "staging-runtime-20260926T215500Z.json": {
@@ -42,8 +42,11 @@ def discover_evidence_paths() -> list[Path]:
 def _is_rfc3339_datetime(value: object) -> bool:
     if not isinstance(value, str) or RFC3339_RE.fullmatch(value) is None:
         return False
+    normalized = value[:10] + "T" + value[11:]
+    if normalized.endswith(("Z", "z")):
+        normalized = normalized[:-1] + "+00:00"
     try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(normalized)
     except ValueError:
         return False
     return parsed.tzinfo is not None
