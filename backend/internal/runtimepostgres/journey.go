@@ -94,13 +94,13 @@ func (c *Checker) LoadJourney(slots []demand.Slot) (demand.JourneySnapshot, erro
 	ctx, cancel := context.WithTimeout(context.Background(), journeyWriteTimeout)
 	defer cancel()
 
-	slotRefs := make(map[string]string, len(slots))
+	specialistRefs := make(map[string]string)
 	for _, slot := range slots {
-		id, err := catalogSlotUUID(slot.ID)
+		identityID, err := catalogSpecialistIdentityUUID(slot.SpecialistID)
 		if err != nil {
 			return demand.JourneySnapshot{}, err
 		}
-		slotRefs[id] = slot.ID
+		specialistRefs[identityID] = slot.SpecialistID
 	}
 
 	var snapshot demand.JourneySnapshot
@@ -149,7 +149,8 @@ func (c *Checker) LoadJourney(slots []demand.Slot) (demand.JourneySnapshot, erro
 	rows.Close()
 
 	rows, err = c.db.QueryContext(ctx,
-		`SELECT h.id::text, h.slot_id::text, h.client_identity_id::text, h.state, h.expires_at
+		`SELECT h.id::text, s.specialist_identity_id::text, s.starts_at,
+		        h.client_identity_id::text, h.state, h.expires_at
 		 FROM booking_holds h
 		 JOIN booking_slots s ON s.id = h.slot_id
 		 WHERE s.tenant_scope = 'catalog/conformance'
@@ -159,17 +160,21 @@ func (c *Checker) LoadJourney(slots []demand.Slot) (demand.JourneySnapshot, erro
 	}
 	for rows.Next() {
 		var hold demand.Hold
-		var slotUUID string
-		if err := rows.Scan(&hold.ID, &slotUUID, &hold.ClientIdentityID, &hold.State, &hold.ExpiresAt); err != nil {
+		var specialistIdentityID string
+		var startsAt time.Time
+		if err := rows.Scan(
+			&hold.ID, &specialistIdentityID, &startsAt,
+			&hold.ClientIdentityID, &hold.State, &hold.ExpiresAt,
+		); err != nil {
 			rows.Close()
 			return snapshot, fmt.Errorf("scan booking hold: %w", err)
 		}
-		publicSlot, ok := slotRefs[slotUUID]
+		specialistID, ok := specialistRefs[specialistIdentityID]
 		if !ok {
 			rows.Close()
-			return snapshot, fmt.Errorf("booking hold references unknown catalog slot %s", slotUUID)
+			return snapshot, fmt.Errorf("booking hold references unknown catalog specialist %s", specialistIdentityID)
 		}
-		hold.SlotID = publicSlot
+		hold.SlotID = publicSlotRef(specialistID, startsAt)
 		hold.BookingID, err = demandBookingIDForHold(hold.ID)
 		if err != nil {
 			rows.Close()
@@ -191,7 +196,7 @@ func (c *Checker) LoadJourney(slots []demand.Slot) (demand.JourneySnapshot, erro
 	rows.Close()
 
 	rows, err = c.db.QueryContext(ctx,
-		`SELECT b.id::text, b.slot_id::text, b.hold_id::text, b.client_identity_id::text,
+		`SELECT b.id::text, s.specialist_identity_id::text, b.hold_id::text, b.client_identity_id::text,
 		        b.state, b.hold_expires_at, b.starts_at, b.ends_at, b.updated_at
 		 FROM bookings b
 		 JOIN booking_slots s ON s.id = b.slot_id
@@ -202,21 +207,21 @@ func (c *Checker) LoadJourney(slots []demand.Slot) (demand.JourneySnapshot, erro
 	}
 	for rows.Next() {
 		var booked booking.Booking
-		var slotUUID string
+		var specialistIdentityID string
 		var state string
 		if err := rows.Scan(
-			&booked.ID, &slotUUID, &booked.HoldID, &booked.ClientIdentityID,
+			&booked.ID, &specialistIdentityID, &booked.HoldID, &booked.ClientIdentityID,
 			&state, &booked.HoldExpiresAt, &booked.StartsAt, &booked.EndsAt, &booked.UpdatedAt,
 		); err != nil {
 			rows.Close()
 			return snapshot, fmt.Errorf("scan booking: %w", err)
 		}
-		publicSlot, ok := slotRefs[slotUUID]
+		specialistID, ok := specialistRefs[specialistIdentityID]
 		if !ok {
 			rows.Close()
-			return snapshot, fmt.Errorf("booking references unknown catalog slot %s", slotUUID)
+			return snapshot, fmt.Errorf("booking references unknown catalog specialist %s", specialistIdentityID)
 		}
-		booked.SlotID = publicSlot
+		booked.SlotID = publicSlotRef(specialistID, booked.StartsAt)
 		booked.State = booking.State(state)
 		snapshot.Bookings = append(snapshot.Bookings, &booked)
 	}
@@ -387,6 +392,10 @@ func (c *Checker) LoadJourney(slots []demand.Slot) (demand.JourneySnapshot, erro
 	}
 	rows.Close()
 	return snapshot, nil
+}
+
+func publicSlotRef(specialistID string, startsAt time.Time) string {
+	return fmt.Sprintf("%s-slot-%s", specialistID, startsAt.UTC().Format("20060102T1504Z"))
 }
 
 func demandBookingIDForHold(holdID string) (string, error) {
