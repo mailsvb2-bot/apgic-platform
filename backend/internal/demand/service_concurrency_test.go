@@ -64,5 +64,3 @@ func TestExclusiveHoldConcurrentClientsHaveSingleWinner(t *testing.T) {
 		t.Fatalf("winners=%d conflicts=%d", winners, conflicts)
 	}
 }
-
-[executed on device: msk-1-vm-9vrn (ce05cfe4-fa8e-495a-bd76-12d14a659df2)]
