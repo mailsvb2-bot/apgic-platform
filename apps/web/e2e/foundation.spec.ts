@@ -43,7 +43,7 @@ test("help intent journey stays usable and accessible", async ({ page }) => {
     }
   }
   expect(held).toBeTruthy();
-  await expect(page.getByText(/^Бронь \S+$/)).toBeVisible();
+  await expect(page.getByText(/^Бронь \S+ в состоянии HELD\./)).toBeVisible();
   await expect(page.getByText("APGIC не принимает деньги.")).toBeVisible();
   await page.getByRole("button", { name: "Выбрать Карта через внешнего провайдера" }).click();
   await expect(page.getByRole("heading", { name: "Поручение на оплату создано" })).toBeVisible();
