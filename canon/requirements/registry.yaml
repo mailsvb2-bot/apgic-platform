@@ -475,6 +475,7 @@ requirements:
   - backend/internal/demand/cancel.go
   - backend/internal/runtimepostgres/check.go
   - backend/migrations/000001_r0_foundation.sql
+  - backend/migrations/000017_r0_ledger_economic_event_idempotency.sql
   contract_refs:
   - contracts/jsonschema/ledger-entry-v1.schema.json
   test_refs:
