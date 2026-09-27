@@ -154,46 +154,75 @@ func newConformanceService(now func() time.Time, ledgerStore LedgerStore, journe
 	if err != nil {
 		return nil, err
 	}
+	if err := service.applyJourneySnapshotLocked(snapshot); err != nil {
+		return nil, err
+	}
+	return service, nil
+}
+
+func (s *Service) applyJourneySnapshotLocked(snapshot JourneySnapshot) error {
+	intents := make(map[string]*Intent, len(snapshot.Intents))
+	owners := make(map[string]*identity.Identity, len(snapshot.Intents))
 	for _, intent := range snapshot.Intents {
 		if intent == nil {
 			continue
 		}
-		intent.Notice = InterpretationNotice
-		intent.DiagnosisAsserted = false
-		if intent.Status == marketplace.HelpIntentConfirmed {
-			intent.ReasonCodes = []string{ReasonInterpretationLexicon, ReasonNotADiagnosis, "HELP_INTENT_CONFIRMED"}
+		copyIntent := cloneIntent(intent)
+		copyIntent.Notice = InterpretationNotice
+		copyIntent.DiagnosisAsserted = false
+		if copyIntent.Status == marketplace.HelpIntentConfirmed {
+			copyIntent.ReasonCodes = []string{ReasonInterpretationLexicon, ReasonNotADiagnosis, "HELP_INTENT_CONFIRMED"}
 		} else {
-			suggestion := interpret(intent.FreeText)
-			intent.ReasonCodes = append([]string(nil), suggestion.ReasonCodes...)
+			suggestion := interpret(copyIntent.FreeText)
+			copyIntent.ReasonCodes = append([]string(nil), suggestion.ReasonCodes...)
 		}
-		service.intents[intent.ID] = cloneIntent(intent)
-		owner, err := identity.New(intent.ClientIdentityID, identity.RoleClient)
+		owner, err := identity.New(copyIntent.ClientIdentityID, identity.RoleClient)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		service.owners[owner.ID] = owner
+		intents[copyIntent.ID] = copyIntent
+		owners[owner.ID] = owner
 	}
+	holds := make(map[string]*Hold, len(snapshot.Holds))
+	slotHolds := make(map[string]string)
 	for _, hold := range snapshot.Holds {
 		if hold == nil {
 			continue
 		}
 		copyHold := *hold
-		service.holds[hold.ID] = &copyHold
+		holds[hold.ID] = &copyHold
 		if hold.State == "ACTIVE" {
-			service.slotHolds[hold.SlotID] = hold.ID
+			slotHolds[hold.SlotID] = hold.ID
 		}
 	}
+	bookings := make(map[string]*booking.Booking, len(snapshot.Bookings))
 	for _, booked := range snapshot.Bookings {
 		if booked == nil {
 			continue
 		}
 		copyBooking := *booked
-		service.bookings[booked.ID] = &copyBooking
-		if hold := service.holds[booked.HoldID]; hold != nil {
+		bookings[booked.ID] = &copyBooking
+		if hold := holds[booked.HoldID]; hold != nil {
 			hold.BookingState = booked.State
 		}
 	}
-	return service, nil
+	s.intents = intents
+	s.owners = owners
+	s.holds = holds
+	s.slotHolds = slotHolds
+	s.bookings = bookings
+	return nil
+}
+
+func (s *Service) refreshJourneyLocked() error {
+	if s.journeyStore == nil {
+		return nil
+	}
+	snapshot, err := s.journeyStore.LoadJourney(s.catalog.slots)
+	if err != nil {
+		return err
+	}
+	return s.applyJourneySnapshotLocked(snapshot)
 }
 
 func (s *Service) CreateIntent(freeText string) (*Intent, error) {
@@ -263,6 +292,9 @@ func (s *Service) ConfirmIntent(id string, topics, goals []string, context map[s
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if err := s.refreshJourneyLocked(); err != nil {
+		return nil, err
+	}
 	intent, ok := s.intents[id]
 	if !ok {
 		return nil, ErrIntentNotFound
@@ -301,6 +333,9 @@ func (s *Service) ConfirmIntent(id string, topics, goals []string, context map[s
 func (s *Service) Matches(intentID, topic string) ([]MatchCard, string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if err := s.refreshJourneyLocked(); err != nil {
+		return nil, "", err
+	}
 	intent, ok := s.intents[intentID]
 	if !ok {
 		return nil, "", ErrIntentNotFound
@@ -367,6 +402,9 @@ func (s *Service) Slots(specialistID string) ([]Slot, error) {
 func (s *Service) AcquireHold(intentID, slotID, clientIdentityID string) (*Hold, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if err := s.expireHoldsLocked(); err != nil {
+		return nil, err
+	}
 	intent, ok := s.intents[intentID]
 	if !ok {
 		return nil, ErrIntentNotFound
@@ -387,9 +425,6 @@ func (s *Service) AcquireHold(intentID, slotID, clientIdentityID string) (*Hold,
 	now := s.now().UTC()
 	if !slot.StartsAt.After(now) {
 		return nil, ErrSlotUnavailable
-	}
-	if err := s.expireHoldsLocked(); err != nil {
-		return nil, err
 	}
 	if s.slotBookedLocked(slot.ID) {
 		return nil, ErrSlotBooked
@@ -463,6 +498,7 @@ func (s *Service) expireHoldsLocked() error {
 		if err := s.journeyStore.Expire(now); err != nil {
 			return err
 		}
+		return s.refreshJourneyLocked()
 	}
 	for slotID, holdID := range s.slotHolds {
 		hold := s.holds[holdID]
