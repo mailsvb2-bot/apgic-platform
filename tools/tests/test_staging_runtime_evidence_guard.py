@@ -41,6 +41,8 @@ class StagingRuntimeEvidenceGuardTest(unittest.TestCase):
     def test_rfc3339_fallback_rejects_noncanonical_iso_forms(self):
         self.assertTrue(_is_rfc3339_datetime("2026-09-27T07:23:52Z"))
         self.assertTrue(_is_rfc3339_datetime("2026-09-27t07:23:52z"))
+        self.assertTrue(_is_rfc3339_datetime("2016-12-31T23:59:60Z"))
+        self.assertFalse(_is_rfc3339_datetime("2016-12-31T23:59:61Z"))
         self.assertTrue(_is_rfc3339_datetime("2026-09-27T07:23:52.123+03:00"))
         self.assertFalse(_is_rfc3339_datetime("20260927T072352Z"))
         self.assertFalse(_is_rfc3339_datetime("2026-09-27T07:23:52+03"))
