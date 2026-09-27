@@ -95,6 +95,7 @@ type Service struct {
 	reversals     map[string]*Cancellation
 	ledgerState   ledgerState
 	ledgerStore   LedgerStore
+	journeyStore  JourneyStore
 	notices       map[string]*BookingNotice
 	sessions      map[string]*consultation.Session
 	projection    marketplace.SearchProjection
@@ -103,14 +104,24 @@ type Service struct {
 }
 
 func NewConformanceService(now func() time.Time) *Service {
-	return NewConformanceServiceWithLedgerStore(now, nil)
+	service, _ := newConformanceService(now, nil, nil)
+	return service
 }
 
 func NewConformanceServiceWithLedgerStore(now func() time.Time, ledgerStore LedgerStore) *Service {
+	service, _ := newConformanceService(now, ledgerStore, nil)
+	return service
+}
+
+func NewConformanceServiceWithStores(now func() time.Time, ledgerStore LedgerStore, journeyStore JourneyStore) (*Service, error) {
+	return newConformanceService(now, ledgerStore, journeyStore)
+}
+
+func newConformanceService(now func() time.Time, ledgerStore LedgerStore, journeyStore JourneyStore) (*Service, error) {
 	if now == nil {
 		now = time.Now
 	}
-	return &Service{
+	service := &Service{
 		now:           now,
 		catalog:       conformanceCatalog(now().UTC()),
 		intents:       map[string]*Intent{},
@@ -126,7 +137,63 @@ func NewConformanceServiceWithLedgerStore(now func() time.Time, ledgerStore Ledg
 		sessions:      map[string]*consultation.Session{},
 		deletions:     map[string]*AccountDeletion{},
 		ledgerStore:   ledgerStore,
+		journeyStore:  journeyStore,
 	}
+	if journeyStore == nil {
+		return service, nil
+	}
+	slots, err := journeyStore.BootstrapCatalog(service.catalog.slots)
+	if err != nil {
+		return nil, err
+	}
+	service.catalog.slots = slots
+	if err := journeyStore.Expire(service.now().UTC()); err != nil {
+		return nil, err
+	}
+	snapshot, err := journeyStore.LoadJourney(service.catalog.slots)
+	if err != nil {
+		return nil, err
+	}
+	for _, intent := range snapshot.Intents {
+		if intent == nil {
+			continue
+		}
+		intent.Notice = InterpretationNotice
+		intent.DiagnosisAsserted = false
+		if intent.Status == marketplace.HelpIntentConfirmed {
+			intent.ReasonCodes = []string{ReasonInterpretationLexicon, ReasonNotADiagnosis, "HELP_INTENT_CONFIRMED"}
+		} else {
+			suggestion := interpret(intent.FreeText)
+			intent.ReasonCodes = append([]string(nil), suggestion.ReasonCodes...)
+		}
+		service.intents[intent.ID] = cloneIntent(intent)
+		owner, err := identity.New(intent.ClientIdentityID, identity.RoleClient)
+		if err != nil {
+			return nil, err
+		}
+		service.owners[owner.ID] = owner
+	}
+	for _, hold := range snapshot.Holds {
+		if hold == nil {
+			continue
+		}
+		copyHold := *hold
+		service.holds[hold.ID] = &copyHold
+		if hold.State == "ACTIVE" {
+			service.slotHolds[hold.SlotID] = hold.ID
+		}
+	}
+	for _, booked := range snapshot.Bookings {
+		if booked == nil {
+			continue
+		}
+		copyBooking := *booked
+		service.bookings[booked.ID] = &copyBooking
+		if hold := service.holds[booked.HoldID]; hold != nil {
+			hold.BookingState = booked.State
+		}
+	}
+	return service, nil
 }
 
 func (s *Service) CreateIntent(freeText string) (*Intent, error) {
@@ -134,11 +201,19 @@ func (s *Service) CreateIntent(freeText string) (*Intent, error) {
 		return nil, ErrTextRequired
 	}
 	suggestion := interpret(freeText)
-	owner, err := identity.New(newID("idn-"), identity.RoleClient)
+	ownerID, err := newJourneyID()
 	if err != nil {
 		return nil, err
 	}
-	draft, err := marketplace.NewHelpIntent(newID("hi-"), freeText, marketplace.HelpIntentInterpretation{
+	owner, err := identity.New(ownerID, identity.RoleClient)
+	if err != nil {
+		return nil, err
+	}
+	intentID, err := newJourneyID()
+	if err != nil {
+		return nil, err
+	}
+	draft, err := marketplace.NewHelpIntent(intentID, freeText, marketplace.HelpIntentInterpretation{
 		Topics: suggestion.Topics,
 		Goals:  suggestion.Goals,
 		Context: map[string]string{
@@ -163,6 +238,11 @@ func (s *Service) CreateIntent(freeText string) (*Intent, error) {
 		Notice:            InterpretationNotice,
 		DiagnosisAsserted: false,
 		CatalogMode:       CatalogModeConformance,
+	}
+	if s.journeyStore != nil {
+		if err := s.journeyStore.CreateIntent(intent); err != nil {
+			return nil, err
+		}
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -196,18 +276,25 @@ func (s *Service) ConfirmIntent(id string, topics, goals []string, context map[s
 			}
 		}
 	}
+	updated := cloneIntent(intent)
 	domain := marketplace.HelpIntent{
-		ID:       intent.ID,
-		FreeText: intent.FreeText,
-		Status:   intent.Status,
+		ID:       updated.ID,
+		FreeText: updated.FreeText,
+		Status:   updated.Status,
 	}
 	domain.Confirm(cleanedTopics, compact(goals), merged)
-	intent.Topics = append([]string(nil), domain.Topics...)
-	intent.Goals = append([]string(nil), domain.Goals...)
-	intent.Context = cloneMap(domain.Context)
-	intent.Status = domain.Status
-	intent.ReasonCodes = []string{ReasonInterpretationLexicon, ReasonNotADiagnosis, "HELP_INTENT_CONFIRMED"}
-	intent.DiagnosisAsserted = false
+	updated.Topics = append([]string(nil), domain.Topics...)
+	updated.Goals = append([]string(nil), domain.Goals...)
+	updated.Context = cloneMap(domain.Context)
+	updated.Status = domain.Status
+	updated.ReasonCodes = []string{ReasonInterpretationLexicon, ReasonNotADiagnosis, "HELP_INTENT_CONFIRMED"}
+	updated.DiagnosisAsserted = false
+	if s.journeyStore != nil {
+		if err := s.journeyStore.ConfirmIntent(updated, s.now().UTC()); err != nil {
+			return nil, err
+		}
+	}
+	*intent = *updated
 	return cloneIntent(intent), nil
 }
 
@@ -319,15 +406,32 @@ func (s *Service) AcquireHold(intentID, slotID, clientIdentityID string) (*Hold,
 	if !slot.StartsAt.After(expires) {
 		return nil, ErrSlotUnavailable
 	}
+	holdID, err := newJourneyID()
+	if err != nil {
+		return nil, err
+	}
+	bookingID, err := bookingIDForHold(holdID)
+	if err != nil {
+		return nil, err
+	}
 	hold := &Hold{
-		ID:               newID("hold-"),
-		BookingID:        newID("book-"),
+		ID:               holdID,
+		BookingID:        bookingID,
 		SlotID:           slot.ID,
 		ClientIdentityID: clientIdentityID,
 		State:            "ACTIVE",
 		BookingState:     booking.StateHeld,
 		ExpiresAt:        expires,
 		ReasonCode:       "BOOK_HOLD_ACQUIRED",
+	}
+	if s.journeyStore != nil {
+		reason, err := s.journeyStore.AcquireHold(hold, slot, now)
+		if err != nil {
+			return nil, err
+		}
+		if err := journeyReasonError(reason); err != nil {
+			return nil, err
+		}
 	}
 	s.holds[hold.ID] = hold
 	s.slotHolds[slot.ID] = hold.ID
@@ -355,6 +459,11 @@ func (s *Service) slot(id string) (Slot, bool) {
 
 func (s *Service) expireHoldsLocked() error {
 	now := s.now().UTC()
+	if s.journeyStore != nil {
+		if err := s.journeyStore.Expire(now); err != nil {
+			return err
+		}
+	}
 	for slotID, holdID := range s.slotHolds {
 		hold := s.holds[holdID]
 		if hold == nil || !hold.ExpiresAt.After(now) {
