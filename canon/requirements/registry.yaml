@@ -473,6 +473,7 @@ requirements:
   - backend/internal/demand/ledger.go
   - backend/internal/demand/evidence.go
   - backend/internal/demand/cancel.go
+  - backend/internal/runtimepostgres/check.go
   - backend/migrations/000001_r0_foundation.sql
   contract_refs:
   - contracts/jsonschema/ledger-entry-v1.schema.json
@@ -481,7 +482,9 @@ requirements:
   - backend/internal/demand/ledger_test.go
   - backend/internal/demand/evidence_test.go
   - backend/internal/demand/cancel_test.go
+  - backend/internal/runtimepostgres/check_test.go
   - backend/migrations/ci_invariants.sql
+  - .github/workflows/ci.yml
   - tools/ledger_contract_guard.py
   evidence_refs: []
   acceptance:
