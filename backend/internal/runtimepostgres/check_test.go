@@ -22,19 +22,22 @@ func TestRequiresDatabaseOnlyForRuntimeEnvironments(t *testing.T) {
 	}
 }
 
-func TestRequiredCanonicalTablesAreStable(t *testing.T) {
-	want := map[string]bool{
+func TestRequiredCanonicalTablesAndIndexesAreStable(t *testing.T) {
+	wantTables := map[string]bool{
 		"identities": true, "outbox_events": true, "audit_records": true,
 		"ledger_entries": true, "booking_slots": true, "booking_holds": true,
 		"bookings": true,
 	}
-	if len(requiredTables) != len(want) {
+	if len(requiredTables) != len(wantTables) {
 		t.Fatalf("required tables = %v", requiredTables)
 	}
 	for _, table := range requiredTables {
-		if !want[table] {
+		if !wantTables[table] {
 			t.Fatalf("unexpected required table %q", table)
 		}
+	}
+	if len(requiredIndexes) != 1 || requiredIndexes[0] != "ledger_entries_economic_event_ref_unique" {
+		t.Fatalf("required indexes = %v", requiredIndexes)
 	}
 }
 
@@ -64,8 +67,12 @@ func TestLedgerStorePersistsAndReplays(t *testing.T) {
 		CorrelationID:       "integration/correlation-1",
 		OccurredAt:          time.Now().UTC().Truncate(time.Microsecond),
 	}
-	if err := store.AppendLedgerEntry(entry); err != nil {
+	persisted, err := store.AppendLedgerEntry(entry)
+	if err != nil {
 		t.Fatal(err)
+	}
+	if persisted.ID != id {
+		t.Fatalf("insert returned persisted id %q want %q", persisted.ID, id)
 	}
 	entries, err := store.LedgerEntries()
 	if err != nil {
@@ -101,8 +108,12 @@ func TestLedgerStorePersistsAndReplays(t *testing.T) {
 	retry := entry
 	retry.ID = retryID
 	retry.OccurredAt = entry.OccurredAt.Add(time.Second)
-	if err := store.AppendLedgerEntry(retry); err != nil {
+	persistedRetry, err := store.AppendLedgerEntry(retry)
+	if err != nil {
 		t.Fatalf("idempotent retry must succeed: %v", err)
+	}
+	if persistedRetry.ID != id {
+		t.Fatalf("idempotent retry returned non-persisted id %q want %q", persistedRetry.ID, id)
 	}
 	entries, err = store.LedgerEntries()
 	if err != nil {
@@ -120,7 +131,7 @@ func TestLedgerStorePersistsAndReplays(t *testing.T) {
 
 	collision := retry
 	collision.AmountMinor++
-	if err := store.AppendLedgerEntry(collision); err == nil {
+	if _, err := store.AppendLedgerEntry(collision); err == nil {
 		t.Fatal("same economic event with different financial effect must fail")
 	}
 }
