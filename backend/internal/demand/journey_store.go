@@ -15,6 +15,8 @@ type JourneySnapshot struct {
 	Holds        []*Hold
 	Bookings     []*booking.Booking
 	Instructions []*CheckoutInstruction
+	Evidence     []*PaymentEvidence
+	Reversals    []*Cancellation
 }
 
 type CheckoutPersistence struct {
