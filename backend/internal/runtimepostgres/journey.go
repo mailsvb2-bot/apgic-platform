@@ -921,34 +921,3 @@ func (c *Checker) Expire(now time.Time) error {
 	}
 	return nil
 }
-
-func (c *Checker) UpdateBooking(booked *booking.Booking) error {
-	if c == nil || c.db == nil {
-		return errors.New("postgres checker is not initialized")
-	}
-	if booked == nil || booked.UpdatedAt.IsZero() {
-		return errors.New("booking state and updated_at are required")
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), journeyWriteTimeout)
-	defer cancel()
-	result, err := c.db.ExecContext(ctx,
-		`UPDATE bookings
-		 SET state = $2,
-		     updated_at = $3
-		 WHERE id = $1::uuid`,
-		booked.ID,
-		string(booked.State),
-		booked.UpdatedAt,
-	)
-	if err != nil {
-		return fmt.Errorf("update canonical booking: %w", err)
-	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("update canonical booking rows: %w", err)
-	}
-	if affected != 1 {
-		return fmt.Errorf("update canonical booking affected %d rows", affected)
-	}
-	return nil
-}
