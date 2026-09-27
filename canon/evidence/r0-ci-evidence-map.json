@@ -631,11 +631,20 @@
       "unproven_evidence": []
     },
     "APGIC-MOBILE-012": {
-      "claims": {},
+      "claims": {
+        "SECRET_SCAN": {
+          "gates": [
+            "canon"
+          ],
+          "proof_refs": [
+            "tools/repository_secret_scan.py",
+            "tools/tests/test_repository_secret_scan.py"
+          ]
+        }
+      },
       "unproven_evidence": [
         "IOS_BUILD_PROOF",
         "ANDROID_BUILD_PROOF",
-        "SECRET_SCAN",
         "RELEASE_EVIDENCE"
       ]
     },
