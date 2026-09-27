@@ -74,6 +74,8 @@ def _is_rfc3339_datetime(value: object) -> bool:
         return False
     if second != 60:
         return True
+    if match.group("zone") == "-00:00":
+        return False
 
     utc = parsed.astimezone(timezone.utc)
     return (
