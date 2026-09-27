@@ -206,11 +206,22 @@ func (s *Service) applyJourneySnapshotLocked(snapshot JourneySnapshot) error {
 			hold.BookingState = booked.State
 		}
 	}
+	instructions := make(map[string]*CheckoutInstruction, len(snapshot.Instructions))
+	for _, instruction := range snapshot.Instructions {
+		if instruction == nil {
+			continue
+		}
+		copyInstruction := *instruction
+		copyInstruction.Notice = checkoutNotice
+		copyInstruction.APGICAcceptsFunds = false
+		instructions[instruction.HoldID] = &copyInstruction
+	}
 	s.intents = intents
 	s.owners = owners
 	s.holds = holds
 	s.slotHolds = slotHolds
 	s.bookings = bookings
+	s.instructions = instructions
 	return nil
 }
 
