@@ -29,7 +29,7 @@ type CheckoutPersistence struct {
 }
 
 var (
-	ErrJourneyStoreProtocol    = errors.New("unknown journey store reason code")
+	ErrJourneyStoreProtocol   = errors.New("unknown journey store reason code")
 	ErrCheckoutAlreadyExists = errors.New("checkout already exists")
 )
 
