@@ -113,9 +113,11 @@ func (s *Service) cancelOrderLocked(orderID, reasonCode, notice string) (*Cancel
 	if _, err := bookedCopy.Transition(booking.StateCancelled, now); err != nil {
 		return nil, err
 	}
-	if err := s.commitLedgerEntryLocked(reversal, prospectiveLedger); err != nil {
+	persistedReversal, err := s.commitLedgerEntryLocked(reversal, prospectiveLedger)
+	if err != nil {
 		return nil, err
 	}
+	reversal = persistedReversal
 	*booked = bookedCopy
 	if hold := s.holds[instruction.HoldID]; hold != nil {
 		hold.BookingState = booking.StateCancelled
