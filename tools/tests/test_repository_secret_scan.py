@@ -24,7 +24,7 @@ class RepositorySecretScanTests(unittest.TestCase):
     def test_rejects_private_key_material(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            write(root, "config/prod.yaml", "-----BEGIN PRIVATE KEY-----\n")
+            write(root, "config/prod.yaml", "-----BEGIN " + "PRIVATE KEY-----\n")
             errors = scan_repository(root)
             self.assertTrue(any("private_key" in error for error in errors))
 
@@ -38,7 +38,7 @@ class RepositorySecretScanTests(unittest.TestCase):
     def test_rejects_embedded_basic_auth_url(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            write(root, "config/runtime.yaml", "dsn: postgres://apgic:supersecret123@db.internal/apgic\n")
+            write(root, "config/runtime.yaml", "dsn: postgres://apgic:" + "supersecret123@db.internal/apgic\n")
             errors = scan_repository(root)
             self.assertTrue(any("basic_auth_url" in error for error in errors))
 
