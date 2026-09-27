@@ -364,6 +364,9 @@ jobs:
         run: |
           mkdir -p evidence
           test -f apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          MERGED_MANIFEST="$(find apps/mobile/android/app/build/intermediates -type f -name AndroidManifest.xml | grep -E '/(merged_manifest|merged_manifests)/debug/' | head -n1)"
+          test -n "$MERGED_MANIFEST"
+          python tools/mobile_build_privacy_inspection.py             --android-manifest "$MERGED_MANIFEST"             --android-data-safety apps/mobile/android/data-safety.yaml             --output evidence/android-build-privacy-inspection.json
           sha256sum apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk > evidence/android-debug.sha256
       - uses: actions/upload-artifact@v4
         with:
@@ -371,6 +374,7 @@ jobs:
           path: |
             apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
             evidence/android-debug.sha256
+            evidence/android-build-privacy-inspection.json
           if-no-files-found: error
           retention-days: 30
 
@@ -402,6 +406,7 @@ jobs:
           mkdir -p evidence
           APP="apps/mobile/ios/build/derived/Build/Products/Debug-iphonesimulator/APGIC.app"
           test -d "$APP"
+          python tools/mobile_build_privacy_inspection.py             --ios-app "$APP"             --canonical-ios-manifest apps/mobile/ios/APGIC/PrivacyInfo.xcprivacy             --output evidence/ios-build-privacy-inspection.json
           ditto -c -k --keepParent "$APP" evidence/APGIC-ios-simulator.zip
           shasum -a 256 evidence/APGIC-ios-simulator.zip > evidence/ios-simulator.sha256
       - uses: actions/upload-artifact@v4
@@ -410,6 +415,7 @@ jobs:
           path: |
             evidence/APGIC-ios-simulator.zip
             evidence/ios-simulator.sha256
+            evidence/ios-build-privacy-inspection.json
           if-no-files-found: error
           retention-days: 30
 
