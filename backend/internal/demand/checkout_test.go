@@ -4,6 +4,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/booking"
 )
 
 func TestCheckoutSendsMoneyToExternalProviderAndSpecialist(t *testing.T) {
@@ -107,5 +109,37 @@ func TestLiveBookingBlocksSecondHoldUntilPaymentTimeoutExpires(t *testing.T) {
 	}
 	if _, err := service.CreateCheckout(hold.ID, first.ClientIdentityID, "SBP"); !errors.Is(err, ErrHoldNotActive) {
 		t.Fatalf("expired checkout replay err=%v", err)
+	}
+}
+
+func TestCheckoutReplayAllowedOnlyWhilePaymentPending(t *testing.T) {
+	states := []booking.State{
+		booking.StateHeld,
+		booking.StateConfirmed,
+		booking.StateCancelled,
+		booking.StateExpired,
+		booking.StateCompleted,
+		booking.StateNoShow,
+	}
+	for _, state := range states {
+		t.Run(string(state), func(t *testing.T) {
+			service := NewConformanceService(nil)
+			intent, _ := service.CreateIntent("бессонница")
+			_, _ = service.ConfirmIntent(intent.ID, []string{"sleep"}, nil, nil)
+			slots, _ := service.Slots("spec-lebedeva")
+			hold, err := service.AcquireHold(intent.ID, slots[0].ID, intent.ClientIdentityID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			instruction, err := service.CreateCheckout(hold.ID, intent.ClientIdentityID, "SBP")
+			if err != nil {
+				t.Fatal(err)
+			}
+			booked := service.bookings[instruction.BookingID]
+			booked.State = state
+			if _, err := service.CreateCheckout(hold.ID, intent.ClientIdentityID, "SBP"); !errors.Is(err, ErrHoldNotActive) {
+				t.Fatalf("state=%s replay err=%v", state, err)
+			}
+		})
 	}
 }
