@@ -589,11 +589,20 @@
             "apps/mobile/src/storage-policy.test.ts",
             "tools/mobile_storage_contract_guard.py"
           ]
+        },
+        "NATIVE_STORAGE_AUDIT": {
+          "gates": [
+            "canon"
+          ],
+          "proof_refs": [
+            "tools/mobile_native_storage_audit.py",
+            "tools/tests/test_mobile_native_storage_audit.py",
+            "apps/mobile/android/app/src/main/AndroidManifest.xml",
+            "apps/mobile/src/storage-policy.ts"
+          ]
         }
       },
-      "unproven_evidence": [
-        "NATIVE_STORAGE_AUDIT"
-      ]
+      "unproven_evidence": []
     },
     "APGIC-MOBILE-011": {
       "claims": {
