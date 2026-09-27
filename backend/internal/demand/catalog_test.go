@@ -55,7 +55,6 @@ func TestConformanceCatalogUsesStableRollingFutureSlotRefs(t *testing.T) {
 	}
 }
 
-
 func TestConformanceCatalogSkipsSlotInsideHoldTTL(t *testing.T) {
 	tooLate := time.Date(2026, 9, 27, 9, 50, 0, 0, time.UTC)
 	catalog := conformanceCatalog(tooLate)
