@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sys
+from datetime import datetime
 from pathlib import Path
 
 import yaml
@@ -36,12 +37,33 @@ def discover_evidence_paths() -> list[Path]:
     )
 
 
+def _is_rfc3339_datetime(value: object) -> bool:
+    if not isinstance(value, str) or not value:
+        return False
+    try:
+        datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    return "T" in value and (value.endswith("Z") or "+" in value[10:] or "-" in value[10:])
+
+
 def _schema_errors(document: dict, schema: dict, ref: str) -> list[str]:
     validator = Draft202012Validator(schema, format_checker=FormatChecker())
     errors: list[str] = []
     for issue in sorted(validator.iter_errors(document), key=lambda err: list(err.absolute_path)):
         location = ".".join(str(part) for part in issue.absolute_path) or "<root>"
         errors.append(f"{ref}: schema violation at {location}: {issue.message}")
+
+    date_fields = (
+        ("generated_at", document.get("generated_at")),
+        ("tls.not_before", document.get("tls", {}).get("not_before") if isinstance(document.get("tls"), dict) else None),
+        ("tls.not_after", document.get("tls", {}).get("not_after") if isinstance(document.get("tls"), dict) else None),
+    )
+    for location, value in date_fields:
+        if value is not None and not _is_rfc3339_datetime(value):
+            message = f"{ref}: schema violation at {location}: {value!r} is not a valid RFC3339 date-time"
+            if message not in errors:
+                errors.append(message)
     return errors
 
 
