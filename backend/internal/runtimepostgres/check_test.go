@@ -93,4 +93,34 @@ func TestLedgerStorePersistsAndReplays(t *testing.T) {
 	if reconciliation.EntryCount != len(entries) {
 		t.Fatalf("reconciliation entry count=%d rows=%d", reconciliation.EntryCount, len(entries))
 	}
+
+	retryID, err := ledger.NewPersistentID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	retry := entry
+	retry.ID = retryID
+	retry.OccurredAt = entry.OccurredAt.Add(time.Second)
+	if err := store.AppendLedgerEntry(retry); err != nil {
+		t.Fatalf("idempotent retry must succeed: %v", err)
+	}
+	entries, err = store.LedgerEntries()
+	if err != nil {
+		t.Fatal(err)
+	}
+	eventCount := 0
+	for _, candidate := range entries {
+		if candidate.EconomicEventRef == entry.EconomicEventRef {
+			eventCount++
+		}
+	}
+	if eventCount != 1 {
+		t.Fatalf("idempotent retry created %d rows for %s", eventCount, entry.EconomicEventRef)
+	}
+
+	collision := retry
+	collision.AmountMinor++
+	if err := store.AppendLedgerEntry(collision); err == nil {
+		t.Fatal("same economic event with different financial effect must fail")
+	}
 }
