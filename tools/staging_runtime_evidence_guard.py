@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 EVIDENCE_DIR = ROOT / "canon/evidence"
 SCHEMA = EVIDENCE_DIR / "staging-runtime-evidence-v1.schema.json"
 REGISTRY = ROOT / "canon/requirements/registry.yaml"
-RFC3339_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$", re.IGNORECASE)
+RFC3339_RE = re.compile(r"^(?P<date>\d{4}-\d{2}-\d{2})T(?P<hour>\d{2}):(?P<minute>\d{2}):(?P<second>\d{2})(?P<fraction>\.\d+)?(?P<zone>Z|[+-]\d{2}:\d{2})$", re.IGNORECASE)
 
 PINNED_ARTIFACTS = {
     "staging-runtime-20260926T215500Z.json": {
@@ -40,9 +40,21 @@ def discover_evidence_paths() -> list[Path]:
 
 
 def _is_rfc3339_datetime(value: object) -> bool:
-    if not isinstance(value, str) or RFC3339_RE.fullmatch(value) is None:
+    if not isinstance(value, str):
         return False
-    normalized = value[:10] + "T" + value[11:]
+    match = RFC3339_RE.fullmatch(value)
+    if match is None:
+        return False
+
+    second = int(match.group("second"))
+    if second > 60:
+        return False
+
+    normalized_second = "59" if second == 60 else match.group("second")
+    normalized = (
+        f"{match.group('date')}T{match.group('hour')}:{match.group('minute')}:"
+        f"{normalized_second}{match.group('fraction') or ''}{match.group('zone')}"
+    )
     if normalized.endswith(("Z", "z")):
         normalized = normalized[:-1] + "+00:00"
     try:
