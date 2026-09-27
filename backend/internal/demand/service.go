@@ -216,12 +216,39 @@ func (s *Service) applyJourneySnapshotLocked(snapshot JourneySnapshot) error {
 		copyInstruction.APGICAcceptsFunds = false
 		instructions[instruction.HoldID] = &copyInstruction
 	}
+	evidence := make(map[string]*PaymentEvidence, len(snapshot.Evidence))
+	orderEvidence := make(map[string]string, len(snapshot.Evidence))
+	for _, item := range snapshot.Evidence {
+		if item == nil {
+			continue
+		}
+		copyEvidence := *item
+		copyEvidence.Notice = evidenceNotice
+		copyEvidence.APGICAcceptsFunds = false
+		key := copyEvidence.ProviderID + "/" + copyEvidence.ProviderEventID
+		evidence[key] = &copyEvidence
+		orderEvidence[copyEvidence.OrderID] = key
+	}
+	reversals := make(map[string]*Cancellation, len(snapshot.Reversals))
+	for _, item := range snapshot.Reversals {
+		if item == nil {
+			continue
+		}
+		copyCancellation := *item
+		copyCancellation.Notice = cancelNotice
+		copyCancellation.APGICAcceptsFunds = false
+		copyCancellation.APGICReturnsFunds = false
+		reversals[copyCancellation.OrderID] = &copyCancellation
+	}
 	s.intents = intents
 	s.owners = owners
 	s.holds = holds
 	s.slotHolds = slotHolds
 	s.bookings = bookings
 	s.instructions = instructions
+	s.evidence = evidence
+	s.orderEvidence = orderEvidence
+	s.reversals = reversals
 	return nil
 }
 
