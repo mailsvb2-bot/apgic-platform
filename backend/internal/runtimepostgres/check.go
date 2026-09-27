@@ -102,14 +102,14 @@ func (c *Checker) Ready(ctx context.Context) error {
 
 func (c *Checker) AppendLedgerEntry(entry ledger.Entry) (ledger.Entry, error) {
 	if c == nil || c.db == nil {
-		return ledger.Entry{}, false, errors.New("postgres checker is not initialized")
+		return ledger.Entry{}, errors.New("postgres checker is not initialized")
 	}
 	canonical, err := ledger.NewEntry(entry)
 	if err != nil {
-		return ledger.Entry{}, false, err
+		return ledger.Entry{}, err
 	}
 	if strings.TrimSpace(canonical.EconomicEventRef) == "" {
-		return ledger.Entry{}, false, errors.New("ledger economic_event_ref is required for durable idempotency")
+		return ledger.Entry{}, errors.New("ledger economic_event_ref is required for durable idempotency")
 	}
 
 	writeCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -137,7 +137,7 @@ func (c *Checker) AppendLedgerEntry(entry ledger.Entry) (ledger.Entry, error) {
 	).Scan(&insertedID)
 	if err == nil {
 		canonical.ID = insertedID
-		return canonical, true, nil
+		return canonical, nil
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		return ledger.Entry{}, fmt.Errorf("append ledger entry: %w", err)
@@ -148,24 +148,24 @@ func (c *Checker) AppendLedgerEntry(entry ledger.Entry) (ledger.Entry, error) {
 		return ledger.Entry{}, fmt.Errorf("read idempotent ledger entry: %w", err)
 	}
 	if !sameEconomicEffect(existing, canonical) {
-		return ledger.Entry{}, false, fmt.Errorf("ledger economic event collision: %s", canonical.EconomicEventRef)
+		return ledger.Entry{}, fmt.Errorf("ledger economic event collision: %s", canonical.EconomicEventRef)
 	}
 	return existing, nil
 }
 
 func (c *Checker) CommitBookingLedger(booked *booking.Booking, entry ledger.Entry) (ledger.Entry, bool, error) {
 	if c == nil || c.db == nil {
-		return ledger.Entry{}, errors.New("postgres checker is not initialized")
+		return ledger.Entry{}, false, errors.New("postgres checker is not initialized")
 	}
 	if booked == nil || booked.UpdatedAt.IsZero() {
 		return ledger.Entry{}, false, errors.New("booking state and updated_at are required")
 	}
 	canonical, err := ledger.NewEntry(entry)
 	if err != nil {
-		return ledger.Entry{}, err
+		return ledger.Entry{}, false, err
 	}
 	if strings.TrimSpace(canonical.EconomicEventRef) == "" {
-		return ledger.Entry{}, errors.New("ledger economic_event_ref is required for durable idempotency")
+		return ledger.Entry{}, false, errors.New("ledger economic_event_ref is required for durable idempotency")
 	}
 
 	writeCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -230,7 +230,7 @@ func (c *Checker) CommitBookingLedger(booked *booking.Booking, entry ledger.Entr
 			existing.EconomicEventRef = economicEvent.String
 		}
 		if !sameEconomicEffect(existing, canonical) {
-			return ledger.Entry{}, fmt.Errorf("ledger economic event collision: %s", canonical.EconomicEventRef)
+			return ledger.Entry{}, false, fmt.Errorf("ledger economic event collision: %s", canonical.EconomicEventRef)
 		}
 		canonical = existing
 	}
@@ -253,7 +253,7 @@ func (c *Checker) CommitBookingLedger(booked *booking.Booking, entry ledger.Entr
 		if err := tx.Commit(); err != nil {
 			return ledger.Entry{}, false, fmt.Errorf("commit idempotent booking ledger replay: %w", err)
 		}
-		return canonical, false, nil
+		return canonical, true, nil
 	}
 
 	result, err := tx.ExecContext(
@@ -279,7 +279,7 @@ func (c *Checker) CommitBookingLedger(booked *booking.Booking, entry ledger.Entr
 	if err := tx.Commit(); err != nil {
 		return ledger.Entry{}, false, fmt.Errorf("commit atomic booking ledger effect: %w", err)
 	}
-	return canonical, nil
+	return canonical, false, nil
 }
 
 func (c *Checker) ledgerEntryByEconomicEvent(ctx context.Context, economicEventRef string) (ledger.Entry, error) {
