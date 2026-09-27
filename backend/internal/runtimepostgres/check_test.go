@@ -219,6 +219,7 @@ func TestAuditAppenderPersistsAuthorizationEvidence(t *testing.T) {
 		t.Fatalf("persisted audit evidence mismatch: actor=%q action=%q scope=%q resource=%q state=%q reason=%q policy=%q correlation=%q occurred_at=%s",
 			actorID, action, scope, resourceRef, newState, reason, policyVersion, correlationID, occurredAt)
 	}
+	// Canonical authorization evidence is append-only; assert the database guard without cleanup.
 	if _, err := store.db.Exec("DELETE FROM audit_records WHERE id = $1::uuid", id); err == nil {
 		t.Fatal("canonical audit evidence hard delete must be rejected")
 	}
