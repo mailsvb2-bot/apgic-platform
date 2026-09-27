@@ -21,8 +21,9 @@ type CheckoutPersistence struct {
 	Booking       *booking.Booking
 	Instruction   *CheckoutInstruction
 	LegalSnapshot legal.TransactionSnapshot
-	Order         commerce.OrderSnapshot
-	DecidedAt     time.Time
+	Order                commerce.OrderSnapshot
+	RoutingPolicyVersion string
+	DecidedAt            time.Time
 }
 
 var ErrJourneyStoreProtocol = errors.New("unknown journey store reason code")
