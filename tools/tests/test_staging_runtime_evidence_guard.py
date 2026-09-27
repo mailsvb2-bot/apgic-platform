@@ -42,6 +42,8 @@ class StagingRuntimeEvidenceGuardTest(unittest.TestCase):
         self.assertTrue(_is_rfc3339_datetime("2026-09-27T07:23:52Z"))
         self.assertTrue(_is_rfc3339_datetime("2026-09-27t07:23:52z"))
         self.assertTrue(_is_rfc3339_datetime("2016-12-31T23:59:60Z"))
+        self.assertTrue(_is_rfc3339_datetime("2017-01-01T02:59:60+03:00"))
+        self.assertFalse(_is_rfc3339_datetime("2026-09-27T07:23:60Z"))
         self.assertFalse(_is_rfc3339_datetime("2016-12-31T23:59:61Z"))
         self.assertTrue(_is_rfc3339_datetime("2026-09-27T07:23:52.123+03:00"))
         self.assertFalse(_is_rfc3339_datetime("20260927T072352Z"))
@@ -58,6 +60,15 @@ class StagingRuntimeEvidenceGuardTest(unittest.TestCase):
         leap["tls"]["not_before"] = "2016-12-31T23:59:60z"
         errors = _schema_errors(leap, schema, path.name)
         self.assertEqual(errors, [])
+
+    def test_schema_errors_rejects_leap_second_outside_known_instant(self):
+        schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+        path = EVIDENCE_DIR / "staging-runtime-20260927T072352Z.json"
+        document = json.loads(path.read_text(encoding="utf-8"))
+        broken = copy.deepcopy(document)
+        broken["generated_at"] = "2026-09-27T07:23:60Z"
+        errors = _schema_errors(broken, schema, path.name)
+        self.assertTrue(any("generated_at" in error for error in errors))
 
     def test_registry_linkage_uses_only_actual_evidence_refs(self):
         ref = "canon/evidence/staging-runtime-example.json"
