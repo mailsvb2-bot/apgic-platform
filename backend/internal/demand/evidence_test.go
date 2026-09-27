@@ -73,7 +73,6 @@ func TestProviderCaptureConfirmsOnceAndDoesNotPayAPGIC(t *testing.T) {
 	}
 }
 
-
 func TestProviderCaptureFailsClosedWhenLedgerPersistenceFails(t *testing.T) {
 	store := &fakeLedgerStore{appendErr: errors.New("ledger db unavailable")}
 	service := NewConformanceServiceWithLedgerStore(nil, store)
