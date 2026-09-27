@@ -13,3 +13,11 @@ func bookingIDForHold(holdID string) (string, error) {
 func checkoutInstructionIDForOrder(orderID string) (string, error) {
 	return persistentid.FromRef("checkout-instruction", orderID)
 }
+
+func paymentEvidenceIDForKey(key string) (string, error) {
+	return persistentid.FromRef("payment-evidence", key)
+}
+
+func refundIDForOrder(orderID string) (string, error) {
+	return persistentid.FromRef("refund-for-order", orderID)
+}
