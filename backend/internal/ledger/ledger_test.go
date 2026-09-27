@@ -5,6 +5,24 @@ import (
 	"testing"
 )
 
+func TestPersistentLedgerIDIsUUIDCompatible(t *testing.T) {
+	id, err := NewPersistentID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(id) != 36 || id[8] != '-' || id[13] != '-' || id[18] != '-' || id[23] != '-' {
+		t.Fatalf("persistent ledger id is not UUID-shaped: %q", id)
+	}
+	if id[14] != '4' {
+		t.Fatalf("persistent ledger id must be UUID v4: %q", id)
+	}
+	switch id[19] {
+	case '8', '9', 'a', 'b':
+	default:
+		t.Fatalf("persistent ledger id has invalid UUID variant: %q", id)
+	}
+}
+
 func TestLedgerEntryRequiresProviderEvidence(t *testing.T) {
 	_, err := NewEntry(Entry{
 		ID: "le-1", DebitAccountRef: "buyer", CreditAccountRef: "specialist",
