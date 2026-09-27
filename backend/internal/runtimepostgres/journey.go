@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/booking"
@@ -12,6 +13,7 @@ import (
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/marketplace"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/payments"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/persistentid"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/refunds"
 )
 
 const journeyWriteTimeout = 3 * time.Second
@@ -280,6 +282,108 @@ func (c *Checker) LoadJourney(slots []demand.Slot) (demand.JourneySnapshot, erro
 	if err := rows.Err(); err != nil {
 		rows.Close()
 		return snapshot, fmt.Errorf("iterate checkout instructions: %w", err)
+	}
+	rows.Close()
+
+	instructionsByOrder := make(map[string]*demand.CheckoutInstruction, len(snapshot.Instructions))
+	for _, instruction := range snapshot.Instructions {
+		if instruction != nil {
+			instructionsByOrder[instruction.OrderID] = instruction
+		}
+	}
+	rows, err = c.db.QueryContext(ctx,
+		`SELECT le.id::text, le.debit_account_ref, le.credit_account_ref,
+		        le.amount_minor, le.currency, le.provider_evidence_ref,
+		        le.economic_event_ref, le.correlation_id
+		 FROM ledger_entries le
+		 JOIN orders o
+		   ON le.economic_event_ref = o.id::text
+		   OR le.economic_event_ref = 'reversal:' || o.id::text
+		 JOIN bookings b ON b.id = o.booking_id
+		 JOIN booking_slots s ON s.id = b.slot_id
+		 WHERE s.tenant_scope = 'catalog/conformance'
+		 ORDER BY le.occurred_at, le.id`)
+	if err != nil {
+		return snapshot, fmt.Errorf("load journey ledger effects: %w", err)
+	}
+	capturesByOrder := make(map[string]*demand.PaymentEvidence)
+	for rows.Next() {
+		var ledgerID, debit, credit, currency, providerEvidenceRef, economicEventRef, correlationID string
+		var amountMinor int64
+		if err := rows.Scan(
+			&ledgerID, &debit, &credit, &amountMinor, &currency,
+			&providerEvidenceRef, &economicEventRef, &correlationID,
+		); err != nil {
+			rows.Close()
+			return snapshot, fmt.Errorf("scan journey ledger effect: %w", err)
+		}
+		if strings.HasPrefix(economicEventRef, "reversal:") {
+			orderID := strings.TrimPrefix(economicEventRef, "reversal:")
+			instruction := instructionsByOrder[orderID]
+			capture := capturesByOrder[orderID]
+			if instruction == nil || capture == nil {
+				rows.Close()
+				return snapshot, fmt.Errorf("reversal references incomplete journey order %s", orderID)
+			}
+			refundID, err := persistentid.FromRef("refund-for-order", orderID)
+			if err != nil {
+				rows.Close()
+				return snapshot, err
+			}
+			snapshot.Reversals = append(snapshot.Reversals, &demand.Cancellation{
+				ID:                refundID,
+				OrderID:           orderID,
+				BookingID:         instruction.BookingID,
+				BookingState:      booking.StateCancelled,
+				RefundID:          refundID,
+				RefundState:       refunds.StateSucceeded,
+				ProviderID:        capture.ProviderID,
+				ExecutionOwner:    refunds.ExternalExecutionOwner,
+				OriginalLedgerID:  capture.LedgerEntryID,
+				ReversalLedgerID:  ledgerID,
+				AmountMinor:       amountMinor,
+				Currency:          currency,
+				APGICAcceptsFunds: false,
+				APGICReturnsFunds: false,
+			})
+			continue
+		}
+		instruction := instructionsByOrder[economicEventRef]
+		if instruction == nil {
+			rows.Close()
+			return snapshot, fmt.Errorf("capture references unknown journey order %s", economicEventRef)
+		}
+		providerEventID := providerEvidenceRef
+		prefix := instruction.ProviderID + "/"
+		if strings.HasPrefix(providerEvidenceRef, prefix) {
+			providerEventID = strings.TrimPrefix(providerEvidenceRef, prefix)
+		}
+		evidenceID, err := persistentid.FromRef("payment-evidence", providerEvidenceRef)
+		if err != nil {
+			rows.Close()
+			return snapshot, err
+		}
+		created := &demand.PaymentEvidence{
+			ID:                evidenceID,
+			OrderID:           economicEventRef,
+			BookingID:         instruction.BookingID,
+			BookingState:      booking.StateConfirmed,
+			ProviderID:        instruction.ProviderID,
+			ProviderEventID:   providerEventID,
+			LedgerEntryID:     ledgerID,
+			AmountMinor:       amountMinor,
+			Currency:          currency,
+			DebitAccountRef:   debit,
+			CreditAccountRef:  credit,
+			APGICAcceptsFunds: false,
+		}
+		capturesByOrder[economicEventRef] = created
+		snapshot.Evidence = append(snapshot.Evidence, created)
+		_ = correlationID
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return snapshot, fmt.Errorf("iterate journey ledger effects: %w", err)
 	}
 	rows.Close()
 	return snapshot, nil
