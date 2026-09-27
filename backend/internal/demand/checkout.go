@@ -247,8 +247,9 @@ func (s *Service) CreateCheckout(holdID, clientIdentityID, methodCode string) (*
 			Booking:       booked,
 			Instruction:   created,
 			LegalSnapshot: legalSnapshot,
-			Order:         orderSnapshot,
-			DecidedAt:     now,
+			Order:                orderSnapshot,
+			RoutingPolicyVersion: decision.PolicyVersion,
+			DecidedAt:            now,
 		})
 		if err != nil {
 			return nil, err
