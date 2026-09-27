@@ -86,6 +86,56 @@ class MobileBuildPrivacyInspectionTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 inspect_android(manifest, data_safety)
 
+    def test_android_allows_known_debug_only_permissions_but_reports_them(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            manifest = root / "AndroidManifest.xml"
+            manifest.write_text(
+                """<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<uses-permission android:name="android.permission.INTERNET" />
+<uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
+<uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+<uses-permission android:name="com.apgic.ci.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+<application android:allowBackup="false" />
+</manifest>
+""",
+                encoding="utf-8",
+            )
+            data_safety = root / "data-safety.yaml"
+            data_safety.write_text(
+                "android_permissions:\n  - android.permission.INTERNET\n",
+                encoding="utf-8",
+            )
+            result = inspect_android(manifest, data_safety)
+            self.assertEqual(result["product_permissions"], ["android.permission.INTERNET"])
+            self.assertEqual(
+                result["build_only_permissions"],
+                [
+                    "android.permission.ACCESS_LOCAL_NETWORK",
+                    "android.permission.SYSTEM_ALERT_WINDOW",
+                    "com.apgic.ci.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION",
+                ],
+            )
+
+    def test_android_rejects_unknown_built_permission(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            manifest = root / "AndroidManifest.xml"
+            manifest.write_text(
+                ANDROID_MANIFEST.replace(
+                    "<application",
+                    '<uses-permission android:name="android.permission.CAMERA" />\n<application',
+                ),
+                encoding="utf-8",
+            )
+            data_safety = root / "data-safety.yaml"
+            data_safety.write_text(
+                "android_permissions:\n  - android.permission.INTERNET\n",
+                encoding="utf-8",
+            )
+            with self.assertRaises(ValueError):
+                inspect_android(manifest, data_safety)
+
 
 if __name__ == "__main__":
     unittest.main()
