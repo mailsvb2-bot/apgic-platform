@@ -13,7 +13,7 @@ type LedgerStore interface {
 }
 
 type AtomicBookingLedgerStore interface {
-	CommitBookingLedger(booked *booking.Booking, entry ledger.Entry) (ledger.Entry, error)
+	CommitBookingLedger(booked *booking.Booking, entry ledger.Entry) (persisted ledger.Entry, idempotent bool, err error)
 }
 
 var ErrAtomicBookingLedgerRequired = errors.New("atomic booking-ledger store is required")
@@ -64,19 +64,20 @@ func (s *Service) previewLedgerLocked(entry ledger.Entry) ([]ledger.Entry, ledge
 	return state.preview(entry)
 }
 
-func (s *Service) commitBookingLedgerLocked(booked *booking.Booking, entry ledger.Entry, prospective []ledger.Entry) (ledger.Entry, error) {
+func (s *Service) commitBookingLedgerLocked(booked *booking.Booking, entry ledger.Entry, prospective []ledger.Entry) (ledger.Entry, bool, error) {
 	if s.ledgerStore != nil {
 		atomicStore, ok := s.ledgerStore.(AtomicBookingLedgerStore)
 		if s.journeyStore != nil && !ok {
-			return ledger.Entry{}, ErrAtomicBookingLedgerRequired
+			return ledger.Entry{}, false, ErrAtomicBookingLedgerRequired
 		}
 		if ok {
 			return atomicStore.CommitBookingLedger(booked, entry)
 		}
-		return s.ledgerStore.AppendLedgerEntry(entry)
+		persisted, err := s.ledgerStore.AppendLedgerEntry(entry)
+		return persisted, false, err
 	}
 	s.ledgerState.commit(prospective)
-	return entry, nil
+	return entry, false, nil
 }
 
 func (s *Service) LedgerReconciliation() (ledger.Reconciliation, error) {
