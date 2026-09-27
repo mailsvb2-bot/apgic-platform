@@ -16,6 +16,8 @@ const ReasonStorageUnavailable = "STORAGE_UNAVAILABLE"
 
 var requiredTables = []string{
 	"identities",
+	"identity_roles",
+	"help_intents",
 	"outbox_events",
 	"audit_records",
 	"ledger_entries",
