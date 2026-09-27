@@ -42,11 +42,14 @@ func (s *Service) ledgerEntriesLocked() ([]ledger.Entry, error) {
 }
 
 func (s *Service) previewLedgerLocked(entry ledger.Entry) ([]ledger.Entry, ledger.Entry, ledger.Reconciliation, error) {
-	existing, err := s.ledgerEntriesLocked()
-	if err != nil {
-		return nil, ledger.Entry{}, ledger.Reconciliation{}, err
+	if s.ledgerStore != nil {
+		canonical, err := ledger.NewEntry(entry)
+		if err != nil {
+			return nil, ledger.Entry{}, ledger.Reconciliation{}, err
+		}
+		return nil, canonical, ledger.Reconciliation{}, nil
 	}
-	state := ledgerState{entries: existing}
+	state := ledgerState{entries: append([]ledger.Entry(nil), s.ledgerState.entries...)}
 	return state.preview(entry)
 }
 
