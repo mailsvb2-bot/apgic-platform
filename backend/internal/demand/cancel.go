@@ -32,6 +32,9 @@ type Cancellation struct {
 func (s *Service) CancelOrder(orderID, reasonCode string) (*Cancellation, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if err := s.refreshJourneyLocked(); err != nil {
+		return nil, err
+	}
 	return s.cancelOrderLocked(orderID, reasonCode, cancelNotice)
 }
 
@@ -55,8 +58,12 @@ func (s *Service) cancelOrderLocked(orderID, reasonCode, notice string) (*Cancel
 		return nil, ErrCancelNotAllowed
 	}
 	now := s.now().UTC()
+	refundID, err := refundIDForOrder(orderID)
+	if err != nil {
+		return nil, err
+	}
 	refund, err := refunds.New(refunds.Request{
-		ID:                       newID("ref-"),
+		ID:                       refundID,
 		BookingID:                instruction.BookingID,
 		OrderID:                  orderID,
 		OriginalPaymentAttemptID: evidence.ID,
@@ -113,7 +120,7 @@ func (s *Service) cancelOrderLocked(orderID, reasonCode, notice string) (*Cancel
 	if _, err := bookedCopy.Transition(booking.StateCancelled, now); err != nil {
 		return nil, err
 	}
-	persistedReversal, err := s.commitLedgerEntryLocked(reversal, prospectiveLedger)
+	persistedReversal, replayed, err := s.commitBookingLedgerLocked(&bookedCopy, reversal, prospectiveLedger)
 	if err != nil {
 		return nil, err
 	}
@@ -138,6 +145,7 @@ func (s *Service) cancelOrderLocked(orderID, reasonCode, notice string) (*Cancel
 		Currency:          evidence.Currency,
 		APGICAcceptsFunds: false,
 		APGICReturnsFunds: false,
+		Idempotent:        replayed,
 		Notice:            notice,
 	}
 	if created.OriginalLedgerID == created.ReversalLedgerID || evidence.LedgerEntryID == "" {

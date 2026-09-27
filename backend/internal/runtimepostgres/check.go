@@ -9,6 +9,7 @@ import (
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/booking"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/ledger"
 )
 
@@ -16,6 +17,8 @@ const ReasonStorageUnavailable = "STORAGE_UNAVAILABLE"
 
 var requiredTables = []string{
 	"identities",
+	"identity_roles",
+	"help_intents",
 	"outbox_events",
 	"audit_records",
 	"ledger_entries",
@@ -148,6 +151,135 @@ func (c *Checker) AppendLedgerEntry(entry ledger.Entry) (ledger.Entry, error) {
 		return ledger.Entry{}, fmt.Errorf("ledger economic event collision: %s", canonical.EconomicEventRef)
 	}
 	return existing, nil
+}
+
+func (c *Checker) CommitBookingLedger(booked *booking.Booking, entry ledger.Entry) (ledger.Entry, bool, error) {
+	if c == nil || c.db == nil {
+		return ledger.Entry{}, false, errors.New("postgres checker is not initialized")
+	}
+	if booked == nil || booked.UpdatedAt.IsZero() {
+		return ledger.Entry{}, false, errors.New("booking state and updated_at are required")
+	}
+	canonical, err := ledger.NewEntry(entry)
+	if err != nil {
+		return ledger.Entry{}, false, err
+	}
+	if strings.TrimSpace(canonical.EconomicEventRef) == "" {
+		return ledger.Entry{}, false, errors.New("ledger economic_event_ref is required for durable idempotency")
+	}
+
+	writeCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	tx, err := c.db.BeginTx(writeCtx, nil)
+	if err != nil {
+		return ledger.Entry{}, false, fmt.Errorf("begin atomic booking ledger commit: %w", err)
+	}
+	defer tx.Rollback()
+
+	var insertedID string
+	inserted := true
+	err = tx.QueryRowContext(
+		writeCtx,
+		`INSERT INTO ledger_entries (
+			id, debit_account_ref, credit_account_ref, amount_minor, currency,
+			provider_evidence_ref, economic_event_ref, correlation_id, occurred_at
+		) VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9)
+		ON CONFLICT (economic_event_ref) WHERE economic_event_ref IS NOT NULL
+		DO NOTHING
+		RETURNING id::text`,
+		canonical.ID,
+		canonical.DebitAccountRef,
+		canonical.CreditAccountRef,
+		canonical.AmountMinor,
+		canonical.Currency,
+		canonical.ProviderEvidenceRef,
+		canonical.EconomicEventRef,
+		canonical.CorrelationID,
+		canonical.OccurredAt,
+	).Scan(&insertedID)
+	if err == nil {
+		canonical.ID = insertedID
+	} else if !errors.Is(err, sql.ErrNoRows) {
+		return ledger.Entry{}, false, fmt.Errorf("append atomic ledger entry: %w", err)
+	} else {
+		inserted = false
+		var existing ledger.Entry
+		var economicEvent sql.NullString
+		if err := tx.QueryRowContext(
+			writeCtx,
+			`SELECT
+				id::text, debit_account_ref, credit_account_ref, amount_minor, currency,
+				provider_evidence_ref, economic_event_ref, correlation_id, occurred_at
+			FROM ledger_entries
+			WHERE economic_event_ref = $1`,
+			canonical.EconomicEventRef,
+		).Scan(
+			&existing.ID,
+			&existing.DebitAccountRef,
+			&existing.CreditAccountRef,
+			&existing.AmountMinor,
+			&existing.Currency,
+			&existing.ProviderEvidenceRef,
+			&economicEvent,
+			&existing.CorrelationID,
+			&existing.OccurredAt,
+		); err != nil {
+			return ledger.Entry{}, false, fmt.Errorf("read idempotent atomic ledger entry: %w", err)
+		}
+		if economicEvent.Valid {
+			existing.EconomicEventRef = economicEvent.String
+		}
+		if !sameEconomicEffect(existing, canonical) {
+			return ledger.Entry{}, false, fmt.Errorf("ledger economic event collision: %s", canonical.EconomicEventRef)
+		}
+		canonical = existing
+	}
+	if !inserted {
+		var currentState string
+		if err := tx.QueryRowContext(
+			writeCtx,
+			`SELECT state FROM bookings WHERE id = $1::uuid`,
+			booked.ID,
+		).Scan(&currentState); err != nil {
+			return ledger.Entry{}, false, fmt.Errorf("read idempotent booking state: %w", err)
+		}
+		if currentState != string(booked.State) {
+			return ledger.Entry{}, false, fmt.Errorf(
+				"ledger effect exists but booking state is %s, expected %s",
+				currentState,
+				booked.State,
+			)
+		}
+		if err := tx.Commit(); err != nil {
+			return ledger.Entry{}, false, fmt.Errorf("commit idempotent booking ledger replay: %w", err)
+		}
+		return canonical, true, nil
+	}
+
+	result, err := tx.ExecContext(
+		writeCtx,
+		`UPDATE bookings
+		 SET state = $2,
+		     updated_at = $3
+		 WHERE id = $1::uuid`,
+		booked.ID,
+		string(booked.State),
+		booked.UpdatedAt,
+	)
+	if err != nil {
+		return ledger.Entry{}, false, fmt.Errorf("update booking in atomic ledger commit: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return ledger.Entry{}, false, fmt.Errorf("read booking update rows: %w", err)
+	}
+	if affected != 1 {
+		return ledger.Entry{}, false, fmt.Errorf("atomic booking update affected %d rows", affected)
+	}
+	if err := tx.Commit(); err != nil {
+		return ledger.Entry{}, false, fmt.Errorf("commit atomic booking ledger effect: %w", err)
+	}
+	return canonical, false, nil
 }
 
 func (c *Checker) ledgerEntryByEconomicEvent(ctx context.Context, economicEventRef string) (ledger.Entry, error) {

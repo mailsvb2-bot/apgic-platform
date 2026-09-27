@@ -41,6 +41,9 @@ func (s *Service) ApplyProviderEvent(event ProviderEvent) (*PaymentEvidence, err
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if err := s.refreshJourneyLocked(); err != nil {
+		return nil, err
+	}
 	key := event.ProviderID + "/" + event.ProviderEventID
 	if existing := s.evidence[key]; existing != nil {
 		copyEvidence := *existing
@@ -99,7 +102,7 @@ func (s *Service) ApplyProviderEvent(event ProviderEvent) (*PaymentEvidence, err
 	if err != nil {
 		return nil, err
 	}
-	persistedEntry, err := s.commitLedgerEntryLocked(entry, prospectiveLedger)
+	persistedEntry, replayed, err := s.commitBookingLedgerLocked(&bookedCopy, entry, prospectiveLedger)
 	if err != nil {
 		return nil, err
 	}
@@ -109,8 +112,12 @@ func (s *Service) ApplyProviderEvent(event ProviderEvent) (*PaymentEvidence, err
 		hold.BookingState = result.To
 	}
 	instruction.BookingState = result.To
+	evidenceID, err := paymentEvidenceIDForKey(key)
+	if err != nil {
+		return nil, err
+	}
 	created := &PaymentEvidence{
-		ID:                newID("evi-"),
+		ID:                evidenceID,
 		OrderID:           instruction.OrderID,
 		BookingID:         instruction.BookingID,
 		BookingState:      result.To,
@@ -122,6 +129,7 @@ func (s *Service) ApplyProviderEvent(event ProviderEvent) (*PaymentEvidence, err
 		DebitAccountRef:   entry.DebitAccountRef,
 		CreditAccountRef:  entry.CreditAccountRef,
 		APGICAcceptsFunds: false,
+		Idempotent:        replayed,
 		Notice:            evidenceNotice,
 	}
 	s.evidence[key] = created

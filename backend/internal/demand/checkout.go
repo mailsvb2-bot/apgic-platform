@@ -1,6 +1,7 @@
 package demand
 
 import (
+	"errors"
 	"strings"
 
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/booking"
@@ -136,7 +137,10 @@ func (s *Service) CreateCheckout(holdID, clientIdentityID, methodCode string) (*
 	}
 	amount := priceOf(s.catalog.candidates, slot.SpecialistID)
 	now := s.now().UTC()
-	orderID := newID("ord-")
+	orderID, err := newJourneyID()
+	if err != nil {
+		return nil, err
+	}
 	legalSnapshot := legal.TransactionSnapshot{
 		SellerOrServiceProviderID: recipient,
 		CommercialOwnerID:         recipient,
@@ -150,7 +154,7 @@ func (s *Service) CreateCheckout(holdID, clientIdentityID, methodCode string) (*
 	if err := legalSnapshot.Validate(); err != nil {
 		return nil, err
 	}
-	if _, err := commerce.NewOrderSnapshot(commerce.OrderSnapshot{
+	orderSnapshot, err := commerce.NewOrderSnapshot(commerce.OrderSnapshot{
 		ID:                      orderID,
 		BookingID:               hold.BookingID,
 		OfferRef:                "offer:" + slot.SpecialistID,
@@ -169,7 +173,8 @@ func (s *Service) CreateCheckout(holdID, clientIdentityID, methodCode string) (*
 		RefundResponsibilityRef: recipient,
 		PayoutBeneficiaryRef:    recipient,
 		CapturedAt:              now,
-	}); err != nil {
+	})
+	if err != nil {
 		return nil, err
 	}
 	decision, err := payments.SelectProvider(payments.TransactionContext{
@@ -216,8 +221,12 @@ func (s *Service) CreateCheckout(holdID, clientIdentityID, methodCode string) (*
 	if err != nil {
 		return nil, err
 	}
+	checkoutID, err := checkoutInstructionIDForOrder(orderID)
+	if err != nil {
+		return nil, err
+	}
 	created := &CheckoutInstruction{
-		ID:                 newID("chk-"),
+		ID:                 checkoutID,
 		HoldID:             hold.ID,
 		BookingID:          hold.BookingID,
 		BookingState:       result.To,
@@ -233,6 +242,38 @@ func (s *Service) CreateCheckout(holdID, clientIdentityID, methodCode string) (*
 		APGICAcceptsFunds:  false,
 		Notice:             checkoutNotice,
 		ReasonCode:         decision.ReasonCode,
+	}
+	if s.journeyStore != nil {
+		reason, err := s.journeyStore.CreateCheckout(CheckoutPersistence{
+			Booking:              booked,
+			Instruction:          created,
+			LegalSnapshot:        legalSnapshot,
+			Order:                orderSnapshot,
+			RoutingPolicyVersion: decision.PolicyVersion,
+			DecidedAt:            now,
+		})
+		if err != nil {
+			return nil, err
+		}
+		if err := journeyReasonError(reason); err != nil {
+			if errors.Is(err, ErrCheckoutAlreadyExists) || errors.Is(err, ErrHoldNotActive) || errors.Is(err, ErrSlotBooked) {
+				if refreshErr := s.refreshJourneyLocked(); refreshErr != nil {
+					return nil, refreshErr
+				}
+				if existing := s.instructions[hold.ID]; existing != nil {
+					if existing.MethodCode != methodCode {
+						return nil, ErrCheckoutLocked
+					}
+					booked := s.bookings[existing.BookingID]
+					if booked == nil || booked.State != booking.StatePendingPayment {
+						return nil, ErrHoldNotActive
+					}
+					copyInstruction := *existing
+					return &copyInstruction, nil
+				}
+			}
+			return nil, err
+		}
 	}
 	s.bookings[booked.ID] = booked
 	hold.State = "CONSUMED"

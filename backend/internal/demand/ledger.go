@@ -1,11 +1,22 @@
 package demand
 
-import "github.com/mailsvb2-bot/apgic-platform/backend/internal/ledger"
+import (
+	"errors"
+
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/booking"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/ledger"
+)
 
 type LedgerStore interface {
 	AppendLedgerEntry(entry ledger.Entry) (ledger.Entry, error)
 	LedgerEntries() ([]ledger.Entry, error)
 }
+
+type AtomicBookingLedgerStore interface {
+	CommitBookingLedger(booked *booking.Booking, entry ledger.Entry) (persisted ledger.Entry, idempotent bool, err error)
+}
+
+var ErrAtomicBookingLedgerRequired = errors.New("atomic booking-ledger store is required")
 
 type ledgerState struct {
 	entries []ledger.Entry
@@ -53,12 +64,20 @@ func (s *Service) previewLedgerLocked(entry ledger.Entry) ([]ledger.Entry, ledge
 	return state.preview(entry)
 }
 
-func (s *Service) commitLedgerEntryLocked(entry ledger.Entry, prospective []ledger.Entry) (ledger.Entry, error) {
+func (s *Service) commitBookingLedgerLocked(booked *booking.Booking, entry ledger.Entry, prospective []ledger.Entry) (ledger.Entry, bool, error) {
 	if s.ledgerStore != nil {
-		return s.ledgerStore.AppendLedgerEntry(entry)
+		atomicStore, ok := s.ledgerStore.(AtomicBookingLedgerStore)
+		if s.journeyStore != nil && !ok {
+			return ledger.Entry{}, false, ErrAtomicBookingLedgerRequired
+		}
+		if ok {
+			return atomicStore.CommitBookingLedger(booked, entry)
+		}
+		persisted, err := s.ledgerStore.AppendLedgerEntry(entry)
+		return persisted, false, err
 	}
 	s.ledgerState.commit(prospective)
-	return entry, nil
+	return entry, false, nil
 }
 
 func (s *Service) LedgerReconciliation() (ledger.Reconciliation, error) {
