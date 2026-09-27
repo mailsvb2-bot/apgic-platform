@@ -68,7 +68,6 @@ func TestCancellationReversesThroughOriginalProviderAndKeepsPayment(t *testing.T
 	}
 }
 
-
 func TestCancellationFailsClosedWhenLedgerPersistenceFails(t *testing.T) {
 	store := &fakeLedgerStore{}
 	service := NewConformanceServiceWithLedgerStore(nil, store)
