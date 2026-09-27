@@ -256,13 +256,17 @@ func (s *Service) CreateCheckout(holdID, clientIdentityID, methodCode string) (*
 			return nil, err
 		}
 		if err := journeyReasonError(reason); err != nil {
-			if errors.Is(err, ErrHoldNotActive) {
+			if errors.Is(err, ErrCheckoutAlreadyExists) || errors.Is(err, ErrHoldNotActive) || errors.Is(err, ErrSlotBooked) {
 				if refreshErr := s.refreshJourneyLocked(); refreshErr != nil {
 					return nil, refreshErr
 				}
 				if existing := s.instructions[hold.ID]; existing != nil {
 					if existing.MethodCode != methodCode {
 						return nil, ErrCheckoutLocked
+					}
+					booked := s.bookings[existing.BookingID]
+					if booked == nil || booked.State != booking.StatePendingPayment {
+						return nil, ErrHoldNotActive
 					}
 					copyInstruction := *existing
 					return &copyInstruction, nil
