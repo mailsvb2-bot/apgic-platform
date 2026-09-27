@@ -55,9 +55,18 @@ def _is_rfc3339_datetime(value: object) -> bool:
     if match is None:
         return False
 
+    hour = int(match.group("hour"))
+    minute = int(match.group("minute"))
     second = int(match.group("second"))
-    if second > 60:
+    if hour > 23 or minute > 59 or second > 60:
         return False
+
+    zone = match.group("zone")
+    if zone.lower() != "z":
+        offset_hour = int(zone[1:3])
+        offset_minute = int(zone[4:6])
+        if offset_hour > 23 or offset_minute > 59:
+            return False
 
     normalized_second = "59" if second == 60 else match.group("second")
     normalized = (
@@ -74,7 +83,7 @@ def _is_rfc3339_datetime(value: object) -> bool:
         return False
     if second != 60:
         return True
-    if match.group("zone") == "-00:00":
+    if zone == "-00:00":
         return False
 
     utc = parsed.astimezone(timezone.utc)
