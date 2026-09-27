@@ -74,7 +74,7 @@ func conformanceCatalog(now time.Time) catalog {
 	slots := make([]Slot, 0, len(published)*8)
 	now = now.UTC()
 	first := time.Date(now.Year(), now.Month(), now.Day(), 10, 0, 0, 0, time.UTC)
-	if !first.After(now) {
+	if !first.After(now.Add(holdTTL)) {
 		first = first.AddDate(0, 0, 1)
 	}
 	for _, profile := range published {
