@@ -198,7 +198,9 @@
             "postgres-invariants"
           ],
           "proof_refs": [
-            "backend/migrations/ci_invariants.sql"
+            "backend/migrations/ci_invariants.sql",
+            "backend/internal/runtimepostgres/check_test.go",
+            ".github/workflows/ci.yml"
           ]
         }
       },
