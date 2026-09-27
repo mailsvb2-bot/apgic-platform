@@ -26,6 +26,7 @@ var (
 	ErrSlotNotExclusive   = errors.New("slot is not exclusive")
 	ErrSlotUnavailable    = errors.New("slot is not available")
 	ErrSlotHeld           = errors.New("slot already has an active hold")
+	ErrSlotBooked         = errors.New("slot already has a live booking")
 	ErrIdentityMismatch   = errors.New("client identity does not own the help intent")
 	ErrHoldNotFound       = errors.New("slot hold not found")
 	ErrHoldNotActive      = errors.New("slot hold is not active")
@@ -262,7 +263,9 @@ func (s *Service) Slots(specialistID string) ([]Slot, error) {
 	if _, ok := s.catalog.names[specialistID]; !ok || specialistID == "spec-draft" {
 		return nil, ErrSpecialistNotFound
 	}
-	s.expireHoldsLocked()
+	if err := s.expireHoldsLocked(); err != nil {
+		return nil, err
+	}
 	now := s.now().UTC()
 	out := make([]Slot, 0, 2)
 	for _, slot := range s.catalog.slots {
@@ -298,7 +301,12 @@ func (s *Service) AcquireHold(intentID, slotID, clientIdentityID string) (*Hold,
 	if !slot.StartsAt.After(now) {
 		return nil, ErrSlotUnavailable
 	}
-	s.expireHoldsLocked()
+	if err := s.expireHoldsLocked(); err != nil {
+		return nil, err
+	}
+	if s.slotBookedLocked(slot.ID) {
+		return nil, ErrSlotBooked
+	}
 	if existingID, held := s.slotHolds[slot.ID]; held {
 		existing := s.holds[existingID]
 		if existing != nil && existing.ClientIdentityID == clientIdentityID && existing.State == "ACTIVE" {
@@ -311,21 +319,16 @@ func (s *Service) AcquireHold(intentID, slotID, clientIdentityID string) (*Hold,
 	if !slot.StartsAt.After(expires) {
 		return nil, ErrSlotUnavailable
 	}
-	created, err := booking.New(newID("book-"), slot.ID, newID("hold-"), clientIdentityID, expires, slot.StartsAt, slot.EndsAt, now)
-	if err != nil {
-		return nil, err
-	}
 	hold := &Hold{
-		ID:               created.HoldID,
-		BookingID:        created.ID,
+		ID:               newID("hold-"),
+		BookingID:        newID("book-"),
 		SlotID:           slot.ID,
 		ClientIdentityID: clientIdentityID,
 		State:            "ACTIVE",
-		BookingState:     created.State,
+		BookingState:     booking.StateHeld,
 		ExpiresAt:        expires,
 		ReasonCode:       "BOOK_HOLD_ACQUIRED",
 	}
-	s.bookings[created.ID] = created
 	s.holds[hold.ID] = hold
 	s.slotHolds[slot.ID] = hold.ID
 	copyHold := *hold
@@ -350,17 +353,43 @@ func (s *Service) slot(id string) (Slot, bool) {
 	return Slot{}, false
 }
 
-func (s *Service) expireHoldsLocked() {
+func (s *Service) expireHoldsLocked() error {
 	now := s.now().UTC()
 	for slotID, holdID := range s.slotHolds {
 		hold := s.holds[holdID]
 		if hold == nil || !hold.ExpiresAt.After(now) {
 			if hold != nil {
 				hold.State = "EXPIRED"
+				hold.BookingState = booking.StateExpired
 			}
 			delete(s.slotHolds, slotID)
 		}
 	}
+	for _, booked := range s.bookings {
+		if booked == nil || (booked.State != booking.StateHeld && booked.State != booking.StatePendingPayment) || booked.HoldExpiresAt.After(now) {
+			continue
+		}
+		if _, err := booked.Transition(booking.StateExpired, now); err != nil {
+			return err
+		}
+		if hold := s.holds[booked.HoldID]; hold != nil {
+			hold.BookingState = booking.StateExpired
+		}
+	}
+	return nil
+}
+
+func (s *Service) slotBookedLocked(slotID string) bool {
+	for _, booked := range s.bookings {
+		if booked == nil || booked.SlotID != slotID {
+			continue
+		}
+		switch booked.State {
+		case booking.StateHeld, booking.StatePendingPayment, booking.StateConfirmed:
+			return true
+		}
+	}
+	return false
 }
 
 func professionOf(candidates []marketplace.Candidate, id string) string {

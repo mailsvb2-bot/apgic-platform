@@ -94,6 +94,9 @@ func TestExclusiveHoldAllowsOnlyOneActiveClient(t *testing.T) {
 	if err != nil || hold.State != "ACTIVE" || hold.BookingState != "HELD" {
 		t.Fatalf("hold = %#v err=%v", hold, err)
 	}
+	if service.bookings[hold.BookingID] != nil {
+		t.Fatal("booking must not exist before checkout consumes the active hold")
+	}
 	again, err := service.AcquireHold(first.ID, slots[0].ID, first.ClientIdentityID)
 	if err != nil || again.ID != hold.ID {
 		t.Fatalf("idempotent hold = %#v err=%v", again, err)

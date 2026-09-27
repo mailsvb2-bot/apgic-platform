@@ -1194,10 +1194,14 @@ requirements:
   - APGIC-AUTH-001
   implementation_refs:
   - backend/internal/demand/service.go
+  - backend/internal/demand/checkout.go
   - backend/migrations/000008_r2_booking_order.sql
   contract_refs:
   - contracts/jsonschema/booking-order-v1.schema.json
   test_refs:
+  - backend/internal/demand/service_concurrency_test.go
+  - backend/internal/demand/checkout_test.go
+  - backend/internal/httpapi/booking_error_test.go
   - backend/ci/r2_booking_concurrency.sh
   - backend/migrations/ci_r2_booking_order_invariants.sql
   - .github/workflows/ci.yml
@@ -1224,11 +1228,16 @@ requirements:
   - APGIC-BOOK-001
   implementation_refs:
   - backend/internal/booking/booking.go
+  - backend/internal/demand/service.go
+  - backend/internal/demand/checkout.go
   - backend/migrations/000008_r2_booking_order.sql
   contract_refs:
   - contracts/jsonschema/booking-order-v1.schema.json
   test_refs:
   - backend/internal/booking/booking_test.go
+  - backend/internal/demand/checkout_test.go
+  - backend/internal/demand/service_test.go
+  - backend/internal/demand/cancel_test.go
   - backend/migrations/ci_r2_booking_order_invariants.sql
   evidence_refs:
   - canon/evidence/staging-runtime-20260926T215500Z.json
