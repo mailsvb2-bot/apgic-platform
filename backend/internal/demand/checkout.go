@@ -136,7 +136,10 @@ func (s *Service) CreateCheckout(holdID, clientIdentityID, methodCode string) (*
 	}
 	amount := priceOf(s.catalog.candidates, slot.SpecialistID)
 	now := s.now().UTC()
-	orderID := newID("ord-")
+	orderID, err := newJourneyID()
+	if err != nil {
+		return nil, err
+	}
 	legalSnapshot := legal.TransactionSnapshot{
 		SellerOrServiceProviderID: recipient,
 		CommercialOwnerID:         recipient,
@@ -215,6 +218,15 @@ func (s *Service) CreateCheckout(holdID, clientIdentityID, methodCode string) (*
 	result, err := booked.Transition(booking.StatePendingPayment, now)
 	if err != nil {
 		return nil, err
+	}
+	if s.journeyStore != nil {
+		reason, err := s.journeyStore.CreateBooking(booked, now)
+		if err != nil {
+			return nil, err
+		}
+		if err := journeyReasonError(reason); err != nil {
+			return nil, err
+		}
 	}
 	created := &CheckoutInstruction{
 		ID:                 newID("chk-"),
