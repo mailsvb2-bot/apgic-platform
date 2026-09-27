@@ -101,12 +101,42 @@ func TestJourneyStoreSurvivesServiceRestart(t *testing.T) {
 	if replayedHold.ID != hold.ID || replayedHold.BookingID != hold.BookingID {
 		t.Fatalf("hydrated hold changed identity: got=%#v want=%#v", replayedHold, hold)
 	}
-	instruction, err := second.CreateCheckout(hold.ID, intent.ClientIdentityID, "SBP")
-	if err != nil {
-		t.Fatal(err)
+	type checkoutResult struct {
+		instruction *demand.CheckoutInstruction
+		err         error
 	}
-	if instruction.BookingID != hold.BookingID || instruction.BookingState != "PENDING_PAYMENT" {
-		t.Fatalf("checkout=%#v", instruction)
+	startCheckout := make(chan struct{})
+	checkoutResults := make(chan checkoutResult, 2)
+	var checkoutWG sync.WaitGroup
+	for _, service := range []*demand.Service{second, peer} {
+		service := service
+		checkoutWG.Add(1)
+		go func() {
+			defer checkoutWG.Done()
+			<-startCheckout
+			instruction, err := service.CreateCheckout(hold.ID, intent.ClientIdentityID, "SBP")
+			checkoutResults <- checkoutResult{instruction: instruction, err: err}
+		}()
+	}
+	close(startCheckout)
+	checkoutWG.Wait()
+	close(checkoutResults)
+
+	var instruction *demand.CheckoutInstruction
+	for result := range checkoutResults {
+		if result.err != nil {
+			t.Fatalf("concurrent checkout failed: %v", result.err)
+		}
+		if result.instruction == nil ||
+			result.instruction.BookingID != hold.BookingID ||
+			result.instruction.BookingState != "PENDING_PAYMENT" {
+			t.Fatalf("checkout=%#v", result.instruction)
+		}
+		if instruction == nil {
+			instruction = result.instruction
+		} else if instruction.ID != result.instruction.ID || instruction.OrderID != result.instruction.OrderID {
+			t.Fatalf("concurrent checkout changed durable identity: first=%#v second=%#v", instruction, result.instruction)
+		}
 	}
 	orderIDs = append(orderIDs, instruction.OrderID)
 
