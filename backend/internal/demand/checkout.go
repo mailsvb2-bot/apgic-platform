@@ -153,7 +153,7 @@ func (s *Service) CreateCheckout(holdID, clientIdentityID, methodCode string) (*
 	if err := legalSnapshot.Validate(); err != nil {
 		return nil, err
 	}
-	if _, err := commerce.NewOrderSnapshot(commerce.OrderSnapshot{
+	orderSnapshot, err := commerce.NewOrderSnapshot(commerce.OrderSnapshot{
 		ID:                      orderID,
 		BookingID:               hold.BookingID,
 		OfferRef:                "offer:" + slot.SpecialistID,
@@ -172,7 +172,8 @@ func (s *Service) CreateCheckout(holdID, clientIdentityID, methodCode string) (*
 		RefundResponsibilityRef: recipient,
 		PayoutBeneficiaryRef:    recipient,
 		CapturedAt:              now,
-	}); err != nil {
+	})
+	if err != nil {
 		return nil, err
 	}
 	decision, err := payments.SelectProvider(payments.TransactionContext{
@@ -219,17 +220,12 @@ func (s *Service) CreateCheckout(holdID, clientIdentityID, methodCode string) (*
 	if err != nil {
 		return nil, err
 	}
-	if s.journeyStore != nil {
-		reason, err := s.journeyStore.CreateBooking(booked, now)
-		if err != nil {
-			return nil, err
-		}
-		if err := journeyReasonError(reason); err != nil {
-			return nil, err
-		}
+	checkoutID, err := checkoutInstructionIDForOrder(orderID)
+	if err != nil {
+		return nil, err
 	}
 	created := &CheckoutInstruction{
-		ID:                 newID("chk-"),
+		ID:                 checkoutID,
 		HoldID:             hold.ID,
 		BookingID:          hold.BookingID,
 		BookingState:       result.To,
@@ -245,6 +241,21 @@ func (s *Service) CreateCheckout(holdID, clientIdentityID, methodCode string) (*
 		APGICAcceptsFunds:  false,
 		Notice:             checkoutNotice,
 		ReasonCode:         decision.ReasonCode,
+	}
+	if s.journeyStore != nil {
+		reason, err := s.journeyStore.CreateCheckout(CheckoutPersistence{
+			Booking:       booked,
+			Instruction:   created,
+			LegalSnapshot: legalSnapshot,
+			Order:         orderSnapshot,
+			DecidedAt:     now,
+		})
+		if err != nil {
+			return nil, err
+		}
+		if err := journeyReasonError(reason); err != nil {
+			return nil, err
+		}
 	}
 	s.bookings[booked.ID] = booked
 	hold.State = "CONSUMED"
