@@ -448,6 +448,8 @@ func writeDemandFailure(w http.ResponseWriter, r *http.Request, err error) {
 		writeDemandError(w, r, http.StatusForbidden, "HELP_INTENT_IDENTITY_MISMATCH", "Этот запрос принадлежит другому клиенту.", false, nil)
 	case errors.Is(err, demand.ErrSlotHeld):
 		writeDemandError(w, r, http.StatusConflict, "BOOK_SLOT_HELD", "Этот слот уже удерживается другим клиентом.", false, []string{"BOOK_SLOT_HELD"})
+	case errors.Is(err, demand.ErrSlotBooked):
+		writeDemandError(w, r, http.StatusConflict, "BOOK_SLOT_BOOKED", "Этот слот уже забронирован.", false, []string{"BOOK_SLOT_BOOKED"})
 	case errors.Is(err, demand.ErrSlotUnavailable), errors.Is(err, demand.ErrSlotNotExclusive):
 		writeDemandError(w, r, http.StatusConflict, "BOOK_SLOT_NOT_AVAILABLE", "Слот нельзя удержать.", false, []string{"BOOK_SLOT_NOT_AVAILABLE"})
 	case errors.Is(err, demand.ErrHoldNotFound):
@@ -496,3 +498,5 @@ func writeDemandError(w http.ResponseWriter, r *http.Request, status int, code, 
 		PolicyReasonCodes: reasons,
 	})
 }
+
+[executed on device: msk-1-vm-9vrn (ce05cfe4-fa8e-495a-bd76-12d14a659df2)]
