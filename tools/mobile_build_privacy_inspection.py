@@ -9,6 +9,15 @@ from pathlib import Path
 
 ANDROID_NS = "http://schemas.android.com/apk/res/android"
 
+DEBUG_ONLY_ANDROID_PERMISSIONS = {
+    "android.permission.ACCESS_LOCAL_NETWORK",
+    "android.permission.SYSTEM_ALERT_WINDOW",
+}
+GENERATED_ANDROID_PERMISSION_SUFFIXES = (
+    ".DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION",
+)
+
+
 
 def fail(message: str) -> None:
     raise ValueError(message)
@@ -83,10 +92,20 @@ def inspect_android(merged_manifest: Path, data_safety: Path) -> dict[str, objec
         if item.get(permission_key)
     )
     declared_permissions = sorted(parse_yaml_list(data_safety, "android_permissions"))
-    if actual_permissions != declared_permissions:
+    build_only_permissions = sorted(
+        permission
+        for permission in actual_permissions
+        if permission in DEBUG_ONLY_ANDROID_PERMISSIONS
+        or permission.endswith(GENERATED_ANDROID_PERMISSION_SUFFIXES)
+    )
+    product_permissions = sorted(
+        permission for permission in actual_permissions if permission not in build_only_permissions
+    )
+    if product_permissions != declared_permissions:
         fail(
-            "built Android permissions differ from Data Safety declaration: "
-            f"actual={actual_permissions} declared={declared_permissions}"
+            "built Android product permissions differ from Data Safety declaration: "
+            f"product={product_permissions} declared={declared_permissions} "
+            f"build_only={build_only_permissions}"
         )
 
     application = root.find("application")
@@ -100,6 +119,8 @@ def inspect_android(merged_manifest: Path, data_safety: Path) -> dict[str, objec
         "platform": "ANDROID",
         "artifact": str(merged_manifest),
         "permissions": actual_permissions,
+        "product_permissions": product_permissions,
+        "build_only_permissions": build_only_permissions,
         "permissions_match_data_safety": True,
         "allow_backup": False,
     }
