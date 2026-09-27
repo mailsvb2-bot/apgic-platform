@@ -3,6 +3,9 @@ package demand
 import (
 	"errors"
 	"testing"
+	"time"
+
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/booking"
 )
 
 func TestProviderCaptureConfirmsOnceAndDoesNotPayAPGIC(t *testing.T) {
@@ -106,5 +109,43 @@ func TestProviderCaptureFailsClosedWhenLedgerPersistenceFails(t *testing.T) {
 	if len(store.entries) != 0 || len(service.evidence) != 0 || len(service.orderEvidence) != 0 {
 		t.Fatalf("failed ledger append committed business state: entries=%d evidence=%d orderEvidence=%d",
 			len(store.entries), len(service.evidence), len(service.orderEvidence))
+	}
+}
+
+func TestProviderCaptureAfterHoldExpiryCreatesNoEconomicEffect(t *testing.T) {
+	now := time.Date(2026, 9, 27, 12, 0, 0, 0, time.UTC)
+	service := NewConformanceService(func() time.Time { return now })
+	intent, _ := service.CreateIntent("бессонница")
+	_, _ = service.ConfirmIntent(intent.ID, []string{"sleep"}, nil, nil)
+	slots, _ := service.Slots("spec-lebedeva")
+	hold, err := service.AcquireHold(intent.ID, slots[0].ID, intent.ClientIdentityID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	instruction, err := service.CreateCheckout(hold.ID, intent.ClientIdentityID, "BANK_CARD")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	now = hold.ExpiresAt.Add(time.Second)
+	_, err = service.ApplyProviderEvent(ProviderEvent{
+		ProviderID: instruction.ProviderID, ProviderEventID: "evt-after-expiry",
+		OrderID: instruction.OrderID, AmountMinor: instruction.AmountMinor,
+		Currency: instruction.Currency, Outcome: "CAPTURED",
+	})
+	if !errors.Is(err, booking.ErrHoldExpired) {
+		t.Fatalf("capture after expiry err=%v", err)
+	}
+	booked := service.bookings[instruction.BookingID]
+	if booked == nil || booked.State != booking.StatePendingPayment {
+		t.Fatalf("expired capture mutated booking=%#v", booked)
+	}
+	reconciliation, err := service.LedgerReconciliation()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reconciliation.EntryCount != 0 || len(service.evidence) != 0 || len(service.orderEvidence) != 0 {
+		t.Fatalf("expired capture created effect: reconciliation=%#v evidence=%d orderEvidence=%d",
+			reconciliation, len(service.evidence), len(service.orderEvidence))
 	}
 }
