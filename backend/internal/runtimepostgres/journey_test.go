@@ -32,7 +32,15 @@ func TestJourneyStoreSurvivesServiceRestart(t *testing.T) {
 	var identityIDs []string
 	var holdIDs []string
 	var bookingIDs []string
+	var orderIDs []string
 	defer func() {
+		for _, orderID := range orderIDs {
+			_, _ = store.db.Exec("DELETE FROM payment_attempts WHERE order_id = $1::uuid", orderID)
+			_, _ = store.db.Exec("DELETE FROM payment_routing_decisions WHERE order_id = $1::uuid", orderID)
+			_, _ = store.db.Exec("DELETE FROM ledger_entries WHERE economic_event_ref IN ($1, $2)", orderID, "reversal:"+orderID)
+			_, _ = store.db.Exec("DELETE FROM orders WHERE id = $1::uuid", orderID)
+			_, _ = store.db.Exec("DELETE FROM legal_transaction_snapshots WHERE transaction_ref = $1", "order/"+orderID)
+		}
 		for _, bookingID := range bookingIDs {
 			_, _ = store.db.Exec("DELETE FROM bookings WHERE id = $1::uuid", bookingID)
 		}
@@ -99,6 +107,7 @@ func TestJourneyStoreSurvivesServiceRestart(t *testing.T) {
 	if instruction.BookingID != hold.BookingID || instruction.BookingState != "PENDING_PAYMENT" {
 		t.Fatalf("checkout=%#v", instruction)
 	}
+	orderIDs = append(orderIDs, instruction.OrderID)
 
 	third, err := demand.NewConformanceServiceWithStores(func() time.Time { return secondNow.Add(time.Minute) }, store, store)
 	if err != nil {
@@ -122,5 +131,56 @@ func TestJourneyStoreSurvivesServiceRestart(t *testing.T) {
 	}
 	if _, err := third.AcquireHold(other.ID, slots[0].ID, other.ClientIdentityID); !errors.Is(err, demand.ErrSlotBooked) {
 		t.Fatalf("restart lost live booking exclusivity: err=%v", err)
+	}
+
+	event := demand.ProviderEvent{
+		ProviderID:      instruction.ProviderID,
+		ProviderEventID: "restart-proof-" + instruction.OrderID,
+		OrderID:         instruction.OrderID,
+		AmountMinor:     instruction.AmountMinor,
+		Currency:        instruction.Currency,
+		Outcome:         "CAPTURED",
+	}
+	captured, err := third.ApplyProviderEvent(event)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if captured.BookingState != "CONFIRMED" || captured.Idempotent {
+		t.Fatalf("capture=%#v", captured)
+	}
+
+	fourth, err := demand.NewConformanceServiceWithStores(func() time.Time { return secondNow.Add(2 * time.Minute) }, store, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	replayedCapture, err := fourth.ApplyProviderEvent(event)
+	if err != nil {
+		t.Fatalf("provider replay after restart failed: %v", err)
+	}
+	if !replayedCapture.Idempotent || replayedCapture.LedgerEntryID != captured.LedgerEntryID || replayedCapture.ID != captured.ID {
+		t.Fatalf("provider replay changed durable effect: got=%#v want=%#v", replayedCapture, captured)
+	}
+
+	cancelled, err := fourth.CancelOrder(instruction.OrderID, "CLIENT_CANCEL")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cancelled.BookingState != "CANCELLED" || cancelled.Idempotent {
+		t.Fatalf("cancel=%#v", cancelled)
+	}
+
+	fifth, err := demand.NewConformanceServiceWithStores(func() time.Time { return secondNow.Add(3 * time.Minute) }, store, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	replayedCancel, err := fifth.CancelOrder(instruction.OrderID, "CLIENT_CANCEL")
+	if err != nil {
+		t.Fatalf("cancel replay after restart failed: %v", err)
+	}
+	if !replayedCancel.Idempotent ||
+		replayedCancel.ReversalLedgerID != cancelled.ReversalLedgerID ||
+		replayedCancel.OriginalLedgerID != cancelled.OriginalLedgerID ||
+		replayedCancel.ID != cancelled.ID {
+		t.Fatalf("cancel replay changed durable reversal: got=%#v want=%#v", replayedCancel, cancelled)
 	}
 }
