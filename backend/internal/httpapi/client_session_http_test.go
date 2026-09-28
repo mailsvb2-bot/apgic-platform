@@ -100,7 +100,6 @@ func TestHelpIntentRejectsTamperedTrustedSession(t *testing.T) {
 	}
 }
 
-
 func TestProtectedClientIdentityInputsCannotOverrideTrustedSession(t *testing.T) {
 	key := []byte(strings.Repeat("s", 32))
 	handler := New(Options{
