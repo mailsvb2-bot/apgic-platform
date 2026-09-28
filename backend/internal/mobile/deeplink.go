@@ -110,15 +110,35 @@ func ResolveDeepLink(claims DeepLinkClaims, principal authz.Principal, now time.
 
 func validCanonicalFallback(raw, expectedPath string) bool {
 	parsed, err := url.Parse(raw)
-	if err != nil || parsed.Scheme != "https" || parsed.Path != expectedPath {
+	if err != nil ||
+		parsed.Scheme != "https" ||
+		parsed.Opaque != "" ||
+		parsed.User != nil ||
+		parsed.Path != expectedPath ||
+		parsed.RawQuery != "" ||
+		parsed.ForceQuery ||
+		parsed.Fragment != "" {
+		return false
+	}
+	if port := parsed.Port(); port != "" && port != "443" {
 		return false
 	}
 	host := strings.ToLower(parsed.Hostname())
 	return host == "apgic.ru" || strings.HasSuffix(host, ".apgic.ru")
 }
 
+func validCanonicalTargetID(targetID string) bool {
+	if targetID == "" || strings.TrimSpace(targetID) != targetID || targetID == "." || targetID == ".." {
+		return false
+	}
+	// A canonical resource ID must already be a safe URL path segment. Reject
+	// percent-encoded separators and other syntax that could be reinterpreted
+	// by a router after decoding.
+	return url.PathEscape(targetID) == targetID
+}
+
 func canonicalPathFor(kind LinkKind, targetID string) (string, bool) {
-	if strings.TrimSpace(targetID) == "" || strings.Contains(targetID, "/") {
+	if !validCanonicalTargetID(targetID) {
 		return "", false
 	}
 	switch kind {
