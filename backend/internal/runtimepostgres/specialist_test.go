@@ -95,6 +95,36 @@ func TestSpecialistSupplyPersistsEvidenceReviewAndPublishGate(t *testing.T) {
 		t.Fatalf("approved evidence did not verify capability: %#v", profile.Capabilities[0])
 	}
 
+	profile, err = store.SubmitEvidence(identityID, "anxiety", "CERTIFICATE", "document:supplemental")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if profile.Capabilities[0].EvidenceState != marketplace.EvidenceDocumentSupported ||
+		profile.Capabilities[0].VerificationState != "PENDING" {
+		t.Fatalf("supplemental evidence did not trigger re-review: %#v", profile.Capabilities[0])
+	}
+	var supplementalID string
+	for _, item := range profile.Evidence {
+		if item.Reference == "document:supplemental" {
+			supplementalID = item.ID
+			break
+		}
+	}
+	if supplementalID == "" {
+		t.Fatal("supplemental evidence not persisted")
+	}
+	if err := store.ReviewEvidence(supplementalID, false, "reviewer:test"); err != nil {
+		t.Fatal(err)
+	}
+	profile, err = store.Profile(identityID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if profile.Capabilities[0].EvidenceState != marketplace.EvidenceAPGICVerified ||
+		profile.Capabilities[0].VerificationState != "ACTIVE" {
+		t.Fatalf("rejected supplemental evidence erased prior accepted verification: %#v", profile.Capabilities[0])
+	}
+
 	blocked, err = store.Publish(identityID, "anxiety")
 	if err != nil {
 		t.Fatal(err)
