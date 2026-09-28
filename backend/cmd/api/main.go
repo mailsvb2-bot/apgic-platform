@@ -19,7 +19,11 @@ func main() {
 	var ledgerStore demand.LedgerStore
 	var journeyStore demand.JourneyStore
 	environment := os.Getenv("APGIC_ENVIRONMENT")
+	clientSessionKey := []byte(os.Getenv("APGIC_CLIENT_SESSION_KEY"))
 	if runtimepostgres.RequiresDatabase(environment) {
+		if err := httpapi.ValidateClientSessionKey(clientSessionKey); err != nil {
+			log.Fatalf("APGIC client session configuration failed: %v", err)
+		}
 		var err error
 		storage, err = runtimepostgres.Open(context.Background(), os.Getenv("APGIC_DATABASE_URL"))
 		if err != nil {
@@ -43,8 +47,9 @@ func main() {
 	handler := httpapi.New(httpapi.Options{
 		CommitSHA:      os.Getenv("APGIC_COMMIT_SHA"),
 		ReleaseTrack:   "R0",
-		Demand:         demandService,
-		ReadinessCheck: readinessCheck,
+		Demand:           demandService,
+		ClientSessionKey: clientSessionKey,
+		ReadinessCheck:   readinessCheck,
 		LaunchConfig: launchconfig.Config{
 			JurisdictionMatrixVersion: os.Getenv("APGIC_JURISDICTION_MATRIX_VERSION"),
 			RetentionPolicyVersion:    os.Getenv("APGIC_RETENTION_POLICY_VERSION"),
