@@ -76,7 +76,11 @@ func TestHelpIntentRejectsTamperedTrustedSession(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cookie.Value = cookie.Value[:len(cookie.Value)-1] + "A"
+	replacement := "A"
+	if strings.HasSuffix(cookie.Value, replacement) {
+		replacement = "B"
+	}
+	cookie.Value = cookie.Value[:len(cookie.Value)-1] + replacement
 
 	request := httptest.NewRequest(http.MethodPost, "/v1/help-intents", strings.NewReader(`{"free_text":"запрос"}`))
 	request.Header.Set("content-type", "application/json")
