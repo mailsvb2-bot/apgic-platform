@@ -100,24 +100,39 @@ type Service struct {
 	sessions      map[string]*consultation.Session
 	projection    marketplace.SearchProjection
 	searchStale   bool
-	deletions     map[string]*AccountDeletion
+	deletions       map[string]*AccountDeletion
+	specialistStore PublishedSpecialistStore
 }
 
 func NewConformanceService(now func() time.Time) *Service {
-	service, _ := newConformanceService(now, nil, nil)
+	service, _ := newConformanceService(now, nil, nil, nil)
 	return service
 }
 
 func NewConformanceServiceWithLedgerStore(now func() time.Time, ledgerStore LedgerStore) *Service {
-	service, _ := newConformanceService(now, ledgerStore, nil)
+	service, _ := newConformanceService(now, ledgerStore, nil, nil)
 	return service
 }
 
 func NewConformanceServiceWithStores(now func() time.Time, ledgerStore LedgerStore, journeyStore JourneyStore) (*Service, error) {
-	return newConformanceService(now, ledgerStore, journeyStore)
+	return newConformanceService(now, ledgerStore, journeyStore, nil)
 }
 
-func newConformanceService(now func() time.Time, ledgerStore LedgerStore, journeyStore JourneyStore) (*Service, error) {
+func NewConformanceServiceWithStoresAndSpecialists(
+	now func() time.Time,
+	ledgerStore LedgerStore,
+	journeyStore JourneyStore,
+	specialistStore PublishedSpecialistStore,
+) (*Service, error) {
+	return newConformanceService(now, ledgerStore, journeyStore, specialistStore)
+}
+
+func newConformanceService(
+	now func() time.Time,
+	ledgerStore LedgerStore,
+	journeyStore JourneyStore,
+	specialistStore PublishedSpecialistStore,
+) (*Service, error) {
 	if now == nil {
 		now = time.Now
 	}
@@ -137,7 +152,8 @@ func newConformanceService(now func() time.Time, ledgerStore LedgerStore, journe
 		sessions:      map[string]*consultation.Session{},
 		deletions:     map[string]*AccountDeletion{},
 		ledgerStore:   ledgerStore,
-		journeyStore:  journeyStore,
+		journeyStore:    journeyStore,
+		specialistStore: specialistStore,
 	}
 	if journeyStore == nil {
 		return service, nil
