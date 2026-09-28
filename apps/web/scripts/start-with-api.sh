@@ -3,6 +3,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 export APGIC_HTTP_ADDR="${APGIC_HTTP_ADDR:-:43131}"
 export APGIC_API_ORIGIN="${APGIC_API_ORIGIN:-http://127.0.0.1:43131}"
+export APGIC_CLIENT_SESSION_KEY="${APGIC_CLIENT_SESSION_KEY:-local-only-client-session-key-000000000000}"
 if ! command -v go >/dev/null 2>&1; then
   case "$(uname -m)" in
     x86_64) goarch=amd64 ;;
