@@ -141,9 +141,23 @@ func TestCrossTenantOrganizationHTTPDeniesWithoutDisclosureAndAudits(t *testing.
 	forged := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgB+"/private-profile", nil)
 	forged.AddCookie(cookie)
 	forged.Header.Set("X-Organization-Context", orgB)
+	forged.Header.Set("X-Correlation-Id", "auth001-forged-context")
 	forgedRecorder := httptest.NewRecorder()
 	handler.ServeHTTP(forgedRecorder, forged)
 	if forgedRecorder.Code != http.StatusForbidden || strings.Contains(forgedRecorder.Body.String(), "TOP SECRET ORGANIZATION B") {
 		t.Fatalf("forged tenant context status=%d body=%s", forgedRecorder.Code, forgedRecorder.Body.String())
+	}
+	var forgedReason, forgedScope string
+	if err := db.QueryRow(`
+		SELECT reason, scope
+		  FROM audit_records
+		 WHERE correlation_id = 'auth001-forged-context'
+		 ORDER BY occurred_at DESC
+		 LIMIT 1
+	`).Scan(&forgedReason, &forgedScope); err != nil {
+		t.Fatal(err)
+	}
+	if forgedReason != "AUTH_TENANT_CONTEXT_DENIED" || forgedScope != orgB {
+		t.Fatalf("forged tenant-context audit reason=%q scope=%q", forgedReason, forgedScope)
 	}
 }
