@@ -190,18 +190,135 @@ test("critical journey boots when crypto.randomUUID is unavailable", async ({ pa
 });
 
 
-test("specialist entry is reachable and never overstates verification", async ({ page }) => {
-  await page.goto("/");
-  await page.getByRole("link", { name: "Для специалистов" }).click();
-  await expect(page).toHaveURL(/\/specialist$/);
-  await expect(page.getByRole("heading", { level: 1, name: /Работайте с клиентами/ })).toBeVisible();
-  await expect(page.getByText("Заявлено ≠ подтверждено")).toBeVisible();
-  await expect(page.getByText(/Самостоятельная отправка профиля из Web будет включена/)).toBeVisible();
+test("specialist onboarding preserves evidence and publish boundaries", async ({ page }) => {
+  type Profile = {
+    id: string;
+    identity_id: string;
+    display_name: string;
+    profession_code: string;
+    profile_complete: boolean;
+    review_state: string;
+    capabilities: Array<{
+      topic_id: string;
+      evidence_state: string;
+      verification_state: string;
+      evidence_refs: string[];
+    }>;
+    evidence: Array<{
+      id: string;
+      topic_id: string;
+      kind: string;
+      reference: string;
+      state: string;
+      submitted_at: string;
+    }>;
+    published_topics: string[];
+  };
 
-  const verifiedCopy = page.getByText("APGIC VERIFIED", { exact: true });
-  await expect(verifiedCopy).toHaveCount(1);
-  await expect(page.getByText(/конкретной проверенной компетенции/)).toBeVisible();
-  await expect(page.getByText(/Текущий статус этапов здесь не определяется/)).toBeVisible();
+  let profile: Profile | null = null;
+  await page.route("**/v1/specialist/**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const path = url.pathname;
+    const json = request.postDataJSON?.() as Record<string, string> | undefined;
+
+    if (path === "/v1/specialist/profile" && request.method() === "GET") {
+      if (!profile) {
+        await route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({
+          code: "SPECIALIST_PROFILE_NOT_FOUND",
+          message_safe: "Профессиональный профиль ещё не создан.",
+          correlation_id: "e2e",
+          retryable: false,
+        }) });
+        return;
+      }
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(profile) });
+      return;
+    }
+
+    if (path === "/v1/specialist/profile" && request.method() === "PUT") {
+      profile = {
+        id: "specialist-e2e",
+        identity_id: "identity-e2e",
+        display_name: json?.display_name || "",
+        profession_code: json?.profession_code || "",
+        profile_complete: true,
+        review_state: "PENDING",
+        capabilities: [],
+        evidence: [],
+        published_topics: [],
+      };
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(profile) });
+      return;
+    }
+
+    if (path === "/v1/specialist/capabilities" && request.method() === "POST" && profile) {
+      profile.capabilities = [{
+        topic_id: json?.topic_id || "anxiety",
+        evidence_state: "SELF_DECLARED",
+        verification_state: "NOT_APPLICABLE",
+        evidence_refs: [],
+      }];
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(profile) });
+      return;
+    }
+
+    if (path === "/v1/specialist/evidence" && request.method() === "POST" && profile) {
+      const reference = json?.reference || "";
+      profile.review_state = "MANUAL_REVIEW";
+      profile.capabilities = [{
+        topic_id: json?.topic_id || "anxiety",
+        evidence_state: "DOCUMENT_SUPPORTED",
+        verification_state: "PENDING",
+        evidence_refs: [reference],
+      }];
+      profile.evidence = [{
+        id: "evidence-e2e",
+        topic_id: json?.topic_id || "anxiety",
+        kind: json?.kind || "DIPLOMA",
+        reference,
+        state: "SUBMITTED",
+        submitted_at: "2026-09-28T20:00:00Z",
+      }];
+      await route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify(profile) });
+      return;
+    }
+
+    if (path === "/v1/specialist/publish" && request.method() === "POST") {
+      await route.fulfill({ status: 409, contentType: "application/json", body: JSON.stringify({
+        allowed: false,
+        reason_codes: ["PUBLISH_REVIEW_INCOMPLETE"],
+        published_topics: [],
+        policy_version: "qualification-v1",
+      }) });
+      return;
+    }
+
+    await route.fulfill({ status: 404, contentType: "application/json", body: "{}" });
+  });
+
+  await page.goto("/specialist");
+  await expect(page.getByRole("heading", { level: 1, name: /Работайте с клиентами/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Создайте профессиональный профиль" })).toBeVisible();
+
+  await page.getByLabel("Имя для публичного профиля").fill("Анна Тестова");
+  await page.getByLabel("Профессия").selectOption("PSYCHOLOGIST");
+  await page.getByRole("button", { name: "Сохранить профиль" }).click();
+  await expect(page.getByText("Профиль сохранён. Теперь добавьте направления работы.")).toBeVisible();
+
+  await page.getByLabel("Направление").selectOption("anxiety");
+  await page.getByRole("button", { name: "Добавить направление" }).click();
+  await expect(page.getByText("SELF_DECLARED · NOT_APPLICABLE")).toBeVisible();
+
+  await page.getByLabel("Ссылка или номер подтверждения").fill("document:e2e-diploma");
+  await page.getByRole("button", { name: "Передать на проверку" }).click();
+  await expect(page.getByText("DOCUMENT_SUPPORTED · PENDING")).toBeVisible();
+  await expect(page.getByText("SUBMITTED · Тревога и стресс")).toBeVisible();
+  await expect(page.getByText(/Review профиля:/)).toContainText("MANUAL_REVIEW");
+
+  await page.getByRole("button", { name: "Проверить и опубликовать" }).click();
+  await expect(page.getByRole("status")).toContainText("PUBLISH_REVIEW_INCOMPLETE");
+  await expect(page.getByText(/Опубликовано:/)).toContainText("пока ничего");
 
   const layout = await page.evaluate(() => ({
     viewportWidth: window.innerWidth,
