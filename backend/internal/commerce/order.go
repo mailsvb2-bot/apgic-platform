@@ -58,10 +58,16 @@ func NewOrderSnapshot(snapshot OrderSnapshot) (OrderSnapshot, error) {
 	if len(snapshot.AuthorRefs) == 0 {
 		return OrderSnapshot{}, ErrInvalidOrderSnapshot
 	}
+	seenAuthors := make(map[string]struct{}, len(snapshot.AuthorRefs))
 	for _, author := range snapshot.AuthorRefs {
-		if strings.TrimSpace(author) == "" {
+		author = strings.TrimSpace(author)
+		if author == "" {
 			return OrderSnapshot{}, ErrInvalidOrderSnapshot
 		}
+		if _, exists := seenAuthors[author]; exists {
+			return OrderSnapshot{}, ErrInvalidOrderSnapshot
+		}
+		seenAuthors[author] = struct{}{}
 	}
 	snapshot.AuthorRefs = append([]string(nil), snapshot.AuthorRefs...)
 	if snapshot.AmountMinor <= 0 ||
