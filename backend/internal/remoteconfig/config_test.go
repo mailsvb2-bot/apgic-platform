@@ -106,3 +106,74 @@ func TestExpiredConfigIsRejected(t *testing.T) {
 		t.Fatalf("expected expired config rejection, got %v", err)
 	}
 }
+
+
+func TestEmergencyKillSwitchDrill(t *testing.T) {
+	publicKey, privateKey, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	var manager Manager
+
+	baseline := validPayload(now, 1)
+	baseline.Disabled = nil
+	baseline.ReasonCodes = nil
+	first, err := Sign(baseline, "key-1", privateKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.Apply(first, publicKey, now); err != nil {
+		t.Fatal(err)
+	}
+	if manager.IsDisabled(CapabilityRealtimeConsultation) {
+		t.Fatal("realtime must be enabled before incident kill switch")
+	}
+
+	incident := validPayload(now, 2)
+	incident.Disabled = []Capability{CapabilityRealtimeConsultation}
+	incident.ReasonCodes = map[Capability]string{
+		CapabilityRealtimeConsultation: "INCIDENT_DISABLE_REALTIME",
+	}
+	second, err := Sign(incident, "key-1", privateKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.Apply(second, publicKey, now); err != nil {
+		t.Fatal(err)
+	}
+	if !manager.IsDisabled(CapabilityRealtimeConsultation) {
+		t.Fatal("incident kill switch did not disable realtime")
+	}
+
+	tampered := second
+	tampered.Payload.Version = 3
+	tampered.Payload.Disabled = nil
+	if err := manager.Apply(tampered, publicKey, now); !errors.Is(err, ErrInvalidSignature) {
+		t.Fatalf("tampered recovery config must be rejected: %v", err)
+	}
+	active, ok := manager.Active()
+	if !ok || active.Payload.Version != 2 || !manager.IsDisabled(CapabilityRealtimeConsultation) {
+		t.Fatalf("last-known-safe incident state was not preserved: %+v", active)
+	}
+
+	recovery := validPayload(now, 3)
+	recovery.Disabled = nil
+	recovery.ReasonCodes = nil
+	third, err := Sign(recovery, "key-1", privateKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.Apply(third, publicKey, now); err != nil {
+		t.Fatal(err)
+	}
+	if manager.IsDisabled(CapabilityRealtimeConsultation) {
+		t.Fatal("signed recovery config did not re-enable realtime")
+	}
+
+	privileged := validPayload(now, 4)
+	privileged.Disabled = []Capability{Capability("ENTITLEMENT_GRANT")}
+	if _, err := Sign(privileged, "key-1", privateKey); !errors.Is(err, ErrPrivilegedCapability) {
+		t.Fatalf("kill switch drill must not gain privileged business truth: %v", err)
+	}
+}
