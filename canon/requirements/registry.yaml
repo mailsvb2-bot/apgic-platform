@@ -188,7 +188,9 @@ requirements:
   - backend/internal/demand/service.go
   - backend/internal/runtimepostgres/journey.go
   - backend/internal/runtimepostgres/identity_roles.go
+  - backend/internal/runtimepostgres/specialist.go
   - backend/internal/httpapi/client_session.go
+  - backend/internal/httpapi/specialist.go
   - backend/internal/httpapi/demand.go
   - backend/migrations/000001_r0_foundation.sql
   - tools/identity_contract_guard.py
@@ -201,7 +203,9 @@ requirements:
   - backend/internal/demand/service_test.go
   - backend/internal/runtimepostgres/journey_test.go
   - backend/internal/runtimepostgres/identity_roles_test.go
+  - backend/internal/runtimepostgres/specialist_test.go
   - backend/internal/httpapi/client_session_test.go
+  - backend/internal/httpapi/specialist_test.go
   - backend/internal/httpapi/client_session_http_test.go
   - apps/web/e2e/foundation.spec.ts
   - tools/tests/test_identity_contract_guard.py
@@ -942,11 +946,22 @@ requirements:
   implementation_refs:
   - backend/internal/marketplace/model.go
   - backend/internal/marketplace/qualification.go
+  - backend/internal/specialist/model.go
+  - backend/internal/runtimepostgres/specialist.go
+  - backend/internal/httpapi/specialist.go
+  - backend/cmd/specialist-review/main.go
+  - apps/web/app/specialist/onboarding.tsx
   - backend/migrations/000007_r1_marketplace_discovery.sql
+  - backend/migrations/000019_r1_specialist_supply_runtime.sql
   contract_refs:
   - contracts/jsonschema/marketplace-discovery-v1.schema.json
+  - contracts/openapi/apgic-v1.yaml
   test_refs:
   - backend/internal/marketplace/marketplace_test.go
+  - backend/internal/runtimepostgres/specialist_test.go
+  - backend/internal/httpapi/specialist_test.go
+  - backend/cmd/specialist-review/main_test.go
+  - apps/web/e2e/foundation.spec.ts
   - backend/migrations/ci_r1_marketplace_invariants.sql
   evidence_refs: []
   acceptance:
@@ -978,11 +993,22 @@ requirements:
   implementation_refs:
   - backend/internal/marketplace/model.go
   - backend/internal/marketplace/discovery.go
+  - backend/internal/runtimepostgres/specialist.go
+  - backend/internal/httpapi/specialist.go
+  - backend/cmd/specialist-review/main.go
+  - backend/internal/demand/search.go
+  - apps/web/app/specialist/onboarding.tsx
   - backend/migrations/000007_r1_marketplace_discovery.sql
+  - backend/migrations/000019_r1_specialist_supply_runtime.sql
   contract_refs:
   - contracts/jsonschema/marketplace-discovery-v1.schema.json
+  - contracts/openapi/apgic-v1.yaml
   test_refs:
   - backend/internal/marketplace/marketplace_test.go
+  - backend/internal/runtimepostgres/specialist_test.go
+  - backend/internal/httpapi/specialist_test.go
+  - backend/internal/demand/search_test.go
+  - apps/web/e2e/foundation.spec.ts
   - backend/migrations/ci_r1_marketplace_invariants.sql
   evidence_refs: []
   acceptance:
@@ -1204,6 +1230,7 @@ requirements:
   implementation_refs:
   - backend/internal/marketplace/discovery.go
   - backend/internal/demand/search.go
+  - backend/internal/runtimepostgres/specialist.go
   - backend/internal/httpapi/demand.go
   - apps/web/app/journey.tsx
   - backend/migrations/000007_r1_marketplace_discovery.sql
@@ -1213,6 +1240,7 @@ requirements:
   test_refs:
   - backend/internal/marketplace/marketplace_test.go
   - backend/internal/demand/search_test.go
+  - backend/internal/runtimepostgres/specialist_test.go
   - apps/web/e2e/foundation.spec.ts
   - backend/migrations/ci_r1_marketplace_invariants.sql
   evidence_refs:
