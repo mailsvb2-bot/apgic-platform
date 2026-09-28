@@ -9,12 +9,17 @@ import (
 var ErrInvalidAcceptance = errors.New("invalid legal acceptance")
 
 type Acceptance struct {
-	ID              string
-	IdentityID      string
-	DocumentID      string
-	DocumentVersion string
-	EvidenceHash    string
-	AcceptedAt      time.Time
+	ID              string    `json:"id"`
+	IdentityID      string    `json:"identity_id"`
+	DocumentID      string    `json:"document_id"`
+	DocumentVersion string    `json:"document_version"`
+	EvidenceHash    string    `json:"evidence_hash"`
+	AcceptedAt      time.Time `json:"accepted_at"`
+}
+
+type AcceptanceStore interface {
+	RecordAcceptance(Acceptance) (persisted Acceptance, idempotent bool, err error)
+	HasAcceptance(identityID, documentID, documentVersion string) (bool, error)
 }
 
 func NewAcceptance(
