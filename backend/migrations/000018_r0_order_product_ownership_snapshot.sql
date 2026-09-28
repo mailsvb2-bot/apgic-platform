@@ -34,10 +34,16 @@ BEGIN
     RAISE EXCEPTION 'order author snapshot is required';
   END IF;
   FOREACH author_ref IN ARRAY NEW.author_refs LOOP
-    IF btrim(author_ref) = '' THEN
+    IF author_ref IS NULL OR btrim(author_ref) = '' THEN
       RAISE EXCEPTION 'order author snapshot contains blank author';
     END IF;
   END LOOP;
+  IF (
+    SELECT count(*) <> count(DISTINCT value)
+    FROM unnest(NEW.author_refs) AS author(value)
+  ) THEN
+    RAISE EXCEPTION 'order author snapshot contains duplicate author';
+  END IF;
 
   IF legal.transaction_ref <> 'order/' || NEW.id::text OR
      legal.seller_or_service_provider_id <> NEW.seller_ref OR
