@@ -49,10 +49,6 @@ func registerOrganizationAuthorization(
 			writeDemandError(w, r, http.StatusServiceUnavailable, "AUTH_STORE_UNAVAILABLE", "Авторизация организации временно недоступна.", true, nil)
 			return
 		}
-		if !member {
-			writeDemandError(w, r, http.StatusForbidden, "AUTH_TENANT_CONTEXT_DENIED", "Организационный контекст не подтверждён.", false, nil)
-			return
-		}
 
 		auditID, err := persistentid.New()
 		if err != nil {
@@ -79,8 +75,9 @@ func registerOrganizationAuthorization(
 				TenantID: strings.TrimSpace(r.PathValue("organizationID")),
 			},
 			Action:        "organization.read_private",
-			Risk:          authz.RiskNormal,
-			Now:           now().UTC(),
+			Risk:                authz.RiskNormal,
+			Now:                 now().UTC(),
+			TenantContextDenied: !member,
 			CorrelationID: correlation,
 			AuditRecordID: auditID,
 		})
