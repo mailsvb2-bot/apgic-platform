@@ -187,6 +187,7 @@ requirements:
   - backend/internal/identity/identity.go
   - backend/internal/demand/service.go
   - backend/internal/runtimepostgres/journey.go
+  - backend/internal/runtimepostgres/identity_roles.go
   - backend/internal/httpapi/client_session.go
   - backend/internal/httpapi/demand.go
   - backend/migrations/000001_r0_foundation.sql
@@ -199,6 +200,7 @@ requirements:
   - backend/internal/identity/identity_test.go
   - backend/internal/demand/service_test.go
   - backend/internal/runtimepostgres/journey_test.go
+  - backend/internal/runtimepostgres/identity_roles_test.go
   - backend/internal/httpapi/client_session_test.go
   - backend/internal/httpapi/client_session_http_test.go
   - apps/web/e2e/foundation.spec.ts
