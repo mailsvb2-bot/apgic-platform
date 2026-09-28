@@ -30,15 +30,15 @@ type ResourceRef struct {
 }
 
 type Input struct {
-	Principal               Principal
-	Resource                ResourceRef
-	Action                  string
-	Risk                    Risk
-	Now                     time.Time
-	MaxStepUpAge            time.Duration
-	TenantContextDenied     bool
-	CorrelationID           string
-	AuditRecordID           string
+	Principal           Principal
+	Resource            ResourceRef
+	Action              string
+	Risk                Risk
+	Now                 time.Time
+	MaxStepUpAge        time.Duration
+	TenantContextDenied bool
+	CorrelationID       string
+	AuditRecordID       string
 }
 
 type Result struct {
