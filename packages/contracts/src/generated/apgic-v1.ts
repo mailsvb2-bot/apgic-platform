@@ -2,7 +2,7 @@
 // DO NOT EDIT.
 export const apiContractVersion = "0.2.0-r1-demand" as const;
 
-export type ApiOperationId = "acquireSlotHold" | "applyProviderEvent" | "cancelOrder" | "completeConsultation" | "confirmHelpIntent" | "createCheckoutInstruction" | "createHelpIntent" | "deleteAccount" | "exportConsultationToGrowth" | "getBookingFulfillment" | "getMeta" | "health" | "listCheckoutOptions" | "listHelpIntentMatches" | "listSpecialistSlots" | "markSearchProjectionStale" | "readiness" | "rebuildSearchProjection" | "recordConsultationPresence" | "reportConsultationFailure" | "searchProjection" | "succeedConsultationRecovery";
+export type ApiOperationId = "acquireSlotHold" | "applyProviderEvent" | "cancelOrder" | "completeConsultation" | "confirmHelpIntent" | "createCheckoutInstruction" | "createHelpIntent" | "deleteAccount" | "exportConsultationToGrowth" | "getBookingFulfillment" | "getLegalAcceptanceStatus" | "getMeta" | "health" | "listCheckoutOptions" | "listHelpIntentMatches" | "listSpecialistSlots" | "markSearchProjectionStale" | "readiness" | "rebuildSearchProjection" | "recordConsultationPresence" | "recordLegalAcceptance" | "reportConsultationFailure" | "searchProjection" | "succeedConsultationRecovery";
 
 export interface AccountDeletion {
   apgic_deletes_ledger: boolean;
@@ -182,6 +182,21 @@ export interface HelpIntent {
   topics: Array<string>;
 }
 
+export interface LegalAcceptance {
+  accepted_at: string;
+  document_id: string;
+  document_version: string;
+  evidence_hash: string;
+  id: string;
+  identity_id: string;
+}
+
+export interface LegalAcceptanceStatus {
+  accepted: boolean;
+  document_id: string;
+  document_version: string;
+}
+
 export interface MatchCard {
   currency: string;
   display_name: string;
@@ -238,6 +253,12 @@ export interface ProviderEvent {
   outcome: string;
   provider_event_id: string;
   provider_id: string;
+}
+
+export interface RecordLegalAcceptanceRequest {
+  document_id: string;
+  document_version: string;
+  evidence_hash: string;
 }
 
 export interface SearchHit {
