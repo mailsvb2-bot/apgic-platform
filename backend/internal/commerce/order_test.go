@@ -17,6 +17,8 @@ func validOrderSnapshot() OrderSnapshot {
 		PricingPolicyVersion:    "pricing-v1",
 		CommissionPolicyVersion: "commission-v1",
 		LegalSnapshotRef:        "legal-snapshot-1",
+		ProductOwnerRef:         "organization/org-1",
+		AuthorRefs:              []string{"identity/author-1"},
 		SellerRef:               "identity/specialist-1",
 		CommercialOwnerRef:      "identity/specialist-1",
 		PaymentRecipientRef:     "identity/specialist-1",
@@ -48,6 +50,9 @@ func TestOrderSnapshotRejectsSilentEconomicDefaults(t *testing.T) {
 		"missing pricing policy":    func(s *OrderSnapshot) { s.PricingPolicyVersion = "" },
 		"missing commission policy": func(s *OrderSnapshot) { s.CommissionPolicyVersion = "" },
 		"missing legal snapshot":    func(s *OrderSnapshot) { s.LegalSnapshotRef = "" },
+		"missing product owner":     func(s *OrderSnapshot) { s.ProductOwnerRef = "" },
+		"missing authors":           func(s *OrderSnapshot) { s.AuthorRefs = nil },
+		"blank author":              func(s *OrderSnapshot) { s.AuthorRefs = []string{""} },
 		"zero amount":               func(s *OrderSnapshot) { s.AmountMinor = 0 },
 		"commission exceeds amount": func(s *OrderSnapshot) { s.CommissionMinor = s.AmountMinor + 1 },
 		"invalid currency code":     func(s *OrderSnapshot) { s.Currency = "1$?" },
@@ -70,8 +75,9 @@ func TestOrderSnapshotIsValueCopy(t *testing.T) {
 	}
 	input.AmountMinor = 1
 	input.PricingPolicyVersion = "pricing-v999"
+	input.AuthorRefs[0] = "identity/mutated"
 
-	if snapshot.AmountMinor != 10000 || snapshot.PricingPolicyVersion != "pricing-v1" {
+	if snapshot.AmountMinor != 10000 || snapshot.PricingPolicyVersion != "pricing-v1" || snapshot.AuthorRefs[0] != "identity/author-1" {
 		t.Fatalf("captured snapshot changed with source object: %#v", snapshot)
 	}
 }
