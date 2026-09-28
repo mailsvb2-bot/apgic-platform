@@ -68,6 +68,17 @@ class ReleaseEvidenceTests(unittest.TestCase):
                 evidence_map=self.evidence_map,
             )
 
+    def test_explicit_evidence_ref_is_valid_traceability_for_staging_proof(self) -> None:
+        result = build_requirement_evidence(
+            ALL_GREEN_GATES,
+            registry=self.registry,
+            evidence_map=self.evidence_map,
+        )
+        self.assertIn(
+            "E2E_OR_STAGING_PROOF",
+            result["APGIC-EXEC-001"]["proven_evidence"],
+        )
+
     def test_proof_ref_must_belong_to_requirement_traceability(self) -> None:
         evidence_map = copy.deepcopy(self.evidence_map)
         evidence_map["requirements"]["APGIC-ID-001"]["claims"][
