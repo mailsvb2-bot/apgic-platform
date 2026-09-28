@@ -8,6 +8,21 @@ import (
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/booking"
 )
 
+func TestConformanceOfferKeepsOrganizationOwnerAndSpecialistAuthorExplicit(t *testing.T) {
+	ownership, err := productOwnershipForSpecialist("spec-lebedeva", "identity-spec-lebedeva")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ownership.OwnerType != "ORGANIZATION" ||
+		ownership.OwnerID != "org-conformance-marketplace" ||
+		ownership.CommercialOwnerRef != "organization/org-conformance-marketplace" ||
+		len(ownership.AuthorRefs) != 1 ||
+		ownership.AuthorRefs[0] != "identity-spec-lebedeva" ||
+		ownership.RevenueBeneficiaryRef != "identity-spec-lebedeva" {
+		t.Fatalf("ownership = %#v", ownership)
+	}
+}
+
 func TestCheckoutSendsMoneyToExternalProviderAndSpecialist(t *testing.T) {
 	service := NewConformanceService(nil)
 	intent, err := service.CreateIntent("нужна помощь со сном")
