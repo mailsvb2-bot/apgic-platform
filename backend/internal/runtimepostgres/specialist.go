@@ -614,6 +614,78 @@ func (c *Checker) Unpublish(identityID, topicID string) (specialist.PublishResul
 	return result, nil
 }
 
+func (c *Checker) PublishedProfiles() ([]marketplace.SpecialistProfile, error) {
+	if c == nil || c.db == nil {
+		return nil, errors.New("postgres checker is not initialized")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), specialistWriteTimeout)
+	defer cancel()
+	tx, err := c.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true, Isolation: sql.LevelRepeatableRead})
+	if err != nil {
+		return nil, fmt.Errorf("begin published specialist snapshot: %w", err)
+	}
+	defer tx.Rollback()
+
+	rows, err := tx.QueryContext(ctx,
+		`SELECT DISTINCT profile.identity_id::text
+		   FROM specialist_profiles profile
+		   JOIN specialist_publications publication
+		     ON publication.specialist_id = profile.id
+		    AND publication.state = 'ACTIVE'
+		  ORDER BY profile.identity_id::text`)
+	if err != nil {
+		return nil, fmt.Errorf("list published specialist identities: %w", err)
+	}
+	var identities []string
+	for rows.Next() {
+		var identityID string
+		if err := rows.Scan(&identityID); err != nil {
+			rows.Close()
+			return nil, fmt.Errorf("scan published specialist identity: %w", err)
+		}
+		identities = append(identities, identityID)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, fmt.Errorf("iterate published specialist identities: %w", err)
+	}
+	rows.Close()
+
+	profiles := make([]marketplace.SpecialistProfile, 0, len(identities))
+	for _, identityID := range identities {
+		profile, err := loadSpecialistProfileTx(ctx, tx, identityID)
+		if err != nil {
+			return nil, err
+		}
+		domain, err := marketplace.NewSpecialistProfile(profile.ID, profile.IdentityID, profile.DisplayName)
+		if err != nil {
+			return nil, fmt.Errorf("build published specialist profile: %w", err)
+		}
+		domain.Profession = profile.ProfessionCode
+		domain.Complete = profile.ProfileComplete
+		domain.Review = profile.ReviewState
+		for _, capability := range profile.Capabilities {
+			item, err := marketplace.NewCapability(
+				capability.TopicID,
+				capability.EvidenceState,
+				capability.EvidenceRefs...,
+			)
+			if err != nil {
+				return nil, fmt.Errorf("build published specialist capability: %w", err)
+			}
+			domain.AddCapability(item)
+		}
+		domain.PublishState = marketplace.PublishPublished
+		domain.PublishedTopics = append([]string(nil), profile.PublishedTopics...)
+		profiles = append(profiles, *domain)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit published specialist snapshot: %w", err)
+	}
+	return profiles, nil
+}
+
 func specialistIDForIdentity(ctx context.Context, tx *sql.Tx, identityID string) (string, error) {
 	var specialistID string
 	if err := tx.QueryRowContext(ctx,
