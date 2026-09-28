@@ -151,6 +151,19 @@ func TestSpecialistSupplyPersistsEvidenceReviewAndPublishGate(t *testing.T) {
 	if len(profile.PublishedTopics) != 1 || profile.PublishedTopics[0] != "anxiety" {
 		t.Fatalf("durable publication missing: %#v", profile.PublishedTopics)
 	}
+	discoveryProfiles, err := store.PublishedProfiles()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var discoveryFound bool
+	for _, candidate := range discoveryProfiles {
+		if candidate.IdentityID == identityID && candidate.IsPublishedFor("anxiety") {
+			discoveryFound = true
+		}
+	}
+	if !discoveryFound {
+		t.Fatalf("active publication missing from durable discovery snapshot: %#v", discoveryProfiles)
+	}
 
 	if _, err := store.Unpublish(identityID, "anxiety"); err != nil {
 		t.Fatal(err)
@@ -161,6 +174,15 @@ func TestSpecialistSupplyPersistsEvidenceReviewAndPublishGate(t *testing.T) {
 	}
 	if len(profile.PublishedTopics) != 0 {
 		t.Fatalf("unpublish left active discoverability: %#v", profile.PublishedTopics)
+	}
+	discoveryProfiles, err = store.PublishedProfiles()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, candidate := range discoveryProfiles {
+		if candidate.IdentityID == identityID {
+			t.Fatalf("unpublished specialist remained discoverable: %#v", candidate)
+		}
 	}
 }
 
