@@ -214,6 +214,67 @@ func TestJourneyStoreSurvivesServiceRestart(t *testing.T) {
 			payoutBeneficiaryRef,
 		)
 	}
+
+	var (
+		transactionRef          string
+		sellerRef               string
+		legalCommercialOwnerRef string
+		paymentRecipientRef     string
+		platformRole            string
+		fiscalResponsibilityRef string
+		refundResponsibilityRef string
+		legalBeneficiaryRef     string
+		legalPolicyVersion      string
+	)
+	if err := store.db.QueryRow(
+		`SELECT
+			transaction_ref,
+			seller_or_service_provider_id,
+			commercial_owner_id,
+			payment_recipient_id,
+			platform_role,
+			fiscal_responsibility_id,
+			refund_responsibility_id,
+			payout_beneficiary_id,
+			policy_version
+		   FROM legal_transaction_snapshots
+		  WHERE transaction_ref = $1`,
+		"order/"+instruction.OrderID,
+	).Scan(
+		&transactionRef,
+		&sellerRef,
+		&legalCommercialOwnerRef,
+		&paymentRecipientRef,
+		&platformRole,
+		&fiscalResponsibilityRef,
+		&refundResponsibilityRef,
+		&legalBeneficiaryRef,
+		&legalPolicyVersion,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if transactionRef != "order/"+instruction.OrderID ||
+		sellerRef != "identity-spec-lebedeva" ||
+		legalCommercialOwnerRef != "organization/org-conformance-marketplace" ||
+		paymentRecipientRef != "identity-spec-lebedeva" ||
+		platformRole != "MARKETPLACE_INTERMEDIARY" ||
+		fiscalResponsibilityRef != "identity-spec-lebedeva" ||
+		refundResponsibilityRef != "identity-spec-lebedeva" ||
+		legalBeneficiaryRef != "identity-spec-lebedeva" ||
+		legalPolicyVersion != "legal-conformance-v1" {
+		t.Fatalf(
+			"durable legal snapshot transaction=%q seller=%q commercial=%q recipient=%q platform=%q fiscal=%q refund=%q beneficiary=%q policy=%q",
+			transactionRef,
+			sellerRef,
+			legalCommercialOwnerRef,
+			paymentRecipientRef,
+			platformRole,
+			fiscalResponsibilityRef,
+			refundResponsibilityRef,
+			legalBeneficiaryRef,
+			legalPolicyVersion,
+		)
+	}
 	other, err := third.CreateIntent("тоже нужна помощь со сном")
 	if err != nil {
 		t.Fatal(err)
