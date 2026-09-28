@@ -3,6 +3,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 export APGIC_HTTP_ADDR="${APGIC_HTTP_ADDR:-:43131}"
 export APGIC_API_ORIGIN="${APGIC_API_ORIGIN:-http://127.0.0.1:43131}"
+export APGIC_WEB_PORT="${APGIC_WEB_PORT:-43110}"
 export APGIC_CLIENT_SESSION_KEY="${APGIC_CLIENT_SESSION_KEY:-local-only-client-session-key-000000000000}"
 if ! command -v go >/dev/null 2>&1; then
   case "$(uname -m)" in
@@ -40,4 +41,4 @@ if [ "$ready" != 1 ]; then
 fi
 curl -sS -D - -o /dev/null "${APGIC_API_ORIGIN}/v1/slot-holds/missing/checkout-options?client_identity_id=x" | grep -qi 'content-type: application/json'
 cd "$ROOT/apps/web"
-exec npm run start -- --hostname 127.0.0.1 --port 43110
+exec npm run start -- --hostname 127.0.0.1 --port "$APGIC_WEB_PORT"
