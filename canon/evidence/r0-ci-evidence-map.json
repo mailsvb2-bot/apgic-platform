@@ -859,11 +859,17 @@
             "tools/canon_lint.py",
             "tools/registry_ref_guard.py"
           ]
+        },
+        "E2E_OR_STAGING_PROOF": {
+          "gates": [
+            "canon"
+          ],
+          "proof_refs": [
+            "canon/evidence/staging-runtime-20260927T072352Z.json"
+          ]
         }
       },
-      "unproven_evidence": [
-        "E2E_OR_STAGING_PROOF"
-      ]
+      "unproven_evidence": []
     },
     "APGIC-NFR-001": {
       "claims": {
@@ -876,11 +882,17 @@
             "backend/internal/httpapi/handler_test.go",
             "tools/launch_config_guard.py"
           ]
+        },
+        "E2E_OR_STAGING_PROOF": {
+          "gates": [
+            "canon"
+          ],
+          "proof_refs": [
+            "canon/evidence/staging-runtime-20260927T072352Z.json"
+          ]
         }
       },
-      "unproven_evidence": [
-        "E2E_OR_STAGING_PROOF"
-      ]
+      "unproven_evidence": []
     },
     "APGIC-RELEASE-001": {
       "claims": {
@@ -891,11 +903,17 @@
           "proof_refs": [
             "tools/tests/test_release_evidence.py"
           ]
+        },
+        "E2E_OR_STAGING_PROOF": {
+          "gates": [
+            "canon"
+          ],
+          "proof_refs": [
+            "canon/evidence/staging-runtime-20260927T072352Z.json"
+          ]
         }
       },
-      "unproven_evidence": [
-        "E2E_OR_STAGING_PROOF"
-      ]
+      "unproven_evidence": []
     },
     "APGIC-TEST-001": {
       "claims": {
@@ -907,11 +925,17 @@
             "tools/test_canon_contract_guard.py",
             "tools/architecture_guard.py"
           ]
+        },
+        "E2E_OR_STAGING_PROOF": {
+          "gates": [
+            "canon"
+          ],
+          "proof_refs": [
+            "canon/evidence/staging-runtime-20260927T072352Z.json"
+          ]
         }
       },
-      "unproven_evidence": [
-        "E2E_OR_STAGING_PROOF"
-      ]
+      "unproven_evidence": []
     },
     "APGIC-UI-001": {
       "claims": {
