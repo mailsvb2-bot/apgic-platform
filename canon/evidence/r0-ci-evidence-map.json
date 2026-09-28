@@ -226,8 +226,7 @@
             "postgres-invariants"
           ],
           "proof_refs": [
-            "backend/internal/runtimepostgres/journey_test.go",
-            ".github/workflows/ci.yml"
+            "backend/internal/runtimepostgres/journey_test.go"
           ]
         }
       },
