@@ -53,7 +53,8 @@ INSERT INTO legal_transaction_snapshots (
 INSERT INTO orders (
   id, booking_id, offer_ref, price_source_ref, amount_minor, currency,
   commission_minor, pricing_policy_version, commission_policy_version,
-  legal_snapshot_id, seller_ref, commercial_owner_ref, payment_recipient_ref,
+  legal_snapshot_id, product_owner_ref, author_refs,
+  seller_ref, commercial_owner_ref, payment_recipient_ref,
   platform_role, fiscal_responsibility_ref, refund_responsibility_ref,
   payout_beneficiary_ref, captured_at
 ) VALUES (
@@ -67,6 +68,8 @@ INSERT INTO orders (
   'pricing-r2-ci-v1',
   'commission-r2-ci-v1',
   '00000000-0000-0000-0000-00000000a401',
+  'identity/specialist-store-ci',
+  ARRAY['identity/specialist-store-ci'],
   'identity/specialist-store-ci',
   'identity/specialist-store-ci',
   'identity/specialist-store-ci',
