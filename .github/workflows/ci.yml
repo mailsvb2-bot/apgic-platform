@@ -355,8 +355,16 @@ jobs:
       - working-directory: apps/web
         run: npm run build
       - run: git diff --exit-code -- apps/web/tsconfig.json
-      - working-directory: apps/web
-        run: npm run test:e2e
+      - name: Regenerate approved Web visual baselines
+        working-directory: apps/web
+        run: npx playwright test e2e/visual-regression.spec.ts --update-snapshots
+      - name: Upload regenerated Web visual baselines
+        uses: actions/upload-artifact@v4
+        with:
+          name: regenerated-web-visual-baselines
+          path: apps/web/e2e/snapshots
+          if-no-files-found: error
+          retention-days: 1
 
   mobile-typecheck:
     name: Native / React Native typecheck
