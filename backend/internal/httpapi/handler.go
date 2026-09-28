@@ -11,11 +11,11 @@ import (
 )
 
 type Options struct {
-	CommitSHA      string
-	ReleaseTrack   string
-	Surfaces       []string
-	LaunchConfig   launchconfig.Config
-	ReadinessCheck func(context.Context) error
+	CommitSHA        string
+	ReleaseTrack     string
+	Surfaces         []string
+	LaunchConfig     launchconfig.Config
+	ReadinessCheck   func(context.Context) error
 	Demand           *demand.Service
 	ClientSessionKey []byte
 	Now              func() time.Time
