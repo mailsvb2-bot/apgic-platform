@@ -218,14 +218,22 @@ func (c *Checker) deliverOneOutbox(parent context.Context, eventID string, deliv
 	if err != nil {
 		return false, err
 	}
-	if _, err := conn.ExecContext(ctx,
+	attemptResult, err := conn.ExecContext(ctx,
 		`UPDATE outbox_events
 		    SET attempts = attempts + 1
 		  WHERE event_id = $1::uuid
 		    AND delivery_status = 'PENDING'`,
 		eventID,
-	); err != nil {
+	)
+	if err != nil {
 		return false, fmt.Errorf("increment outbox attempts: %w", err)
+	}
+	attemptRows, err := attemptResult.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("read outbox attempt rows: %w", err)
+	}
+	if attemptRows != 1 {
+		return false, nil
 	}
 
 	if err := deliver(ctx, record.Event); err != nil {
