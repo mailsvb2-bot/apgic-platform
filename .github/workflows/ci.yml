@@ -337,8 +337,28 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
       - working-directory: apps/mobile
         run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Generate installed mobile dependency SBOM
+        working-directory: apps/mobile
+        shell: bash
+        run: |
+          mkdir -p ../../evidence
+          npm ls --json --all > ../../evidence/mobile-npm-tree.json
+          python ../../tools/mobile_sbom.py \
+            --tree ../../evidence/mobile-npm-tree.json \
+            --output ../../evidence/mobile-sbom.cdx.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mobile-cyclonedx-sbom
+          path: |
+            evidence/mobile-sbom.cdx.json
+            evidence/mobile-npm-tree.json
+          if-no-files-found: error
+          retention-days: 30
       - working-directory: apps/mobile
         run: npx tsc --noEmit
       - working-directory: apps/mobile
