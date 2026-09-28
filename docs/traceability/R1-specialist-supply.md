@@ -32,6 +32,10 @@ This document records the executable trace for the first Specialist Supply verti
   - evidence intake: `DOCUMENT_SUPPORTED / PENDING`
   - trusted review only: `APGIC_VERIFIED / ACTIVE`
 - Public API exposes no verification/review mutation.
+- Trusted review control plane:
+  - `backend/cmd/specialist-review`
+  - requires server-side `APGIC_DATABASE_URL` access and a stable reviewer reference;
+  - evidence/profile review transitions append audit evidence.
 - Tests:
   - `backend/internal/runtimepostgres/specialist_test.go`
   - `backend/internal/httpapi/specialist_test.go`
@@ -56,6 +60,10 @@ This document records the executable trace for the first Specialist Supply verti
   - `apps/web/e2e/foundation.spec.ts`
 - Database guard:
   - `specialist_publications_guard` prevents bypass of the qualification/profile gate.
+- Public discovery:
+  - `runtimepostgres.Checker.PublishedProfiles` returns only active durable publications;
+  - `demand.PublishedSpecialistStore` feeds those profiles into search projection rebuilds;
+  - unpublish removes the specialist from the next rebuilt public projection.
 
 ## Web surface
 
@@ -63,3 +71,19 @@ This document records the executable trace for the first Specialist Supply verti
 - Stateful onboarding: `apps/web/app/specialist/onboarding.tsx`
 - Same-origin API proxy: `apps/web/app/v1/[...path]/route.ts`
 - The page does not claim that submitted evidence is verified before trusted review.
+
+
+## Operator review usage
+
+The trusted review command is intended for an authenticated shell/ops context; it is not reachable from the public specialist API.
+
+```bash
+cd backend
+APGIC_DATABASE_URL="postgres://..." go run ./cmd/specialist-review \
+  -type evidence -id <evidence-uuid> -decision approve -reviewer <operator-ref>
+
+APGIC_DATABASE_URL="postgres://..." go run ./cmd/specialist-review \
+  -type profile -id <identity-uuid> -decision approve -reviewer <operator-ref>
+```
+
+Reject uses `-decision reject`. The database URL remains server-side and must not be printed into user-facing logs.
