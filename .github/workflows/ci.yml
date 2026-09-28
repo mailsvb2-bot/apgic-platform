@@ -205,6 +205,7 @@ jobs:
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000016_r0_connector_delivery_semantics.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000017_r0_ledger_economic_event_idempotency.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000018_r0_order_product_ownership_snapshot.sql
+          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000019_r1_specialist_supply_runtime.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r0_connector_delivery_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r1_mobile_invariants.sql
@@ -330,6 +331,7 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f backend/migrations/000016_r0_connector_delivery_semantics.sql
           psql -v ON_ERROR_STOP=1 -f backend/migrations/000017_r0_ledger_economic_event_idempotency.sql
           psql -v ON_ERROR_STOP=1 -f backend/migrations/000018_r0_order_product_ownership_snapshot.sql
+          psql -v ON_ERROR_STOP=1 -f backend/migrations/000019_r1_specialist_supply_runtime.sql
           bash backend/ci/restore_drill.sh
       - uses: actions/upload-artifact@v4
         with:
