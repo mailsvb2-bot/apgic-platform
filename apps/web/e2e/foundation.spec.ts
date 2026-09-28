@@ -188,3 +188,27 @@ test("critical journey boots when crypto.randomUUID is unavailable", async ({ pa
   await expect(page.getByLabel("С чем нужна помощь")).toBeVisible();
   await expect(page.getByRole("button", { name: "Разобрать запрос" })).toBeVisible();
 });
+
+
+test("specialist entry is reachable and never overstates verification", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("link", { name: "Для специалистов" }).click();
+  await expect(page).toHaveURL(/\/specialist$/);
+  await expect(page.getByRole("heading", { level: 1, name: /Работайте с клиентами/ })).toBeVisible();
+  await expect(page.getByText("Заявлено ≠ подтверждено")).toBeVisible();
+  await expect(page.getByText(/Самостоятельная отправка профиля из Web будет включена/)).toBeVisible();
+
+  const verifiedCopy = page.getByText("APGIC VERIFIED", { exact: true });
+  await expect(verifiedCopy).toHaveCount(1);
+
+  const layout = await page.evaluate(() => ({
+    viewportWidth: window.innerWidth,
+    documentWidth: document.documentElement.scrollWidth,
+  }));
+  expect(layout.documentWidth).toBeLessThanOrEqual(layout.viewportWidth + 1);
+
+  const accessibility = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+    .analyze();
+  expect(accessibility.violations).toEqual([]);
+});
