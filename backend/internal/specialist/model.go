@@ -34,13 +34,13 @@ type Capability struct {
 }
 
 type Evidence struct {
-	ID         string     `json:"id"`
-	TopicID    string     `json:"topic_id"`
-	Kind       string     `json:"kind"`
-	Reference  string     `json:"reference"`
-	State      string     `json:"state"`
+	ID          string     `json:"id"`
+	TopicID     string     `json:"topic_id"`
+	Kind        string     `json:"kind"`
+	Reference   string     `json:"reference"`
+	State       string     `json:"state"`
 	SubmittedAt time.Time  `json:"submitted_at"`
-	ReviewedAt *time.Time `json:"reviewed_at,omitempty"`
+	ReviewedAt  *time.Time `json:"reviewed_at,omitempty"`
 }
 
 type Profile struct {
