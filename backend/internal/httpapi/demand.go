@@ -53,7 +53,7 @@ type cancellationRequest struct {
 	ReasonCode string `json:"reason_code"`
 }
 
-func registerDemand(mux *http.ServeMux, service *demand.Service) {
+func registerDemand(mux *http.ServeMux, service *demand.Service, sessions *clientSessionManager, sessionConfigErr error) {
 	mux.HandleFunc("POST /v1/help-intents", func(w http.ResponseWriter, r *http.Request) {
 		if service == nil {
 			writeDemandError(w, r, http.StatusServiceUnavailable, "DEMAND_CATALOG_UNAVAILABLE", "Каталог спроса не подключён.", false, nil)
@@ -64,10 +64,31 @@ func registerDemand(mux *http.ServeMux, service *demand.Service) {
 			writeDemandError(w, r, http.StatusBadRequest, "HELP_INTENT_INVALID", "Запрос не удалось прочитать.", false, nil)
 			return
 		}
-		intent, err := service.CreateIntent(body.FreeText)
+		if sessionConfigErr != nil {
+			writeDemandError(w, r, http.StatusServiceUnavailable, "CLIENT_SESSION_UNAVAILABLE", "Сессия клиента недоступна.", false, nil)
+			return
+		}
+		if sessions == nil {
+			intent, err := service.CreateIntent(body.FreeText)
+			if err != nil {
+				writeDemandFailure(w, r, err)
+				return
+			}
+			writeJSON(w, http.StatusCreated, intent)
+			return
+		}
+		identityID, sessionCookie, err := sessions.identityForCreate(r)
+		if err != nil {
+			writeDemandError(w, r, http.StatusUnauthorized, "CLIENT_SESSION_INVALID", "Сессия клиента недействительна.", false, nil)
+			return
+		}
+		intent, err := service.CreateIntentForIdentity(identityID, body.FreeText)
 		if err != nil {
 			writeDemandFailure(w, r, err)
 			return
+		}
+		if sessionCookie != nil {
+			http.SetCookie(w, sessionCookie)
 		}
 		writeJSON(w, http.StatusCreated, intent)
 	})
