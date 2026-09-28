@@ -95,6 +95,7 @@ def load_registry_requirements(path: Path = REGISTRY) -> dict[str, dict[str, Any
             "implementation_refs": _list_from_block(block, "implementation_refs"),
             "contract_refs": _list_from_block(block, "contract_refs"),
             "test_refs": _list_from_block(block, "test_refs"),
+            "evidence_refs": _list_from_block(block, "evidence_refs"),
             "required_evidence": required_evidence,
         }
     return requirements
@@ -173,6 +174,7 @@ def build_requirement_evidence(
         traceability_refs = set(requirement.get("implementation_refs") or [])
         traceability_refs.update(requirement.get("contract_refs") or [])
         traceability_refs.update(requirement.get("test_refs") or [])
+        traceability_refs.update(requirement.get("evidence_refs") or [])
 
         proven: dict[str, dict[str, list[str]]] = {}
         for evidence_kind, claim in sorted(claims.items()):
