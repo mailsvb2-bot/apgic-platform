@@ -3054,12 +3054,17 @@ requirements:
   - APGIC-MOBILE-012
   implementation_refs:
   - config/mobile/r0-ci-observability.yaml
+  - config/mobile/r0-ci-performance-pass.yaml
+  - config/mobile/r0-ci-performance-breach.yaml
   - packages/contracts/src/mobile-observability.ts
   - tools/mobile_observability_guard.py
+  - tools/mobile_performance_gate.py
   contract_refs:
   - packages/contracts/src/mobile-observability.ts
   test_refs:
   - tools/mobile_observability_guard.py
+  - tools/mobile_performance_gate.py
+  - tools/tests/test_mobile_performance_gate.py
   - .github/workflows/ci.yml
   evidence_refs: []
   acceptance:
