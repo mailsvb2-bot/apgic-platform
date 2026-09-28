@@ -700,12 +700,31 @@
             "tools/mobile_dependency_guard.py",
             "tools/mobile_dependency_contract_guard.py"
           ]
+        },
+        "SBOM": {
+          "gates": [
+            "mobile-typecheck",
+            "canon"
+          ],
+          "proof_refs": [
+            "tools/mobile_sbom.py",
+            "tools/tests/test_mobile_sbom.py",
+            ".github/workflows/ci.yml",
+            "apps/mobile/package.json"
+          ]
+        },
+        "SECRET_SCAN": {
+          "gates": [
+            "canon"
+          ],
+          "proof_refs": [
+            "tools/repository_secret_scan.py",
+            "tools/tests/test_repository_secret_scan.py",
+            ".github/workflows/ci.yml"
+          ]
         }
       },
-      "unproven_evidence": [
-        "SBOM",
-        "SECRET_SCAN"
-      ]
+      "unproven_evidence": []
     },
     "APGIC-MOBILE-023": {
       "claims": {
