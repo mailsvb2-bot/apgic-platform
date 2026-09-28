@@ -533,13 +533,21 @@ requirements:
   dependencies: []
   implementation_refs:
   - backend/internal/commerce/product.go
+  - backend/internal/commerce/order.go
+  - backend/internal/demand/checkout.go
+  - backend/internal/runtimepostgres/journey.go
   - backend/migrations/000001_r0_foundation.sql
   - backend/migrations/000003_r0_semantic_invariants.sql
+  - backend/migrations/000018_r0_order_product_ownership_snapshot.sql
   contract_refs:
   - contracts/jsonschema/product-ownership-v1.schema.json
   test_refs:
   - backend/internal/commerce/product_test.go
+  - backend/internal/commerce/order_test.go
+  - backend/internal/demand/checkout_test.go
+  - backend/internal/runtimepostgres/journey_test.go
   - backend/migrations/ci_invariants.sql
+  - backend/migrations/ci_r2_booking_order_invariants.sql
   - tools/product_contract_guard.py
   evidence_refs: []
   acceptance:
