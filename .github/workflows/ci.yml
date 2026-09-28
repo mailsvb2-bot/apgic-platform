@@ -77,6 +77,14 @@ jobs:
       - run: python tools/mobile_release_guard.py config/mobile/r0-ci-release-governance.yaml --mode ci
       - run: python tools/mobile_native_build_guard.py config/mobile/r0-ci-release-governance.yaml
       - run: python tools/mobile_observability_guard.py config/mobile/r0-ci-observability.yaml --mode ci
+      - run: python tools/mobile_performance_gate.py config/mobile/r0-ci-observability.yaml config/mobile/r0-ci-performance-pass.yaml
+      - shell: bash
+        run: |
+          if python tools/mobile_performance_gate.py config/mobile/r0-ci-observability.yaml config/mobile/r0-ci-performance-breach.yaml; then
+            echo "breached mobile performance sample unexpectedly passed" >&2
+            exit 1
+          fi
+          echo "fail-closed mobile performance breach proof: PASS"
       - run: python tools/mobile_realtime_guard.py config/mobile/r3-ci-realtime-policy.yaml --mode ci
       - run: python tools/r4_release_gate.py config/release/r4-ci-gate-evidence.yaml --gate all --mode ci
       - shell: bash

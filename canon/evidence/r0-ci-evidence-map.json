@@ -771,11 +771,22 @@
             "tools/mobile_observability_guard.py",
             ".github/workflows/ci.yml"
           ]
+        },
+        "PERFORMANCE_TEST": {
+          "gates": [
+            "canon"
+          ],
+          "proof_refs": [
+            "tools/mobile_performance_gate.py",
+            "tools/tests/test_mobile_performance_gate.py",
+            "config/mobile/r0-ci-performance-pass.yaml",
+            "config/mobile/r0-ci-performance-breach.yaml",
+            ".github/workflows/ci.yml"
+          ]
         }
       },
       "unproven_evidence": [
-        "DASHBOARD_EVIDENCE",
-        "PERFORMANCE_TEST"
+        "DASHBOARD_EVIDENCE"
       ]
     },
     "APGIC-MOBILE-027": {

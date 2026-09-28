@@ -1,0 +1,11 @@
+policy_version: mobile-observability-ci-v1
+scope: CI_SYNTHETIC_GUARDRAIL_SAMPLE
+metrics:
+  crash_rate: {unit: ratio, value: 0.01}
+  anr_rate: {unit: ratio, value: 0.01}
+  startup_p95_ms: {unit: milliseconds, value: 6200}
+  push_delivery_success: {unit: ratio, value: 0.98}
+  deep_link_success: {unit: ratio, value: 0.97}
+  checkout_success: {unit: ratio, value: 0.62}
+  realtime_join_success: {unit: ratio, value: 0.95}
+  reconnect_success: {unit: ratio, value: 0.94}
