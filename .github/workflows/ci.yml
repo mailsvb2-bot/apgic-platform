@@ -395,6 +395,17 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - name: Install pinned Android NDK
+        shell: bash
+        run: |
+          SDKMANAGER="${ANDROID_SDK_ROOT:-${ANDROID_HOME}}/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then
+            SDKMANAGER="$(command -v sdkmanager || true)"
+          fi
+          test -n "$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "ndk;27.1.12297006"
+          test -d "${ANDROID_SDK_ROOT:-${ANDROID_HOME}}/ndk/27.1.12297006"
       - working-directory: apps/mobile
         run: npm install --ignore-scripts --no-audit --no-fund
       - working-directory: apps/mobile/android
