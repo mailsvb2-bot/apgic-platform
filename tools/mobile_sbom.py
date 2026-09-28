@@ -21,13 +21,17 @@ def component_ref(name: str, version: str) -> str:
     return f"pkg:npm/{quote(name, safe='')}@{quote(version, safe='')}"
 
 
-def _validate_node(name: str, node: dict) -> tuple[str, str]:
-    version = node.get("version")
+def _resolved_version(name: str, node: dict) -> str | None:
     if not isinstance(name, str) or not name:
         raise SBOMError("installed dependency has no name")
-    if not isinstance(version, str) or not version:
-        raise SBOMError(f"{name}: installed dependency has no resolved version")
-    return name, version
+    version = node.get("version")
+    if isinstance(version, str) and version:
+        return version
+
+    installed_markers = ("path", "resolved", "integrity")
+    if node.get("missing") is True or not any(node.get(key) for key in installed_markers):
+        return None
+    raise SBOMError(f"{name}: installed dependency has no resolved version")
 
 
 def build_cyclonedx_sbom(package_doc: dict, tree_doc: dict) -> dict:
@@ -63,7 +67,10 @@ def build_cyclonedx_sbom(package_doc: dict, tree_doc: dict) -> dict:
             node = dependencies[name] or {}
             if not isinstance(node, dict):
                 raise SBOMError(f"{name}: npm dependency node must be an object")
-            dep_name, version = _validate_node(name, node)
+            version = _resolved_version(name, node)
+            if version is None:
+                continue
+            dep_name = name
             ref = component_ref(dep_name, version)
             refs.add(ref)
             component = {
