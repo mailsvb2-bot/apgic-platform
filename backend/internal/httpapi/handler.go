@@ -16,8 +16,9 @@ type Options struct {
 	Surfaces       []string
 	LaunchConfig   launchconfig.Config
 	ReadinessCheck func(context.Context) error
-	Demand         *demand.Service
-	Now            func() time.Time
+	Demand           *demand.Service
+	ClientSessionKey []byte
+	Now              func() time.Time
 }
 
 type metaResponse struct {
@@ -78,7 +79,12 @@ func New(options Options) http.Handler {
 		})
 	})
 
-	registerDemand(mux, options.Demand)
+	var sessions *clientSessionManager
+	var sessionConfigErr error
+	if len(options.ClientSessionKey) > 0 {
+		sessions, sessionConfigErr = newClientSessionManager(options.ClientSessionKey, options.Now)
+	}
+	registerDemand(mux, options.Demand, sessions, sessionConfigErr)
 	return mux
 }
 
