@@ -414,9 +414,9 @@ fieldset {
   color: #34473d;
   font-weight: 700;
 }
-.pending-dot {
-  background: #b7a06e;
-  box-shadow: 0 0 0 5px rgba(183,160,110,.14);
+.neutral-dot {
+  background: #a8ada9;
+  box-shadow: 0 0 0 5px rgba(168,173,169,.14);
 }
 .status-note {
   margin: 22px 0 0;
