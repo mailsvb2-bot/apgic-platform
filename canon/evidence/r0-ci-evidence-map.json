@@ -885,11 +885,24 @@
           "proof_refs": [
             "apps/web/e2e/foundation.spec.ts"
           ]
+        },
+        "VISUAL_REGRESSION": {
+          "gates": [
+            "web-build",
+            "canon"
+          ],
+          "proof_refs": [
+            "apps/web/e2e/visual-regression.spec.ts",
+            "apps/web/e2e/snapshots/phone/phone-critical-entry.png",
+            "apps/web/e2e/snapshots/tablet/tablet-critical-entry.png",
+            "apps/web/e2e/snapshots/desktop/desktop-critical-entry.png",
+            "apps/web/playwright.config.ts",
+            "tools/ui_adaptive_contract_guard.py",
+            "tools/tests/test_ui_adaptive_contract_guard.py"
+          ]
         }
       },
-      "unproven_evidence": [
-        "VISUAL_REGRESSION"
-      ]
+      "unproven_evidence": []
     }
   }
 }
