@@ -379,6 +379,7 @@ jobs:
             exit 0
           fi
           git commit -m "Refresh product entry visual baselines"
+          git reset --hard HEAD
           git fetch origin "${{ github.head_ref }}"
           git rebase "origin/${{ github.head_ref }}"
           git push origin HEAD:${{ github.head_ref }}
