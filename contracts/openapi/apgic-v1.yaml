@@ -57,6 +57,8 @@ paths:
   /v1/help-intents/{id}/confirm:
     post:
       operationId: confirmHelpIntent
+      security:
+        - ClientSession: []
       parameters:
         - name: id
           in: path
@@ -131,6 +133,8 @@ paths:
   /v1/help-intents/{id}/matches:
     get:
       operationId: listHelpIntentMatches
+      security:
+        - ClientSession: []
       parameters:
         - name: id
           in: path
