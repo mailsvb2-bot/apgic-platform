@@ -30,14 +30,15 @@ type ResourceRef struct {
 }
 
 type Input struct {
-	Principal     Principal
-	Resource      ResourceRef
-	Action        string
-	Risk          Risk
-	Now           time.Time
-	MaxStepUpAge  time.Duration
-	CorrelationID string
-	AuditRecordID string
+	Principal           Principal
+	Resource            ResourceRef
+	Action              string
+	Risk                Risk
+	Now                 time.Time
+	MaxStepUpAge        time.Duration
+	TenantContextDenied bool
+	CorrelationID       string
+	AuditRecordID       string
 }
 
 type Result struct {
@@ -54,6 +55,9 @@ func Authorize(in Input) Result {
 	}
 	if in.Risk != RiskNormal && in.Risk != RiskHigh {
 		return Result{Decision: Deny, ReasonCode: "AUTH_RISK_INVALID"}
+	}
+	if in.TenantContextDenied {
+		return Result{Decision: Deny, ReasonCode: "AUTH_TENANT_CONTEXT_DENIED"}
 	}
 	if in.Resource.TenantID == "" || in.Principal.TenantID == "" || in.Resource.TenantID != in.Principal.TenantID {
 		return Result{Decision: Deny, ReasonCode: "AUTH_CROSS_TENANT_DENY"}

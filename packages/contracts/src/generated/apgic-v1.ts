@@ -2,7 +2,7 @@
 // DO NOT EDIT.
 export const apiContractVersion = "0.3.0-r1-specialist" as const;
 
-export type ApiOperationId = "acquireSlotHold" | "applyProviderEvent" | "cancelOrder" | "completeConsultation" | "confirmHelpIntent" | "createCheckoutInstruction" | "createHelpIntent" | "declareSpecialistCapability" | "deleteAccount" | "exportConsultationToGrowth" | "getBookingFulfillment" | "getLegalAcceptanceStatus" | "getMeta" | "getSpecialistProfile" | "health" | "listCheckoutOptions" | "listHelpIntentMatches" | "listSpecialistSlots" | "markSearchProjectionStale" | "publishSpecialistCapability" | "readiness" | "rebuildSearchProjection" | "recordConsultationPresence" | "recordLegalAcceptance" | "reportConsultationFailure" | "searchProjection" | "submitSpecialistEvidence" | "succeedConsultationRecovery" | "unpublishSpecialistCapability" | "upsertSpecialistProfile";
+export type ApiOperationId = "acquireSlotHold" | "applyProviderEvent" | "cancelOrder" | "completeConsultation" | "confirmHelpIntent" | "createCheckoutInstruction" | "createHelpIntent" | "declareSpecialistCapability" | "deleteAccount" | "exportConsultationToGrowth" | "getBookingFulfillment" | "getLegalAcceptanceStatus" | "getMeta" | "getPrivateOrganizationProfile" | "getSpecialistProfile" | "health" | "listCheckoutOptions" | "listHelpIntentMatches" | "listSpecialistSlots" | "markSearchProjectionStale" | "publishSpecialistCapability" | "readiness" | "rebuildSearchProjection" | "recordConsultationPresence" | "recordLegalAcceptance" | "reportConsultationFailure" | "searchProjection" | "submitSpecialistEvidence" | "succeedConsultationRecovery" | "unpublishSpecialistCapability" | "upsertSpecialistProfile";
 
 export interface AccountDeletion {
   apgic_deletes_ledger: boolean;
@@ -244,6 +244,11 @@ export interface PaymentSelection {
   method_code: string;
   provider_id: string;
   rail_code: string;
+}
+
+export interface PrivateOrganizationProfile {
+  id: string;
+  name: string;
 }
 
 export interface ProviderEvent {
