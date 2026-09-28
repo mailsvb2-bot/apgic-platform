@@ -45,8 +45,8 @@ func main() {
 		demandService = demand.NewConformanceServiceWithLedgerStore(nil, ledgerStore)
 	}
 	handler := httpapi.New(httpapi.Options{
-		CommitSHA:      os.Getenv("APGIC_COMMIT_SHA"),
-		ReleaseTrack:   "R0",
+		CommitSHA:        os.Getenv("APGIC_COMMIT_SHA"),
+		ReleaseTrack:     "R0",
 		Demand:           demandService,
 		ClientSessionKey: clientSessionKey,
 		ReadinessCheck:   readinessCheck,
