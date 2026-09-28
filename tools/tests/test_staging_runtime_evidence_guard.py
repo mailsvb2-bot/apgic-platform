@@ -6,6 +6,7 @@ from tools.staging_runtime_evidence_guard import (
     EVIDENCE_DIR,
     PINNED_ARTIFACTS,
     SCHEMA,
+    _evidence_map_staging_claim_errors,
     _is_rfc3339_datetime,
     _pin_errors,
     _registry_evidence_refs,
@@ -94,6 +95,32 @@ class StagingRuntimeEvidenceGuardTest(unittest.TestCase):
         })
         self.assertNotIn(ref, parsed["APGIC-EXEC-001"])
         self.assertIn(ref, parsed["APGIC-NFR-001"])
+
+
+    def test_staging_proof_claim_must_be_explicitly_supported_by_artifact(self):
+        supported = {
+            "requirements": {
+                "APGIC-EXEC-001": {
+                    "claims": {
+                        "E2E_OR_STAGING_PROOF": {
+                            "proof_refs": [
+                                "canon/evidence/staging-runtime-20260927T072352Z.json"
+                            ]
+                        }
+                    }
+                }
+            }
+        }
+        self.assertEqual(_evidence_map_staging_claim_errors(supported), [])
+
+        overclaim = copy.deepcopy(supported)
+        overclaim["requirements"] = {
+            "APGIC-ID-001": overclaim["requirements"]["APGIC-EXEC-001"]
+        }
+        errors = _evidence_map_staging_claim_errors(overclaim)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("does not support this requirement", errors[0])
+
 
     def test_coordinated_identity_rewrite_breaks_immutable_digest(self):
         filename = "staging-runtime-20260926T215500Z.json"
