@@ -473,3 +473,103 @@ fieldset {
     grid-template-columns: 1fr;
   }
 }
+
+.specialist-onboarding {
+  display: grid;
+  grid-template-columns: minmax(260px,.72fr) minmax(0,1.28fr);
+  gap: clamp(28px, 6vw, 72px);
+  align-items: start;
+  border-top: 1px solid rgba(23,32,25,.12);
+  padding: 72px 0;
+}
+.specialist-workspace {
+  min-width: 0;
+  display: grid;
+  gap: 16px;
+}
+.onboarding-notice {
+  margin: 0;
+  padding: 14px 16px;
+  border: 1px solid #d7d0c3;
+  border-radius: 14px;
+  background: rgba(255,253,248,.76);
+  color: #46564d;
+  line-height: 1.5;
+}
+.specialist-form h3 {
+  margin: 0 0 4px;
+  font-size: 1.25rem;
+}
+.specialist-form input,
+.specialist-form select {
+  width: 100%;
+  max-width: 100%;
+  border: 1px solid #8c9a91;
+  border-radius: 12px;
+  padding: 12px 13px;
+  background: #fff;
+  color: #172019;
+}
+.specialist-form input:focus-visible,
+.specialist-form select:focus-visible {
+  outline: 3px solid #b06f16;
+  outline-offset: 3px;
+}
+.form-help {
+  margin: 0;
+  color: #607067;
+  line-height: 1.55;
+  font-size: .94rem;
+}
+.specialist-state-list {
+  list-style: none;
+  display: grid;
+  gap: 8px;
+  padding: 0;
+  margin: 4px 0 0;
+}
+.specialist-state-list li {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 11px 12px;
+  border: 1px solid #e1dbcf;
+  border-radius: 12px;
+  background: #faf8f2;
+}
+.specialist-state-list span {
+  color: #66746c;
+  text-align: right;
+  font-size: .9rem;
+}
+.specialist-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.specialist-actions button {
+  width: auto;
+  flex: 1 1 220px;
+}
+.specialist-form .secondary-panel-action {
+  border: 1px solid #8c9a91;
+  background: #fff;
+  color: #29483a;
+}
+@media (max-width: 860px) {
+  .specialist-onboarding {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 640px) {
+  .specialist-onboarding {
+    padding: 54px 0;
+  }
+  .specialist-state-list li {
+    display: grid;
+  }
+  .specialist-state-list span {
+    text-align: left;
+  }
+}
