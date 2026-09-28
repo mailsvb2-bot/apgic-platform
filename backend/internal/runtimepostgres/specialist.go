@@ -303,17 +303,56 @@ func (c *Checker) ReviewEvidence(evidenceID string, approved bool, reviewerRef s
 	); err != nil {
 		return fmt.Errorf("review specialist evidence: %w", err)
 	}
-	if approved {
+	var acceptedCount, submittedCount int
+	if err := tx.QueryRowContext(ctx,
+		`SELECT
+			count(*) FILTER (WHERE state = 'ACCEPTED'),
+			count(*) FILTER (WHERE state = 'SUBMITTED')
+		   FROM specialist_evidence
+		  WHERE specialist_id = $1::uuid AND topic_id = $2`,
+		specialistID, topicID,
+	).Scan(&acceptedCount, &submittedCount); err != nil {
+		return fmt.Errorf("recompute specialist evidence state: %w", err)
+	}
+
+	switch {
+	case acceptedCount > 0:
 		if _, err := tx.ExecContext(ctx,
 			`UPDATE specialist_capabilities
 			    SET evidence_state = 'APGIC_VERIFIED',
 			        verification_state = 'ACTIVE',
-			        verified_at = now(),
+			        verified_at = COALESCE(verified_at, now()),
 			        updated_at = now()
 			  WHERE specialist_id = $1::uuid AND topic_id = $2`,
 			specialistID, topicID,
 		); err != nil {
-			return fmt.Errorf("verify specialist capability: %w", err)
+			return fmt.Errorf("restore verified specialist capability: %w", err)
+		}
+	case submittedCount > 0:
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE specialist_capabilities
+			    SET evidence_state = 'DOCUMENT_SUPPORTED',
+			        verification_state = 'PENDING',
+			        verified_at = NULL,
+			        expires_at = NULL,
+			        updated_at = now()
+			  WHERE specialist_id = $1::uuid AND topic_id = $2`,
+			specialistID, topicID,
+		); err != nil {
+			return fmt.Errorf("keep specialist capability pending review: %w", err)
+		}
+	default:
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE specialist_capabilities
+			    SET evidence_state = 'SELF_DECLARED',
+			        verification_state = 'NOT_APPLICABLE',
+			        verified_at = NULL,
+			        expires_at = NULL,
+			        updated_at = now()
+			  WHERE specialist_id = $1::uuid AND topic_id = $2`,
+			specialistID, topicID,
+		); err != nil {
+			return fmt.Errorf("return specialist capability to self-declared: %w", err)
 		}
 	}
 	if err := tx.Commit(); err != nil {
