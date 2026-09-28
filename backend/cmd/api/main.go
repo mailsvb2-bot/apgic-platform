@@ -50,6 +50,7 @@ func main() {
 		Demand:           demandService,
 		ClientSessionKey: clientSessionKey,
 		ReadinessCheck:   readinessCheck,
+		LegalAcceptances: storage,
 		LaunchConfig: launchconfig.Config{
 			JurisdictionMatrixVersion: os.Getenv("APGIC_JURISDICTION_MATRIX_VERSION"),
 			RetentionPolicyVersion:    os.Getenv("APGIC_RETENTION_POLICY_VERSION"),
