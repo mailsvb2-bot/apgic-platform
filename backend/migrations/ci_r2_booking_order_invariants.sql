@@ -237,7 +237,61 @@ INSERT INTO legal_transaction_snapshots (
   now() + interval '2 minutes'
 );
 
-DO $$
+DO $
+DECLARE
+  missing_product_ownership_blocked boolean := false;
+BEGIN
+  BEGIN
+    INSERT INTO orders (
+      id,
+      booking_id,
+      offer_ref,
+      price_source_ref,
+      amount_minor,
+      currency,
+      commission_minor,
+      pricing_policy_version,
+      commission_policy_version,
+      legal_snapshot_id,
+      seller_ref,
+      commercial_owner_ref,
+      payment_recipient_ref,
+      platform_role,
+      fiscal_responsibility_ref,
+      refund_responsibility_ref,
+      payout_beneficiary_ref,
+      captured_at
+    ) VALUES (
+      '00000000-0000-0000-0000-00000000b501',
+      '00000000-0000-0000-0000-00000000b301',
+      'offer/r2-ci',
+      'price/r2-ci',
+      10000,
+      'RUB',
+      1000,
+      'pricing-r2-ci-v1',
+      'commission-r2-ci-v1',
+      '00000000-0000-0000-0000-00000000b401',
+      'identity/specialist-r2',
+      'identity/specialist-r2',
+      'identity/specialist-r2',
+      'MARKETPLACE_INTERMEDIARY',
+      'identity/specialist-r2',
+      'identity/specialist-r2',
+      'identity/specialist-r2',
+      now() + interval '2 minutes'
+    );
+  EXCEPTION WHEN raise_exception THEN
+    missing_product_ownership_blocked := true;
+  END;
+
+  IF NOT missing_product_ownership_blocked THEN
+    RAISE EXCEPTION 'order accepted missing product owner/author snapshot';
+  END IF;
+END
+$;
+
+DO $
 DECLARE
   legal_role_mismatch_blocked boolean := false;
 BEGIN
