@@ -103,6 +103,14 @@ func registerDemand(mux *http.ServeMux, service *demand.Service, sessions *clien
 			writeDemandError(w, r, http.StatusBadRequest, "HELP_INTENT_INVALID", "Подтверждение не удалось прочитать.", false, nil)
 			return
 		}
+		clientIdentityID, ok := trustedClientIdentity(w, r, sessions, sessionConfigErr, "")
+		if !ok {
+			return
+		}
+		if err := service.RequireIntentOwner(r.PathValue("id"), clientIdentityID); err != nil {
+			writeDemandFailure(w, r, err)
+			return
+		}
 		intent, err := service.ConfirmIntent(r.PathValue("id"), body.Topics, body.Goals, body.Context)
 		if err != nil {
 			writeDemandFailure(w, r, err)
@@ -168,6 +176,14 @@ func registerDemand(mux *http.ServeMux, service *demand.Service, sessions *clien
 	mux.HandleFunc("GET /v1/help-intents/{id}/matches", func(w http.ResponseWriter, r *http.Request) {
 		if service == nil {
 			writeDemandError(w, r, http.StatusServiceUnavailable, "DEMAND_CATALOG_UNAVAILABLE", "Каталог спроса не подключён.", false, nil)
+			return
+		}
+		clientIdentityID, ok := trustedClientIdentity(w, r, sessions, sessionConfigErr, "")
+		if !ok {
+			return
+		}
+		if err := service.RequireIntentOwner(r.PathValue("id"), clientIdentityID); err != nil {
+			writeDemandFailure(w, r, err)
 			return
 		}
 		cards, topic, err := service.Matches(r.PathValue("id"), r.URL.Query().Get("topic"))
