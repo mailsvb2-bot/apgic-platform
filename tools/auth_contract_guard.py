@@ -59,6 +59,8 @@ CLIENT_SESSION_OPERATIONS = {
     ("/v1/slot-holds", "post"),
     ("/v1/slot-holds/{id}/checkout-options", "get"),
     ("/v1/checkout-instructions", "post"),
+    ("/v1/legal-acceptances", "post"),
+    ("/v1/legal-acceptances/{documentID}/{documentVersion}", "get"),
     ("/v1/account-deletions", "post"),
     ("/v1/bookings/{id}/fulfillment", "get"),
 }

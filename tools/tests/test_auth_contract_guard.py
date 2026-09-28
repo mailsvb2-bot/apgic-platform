@@ -93,6 +93,8 @@ const (
                     }
                 },
                 "/v1/checkout-instructions": {"post": {"security": [{"ClientSession": []}]}},
+                "/v1/legal-acceptances": {"post": {"security": [{"ClientSession": []}]}},
+                "/v1/legal-acceptances/{documentID}/{documentVersion}": {"get": {"security": [{"ClientSession": []}]}},
                 "/v1/account-deletions": {"post": {"security": [{"ClientSession": []}]}},
                 "/v1/bookings/{id}/fulfillment": {
                     "get": {
@@ -146,6 +148,8 @@ const (
                     }
                 },
                 "/v1/checkout-instructions": {"post": {}},
+                "/v1/legal-acceptances": {"post": {}},
+                "/v1/legal-acceptances/{documentID}/{documentVersion}": {"get": {}},
                 "/v1/account-deletions": {"post": {}},
                 "/v1/bookings/{id}/fulfillment": {
                     "get": {
@@ -161,7 +165,7 @@ const (
             },
         }
         errors = validate_client_session_contract(document)
-        self.assertGreaterEqual(len(errors), 10)
+        self.assertGreaterEqual(len(errors), 12)
         self.assertTrue(any("must require ClientSession" in error for error in errors))
         self.assertTrue(any("must be optional compatibility input" in error for error in errors))
 

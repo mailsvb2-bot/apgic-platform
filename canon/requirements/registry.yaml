@@ -870,12 +870,18 @@ requirements:
   dependencies: []
   implementation_refs:
   - backend/internal/legal/acceptance.go
+  - backend/internal/runtimepostgres/legal_acceptance.go
+  - backend/internal/httpapi/legal_acceptance.go
+  - backend/cmd/api/main.go
   - backend/migrations/000002_legal_acceptance_mobile_installation.sql
   contract_refs:
   - contracts/jsonschema/legal-acceptance-v1.schema.json
+  - contracts/openapi/apgic-v1.yaml
   test_refs:
   - backend/internal/legal/acceptance_test.go
+  - backend/internal/runtimepostgres/legal_acceptance_test.go
   - tools/legal_acceptance_contract_guard.py
+  - tools/auth_contract_guard.py
   evidence_refs: []
   acceptance:
     given: пользователь принимает документ vN

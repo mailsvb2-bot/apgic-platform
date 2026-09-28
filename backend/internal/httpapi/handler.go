@@ -8,6 +8,7 @@ import (
 
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/demand"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/launchconfig"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/legal"
 )
 
 type Options struct {
@@ -17,6 +18,7 @@ type Options struct {
 	LaunchConfig     launchconfig.Config
 	ReadinessCheck   func(context.Context) error
 	Demand           *demand.Service
+	LegalAcceptances legal.AcceptanceStore
 	ClientSessionKey []byte
 	Now              func() time.Time
 }
@@ -85,6 +87,7 @@ func New(options Options) http.Handler {
 		sessions, sessionConfigErr = newClientSessionManager(options.ClientSessionKey, options.Now)
 	}
 	registerDemand(mux, options.Demand, sessions, sessionConfigErr)
+	registerLegalAcceptance(mux, options.LegalAcceptances, sessions, sessionConfigErr, options.Now)
 	return mux
 }
 

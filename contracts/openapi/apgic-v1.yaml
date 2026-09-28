@@ -265,6 +265,51 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /v1/legal-acceptances:
+    post:
+      operationId: recordLegalAcceptance
+      security:
+        - ClientSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordLegalAcceptanceRequest'
+      responses:
+        '201':
+          description: New immutable acceptance evidence recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegalAcceptance'
+        '200':
+          description: Idempotent replay of an existing acceptance
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegalAcceptance'
+  /v1/legal-acceptances/{documentID}/{documentVersion}:
+    get:
+      operationId: getLegalAcceptanceStatus
+      security:
+        - ClientSession: []
+      parameters:
+        - name: documentID
+          in: path
+          required: true
+          schema: { type: string }
+        - name: documentVersion
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Acceptance status for exactly the requested document version
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegalAcceptanceStatus'
   /v1/account-deletions:
     post:
       operationId: deleteAccount
@@ -742,6 +787,33 @@ components:
       properties:
         order_id: { type: string }
         reason_code: { type: string }
+    RecordLegalAcceptanceRequest:
+      type: object
+      additionalProperties: false
+      required: [document_id, document_version, evidence_hash]
+      properties:
+        document_id: { type: string, minLength: 1 }
+        document_version: { type: string, minLength: 1 }
+        evidence_hash: { type: string, minLength: 1 }
+    LegalAcceptance:
+      type: object
+      additionalProperties: false
+      required: [id, identity_id, document_id, document_version, evidence_hash, accepted_at]
+      properties:
+        id: { type: string }
+        identity_id: { type: string }
+        document_id: { type: string }
+        document_version: { type: string }
+        evidence_hash: { type: string }
+        accepted_at: { type: string, format: date-time }
+    LegalAcceptanceStatus:
+      type: object
+      additionalProperties: false
+      required: [document_id, document_version, accepted]
+      properties:
+        document_id: { type: string }
+        document_version: { type: string }
+        accepted: { type: boolean }
     AccountDeletionRequest:
       type: object
       additionalProperties: false
