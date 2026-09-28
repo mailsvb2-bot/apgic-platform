@@ -220,11 +220,17 @@
             "backend/migrations/ci_invariants.sql",
             "tools/product_contract_guard.py"
           ]
+        },
+        "E2E_OR_STAGING_PROOF": {
+          "gates": [
+            "postgres-invariants"
+          ],
+          "proof_refs": [
+            "backend/internal/runtimepostgres/journey_test.go"
+          ]
         }
       },
-      "unproven_evidence": [
-        "E2E_OR_STAGING_PROOF"
-      ]
+      "unproven_evidence": []
     },
     "APGIC-DATA-001": {
       "claims": {
