@@ -37,7 +37,7 @@ func main() {
 	var demandService *demand.Service
 	if journeyStore != nil {
 		var err error
-		demandService, err = demand.NewConformanceServiceWithStores(nil, ledgerStore, journeyStore)
+		demandService, err = demand.NewConformanceServiceWithStoresAndSpecialists(nil, ledgerStore, journeyStore, storage)
 		if err != nil {
 			log.Fatalf("APGIC journey hydration failed: %v", err)
 		}
