@@ -676,12 +676,17 @@ requirements:
   - apps/web/app/journey.tsx
   - apps/web/app/globals.css
   - apps/web/playwright.config.ts
+  - apps/web/e2e/snapshots/phone/phone-critical-entry.png
+  - apps/web/e2e/snapshots/tablet/tablet-critical-entry.png
+  - apps/web/e2e/snapshots/desktop/desktop-critical-entry.png
   contract_refs:
   - contracts/jsonschema/adaptive-critical-flow-v1.schema.json
   test_refs:
   - apps/web/e2e/foundation.spec.ts
+  - apps/web/e2e/visual-regression.spec.ts
   - .github/workflows/ci.yml
   - tools/ui_adaptive_contract_guard.py
+  - tools/tests/test_ui_adaptive_contract_guard.py
   evidence_refs:
   - canon/evidence/staging-runtime-20260926T215500Z.json
   - canon/evidence/staging-runtime-20260927T072352Z.json
