@@ -148,6 +148,9 @@ jobs:
           fi
           go vet ./...
           go test -race ./...
+      - name: Drill signed mobile emergency kill switch
+        working-directory: backend
+        run: go test ./internal/remoteconfig -run TestEmergencyKillSwitchDrill -count=1 -v
 
   postgres-invariants:
     name: PostgreSQL migration / invariant proof
