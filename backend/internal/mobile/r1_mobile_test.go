@@ -103,6 +103,61 @@ func TestDeepLinkExpirySubjectAndCanonicalFallbackFailClosed(t *testing.T) {
 	}
 }
 
+func TestDeepLinkRejectsRouteSmugglingAndAmbiguousFallbacks(t *testing.T) {
+	now := time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC)
+	p := principal("identity-1", "tenant-a", "deeplink.open.booking")
+	base := DeepLinkClaims{
+		LinkID:            "link-route-hardening",
+		Kind:              LinkBooking,
+		AccessClass:       LinkProtectedResource,
+		TargetID:          "booking-1",
+		TenantID:          "tenant-a",
+		SubjectIdentityID: "identity-1",
+		CanonicalPath:     "/bookings/booking-1",
+		WebFallback:       "https://apgic.ru/bookings/booking-1",
+		ExpiresAt:         now.Add(time.Hour),
+	}
+
+	for name, targetID := range map[string]string{
+		"encoded slash": "booking%2Fadmin",
+		"query syntax":  "booking?admin=1",
+		"fragment":      "booking#admin",
+		"dot segment":   "..",
+		"whitespace":    " booking-1",
+	} {
+		t.Run(name, func(t *testing.T) {
+			claims := base
+			claims.TargetID = targetID
+			claims.CanonicalPath = "/bookings/" + targetID
+			claims.WebFallback = "https://apgic.ru" + claims.CanonicalPath
+			if got := ResolveDeepLink(claims, p, now); got.Allowed || got.ReasonCode != ReasonLinkInvalid {
+				t.Fatalf("ambiguous target %q = %#v", targetID, got)
+			}
+		})
+	}
+
+	for name, fallback := range map[string]string{
+		"query":            "https://apgic.ru/bookings/booking-1?next=/admin",
+		"fragment":         "https://apgic.ru/bookings/booking-1#admin",
+		"userinfo":         "https://user@apgic.ru/bookings/booking-1",
+		"nonstandard port": "https://apgic.ru:444/bookings/booking-1",
+	} {
+		t.Run("fallback "+name, func(t *testing.T) {
+			claims := base
+			claims.WebFallback = fallback
+			if got := ResolveDeepLink(claims, p, now); got.Allowed || got.ReasonCode != ReasonLinkFallbackInvalid {
+				t.Fatalf("ambiguous fallback %q = %#v", fallback, got)
+			}
+		})
+	}
+
+	standardTLS := base
+	standardTLS.WebFallback = "https://apgic.ru:443/bookings/booking-1"
+	if got := ResolveDeepLink(standardTLS, p, now); !got.Allowed {
+		t.Fatalf("explicit standard HTTPS port should remain canonical: %#v", got)
+	}
+}
+
 func TestPublicSpecialistLinkStillRequiresValidCanonicalClaims(t *testing.T) {
 	now := time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC)
 	got := ResolveDeepLink(DeepLinkClaims{
