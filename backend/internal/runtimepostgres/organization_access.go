@@ -8,8 +8,6 @@ import (
 	"time"
 )
 
-var ErrOrganizationNotFound = errors.New("organization not found")
-
 func (c *Checker) ActiveOrganizationMembership(identityID, organizationID string) (bool, error) {
 	if c == nil || c.db == nil {
 		return false, errors.New("postgres checker is not initialized")
@@ -33,9 +31,9 @@ func (c *Checker) ActiveOrganizationMembership(identityID, organizationID string
 	return active, nil
 }
 
-func (c *Checker) OrganizationPrivateName(organizationID string) (string, error) {
+func (c *Checker) OrganizationPrivateName(organizationID string) (string, bool, error) {
 	if c == nil || c.db == nil {
-		return "", errors.New("postgres checker is not initialized")
+		return "", false, errors.New("postgres checker is not initialized")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -49,9 +47,9 @@ func (c *Checker) OrganizationPrivateName(organizationID string) (string, error)
 		organizationID,
 	).Scan(&name); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return "", ErrOrganizationNotFound
+			return "", false, nil
 		}
-		return "", fmt.Errorf("read private organization profile: %w", err)
+		return "", false, fmt.Errorf("read private organization profile: %w", err)
 	}
-	return name, nil
+	return name, true, nil
 }
