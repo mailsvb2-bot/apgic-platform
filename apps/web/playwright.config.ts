@@ -4,6 +4,7 @@ const baseURL = "http://127.0.0.1:43110";
 
 export default defineConfig({
   testDir: "./e2e",
+  snapshotPathTemplate: "{testDir}/snapshots/{projectName}/{arg}{ext}",
   timeout: 30_000,
   expect: {
     timeout: 5_000,

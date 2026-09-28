@@ -10,6 +10,12 @@ ROOT = Path(__file__).resolve().parents[1]
 PLAYWRIGHT = ROOT / "apps/web/playwright.config.ts"
 E2E = ROOT / "apps/web/e2e/foundation.spec.ts"
 SCHEMA = ROOT / "contracts/jsonschema/adaptive-critical-flow-v1.schema.json"
+VISUAL_E2E = ROOT / "apps/web/e2e/visual-regression.spec.ts"
+VISUAL_BASELINES = (
+    ROOT / "apps/web/e2e/snapshots/phone/phone-critical-entry.png",
+    ROOT / "apps/web/e2e/snapshots/tablet/tablet-critical-entry.png",
+    ROOT / "apps/web/e2e/snapshots/desktop/desktop-critical-entry.png",
+)
 
 EXPECTED_VIEWPORTS = {
     "phone": {"width": 390, "height": 844},
@@ -36,7 +42,13 @@ def parse_viewports(text: str) -> dict[str, dict[str, int]]:
     return out
 
 
-def validate_ui_adaptive_contract(playwright_text: str, e2e_text: str, schema_doc: dict) -> list[str]:
+def validate_ui_adaptive_contract(
+    playwright_text: str,
+    e2e_text: str,
+    schema_doc: dict,
+    visual_e2e_text: str = "",
+    baseline_presence: tuple[bool, ...] = (),
+) -> list[str]:
     errors: list[str] = []
     if schema_doc.get("additionalProperties") is not False:
         errors.append("adaptive-flow contract must reject undeclared fields")
@@ -68,6 +80,28 @@ def validate_ui_adaptive_contract(playwright_text: str, e2e_text: str, schema_do
     for snippet in e2e_snippets:
         if snippet not in e2e_text:
             errors.append(f"adaptive critical-flow E2E invariant missing: {snippet}")
+
+    if visual_e2e_text or baseline_presence:
+        visual_snippets = (
+            'snapshotPathTemplate: "{testDir}/snapshots/{projectName}/{arg}{ext}"',
+            'toHaveScreenshot',
+            'fullPage: true',
+            'maxDiffPixelRatio: 0.001',
+        )
+        combined_visual = playwright_text + "\n" + visual_e2e_text
+        for snippet in visual_snippets:
+            if snippet not in combined_visual:
+                errors.append(f"visual regression invariant missing: {snippet}")
+
+        if len(baseline_presence) != len(VISUAL_BASELINES):
+            errors.append("visual baseline presence vector has invalid length")
+        elif not all(baseline_presence):
+            missing = [
+                str(path.relative_to(ROOT))
+                for path, present in zip(VISUAL_BASELINES, baseline_presence, strict=True)
+                if not present
+            ]
+            errors.append(f"visual regression baselines missing: {missing}")
     return errors
 
 
@@ -76,6 +110,8 @@ def main() -> int:
         PLAYWRIGHT.read_text(encoding="utf-8"),
         E2E.read_text(encoding="utf-8"),
         json.loads(SCHEMA.read_text(encoding="utf-8")),
+        VISUAL_E2E.read_text(encoding="utf-8"),
+        tuple(path.is_file() and path.stat().st_size > 0 for path in VISUAL_BASELINES),
     )
     if errors:
         print("UI ADAPTIVE CONTRACT GUARD: FAIL")
