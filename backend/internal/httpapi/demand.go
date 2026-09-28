@@ -209,7 +209,11 @@ func registerDemand(mux *http.ServeMux, service *demand.Service, sessions *clien
 			writeDemandError(w, r, http.StatusBadRequest, "BOOK_HOLD_INVALID", "Запрос удержания не удалось прочитать.", false, nil)
 			return
 		}
-		hold, err := service.AcquireHold(body.HelpIntentID, body.SlotID, body.ClientIdentityID)
+		clientIdentityID, ok := trustedClientIdentity(w, r, sessions, sessionConfigErr, body.ClientIdentityID)
+		if !ok {
+			return
+		}
+		hold, err := service.AcquireHold(body.HelpIntentID, body.SlotID, clientIdentityID)
 		if err != nil {
 			writeDemandFailure(w, r, err)
 			return
@@ -222,7 +226,11 @@ func registerDemand(mux *http.ServeMux, service *demand.Service, sessions *clien
 			writeDemandError(w, r, http.StatusServiceUnavailable, "DEMAND_CATALOG_UNAVAILABLE", "Каталог спроса не подключён.", false, nil)
 			return
 		}
-		options, err := service.CheckoutOptions(r.PathValue("id"), r.URL.Query().Get("client_identity_id"))
+		clientIdentityID, ok := trustedClientIdentity(w, r, sessions, sessionConfigErr, r.URL.Query().Get("client_identity_id"))
+		if !ok {
+			return
+		}
+		options, err := service.CheckoutOptions(r.PathValue("id"), clientIdentityID)
 		if err != nil {
 			writeDemandFailure(w, r, err)
 			return
@@ -244,7 +252,11 @@ func registerDemand(mux *http.ServeMux, service *demand.Service, sessions *clien
 			writeDemandError(w, r, http.StatusBadRequest, "CHECKOUT_INVALID", "Поручение на оплату не удалось прочитать.", false, nil)
 			return
 		}
-		instruction, err := service.CreateCheckout(body.HoldID, body.ClientIdentityID, body.MethodCode)
+		clientIdentityID, ok := trustedClientIdentity(w, r, sessions, sessionConfigErr, body.ClientIdentityID)
+		if !ok {
+			return
+		}
+		instruction, err := service.CreateCheckout(body.HoldID, clientIdentityID, body.MethodCode)
 		if err != nil {
 			writeDemandFailure(w, r, err)
 			return
@@ -286,7 +298,11 @@ func registerDemand(mux *http.ServeMux, service *demand.Service, sessions *clien
 			writeDemandError(w, r, http.StatusServiceUnavailable, "DEMAND_CATALOG_UNAVAILABLE", "Каталог спроса не подключён.", false, nil)
 			return
 		}
-		notice, join, err := service.Fulfillment(r.PathValue("id"), r.URL.Query().Get("identity_id"))
+		clientIdentityID, ok := trustedClientIdentity(w, r, sessions, sessionConfigErr, r.URL.Query().Get("identity_id"))
+		if !ok {
+			return
+		}
+		notice, join, err := service.Fulfillment(r.PathValue("id"), clientIdentityID)
 		if err != nil {
 			writeDemandFailure(w, r, err)
 			return
@@ -418,7 +434,11 @@ func registerDemand(mux *http.ServeMux, service *demand.Service, sessions *clien
 			writeDemandError(w, r, http.StatusBadRequest, "ACCOUNT_DELETION_INVALID", "Запрос удаления не удалось прочитать.", false, nil)
 			return
 		}
-		deletion, err := service.DeleteAccount(body.IdentityID, body.Source)
+		clientIdentityID, ok := trustedClientIdentity(w, r, sessions, sessionConfigErr, body.IdentityID)
+		if !ok {
+			return
+		}
+		deletion, err := service.DeleteAccount(clientIdentityID, body.Source)
 		if err != nil {
 			writeDemandFailure(w, r, err)
 			return
@@ -451,6 +471,36 @@ func registerDemand(mux *http.ServeMux, service *demand.Service, sessions *clien
 		}
 		writeJSON(w, status, cancellation)
 	})
+}
+
+func trustedClientIdentity(
+	w http.ResponseWriter,
+	r *http.Request,
+	sessions *clientSessionManager,
+	sessionConfigErr error,
+	suppliedIdentityID string,
+) (string, bool) {
+	if sessionConfigErr != nil {
+		writeDemandError(w, r, http.StatusServiceUnavailable, "CLIENT_SESSION_UNAVAILABLE", "Сессия клиента недоступна.", false, nil)
+		return "", false
+	}
+	if sessions == nil {
+		return suppliedIdentityID, true
+	}
+	identityID, err := sessions.identityFromRequest(r)
+	if errors.Is(err, ErrClientSessionMissing) {
+		writeDemandError(w, r, http.StatusUnauthorized, "CLIENT_SESSION_REQUIRED", "Требуется сессия клиента.", false, nil)
+		return "", false
+	}
+	if err != nil {
+		writeDemandError(w, r, http.StatusUnauthorized, "CLIENT_SESSION_INVALID", "Сессия клиента недействительна.", false, nil)
+		return "", false
+	}
+	if supplied := strings.TrimSpace(suppliedIdentityID); supplied != "" && supplied != identityID {
+		writeDemandError(w, r, http.StatusForbidden, "CLIENT_SESSION_IDENTITY_MISMATCH", "Идентификатор клиента не совпадает с доверенной сессией.", false, nil)
+		return "", false
+	}
+	return identityID, true
 }
 
 func writeDemandFailure(w http.ResponseWriter, r *http.Request, err error) {
