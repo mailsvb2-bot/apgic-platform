@@ -846,6 +846,7 @@ requirements:
   test_refs:
   - backend/migrations/ci_invariants.sql
   - backend/internal/legal/transaction_snapshot_test.go
+  - backend/internal/runtimepostgres/journey_test.go
   - tools/legal_snapshot_contract_guard.py
   evidence_refs: []
   acceptance:
