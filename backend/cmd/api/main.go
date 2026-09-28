@@ -37,7 +37,7 @@ func main() {
 	var demandService *demand.Service
 	if journeyStore != nil {
 		var err error
-		demandService, err = demand.NewConformanceServiceWithStores(nil, ledgerStore, journeyStore)
+		demandService, err = demand.NewConformanceServiceWithStoresAndSpecialists(nil, ledgerStore, journeyStore, storage)
 		if err != nil {
 			log.Fatalf("APGIC journey hydration failed: %v", err)
 		}
@@ -51,6 +51,7 @@ func main() {
 		ClientSessionKey: clientSessionKey,
 		ReadinessCheck:   readinessCheck,
 		LegalAcceptances: storage,
+		Specialists:      storage,
 		LaunchConfig: launchconfig.Config{
 			JurisdictionMatrixVersion: os.Getenv("APGIC_JURISDICTION_MATRIX_VERSION"),
 			RetentionPolicyVersion:    os.Getenv("APGIC_RETENTION_POLICY_VERSION"),

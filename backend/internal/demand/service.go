@@ -81,63 +81,79 @@ type Hold struct {
 }
 
 type Service struct {
-	mu            sync.Mutex
-	now           func() time.Time
-	catalog       catalog
-	intents       map[string]*Intent
-	owners        map[string]*identity.Identity
-	holds         map[string]*Hold
-	slotHolds     map[string]string
-	bookings      map[string]*booking.Booking
-	instructions  map[string]*CheckoutInstruction
-	evidence      map[string]*PaymentEvidence
-	orderEvidence map[string]string
-	reversals     map[string]*Cancellation
-	ledgerState   ledgerState
-	ledgerStore   LedgerStore
-	journeyStore  JourneyStore
-	notices       map[string]*BookingNotice
-	sessions      map[string]*consultation.Session
-	projection    marketplace.SearchProjection
-	searchStale   bool
-	deletions     map[string]*AccountDeletion
+	mu              sync.Mutex
+	now             func() time.Time
+	catalog         catalog
+	intents         map[string]*Intent
+	owners          map[string]*identity.Identity
+	holds           map[string]*Hold
+	slotHolds       map[string]string
+	bookings        map[string]*booking.Booking
+	instructions    map[string]*CheckoutInstruction
+	evidence        map[string]*PaymentEvidence
+	orderEvidence   map[string]string
+	reversals       map[string]*Cancellation
+	ledgerState     ledgerState
+	ledgerStore     LedgerStore
+	journeyStore    JourneyStore
+	notices         map[string]*BookingNotice
+	sessions        map[string]*consultation.Session
+	projection      marketplace.SearchProjection
+	searchStale     bool
+	deletions       map[string]*AccountDeletion
+	specialistStore PublishedSpecialistStore
 }
 
 func NewConformanceService(now func() time.Time) *Service {
-	service, _ := newConformanceService(now, nil, nil)
+	service, _ := newConformanceService(now, nil, nil, nil)
 	return service
 }
 
 func NewConformanceServiceWithLedgerStore(now func() time.Time, ledgerStore LedgerStore) *Service {
-	service, _ := newConformanceService(now, ledgerStore, nil)
+	service, _ := newConformanceService(now, ledgerStore, nil, nil)
 	return service
 }
 
 func NewConformanceServiceWithStores(now func() time.Time, ledgerStore LedgerStore, journeyStore JourneyStore) (*Service, error) {
-	return newConformanceService(now, ledgerStore, journeyStore)
+	return newConformanceService(now, ledgerStore, journeyStore, nil)
 }
 
-func newConformanceService(now func() time.Time, ledgerStore LedgerStore, journeyStore JourneyStore) (*Service, error) {
+func NewConformanceServiceWithStoresAndSpecialists(
+	now func() time.Time,
+	ledgerStore LedgerStore,
+	journeyStore JourneyStore,
+	specialistStore PublishedSpecialistStore,
+) (*Service, error) {
+	return newConformanceService(now, ledgerStore, journeyStore, specialistStore)
+}
+
+func newConformanceService(
+	now func() time.Time,
+	ledgerStore LedgerStore,
+	journeyStore JourneyStore,
+	specialistStore PublishedSpecialistStore,
+) (*Service, error) {
 	if now == nil {
 		now = time.Now
 	}
 	service := &Service{
-		now:           now,
-		catalog:       conformanceCatalog(now().UTC()),
-		intents:       map[string]*Intent{},
-		owners:        map[string]*identity.Identity{},
-		holds:         map[string]*Hold{},
-		slotHolds:     map[string]string{},
-		bookings:      map[string]*booking.Booking{},
-		instructions:  map[string]*CheckoutInstruction{},
-		evidence:      map[string]*PaymentEvidence{},
-		orderEvidence: map[string]string{},
-		reversals:     map[string]*Cancellation{},
-		notices:       map[string]*BookingNotice{},
-		sessions:      map[string]*consultation.Session{},
-		deletions:     map[string]*AccountDeletion{},
-		ledgerStore:   ledgerStore,
-		journeyStore:  journeyStore,
+		now:             now,
+		catalog:         conformanceCatalog(now().UTC()),
+		intents:         map[string]*Intent{},
+		owners:          map[string]*identity.Identity{},
+		holds:           map[string]*Hold{},
+		slotHolds:       map[string]string{},
+		bookings:        map[string]*booking.Booking{},
+		instructions:    map[string]*CheckoutInstruction{},
+		evidence:        map[string]*PaymentEvidence{},
+		orderEvidence:   map[string]string{},
+		reversals:       map[string]*Cancellation{},
+		notices:         map[string]*BookingNotice{},
+		sessions:        map[string]*consultation.Session{},
+		deletions:       map[string]*AccountDeletion{},
+		ledgerStore:     ledgerStore,
+		journeyStore:    journeyStore,
+		specialistStore: specialistStore,
 	}
 	if journeyStore == nil {
 		return service, nil

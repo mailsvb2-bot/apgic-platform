@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: APGIC Public API
-  version: 0.2.0-r1-demand
+  version: 0.3.0-r1-specialist
 servers: []
 paths:
   /healthz:
@@ -32,6 +32,118 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Meta'
+  /v1/specialist/profile:
+    get:
+      operationId: getSpecialistProfile
+      security:
+        - ClientSession: []
+      responses:
+        '200':
+          description: Current specialist profile bound to the signed Identity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpecialistProfile'
+        '404':
+          description: Specialist profile has not been created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    put:
+      operationId: upsertSpecialistProfile
+      description: Creates a signed session when absent, or reuses the existing signed Identity.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SpecialistProfileUpsertRequest'
+      responses:
+        '200':
+          description: Durable specialist role and profile attached to the same Identity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpecialistProfile'
+  /v1/specialist/capabilities:
+    post:
+      operationId: declareSpecialistCapability
+      security:
+        - ClientSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SpecialistCapabilityRequest'
+      responses:
+        '200':
+          description: Capability is declared without claiming verification
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpecialistProfile'
+  /v1/specialist/evidence:
+    post:
+      operationId: submitSpecialistEvidence
+      security:
+        - ClientSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SpecialistEvidenceRequest'
+      responses:
+        '201':
+          description: Evidence reference accepted for trusted review; capability remains unverified
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpecialistProfile'
+  /v1/specialist/publish:
+    post:
+      operationId: publishSpecialistCapability
+      security:
+        - ClientSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SpecialistCapabilityRequest'
+      responses:
+        '200':
+          description: Verified capability published after profile review and QualificationPolicy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpecialistPublishResult'
+        '409':
+          description: Fail-closed publication gate with policy reason codes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpecialistPublishResult'
+  /v1/specialist/unpublish:
+    post:
+      operationId: unpublishSpecialistCapability
+      security:
+        - ClientSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SpecialistCapabilityRequest'
+      responses:
+        '200':
+          description: Active capability publication ended
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpecialistPublishResult'
   /v1/help-intents:
     post:
       operationId: createHelpIntent
@@ -540,6 +652,91 @@ components:
           items: { $ref: '#/components/schemas/Surface' }
         commit_sha: { type: string }
         time: { type: string, format: date-time }
+    SpecialistCapability:
+      type: object
+      additionalProperties: false
+      required: [topic_id, evidence_state, verification_state, evidence_refs]
+      properties:
+        topic_id: { type: string }
+        evidence_state:
+          type: string
+          enum: [SELF_DECLARED, DOCUMENT_SUPPORTED, APGIC_VERIFIED]
+        verification_state: { type: string }
+        evidence_refs:
+          type: array
+          items: { type: string }
+    SpecialistCapabilityRequest:
+      type: object
+      additionalProperties: false
+      required: [topic_id]
+      properties:
+        topic_id: { type: string }
+    SpecialistEvidence:
+      type: object
+      additionalProperties: false
+      required: [id, topic_id, kind, reference, state, submitted_at]
+      properties:
+        id: { type: string }
+        topic_id: { type: string }
+        kind: { type: string }
+        reference: { type: string }
+        state:
+          type: string
+          enum: [SUBMITTED, ACCEPTED, REJECTED]
+        submitted_at: { type: string, format: date-time }
+        reviewed_at: { type: string, format: date-time }
+    SpecialistEvidenceRequest:
+      type: object
+      additionalProperties: false
+      required: [topic_id, kind, reference]
+      properties:
+        topic_id: { type: string }
+        kind: { type: string }
+        reference: { type: string }
+    SpecialistProfile:
+      type: object
+      additionalProperties: false
+      required: [id, identity_id, display_name, profession_code, profile_complete, review_state, capabilities, evidence, published_topics]
+      properties:
+        id: { type: string }
+        identity_id: { type: string }
+        display_name: { type: string }
+        profession_code: { type: string }
+        profile_complete: { type: boolean }
+        review_state:
+          type: string
+          enum: [PENDING, MANUAL_REVIEW, APPROVED, REJECTED]
+        capabilities:
+          type: array
+          items:
+            $ref: '#/components/schemas/SpecialistCapability'
+        evidence:
+          type: array
+          items:
+            $ref: '#/components/schemas/SpecialistEvidence'
+        published_topics:
+          type: array
+          items: { type: string }
+    SpecialistProfileUpsertRequest:
+      type: object
+      additionalProperties: false
+      required: [display_name, profession_code]
+      properties:
+        display_name: { type: string, minLength: 1 }
+        profession_code: { type: string, minLength: 1 }
+    SpecialistPublishResult:
+      type: object
+      additionalProperties: false
+      required: [allowed, reason_codes, published_topics, policy_version]
+      properties:
+        allowed: { type: boolean }
+        reason_codes:
+          type: array
+          items: { type: string }
+        published_topics:
+          type: array
+          items: { type: string }
+        policy_version: { type: string }
     CreateHelpIntentRequest:
       type: object
       additionalProperties: false

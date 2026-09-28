@@ -1,3 +1,5 @@
+import { SpecialistOnboarding } from "./onboarding";
+
 export const metadata = {
   title: "Для специалистов — APGIC",
   description: "Профессиональный вход APGIC: профиль специалиста, подтверждение компетенций, проверка и публикация.",
@@ -17,12 +19,12 @@ const steps = [
   {
     number: "03",
     title: "Документы и проверка",
-    text: "Подтверждающие материалы проходят intake и review. До завершения проверки профиль не получает статус APGIC VERIFIED.",
+    text: "Подтверждающие материалы проходят intake и review. До завершения проверки конкретная компетенция не получает статус APGIC VERIFIED.",
   },
   {
     number: "04",
     title: "Квалификация и публикация",
-    text: "Публичная видимость включается только после обязательных проверок и QualificationPolicy. Профиль можно будет публиковать и снимать с публикации.",
+    text: "Публичная видимость включается только после обязательных проверок и QualificationPolicy. Проверенное направление можно публиковать и снимать с публикации.",
   },
 ];
 
@@ -50,7 +52,7 @@ export default function SpecialistPage() {
               подтверждающие материалы, review и управляемая публикация в marketplace.
             </p>
             <div className="hero-actions">
-              <a className="button-link primary-action" href="#path">Посмотреть этапы подключения</a>
+              <a className="button-link primary-action" href="#onboarding">Начать подключение</a>
               <a className="button-link secondary-action" href="/">Вернуться к клиентскому входу</a>
             </div>
           </div>
@@ -64,11 +66,13 @@ export default function SpecialistPage() {
               <li><span className="status-dot neutral-dot" aria-hidden="true" /><span>Qualification и публикация</span></li>
             </ul>
             <p className="status-note">
-              Текущий статус этапов здесь не определяется: страница не знает, авторизован ли посетитель и какие шаги он уже прошёл.
-              Самостоятельная отправка профиля из Web будет включена только вместе с серверным evidence intake.
+              После создания профиля страница показывает фактические состояния evidence и review.
+              Публичная публикация остаётся заблокированной, пока обязательные проверки не завершены.
             </p>
           </aside>
         </section>
+
+        <SpecialistOnboarding />
 
         <section className="how-section" id="path" aria-labelledby="specialist-path-title">
           <div>
