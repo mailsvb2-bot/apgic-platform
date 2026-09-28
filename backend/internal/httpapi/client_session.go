@@ -33,9 +33,16 @@ type clientSessionManager struct {
 	now func() time.Time
 }
 
-func newClientSessionManager(key []byte, now func() time.Time) (*clientSessionManager, error) {
+func ValidateClientSessionKey(key []byte) error {
 	if len(key) < minSessionKeyBytes {
-		return nil, ErrClientSessionKeyInvalid
+		return ErrClientSessionKeyInvalid
+	}
+	return nil
+}
+
+func newClientSessionManager(key []byte, now func() time.Time) (*clientSessionManager, error) {
+	if err := ValidateClientSessionKey(key); err != nil {
+		return nil, err
 	}
 	if now == nil {
 		now = time.Now
