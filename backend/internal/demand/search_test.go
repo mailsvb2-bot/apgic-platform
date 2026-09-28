@@ -36,7 +36,6 @@ func TestSearchRebuildRestoresCatalogWithoutChangingQualification(t *testing.T) 
 	}
 }
 
-
 type publishedSpecialistStoreStub struct {
 	profiles []marketplace.SpecialistProfile
 }
