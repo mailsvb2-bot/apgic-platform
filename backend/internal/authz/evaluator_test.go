@@ -117,3 +117,23 @@ func TestMissingAuditMetadataFailsClosed(t *testing.T) {
 		t.Fatalf("missing evidence metadata must fail closed: %#v", result)
 	}
 }
+
+
+func TestTenantContextDenialIsAudited(t *testing.T) {
+	now := time.Now().UTC()
+	in := auditableInput(now)
+	in.TenantContextDenied = true
+
+	appender := &memoryAuditAppender{}
+	evaluator := Evaluator{PolicyVersion: "authz-policy-v1", Appender: appender}
+	result, err := evaluator.Authorize(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Decision != Deny || result.ReasonCode != "AUTH_TENANT_CONTEXT_DENIED" {
+		t.Fatalf("unexpected tenant-context result: %#v", result)
+	}
+	if len(appender.records) != 1 || appender.records[0].Reason != "AUTH_TENANT_CONTEXT_DENIED" {
+		t.Fatalf("tenant-context denial evidence missing: %#v", appender.records)
+	}
+}
