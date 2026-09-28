@@ -295,6 +295,13 @@ func (c *Checker) CommitBookingLedger(booked *booking.Booking, entry ledger.Entr
 				booked.State,
 			)
 		}
+		outboxEvent, err := bookingLedgerOutboxEvent(booked, canonical)
+		if err != nil {
+			return ledger.Entry{}, false, err
+		}
+		if err := ensureOutboxEventTx(writeCtx, tx, outboxEvent); err != nil {
+			return ledger.Entry{}, false, fmt.Errorf("ensure idempotent booking outbox event: %w", err)
+		}
 		if err := tx.Commit(); err != nil {
 			return ledger.Entry{}, false, fmt.Errorf("commit idempotent booking ledger replay: %w", err)
 		}
@@ -320,6 +327,13 @@ func (c *Checker) CommitBookingLedger(booked *booking.Booking, entry ledger.Entr
 	}
 	if affected != 1 {
 		return ledger.Entry{}, false, fmt.Errorf("atomic booking update affected %d rows", affected)
+	}
+	outboxEvent, err := bookingLedgerOutboxEvent(booked, canonical)
+	if err != nil {
+		return ledger.Entry{}, false, err
+	}
+	if err := ensureOutboxEventTx(writeCtx, tx, outboxEvent); err != nil {
+		return ledger.Entry{}, false, fmt.Errorf("persist atomic booking outbox event: %w", err)
 	}
 	if err := tx.Commit(); err != nil {
 		return ledger.Entry{}, false, fmt.Errorf("commit atomic booking ledger effect: %w", err)

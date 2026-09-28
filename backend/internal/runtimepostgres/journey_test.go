@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/demand"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/eventspine"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/persistentid"
 )
 
@@ -288,6 +289,76 @@ func TestJourneyStoreSurvivesServiceRestart(t *testing.T) {
 		t.Fatalf("capture economic effect count=%d", effectCount)
 	}
 
+	outboxKey := "booking-ledger:" + instruction.OrderID
+	pendingOutbox, err := store.PendingOutbox(10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var durableEvent *eventspine.OutboxRecord
+	for i := range pendingOutbox {
+		if pendingOutbox[i].Event.IdempotencyKey == outboxKey {
+			durableEvent = &pendingOutbox[i]
+			break
+		}
+	}
+	if durableEvent == nil ||
+		durableEvent.Status != eventspine.Pending ||
+		durableEvent.Event.EventType != "booking.ledger_committed" ||
+		durableEvent.Event.AggregateRef != "booking/"+instruction.BookingID {
+		t.Fatalf("durable booking outbox event missing or invalid: %#v", durableEvent)
+	}
+
+	deliveryCalls := 0
+	effects := map[string]bool{}
+	deliver := func(_ context.Context, event eventspine.EventEnvelope) error {
+		deliveryCalls++
+		effects[event.IdempotencyKey] = true
+		return nil
+	}
+	if err := deliver(context.Background(), durableEvent.Event); err != nil {
+		t.Fatal(err)
+	}
+
+	restartedOutbox, err := Open(context.Background(), databaseURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer restartedOutbox.Close()
+	deliveredCount, err := restartedOutbox.DeliverPendingOutbox(context.Background(), 10, deliver)
+	if err != nil {
+		t.Fatalf("deliver pending outbox after restart: %v", err)
+	}
+	if deliveredCount != 1 || deliveryCalls != 2 || len(effects) != 1 {
+		t.Fatalf(
+			"restart delivery delivered=%d calls=%d distinct_effects=%d",
+			deliveredCount,
+			deliveryCalls,
+			len(effects),
+		)
+	}
+	pendingAfterDelivery, err := restartedOutbox.PendingOutbox(10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, record := range pendingAfterDelivery {
+		if record.Event.IdempotencyKey == outboxKey {
+			t.Fatalf("delivered event remained pending: %#v", record)
+		}
+	}
+	var deliveryStatus string
+	var deliveryAttempts int
+	if err := restartedOutbox.db.QueryRow(
+		`SELECT delivery_status, attempts
+		   FROM outbox_events
+		  WHERE idempotency_key = $1`,
+		outboxKey,
+	).Scan(&deliveryStatus, &deliveryAttempts); err != nil {
+		t.Fatal(err)
+	}
+	if deliveryStatus != "DELIVERED" || deliveryAttempts != 1 {
+		t.Fatalf("durable outbox terminal state=%s attempts=%d", deliveryStatus, deliveryAttempts)
+	}
+
 	fourth, err := demand.NewConformanceServiceWithStores(func() time.Time { return secondNow.Add(2 * time.Minute) }, store, store)
 	if err != nil {
 		t.Fatal(err)
@@ -298,6 +369,18 @@ func TestJourneyStoreSurvivesServiceRestart(t *testing.T) {
 	}
 	if !replayedCapture.Idempotent || replayedCapture.LedgerEntryID != captured.LedgerEntryID || replayedCapture.ID != captured.ID {
 		t.Fatalf("provider replay changed durable effect: got=%#v want=%#v", replayedCapture, captured)
+	}
+	var outboxCount int
+	if err := store.db.QueryRow(
+		`SELECT count(*)
+		   FROM outbox_events
+		  WHERE idempotency_key = $1`,
+		outboxKey,
+	).Scan(&outboxCount); err != nil {
+		t.Fatal(err)
+	}
+	if outboxCount != 1 {
+		t.Fatalf("provider replay created %d durable outbox events", outboxCount)
 	}
 
 	cancelled, err := fourth.CancelOrder(instruction.OrderID, "CLIENT_CANCEL")
