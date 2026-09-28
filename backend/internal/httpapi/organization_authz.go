@@ -74,12 +74,12 @@ func registerOrganizationAuthorization(
 				ID:       "private-profile",
 				TenantID: strings.TrimSpace(r.PathValue("organizationID")),
 			},
-			Action:        "organization.read_private",
+			Action:              "organization.read_private",
 			Risk:                authz.RiskNormal,
 			Now:                 now().UTC(),
 			TenantContextDenied: !member,
-			CorrelationID: correlation,
-			AuditRecordID: auditID,
+			CorrelationID:       correlation,
+			AuditRecordID:       auditID,
 		})
 		if err != nil {
 			writeDemandError(w, r, http.StatusServiceUnavailable, "AUTH_AUDIT_UNAVAILABLE", "Проверка доступа временно недоступна.", true, nil)
