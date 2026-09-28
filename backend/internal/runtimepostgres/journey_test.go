@@ -181,6 +181,38 @@ func TestJourneyStoreSurvivesServiceRestart(t *testing.T) {
 	if replayedInstruction.ID != instruction.ID || replayedInstruction.OrderID != instruction.OrderID {
 		t.Fatalf("checkout replay changed durable identity: got=%#v want=%#v", replayedInstruction, instruction)
 	}
+
+	var productOwnerRef, firstAuthorRef, commercialOwnerRef, payoutBeneficiaryRef string
+	var authorCount int
+	if err := store.db.QueryRow(
+		`SELECT product_owner_ref, cardinality(author_refs), author_refs[1],
+		        commercial_owner_ref, payout_beneficiary_ref
+		   FROM orders
+		  WHERE id = $1::uuid`,
+		instruction.OrderID,
+	).Scan(
+		&productOwnerRef,
+		&authorCount,
+		&firstAuthorRef,
+		&commercialOwnerRef,
+		&payoutBeneficiaryRef,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if productOwnerRef != "organization/org-conformance-marketplace" ||
+		authorCount != 1 ||
+		firstAuthorRef != "identity-spec-lebedeva" ||
+		commercialOwnerRef != "organization/org-conformance-marketplace" ||
+		payoutBeneficiaryRef != "identity-spec-lebedeva" {
+		t.Fatalf(
+			"durable product ownership snapshot owner=%q authors=%d/%q commercial=%q beneficiary=%q",
+			productOwnerRef,
+			authorCount,
+			firstAuthorRef,
+			commercialOwnerRef,
+			payoutBeneficiaryRef,
+		)
+	}
 	other, err := third.CreateIntent("тоже нужна помощь со сном")
 	if err != nil {
 		t.Fatal(err)

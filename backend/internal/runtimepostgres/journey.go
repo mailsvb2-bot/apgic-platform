@@ -570,6 +570,8 @@ func (c *Checker) CreateCheckout(persistence demand.CheckoutPersistence) (string
 	}
 	if order.ID != instruction.OrderID ||
 		order.BookingID != booked.ID ||
+		order.ProductOwnerRef == "" ||
+		len(order.AuthorRefs) == 0 ||
 		instruction.BookingID != booked.ID ||
 		instruction.HoldID != booked.HoldID ||
 		instruction.AmountMinor != order.AmountMinor ||
@@ -677,12 +679,12 @@ func (c *Checker) CreateCheckout(persistence demand.CheckoutPersistence) (string
 		`INSERT INTO orders (
 			id, booking_id, offer_ref, price_source_ref, amount_minor, currency,
 			commission_minor, pricing_policy_version, commission_policy_version,
-			legal_snapshot_id, seller_ref, commercial_owner_ref, payment_recipient_ref,
+			legal_snapshot_id, product_owner_ref, author_refs, seller_ref, commercial_owner_ref, payment_recipient_ref,
 			platform_role, fiscal_responsibility_ref, refund_responsibility_ref,
 			payout_beneficiary_ref, captured_at
 		) VALUES (
 			$1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9,
-			$10::uuid, $11, $12, $13, $14, $15, $16, $17, $18
+			$10::uuid, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20
 		)`,
 		order.ID,
 		order.BookingID,
@@ -694,6 +696,8 @@ func (c *Checker) CreateCheckout(persistence demand.CheckoutPersistence) (string
 		order.PricingPolicyVersion,
 		order.CommissionPolicyVersion,
 		legalSnapshotID,
+		order.ProductOwnerRef,
+		order.AuthorRefs,
 		order.SellerRef,
 		order.CommercialOwnerRef,
 		order.PaymentRecipientRef,
