@@ -4,7 +4,44 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/identity"
 )
+
+func TestMultipleHelpIntentsReuseOneCanonicalIdentity(t *testing.T) {
+	service := NewConformanceService(nil)
+	identityID := "11111111-1111-4111-8111-111111111111"
+
+	first, err := service.CreateIntentForIdentity(identityID, "не могу уснуть")
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := service.CreateIntentForIdentity(identityID, "тревожно перед выступлением")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if first.ID == second.ID {
+		t.Fatal("separate help intents must keep distinct intent identity")
+	}
+	if first.ClientIdentityID != identityID || second.ClientIdentityID != identityID {
+		t.Fatalf("help intents split account truth: first=%s second=%s", first.ClientIdentityID, second.ClientIdentityID)
+	}
+	if len(service.owners) != 1 {
+		t.Fatalf("owner count = %d, want one canonical identity", len(service.owners))
+	}
+	owner := service.owners[identityID]
+	if owner == nil || !owner.HasRole(identity.RoleClient) {
+		t.Fatalf("canonical client identity missing: %#v", owner)
+	}
+}
+
+func TestCreateIntentForIdentityRejectsMissingIdentity(t *testing.T) {
+	service := NewConformanceService(nil)
+	if _, err := service.CreateIntentForIdentity("", "нужна помощь"); !errors.Is(err, identity.ErrInvalidIdentity) {
+		t.Fatalf("missing canonical identity err = %v", err)
+	}
+}
 
 func TestInterpretationIsCorrectableAndNeverAssertsDiagnosis(t *testing.T) {
 	fixed := time.Date(2026, 9, 25, 12, 0, 0, 0, time.UTC)
