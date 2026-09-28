@@ -81,25 +81,25 @@ type Hold struct {
 }
 
 type Service struct {
-	mu            sync.Mutex
-	now           func() time.Time
-	catalog       catalog
-	intents       map[string]*Intent
-	owners        map[string]*identity.Identity
-	holds         map[string]*Hold
-	slotHolds     map[string]string
-	bookings      map[string]*booking.Booking
-	instructions  map[string]*CheckoutInstruction
-	evidence      map[string]*PaymentEvidence
-	orderEvidence map[string]string
-	reversals     map[string]*Cancellation
-	ledgerState   ledgerState
-	ledgerStore   LedgerStore
-	journeyStore  JourneyStore
-	notices       map[string]*BookingNotice
-	sessions      map[string]*consultation.Session
-	projection    marketplace.SearchProjection
-	searchStale   bool
+	mu              sync.Mutex
+	now             func() time.Time
+	catalog         catalog
+	intents         map[string]*Intent
+	owners          map[string]*identity.Identity
+	holds           map[string]*Hold
+	slotHolds       map[string]string
+	bookings        map[string]*booking.Booking
+	instructions    map[string]*CheckoutInstruction
+	evidence        map[string]*PaymentEvidence
+	orderEvidence   map[string]string
+	reversals       map[string]*Cancellation
+	ledgerState     ledgerState
+	ledgerStore     LedgerStore
+	journeyStore    JourneyStore
+	notices         map[string]*BookingNotice
+	sessions        map[string]*consultation.Session
+	projection      marketplace.SearchProjection
+	searchStale     bool
 	deletions       map[string]*AccountDeletion
 	specialistStore PublishedSpecialistStore
 }
@@ -137,21 +137,21 @@ func newConformanceService(
 		now = time.Now
 	}
 	service := &Service{
-		now:           now,
-		catalog:       conformanceCatalog(now().UTC()),
-		intents:       map[string]*Intent{},
-		owners:        map[string]*identity.Identity{},
-		holds:         map[string]*Hold{},
-		slotHolds:     map[string]string{},
-		bookings:      map[string]*booking.Booking{},
-		instructions:  map[string]*CheckoutInstruction{},
-		evidence:      map[string]*PaymentEvidence{},
-		orderEvidence: map[string]string{},
-		reversals:     map[string]*Cancellation{},
-		notices:       map[string]*BookingNotice{},
-		sessions:      map[string]*consultation.Session{},
-		deletions:     map[string]*AccountDeletion{},
-		ledgerStore:   ledgerStore,
+		now:             now,
+		catalog:         conformanceCatalog(now().UTC()),
+		intents:         map[string]*Intent{},
+		owners:          map[string]*identity.Identity{},
+		holds:           map[string]*Hold{},
+		slotHolds:       map[string]string{},
+		bookings:        map[string]*booking.Booking{},
+		instructions:    map[string]*CheckoutInstruction{},
+		evidence:        map[string]*PaymentEvidence{},
+		orderEvidence:   map[string]string{},
+		reversals:       map[string]*Cancellation{},
+		notices:         map[string]*BookingNotice{},
+		sessions:        map[string]*consultation.Session{},
+		deletions:       map[string]*AccountDeletion{},
+		ledgerStore:     ledgerStore,
 		journeyStore:    journeyStore,
 		specialistStore: specialistStore,
 	}
