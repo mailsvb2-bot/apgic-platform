@@ -1,6 +1,10 @@
 package demand
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/marketplace"
+)
 
 func TestSearchRebuildRestoresCatalogWithoutChangingQualification(t *testing.T) {
 	service := NewConformanceService(nil)
@@ -29,5 +33,57 @@ func TestSearchRebuildRestoresCatalogWithoutChangingQualification(t *testing.T) 
 	}
 	if rebuilt.Entries[0].DisplayName != "Марина Лебедева" {
 		t.Fatalf("name = %s", rebuilt.Entries[0].DisplayName)
+	}
+}
+
+
+type publishedSpecialistStoreStub struct {
+	profiles []marketplace.SpecialistProfile
+}
+
+func (s publishedSpecialistStoreStub) PublishedProfiles() ([]marketplace.SpecialistProfile, error) {
+	return append([]marketplace.SpecialistProfile(nil), s.profiles...), nil
+}
+
+func TestSearchProjectionIncludesDurablePublishedSpecialists(t *testing.T) {
+	profile, err := marketplace.NewSpecialistProfile("durable-specialist", "identity-durable", "Дарья Профи")
+	if err != nil {
+		t.Fatal(err)
+	}
+	capability, err := marketplace.NewCapability("anxiety", marketplace.EvidenceAPGICVerified, "evidence:durable")
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile.AddCapability(capability)
+	profile.Profession = "PSYCHOLOGIST"
+	profile.Complete = true
+	profile.Review = marketplace.ReviewApproved
+	profile.PublishState = marketplace.PublishPublished
+	profile.PublishedTopics = []string{"anxiety"}
+
+	service, err := NewConformanceServiceWithStoresAndSpecialists(
+		nil,
+		nil,
+		nil,
+		publishedSpecialistStoreStub{profiles: []marketplace.SpecialistProfile{*profile}},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	view, err := service.RebuildSearch("anxiety")
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, entry := range view.Entries {
+		if entry.SpecialistID == "durable-specialist" {
+			found = true
+			if entry.DisplayName != "Дарья Профи" {
+				t.Fatalf("durable specialist display name = %q", entry.DisplayName)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("durable published specialist missing from search projection: %#v", view.Entries)
 	}
 }
