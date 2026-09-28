@@ -6,10 +6,13 @@ import re
 import sys
 from pathlib import Path
 
+import yaml
+
 ROOT = Path(__file__).resolve().parents[1]
 GO_AUTH = ROOT / "backend/internal/authz/authz.go"
 TS_FOUNDATION = ROOT / "packages/contracts/src/foundation.ts"
 AUTH_SCHEMA = ROOT / "contracts/jsonschema/authorization-v1.schema.json"
+OPENAPI = ROOT / "contracts/openapi/apgic-v1.yaml"
 
 GO_DECISION_RE = re.compile(r'\b[A-Za-z0-9_]+\s+Decision\s*=\s*"([A-Z0-9_]+)"')
 GO_RISK_RE = re.compile(r'\b[A-Za-z0-9_]+\s+Risk\s*=\s*"([A-Z0-9_]+)"')
@@ -49,11 +52,87 @@ def validate_authorization_contract(go_text: str, ts_text: str, schema_doc: dict
     return errors
 
 
+
+CLIENT_SESSION_OPERATIONS = {
+    ("/v1/slot-holds", "post"),
+    ("/v1/slot-holds/{id}/checkout-options", "get"),
+    ("/v1/checkout-instructions", "post"),
+    ("/v1/account-deletions", "post"),
+    ("/v1/bookings/{id}/fulfillment", "get"),
+}
+
+CLIENT_ID_BODY_COMPAT = {
+    "AcquireSlotHoldRequest": "client_identity_id",
+    "CreateCheckoutInstructionRequest": "client_identity_id",
+    "AccountDeletionRequest": "identity_id",
+}
+
+CLIENT_ID_QUERY_COMPAT = {
+    ("/v1/slot-holds/{id}/checkout-options", "get"): "client_identity_id",
+    ("/v1/bookings/{id}/fulfillment", "get"): "identity_id",
+}
+
+
+def validate_client_session_contract(document: dict) -> list[str]:
+    errors: list[str] = []
+    scheme = (
+        document.get("components", {})
+        .get("securitySchemes", {})
+        .get("ClientSession", {})
+    )
+    if scheme.get("type") != "apiKey" or scheme.get("in") != "cookie" or scheme.get("name") != "__Host-apgic_session":
+        errors.append("OpenAPI ClientSession must be the __Host-apgic_session cookie apiKey")
+
+    paths = document.get("paths", {})
+    for path, method in sorted(CLIENT_SESSION_OPERATIONS):
+        operation = (paths.get(path) or {}).get(method) or {}
+        security = operation.get("security") or []
+        if not any(isinstance(item, dict) and item.get("ClientSession") == [] for item in security):
+            errors.append(f"{method.upper()} {path} must require ClientSession")
+
+    schemas = document.get("components", {}).get("schemas", {})
+    for schema_name, property_name in CLIENT_ID_BODY_COMPAT.items():
+        schema = schemas.get(schema_name) or {}
+        required = set(schema.get("required") or [])
+        prop = (schema.get("properties") or {}).get(property_name) or {}
+        if property_name in required:
+            errors.append(f"{schema_name}.{property_name} must be optional compatibility input")
+        if prop.get("deprecated") is not True:
+            errors.append(f"{schema_name}.{property_name} must be deprecated")
+
+    for (path, method), parameter_name in CLIENT_ID_QUERY_COMPAT.items():
+        operation = (paths.get(path) or {}).get(method) or {}
+        parameters = operation.get("parameters") or []
+        parameter = next(
+            (
+                item
+                for item in parameters
+                if isinstance(item, dict)
+                and item.get("name") == parameter_name
+                and item.get("in") == "query"
+            ),
+            None,
+        )
+        if parameter is None:
+            errors.append(f"{method.upper()} {path} missing compatibility query {parameter_name}")
+            continue
+        if parameter.get("required") is True:
+            errors.append(f"{method.upper()} {path} {parameter_name} must not be required")
+        if parameter.get("deprecated") is not True:
+            errors.append(f"{method.upper()} {path} {parameter_name} must be deprecated")
+    return errors
+
+
 def main() -> int:
     errors = validate_authorization_contract(
         GO_AUTH.read_text(encoding="utf-8"),
         TS_FOUNDATION.read_text(encoding="utf-8"),
         json.loads(AUTH_SCHEMA.read_text(encoding="utf-8")),
+    )
+    errors.extend(
+        validate_client_session_contract(
+            yaml.safe_load(OPENAPI.read_text(encoding="utf-8"))
+        )
     )
     if errors:
         print("AUTH CONTRACT GUARD: FAIL")
