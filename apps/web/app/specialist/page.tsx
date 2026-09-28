@@ -59,13 +59,13 @@ export default function SpecialistPage() {
             <p className="section-kicker">Профессиональный контур</p>
             <h2>Подключение идёт по проверяемым этапам</h2>
             <ul className="status-list">
-              <li><span className="status-dot" aria-hidden="true" /><span>Identity и роль специалиста</span></li>
-              <li><span className="status-dot pending-dot" aria-hidden="true" /><span>Evidence intake и review</span></li>
-              <li><span className="status-dot pending-dot" aria-hidden="true" /><span>Qualification и публикация</span></li>
+              <li><span className="status-dot neutral-dot" aria-hidden="true" /><span>Identity и роль специалиста</span></li>
+              <li><span className="status-dot neutral-dot" aria-hidden="true" /><span>Evidence intake и review</span></li>
+              <li><span className="status-dot neutral-dot" aria-hidden="true" /><span>Qualification и публикация</span></li>
             </ul>
             <p className="status-note">
+              Текущий статус этапов здесь не определяется: страница не знает, авторизован ли посетитель и какие шаги он уже прошёл.
               Самостоятельная отправка профиля из Web будет включена только вместе с серверным evidence intake.
-              Пока страница не имитирует сохранение данных, которых backend ещё не принимает.
             </p>
           </aside>
         </section>
@@ -94,7 +94,8 @@ export default function SpecialistPage() {
           <div className="boundary-copy">
             <p>
               До завершения проверки профессиональное направление остаётся заявленным или документально
-              поддержанным. Статус <strong>APGIC VERIFIED</strong> появляется только после предусмотренной проверки.
+              поддержанным. Статус <strong>APGIC VERIFIED</strong> присваивается только конкретной проверенной компетенции
+              или направлению после предусмотренного review.
             </p>
             <p>
               Неполный профиль или незавершённый review не может стать публично доступным в подборе.
