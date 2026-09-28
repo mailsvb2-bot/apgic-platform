@@ -118,7 +118,6 @@ func TestMissingAuditMetadataFailsClosed(t *testing.T) {
 	}
 }
 
-
 func TestTenantContextDenialIsAudited(t *testing.T) {
 	now := time.Now().UTC()
 	in := auditableInput(now)
