@@ -246,6 +246,11 @@ export interface PaymentSelection {
   rail_code: string;
 }
 
+export interface PrivateOrganizationProfile {
+  id: string;
+  name: string;
+}
+
 export interface ProviderEvent {
   amount_minor: number;
   currency: string;
@@ -308,11 +313,6 @@ export interface SlotHold {
 export interface SlotList {
   slots: Array<Slot>;
   specialist_id: string;
-}
-
-export interface PrivateOrganizationProfile {
-  id: string;
-  name: string;
 }
 
 export interface SpecialistCapability {
