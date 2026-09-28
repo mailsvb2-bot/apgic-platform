@@ -107,7 +107,6 @@ func TestExpiredConfigIsRejected(t *testing.T) {
 	}
 }
 
-
 func TestEmergencyKillSwitchDrill(t *testing.T) {
 	publicKey, privateKey, err := ed25519.GenerateKey(nil)
 	if err != nil {
