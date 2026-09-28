@@ -103,6 +103,23 @@ func (s *Service) CheckoutOptions(holdID, clientIdentityID string) ([]CheckoutOp
 	return options, nil
 }
 
+func productOwnershipForSpecialist(specialistID, specialistIdentityID string) (commerce.Ownership, error) {
+	ownership := commerce.Ownership{
+		OwnerType:             commerce.OwnerOrganization,
+		OwnerID:               "org-conformance-marketplace",
+		CommercialOwnerRef:    "organization/org-conformance-marketplace",
+		AuthorRefs:            []string{specialistIdentityID},
+		RevenueBeneficiaryRef: specialistIdentityID,
+	}
+	if specialistID == "" || specialistIdentityID == "" {
+		return commerce.Ownership{}, commerce.ErrOwnershipIncomplete
+	}
+	if err := ownership.Validate(); err != nil {
+		return commerce.Ownership{}, err
+	}
+	return ownership, nil
+}
+
 func (s *Service) CreateCheckout(holdID, clientIdentityID, methodCode string) (*CheckoutInstruction, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -135,6 +152,10 @@ func (s *Service) CreateCheckout(holdID, clientIdentityID, methodCode string) (*
 	if err := rejectCustody(recipient, payments.ExternalExecutionOwner); err != nil {
 		return nil, err
 	}
+	ownership, err := productOwnershipForSpecialist(slot.SpecialistID, recipient)
+	if err != nil {
+		return nil, err
+	}
 	amount := priceOf(s.catalog.candidates, slot.SpecialistID)
 	now := s.now().UTC()
 	orderID, err := newJourneyID()
@@ -143,12 +164,12 @@ func (s *Service) CreateCheckout(holdID, clientIdentityID, methodCode string) (*
 	}
 	legalSnapshot := legal.TransactionSnapshot{
 		SellerOrServiceProviderID: recipient,
-		CommercialOwnerID:         recipient,
+		CommercialOwnerID:         ownership.CommercialOwnerRef,
 		PaymentRecipientID:        recipient,
 		PlatformRole:              platformRole,
 		FiscalResponsibilityID:    recipient,
 		RefundResponsibilityID:    recipient,
-		PayoutBeneficiaryID:       recipient,
+		PayoutBeneficiaryID:       ownership.RevenueBeneficiaryRef,
 		PolicyVersion:             "legal-conformance-v1",
 	}
 	if err := legalSnapshot.Validate(); err != nil {
@@ -165,13 +186,15 @@ func (s *Service) CreateCheckout(holdID, clientIdentityID, methodCode string) (*
 		PricingPolicyVersion:    "pricing-conformance-v1",
 		CommissionPolicyVersion: "commission-conformance-v1",
 		LegalSnapshotRef:        legalSnapshot.PolicyVersion,
+		ProductOwnerRef:         "organization/" + ownership.OwnerID,
+		AuthorRefs:              append([]string(nil), ownership.AuthorRefs...),
 		SellerRef:               recipient,
-		CommercialOwnerRef:      recipient,
+		CommercialOwnerRef:      ownership.CommercialOwnerRef,
 		PaymentRecipientRef:     recipient,
 		PlatformRole:            platformRole,
 		FiscalResponsibilityRef: recipient,
 		RefundResponsibilityRef: recipient,
-		PayoutBeneficiaryRef:    recipient,
+		PayoutBeneficiaryRef:    ownership.RevenueBeneficiaryRef,
 		CapturedAt:              now,
 	})
 	if err != nil {
