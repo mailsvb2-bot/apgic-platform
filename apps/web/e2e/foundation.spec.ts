@@ -200,6 +200,8 @@ test("specialist entry is reachable and never overstates verification", async ({
 
   const verifiedCopy = page.getByText("APGIC VERIFIED", { exact: true });
   await expect(verifiedCopy).toHaveCount(1);
+  await expect(page.getByText(/конкретной проверенной компетенции/)).toBeVisible();
+  await expect(page.getByText(/Текущий статус этапов здесь не определяется/)).toBeVisible();
 
   const layout = await page.evaluate(() => ({
     viewportWidth: window.innerWidth,
