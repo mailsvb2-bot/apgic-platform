@@ -54,6 +54,8 @@ def validate_authorization_contract(go_text: str, ts_text: str, schema_doc: dict
 
 
 CLIENT_SESSION_OPERATIONS = {
+    ("/v1/help-intents/{id}/confirm", "post"),
+    ("/v1/help-intents/{id}/matches", "get"),
     ("/v1/slot-holds", "post"),
     ("/v1/slot-holds/{id}/checkout-options", "get"),
     ("/v1/checkout-instructions", "post"),
