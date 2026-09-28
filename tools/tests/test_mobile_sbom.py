@@ -65,9 +65,16 @@ class MobileSBOMTests(unittest.TestCase):
         with self.assertRaisesRegex(SBOMError, "contains problems"):
             build_cyclonedx_sbom(PACKAGE, tree)
 
-    def test_rejects_unresolved_component_version(self) -> None:
+    def test_ignores_uninstalled_optional_placeholder(self) -> None:
         tree = installed_tree()
-        tree["dependencies"]["react"]["version"] = ""
+        tree["dependencies"]["bufferutil"] = {}
+        sbom = build_cyclonedx_sbom(PACKAGE, tree)
+        refs = {component["bom-ref"] for component in sbom["components"]}
+        self.assertFalse(any("bufferutil" in ref for ref in refs))
+
+    def test_rejects_installed_component_without_resolved_version(self) -> None:
+        tree = installed_tree()
+        tree["dependencies"]["react"] = {"path": "node_modules/react"}
         with self.assertRaisesRegex(SBOMError, "no resolved version"):
             build_cyclonedx_sbom(PACKAGE, tree)
 
