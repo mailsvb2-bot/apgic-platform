@@ -307,11 +307,17 @@
             "backend/internal/legal/transaction_snapshot_test.go",
             "tools/legal_snapshot_contract_guard.py"
           ]
+        },
+        "E2E_OR_STAGING_PROOF": {
+          "gates": [
+            "postgres-invariants"
+          ],
+          "proof_refs": [
+            "backend/internal/runtimepostgres/journey_test.go"
+          ]
         }
       },
-      "unproven_evidence": [
-        "E2E_OR_STAGING_PROOF"
-      ]
+      "unproven_evidence": []
     },
     "APGIC-LEGAL-002": {
       "claims": {
