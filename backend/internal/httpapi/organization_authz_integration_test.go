@@ -40,14 +40,20 @@ func TestCrossTenantOrganizationHTTPDeniesWithoutDisclosureAndAudits(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
+	if _, err := db.Exec(\`INSERT INTO identities (id) VALUES ($1::uuid)\`, identityID); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := db.Exec(\`
-		INSERT INTO identities (id) VALUES ($1::uuid);
 		INSERT INTO organizations (id, name, status) VALUES
-		  ($2::uuid, 'Organization A private', 'ACTIVE'),
-		  ($3::uuid, 'TOP SECRET ORGANIZATION B', 'ACTIVE');
+		  ($1::uuid, 'Organization A private', 'ACTIVE'),
+		  ($2::uuid, 'TOP SECRET ORGANIZATION B', 'ACTIVE')
+	\`, orgA, orgB); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(\`
 		INSERT INTO organization_memberships (organization_id, identity_id, status)
-		VALUES ($2::uuid, $1::uuid, 'ACTIVE');
-	\`, identityID, orgA, orgB); err != nil {
+		VALUES ($1::uuid, $2::uuid, 'ACTIVE')
+	\`, orgA, identityID); err != nil {
 		t.Fatal(err)
 	}
 
