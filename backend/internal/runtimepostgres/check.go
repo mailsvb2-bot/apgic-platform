@@ -26,6 +26,11 @@ var requiredTables = []string{
 	"booking_slots",
 	"booking_holds",
 	"bookings",
+	"specialist_profiles",
+	"specialist_capabilities",
+	"specialist_evidence",
+	"qualification_evaluations",
+	"specialist_publications",
 }
 
 var requiredIndexes = []string{
