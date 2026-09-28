@@ -32,6 +32,38 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Meta'
+  /v1/organizations/{organizationID}/private-profile:
+    get:
+      operationId: getPrivateOrganizationProfile
+      description: Protected tenant-scoped organization resource. X-Organization-Context is accepted only after active membership validation; cross-tenant access fails closed and is audited.
+      security:
+        - ClientSession: []
+      parameters:
+        - in: path
+          name: organizationID
+          required: true
+          schema: { type: string }
+        - in: header
+          name: X-Organization-Context
+          required: true
+          schema: { type: string }
+        - in: header
+          name: X-Correlation-Id
+          required: false
+          schema: { type: string }
+      responses:
+        '200':
+          description: Same-tenant private organization profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrivateOrganizationProfile'
+        '403':
+          description: Tenant context or cross-tenant authorization denied without resource disclosure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /v1/specialist/profile:
     get:
       operationId: getSpecialistProfile
@@ -652,6 +684,13 @@ components:
           items: { $ref: '#/components/schemas/Surface' }
         commit_sha: { type: string }
         time: { type: string, format: date-time }
+    PrivateOrganizationProfile:
+      type: object
+      additionalProperties: false
+      required: [id, name]
+      properties:
+        id: { type: string }
+        name: { type: string }
     SpecialistCapability:
       type: object
       additionalProperties: false
