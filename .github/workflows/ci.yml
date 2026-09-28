@@ -239,6 +239,11 @@ jobs:
         env:
           APGIC_LEGAL_ACCEPTANCE_TEST_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable
         run: go test ./internal/runtimepostgres -run TestLegalAcceptanceHTTPPreservesVersionHistory -count=1
+      - name: Prove one durable identity keeps multiple roles
+        working-directory: backend
+        env:
+          APGIC_IDENTITY_ROLE_TEST_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable
+        run: go test ./internal/runtimepostgres -run 'TestIdentityRoleGrantKeepsSingleAccountTruth|TestIdentityRoleGrantRejectsUnknownAccountAndRole' -count=1
       - name: Prove staging API requires PostgreSQL readiness
         working-directory: backend
         shell: bash
