@@ -341,8 +341,6 @@ jobs:
   web-build:
     name: Web / Next.js production build
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     env:
       NEXT_TELEMETRY_DISABLED: '1'
     steps:
@@ -357,34 +355,6 @@ jobs:
       - working-directory: apps/web
         run: npm run build
       - run: git diff --exit-code -- apps/web/tsconfig.json
-      - name: Refresh specialist-entry visual baselines
-        if: github.event_name == 'pull_request' && github.head_ref == 'feat/specialist-entry'
-        working-directory: apps/web
-        run: npx playwright test e2e/visual-regression.spec.ts --update-snapshots
-      - name: Upload specialist-entry visual baselines
-        if: github.event_name == 'pull_request' && github.head_ref == 'feat/specialist-entry'
-        uses: actions/upload-artifact@v4
-        with:
-          name: specialist-entry-visual-baselines
-          path: apps/web/e2e/snapshots
-          if-no-files-found: error
-          retention-days: 1
-      - name: Commit specialist-entry visual baselines
-        if: github.event_name == 'pull_request' && github.head_ref == 'feat/specialist-entry'
-        shell: bash
-        run: |
-          git config user.name "APGIC CI"
-          git config user.email "actions@users.noreply.github.com"
-          git add apps/web/e2e/snapshots
-          if git diff --cached --quiet; then
-            echo "Visual baselines already current."
-            exit 0
-          fi
-          git commit -m "Refresh specialist entry visual baselines"
-          git reset --hard HEAD
-          git fetch origin "${{ github.head_ref }}"
-          git rebase "origin/${{ github.head_ref }}"
-          git push origin HEAD:${{ github.head_ref }}
       - working-directory: apps/web
         run: npm run test:e2e
 
