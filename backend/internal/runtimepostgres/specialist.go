@@ -355,6 +355,26 @@ func (c *Checker) ReviewEvidence(evidenceID string, approved bool, reviewerRef s
 			return fmt.Errorf("return specialist capability to self-declared: %w", err)
 		}
 	}
+
+	auditID, err := persistentid.New()
+	if err != nil {
+		return err
+	}
+	oldJSON, _ := json.Marshal(map[string]string{"state": specialist.EvidenceSubmitted})
+	newJSON, _ := json.Marshal(map[string]string{"state": target, "topic_id": topicID})
+	if _, err := tx.ExecContext(ctx,
+		`INSERT INTO audit_records (
+			id, actor_id, action, scope, resource_ref, old_state, new_state,
+			reason, policy_version, correlation_id
+		 ) VALUES ($1::uuid, $2, 'SPECIALIST_EVIDENCE_REVIEW', 'SPECIALIST',
+			$3, $4::jsonb, $5::jsonb, $6, $7, $8)`,
+		auditID, reviewerRef, "specialist-evidence:"+evidenceID,
+		string(oldJSON), string(newJSON), "SPECIALIST_EVIDENCE_"+target,
+		specialistQualificationPolicyVersion, "specialist-evidence-review:"+evidenceID,
+	); err != nil {
+		return fmt.Errorf("append specialist evidence review audit: %w", err)
+	}
+
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit specialist evidence review: %w", err)
 	}
