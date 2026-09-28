@@ -53,6 +53,7 @@ func TestOrderSnapshotRejectsSilentEconomicDefaults(t *testing.T) {
 		"missing product owner":     func(s *OrderSnapshot) { s.ProductOwnerRef = "" },
 		"missing authors":           func(s *OrderSnapshot) { s.AuthorRefs = nil },
 		"blank author":              func(s *OrderSnapshot) { s.AuthorRefs = []string{""} },
+		"duplicate author":          func(s *OrderSnapshot) { s.AuthorRefs = []string{"identity/author-1", "identity/author-1"} },
 		"zero amount":               func(s *OrderSnapshot) { s.AmountMinor = 0 },
 		"commission exceeds amount": func(s *OrderSnapshot) { s.CommissionMinor = s.AmountMinor + 1 },
 		"invalid currency code":     func(s *OrderSnapshot) { s.Currency = "1$?" },
