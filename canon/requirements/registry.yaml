@@ -2944,6 +2944,7 @@ requirements:
   dependencies:
   - APGIC-MOBILE-002
   implementation_refs:
+  - apps/mobile/package.json
   - apps/mobile/dependency-registry.yaml
   - tools/mobile_dependency_guard.py
   - tools/mobile_sbom.py
