@@ -1,6 +1,14 @@
 import { defineConfig } from "@playwright/test";
 
-const baseURL = "http://127.0.0.1:43110";
+const localWebPort = 43110;
+const localApiPort = 43131;
+const ciRunId = Number(process.env.GITHUB_RUN_ID ?? "0");
+const ciOffset = process.env.CI ? ciRunId % 1000 : 0;
+const defaultWebPort = process.env.CI ? 43000 + ciOffset : localWebPort;
+const defaultApiPort = process.env.CI ? 45000 + ciOffset : localApiPort;
+const webPort = Number(process.env.APGIC_WEB_PORT ?? defaultWebPort);
+const apiPort = Number(process.env.APGIC_API_PORT ?? defaultApiPort);
+const baseURL = `http://127.0.0.1:${webPort}`;
 
 export default defineConfig({
   testDir: "./e2e",
@@ -18,7 +26,7 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   webServer: {
-    command: "bash scripts/start-with-api.sh",
+    command: `APGIC_WEB_PORT=${webPort} APGIC_HTTP_ADDR=:${apiPort} APGIC_API_ORIGIN=http://127.0.0.1:${apiPort} bash scripts/start-with-api.sh`,
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,
