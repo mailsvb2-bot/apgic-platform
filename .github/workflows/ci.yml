@@ -229,6 +229,11 @@ jobs:
         env:
           APGIC_AUDIT_STORE_TEST_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable
         run: go test ./internal/runtimepostgres -run TestAuditAppenderPersistsAuthorizationEvidence -count=1
+      - name: Prove cross-tenant denial persists authorization evidence
+        working-directory: backend
+        env:
+          APGIC_AUTHZ_TEST_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable
+        run: go test ./internal/runtimepostgres -run TestAuthorizationEvaluatorPersistsCrossTenantDenial -count=1
       - name: Prove booking journey survives PostgreSQL-backed restart
         working-directory: backend
         env:
