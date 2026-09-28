@@ -40,20 +40,20 @@ func TestCrossTenantOrganizationHTTPDeniesWithoutDisclosureAndAudits(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.Exec(\`INSERT INTO identities (id) VALUES ($1::uuid)\`, identityID); err != nil {
+	if _, err := db.Exec(`INSERT INTO identities (id) VALUES ($1::uuid)`, identityID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.Exec(\`
+	if _, err := db.Exec(`
 		INSERT INTO organizations (id, name, status) VALUES
 		  ($1::uuid, 'Organization A private', 'ACTIVE'),
 		  ($2::uuid, 'TOP SECRET ORGANIZATION B', 'ACTIVE')
-	\`, orgA, orgB); err != nil {
+	`, orgA, orgB); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.Exec(\`
+	if _, err := db.Exec(`
 		INSERT INTO organization_memberships (organization_id, identity_id, status)
 		VALUES ($1::uuid, $2::uuid, 'ACTIVE')
-	\`, orgA, identityID); err != nil {
+	`, orgA, identityID); err != nil {
 		t.Fatal(err)
 	}
 
@@ -95,9 +95,9 @@ func TestCrossTenantOrganizationHTTPDeniesWithoutDisclosureAndAudits(t *testing.
 	}
 
 	var envelope struct {
-		Code              string   \`json:"code"\`
-		MessageSafe       string   \`json:"message_safe"\`
-		PolicyReasonCodes []string \`json:"policy_reason_codes"\`
+		Code              string   `json:"code"`
+		MessageSafe       string   `json:"message_safe"`
+		PolicyReasonCodes []string `json:"policy_reason_codes"`
 	}
 	if err := json.Unmarshal(recorder.Body.Bytes(), &envelope); err != nil {
 		t.Fatal(err)
@@ -110,13 +110,13 @@ func TestCrossTenantOrganizationHTTPDeniesWithoutDisclosureAndAudits(t *testing.
 
 	var actorID, scope, resourceRef, reason, correlationID string
 	var stateJSON []byte
-	if err := db.QueryRow(\`
+	if err := db.QueryRow(`
 		SELECT actor_id, scope, resource_ref, reason, correlation_id, new_state
 		  FROM audit_records
 		 WHERE correlation_id = 'auth001-db-api-negative'
 		 ORDER BY occurred_at DESC
 		 LIMIT 1
-	\`).Scan(&actorID, &scope, &resourceRef, &reason, &correlationID, &stateJSON); err != nil {
+	`).Scan(&actorID, &scope, &resourceRef, &reason, &correlationID, &stateJSON); err != nil {
 		t.Fatal(err)
 	}
 	if actorID != identityID ||
