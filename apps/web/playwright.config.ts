@@ -2,7 +2,8 @@ import { defineConfig } from "@playwright/test";
 
 const defaultWebPort = 43110;
 const defaultApiPort = 43131;
-const ciOffset = process.env.CI ? process.pid % 1000 : 0;
+const ciRunId = Number(process.env.GITHUB_RUN_ID ?? "0");
+const ciOffset = process.env.CI ? ciRunId % 1000 : 0;
 const webPort = Number(process.env.APGIC_WEB_PORT ?? (defaultWebPort + ciOffset));
 const apiPort = Number(process.env.APGIC_API_PORT ?? (defaultApiPort + ciOffset));
 const baseURL = `http://127.0.0.1:${webPort}`;
