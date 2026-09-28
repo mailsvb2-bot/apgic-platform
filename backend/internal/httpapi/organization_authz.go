@@ -1,7 +1,6 @@
 package httpapi
 
 import (
-	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -9,7 +8,6 @@ import (
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/audit"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/authz"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/persistentid"
-	"github.com/mailsvb2-bot/apgic-platform/backend/internal/runtimepostgres"
 )
 
 const organizationAuthzPolicyVersion = "authz-policy-v1"
@@ -17,7 +15,7 @@ const organizationAuthzPolicyVersion = "authz-policy-v1"
 type organizationAuthorizationStore interface {
 	audit.Appender
 	ActiveOrganizationMembership(identityID, organizationID string) (bool, error)
-	OrganizationPrivateName(organizationID string) (string, error)
+	OrganizationPrivateName(organizationID string) (string, bool, error)
 }
 
 type privateOrganizationProfile struct {
@@ -96,12 +94,12 @@ func registerOrganizationAuthorization(
 		}
 
 		organizationID := strings.TrimSpace(r.PathValue("organizationID"))
-		name, err := store.OrganizationPrivateName(organizationID)
+		name, found, err := store.OrganizationPrivateName(organizationID)
 		switch {
-		case errors.Is(err, runtimepostgres.ErrOrganizationNotFound):
-			writeDemandError(w, r, http.StatusNotFound, "ORGANIZATION_NOT_FOUND", "Организация не найдена.", false, nil)
 		case err != nil:
 			writeDemandError(w, r, http.StatusServiceUnavailable, "AUTH_STORE_UNAVAILABLE", "Организация временно недоступна.", true, nil)
+		case !found:
+			writeDemandError(w, r, http.StatusNotFound, "ORGANIZATION_NOT_FOUND", "Организация не найдена.", false, nil)
 		default:
 			writeJSON(w, http.StatusOK, privateOrganizationProfile{ID: organizationID, Name: name})
 		}
