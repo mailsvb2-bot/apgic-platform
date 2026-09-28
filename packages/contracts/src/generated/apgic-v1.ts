@@ -22,12 +22,12 @@ export interface AccountDeletion {
 }
 
 export interface AccountDeletionRequest {
-  identity_id: string;
+  identity_id?: string;
   source: string;
 }
 
 export interface AcquireSlotHoldRequest {
-  client_identity_id: string;
+  client_identity_id?: string;
   help_intent_id: string;
   slot_id: string;
 }
@@ -136,7 +136,7 @@ export interface ConsultationView {
 }
 
 export interface CreateCheckoutInstructionRequest {
-  client_identity_id: string;
+  client_identity_id?: string;
   hold_id: string;
   method_code: string;
 }

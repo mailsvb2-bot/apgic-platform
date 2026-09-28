@@ -57,6 +57,8 @@ paths:
   /v1/help-intents/{id}/confirm:
     post:
       operationId: confirmHelpIntent
+      security:
+        - ClientSession: []
       parameters:
         - name: id
           in: path
@@ -131,6 +133,8 @@ paths:
   /v1/help-intents/{id}/matches:
     get:
       operationId: listHelpIntentMatches
+      security:
+        - ClientSession: []
       parameters:
         - name: id
           in: path
@@ -165,6 +169,8 @@ paths:
   /v1/slot-holds:
     post:
       operationId: acquireSlotHold
+      security:
+        - ClientSession: []
       requestBody:
         required: true
         content:
@@ -187,6 +193,8 @@ paths:
   /v1/slot-holds/{id}/checkout-options:
     get:
       operationId: listCheckoutOptions
+      security:
+        - ClientSession: []
       parameters:
         - name: id
           in: path
@@ -194,7 +202,9 @@ paths:
           schema: { type: string }
         - name: client_identity_id
           in: query
-          required: true
+          required: false
+          deprecated: true
+          description: Compatibility assertion only. Authorization identity comes from the signed ClientSession cookie; a mismatch is denied.
           schema: { type: string }
       responses:
         '200':
@@ -206,6 +216,8 @@ paths:
   /v1/checkout-instructions:
     post:
       operationId: createCheckoutInstruction
+      security:
+        - ClientSession: []
       requestBody:
         required: true
         content:
@@ -256,6 +268,8 @@ paths:
   /v1/account-deletions:
     post:
       operationId: deleteAccount
+      security:
+        - ClientSession: []
       requestBody:
         required: true
         content:
@@ -294,6 +308,8 @@ paths:
   /v1/bookings/{id}/fulfillment:
     get:
       operationId: getBookingFulfillment
+      security:
+        - ClientSession: []
       parameters:
         - name: id
           in: path
@@ -301,7 +317,9 @@ paths:
           schema: { type: string }
         - name: identity_id
           in: query
-          required: true
+          required: false
+          deprecated: true
+          description: Compatibility assertion only. Authorization identity comes from the signed ClientSession cookie; a mismatch is denied.
           schema: { type: string }
       responses:
         '200':
@@ -422,6 +440,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
 components:
+  securitySchemes:
+    ClientSession:
+      type: apiKey
+      in: cookie
+      name: __Host-apgic_session
+      description: Server-signed trusted client session. Caller-supplied identity fields are never an authorization source.
   schemas:
     Surface:
       type: string
@@ -603,11 +627,14 @@ components:
     AcquireSlotHoldRequest:
       type: object
       additionalProperties: false
-      required: [help_intent_id, slot_id, client_identity_id]
+      required: [help_intent_id, slot_id]
       properties:
         help_intent_id: { type: string }
         slot_id: { type: string }
-        client_identity_id: { type: string }
+        client_identity_id:
+          type: string
+          deprecated: true
+          description: Compatibility assertion only; trusted identity is resolved from ClientSession.
     SlotHold:
       type: object
       additionalProperties: false
@@ -649,10 +676,13 @@ components:
     CreateCheckoutInstructionRequest:
       type: object
       additionalProperties: false
-      required: [hold_id, client_identity_id, method_code]
+      required: [hold_id, method_code]
       properties:
         hold_id: { type: string }
-        client_identity_id: { type: string }
+        client_identity_id:
+          type: string
+          deprecated: true
+          description: Compatibility assertion only; trusted identity is resolved from ClientSession.
         method_code: { type: string }
     CheckoutInstruction:
       type: object
@@ -715,9 +745,12 @@ components:
     AccountDeletionRequest:
       type: object
       additionalProperties: false
-      required: [identity_id, source]
+      required: [source]
       properties:
-        identity_id: { type: string }
+        identity_id:
+          type: string
+          deprecated: true
+          description: Compatibility assertion only; trusted identity is resolved from ClientSession.
         source: { type: string }
     AccountDeletion:
       type: object

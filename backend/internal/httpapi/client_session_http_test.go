@@ -76,11 +76,16 @@ func TestHelpIntentRejectsTamperedTrustedSession(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	replacement := "A"
-	if strings.HasSuffix(cookie.Value, replacement) {
-		replacement = "B"
+	parts := strings.Split(cookie.Value, ".")
+	if len(parts) != 3 || len(parts[2]) == 0 {
+		t.Fatal("unexpected signed session token shape")
 	}
-	cookie.Value = cookie.Value[:len(cookie.Value)-1] + replacement
+	replacement := byte('A')
+	if parts[2][0] == replacement {
+		replacement = 'B'
+	}
+	parts[2] = string(replacement) + parts[2][1:]
+	cookie.Value = strings.Join(parts, ".")
 
 	request := httptest.NewRequest(http.MethodPost, "/v1/help-intents", strings.NewReader(`{"free_text":"запрос"}`))
 	request.Header.Set("content-type", "application/json")
@@ -92,6 +97,169 @@ func TestHelpIntentRejectsTamperedTrustedSession(t *testing.T) {
 	}
 	if !strings.Contains(recorder.Body.String(), "CLIENT_SESSION_INVALID") {
 		t.Fatalf("tampered session reason missing: %s", recorder.Body.String())
+	}
+}
+
+func TestHelpIntentOperationsRequireOwningTrustedSession(t *testing.T) {
+	key := []byte(strings.Repeat("s", 32))
+	service := demand.NewConformanceService(nil)
+	intent, err := service.CreateIntentForIdentity(
+		"11111111-1111-4111-8111-111111111111",
+		"нужна помощь со сном",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := New(Options{Demand: service, ClientSessionKey: key})
+	manager, err := newClientSessionManager(key, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherCookie, err := manager.issue("22222222-2222-4222-8222-222222222222")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name   string
+		method string
+		path   string
+		body   string
+	}{
+		{
+			name:   "confirm",
+			method: http.MethodPost,
+			path:   "/v1/help-intents/" + intent.ID + "/confirm",
+			body:   `{"topics":["sleep"]}`,
+		},
+		{
+			name:   "matches",
+			method: http.MethodGet,
+			path:   "/v1/help-intents/" + intent.ID + "/matches",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name+" cross identity", func(t *testing.T) {
+			request := httptest.NewRequest(tt.method, tt.path, strings.NewReader(tt.body))
+			if tt.body != "" {
+				request.Header.Set("content-type", "application/json")
+			}
+			request.AddCookie(otherCookie)
+			recorder := httptest.NewRecorder()
+			handler.ServeHTTP(recorder, request)
+			if recorder.Code != http.StatusForbidden {
+				t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+			}
+			if !strings.Contains(recorder.Body.String(), "HELP_INTENT_IDENTITY_MISMATCH") {
+				t.Fatalf("ownership denial missing: %s", recorder.Body.String())
+			}
+		})
+
+		t.Run(tt.name+" missing session", func(t *testing.T) {
+			request := httptest.NewRequest(tt.method, tt.path, strings.NewReader(tt.body))
+			if tt.body != "" {
+				request.Header.Set("content-type", "application/json")
+			}
+			recorder := httptest.NewRecorder()
+			handler.ServeHTTP(recorder, request)
+			if recorder.Code != http.StatusUnauthorized {
+				t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+			}
+			if !strings.Contains(recorder.Body.String(), "CLIENT_SESSION_REQUIRED") {
+				t.Fatalf("missing session denial missing: %s", recorder.Body.String())
+			}
+		})
+	}
+}
+
+func TestProtectedClientIdentityInputsCannotOverrideTrustedSession(t *testing.T) {
+	key := []byte(strings.Repeat("s", 32))
+	handler := New(Options{
+		Demand:           demand.NewConformanceService(nil),
+		ClientSessionKey: key,
+	})
+	manager, err := newClientSessionManager(key, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cookie, err := manager.issue("11111111-1111-4111-8111-111111111111")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name   string
+		method string
+		path   string
+		body   string
+	}{
+		{
+			name:   "slot hold",
+			method: http.MethodPost,
+			path:   "/v1/slot-holds",
+			body:   `{"help_intent_id":"intent-x","slot_id":"slot-x","client_identity_id":"22222222-2222-4222-8222-222222222222"}`,
+		},
+		{
+			name:   "checkout options",
+			method: http.MethodGet,
+			path:   "/v1/slot-holds/hold-x/checkout-options?client_identity_id=22222222-2222-4222-8222-222222222222",
+		},
+		{
+			name:   "checkout instruction",
+			method: http.MethodPost,
+			path:   "/v1/checkout-instructions",
+			body:   `{"hold_id":"hold-x","client_identity_id":"22222222-2222-4222-8222-222222222222","method_code":"BANK_CARD"}`,
+		},
+		{
+			name:   "fulfillment",
+			method: http.MethodGet,
+			path:   "/v1/bookings/booking-x/fulfillment?identity_id=22222222-2222-4222-8222-222222222222",
+		},
+		{
+			name:   "account deletion",
+			method: http.MethodPost,
+			path:   "/v1/account-deletions",
+			body:   `{"identity_id":"22222222-2222-4222-8222-222222222222","source":"WEB"}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			request := httptest.NewRequest(tt.method, tt.path, strings.NewReader(tt.body))
+			if tt.body != "" {
+				request.Header.Set("content-type", "application/json")
+			}
+			request.AddCookie(cookie)
+			recorder := httptest.NewRecorder()
+			handler.ServeHTTP(recorder, request)
+			if recorder.Code != http.StatusForbidden {
+				t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+			}
+			if !strings.Contains(recorder.Body.String(), "CLIENT_SESSION_IDENTITY_MISMATCH") {
+				t.Fatalf("mismatch reason missing: %s", recorder.Body.String())
+			}
+		})
+	}
+}
+
+func TestProtectedClientIdentityRequiresTrustedSession(t *testing.T) {
+	handler := New(Options{
+		Demand:           demand.NewConformanceService(nil),
+		ClientSessionKey: []byte(strings.Repeat("s", 32)),
+	})
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/v1/slot-holds/hold-x/checkout-options?client_identity_id=11111111-1111-4111-8111-111111111111",
+		nil,
+	)
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusUnauthorized {
+		t.Fatalf("missing session status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if !strings.Contains(recorder.Body.String(), "CLIENT_SESSION_REQUIRED") {
+		t.Fatalf("missing session reason missing: %s", recorder.Body.String())
 	}
 }
 

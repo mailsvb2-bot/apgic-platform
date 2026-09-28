@@ -46,11 +46,16 @@ func TestClientSessionRejectsTamperingAndExpiry(t *testing.T) {
 	}
 
 	tampered := *cookie
-	replacement := "A"
-	if strings.HasSuffix(tampered.Value, replacement) {
-		replacement = "B"
+	parts := strings.Split(tampered.Value, ".")
+	if len(parts) != 3 || len(parts[2]) == 0 {
+		t.Fatal("unexpected signed session token shape")
 	}
-	tampered.Value = tampered.Value[:len(tampered.Value)-1] + replacement
+	replacement := byte('A')
+	if parts[2][0] == replacement {
+		replacement = 'B'
+	}
+	parts[2] = string(replacement) + parts[2][1:]
+	tampered.Value = strings.Join(parts, ".")
 	request := httptest.NewRequest(http.MethodGet, "/", nil)
 	request.AddCookie(&tampered)
 	if _, err := manager.identityFromRequest(request); !errors.Is(err, ErrClientSessionInvalid) {

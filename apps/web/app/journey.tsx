@@ -288,11 +288,10 @@ export function Journey() {
       const created = await postJSON<Hold>("/v1/slot-holds", {
         help_intent_id: intent.id,
         slot_id: slot.id,
-        client_identity_id: intent.client_identity_id,
       });
       setHold(created);
       setInstruction(null);
-      const listed = await fetch(`/v1/slot-holds/${created.id}/checkout-options?client_identity_id=${encodeURIComponent(intent.client_identity_id)}`);
+      const listed = await fetch(`/v1/slot-holds/${created.id}/checkout-options`);
       const payload = await listed.json();
       if (!listed.ok) throw new Error(payload.message_safe || "Способы оплаты недоступны.");
       setOptions(payload.options);
@@ -310,7 +309,6 @@ export function Journey() {
     try {
       const created = await postJSON<CheckoutInstruction>("/v1/checkout-instructions", {
         hold_id: hold.id,
-        client_identity_id: intent.client_identity_id,
         method_code: methodCode,
       });
       if (created.apgic_accepts_funds || created.execution_owner !== "EXTERNAL_PROVIDER") {
@@ -341,7 +339,7 @@ export function Journey() {
       if (created.apgic_accepts_funds) throw new Error("APGIC не принимает деньги.");
       setEvidence(created);
       if (intent) {
-        const listed = await fetch(`/v1/bookings/${created.booking_id}/fulfillment?identity_id=${encodeURIComponent(intent.client_identity_id)}`);
+        const listed = await fetch(`/v1/bookings/${created.booking_id}/fulfillment`);
         const payload = await listed.json();
         if (!listed.ok) throw new Error(payload.message_safe || "Допуск к консультации недоступен.");
         setFulfillment({
@@ -496,7 +494,7 @@ export function Journey() {
         apgic_deletes_ledger: boolean;
         notice: string;
         idempotent: boolean;
-      }>("/v1/account-deletions", { identity_id: intent.client_identity_id, source: "WEB" });
+      }>("/v1/account-deletions", { source: "WEB" });
       if (created.deactivation || created.apgic_deletes_ledger || !created.ledger_retained || !created.profile_erased) {
         throw new Error("Удаление не должно быть деактивацией и не должно уничтожать запись учёта.");
       }

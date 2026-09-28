@@ -192,6 +192,7 @@ requirements:
   - backend/migrations/000001_r0_foundation.sql
   - tools/identity_contract_guard.py
   contract_refs:
+  - contracts/openapi/apgic-v1.yaml
   - packages/contracts/src/foundation.ts
   - contracts/jsonschema/identity-v1.schema.json
   test_refs:
@@ -223,6 +224,7 @@ requirements:
   status: IN_PROGRESS
   dependencies: []
   implementation_refs:
+  - apps/web/app/journey.tsx
   - backend/internal/authz/evaluator.go
   - backend/internal/authz/authz.go
   - backend/internal/runtimepostgres/check.go
@@ -230,6 +232,7 @@ requirements:
   - backend/internal/httpapi/demand.go
   - tools/auth_contract_guard.py
   contract_refs:
+  - contracts/openapi/apgic-v1.yaml
   - packages/contracts/src/foundation.ts
   - contracts/jsonschema/authorization-v1.schema.json
   test_refs:
