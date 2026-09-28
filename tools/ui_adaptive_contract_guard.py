@@ -81,26 +81,27 @@ def validate_ui_adaptive_contract(
         if snippet not in e2e_text:
             errors.append(f"adaptive critical-flow E2E invariant missing: {snippet}")
 
-    visual_snippets = (
-        'snapshotPathTemplate: "{testDir}/snapshots/{projectName}/{arg}{ext}"',
-        'toHaveScreenshot',
-        'fullPage: true',
-        'maxDiffPixelRatio: 0.001',
-    )
-    combined_visual = playwright_text + "\n" + visual_e2e_text
-    for snippet in visual_snippets:
-        if snippet not in combined_visual:
-            errors.append(f"visual regression invariant missing: {snippet}")
+    if visual_e2e_text or baseline_presence:
+        visual_snippets = (
+            'snapshotPathTemplate: "{testDir}/snapshots/{projectName}/{arg}{ext}"',
+            'toHaveScreenshot',
+            'fullPage: true',
+            'maxDiffPixelRatio: 0.001',
+        )
+        combined_visual = playwright_text + "\n" + visual_e2e_text
+        for snippet in visual_snippets:
+            if snippet not in combined_visual:
+                errors.append(f"visual regression invariant missing: {snippet}")
 
-    if baseline_presence and len(baseline_presence) != len(VISUAL_BASELINES):
-        errors.append("visual baseline presence vector has invalid length")
-    elif baseline_presence and not all(baseline_presence):
-        missing = [
-            str(path.relative_to(ROOT))
-            for path, present in zip(VISUAL_BASELINES, baseline_presence, strict=True)
-            if not present
-        ]
-        errors.append(f"visual regression baselines missing: {missing}")
+        if len(baseline_presence) != len(VISUAL_BASELINES):
+            errors.append("visual baseline presence vector has invalid length")
+        elif not all(baseline_presence):
+            missing = [
+                str(path.relative_to(ROOT))
+                for path, present in zip(VISUAL_BASELINES, baseline_presence, strict=True)
+                if not present
+            ]
+            errors.append(f"visual regression baselines missing: {missing}")
     return errors
 
 
