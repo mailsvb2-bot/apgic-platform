@@ -1,6 +1,44 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
+test("browser session reuses one canonical Identity across HelpIntents", async ({ page, context }) => {
+  await page.goto("/");
+
+  const identities = await page.evaluate(async () => {
+    async function create(freeText: string) {
+      const response = await fetch("/v1/help-intents", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ free_text: freeText }),
+      });
+      if (!response.ok) {
+        throw new Error("help intent create failed");
+      }
+      return response.json() as Promise<{ id: string; client_identity_id: string }>;
+    }
+
+    const first = await create("первый запрос");
+    const second = await create("второй запрос");
+    return {
+      firstIntent: first.id,
+      secondIntent: second.id,
+      firstIdentity: first.client_identity_id,
+      secondIdentity: second.client_identity_id,
+    };
+  });
+
+  expect(identities.firstIntent).not.toBe(identities.secondIntent);
+  expect(identities.firstIdentity).toBeTruthy();
+  expect(identities.firstIdentity).toBe(identities.secondIdentity);
+
+  const cookies = await context.cookies();
+  const session = cookies.find((cookie) => cookie.name === "__Host-apgic_session");
+  expect(session).toBeTruthy();
+  expect(session?.httpOnly).toBeTruthy();
+  expect(session?.secure).toBeTruthy();
+  expect(session?.sameSite).toBe("Lax");
+});
+
 test("help intent journey stays usable and accessible", async ({ page }) => {
   await page.goto("/");
 

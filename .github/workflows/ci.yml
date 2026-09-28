@@ -245,6 +245,7 @@ jobs:
           APGIC_SLO_POLICY_VERSION: slo-r0-ci-v1
           APGIC_PROVIDER_MATRIX_VERSION: providers-ci-v1
           APGIC_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          APGIC_CLIENT_SESSION_KEY: ci-only-client-session-key-000000000000
         run: |
           set -euo pipefail
           go build -o /tmp/apgic-api ./cmd/api
