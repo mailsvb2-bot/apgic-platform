@@ -1,12 +1,12 @@
 package runtimepostgres
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"time"
 
@@ -355,5 +355,13 @@ func sameOutboxEvent(left, right eventspine.EventEnvelope) bool {
 		left.OccurredAt.Equal(right.OccurredAt) &&
 		left.ProducedAt.Equal(right.ProducedAt) &&
 		left.Producer == right.Producer &&
-		bytes.Equal(left.PayloadJSON, right.PayloadJSON)
+		sameJSON(left.PayloadJSON, right.PayloadJSON)
+}
+
+func sameJSON(left, right []byte) bool {
+	var leftValue, rightValue any
+	if json.Unmarshal(left, &leftValue) != nil || json.Unmarshal(right, &rightValue) != nil {
+		return false
+	}
+	return reflect.DeepEqual(leftValue, rightValue)
 }
