@@ -795,11 +795,18 @@
           "proof_refs": [
             "backend/internal/remoteconfig/config_test.go"
           ]
+        },
+        "KILL_SWITCH_DRILL": {
+          "gates": [
+            "backend"
+          ],
+          "proof_refs": [
+            "backend/internal/remoteconfig/config_test.go",
+            ".github/workflows/ci.yml"
+          ]
         }
       },
-      "unproven_evidence": [
-        "KILL_SWITCH_DRILL"
-      ]
+      "unproven_evidence": []
     },
     "APGIC-PAY-004": {
       "claims": {
