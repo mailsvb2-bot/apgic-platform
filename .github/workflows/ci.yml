@@ -327,16 +327,7 @@ jobs:
         run: npm run build
       - run: git diff --exit-code -- apps/web/tsconfig.json
       - working-directory: apps/web
-        run: npm run test:e2e -- --update-snapshots
-      - name: Emit visual baselines for bootstrap
-        shell: bash
-        run: |
-          for file in apps/web/e2e/snapshots/*/*.png; do
-            echo "VISUAL_BASELINE_BEGIN:$file"
-            base64 -w0 "$file"
-            echo
-            echo "VISUAL_BASELINE_END:$file"
-          done
+        run: npm run test:e2e
 
   mobile-typecheck:
     name: Native / React Native typecheck
