@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 EVIDENCE_DIR = ROOT / "canon/evidence"
 SCHEMA = EVIDENCE_DIR / "staging-runtime-evidence-v1.schema.json"
 REGISTRY = ROOT / "canon/requirements/registry.yaml"
+EVIDENCE_MAP = ROOT / "canon/evidence/r0-ci-evidence-map.json"
 RFC3339_RE = re.compile(r"^(?P<date>\d{4}-\d{2}-\d{2})T(?P<hour>\d{2}):(?P<minute>\d{2}):(?P<second>\d{2})(?P<fraction>\.\d+)?(?P<zone>Z|[+-]\d{2}:\d{2})$", re.IGNORECASE)
 KNOWN_UTC_LEAP_SECOND_DATES = frozenset({
     "1972-06-30", "1972-12-31", "1973-12-31", "1974-12-31",
@@ -194,12 +195,49 @@ def _validate_artifact(
     return errors
 
 
+
+def _evidence_map_staging_claim_errors(evidence_map_document: dict) -> list[str]:
+    errors: list[str] = []
+    requirements = evidence_map_document.get("requirements", {})
+    if not isinstance(requirements, dict):
+        return ["R0 evidence map requirements must be an object"]
+
+    cache: dict[str, dict] = {}
+    for requirement_id, entry in requirements.items():
+        if not isinstance(entry, dict):
+            continue
+        claims = entry.get("claims", {})
+        if not isinstance(claims, dict):
+            continue
+        for claim_name, claim in claims.items():
+            if not isinstance(claim, dict):
+                continue
+            for ref in claim.get("proof_refs", []) or []:
+                if not isinstance(ref, str) or not ref.startswith("canon/evidence/staging-runtime-") or not ref.endswith(".json"):
+                    continue
+                if ref not in cache:
+                    path = ROOT / ref
+                    try:
+                        cache[ref] = json.loads(path.read_text(encoding="utf-8"))
+                    except (OSError, json.JSONDecodeError) as exc:
+                        errors.append(f"{requirement_id}/{claim_name}: unreadable staging proof {ref}: {exc}")
+                        continue
+                supported = cache[ref].get("supported_requirements", [])
+                if requirement_id not in supported:
+                    errors.append(
+                        f"{requirement_id}/{claim_name}: staging proof {ref} does not support this requirement"
+                    )
+    return errors
+
+
 def validate() -> list[str]:
     errors: list[str] = []
     if not SCHEMA.is_file():
         errors.append("staging runtime evidence schema is missing")
     if not REGISTRY.is_file():
         errors.append("requirement registry is missing")
+    if not EVIDENCE_MAP.is_file():
+        errors.append("R0 CI evidence map is missing")
     if errors:
         return errors
 
@@ -215,6 +253,14 @@ def validate() -> list[str]:
 
     if not isinstance(registry_document, dict):
         return ["requirement registry root must be an object"]
+
+    try:
+        evidence_map_document = json.loads(EVIDENCE_MAP.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return [f"R0 CI evidence map is invalid: {exc}"]
+    if not isinstance(evidence_map_document, dict):
+        return ["R0 CI evidence map root must be an object"]
+    errors.extend(_evidence_map_staging_claim_errors(evidence_map_document))
 
     registry_refs = _registry_evidence_refs(registry_document)
     evidence_paths = discover_evidence_paths()
