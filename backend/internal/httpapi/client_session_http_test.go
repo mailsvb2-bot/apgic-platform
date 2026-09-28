@@ -76,11 +76,16 @@ func TestHelpIntentRejectsTamperedTrustedSession(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	replacement := "A"
-	if strings.HasSuffix(cookie.Value, replacement) {
-		replacement = "B"
+	parts := strings.Split(cookie.Value, ".")
+	if len(parts) != 3 || len(parts[2]) == 0 {
+		t.Fatal("unexpected signed session token shape")
 	}
-	cookie.Value = cookie.Value[:len(cookie.Value)-1] + replacement
+	replacement := byte('A')
+	if parts[2][0] == replacement {
+		replacement = 'B'
+	}
+	parts[2] = string(replacement) + parts[2][1:]
+	cookie.Value = strings.Join(parts, ".")
 
 	request := httptest.NewRequest(http.MethodPost, "/v1/help-intents", strings.NewReader(`{"free_text":"запрос"}`))
 	request.Header.Set("content-type", "application/json")
