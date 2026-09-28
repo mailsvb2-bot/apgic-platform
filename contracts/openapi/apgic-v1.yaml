@@ -52,8 +52,7 @@ paths:
                 $ref: '#/components/schemas/ErrorEnvelope'
     put:
       operationId: upsertSpecialistProfile
-      security:
-        - ClientSession: []
+      description: Creates a signed session when absent, or reuses the existing signed Identity.
       requestBody:
         required: true
         content:
