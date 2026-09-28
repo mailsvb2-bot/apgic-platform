@@ -76,6 +76,8 @@ const (
                 },
             },
             "paths": {
+                "/v1/help-intents/{id}/confirm": {"post": {"security": [{"ClientSession": []}]}},
+                "/v1/help-intents/{id}/matches": {"get": {"security": [{"ClientSession": []}]}},
                 "/v1/slot-holds": {"post": {"security": [{"ClientSession": []}]}},
                 "/v1/slot-holds/{id}/checkout-options": {
                     "get": {
@@ -129,6 +131,8 @@ const (
                 },
             },
             "paths": {
+                "/v1/help-intents/{id}/confirm": {"post": {}},
+                "/v1/help-intents/{id}/matches": {"get": {}},
                 "/v1/slot-holds": {"post": {}},
                 "/v1/slot-holds/{id}/checkout-options": {
                     "get": {
