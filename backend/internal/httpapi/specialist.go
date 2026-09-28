@@ -187,10 +187,5 @@ func writeSpecialistFailure(w http.ResponseWriter, r *http.Request, err error) {
 }
 
 func writeSpecialistError(w http.ResponseWriter, r *http.Request, status int, code, message string) {
-	writeJSON(w, status, errorEnvelope{
-		Code:          code,
-		MessageSafe:   message,
-		CorrelationID: correlationID(r),
-		Retryable:     status >= http.StatusInternalServerError,
-	})
+	writeDemandError(w, r, status, code, message, status >= http.StatusInternalServerError, nil)
 }
