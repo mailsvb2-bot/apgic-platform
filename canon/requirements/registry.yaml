@@ -185,6 +185,8 @@ requirements:
   dependencies: []
   implementation_refs:
   - backend/internal/identity/identity.go
+  - backend/internal/demand/service.go
+  - backend/internal/runtimepostgres/journey.go
   - backend/migrations/000001_r0_foundation.sql
   - tools/identity_contract_guard.py
   contract_refs:
@@ -192,6 +194,8 @@ requirements:
   - contracts/jsonschema/identity-v1.schema.json
   test_refs:
   - backend/internal/identity/identity_test.go
+  - backend/internal/demand/service_test.go
+  - backend/internal/runtimepostgres/journey_test.go
   - tools/tests/test_identity_contract_guard.py
   evidence_refs: []
   acceptance:

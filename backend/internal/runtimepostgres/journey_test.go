@@ -10,7 +10,69 @@ import (
 	"time"
 
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/demand"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/persistentid"
 )
+
+func TestJourneyStoreReusesCanonicalClientIdentityAcrossIntents(t *testing.T) {
+	databaseURL := os.Getenv("APGIC_JOURNEY_STORE_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("journey integration database not configured")
+	}
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.PingContext(context.Background()); err != nil {
+		db.Close()
+		t.Fatal(err)
+	}
+	store := &Checker{db: db}
+	defer store.Close()
+
+	identityID, err := persistentid.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	service, err := demand.NewConformanceServiceWithStores(nil, store, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	first, err := service.CreateIntentForIdentity(identityID, "первый запрос")
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := service.CreateIntentForIdentity(identityID, "второй запрос")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.ID == second.ID || first.ClientIdentityID != identityID || second.ClientIdentityID != identityID {
+		t.Fatalf("durable identity reuse failed: first=%#v second=%#v", first, second)
+	}
+
+	var identityCount, roleCount, intentCount int
+	if err := store.db.QueryRow(
+		"SELECT count(*) FROM identities WHERE id = $1::uuid",
+		identityID,
+	).Scan(&identityCount); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.db.QueryRow(
+		"SELECT count(*) FROM identity_roles WHERE identity_id = $1::uuid AND role_code = 'CLIENT'",
+		identityID,
+	).Scan(&roleCount); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.db.QueryRow(
+		"SELECT count(*) FROM help_intents WHERE identity_id = $1::uuid AND id IN ($2::uuid, $3::uuid)",
+		identityID, first.ID, second.ID,
+	).Scan(&intentCount); err != nil {
+		t.Fatal(err)
+	}
+	if identityCount != 1 || roleCount != 1 || intentCount != 2 {
+		t.Fatalf("canonical identity persistence identity=%d role=%d intents=%d", identityCount, roleCount, intentCount)
+	}
+}
 
 func TestJourneyStoreSurvivesServiceRestart(t *testing.T) {
 	databaseURL := os.Getenv("APGIC_JOURNEY_STORE_TEST_DATABASE_URL")
