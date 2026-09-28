@@ -1,6 +1,11 @@
 import { defineConfig } from "@playwright/test";
 
-const baseURL = "http://127.0.0.1:43110";
+const defaultWebPort = 43110;
+const defaultApiPort = 43131;
+const ciOffset = process.env.CI ? process.pid % 1000 : 0;
+const webPort = Number(process.env.APGIC_WEB_PORT ?? (defaultWebPort + ciOffset));
+const apiPort = Number(process.env.APGIC_API_PORT ?? (defaultApiPort + ciOffset));
+const baseURL = `http://127.0.0.1:${webPort}`;
 
 export default defineConfig({
   testDir: "./e2e",
@@ -18,7 +23,7 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   webServer: {
-    command: "bash scripts/start-with-api.sh",
+    command: `APGIC_WEB_PORT=${webPort} APGIC_HTTP_ADDR=:${apiPort} APGIC_API_ORIGIN=http://127.0.0.1:${apiPort} bash scripts/start-with-api.sh`,
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,
