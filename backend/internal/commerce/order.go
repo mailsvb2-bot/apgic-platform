@@ -19,6 +19,8 @@ type OrderSnapshot struct {
 	PricingPolicyVersion    string
 	CommissionPolicyVersion string
 	LegalSnapshotRef        string
+	ProductOwnerRef         string
+	AuthorRefs              []string
 	SellerRef               string
 	CommercialOwnerRef      string
 	PaymentRecipientRef     string
@@ -39,6 +41,7 @@ func NewOrderSnapshot(snapshot OrderSnapshot) (OrderSnapshot, error) {
 		snapshot.PricingPolicyVersion,
 		snapshot.CommissionPolicyVersion,
 		snapshot.LegalSnapshotRef,
+		snapshot.ProductOwnerRef,
 		snapshot.SellerRef,
 		snapshot.CommercialOwnerRef,
 		snapshot.PaymentRecipientRef,
@@ -52,6 +55,15 @@ func NewOrderSnapshot(snapshot OrderSnapshot) (OrderSnapshot, error) {
 			return OrderSnapshot{}, ErrInvalidOrderSnapshot
 		}
 	}
+	if len(snapshot.AuthorRefs) == 0 {
+		return OrderSnapshot{}, ErrInvalidOrderSnapshot
+	}
+	for _, author := range snapshot.AuthorRefs {
+		if strings.TrimSpace(author) == "" {
+			return OrderSnapshot{}, ErrInvalidOrderSnapshot
+		}
+	}
+	snapshot.AuthorRefs = append([]string(nil), snapshot.AuthorRefs...)
 	if snapshot.AmountMinor <= 0 ||
 		snapshot.CommissionMinor < 0 ||
 		snapshot.CommissionMinor > snapshot.AmountMinor ||
