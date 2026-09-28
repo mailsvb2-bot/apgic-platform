@@ -344,6 +344,22 @@ func (s *Service) CreateIntentForIdentity(clientIdentityID, freeText string) (*I
 	return cloneIntent(intent), nil
 }
 
+func (s *Service) RequireIntentOwner(intentID, clientIdentityID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.refreshJourneyLocked(); err != nil {
+		return err
+	}
+	intent, ok := s.intents[intentID]
+	if !ok {
+		return ErrIntentNotFound
+	}
+	if intent.ClientIdentityID != clientIdentityID {
+		return ErrIdentityMismatch
+	}
+	return nil
+}
+
 func (s *Service) ConfirmIntent(id string, topics, goals []string, context map[string]string) (*Intent, error) {
 	cleanedTopics := compact(topics)
 	if len(cleanedTopics) == 0 {
