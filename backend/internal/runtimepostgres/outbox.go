@@ -189,8 +189,10 @@ func (c *Checker) deliverOneOutbox(parent context.Context, eventID string, deliv
 		return false, nil
 	}
 	defer func() {
+		unlockCtx, unlockCancel := context.WithTimeout(context.Background(), time.Second)
+		defer unlockCancel()
 		var ignored bool
-		_ = conn.QueryRowContext(context.Background(),
+		_ = conn.QueryRowContext(unlockCtx,
 			`SELECT pg_advisory_unlock(hashtextextended($1, 0))`,
 			lockKey,
 		).Scan(&ignored)
@@ -263,13 +265,15 @@ func scanOutboxRecord(row rowScanner) (eventspine.OutboxRecord, error) {
 	var payload string
 	var status string
 	var deliveredAt sql.NullTime
+	var aggregateVersion int64
+	var attempts int64
 	if err := row.Scan(
 		&record.Event.EventID,
 		&record.Event.IdempotencyKey,
 		&record.Event.EventType,
 		&record.Event.SchemaVersion,
 		&record.Event.AggregateRef,
-		&record.Event.AggregateVersion,
+		&aggregateVersion,
 		&tenantScope,
 		&record.Event.CorrelationID,
 		&causationID,
@@ -278,11 +282,16 @@ func scanOutboxRecord(row rowScanner) (eventspine.OutboxRecord, error) {
 		&record.Event.Producer,
 		&payload,
 		&status,
-		&record.Attempts,
+		&attempts,
 		&deliveredAt,
 	); err != nil {
 		return eventspine.OutboxRecord{}, fmt.Errorf("scan outbox record: %w", err)
 	}
+	if aggregateVersion < 0 || attempts < 0 {
+		return eventspine.OutboxRecord{}, errors.New("durable outbox counters cannot be negative")
+	}
+	record.Event.AggregateVersion = uint64(aggregateVersion)
+	record.Attempts = uint32(attempts)
 	if tenantScope.Valid {
 		record.Event.TenantScope = tenantScope.String
 	}
