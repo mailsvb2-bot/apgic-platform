@@ -355,6 +355,18 @@ jobs:
       - working-directory: apps/web
         run: npm run build
       - run: git diff --exit-code -- apps/web/tsconfig.json
+      - name: Refresh specialist-entry visual baselines
+        if: github.event_name == 'pull_request' && github.head_ref == 'feat/specialist-entry'
+        working-directory: apps/web
+        run: npx playwright test e2e/visual-regression.spec.ts --update-snapshots
+      - name: Upload specialist-entry visual baselines
+        if: github.event_name == 'pull_request' && github.head_ref == 'feat/specialist-entry'
+        uses: actions/upload-artifact@v4
+        with:
+          name: specialist-entry-visual-baselines
+          path: apps/web/e2e/snapshots
+          if-no-files-found: error
+          retention-days: 1
       - working-directory: apps/web
         run: npm run test:e2e
 
