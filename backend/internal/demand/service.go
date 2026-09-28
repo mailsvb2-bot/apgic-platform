@@ -280,18 +280,22 @@ func (s *Service) refreshJourneyLocked() error {
 }
 
 func (s *Service) CreateIntent(freeText string) (*Intent, error) {
-	if isBlank(freeText) {
-		return nil, ErrTextRequired
-	}
-	suggestion := interpret(freeText)
 	ownerID, err := newJourneyID()
 	if err != nil {
 		return nil, err
 	}
-	owner, err := identity.New(ownerID, identity.RoleClient)
+	return s.CreateIntentForIdentity(ownerID, freeText)
+}
+
+func (s *Service) CreateIntentForIdentity(clientIdentityID, freeText string) (*Intent, error) {
+	if isBlank(freeText) {
+		return nil, ErrTextRequired
+	}
+	owner, err := identity.New(clientIdentityID, identity.RoleClient)
 	if err != nil {
 		return nil, err
 	}
+	suggestion := interpret(freeText)
 	intentID, err := newJourneyID()
 	if err != nil {
 		return nil, err
@@ -330,7 +334,13 @@ func (s *Service) CreateIntent(freeText string) (*Intent, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.intents[intent.ID] = intent
-	s.owners[owner.ID] = owner
+	if existing := s.owners[owner.ID]; existing != nil {
+		if _, err := existing.AddRole(identity.RoleClient); err != nil {
+			return nil, err
+		}
+	} else {
+		s.owners[owner.ID] = owner
+	}
 	return cloneIntent(intent), nil
 }
 
