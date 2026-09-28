@@ -46,7 +46,11 @@ func TestClientSessionRejectsTamperingAndExpiry(t *testing.T) {
 	}
 
 	tampered := *cookie
-	tampered.Value = tampered.Value[:len(tampered.Value)-1] + "A"
+	replacement := "A"
+	if strings.HasSuffix(tampered.Value, replacement) {
+		replacement = "B"
+	}
+	tampered.Value = tampered.Value[:len(tampered.Value)-1] + replacement
 	request := httptest.NewRequest(http.MethodGet, "/", nil)
 	request.AddCookie(&tampered)
 	if _, err := manager.identityFromRequest(request); !errors.Is(err, ErrClientSessionInvalid) {
