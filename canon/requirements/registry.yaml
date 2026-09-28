@@ -226,6 +226,8 @@ requirements:
   - backend/internal/authz/evaluator.go
   - backend/internal/authz/authz.go
   - backend/internal/runtimepostgres/check.go
+  - backend/internal/httpapi/client_session.go
+  - backend/internal/httpapi/demand.go
   - tools/auth_contract_guard.py
   contract_refs:
   - packages/contracts/src/foundation.ts
@@ -234,6 +236,8 @@ requirements:
   - backend/internal/authz/evaluator_test.go
   - backend/internal/authz/authz_test.go
   - backend/internal/runtimepostgres/check_test.go
+  - backend/internal/httpapi/client_session_test.go
+  - backend/internal/httpapi/client_session_http_test.go
   - tools/tests/test_auth_contract_guard.py
   evidence_refs: []
   acceptance:
