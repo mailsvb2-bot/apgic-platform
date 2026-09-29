@@ -35,9 +35,12 @@ jobs:
       - run: python tools/staging_backup_guard.py
       - run: python tools/staging_runtime_watchdog_guard.py
       - run: python tools/staging_runtime_evidence_guard.py
+      - run: python tools/staging_migration_contract_guard.py
       - shell: bash
         run: |
           bash -n deploy/staging/update-staging.sh
+          bash -n deploy/staging/apply-staging-migrations.sh
+          bash -n deploy/staging/test-staging-migration-ledger.sh
           python tools/staging_update_guard.py
       - run: python tools/dedicated_host_bootstrap_guard.py
       - run: python tools/identity_contract_guard.py
@@ -226,6 +229,8 @@ jobs:
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r3_communication_consultation_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r4_store_lifecycle_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r2_refund_invariants.sql
+          APGIC_DATABASE_URL='postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable' \
+            bash deploy/staging/test-staging-migration-ledger.sh
           bash backend/ci/r2_booking_concurrency.sh
           bash backend/ci/r2_mutation_concurrency.sh
       - name: Prove runtime ledger persists and replays from PostgreSQL
