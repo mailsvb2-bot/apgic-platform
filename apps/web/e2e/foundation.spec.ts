@@ -363,6 +363,15 @@ test("organization workspace uses real organization lifecycle endpoints", async 
     const path = new URL(request.url()).pathname;
     const body = request.postDataJSON?.() as Record<string, string> | undefined;
 
+    if (path === "/v1/organizations" && request.method() === "GET") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ organizations: snapshot ? [snapshot] : [] }),
+      });
+      return;
+    }
+
     if (path === "/v1/organizations" && request.method() === "POST") {
       snapshot = { id: "org-e2e", name: body?.name || "", status: "ACTIVE", directions: [] };
       await route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify(snapshot) });
@@ -405,6 +414,11 @@ test("organization workspace uses real organization lifecycle endpoints", async 
   await page.getByRole("button", { name: "Архивировать" }).click();
   await expect(page.getByText("SERVICE · ARCHIVED")).toBeVisible();
   await expect(page.getByRole("status")).toContainText("История сохранена");
+
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Центр развития" })).toBeVisible();
+  await expect(page.getByText("SERVICE · ARCHIVED")).toBeVisible();
+  await expect(page.getByRole("status")).toContainText("Организации загружены");
 
   const accessibility = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
