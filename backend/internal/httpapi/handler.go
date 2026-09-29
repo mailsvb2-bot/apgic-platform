@@ -22,6 +22,7 @@ type Options struct {
 	LegalAcceptances legal.AcceptanceStore
 	Specialists      specialist.Store
 	OrganizationAuth organizationAuthorizationStore
+	Organizations    organizationRuntimeStore
 	ProductOwnership productOwnershipStore
 	ClientSessionKey []byte
 	Now              func() time.Time
@@ -98,6 +99,7 @@ func New(options Options) http.Handler {
 	registerLegalAcceptance(mux, options.LegalAcceptances, sessions, sessionConfigErr, options.Now)
 	registerSpecialist(mux, options.Specialists, sessions, sessionConfigErr)
 	registerOrganizationAuthorization(mux, options.OrganizationAuth, sessions, sessionConfigErr, options.Now)
+	registerOrganizationRuntime(mux, options.Organizations, sessions, sessionConfigErr)
 	registerHighRiskProductOwnership(mux, options.ProductOwnership, sessions, stepUp, sessionConfigErr, options.Now)
 	return mux
 }
