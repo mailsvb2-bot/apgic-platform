@@ -27,6 +27,39 @@ func catalogSlotUUID(publicRef string) (string, error) {
 	return persistentid.FromRef("catalog-slot", publicRef)
 }
 
+type catalogProductContext struct {
+	organizationID      string
+	directionID         string
+	productID           string
+	authorRef           string
+	commercialOwnerRef  string
+	beneficiaryRef      string
+}
+
+func catalogProductForSpecialist(specialistID string) (catalogProductContext, error) {
+	organizationID, err := persistentid.FromRef("catalog-specialist-organization", specialistID)
+	if err != nil {
+		return catalogProductContext{}, err
+	}
+	directionID, err := persistentid.FromRef("catalog-specialist-direction", specialistID+":consultation")
+	if err != nil {
+		return catalogProductContext{}, err
+	}
+	productID, err := persistentid.FromRef("catalog-specialist-product", specialistID)
+	if err != nil {
+		return catalogProductContext{}, err
+	}
+	authorRef := "identity-" + specialistID
+	return catalogProductContext{
+		organizationID:     organizationID,
+		directionID:        directionID,
+		productID:          productID,
+		authorRef:          authorRef,
+		commercialOwnerRef: "organization/" + organizationID,
+		beneficiaryRef:     authorRef,
+	}, nil
+}
+
 func (c *Checker) BootstrapCatalog(slots []demand.Slot) ([]demand.Slot, error) {
 	if c == nil || c.db == nil {
 		return nil, errors.New("postgres checker is not initialized")
@@ -63,14 +96,92 @@ func (c *Checker) BootstrapCatalog(slots []demand.Slot) ([]demand.Slot, error) {
 		); err != nil {
 			return nil, fmt.Errorf("bootstrap specialist role %s: %w", slot.SpecialistID, err)
 		}
+		productContext, err := catalogProductForSpecialist(slot.SpecialistID)
+		if err != nil {
+			return nil, err
+		}
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO organizations (id, name, status)
+			 VALUES ($1::uuid, $2, 'ACTIVE')
+			 ON CONFLICT (id) DO NOTHING`,
+			productContext.organizationID,
+			"Catalog specialist organization",
+		); err != nil {
+			return nil, fmt.Errorf("bootstrap specialist organization %s: %w", slot.SpecialistID, err)
+		}
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO organization_memberships (organization_id, identity_id, status)
+			 VALUES ($1::uuid, $2::uuid, 'ACTIVE')
+			 ON CONFLICT (organization_id, identity_id) DO NOTHING`,
+			productContext.organizationID,
+			specialistIdentityID,
+		); err != nil {
+			return nil, fmt.Errorf("bootstrap specialist organization membership %s: %w", slot.SpecialistID, err)
+		}
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO organization_ownerships (organization_id, identity_id, status)
+			 VALUES ($1::uuid, $2::uuid, 'ACTIVE')
+			 ON CONFLICT (organization_id, identity_id) DO NOTHING`,
+			productContext.organizationID,
+			specialistIdentityID,
+		); err != nil {
+			return nil, fmt.Errorf("bootstrap specialist organization ownership %s: %w", slot.SpecialistID, err)
+		}
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO organization_directions (
+				id, organization_id, name, status, direction_type
+			 ) VALUES ($1::uuid, $2::uuid, 'Consultation', 'ACTIVE', 'CONSULTATION')
+			 ON CONFLICT (id) DO NOTHING`,
+			productContext.directionID,
+			productContext.organizationID,
+		); err != nil {
+			return nil, fmt.Errorf("bootstrap specialist direction %s: %w", slot.SpecialistID, err)
+		}
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO products (
+				id, name, status, published_at, owner_type, owner_id,
+				commercial_owner_ref, revenue_beneficiary_ref, author_refs,
+				organization_direction_id
+			 ) VALUES (
+				$1::uuid, 'Consultation', 'PUBLISHED', CURRENT_TIMESTAMP,
+				'ORGANIZATION', $2::uuid, $3, $4, ARRAY[$5]::text[], $6::uuid
+			 )
+			 ON CONFLICT (id) DO NOTHING`,
+			productContext.productID,
+			productContext.organizationID,
+			productContext.commercialOwnerRef,
+			productContext.beneficiaryRef,
+			productContext.authorRef,
+			productContext.directionID,
+		); err != nil {
+			return nil, fmt.Errorf("bootstrap published specialist product %s: %w", slot.SpecialistID, err)
+		}
 		if _, err := tx.ExecContext(ctx,
 			`INSERT INTO booking_slots (
-				id, specialist_identity_id, tenant_scope, starts_at, ends_at, exclusive
-			) VALUES ($1::uuid, $2::uuid, 'catalog/conformance', $3, $4, $5)
+				id, specialist_identity_id, tenant_scope, starts_at, ends_at, exclusive, product_id
+			) VALUES ($1::uuid, $2::uuid, 'catalog/conformance', $3, $4, $5, $6::uuid)
 			ON CONFLICT (id) DO NOTHING`,
-			slotID, specialistIdentityID, slot.StartsAt, slot.EndsAt, slot.Exclusive,
+			slotID, specialistIdentityID, slot.StartsAt, slot.EndsAt, slot.Exclusive, productContext.productID,
 		); err != nil {
 			return nil, fmt.Errorf("bootstrap slot %s: %w", slot.ID, err)
+		}
+		linkResult, err := tx.ExecContext(ctx,
+			`UPDATE booking_slots
+			    SET product_id = $2::uuid
+			  WHERE id = $1::uuid
+			    AND (product_id IS NULL OR product_id = $2::uuid)`,
+			slotID,
+			productContext.productID,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("link bootstrap slot product %s: %w", slot.ID, err)
+		}
+		linked, err := linkResult.RowsAffected()
+		if err != nil {
+			return nil, fmt.Errorf("read bootstrap slot product link %s: %w", slot.ID, err)
+		}
+		if linked != 1 {
+			return nil, fmt.Errorf("bootstrap slot %s belongs to a different product", slot.ID)
 		}
 		canonical := slot
 		if err := tx.QueryRowContext(ctx,
@@ -630,101 +741,50 @@ func (c *Checker) CreateCheckout(persistence demand.CheckoutPersistence) (string
 		return "", fmt.Errorf("read checkout slot ownership: %w", err)
 	}
 
-	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO organizations (id, name, status)
-		 VALUES ($1::uuid, $2, 'ACTIVE')
-		 ON CONFLICT (id) DO NOTHING`,
-		ownerOrganizationID,
-		"Catalog specialist organization",
-	); err != nil {
-		return "", fmt.Errorf("ensure checkout organization: %w", err)
-	}
-	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO organization_memberships (organization_id, identity_id, status)
-		 VALUES ($1::uuid, $2::uuid, 'ACTIVE')
-		 ON CONFLICT (organization_id, identity_id) DO NOTHING`,
-		ownerOrganizationID,
-		specialistIdentityID,
-	); err != nil {
-		return "", fmt.Errorf("ensure checkout organization membership: %w", err)
-	}
-	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO organization_ownerships (organization_id, identity_id, status)
-		 VALUES ($1::uuid, $2::uuid, 'ACTIVE')
-		 ON CONFLICT (organization_id, identity_id) DO NOTHING`,
-		ownerOrganizationID,
-		specialistIdentityID,
-	); err != nil {
-		return "", fmt.Errorf("ensure checkout organization ownership: %w", err)
-	}
-	var membershipStatus, ownershipStatus string
+	var organizationStatus, membershipStatus, ownershipStatus string
 	if err := tx.QueryRowContext(ctx,
-		`SELECT membership.status, ownership.status
-		   FROM organization_memberships membership
+		`SELECT organization.status, membership.status, ownership.status
+		   FROM organizations organization
+		   JOIN organization_memberships membership
+		     ON membership.organization_id = organization.id
+		    AND membership.identity_id = $2::uuid
 		   JOIN organization_ownerships ownership
-		     ON ownership.organization_id = membership.organization_id
-		    AND ownership.identity_id = membership.identity_id
-		  WHERE membership.organization_id = $1::uuid
-		    AND membership.identity_id = $2::uuid`,
+		     ON ownership.organization_id = organization.id
+		    AND ownership.identity_id = $2::uuid
+		  WHERE organization.id = $1::uuid`,
 		ownerOrganizationID,
 		specialistIdentityID,
-	).Scan(&membershipStatus, &ownershipStatus); err != nil {
+	).Scan(&organizationStatus, &membershipStatus, &ownershipStatus); err != nil {
 		return "", fmt.Errorf("read checkout organization ownership: %w", err)
 	}
-	if membershipStatus != "ACTIVE" || ownershipStatus != "ACTIVE" {
+	if organizationStatus != "ACTIVE" || membershipStatus != "ACTIVE" || ownershipStatus != "ACTIVE" {
 		return "", errors.New("checkout organization ownership is not active")
 	}
 
-	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO organization_directions (
-			id, organization_id, name, status, direction_type
-		 ) VALUES ($1::uuid, $2::uuid, 'Consultation', 'ACTIVE', 'CONSULTATION')
-		 ON CONFLICT (id) DO NOTHING`,
-		order.OrganizationDirectionID,
-		ownerOrganizationID,
-	); err != nil {
-		return "", fmt.Errorf("ensure checkout organization direction: %w", err)
-	}
-	var directionOrganizationID string
+	var directionOrganizationID, directionStatus string
 	if err := tx.QueryRowContext(ctx,
-		`SELECT organization_id::text
+		`SELECT organization_id::text, status
 		   FROM organization_directions
 		  WHERE id = $1::uuid`,
 		order.OrganizationDirectionID,
-	).Scan(&directionOrganizationID); err != nil {
+	).Scan(&directionOrganizationID, &directionStatus); err != nil {
 		return "", fmt.Errorf("read checkout organization direction: %w", err)
 	}
-	if directionOrganizationID != ownerOrganizationID {
-		return "", errors.New("checkout organization direction owner mismatch")
+	if directionOrganizationID != ownerOrganizationID || directionStatus != "ACTIVE" {
+		return "", errors.New("checkout requires active organization direction")
 	}
 
-	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO products (
-			id, owner_type, owner_id, commercial_owner_ref, revenue_beneficiary_ref,
-			author_refs, organization_direction_id
-		 ) VALUES (
-			$1::uuid, 'ORGANIZATION', $2::uuid, $3, $4, $5, $6::uuid
-		 )
-		 ON CONFLICT (id) DO NOTHING`,
-		order.ProductID,
-		ownerOrganizationID,
-		order.CommercialOwnerRef,
-		order.PayoutBeneficiaryRef,
-		order.AuthorRefs,
-		order.OrganizationDirectionID,
-	); err != nil {
-		return "", fmt.Errorf("ensure checkout product: %w", err)
-	}
-	var productOwnerID, productCommercialOwner, productRevenueBeneficiary, productDirectionID string
+	var productStatus, productOwnerID, productCommercialOwner, productRevenueBeneficiary, productDirectionID string
 	var productAuthorsJSON string
 	if err := tx.QueryRowContext(ctx,
-		`SELECT owner_id::text, commercial_owner_ref, revenue_beneficiary_ref,
+		`SELECT status, owner_id::text, commercial_owner_ref, revenue_beneficiary_ref,
 		        to_json(author_refs)::text, organization_direction_id::text
 		   FROM products
 		  WHERE id = $1::uuid
 		    AND owner_type = 'ORGANIZATION'`,
 		order.ProductID,
 	).Scan(
+		&productStatus,
 		&productOwnerID,
 		&productCommercialOwner,
 		&productRevenueBeneficiary,
@@ -732,6 +792,9 @@ func (c *Checker) CreateCheckout(persistence demand.CheckoutPersistence) (string
 		&productDirectionID,
 	); err != nil {
 		return "", fmt.Errorf("read checkout product: %w", err)
+	}
+	if productStatus != "PUBLISHED" {
+		return "", errors.New("checkout requires published product")
 	}
 	var productAuthors []string
 	if err := json.Unmarshal([]byte(productAuthorsJSON), &productAuthors); err != nil {
@@ -745,23 +808,17 @@ func (c *Checker) CreateCheckout(persistence demand.CheckoutPersistence) (string
 		return "", errors.New("checkout product canonical snapshot mismatch")
 	}
 
-	result, err := tx.ExecContext(ctx,
-		`UPDATE booking_slots
-		    SET product_id = $2::uuid
-		  WHERE id = $1::uuid
-		    AND (product_id IS NULL OR product_id = $2::uuid)`,
+	var slotProductID string
+	if err := tx.QueryRowContext(ctx,
+		`SELECT COALESCE(product_id::text, '')
+		   FROM booking_slots
+		  WHERE id = $1::uuid`,
 		slotID,
-		order.ProductID,
-	)
-	if err != nil {
-		return "", fmt.Errorf("link checkout slot to product: %w", err)
+	).Scan(&slotProductID); err != nil {
+		return "", fmt.Errorf("read checkout slot product: %w", err)
 	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return "", fmt.Errorf("read checkout slot product link rows: %w", err)
-	}
-	if affected != 1 {
-		return "", errors.New("checkout slot already belongs to a different product")
+	if slotProductID != order.ProductID {
+		return "", errors.New("checkout slot product mismatch")
 	}
 
 	var created bool
