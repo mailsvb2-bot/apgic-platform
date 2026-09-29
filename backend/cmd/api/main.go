@@ -53,6 +53,7 @@ func main() {
 		LegalAcceptances: storage,
 		Specialists:      storage,
 		OrganizationAuth: storage,
+		Organizations:    storage,
 		ProductOwnership: storage,
 		LaunchConfig: launchconfig.Config{
 			JurisdictionMatrixVersion: os.Getenv("APGIC_JURISDICTION_MATRIX_VERSION"),
