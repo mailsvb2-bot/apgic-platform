@@ -187,6 +187,105 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /v1/organizations/{organizationID}/products:
+    get:
+      operationId: listOrganizationProducts
+      description: Lists canonical products owned by the Organization and visible through ACTIVE membership.
+      security:
+        - ClientSession: []
+      parameters:
+        - in: path
+          name: organizationID
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Organization products with explicit ownership and revenue roles
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [products]
+                properties:
+                  products:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/OrganizationProduct'
+    post:
+      operationId: createOrganizationProduct
+      description: Creates an Organization-owned DRAFT product. Commercial owner, authors and revenue beneficiary are explicit request fields and are not inferred from owner_id.
+      security:
+        - ClientSession: []
+      parameters:
+        - in: path
+          name: organizationID
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrganizationProductRequest'
+      responses:
+        '201':
+          description: Product draft created by an ACTIVE Organization owner
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationProduct'
+        '403':
+          description: Active Organization ownership is required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Direction is absent, archived, or belongs to another Organization
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /v1/organizations/{organizationID}/products/{productID}/publish:
+    post:
+      operationId: publishOrganizationProduct
+      description: Publishes a product only after PostgreSQL validates explicit ownership/revenue roles and an ACTIVE direction owned by the same Organization.
+      security:
+        - ClientSession: []
+      parameters:
+        - in: path
+          name: organizationID
+          required: true
+          schema: { type: string }
+        - in: path
+          name: productID
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Canonical PUBLISHED product with immutable publication audit evidence
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationProduct'
+        '403':
+          description: Active Organization ownership is required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Product is not owned by the Organization
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Product is already published or fails publication invariants
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /v1/organizations/{organizationID}/private-profile:
     get:
       operationId: getPrivateOrganizationProfile
@@ -891,6 +990,44 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/OrganizationDirectionSnapshot'
+    CreateOrganizationProductRequest:
+      type: object
+      additionalProperties: false
+      required: [name, direction_id, commercial_owner_ref, author_refs, revenue_beneficiary_ref]
+      properties:
+        name: { type: string, minLength: 1 }
+        direction_id: { type: string, minLength: 1 }
+        commercial_owner_ref: { type: string, minLength: 1 }
+        author_refs:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: { type: string, minLength: 1 }
+        revenue_beneficiary_ref: { type: string, minLength: 1 }
+    OrganizationProduct:
+      type: object
+      additionalProperties: false
+      required:
+        [id, name, status, owner_type, owner_id, commercial_owner_ref, author_refs, revenue_beneficiary_ref, organization_direction_id]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        status:
+          type: string
+          enum: [DRAFT, PUBLISHED]
+        owner_type:
+          type: string
+          enum: [ORGANIZATION]
+        owner_id: { type: string }
+        commercial_owner_ref: { type: string }
+        author_refs:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: { type: string }
+        revenue_beneficiary_ref: { type: string }
+        organization_direction_id: { type: string }
+        published_at: { type: string, format: date-time }
     PrivateOrganizationProfile:
       type: object
       additionalProperties: false
