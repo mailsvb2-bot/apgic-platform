@@ -22,6 +22,7 @@ type Options struct {
 	LegalAcceptances legal.AcceptanceStore
 	Specialists      specialist.Store
 	OrganizationAuth organizationAuthorizationStore
+	ProductOwnership productOwnershipStore
 	ClientSessionKey []byte
 	Now              func() time.Time
 }
@@ -85,14 +86,19 @@ func New(options Options) http.Handler {
 	})
 
 	var sessions *clientSessionManager
+	var stepUp *stepUpManager
 	var sessionConfigErr error
 	if len(options.ClientSessionKey) > 0 {
 		sessions, sessionConfigErr = newClientSessionManager(options.ClientSessionKey, options.Now)
+		if sessionConfigErr == nil {
+			stepUp, sessionConfigErr = newStepUpManager(options.ClientSessionKey, options.Now)
+		}
 	}
 	registerDemand(mux, options.Demand, sessions, sessionConfigErr)
 	registerLegalAcceptance(mux, options.LegalAcceptances, sessions, sessionConfigErr, options.Now)
 	registerSpecialist(mux, options.Specialists, sessions, sessionConfigErr)
 	registerOrganizationAuthorization(mux, options.OrganizationAuth, sessions, sessionConfigErr, options.Now)
+	registerHighRiskProductOwnership(mux, options.ProductOwnership, sessions, stepUp, sessionConfigErr, options.Now)
 	return mux
 }
 
