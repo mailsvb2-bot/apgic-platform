@@ -131,7 +131,7 @@ func (c *Checker) Organization(identityID, organizationID string) (organization.
 	return record, nil
 }
 
-func (c *Checker) Createorganization.DirectionSnapshot(identityID, organizationID, name, directionType string) (organization.Snapshot, error) {
+func (c *Checker) CreateOrganizationDirection(identityID, organizationID, name, directionType string) (organization.Snapshot, error) {
 	if c == nil || c.db == nil {
 		return organization.Snapshot{}, errors.New("postgres checker is not initialized")
 	}
@@ -173,7 +173,7 @@ func (c *Checker) Createorganization.DirectionSnapshot(identityID, organizationI
 	return c.Organization(identityID, organizationID)
 }
 
-func (c *Checker) Archiveorganization.DirectionSnapshot(identityID, organizationID, directionID string) (organization.Snapshot, error) {
+func (c *Checker) ArchiveOrganizationDirection(identityID, organizationID, directionID string) (organization.Snapshot, error) {
 	if c == nil || c.db == nil {
 		return organization.Snapshot{}, errors.New("postgres checker is not initialized")
 	}
