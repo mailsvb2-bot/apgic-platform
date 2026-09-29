@@ -13,39 +13,24 @@ import (
 
 const organizationWriteTimeout = 3 * time.Second
 
-type OrganizationRecord struct {
-	ID         string                    `json:"id"`
-	Name       string                    `json:"name"`
-	Status     string                    `json:"status"`
-	Directions []OrganizationDirection   `json:"directions"`
-}
-
-type OrganizationDirection struct {
-	ID             string `json:"id"`
-	OrganizationID string `json:"organization_id"`
-	Name           string `json:"name"`
-	Type           string `json:"direction_type"`
-	Status         string `json:"status"`
-}
-
-func (c *Checker) CreateOrganization(identityID, name string) (OrganizationRecord, error) {
+func (c *Checker) CreateOrganization(identityID, name string) (organization.Snapshot, error) {
 	if c == nil || c.db == nil {
-		return OrganizationRecord{}, errors.New("postgres checker is not initialized")
+		return organization.Snapshot{}, errors.New("postgres checker is not initialized")
 	}
 	name, err := organization.NormalizeOrganizationName(name)
 	if err != nil {
-		return OrganizationRecord{}, err
+		return organization.Snapshot{}, err
 	}
 	orgID, err := persistentid.New()
 	if err != nil {
-		return OrganizationRecord{}, err
+		return organization.Snapshot{}, err
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), organizationWriteTimeout)
 	defer cancel()
 	tx, err := c.db.BeginTx(ctx, nil)
 	if err != nil {
-		return OrganizationRecord{}, fmt.Errorf("begin organization create: %w", err)
+		return organization.Snapshot{}, fmt.Errorf("begin organization create: %w", err)
 	}
 	defer tx.Rollback()
 
@@ -53,47 +38,47 @@ func (c *Checker) CreateOrganization(identityID, name string) (OrganizationRecor
 		`INSERT INTO identities (id) VALUES ($1::uuid) ON CONFLICT (id) DO NOTHING`,
 		identityID,
 	); err != nil {
-		return OrganizationRecord{}, fmt.Errorf("ensure organization owner identity: %w", err)
+		return organization.Snapshot{}, fmt.Errorf("ensure organization owner identity: %w", err)
 	}
 	if _, err := tx.ExecContext(ctx,
 		`INSERT INTO organizations (id, name, status) VALUES ($1::uuid, $2, 'ACTIVE')`,
 		orgID, name,
 	); err != nil {
-		return OrganizationRecord{}, fmt.Errorf("create organization: %w", err)
+		return organization.Snapshot{}, fmt.Errorf("create organization: %w", err)
 	}
 	if _, err := tx.ExecContext(ctx,
 		`INSERT INTO organization_memberships (organization_id, identity_id, status)
 		 VALUES ($1::uuid, $2::uuid, 'ACTIVE')`,
 		orgID, identityID,
 	); err != nil {
-		return OrganizationRecord{}, fmt.Errorf("create organization owner membership: %w", err)
+		return organization.Snapshot{}, fmt.Errorf("create organization owner membership: %w", err)
 	}
 	if _, err := tx.ExecContext(ctx,
 		`INSERT INTO organization_ownerships (organization_id, identity_id, status)
 		 VALUES ($1::uuid, $2::uuid, 'ACTIVE')`,
 		orgID, identityID,
 	); err != nil {
-		return OrganizationRecord{}, fmt.Errorf("create organization ownership: %w", err)
+		return organization.Snapshot{}, fmt.Errorf("create organization ownership: %w", err)
 	}
 	if err := tx.Commit(); err != nil {
-		return OrganizationRecord{}, fmt.Errorf("commit organization create: %w", err)
+		return organization.Snapshot{}, fmt.Errorf("commit organization create: %w", err)
 	}
 	return c.Organization(identityID, orgID)
 }
 
-func (c *Checker) Organization(identityID, organizationID string) (OrganizationRecord, error) {
+func (c *Checker) Organization(identityID, organizationID string) (organization.Snapshot, error) {
 	if c == nil || c.db == nil {
-		return OrganizationRecord{}, errors.New("postgres checker is not initialized")
+		return organization.Snapshot{}, errors.New("postgres checker is not initialized")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), organizationWriteTimeout)
 	defer cancel()
 	tx, err := c.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true, Isolation: sql.LevelRepeatableRead})
 	if err != nil {
-		return OrganizationRecord{}, fmt.Errorf("begin organization snapshot: %w", err)
+		return organization.Snapshot{}, fmt.Errorf("begin organization snapshot: %w", err)
 	}
 	defer tx.Rollback()
 
-	var record OrganizationRecord
+	var record organization.Snapshot
 	if err := tx.QueryRowContext(ctx,
 		`SELECT o.id::text, o.name, o.status
 		   FROM organizations o
@@ -105,9 +90,9 @@ func (c *Checker) Organization(identityID, organizationID string) (OrganizationR
 		identityID, organizationID,
 	).Scan(&record.ID, &record.Name, &record.Status); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return OrganizationRecord{}, organization.ErrOrganizationNotFound
+			return organization.Snapshot{}, organization.ErrOrganizationNotFound
 		}
-		return OrganizationRecord{}, fmt.Errorf("read organization: %w", err)
+		return organization.Snapshot{}, fmt.Errorf("read organization: %w", err)
 	}
 
 	rows, err := tx.QueryContext(ctx,
@@ -118,11 +103,11 @@ func (c *Checker) Organization(identityID, organizationID string) (OrganizationR
 		organizationID,
 	)
 	if err != nil {
-		return OrganizationRecord{}, fmt.Errorf("read organization directions: %w", err)
+		return organization.Snapshot{}, fmt.Errorf("read organization directions: %w", err)
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var direction OrganizationDirection
+		var direction organization.DirectionSnapshot
 		if err := rows.Scan(
 			&direction.ID,
 			&direction.OrganizationID,
@@ -130,49 +115,49 @@ func (c *Checker) Organization(identityID, organizationID string) (OrganizationR
 			&direction.Type,
 			&direction.Status,
 		); err != nil {
-			return OrganizationRecord{}, fmt.Errorf("scan organization direction: %w", err)
+			return organization.Snapshot{}, fmt.Errorf("scan organization direction: %w", err)
 		}
 		record.Directions = append(record.Directions, direction)
 	}
 	if err := rows.Err(); err != nil {
-		return OrganizationRecord{}, fmt.Errorf("iterate organization directions: %w", err)
+		return organization.Snapshot{}, fmt.Errorf("iterate organization directions: %w", err)
 	}
 	if record.Directions == nil {
-		record.Directions = []OrganizationDirection{}
+		record.Directions = []organization.DirectionSnapshot{}
 	}
 	if err := tx.Commit(); err != nil {
-		return OrganizationRecord{}, fmt.Errorf("commit organization snapshot: %w", err)
+		return organization.Snapshot{}, fmt.Errorf("commit organization snapshot: %w", err)
 	}
 	return record, nil
 }
 
-func (c *Checker) CreateOrganizationDirection(identityID, organizationID, name, directionType string) (OrganizationRecord, error) {
+func (c *Checker) Createorganization.DirectionSnapshot(identityID, organizationID, name, directionType string) (organization.Snapshot, error) {
 	if c == nil || c.db == nil {
-		return OrganizationRecord{}, errors.New("postgres checker is not initialized")
+		return organization.Snapshot{}, errors.New("postgres checker is not initialized")
 	}
 	name, directionType, err := organization.NormalizeDirection(name, directionType)
 	if err != nil {
-		return OrganizationRecord{}, err
+		return organization.Snapshot{}, err
 	}
 	directionID, err := persistentid.New()
 	if err != nil {
-		return OrganizationRecord{}, err
+		return organization.Snapshot{}, err
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), organizationWriteTimeout)
 	defer cancel()
 	tx, err := c.db.BeginTx(ctx, nil)
 	if err != nil {
-		return OrganizationRecord{}, fmt.Errorf("begin organization direction create: %w", err)
+		return organization.Snapshot{}, fmt.Errorf("begin organization direction create: %w", err)
 	}
 	defer tx.Rollback()
 
 	owner, err := activeOrganizationOwner(ctx, tx, identityID, organizationID)
 	if err != nil {
-		return OrganizationRecord{}, err
+		return organization.Snapshot{}, err
 	}
 	if !owner {
-		return OrganizationRecord{}, organization.ErrOwnerRequired
+		return organization.Snapshot{}, organization.ErrOwnerRequired
 	}
 	if _, err := tx.ExecContext(ctx,
 		`INSERT INTO organization_directions (
@@ -180,32 +165,32 @@ func (c *Checker) CreateOrganizationDirection(identityID, organizationID, name, 
 		 ) VALUES ($1::uuid, $2::uuid, $3, 'ACTIVE', $4)`,
 		directionID, organizationID, name, directionType,
 	); err != nil {
-		return OrganizationRecord{}, fmt.Errorf("create organization direction: %w", err)
+		return organization.Snapshot{}, fmt.Errorf("create organization direction: %w", err)
 	}
 	if err := tx.Commit(); err != nil {
-		return OrganizationRecord{}, fmt.Errorf("commit organization direction create: %w", err)
+		return organization.Snapshot{}, fmt.Errorf("commit organization direction create: %w", err)
 	}
 	return c.Organization(identityID, organizationID)
 }
 
-func (c *Checker) ArchiveOrganizationDirection(identityID, organizationID, directionID string) (OrganizationRecord, error) {
+func (c *Checker) Archiveorganization.DirectionSnapshot(identityID, organizationID, directionID string) (organization.Snapshot, error) {
 	if c == nil || c.db == nil {
-		return OrganizationRecord{}, errors.New("postgres checker is not initialized")
+		return organization.Snapshot{}, errors.New("postgres checker is not initialized")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), organizationWriteTimeout)
 	defer cancel()
 	tx, err := c.db.BeginTx(ctx, nil)
 	if err != nil {
-		return OrganizationRecord{}, fmt.Errorf("begin organization direction archive: %w", err)
+		return organization.Snapshot{}, fmt.Errorf("begin organization direction archive: %w", err)
 	}
 	defer tx.Rollback()
 
 	owner, err := activeOrganizationOwner(ctx, tx, identityID, organizationID)
 	if err != nil {
-		return OrganizationRecord{}, err
+		return organization.Snapshot{}, err
 	}
 	if !owner {
-		return OrganizationRecord{}, organization.ErrOwnerRequired
+		return organization.Snapshot{}, organization.ErrOwnerRequired
 	}
 	result, err := tx.ExecContext(ctx,
 		`UPDATE organization_directions
@@ -216,14 +201,14 @@ func (c *Checker) ArchiveOrganizationDirection(identityID, organizationID, direc
 		directionID, organizationID,
 	)
 	if err != nil {
-		return OrganizationRecord{}, fmt.Errorf("archive organization direction: %w", err)
+		return organization.Snapshot{}, fmt.Errorf("archive organization direction: %w", err)
 	}
 	affected, _ := result.RowsAffected()
 	if affected == 0 {
-		return OrganizationRecord{}, organization.ErrDirectionNotFound
+		return organization.Snapshot{}, organization.ErrDirectionNotFound
 	}
 	if err := tx.Commit(); err != nil {
-		return OrganizationRecord{}, fmt.Errorf("commit organization direction archive: %w", err)
+		return organization.Snapshot{}, fmt.Errorf("commit organization direction archive: %w", err)
 	}
 	return c.Organization(identityID, organizationID)
 }
