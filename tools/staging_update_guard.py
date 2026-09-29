@@ -1,0 +1,46 @@
+#!/usr/bin/env python3
+from pathlib import Path
+
+SCRIPT = Path("deploy/staging/update-staging.sh")
+
+def require(text: str, needle: str) -> None:
+    if needle not in text:
+        raise SystemExit(f"staging updater contract missing: {needle}")
+
+def ordered(text: str, first: str, second: str) -> None:
+    if text.find(first) == -1 or text.find(second) == -1 or text.find(first) >= text.find(second):
+        raise SystemExit(f"staging updater ordering invalid: {first!r} must precede {second!r}")
+
+def main() -> None:
+    text = SCRIPT.read_text(encoding="utf-8")
+
+    for needle in (
+        'APGIC_COMMIT_SHA',
+        'git merge-base --is-ancestor',
+        'git diff --name-status',
+        "backend/migrations/[0-9][0-9][0-9][0-9][0-9][0-9]_*.sql",
+        'case "$status" in',
+        'A)',
+        'refusing deployment: existing migration changed',
+        'systemctl start apgic-staging-backup.service',
+        'psql "$APGIC_DATABASE_URL" -v ON_ERROR_STOP=1 -f',
+        'go build -o bin/apgic-api ./cmd/api',
+        'npm run build',
+        'systemctl restart apgic-api-staging.service',
+        'systemctl restart apgic-web-staging.service',
+        'check-staging-runtime.sh',
+        'runtime SHA mismatch',
+    ):
+        require(text, needle)
+
+    ordered(text, 'git merge-base --is-ancestor', 'git reset --hard "$TARGET_SHA"')
+    ordered(text, 'go build -o bin/apgic-api ./cmd/api', 'systemctl start apgic-staging-backup.service')
+    ordered(text, 'systemctl start apgic-staging-backup.service', 'psql "$APGIC_DATABASE_URL" -v ON_ERROR_STOP=1 -f')
+    ordered(text, 'psql "$APGIC_DATABASE_URL" -v ON_ERROR_STOP=1 -f', 'APGIC_COMMIT_SHA=$TARGET_SHA')
+    ordered(text, 'APGIC_COMMIT_SHA=$TARGET_SHA', 'systemctl restart apgic-api-staging.service')
+    ordered(text, 'systemctl restart apgic-web-staging.service', 'check-staging-runtime.sh')
+
+    print("staging update guard: PASS")
+
+if __name__ == "__main__":
+    main()
