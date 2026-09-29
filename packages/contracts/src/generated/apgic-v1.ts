@@ -2,7 +2,7 @@
 // DO NOT EDIT.
 export const apiContractVersion = "0.3.0-r1-specialist" as const;
 
-export type ApiOperationId = "acquireSlotHold" | "applyProviderEvent" | "cancelOrder" | "completeConsultation" | "confirmHelpIntent" | "createCheckoutInstruction" | "createHelpIntent" | "declareSpecialistCapability" | "deleteAccount" | "exportConsultationToGrowth" | "getBookingFulfillment" | "getLegalAcceptanceStatus" | "getMeta" | "getPrivateOrganizationProfile" | "getSpecialistProfile" | "health" | "listCheckoutOptions" | "listHelpIntentMatches" | "listSpecialistSlots" | "markSearchProjectionStale" | "publishSpecialistCapability" | "readiness" | "rebuildSearchProjection" | "recordConsultationPresence" | "recordLegalAcceptance" | "reportConsultationFailure" | "searchProjection" | "submitSpecialistEvidence" | "succeedConsultationRecovery" | "unpublishSpecialistCapability" | "upsertSpecialistProfile";
+export type ApiOperationId = "acquireSlotHold" | "applyProviderEvent" | "cancelOrder" | "completeConsultation" | "confirmHelpIntent" | "createCheckoutInstruction" | "createHelpIntent" | "declareSpecialistCapability" | "deleteAccount" | "exportConsultationToGrowth" | "getBookingFulfillment" | "getLegalAcceptanceStatus" | "getMeta" | "getPrivateOrganizationProfile" | "getSpecialistProfile" | "health" | "listCheckoutOptions" | "listHelpIntentMatches" | "listSpecialistSlots" | "markSearchProjectionStale" | "publishSpecialistCapability" | "readiness" | "rebuildSearchProjection" | "recordConsultationPresence" | "recordLegalAcceptance" | "reportConsultationFailure" | "searchProjection" | "submitSpecialistEvidence" | "succeedConsultationRecovery" | "unpublishSpecialistCapability" | "updateProductCommercialOwner" | "upsertSpecialistProfile";
 
 export interface AccountDeletion {
   apgic_deletes_ledger: boolean;
@@ -249,6 +249,15 @@ export interface PaymentSelection {
 export interface PrivateOrganizationProfile {
   id: string;
   name: string;
+}
+
+export interface ProductCommercialOwnerRequest {
+  commercial_owner_ref: string;
+}
+
+export interface ProductCommercialOwnerResponse {
+  commercial_owner_ref: string;
+  product_id: string;
 }
 
 export interface ProviderEvent {

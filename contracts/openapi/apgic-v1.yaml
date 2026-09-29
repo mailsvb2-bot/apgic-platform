@@ -32,6 +32,46 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Meta'
+  /v1/products/{productID}/commercial-owner:
+    patch:
+      operationId: updateProductCommercialOwner
+      description: HIGH_RISK product ownership mutation. Requires a fresh signed step-up assertion bound to the signed Identity.
+      security:
+        - ClientSession: []
+      parameters:
+        - in: path
+          name: productID
+          required: true
+          schema: { type: string }
+        - in: header
+          name: X-Correlation-Id
+          required: false
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductCommercialOwnerRequest'
+      responses:
+        '200':
+          description: Commercial owner changed after fresh step-up authorization
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductCommercialOwnerResponse'
+        '404':
+          description: Product is not owned by the signed Identity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '428':
+          description: Fresh step-up authentication is required; mutation is not performed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /v1/organizations/{organizationID}/private-profile:
     get:
       operationId: getPrivateOrganizationProfile
@@ -684,6 +724,19 @@ components:
           items: { $ref: '#/components/schemas/Surface' }
         commit_sha: { type: string }
         time: { type: string, format: date-time }
+    ProductCommercialOwnerRequest:
+      type: object
+      additionalProperties: false
+      required: [commercial_owner_ref]
+      properties:
+        commercial_owner_ref: { type: string, minLength: 1 }
+    ProductCommercialOwnerResponse:
+      type: object
+      additionalProperties: false
+      required: [product_id, commercial_owner_ref]
+      properties:
+        product_id: { type: string }
+        commercial_owner_ref: { type: string }
     PrivateOrganizationProfile:
       type: object
       additionalProperties: false
