@@ -114,7 +114,7 @@ BEGIN
     RAISE EXCEPTION 'order requires a live booking';
   END IF;
 
-  IF NOT EXISTS (
+  IF NEW.product_id IS NOT NULL AND NOT EXISTS (
     SELECT 1
       FROM bookings booking
       JOIN booking_slots slot ON slot.id = booking.slot_id
