@@ -35,13 +35,38 @@ BEGIN
   r1 := apgic_register_connector_delivery(
     '00000000-0000-0000-0000-00000000c160',
     'event-1', 'stream-a', 1,
+    '{"sequence":1}'::jsonb,
     repeat('a', 64), 'key-1'
   );
   IF r1 <> 'APPLY' THEN RAISE EXCEPTION 'sequence 1 expected APPLY, got %', r1; END IF;
 
+  IF (
+    SELECT state
+    FROM connector_delivery_receipts
+    WHERE connector_instance_id = '00000000-0000-0000-0000-00000000c160'
+      AND external_event_id = 'event-1'
+  ) <> 'READY' THEN
+    RAISE EXCEPTION 'ready delivery was falsely marked applied before domain effect';
+  END IF;
+
+  IF (
+    SELECT last_applied_sequence
+    FROM connector_stream_positions
+    WHERE connector_instance_id = '00000000-0000-0000-0000-00000000c160'
+      AND stream_id = 'stream-a'
+  ) <> 0 THEN
+    RAISE EXCEPTION 'stream advanced before domain effect commit';
+  END IF;
+
+  PERFORM apgic_finalize_connector_delivery(
+    '00000000-0000-0000-0000-00000000c160',
+    'event-1'
+  );
+
   IF apgic_register_connector_delivery(
     '00000000-0000-0000-0000-00000000c160',
     'event-1', 'stream-a', 1,
+    '{"sequence":1}'::jsonb,
     repeat('a', 64), 'key-1'
   ) <> 'DUPLICATE' THEN
     RAISE EXCEPTION 'duplicate connector event was not idempotent';
@@ -50,6 +75,7 @@ BEGIN
   rd := apgic_register_connector_delivery(
     '00000000-0000-0000-0000-00000000c160',
     'event-3', 'stream-a', 3,
+    '{"sequence":3}'::jsonb,
     repeat('c', 64), 'key-1'
   );
   IF rd <> 'DEFER' THEN RAISE EXCEPTION 'out-of-order sequence expected DEFER, got %', rd; END IF;
@@ -57,19 +83,58 @@ BEGIN
   r2 := apgic_register_connector_delivery(
     '00000000-0000-0000-0000-00000000c160',
     'event-2', 'stream-a', 2,
+    '{"sequence":2}'::jsonb,
     repeat('b', 64), 'key-1'
   );
   IF r2 <> 'APPLY' THEN RAISE EXCEPTION 'sequence 2 expected APPLY, got %', r2; END IF;
+
+  IF (
+    SELECT last_applied_sequence
+    FROM connector_stream_positions
+    WHERE connector_instance_id = '00000000-0000-0000-0000-00000000c160'
+      AND stream_id = 'stream-a'
+  ) <> 1 THEN
+    RAISE EXCEPTION 'stream advanced before sequence 2 domain effect commit';
+  END IF;
+
+  PERFORM apgic_finalize_connector_delivery(
+    '00000000-0000-0000-0000-00000000c160',
+    'event-2'
+  );
 
   promoted := apgic_promote_next_connector_delivery(
     '00000000-0000-0000-0000-00000000c160', 'stream-a'
   );
   IF promoted <> 'event-3' THEN RAISE EXCEPTION 'deferred event was not promoted: %', promoted; END IF;
 
+  IF (
+    SELECT state
+    FROM connector_delivery_receipts
+    WHERE connector_instance_id = '00000000-0000-0000-0000-00000000c160'
+      AND external_event_id = 'event-3'
+  ) <> 'READY' THEN
+    RAISE EXCEPTION 'promoted delivery was falsely marked applied before domain effect';
+  END IF;
+
+  IF (
+    SELECT payload
+    FROM connector_delivery_receipts
+    WHERE connector_instance_id = '00000000-0000-0000-0000-00000000c160'
+      AND external_event_id = 'event-3'
+  ) IS DISTINCT FROM '{"sequence":3}'::jsonb THEN
+    RAISE EXCEPTION 'deferred delivery payload was not durably preserved';
+  END IF;
+
+  PERFORM apgic_finalize_connector_delivery(
+    '00000000-0000-0000-0000-00000000c160',
+    'event-3'
+  );
+
   BEGIN
     PERFORM apgic_register_connector_delivery(
       '00000000-0000-0000-0000-00000000c160',
       'event-1', 'stream-a', 1,
+      '{"sequence":999}'::jsonb,
       repeat('f', 64), 'key-1'
     );
   EXCEPTION WHEN raise_exception THEN

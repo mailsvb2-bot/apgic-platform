@@ -423,14 +423,19 @@ requirements:
   implementation_refs:
   - backend/internal/connector/capability.go
   - backend/internal/connector/webhook.go
+  - backend/internal/runtimepostgres/connector_delivery.go
   - backend/migrations/000016_r0_connector_delivery_semantics.sql
+  - backend/migrations/000022_r0_connector_atomic_application.sql
+  - .github/workflows/ci.yml
   contract_refs:
   - contracts/jsonschema/connector-runtime-v1.schema.json
   test_refs:
   - backend/internal/connector/capability_test.go
   - backend/internal/connector/webhook_test.go
+  - backend/internal/runtimepostgres/connector_delivery_integration_test.go
   - backend/migrations/ci_r0_connector_delivery_invariants.sql
   - tools/connector_contract_guard.py
+  - docs/traceability/R0-conn002-atomic-webhook-effects.md
   evidence_refs: []
   acceptance:
     given: provider повторяет/переставляет webhook
