@@ -102,10 +102,8 @@ func TestProductOwnershipMutationAndAuditAreAtomic(t *testing.T) {
 	}
 	assertProductCommercialOwner(t, db, productID, "commercial:new")
 
-	var (
-		action, actorID, scope, resourceRef, reason, policyVersion, correlationID string
-		oldState, newState                                                   []byte
-	)
+	var action, actorID, scope, resourceRef, reason, policyVersion, correlationID string
+	var oldState, newState []byte
 	if err := db.QueryRow(`
 		SELECT action, actor_id, scope, resource_ref, reason, policy_version,
 		       correlation_id, old_state, new_state
