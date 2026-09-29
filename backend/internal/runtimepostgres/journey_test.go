@@ -183,15 +183,18 @@ func TestJourneyStoreSurvivesServiceRestart(t *testing.T) {
 		t.Fatalf("checkout replay changed durable identity: got=%#v want=%#v", replayedInstruction, instruction)
 	}
 
-	var productOwnerRef, firstAuthorRef, commercialOwnerRef, payoutBeneficiaryRef string
+	var productID, directionID, productOwnerRef, firstAuthorRef, commercialOwnerRef, payoutBeneficiaryRef string
 	var authorCount int
 	if err := store.db.QueryRow(
-		`SELECT product_owner_ref, cardinality(author_refs), author_refs[1],
+		`SELECT product_id::text, organization_direction_id::text,
+		        product_owner_ref, cardinality(author_refs), author_refs[1],
 		        commercial_owner_ref, payout_beneficiary_ref
 		   FROM orders
 		  WHERE id = $1::uuid`,
 		instruction.OrderID,
 	).Scan(
+		&productID,
+		&directionID,
 		&productOwnerRef,
 		&authorCount,
 		&firstAuthorRef,
@@ -200,13 +203,30 @@ func TestJourneyStoreSurvivesServiceRestart(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	if productOwnerRef != "organization/org-conformance-marketplace" ||
+	expectedOrganizationID, err := persistentid.FromRef("catalog-specialist-organization", "spec-lebedeva")
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedDirectionID, err := persistentid.FromRef("catalog-specialist-direction", "spec-lebedeva:consultation")
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedProductID, err := persistentid.FromRef("catalog-specialist-product", "spec-lebedeva")
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedOwnerRef := "organization/" + expectedOrganizationID
+	if productID != expectedProductID ||
+		directionID != expectedDirectionID ||
+		productOwnerRef != expectedOwnerRef ||
 		authorCount != 1 ||
 		firstAuthorRef != "identity-spec-lebedeva" ||
-		commercialOwnerRef != "organization/org-conformance-marketplace" ||
+		commercialOwnerRef != expectedOwnerRef ||
 		payoutBeneficiaryRef != "identity-spec-lebedeva" {
 		t.Fatalf(
-			"durable product ownership snapshot owner=%q authors=%d/%q commercial=%q beneficiary=%q",
+			"durable product snapshot product=%q direction=%q owner=%q authors=%d/%q commercial=%q beneficiary=%q",
+			productID,
+			directionID,
 			productOwnerRef,
 			authorCount,
 			firstAuthorRef,
@@ -255,7 +275,7 @@ func TestJourneyStoreSurvivesServiceRestart(t *testing.T) {
 	}
 	if transactionRef != "order/"+instruction.OrderID ||
 		sellerRef != "identity-spec-lebedeva" ||
-		legalCommercialOwnerRef != "organization/org-conformance-marketplace" ||
+		legalCommercialOwnerRef != expectedOwnerRef ||
 		paymentRecipientRef != "identity-spec-lebedeva" ||
 		platformRole != "MARKETPLACE_INTERMEDIARY" ||
 		fiscalResponsibilityRef != "identity-spec-lebedeva" ||
@@ -348,6 +368,63 @@ func TestJourneyStoreSurvivesServiceRestart(t *testing.T) {
 	}
 	if effectCount != 1 {
 		t.Fatalf("capture economic effect count=%d", effectCount)
+	}
+
+	if _, err := store.db.Exec(
+		`UPDATE organization_directions
+		    SET status = 'ARCHIVED', archived_at = now()
+		  WHERE id = $1::uuid`,
+		expectedDirectionID,
+	); err != nil {
+		t.Fatalf("archive sold direction: %v", err)
+	}
+	if _, err := store.db.Exec(
+		`DELETE FROM organization_directions WHERE id = $1::uuid`,
+		expectedDirectionID,
+	); err == nil {
+		t.Fatal("sold direction hard delete unexpectedly succeeded")
+	}
+	var archivedStatus, linkedProductID, linkedOrderID, linkedBookingID, linkedLedgerID string
+	if err := store.db.QueryRow(
+		`SELECT direction.status,
+		        product.id::text,
+		        order_row.id::text,
+		        booking.id::text,
+		        ledger.id::text
+		   FROM organization_directions direction
+		   JOIN products product
+		     ON product.organization_direction_id = direction.id
+		   JOIN orders order_row
+		     ON order_row.product_id = product.id
+		    AND order_row.organization_direction_id = direction.id
+		   JOIN bookings booking
+		     ON booking.id = order_row.booking_id
+		   JOIN ledger_entries ledger
+		     ON ledger.economic_event_ref = order_row.id::text
+		  WHERE direction.id = $1::uuid`,
+		expectedDirectionID,
+	).Scan(
+		&archivedStatus,
+		&linkedProductID,
+		&linkedOrderID,
+		&linkedBookingID,
+		&linkedLedgerID,
+	); err != nil {
+		t.Fatalf("read archived direction history chain: %v", err)
+	}
+	if archivedStatus != "ARCHIVED" ||
+		linkedProductID != expectedProductID ||
+		linkedOrderID != instruction.OrderID ||
+		linkedBookingID != instruction.BookingID ||
+		linkedLedgerID != captured.LedgerEntryID {
+		t.Fatalf(
+			"archived direction history drift status=%q product=%q order=%q booking=%q ledger=%q",
+			archivedStatus,
+			linkedProductID,
+			linkedOrderID,
+			linkedBookingID,
+			linkedLedgerID,
+		)
 	}
 
 	outboxKey := "booking-ledger:" + instruction.OrderID
