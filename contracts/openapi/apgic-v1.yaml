@@ -72,6 +72,103 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /v1/organizations:
+    post:
+      operationId: createOrganization
+      description: Creates an Organization and atomically attaches the signed Identity as ACTIVE member and explicit ACTIVE owner. Creates a signed client session when absent.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrganizationRequest'
+      responses:
+        '201':
+          description: Organization created with explicit ownership and membership
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationSnapshot'
+  /v1/organizations/{organizationID}:
+    get:
+      operationId: getOrganization
+      security:
+        - ClientSession: []
+      parameters:
+        - in: path
+          name: organizationID
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Organization visible to an ACTIVE member
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationSnapshot'
+        '404':
+          description: Organization is absent or not visible to the signed Identity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /v1/organizations/{organizationID}/directions:
+    post:
+      operationId: createOrganizationDirection
+      security:
+        - ClientSession: []
+      parameters:
+        - in: path
+          name: organizationID
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrganizationDirectionRequest'
+      responses:
+        '201':
+          description: Universal organization direction created by an ACTIVE owner
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationSnapshot'
+        '403':
+          description: Active organization ownership is required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /v1/organizations/{organizationID}/directions/{directionID}/archive:
+    post:
+      operationId: archiveOrganizationDirection
+      description: Archives a direction without deleting canonical or historical truth.
+      security:
+        - ClientSession: []
+      parameters:
+        - in: path
+          name: organizationID
+          required: true
+          schema: { type: string }
+        - in: path
+          name: directionID
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Direction archived and preserved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationSnapshot'
+        '403':
+          description: Active organization ownership is required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /v1/organizations/{organizationID}/private-profile:
     get:
       operationId: getPrivateOrganizationProfile
@@ -737,6 +834,45 @@ components:
       properties:
         product_id: { type: string }
         commercial_owner_ref: { type: string }
+    CreateOrganizationDirectionRequest:
+      type: object
+      additionalProperties: false
+      required: [name, direction_type]
+      properties:
+        name: { type: string, minLength: 1 }
+        direction_type: { type: string, minLength: 1 }
+    CreateOrganizationRequest:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1 }
+    OrganizationDirectionSnapshot:
+      type: object
+      additionalProperties: false
+      required: [id, organization_id, name, direction_type, status]
+      properties:
+        id: { type: string }
+        organization_id: { type: string }
+        name: { type: string }
+        direction_type: { type: string }
+        status:
+          type: string
+          enum: [ACTIVE, ARCHIVED]
+    OrganizationSnapshot:
+      type: object
+      additionalProperties: false
+      required: [id, name, status, directions]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        status:
+          type: string
+          enum: [ACTIVE, ARCHIVED]
+        directions:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrganizationDirectionSnapshot'
     PrivateOrganizationProfile:
       type: object
       additionalProperties: false
