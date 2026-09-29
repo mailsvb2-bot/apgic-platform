@@ -1,28 +1,6 @@
--- APGIC-PROD-001: an order may only capture a previously published product.
+-- APGIC-PROD-001: new orders may only capture a previously published product.
+-- Historical orders are immutable evidence and are not rewritten by this migration.
 -- Transaction boundaries are owned by deploy/staging/apply-staging-migrations.sh.
-
-UPDATE products product
-   SET name = COALESCE(product.name, 'Consultation'),
-       status = 'PUBLISHED',
-       published_at = COALESCE(product.published_at, product.created_at)
-  FROM booking_slots slot
- WHERE slot.product_id = product.id
-   AND slot.tenant_scope = 'catalog/conformance'
-   AND product.status = 'DRAFT';
-
-DO $apgic$
-BEGIN
-  IF EXISTS (
-    SELECT 1
-      FROM orders order_row
-      JOIN products product ON product.id = order_row.product_id
-     WHERE order_row.product_id IS NOT NULL
-       AND product.status <> 'PUBLISHED'
-  ) THEN
-    RAISE EXCEPTION 'existing order references non-published product';
-  END IF;
-END
-$apgic$;
 
 CREATE OR REPLACE FUNCTION apgic_order_snapshot_guard()
 RETURNS trigger
