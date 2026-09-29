@@ -42,37 +42,6 @@ CREATE TRIGGER products_direction_owner_guard
 BEFORE INSERT OR UPDATE OF owner_type, owner_id, organization_direction_id ON products
 FOR EACH ROW EXECUTE FUNCTION apgic_validate_product_direction();
 
-CREATE OR REPLACE FUNCTION apgic_booking_slot_product_guard()
-RETURNS trigger
-LANGUAGE plpgsql
-AS $$
-DECLARE
-  author_refs text[];
-BEGIN
-  IF NEW.product_id IS NULL THEN
-    RETURN NEW;
-  END IF;
-
-  SELECT product.author_refs
-    INTO author_refs
-    FROM products product
-   WHERE product.id = NEW.product_id;
-
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'booking slot product not found';
-  END IF;
-
-  IF NOT (NEW.specialist_identity_id::text = ANY(author_refs)) THEN
-    RAISE EXCEPTION 'booking slot specialist must be an author of canonical product';
-  END IF;
-
-  RETURN NEW;
-END;
-$$;
-
-CREATE TRIGGER booking_slots_product_guard
-BEFORE INSERT OR UPDATE OF specialist_identity_id, product_id ON booking_slots
-FOR EACH ROW EXECUTE FUNCTION apgic_booking_slot_product_guard();
 
 CREATE OR REPLACE FUNCTION apgic_order_snapshot_guard()
 RETURNS trigger
