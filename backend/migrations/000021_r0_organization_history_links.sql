@@ -61,17 +61,19 @@ BEGIN
     RAISE EXCEPTION 'order legal snapshot not found';
   END IF;
 
-  IF NEW.product_id IS NULL OR NEW.organization_direction_id IS NULL THEN
-    RAISE EXCEPTION 'order product and organization direction snapshots are required';
+  IF (NEW.product_id IS NULL) <> (NEW.organization_direction_id IS NULL) THEN
+    RAISE EXCEPTION 'order product and organization direction snapshots must be present together';
   END IF;
 
-  SELECT *
-    INTO product_row
-    FROM products
-   WHERE id = NEW.product_id;
+  IF NEW.product_id IS NOT NULL THEN
+    SELECT *
+      INTO product_row
+      FROM products
+     WHERE id = NEW.product_id;
 
-  IF NOT FOUND OR product_row.organization_direction_id IS DISTINCT FROM NEW.organization_direction_id THEN
-    RAISE EXCEPTION 'order product/direction snapshot mismatch';
+    IF NOT FOUND OR product_row.organization_direction_id IS DISTINCT FROM NEW.organization_direction_id THEN
+      RAISE EXCEPTION 'order product/direction snapshot mismatch';
+    END IF;
   END IF;
 
   IF NEW.product_owner_ref IS NULL OR btrim(NEW.product_owner_ref) = '' THEN
@@ -187,7 +189,7 @@ BEGIN
     RAISE EXCEPTION 'store verification identity must match canonical order booking client';
   END IF;
 
-  IF order_product IS NULL OR NEW.product_ref <> order_product::text THEN
+  IF order_product IS NOT NULL AND NEW.product_ref <> order_product::text THEN
     RAISE EXCEPTION 'store verification product must match immutable order product';
   END IF;
 
