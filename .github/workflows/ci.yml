@@ -258,11 +258,11 @@ jobs:
         env:
           APGIC_AUTHZ_HTTP_TEST_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable
         run: go test ./internal/httpapi -run TestCrossTenantOrganizationHTTPDeniesWithoutDisclosureAndAudits -count=1
-      - name: Prove organization ownership direction archive and delete guard
+      - name: Prove organization direction history and explicit product publication
         working-directory: backend
         env:
           APGIC_ORGANIZATION_TEST_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable
-        run: go test ./internal/httpapi -run TestOrganizationDirectionHTTPPersistsOwnershipAndArchivesInsteadOfDelete -count=1
+        run: go test ./internal/httpapi -run 'TestOrganizationDirectionHTTPPersistsOwnershipAndArchivesInsteadOfDelete|TestOrganizationProductHTTPPublishesExplicitOwnershipSnapshot' -count=1
       - name: Prove AUTH-002 high-risk step-up gate and audit
         working-directory: backend
         env:
