@@ -157,6 +157,58 @@ func (c *Checker) BootstrapCatalog(slots []demand.Slot) ([]demand.Slot, error) {
 			return nil, fmt.Errorf("bootstrap published specialist product %s: %w", slot.SpecialistID, err)
 		}
 		if _, err := tx.ExecContext(ctx,
+			`UPDATE products product
+			    SET name = COALESCE(product.name, 'Consultation'),
+			        status = 'PUBLISHED',
+			        published_at = COALESCE(product.published_at, CURRENT_TIMESTAMP)
+			  WHERE product.id = $1::uuid
+			    AND product.status = 'DRAFT'
+			    AND product.owner_type = 'ORGANIZATION'
+			    AND product.owner_id = $2::uuid
+			    AND product.commercial_owner_ref = $3
+			    AND product.revenue_beneficiary_ref = $4
+			    AND product.author_refs = ARRAY[$5]::text[]
+			    AND product.organization_direction_id = $6::uuid
+			    AND EXISTS (
+			      SELECT 1
+			        FROM organization_directions direction
+			       WHERE direction.id = $6::uuid
+			         AND direction.organization_id = $2::uuid
+			         AND direction.status = 'ACTIVE'
+			    )`,
+			productContext.productID,
+			productContext.organizationID,
+			productContext.commercialOwnerRef,
+			productContext.beneficiaryRef,
+			productContext.authorRef,
+			productContext.directionID,
+		); err != nil {
+			return nil, fmt.Errorf("reconcile published specialist product %s: %w", slot.SpecialistID, err)
+		}
+		var canonicalProductStatus string
+		if err := tx.QueryRowContext(ctx,
+			`SELECT status
+			   FROM products
+			  WHERE id = $1::uuid
+			    AND owner_type = 'ORGANIZATION'
+			    AND owner_id = $2::uuid
+			    AND commercial_owner_ref = $3
+			    AND revenue_beneficiary_ref = $4
+			    AND author_refs = ARRAY[$5]::text[]
+			    AND organization_direction_id = $6::uuid`,
+			productContext.productID,
+			productContext.organizationID,
+			productContext.commercialOwnerRef,
+			productContext.beneficiaryRef,
+			productContext.authorRef,
+			productContext.directionID,
+		).Scan(&canonicalProductStatus); err != nil {
+			return nil, fmt.Errorf("verify canonical specialist product %s: %w", slot.SpecialistID, err)
+		}
+		if canonicalProductStatus != "PUBLISHED" {
+			return nil, fmt.Errorf("canonical specialist product %s is not published", slot.SpecialistID)
+		}
+		if _, err := tx.ExecContext(ctx,
 			`INSERT INTO booking_slots (
 				id, specialist_identity_id, tenant_scope, starts_at, ends_at, exclusive, product_id
 			) VALUES ($1::uuid, $2::uuid, 'catalog/conformance', $3, $4, $5, $6::uuid)
