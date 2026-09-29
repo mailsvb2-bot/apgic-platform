@@ -41,28 +41,31 @@ FOR EACH ROW EXECUTE FUNCTION apgic_organization_owner_membership_guard();
 CREATE OR REPLACE FUNCTION apgic_organization_membership_owner_guard()
 RETURNS trigger
 LANGUAGE plpgsql
-AS $$
+AS $
+DECLARE
+  active_owner boolean;
 BEGIN
-  IF OLD.status = 'ACTIVE'
-     AND EXISTS (
-       SELECT 1
-         FROM organization_ownerships
-        WHERE organization_id = OLD.organization_id
-          AND identity_id = OLD.identity_id
-          AND status = 'ACTIVE'
-     )
-     AND (
-       TG_OP = 'DELETE'
-       OR NEW.status <> 'ACTIVE'
-     ) THEN
-    RAISE EXCEPTION 'revoke organization ownership before removing active owner membership';
-  END IF;
+  SELECT EXISTS (
+    SELECT 1
+      FROM organization_ownerships
+     WHERE organization_id = OLD.organization_id
+       AND identity_id = OLD.identity_id
+       AND status = 'ACTIVE'
+  ) INTO active_owner;
+
   IF TG_OP = 'DELETE' THEN
+    IF OLD.status = 'ACTIVE' AND active_owner THEN
+      RAISE EXCEPTION 'revoke organization ownership before deleting active owner membership';
+    END IF;
     RETURN OLD;
+  END IF;
+
+  IF OLD.status = 'ACTIVE' AND NEW.status <> 'ACTIVE' AND active_owner THEN
+    RAISE EXCEPTION 'revoke organization ownership before deactivating active owner membership';
   END IF;
   RETURN NEW;
 END;
-$$;
+$;
 
 CREATE TRIGGER organization_memberships_owner_guard
 BEFORE UPDATE OR DELETE ON organization_memberships
