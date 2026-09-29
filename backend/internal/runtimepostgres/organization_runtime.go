@@ -218,10 +218,13 @@ func activeOrganizationOwner(ctx context.Context, tx *sql.Tx, identityID, organi
 	if err := tx.QueryRowContext(ctx,
 		`SELECT EXISTS (
 			SELECT 1
-			  FROM organization_ownerships
-			 WHERE organization_id = $1::uuid
-			   AND identity_id = $2::uuid
-			   AND status = 'ACTIVE'
+			  FROM organization_ownerships ownership
+			  JOIN organizations organization
+			    ON organization.id = ownership.organization_id
+			   AND organization.status = 'ACTIVE'
+			 WHERE ownership.organization_id = $1::uuid
+			   AND ownership.identity_id = $2::uuid
+			   AND ownership.status = 'ACTIVE'
 		)`,
 		organizationID, identityID,
 	).Scan(&active); err != nil {
