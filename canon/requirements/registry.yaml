@@ -233,6 +233,8 @@ requirements:
   - apps/web/app/journey.tsx
   - backend/internal/authz/evaluator.go
   - backend/internal/authz/authz.go
+  - backend/internal/httpapi/organization_authz.go
+  - backend/internal/runtimepostgres/organization_access.go
   - backend/internal/runtimepostgres/check.go
   - backend/internal/httpapi/client_session.go
   - backend/internal/httpapi/demand.go
@@ -246,9 +248,11 @@ requirements:
   - backend/internal/authz/authz_test.go
   - backend/internal/runtimepostgres/check_test.go
   - backend/internal/runtimepostgres/authz_integration_test.go
+  - backend/internal/httpapi/organization_authz_integration_test.go
   - backend/internal/httpapi/client_session_test.go
   - backend/internal/httpapi/client_session_http_test.go
   - tools/tests/test_auth_contract_guard.py
+  - docs/traceability/R0-auth001-tenant-isolation.md
   evidence_refs: []
   acceptance:
     given: principal Organization A знает UUID private resource Organization B
@@ -954,8 +958,8 @@ requirements:
   - backend/migrations/000007_r1_marketplace_discovery.sql
   - backend/migrations/000019_r1_specialist_supply_runtime.sql
   contract_refs:
-  - contracts/jsonschema/marketplace-discovery-v1.schema.json
   - contracts/openapi/apgic-v1.yaml
+  - contracts/jsonschema/marketplace-discovery-v1.schema.json
   test_refs:
   - backend/internal/marketplace/marketplace_test.go
   - backend/internal/runtimepostgres/specialist_test.go
@@ -1001,8 +1005,8 @@ requirements:
   - backend/migrations/000007_r1_marketplace_discovery.sql
   - backend/migrations/000019_r1_specialist_supply_runtime.sql
   contract_refs:
-  - contracts/jsonschema/marketplace-discovery-v1.schema.json
   - contracts/openapi/apgic-v1.yaml
+  - contracts/jsonschema/marketplace-discovery-v1.schema.json
   test_refs:
   - backend/internal/marketplace/marketplace_test.go
   - backend/internal/runtimepostgres/specialist_test.go
