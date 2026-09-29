@@ -21,7 +21,6 @@ func TestDirectionUsesArchiveInsteadOfHardDelete(t *testing.T) {
 	}
 }
 
-
 func TestDirectionTypeIsUniversalAndNormalized(t *testing.T) {
 	name, directionType, err := NormalizeDirection(" Rehabilitation ", " rehabilitation ")
 	if err != nil {
