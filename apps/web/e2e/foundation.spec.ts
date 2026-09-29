@@ -1,6 +1,16 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
+test("public HTML is not served with an immutable one-year cache", async ({ request }) => {
+  for (const path of ["/", "/specialist"]) {
+    const response = await request.get(path);
+    expect(response.ok()).toBeTruthy();
+    const cacheControl = response.headers()["cache-control"] ?? "";
+    expect(cacheControl).not.toContain("s-maxage=31536000");
+    expect(cacheControl.toLowerCase()).toContain("no-store");
+  }
+});
+
 test("browser session reuses one canonical Identity across HelpIntents", async ({ page, context }) => {
   await page.goto("/");
 
