@@ -18,8 +18,7 @@ APGIC-PROD-001 requires a specialist to create a Product inside an Organization 
   - fails closed when a PUBLISHED Product lacks a name or explicit ownership/revenue roles;
   - requires Organization-owned published products to reference an ACTIVE direction owned by the same Organization.
 - `backend/migrations/000024_r0_published_product_order_gate.sql`
-  - upgrades legacy conformance products already linked to sold/available catalog slots to PUBLISHED before enforcing the new gate;
-  - fails deployment if an existing order still references a non-published product;
+  - leaves historical Products and Orders unchanged as immutable business evidence;
   - makes PostgreSQL reject new orders unless the referenced product is PUBLISHED and the immutable ownership snapshot matches the canonical product.
 - `backend/internal/runtimepostgres/organization_product.go`
   - requires ACTIVE Organization ownership before create/publish;
@@ -30,6 +29,7 @@ APGIC-PROD-001 requires a specialist to create a Product inside an Organization 
   - appends publication audit evidence atomically with the state transition.
 - `backend/internal/runtimepostgres/journey.go`
   - materializes conformance catalog Products as PUBLISHED before checkout;
+  - reconciles only an exact legacy canonical conformance DRAFT to PUBLISHED when its owner/roles/direction still match and the direction remains ACTIVE; divergent or archived truth fails closed;
   - never creates Product/Organization/Direction business truth inside payment checkout;
   - requires ACTIVE ownership/direction, PUBLISHED product state, exact ownership snapshot and slot/product binding before any order/payment side effect.
 - `backend/internal/httpapi/organization_product.go`
