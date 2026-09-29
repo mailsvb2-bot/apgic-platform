@@ -16,6 +16,9 @@ def main() -> None:
 
     for needle in (
         'APGIC_COMMIT_SHA',
+        'APGIC_DEPLOY_LOCK_FILE',
+        'flock -n 9',
+        'another APGIC staging deployment is already running',
         'git merge-base --is-ancestor',
         'git diff --name-status',
         "backend/migrations/[0-9][0-9][0-9][0-9][0-9][0-9]_*.sql",
@@ -40,6 +43,7 @@ def main() -> None:
     ):
         require(text, needle)
 
+    ordered(text, 'flock -n 9', 'git merge-base --is-ancestor')
     ordered(text, 'git merge-base --is-ancestor', 'git reset --hard "$TARGET_SHA"')
     ordered(text, 'go build -o bin/apgic-api ./cmd/api', 'systemctl start apgic-staging-backup.service')
     ordered(text, 'systemctl start apgic-staging-backup.service', '=== Reconcile migration ledger ===')
