@@ -31,7 +31,7 @@ func TestRequiredCanonicalTablesAndIndexesAreStable(t *testing.T) {
 		"booking_slots": true, "booking_holds": true, "bookings": true,
 		"specialist_profiles": true, "specialist_capabilities": true,
 		"specialist_evidence": true, "qualification_evaluations": true,
-		"specialist_publications": true,
+		"specialist_publications": true, "organization_ownerships": true,
 	}
 	if len(requiredTables) != len(wantTables) {
 		t.Fatalf("required tables = %v", requiredTables)
