@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 
 type Direction = {
   id: string;
@@ -31,11 +31,36 @@ async function requestJSON<T>(path: string, init: RequestInit): Promise<T> {
 
 export function OrganizationWorkspace() {
   const [organization, setOrganization] = useState<Organization | null>(null);
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [organizationName, setOrganizationName] = useState("");
   const [directionName, setDirectionName] = useState("");
   const [directionType, setDirectionType] = useState("SERVICE");
   const [notice, setNotice] = useState("Создайте организацию, чтобы открыть рабочее пространство.");
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    void loadOrganizations();
+  }, []);
+
+  async function loadOrganizations() {
+    try {
+      const response = await fetch("/v1/organizations", { cache: "no-store" });
+      if (response.status === 401) return;
+      const payload = await response.json();
+      if (!response.ok) {
+        setNotice(payload?.message_safe || "Организации пока не удалось загрузить.");
+        return;
+      }
+      const loaded = (payload.organizations || []) as Organization[];
+      setOrganizations(loaded);
+      if (loaded.length) {
+        setOrganization(loaded[0]);
+        setNotice("Организации загружены.");
+      }
+    } catch {
+      setNotice("Организации пока не удалось загрузить.");
+    }
+  }
 
   async function createOrganization(event: FormEvent) {
     event.preventDefault();
@@ -46,6 +71,7 @@ export function OrganizationWorkspace() {
         body: JSON.stringify({ name: organizationName }),
       });
       setOrganization(created);
+      setOrganizations((current) => [...current.filter((item) => item.id !== created.id), created]);
       setOrganizationName(created.name);
       setNotice("Организация создана. Вы добавлены как активный владелец.");
     } catch (error) {
@@ -65,6 +91,7 @@ export function OrganizationWorkspace() {
         body: JSON.stringify({ name: directionName, direction_type: directionType }),
       });
       setOrganization(updated);
+      setOrganizations((current) => current.map((item) => item.id === updated.id ? updated : item));
       setDirectionName("");
       setNotice("Направление создано.");
     } catch (error) {
@@ -83,6 +110,7 @@ export function OrganizationWorkspace() {
         { method: "POST" },
       );
       setOrganization(updated);
+      setOrganizations((current) => current.map((item) => item.id === updated.id ? updated : item));
       setNotice(`Направление «${direction.name}» архивировано. История сохранена.`);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Не удалось архивировать направление.");
@@ -104,6 +132,24 @@ export function OrganizationWorkspace() {
 
       <div className="organization-panels">
         <p className="onboarding-notice" role="status">{notice}</p>
+
+        {organizations.length > 1 ? (
+          <section className="panel specialist-form" aria-labelledby="organization-switch-title">
+            <h3 id="organization-switch-title">Ваши организации</h3>
+            <label htmlFor="organization-switch">Текущая организация</label>
+            <select
+              id="organization-switch"
+              value={organization?.id || ""}
+              onChange={(event) => {
+                const selected = organizations.find((item) => item.id === event.target.value) || null;
+                setOrganization(selected);
+                if (selected) setNotice(`Открыта организация «${selected.name}».`);
+              }}
+            >
+              {organizations.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+            </select>
+          </section>
+        ) : null}
 
         {!organization ? (
           <form className="panel specialist-form" onSubmit={createOrganization}>
