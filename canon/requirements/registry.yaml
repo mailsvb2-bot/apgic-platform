@@ -459,14 +459,17 @@ requirements:
   - backend/internal/runtimepostgres/outbox.go
   - backend/internal/runtimepostgres/check.go
   - backend/migrations/000001_r0_foundation.sql
+  - .github/workflows/ci.yml
   contract_refs:
   - contracts/jsonschema/event-envelope-v1.schema.json
   test_refs:
   - backend/internal/eventspine/outbox_test.go
   - backend/internal/runtimepostgres/outbox_test.go
+  - backend/internal/runtimepostgres/outbox_integration_test.go
   - backend/internal/runtimepostgres/journey_test.go
   - backend/migrations/ci_invariants.sql
   - tools/event_contract_guard.py
+  - docs/traceability/R0-event001-transactional-outbox.md
   evidence_refs: []
   acceptance:
     given: domain transaction создаёт событие
