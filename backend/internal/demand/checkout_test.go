@@ -6,20 +6,36 @@ import (
 	"time"
 
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/booking"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/persistentid"
 )
 
 func TestConformanceOfferKeepsOrganizationOwnerAndSpecialistAuthorExplicit(t *testing.T) {
-	ownership, err := productContextForSpecialist("spec-lebedeva", "identity-spec-lebedeva")
+	productContext, err := productContextForSpecialist("spec-lebedeva", "identity-spec-lebedeva")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ownership.Ownership.OwnerType != "ORGANIZATION" ||
-		ownership.Ownership.OwnerID != "org-conformance-marketplace" ||
-		ownership.Ownership.CommercialOwnerRef != "organization/org-conformance-marketplace" ||
-		len(ownership.Ownership.AuthorRefs) != 1 ||
-		ownership.Ownership.AuthorRefs[0] != "identity-spec-lebedeva" ||
-		ownership.Ownership.RevenueBeneficiaryRef != "identity-spec-lebedeva" {
-		t.Fatalf("ownership = %#v", ownership)
+	expectedOrganizationID, err := persistentid.FromRef("catalog-specialist-organization", "spec-lebedeva")
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedDirectionID, err := persistentid.FromRef("catalog-specialist-direction", "spec-lebedeva:consultation")
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedProductID, err := persistentid.FromRef("catalog-specialist-product", "spec-lebedeva")
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedOwnerRef := "organization/" + expectedOrganizationID
+	if productContext.ProductID != expectedProductID ||
+		productContext.OrganizationDirectionID != expectedDirectionID ||
+		productContext.Ownership.OwnerType != "ORGANIZATION" ||
+		productContext.Ownership.OwnerID != expectedOrganizationID ||
+		productContext.Ownership.CommercialOwnerRef != expectedOwnerRef ||
+		len(productContext.Ownership.AuthorRefs) != 1 ||
+		productContext.Ownership.AuthorRefs[0] != "identity-spec-lebedeva" ||
+		productContext.Ownership.RevenueBeneficiaryRef != "identity-spec-lebedeva" {
+		t.Fatalf("product context = %#v", productContext)
 	}
 }
 
