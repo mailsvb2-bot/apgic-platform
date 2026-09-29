@@ -420,14 +420,34 @@ jobs:
       - name: Install pinned Android NDK
         shell: bash
         run: |
-          SDKMANAGER="${ANDROID_SDK_ROOT:-${ANDROID_HOME}}/cmdline-tools/latest/bin/sdkmanager"
+          set -euo pipefail
+          SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME}}"
+          SDKMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          NDK_VERSION="27.1.12297006"
+          NDK_DIR="$SDK_ROOT/ndk/$NDK_VERSION"
           if [ ! -x "$SDKMANAGER" ]; then
             SDKMANAGER="$(command -v sdkmanager || true)"
           fi
           test -n "$SDKMANAGER"
           yes | "$SDKMANAGER" --licenses >/dev/null || true
-          "$SDKMANAGER" "ndk;27.1.12297006"
-          test -d "${ANDROID_SDK_ROOT:-${ANDROID_HOME}}/ndk/27.1.12297006"
+
+          for attempt in 1 2 3; do
+            echo "Installing pinned Android NDK $NDK_VERSION (attempt $attempt/3)"
+            rm -rf "$NDK_DIR"
+            rm -rf "$SDK_ROOT/.temp"/* 2>/dev/null || true
+            if "$SDKMANAGER" "ndk;$NDK_VERSION" &&
+               test -f "$NDK_DIR/source.properties" &&
+               grep -q "Pkg.Revision = $NDK_VERSION" "$NDK_DIR/source.properties"; then
+              exit 0
+            fi
+            rm -rf "$NDK_DIR"
+            if [ "$attempt" -lt 3 ]; then
+              sleep $((attempt * 5))
+            fi
+          done
+
+          echo "Failed to install verified Android NDK $NDK_VERSION after 3 attempts" >&2
+          exit 1
       - working-directory: apps/mobile
         run: npm install --ignore-scripts --no-audit --no-fund
       - working-directory: apps/mobile/android
