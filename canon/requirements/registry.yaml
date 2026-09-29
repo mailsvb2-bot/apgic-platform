@@ -575,11 +575,15 @@ requirements:
   - backend/internal/commerce/order.go
   - backend/internal/demand/checkout.go
   - backend/internal/runtimepostgres/journey.go
+  - backend/internal/httpapi/organization_product.go
+  - backend/internal/runtimepostgres/organization_product.go
+  - backend/migrations/000023_r0_product_runtime.sql
   - backend/migrations/000001_r0_foundation.sql
   - backend/migrations/000003_r0_semantic_invariants.sql
   - backend/migrations/000018_r0_order_product_ownership_snapshot.sql
   contract_refs:
   - contracts/jsonschema/product-ownership-v1.schema.json
+  - contracts/openapi/apgic-v1.yaml
   test_refs:
   - backend/internal/commerce/product_test.go
   - backend/internal/commerce/order_test.go
@@ -588,7 +592,10 @@ requirements:
   - backend/migrations/ci_invariants.sql
   - backend/migrations/ci_r2_booking_order_invariants.sql
   - tools/product_contract_guard.py
-  evidence_refs: []
+  - backend/internal/httpapi/organization_product_integration_test.go
+  - .github/workflows/ci.yml
+  evidence_refs:
+  - docs/traceability/R0-prod001-organization-product-publication.md
   acceptance:
     given: специалист создаёт продукт внутри Organization
     when: продукт публикуется
