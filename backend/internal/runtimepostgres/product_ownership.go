@@ -3,10 +3,13 @@ package runtimepostgres
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/audit"
 )
 
 var ErrProductNotFound = errors.New("product not found")
@@ -35,7 +38,10 @@ func (c *Checker) IdentityOwnedProductCommercialOwner(productID, identityID stri
 	return commercialOwnerRef, true, nil
 }
 
-func (c *Checker) UpdateIdentityOwnedProductCommercialOwner(productID, identityID, newCommercialOwnerRef string) (string, error) {
+func (c *Checker) UpdateIdentityOwnedProductCommercialOwner(
+	productID, identityID, newCommercialOwnerRef string,
+	record audit.Record,
+) (string, error) {
 	if c == nil || c.db == nil {
 		return "", errors.New("postgres checker is not initialized")
 	}
@@ -67,6 +73,23 @@ func (c *Checker) UpdateIdentityOwnedProductCommercialOwner(productID, identityI
 		}
 		return "", fmt.Errorf("lock identity-owned product: %w", err)
 	}
+
+	oldState, err := json.Marshal(map[string]string{"commercial_owner_ref": oldCommercialOwnerRef})
+	if err != nil {
+		return "", fmt.Errorf("encode old product ownership audit state: %w", err)
+	}
+	newState, err := json.Marshal(map[string]string{"commercial_owner_ref": newCommercialOwnerRef})
+	if err != nil {
+		return "", fmt.Errorf("encode new product ownership audit state: %w", err)
+	}
+	record.ResourceRef = productID
+	record.OldState = oldState
+	record.NewState = newState
+	canonicalAudit, err := audit.New(record)
+	if err != nil {
+		return "", fmt.Errorf("validate product ownership audit record: %w", err)
+	}
+
 	if _, err := tx.ExecContext(ctx,
 		`UPDATE products
 		    SET commercial_owner_ref = $3
@@ -77,6 +100,31 @@ func (c *Checker) UpdateIdentityOwnedProductCommercialOwner(productID, identityI
 	); err != nil {
 		return "", fmt.Errorf("update product commercial owner: %w", err)
 	}
+
+	if _, err := tx.ExecContext(
+		ctx,
+		`INSERT INTO audit_records (
+			id, actor_id, action, scope, resource_ref, old_state, new_state,
+			reason, policy_version, correlation_id, occurred_at
+		) VALUES (
+			$1::uuid, $2, $3, $4, NULLIF($5, ''), $6::jsonb, $7::jsonb,
+			$8, $9, NULLIF($10, ''), $11
+		)`,
+		canonicalAudit.ID,
+		canonicalAudit.ActorID,
+		canonicalAudit.Action,
+		canonicalAudit.Scope,
+		canonicalAudit.ResourceRef,
+		nullableJSON(canonicalAudit.OldState),
+		nullableJSON(canonicalAudit.NewState),
+		canonicalAudit.Reason,
+		canonicalAudit.PolicyVersion,
+		canonicalAudit.CorrelationID,
+		canonicalAudit.OccurredAt,
+	); err != nil {
+		return "", fmt.Errorf("append product ownership audit record: %w", err)
+	}
+
 	if err := tx.Commit(); err != nil {
 		return "", fmt.Errorf("commit product ownership update: %w", err)
 	}
