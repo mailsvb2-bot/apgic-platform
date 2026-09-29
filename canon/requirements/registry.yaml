@@ -353,6 +353,7 @@ requirements:
   - contracts/openapi/apgic-v1.yaml
   - contracts/jsonschema/organization-v1.schema.json
   test_refs:
+  - backend/migrations/ci_r2_mobile_store_invariants.sql
   - backend/internal/commerce/order_test.go
   - backend/internal/runtimepostgres/journey_test.go
   - backend/internal/organization/organization_test.go

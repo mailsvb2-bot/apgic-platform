@@ -21,8 +21,18 @@ echo "building API with $(go version)"
 go build -o /tmp/apgic-api ./cmd/api
 /tmp/apgic-api > /tmp/apgic-api.log 2>&1 &
 API_PID=$!
-cleanup() { kill "$API_PID" 2>/dev/null || true; }
-trap cleanup EXIT
+WEB_PID=""
+cleanup() {
+  if [ -n "$WEB_PID" ]; then
+    kill "$WEB_PID" 2>/dev/null || true
+  fi
+  kill "$API_PID" 2>/dev/null || true
+  if [ -n "$WEB_PID" ]; then
+    wait "$WEB_PID" 2>/dev/null || true
+  fi
+  wait "$API_PID" 2>/dev/null || true
+}
+trap cleanup EXIT INT TERM
 ready=0
 for _ in $(seq 1 30); do
   if curl -sf "${APGIC_API_ORIGIN}/healthz" >/dev/null; then
@@ -41,4 +51,6 @@ if [ "$ready" != 1 ]; then
 fi
 curl -sS -D - -o /dev/null "${APGIC_API_ORIGIN}/v1/slot-holds/missing/checkout-options?client_identity_id=x" | grep -qi 'content-type: application/json'
 cd "$ROOT/apps/web"
-exec npm run start -- --hostname 127.0.0.1 --port "$APGIC_WEB_PORT"
+npm run start -- --hostname 127.0.0.1 --port "$APGIC_WEB_PORT" &
+WEB_PID=$!
+wait "$WEB_PID"
