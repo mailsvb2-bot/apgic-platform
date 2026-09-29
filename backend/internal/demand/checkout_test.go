@@ -9,16 +9,16 @@ import (
 )
 
 func TestConformanceOfferKeepsOrganizationOwnerAndSpecialistAuthorExplicit(t *testing.T) {
-	ownership, err := productOwnershipForSpecialist("spec-lebedeva", "identity-spec-lebedeva")
+	ownership, err := productContextForSpecialist("spec-lebedeva", "identity-spec-lebedeva")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ownership.OwnerType != "ORGANIZATION" ||
-		ownership.OwnerID != "org-conformance-marketplace" ||
-		ownership.CommercialOwnerRef != "organization/org-conformance-marketplace" ||
-		len(ownership.AuthorRefs) != 1 ||
-		ownership.AuthorRefs[0] != "identity-spec-lebedeva" ||
-		ownership.RevenueBeneficiaryRef != "identity-spec-lebedeva" {
+	if ownership.Ownership.OwnerType != "ORGANIZATION" ||
+		ownership.Ownership.OwnerID != "org-conformance-marketplace" ||
+		ownership.Ownership.CommercialOwnerRef != "organization/org-conformance-marketplace" ||
+		len(ownership.Ownership.AuthorRefs) != 1 ||
+		ownership.Ownership.AuthorRefs[0] != "identity-spec-lebedeva" ||
+		ownership.Ownership.RevenueBeneficiaryRef != "identity-spec-lebedeva" {
 		t.Fatalf("ownership = %#v", ownership)
 	}
 }
