@@ -206,6 +206,7 @@ jobs:
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000017_r0_ledger_economic_event_idempotency.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000018_r0_order_product_ownership_snapshot.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000019_r1_specialist_supply_runtime.sql
+          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000020_r0_organization_direction_runtime.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r0_connector_delivery_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r1_mobile_invariants.sql
@@ -240,6 +241,11 @@ jobs:
         env:
           APGIC_AUTHZ_HTTP_TEST_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable
         run: go test ./internal/httpapi -run TestCrossTenantOrganizationHTTPDeniesWithoutDisclosureAndAudits -count=1
+      - name: Prove organization ownership direction archive and delete guard
+        working-directory: backend
+        env:
+          APGIC_ORGANIZATION_TEST_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable
+        run: go test ./internal/httpapi -run TestOrganizationDirectionHTTPPersistsOwnershipAndArchivesInsteadOfDelete -count=1
       - name: Prove AUTH-002 high-risk step-up gate and audit
         working-directory: backend
         env:
@@ -347,6 +353,7 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f backend/migrations/000017_r0_ledger_economic_event_idempotency.sql
           psql -v ON_ERROR_STOP=1 -f backend/migrations/000018_r0_order_product_ownership_snapshot.sql
           psql -v ON_ERROR_STOP=1 -f backend/migrations/000019_r1_specialist_supply_runtime.sql
+          psql -v ON_ERROR_STOP=1 -f backend/migrations/000020_r0_organization_direction_runtime.sql
           bash backend/ci/restore_drill.sh
       - uses: actions/upload-artifact@v4
         with:

@@ -31,6 +31,7 @@ var requiredTables = []string{
 	"specialist_evidence",
 	"qualification_evaluations",
 	"specialist_publications",
+	"organization_ownerships",
 }
 
 var requiredIndexes = []string{

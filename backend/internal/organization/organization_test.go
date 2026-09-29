@@ -20,3 +20,28 @@ func TestDirectionUsesArchiveInsteadOfHardDelete(t *testing.T) {
 		t.Fatal("archive must preserve direction and its historical links")
 	}
 }
+
+func TestDirectionTypeIsUniversalAndNormalized(t *testing.T) {
+	name, directionType, err := NormalizeDirection(" Rehabilitation ", " rehabilitation ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if name != "Rehabilitation" || directionType != "REHABILITATION" {
+		t.Fatalf("normalized direction=(%q,%q)", name, directionType)
+	}
+
+	org := New("org-1", "Example")
+	org.AddTypedDirection("dir-1", name, directionType)
+	if org.Directions["dir-1"].Type != "REHABILITATION" {
+		t.Fatalf("direction type=%q", org.Directions["dir-1"].Type)
+	}
+}
+
+func TestOrganizationValidationRejectsBlankValues(t *testing.T) {
+	if _, err := NormalizeOrganizationName("   "); err != ErrInvalidOrganization {
+		t.Fatalf("blank organization error=%v", err)
+	}
+	if _, _, err := NormalizeDirection("Direction", "  "); err != ErrInvalidDirection {
+		t.Fatalf("blank direction type error=%v", err)
+	}
+}
