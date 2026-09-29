@@ -93,6 +93,18 @@ func TestOrganizationDirectionHTTPPersistsOwnershipAndArchivesInsteadOfDelete(t 
 	if membershipStatus != "ACTIVE" {
 		t.Fatalf("owner membership changed despite guard: %q", membershipStatus)
 	}
+	if _, err := db.Exec(`
+		DELETE FROM organization_memberships
+		 WHERE organization_id = $1::uuid
+	`, created.ID); err == nil {
+		t.Fatal("active owner membership hard delete unexpectedly succeeded")
+	}
+	if _, err := db.Exec(`
+		DELETE FROM organization_ownerships
+		 WHERE organization_id = $1::uuid
+	`, created.ID); err == nil {
+		t.Fatal("organization ownership hard delete unexpectedly succeeded")
+	}
 
 	createDirection := httptest.NewRequest(
 		http.MethodPost,
