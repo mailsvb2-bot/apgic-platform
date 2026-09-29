@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/audit"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/demand"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/eventspine"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/persistentid"
@@ -370,6 +371,28 @@ func TestJourneyStoreSurvivesServiceRestart(t *testing.T) {
 		t.Fatalf("capture economic effect count=%d", effectCount)
 	}
 
+	auditID, err := persistentid.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	auditRecord, err := audit.New(audit.Record{
+		ID:            auditID,
+		ActorID:       "integration-admin",
+		Action:        "organization.direction.archive",
+		Scope:         expectedOrganizationID,
+		ResourceRef:   "organization-direction/" + expectedDirectionID,
+		Reason:        "ORG_DIRECTION_ARCHIVE",
+		PolicyVersion: "organization-policy-v1",
+		OccurredAt:    secondNow,
+		CorrelationID: "org002-history-" + instruction.OrderID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Append(auditRecord); err != nil {
+		t.Fatalf("persist direction archive audit: %v", err)
+	}
+
 	if _, err := store.db.Exec(
 		`UPDATE organization_directions
 		    SET status = 'ARCHIVED', archived_at = now()
@@ -412,6 +435,21 @@ func TestJourneyStoreSurvivesServiceRestart(t *testing.T) {
 	); err != nil {
 		t.Fatalf("read archived direction history chain: %v", err)
 	}
+	var archivedAuditCount int
+	if err := store.db.QueryRow(
+		`SELECT count(*)
+		   FROM audit_records
+		  WHERE id = $1::uuid
+		    AND resource_ref = $2`,
+		auditID,
+		"organization-direction/"+expectedDirectionID,
+	).Scan(&archivedAuditCount); err != nil {
+		t.Fatalf("read archived direction audit history: %v", err)
+	}
+	if archivedAuditCount != 1 {
+		t.Fatalf("archived direction audit history count=%d", archivedAuditCount)
+	}
+
 	if archivedStatus != "ARCHIVED" ||
 		linkedProductID != expectedProductID ||
 		linkedOrderID != instruction.OrderID ||
