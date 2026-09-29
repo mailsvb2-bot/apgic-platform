@@ -8,6 +8,7 @@ import (
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/commerce"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/legal"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/payments"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/persistentid"
 )
 
 const (
@@ -103,21 +104,43 @@ func (s *Service) CheckoutOptions(holdID, clientIdentityID string) ([]CheckoutOp
 	return options, nil
 }
 
-func productOwnershipForSpecialist(specialistID, specialistIdentityID string) (commerce.Ownership, error) {
+type specialistProductContext struct {
+	Ownership               commerce.Ownership
+	ProductID               string
+	OrganizationDirectionID string
+}
+
+func productContextForSpecialist(specialistID, specialistIdentityID string) (specialistProductContext, error) {
+	if specialistID == "" || specialistIdentityID == "" {
+		return specialistProductContext{}, commerce.ErrOwnershipIncomplete
+	}
+	organizationID, err := persistentid.FromRef("catalog-specialist-organization", specialistID)
+	if err != nil {
+		return specialistProductContext{}, err
+	}
+	directionID, err := persistentid.FromRef("catalog-specialist-direction", specialistID+":consultation")
+	if err != nil {
+		return specialistProductContext{}, err
+	}
+	productID, err := persistentid.FromRef("catalog-specialist-product", specialistID)
+	if err != nil {
+		return specialistProductContext{}, err
+	}
 	ownership := commerce.Ownership{
 		OwnerType:             commerce.OwnerOrganization,
-		OwnerID:               "org-conformance-marketplace",
-		CommercialOwnerRef:    "organization/org-conformance-marketplace",
+		OwnerID:               organizationID,
+		CommercialOwnerRef:    "organization/" + organizationID,
 		AuthorRefs:            []string{specialistIdentityID},
 		RevenueBeneficiaryRef: specialistIdentityID,
 	}
-	if specialistID == "" || specialistIdentityID == "" {
-		return commerce.Ownership{}, commerce.ErrOwnershipIncomplete
-	}
 	if err := ownership.Validate(); err != nil {
-		return commerce.Ownership{}, err
+		return specialistProductContext{}, err
 	}
-	return ownership, nil
+	return specialistProductContext{
+		Ownership:               ownership,
+		ProductID:               productID,
+		OrganizationDirectionID: directionID,
+	}, nil
 }
 
 func (s *Service) CreateCheckout(holdID, clientIdentityID, methodCode string) (*CheckoutInstruction, error) {
@@ -152,10 +175,11 @@ func (s *Service) CreateCheckout(holdID, clientIdentityID, methodCode string) (*
 	if err := rejectCustody(recipient, payments.ExternalExecutionOwner); err != nil {
 		return nil, err
 	}
-	ownership, err := productOwnershipForSpecialist(slot.SpecialistID, recipient)
+	productContext, err := productContextForSpecialist(slot.SpecialistID, recipient)
 	if err != nil {
 		return nil, err
 	}
+	ownership := productContext.Ownership
 	amount := priceOf(s.catalog.candidates, slot.SpecialistID)
 	now := s.now().UTC()
 	orderID, err := newJourneyID()
@@ -186,6 +210,8 @@ func (s *Service) CreateCheckout(holdID, clientIdentityID, methodCode string) (*
 		PricingPolicyVersion:    "pricing-conformance-v1",
 		CommissionPolicyVersion: "commission-conformance-v1",
 		LegalSnapshotRef:        legalSnapshot.PolicyVersion,
+		ProductID:               productContext.ProductID,
+		OrganizationDirectionID: productContext.OrganizationDirectionID,
 		ProductOwnerRef:         "organization/" + ownership.OwnerID,
 		AuthorRefs:              append([]string(nil), ownership.AuthorRefs...),
 		SellerRef:               recipient,
