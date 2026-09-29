@@ -4,6 +4,14 @@ set -euo pipefail
 REPO_ROOT="${APGIC_REPO_ROOT:-/opt/apgic/current}"
 ENV_FILE="${APGIC_ENV_FILE:-/etc/apgic/staging.env}"
 TARGET_REF="${1:-origin/main}"
+DEPLOY_LOCK_FILE="${APGIC_DEPLOY_LOCK_FILE:-/run/lock/apgic-staging-update.lock}"
+
+mkdir -p "$(dirname "$DEPLOY_LOCK_FILE")"
+exec 9>"$DEPLOY_LOCK_FILE"
+if ! flock -n 9; then
+  echo "another APGIC staging deployment is already running: $DEPLOY_LOCK_FILE" >&2
+  exit 1
+fi
 
 cd "$REPO_ROOT"
 
