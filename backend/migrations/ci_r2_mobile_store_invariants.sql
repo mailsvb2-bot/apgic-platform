@@ -398,7 +398,7 @@ SET status = 'ARCHIVED',
     archived_at = now() + interval '7 minutes'
 WHERE id = '00000000-0000-0000-0000-00000000af02';
 
-DO $
+DO $$
 DECLARE
   delete_blocked boolean := false;
   entitlement_state text;
@@ -439,7 +439,7 @@ BEGIN
     RAISE EXCEPTION 'store entitlement history did not survive direction archive';
   END IF;
 END
-$;
+$$;
 
 DO $$
 DECLARE blocked boolean := false;
