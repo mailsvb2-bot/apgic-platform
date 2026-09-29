@@ -13,7 +13,8 @@ const (
 )
 
 var (
-	ErrDirectionNotFound   = errors.New("organization direction not found")
+	ErrOrganizationNotFound = errors.New("organization not found")
+	ErrDirectionNotFound    = errors.New("organization direction not found")
 	ErrHardDeleteForbidden = errors.New("hard delete forbidden: archive direction to preserve business truth")
 	ErrInvalidOrganization = errors.New("invalid organization")
 	ErrInvalidDirection    = errors.New("invalid organization direction")
