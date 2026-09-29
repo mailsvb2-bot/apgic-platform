@@ -3,6 +3,15 @@ BEGIN;
 ALTER TABLE connector_delivery_receipts
   ADD COLUMN payload jsonb;
 
+-- Rows created by the pre-000022 state machine cannot be replayed safely:
+-- the old schema never persisted the verified webhook payload. Fail closed by
+-- terminalizing only non-applied legacy work rather than pretending it can be
+-- promoted into a business effect.
+UPDATE connector_delivery_receipts
+SET state = 'STALE'
+WHERE payload IS NULL
+  AND state IN ('RECEIVED', 'DEFERRED');
+
 ALTER TABLE connector_delivery_receipts
   DROP CONSTRAINT IF EXISTS connector_delivery_receipts_state_check;
 
@@ -244,6 +253,7 @@ BEGIN
     AND stream_id = p_stream_id
     AND sequence = v_next_sequence
     AND state = 'DEFERRED'
+    AND payload IS NOT NULL
   ORDER BY received_at, external_event_id
   LIMIT 1
   FOR UPDATE;
