@@ -41,7 +41,7 @@ FOR EACH ROW EXECUTE FUNCTION apgic_organization_owner_membership_guard();
 CREATE OR REPLACE FUNCTION apgic_organization_membership_owner_guard()
 RETURNS trigger
 LANGUAGE plpgsql
-AS $
+AS $$
 DECLARE
   active_owner boolean;
 BEGIN
@@ -65,7 +65,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$;
+$$;
 
 CREATE TRIGGER organization_memberships_owner_guard
 BEFORE UPDATE OR DELETE ON organization_memberships
