@@ -131,10 +131,11 @@ func TestOrganizationProductHTTPPublishesExplicitOwnershipSnapshot(t *testing.T)
 	}
 
 	var ownerType, ownerID, commercialOwner, revenueBeneficiary, direction string
+	var authorsJSON string
 	var authors []string
 	var status string
 	if err := db.QueryRow(`
-		SELECT owner_type, owner_id::text, commercial_owner_ref, author_refs,
+		SELECT owner_type, owner_id::text, commercial_owner_ref, to_json(author_refs)::text,
 		       revenue_beneficiary_ref, organization_direction_id::text, status
 		  FROM products
 		 WHERE id = $1::uuid
@@ -142,11 +143,14 @@ func TestOrganizationProductHTTPPublishesExplicitOwnershipSnapshot(t *testing.T)
 		&ownerType,
 		&ownerID,
 		&commercialOwner,
-		&authors,
+		&authorsJSON,
 		&revenueBeneficiary,
 		&direction,
 		&status,
 	); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal([]byte(authorsJSON), &authors); err != nil {
 		t.Fatal(err)
 	}
 	if ownerType != "ORGANIZATION" || ownerID != org.ID ||
