@@ -29,6 +29,16 @@ This slice extends the Organization archive invariant into the real durable chec
 
 The database migration remains compatible with pre-existing legacy Order rows by allowing the historical pair `product_id=NULL, organization_direction_id=NULL`; new application Order snapshots require both refs at the domain boundary.
 
-## Remaining ORG-002 gap
+## Store entitlement preservation
 
-Store entitlements already retain immutable `product_ref`, but this slice does not yet prove an entitlement created for a direction-linked Product survives direction archival. APGIC-ORG-002 therefore remains IN_PROGRESS until that store-entitlement path has explicit DB/integration evidence.
+`backend/migrations/ci_r2_mobile_store_invariants.sql` now uses the same canonical Product/Direction model for the real store-purchase invariant:
+
+- the Booking slot references the canonical Product;
+- the immutable Order snapshots Product and Direction;
+- store verification uses the immutable Order Product UUID as `product_ref`;
+- the entitlement is activated from that verification;
+- the Direction is archived;
+- direct hard delete is rejected;
+- the entitlement remains ACTIVE and resolves through Verification → Order → Product → archived Direction.
+
+At the code/test level this closes the remaining entitlement-history gap in the APGIC-ORG-002 acceptance path. The registry remains IN_PROGRESS until fresh release/staging evidence is attached; code completion alone is not represented as production verification.
