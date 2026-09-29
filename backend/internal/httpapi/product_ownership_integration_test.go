@@ -107,6 +107,22 @@ func TestHighRiskProductOwnershipRequiresFreshStepUpAndAudits(t *testing.T) {
 	assertCommercialOwner(t, db, productID, "commercial:old")
 	assertAuditReason(t, db, "auth002-stale", "AUTH_STEP_UP_REQUIRED")
 
+	foreignProductID, err := persistentid.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreign := httptest.NewRequest(http.MethodPatch, "/v1/products/"+foreignProductID+"/commercial-owner",
+		strings.NewReader(`{"commercial_owner_ref":"commercial:foreign"}`))
+	foreign.Header.Set("content-type", "application/json")
+	foreign.Header.Set("X-Correlation-Id", "auth002-foreign")
+	foreign.AddCookie(sessionCookie)
+	foreignRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(foreignRecorder, foreign)
+	if foreignRecorder.Code != http.StatusNotFound {
+		t.Fatalf("foreign product status=%d body=%s", foreignRecorder.Code, foreignRecorder.Body.String())
+	}
+	assertAuditReason(t, db, "auth002-foreign", "AUTH_PERMISSION_DENIED")
+
 	freshCookie, err := stepUps.issue(identityID, now.Add(-time.Minute))
 	if err != nil {
 		t.Fatal(err)
