@@ -5,6 +5,8 @@
 - `backend/migrations/000020_r0_organization_direction_runtime.sql`
   - adds explicit `organization_ownerships` separate from membership;
   - adds generic non-empty `direction_type` without education-specific schema.
+- `backend/migrations/000003_r0_semantic_invariants.sql`
+  - remains the canonical source for the `organization_directions_no_delete` hard-delete guard.
 - `backend/internal/runtimepostgres/organization_runtime.go`
   - creates Organization + ACTIVE membership + ACTIVE ownership atomically;
   - permits direction creation only to an ACTIVE owner.
@@ -19,7 +21,7 @@
 
 - direction removal is represented by `status=ARCHIVED` and `archived_at`;
 - no public hard-delete route exists;
-- PostgreSQL trigger `organization_directions_no_delete` rejects direct DELETE attempts;
+- PostgreSQL trigger `organization_directions_no_delete` from `backend/migrations/000003_r0_semantic_invariants.sql` rejects direct DELETE attempts;
 - `backend/internal/httpapi/organization_runtime_integration_test.go` proves:
   - organization ownership and membership persist separately;
   - a generic direction is created under its Organization;
