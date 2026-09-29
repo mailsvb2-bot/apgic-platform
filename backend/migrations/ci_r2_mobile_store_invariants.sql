@@ -1,14 +1,60 @@
 \set ON_ERROR_STOP on
 
+INSERT INTO organizations (id, name, status) VALUES (
+  '00000000-0000-0000-0000-00000000af01',
+  'R2 Store CI Organization',
+  'ACTIVE'
+);
+
+INSERT INTO organization_memberships (
+  organization_id, identity_id, status
+) VALUES (
+  '00000000-0000-0000-0000-00000000af01',
+  '00000000-0000-0000-0000-00000000b001',
+  'ACTIVE'
+);
+
+INSERT INTO organization_ownerships (
+  organization_id, identity_id, status
+) VALUES (
+  '00000000-0000-0000-0000-00000000af01',
+  '00000000-0000-0000-0000-00000000b001',
+  'ACTIVE'
+);
+
+INSERT INTO organization_directions (
+  id, organization_id, name, status, direction_type
+) VALUES (
+  '00000000-0000-0000-0000-00000000af02',
+  '00000000-0000-0000-0000-00000000af01',
+  'Store Subscription',
+  'ACTIVE',
+  'SUBSCRIPTION'
+);
+
+INSERT INTO products (
+  id, owner_type, owner_id, commercial_owner_ref, revenue_beneficiary_ref,
+  author_refs, organization_direction_id
+) VALUES (
+  '00000000-0000-0000-0000-00000000af03',
+  'ORGANIZATION',
+  '00000000-0000-0000-0000-00000000af01',
+  'identity/specialist-store-ci',
+  'identity/specialist-store-ci',
+  ARRAY['identity/specialist-store-ci'],
+  '00000000-0000-0000-0000-00000000af02'
+);
+
 INSERT INTO booking_slots (
-  id, specialist_identity_id, tenant_scope, starts_at, ends_at, exclusive
+  id, specialist_identity_id, tenant_scope, starts_at, ends_at, exclusive, product_id
 ) VALUES (
   '00000000-0000-0000-0000-00000000a101',
   '00000000-0000-0000-0000-00000000b001',
   'tenant/r2-store-ci',
   now() + interval '5 hours',
   now() + interval '6 hours',
-  true
+  true,
+  '00000000-0000-0000-0000-00000000af03'
 );
 
 SELECT *
@@ -53,7 +99,8 @@ INSERT INTO legal_transaction_snapshots (
 INSERT INTO orders (
   id, booking_id, offer_ref, price_source_ref, amount_minor, currency,
   commission_minor, pricing_policy_version, commission_policy_version,
-  legal_snapshot_id, product_owner_ref, author_refs,
+  legal_snapshot_id, product_id, organization_direction_id,
+  product_owner_ref, author_refs,
   seller_ref, commercial_owner_ref, payment_recipient_ref,
   platform_role, fiscal_responsibility_ref, refund_responsibility_ref,
   payout_beneficiary_ref, captured_at
@@ -68,7 +115,9 @@ INSERT INTO orders (
   'pricing-r2-ci-v1',
   'commission-r2-ci-v1',
   '00000000-0000-0000-0000-00000000a401',
-  'identity/specialist-store-ci',
+  '00000000-0000-0000-0000-00000000af03',
+  '00000000-0000-0000-0000-00000000af02',
+  'organization/00000000-0000-0000-0000-00000000af01',
   ARRAY['identity/specialist-store-ci'],
   'identity/specialist-store-ci',
   'identity/specialist-store-ci',
@@ -163,7 +212,7 @@ INSERT INTO store_commerce_decisions (
   '00000000-0000-0000-0000-00000000a703',
   '00000000-0000-0000-0000-00000000a701',
   '00000000-0000-0000-0000-00000000b003',
-  'product/subscription-ci',
+  '00000000-0000-0000-0000-00000000af03',
   'SUBSCRIPTION',
   'IOS',
   'STORE_A',
@@ -323,7 +372,7 @@ INSERT INTO store_transaction_verifications (
   '00000000-0000-0000-0000-00000000a804',
   '00000000-0000-0000-0000-00000000a601',
   'store-tx-ci-1',
-  'product/subscription-ci',
+  '00000000-0000-0000-0000-00000000af03',
   'SUBSCRIPTION',
   '00000000-0000-0000-0000-00000000a701',
   'store-evidence/server-verified-ci',
@@ -336,13 +385,61 @@ INSERT INTO store_entitlements (
 ) VALUES (
   '00000000-0000-0000-0000-00000000a902',
   '00000000-0000-0000-0000-00000000b003',
-  'product/subscription-ci',
+  '00000000-0000-0000-0000-00000000af03',
   'SUBSCRIPTION',
   'ACTIVE',
   '00000000-0000-0000-0000-00000000a901',
   now() + interval '6 minutes',
   now() + interval '6 minutes'
 );
+
+UPDATE organization_directions
+SET status = 'ARCHIVED',
+    archived_at = now() + interval '7 minutes'
+WHERE id = '00000000-0000-0000-0000-00000000af02';
+
+DO $
+DECLARE
+  delete_blocked boolean := false;
+  entitlement_state text;
+  linked_product_ref text;
+  linked_direction_status text;
+BEGIN
+  BEGIN
+    DELETE FROM organization_directions
+    WHERE id = '00000000-0000-0000-0000-00000000af02';
+  EXCEPTION WHEN raise_exception THEN
+    delete_blocked := true;
+  END;
+
+  IF NOT delete_blocked THEN
+    RAISE EXCEPTION 'store-linked direction hard delete unexpectedly succeeded';
+  END IF;
+
+  SELECT entitlement.state,
+         verification.product_ref,
+         direction.status
+    INTO entitlement_state, linked_product_ref, linked_direction_status
+    FROM store_entitlements entitlement
+    JOIN store_transaction_verifications verification
+      ON verification.id = entitlement.verification_id
+    JOIN orders order_row
+      ON order_row.id = verification.order_id
+    JOIN products product
+      ON product.id = order_row.product_id
+     AND product.id::text = verification.product_ref
+    JOIN organization_directions direction
+      ON direction.id = product.organization_direction_id
+     AND direction.id = order_row.organization_direction_id
+   WHERE entitlement.id = '00000000-0000-0000-0000-00000000a902';
+
+  IF entitlement_state <> 'ACTIVE'
+     OR linked_product_ref <> '00000000-0000-0000-0000-00000000af03'
+     OR linked_direction_status <> 'ARCHIVED' THEN
+    RAISE EXCEPTION 'store entitlement history did not survive direction archive';
+  END IF;
+END
+$;
 
 DO $$
 DECLARE blocked boolean := false;
@@ -354,7 +451,7 @@ BEGIN
     ) VALUES (
       '00000000-0000-0000-0000-00000000a903',
       '00000000-0000-0000-0000-00000000b003',
-      'product/subscription-ci',
+      '00000000-0000-0000-0000-00000000af03',
       'SUBSCRIPTION',
       'ACTIVE',
       '00000000-0000-0000-0000-00000000a901',
