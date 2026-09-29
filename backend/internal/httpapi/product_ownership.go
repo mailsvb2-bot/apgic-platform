@@ -14,7 +14,7 @@ import (
 type productOwnershipStore interface {
 	audit.Appender
 	IdentityOwnedProductCommercialOwner(productID, identityID string) (string, bool, error)
-	UpdateIdentityOwnedProductCommercialOwner(productID, identityID, newCommercialOwnerRef string) (string, error)
+	UpdateIdentityOwnedProductCommercialOwner(productID, identityID, newCommercialOwnerRef string, record audit.Record) (string, error)
 }
 
 type productCommercialOwnerRequest struct {
@@ -107,7 +107,21 @@ func registerHighRiskProductOwnership(
 			return
 		}
 
-		_, err = store.UpdateIdentityOwnedProductCommercialOwner(productID, identityID, body.CommercialOwnerRef)
+		changeAuditID, err := persistentid.New()
+		if err != nil {
+			writeDemandError(w, r, http.StatusServiceUnavailable, "AUTH_AUDIT_UNAVAILABLE", "Не удалось подготовить доказательство изменения.", true, nil)
+			return
+		}
+		_, err = store.UpdateIdentityOwnedProductCommercialOwner(productID, identityID, body.CommercialOwnerRef, audit.Record{
+			ID:            changeAuditID,
+			ActorID:       identityID,
+			Action:        "product.commercial_owner.changed",
+			Scope:         identityID,
+			Reason:        "HIGH_RISK_OWNER_CHANGE",
+			PolicyVersion: "authz-policy-v1",
+			OccurredAt:    now().UTC(),
+			CorrelationID: correlation,
+		})
 		if err != nil {
 			writeDemandError(w, r, http.StatusConflict, "PRODUCT_OWNERSHIP_UPDATE_FAILED", "Не удалось изменить коммерческого владельца.", false, nil)
 			return
