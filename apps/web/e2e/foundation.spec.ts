@@ -461,8 +461,9 @@ test("organization workspace uses real organization lifecycle endpoints", async 
   await page.getByLabel("Название направления").fill("Психологическая помощь");
   await page.getByLabel("Тип направления").selectOption("SERVICE");
   await page.getByRole("button", { name: "Добавить направление" }).click();
-  await expect(page.getByText("Психологическая помощь")).toBeVisible();
-  await expect(page.getByText("SERVICE · ACTIVE")).toBeVisible();
+  const activeDirectionItem = page.locator(".organization-directions li").filter({ hasText: "Психологическая помощь" }).filter({ hasText: "SERVICE · ACTIVE" });
+  await expect(activeDirectionItem).toHaveCount(1);
+  await expect(activeDirectionItem).toBeVisible();
 
   await page.getByLabel("Название продукта").fill("Первичная консультация");
   await page.getByLabel("Направление продукта").selectOption("direction-e2e");
