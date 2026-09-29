@@ -419,20 +419,12 @@ requirements:
   release_profile: R0
   risk: HIGH
   priority: P0
-  status: IN_PROGRESS
+  status: APPROVED
   dependencies: []
-  implementation_refs:
-  - backend/internal/httpapi/organization_product.go
-  - backend/internal/runtimepostgres/organization_product.go
-  - backend/migrations/000023_r0_product_runtime.sql
-  contract_refs:
-  - contracts/openapi/apgic-v1.yaml
-  - contracts/jsonschema/product-ownership-v1.schema.json
-  test_refs:
-  - backend/internal/httpapi/organization_product_integration_test.go
-  - .github/workflows/ci.yml
-  evidence_refs:
-  - docs/traceability/R0-prod001-organization-product-publication.md
+  implementation_refs: []
+  contract_refs: []
+  test_refs: []
+  evidence_refs: []
   acceptance:
     given: специалист создаёт продукт внутри Organization
     when: продукт публикуется
