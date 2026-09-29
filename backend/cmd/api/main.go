@@ -55,6 +55,7 @@ func main() {
 		OrganizationAuth: storage,
 		Organizations:    storage,
 		ProductOwnership: storage,
+		Products:         storage,
 		LaunchConfig: launchconfig.Config{
 			JurisdictionMatrixVersion: os.Getenv("APGIC_JURISDICTION_MATRIX_VERSION"),
 			RetentionPolicyVersion:    os.Getenv("APGIC_RETENTION_POLICY_VERSION"),

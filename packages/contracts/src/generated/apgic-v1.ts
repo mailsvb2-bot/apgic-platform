@@ -2,7 +2,7 @@
 // DO NOT EDIT.
 export const apiContractVersion = "0.4.0-r0-organization" as const;
 
-export type ApiOperationId = "acquireSlotHold" | "applyProviderEvent" | "archiveOrganizationDirection" | "cancelOrder" | "completeConsultation" | "confirmHelpIntent" | "createCheckoutInstruction" | "createHelpIntent" | "createOrganization" | "createOrganizationDirection" | "declareSpecialistCapability" | "deleteAccount" | "exportConsultationToGrowth" | "getBookingFulfillment" | "getLegalAcceptanceStatus" | "getMeta" | "getOrganization" | "getPrivateOrganizationProfile" | "getSpecialistProfile" | "health" | "listCheckoutOptions" | "listHelpIntentMatches" | "listOrganizations" | "listSpecialistSlots" | "markSearchProjectionStale" | "publishSpecialistCapability" | "readiness" | "rebuildSearchProjection" | "recordConsultationPresence" | "recordLegalAcceptance" | "reportConsultationFailure" | "searchProjection" | "submitSpecialistEvidence" | "succeedConsultationRecovery" | "unpublishSpecialistCapability" | "updateProductCommercialOwner" | "upsertSpecialistProfile";
+export type ApiOperationId = "acquireSlotHold" | "applyProviderEvent" | "archiveOrganizationDirection" | "cancelOrder" | "completeConsultation" | "confirmHelpIntent" | "createCheckoutInstruction" | "createHelpIntent" | "createOrganization" | "createOrganizationDirection" | "createOrganizationProduct" | "declareSpecialistCapability" | "deleteAccount" | "exportConsultationToGrowth" | "getBookingFulfillment" | "getLegalAcceptanceStatus" | "getMeta" | "getOrganization" | "getPrivateOrganizationProfile" | "getSpecialistProfile" | "health" | "listCheckoutOptions" | "listHelpIntentMatches" | "listOrganizationProducts" | "listOrganizations" | "listSpecialistSlots" | "markSearchProjectionStale" | "publishOrganizationProduct" | "publishSpecialistCapability" | "readiness" | "rebuildSearchProjection" | "recordConsultationPresence" | "recordLegalAcceptance" | "reportConsultationFailure" | "searchProjection" | "submitSpecialistEvidence" | "succeedConsultationRecovery" | "unpublishSpecialistCapability" | "updateProductCommercialOwner" | "upsertSpecialistProfile";
 
 export interface AccountDeletion {
   apgic_deletes_ledger: boolean;
@@ -150,6 +150,14 @@ export interface CreateOrganizationDirectionRequest {
   name: string;
 }
 
+export interface CreateOrganizationProductRequest {
+  author_refs: Array<string>;
+  commercial_owner_ref: string;
+  direction_id: string;
+  name: string;
+  revenue_beneficiary_ref: string;
+}
+
 export interface CreateOrganizationRequest {
   name: string;
 }
@@ -238,6 +246,19 @@ export interface OrganizationDirectionSnapshot {
   name: string;
   organization_id: string;
   status: "ACTIVE" | "ARCHIVED";
+}
+
+export interface OrganizationProduct {
+  author_refs: Array<string>;
+  commercial_owner_ref: string;
+  id: string;
+  name: string;
+  organization_direction_id: string;
+  owner_id: string;
+  owner_type: "ORGANIZATION";
+  published_at?: string;
+  revenue_beneficiary_ref: string;
+  status: "DRAFT" | "PUBLISHED";
 }
 
 export interface OrganizationSnapshot {
