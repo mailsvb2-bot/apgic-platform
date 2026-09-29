@@ -308,11 +308,16 @@ requirements:
   dependencies: []
   implementation_refs:
   - backend/internal/organization/organization.go
+  - backend/internal/runtimepostgres/organization_runtime.go
+  - backend/internal/httpapi/organization_runtime.go
+  - backend/migrations/000020_r0_organization_direction_runtime.sql
   - backend/migrations/000001_r0_foundation.sql
   contract_refs:
+  - contracts/openapi/apgic-v1.yaml
   - contracts/jsonschema/organization-v1.schema.json
   test_refs:
   - backend/internal/organization/organization_test.go
+  - backend/internal/httpapi/organization_runtime_integration_test.go
   - tools/organization_contract_guard.py
   evidence_refs: []
   acceptance:
@@ -337,11 +342,16 @@ requirements:
   implementation_refs:
   - backend/migrations/000004_r0_outbox_terminality.sql
   - backend/internal/organization/organization.go
+  - backend/internal/runtimepostgres/organization_runtime.go
+  - backend/internal/httpapi/organization_runtime.go
+  - backend/migrations/000020_r0_organization_direction_runtime.sql
   - backend/migrations/000003_r0_semantic_invariants.sql
   contract_refs:
+  - contracts/openapi/apgic-v1.yaml
   - contracts/jsonschema/organization-v1.schema.json
   test_refs:
   - backend/internal/organization/organization_test.go
+  - backend/internal/httpapi/organization_runtime_integration_test.go
   - backend/migrations/ci_invariants.sql
   - tools/organization_contract_guard.py
   evidence_refs: []
