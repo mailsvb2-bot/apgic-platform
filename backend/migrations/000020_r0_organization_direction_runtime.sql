@@ -19,7 +19,7 @@ CREATE INDEX organization_ownerships_identity_idx
 CREATE OR REPLACE FUNCTION apgic_organization_owner_membership_guard()
 RETURNS trigger
 LANGUAGE plpgsql
-AS $
+AS $$
 BEGIN
   IF NEW.status = 'ACTIVE' AND NOT EXISTS (
     SELECT 1
@@ -32,7 +32,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$;
+$$;
 
 CREATE TRIGGER organization_ownerships_membership_guard
 BEFORE INSERT OR UPDATE ON organization_ownerships
@@ -41,26 +41,45 @@ FOR EACH ROW EXECUTE FUNCTION apgic_organization_owner_membership_guard();
 CREATE OR REPLACE FUNCTION apgic_organization_membership_owner_guard()
 RETURNS trigger
 LANGUAGE plpgsql
-AS $
+AS $$
 BEGIN
   IF OLD.status = 'ACTIVE'
-     AND NEW.status <> 'ACTIVE'
      AND EXISTS (
        SELECT 1
          FROM organization_ownerships
         WHERE organization_id = OLD.organization_id
           AND identity_id = OLD.identity_id
           AND status = 'ACTIVE'
+     )
+     AND (
+       TG_OP = 'DELETE'
+       OR NEW.status <> 'ACTIVE'
      ) THEN
-    RAISE EXCEPTION 'revoke organization ownership before deactivating owner membership';
+    RAISE EXCEPTION 'revoke organization ownership before removing active owner membership';
+  END IF;
+  IF TG_OP = 'DELETE' THEN
+    RETURN OLD;
   END IF;
   RETURN NEW;
 END;
-$;
+$$;
 
 CREATE TRIGGER organization_memberships_owner_guard
-BEFORE UPDATE ON organization_memberships
+BEFORE UPDATE OR DELETE ON organization_memberships
 FOR EACH ROW EXECUTE FUNCTION apgic_organization_membership_owner_guard();
+
+CREATE OR REPLACE FUNCTION apgic_organization_ownership_delete_guard()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  RAISE EXCEPTION 'organization ownership hard delete is forbidden; revoke it instead';
+END;
+$$;
+
+CREATE TRIGGER organization_ownerships_no_delete
+BEFORE DELETE ON organization_ownerships
+FOR EACH ROW EXECUTE FUNCTION apgic_organization_ownership_delete_guard();
 
 ALTER TABLE organization_directions
   ADD COLUMN direction_type text NOT NULL DEFAULT 'GENERAL',
