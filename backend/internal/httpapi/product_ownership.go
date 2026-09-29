@@ -49,10 +49,6 @@ func registerHighRiskProductOwnership(
 			writeDemandError(w, r, http.StatusServiceUnavailable, "AUTH_STORE_UNAVAILABLE", "Защищённая операция временно недоступна.", true, nil)
 			return
 		}
-		if !found {
-			writeDemandError(w, r, http.StatusNotFound, "PRODUCT_NOT_FOUND", "Продукт не найден.", false, nil)
-			return
-		}
 
 		var body productCommercialOwnerRequest
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || strings.TrimSpace(body.CommercialOwnerRef) == "" {
@@ -77,9 +73,13 @@ func registerHighRiskProductOwnership(
 			Principal: authz.Principal{
 				ID:       identityID,
 				TenantID: identityID,
-				Permissions: map[string]struct{}{
-					"product.change_commercial_owner": {},
-				},
+				Permissions: func() map[string]struct{} {
+					permissions := map[string]struct{}{}
+					if found {
+						permissions["product.change_commercial_owner"] = struct{}{}
+					}
+					return permissions
+				}(),
 				StepUpAt: stepUp.issuedAtFromRequest(r, identityID),
 			},
 			Resource:      authz.ResourceRef{ID: productID, TenantID: identityID},
@@ -92,6 +92,10 @@ func registerHighRiskProductOwnership(
 		})
 		if err != nil {
 			writeDemandError(w, r, http.StatusServiceUnavailable, "AUTH_AUDIT_UNAVAILABLE", "Проверка доступа временно недоступна.", true, nil)
+			return
+		}
+		if !found {
+			writeDemandError(w, r, http.StatusNotFound, "PRODUCT_NOT_FOUND", "Продукт не найден.", false, nil)
 			return
 		}
 		if result.Decision == authz.StepUpRequired {
