@@ -477,8 +477,9 @@ test("organization workspace uses real organization lifecycle endpoints", async 
   await expect(page.getByText("Получатель выручки: identity/specialist-e2e")).toBeVisible();
 
   await page.getByRole("button", { name: "Опубликовать" }).click();
-  await expect(page.getByText("PUBLISHED · направление direction-e2e")).toBeVisible();
-  await expect(page.getByText("Опубликован")).toBeVisible();
+  const publishedProductItem = page.locator(".organization-products li").filter({ hasText: "PUBLISHED · направление direction-e2e" });
+  await expect(publishedProductItem).toHaveCount(1);
+  await expect(publishedProductItem.locator(".product-published")).toHaveText("Опубликован");
   await expect(page.getByRole("status")).toContainText("опубликован");
 
   await page.getByRole("button", { name: "Архивировать" }).click();
@@ -488,8 +489,9 @@ test("organization workspace uses real organization lifecycle endpoints", async 
   await page.reload();
   await expect(page.getByRole("heading", { name: "Центр развития" })).toBeVisible();
   await expect(page.getByText("SERVICE · ARCHIVED")).toBeVisible();
-  await expect(page.getByText("PUBLISHED · направление direction-e2e")).toBeVisible();
-  await expect(page.getByText("Опубликован")).toBeVisible();
+  const reloadedPublishedProductItem = page.locator(".organization-products li").filter({ hasText: "PUBLISHED · направление direction-e2e" });
+  await expect(reloadedPublishedProductItem).toHaveCount(1);
+  await expect(reloadedPublishedProductItem.locator(".product-published")).toHaveText("Опубликован");
   await expect(page.getByRole("status")).toContainText("Организации загружены");
 
   const accessibility = await new AxeBuilder({ page })
