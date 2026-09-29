@@ -340,6 +340,9 @@ requirements:
   dependencies:
   - APGIC-ORG-001
   implementation_refs:
+  - backend/internal/commerce/order.go
+  - backend/internal/runtimepostgres/journey.go
+  - backend/migrations/000021_r0_organization_history_links.sql
   - backend/migrations/000004_r0_outbox_terminality.sql
   - backend/internal/organization/organization.go
   - backend/internal/runtimepostgres/organization_runtime.go
@@ -350,6 +353,8 @@ requirements:
   - contracts/openapi/apgic-v1.yaml
   - contracts/jsonschema/organization-v1.schema.json
   test_refs:
+  - backend/internal/commerce/order_test.go
+  - backend/internal/runtimepostgres/journey_test.go
   - backend/internal/organization/organization_test.go
   - backend/internal/httpapi/organization_runtime_integration_test.go
   - backend/migrations/ci_invariants.sql
