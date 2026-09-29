@@ -17,11 +17,21 @@ APGIC-PROD-001 requires a specialist to create a Product inside an Organization 
   - keeps legacy products migration-compatible as DRAFT;
   - fails closed when a PUBLISHED Product lacks a name or explicit ownership/revenue roles;
   - requires Organization-owned published products to reference an ACTIVE direction owned by the same Organization.
+- `backend/migrations/000024_r0_published_product_order_gate.sql`
+  - upgrades legacy conformance products already linked to sold/available catalog slots to PUBLISHED before enforcing the new gate;
+  - fails deployment if an existing order still references a non-published product;
+  - makes PostgreSQL reject new orders unless the referenced product is PUBLISHED and the immutable ownership snapshot matches the canonical product.
 - `backend/internal/runtimepostgres/organization_product.go`
   - requires ACTIVE Organization ownership before create/publish;
+  - revalidates the direction inside the publication transaction so an archived direction returns the canonical conflict instead of surfacing as a database 500;
+  - reads migration-compatible legacy DRAFT rows with nullable name/direction safely;
   - persists the Organization as explicit `owner_type=ORGANIZATION` and `owner_id`;
   - preserves explicit commercial owner, authors, revenue beneficiary and direction;
   - appends publication audit evidence atomically with the state transition.
+- `backend/internal/runtimepostgres/journey.go`
+  - materializes conformance catalog Products as PUBLISHED before checkout;
+  - never creates Product/Organization/Direction business truth inside payment checkout;
+  - requires ACTIVE ownership/direction, PUBLISHED product state, exact ownership snapshot and slot/product binding before any order/payment side effect.
 - `backend/internal/httpapi/organization_product.go`
   - exposes the signed-session runtime path.
 
@@ -44,13 +54,19 @@ APGIC-PROD-001 requires a specialist to create a Product inside an Organization 
   - publishes it;
   - proves PostgreSQL contains owner/commercial owner/authors/revenue beneficiary/direction/status;
   - proves publication audit evidence exists;
-  - proves the published product is returned by the Organization product listing.
+  - proves the published product is returned by the Organization product listing;
+  - proves legacy nullable DRAFT rows remain readable;
+  - proves archiving a direction before publish fails closed with `PRODUCT_DIRECTION_INVALID` and no publication audit side effect.
+- `backend/internal/runtimepostgres/journey_test.go`
+  - proves durable checkout rejects a DRAFT product;
+  - proves the rejected checkout creates neither an order nor payment attempt;
+  - preserves the restart/concurrency proof for a canonical pre-published product.
 - `apps/web/e2e/foundation.spec.ts`
   - proves the product lifecycle is usable from the Organization Web workspace;
   - proves explicit legal/revenue role refs remain visible before and after publication;
   - proves published state survives a browser reload through the list endpoint.
 - `.github/workflows/ci.yml`
-  - applies migration 000023 in the migration proof and isolated restore drill;
-  - runs the APGIC-PROD-001 integration proof.
+  - applies migrations 000023 and 000024 in the migration proof and isolated restore drill;
+  - runs the APGIC-PROD-001 publication, archived-direction, legacy-read and draft-checkout negative proofs.
 
 The requirement remains IN_PROGRESS until fresh staging/release evidence proves the path outside CI. Code and contract completion alone are not represented as production verification.
