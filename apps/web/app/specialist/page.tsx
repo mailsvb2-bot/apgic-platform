@@ -1,5 +1,8 @@
 import { SpecialistOnboarding } from "./onboarding";
 
+// Public HTML must not be served with Next's immutable static-page cache.
+export const dynamic = "force-dynamic";
+
 export const metadata = {
   title: "Для специалистов — APGIC",
   description: "Профессиональный вход APGIC: профиль специалиста, подтверждение компетенций, проверка и публикация.",
