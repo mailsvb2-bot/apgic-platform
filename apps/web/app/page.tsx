@@ -1,5 +1,8 @@
 import { Journey } from "./journey";
 
+// Public HTML must not be served with Next's immutable static-page cache.
+export const dynamic = "force-dynamic";
+
 const benefits = [
   "Без диагнозов по анкете",
   "Вы сами подтверждаете, как мы поняли запрос",
