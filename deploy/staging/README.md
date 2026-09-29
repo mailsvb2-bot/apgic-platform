@@ -57,3 +57,30 @@ A systemd watchdog verifies the live staging runtime without using public DNS:
 - failures are fail-closed oneshot failures recorded in the system journal.
 
 Enable apgic-staging-runtime-watchdog.timer after installing the service and timer units.
+
+
+## Migration-aware updates
+
+Use `deploy/staging/update-staging.sh` for normal staging updates instead of manually applying individual migrations.
+
+The updater:
+
+- reads the currently deployed commit from `APGIC_COMMIT_SHA`;
+- resolves the target commit (default: `origin/main`);
+- refuses non-forward deployments;
+- inspects numbered migration files added between the deployed and target commits;
+- refuses modifications/deletions/renames of existing numbered migrations;
+- builds API and Web before database changes;
+- creates a PostgreSQL backup before applying newly added migrations;
+- applies every newly added numbered migration in lexical order;
+- updates `APGIC_COMMIT_SHA` only after builds and migrations succeed;
+- restarts API/Web and requires the canonical runtime watchdog plus exact runtime SHA match.
+
+Example:
+
+```bash
+cd /opt/apgic/current
+bash deploy/staging/update-staging.sh origin/main
+```
+
+This path exists specifically to prevent code/schema skew when several migrations land between two deployed commits.
