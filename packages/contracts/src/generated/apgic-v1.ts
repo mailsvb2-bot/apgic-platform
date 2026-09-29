@@ -246,6 +246,11 @@ export interface PaymentSelection {
   rail_code: string;
 }
 
+export interface PrivateOrganizationProfile {
+  id: string;
+  name: string;
+}
+
 export interface ProductCommercialOwnerRequest {
   commercial_owner_ref: string;
 }
@@ -255,10 +260,6 @@ export interface ProductCommercialOwnerResponse {
   product_id: string;
 }
 
-export interface PrivateOrganizationProfile {
-  id: string;
-  name: string;
-}
 
 export interface ProviderEvent {
   amount_minor: number;
