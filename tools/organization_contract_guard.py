@@ -30,7 +30,7 @@ def validate_organization_contract(go_text: str, schema_doc: dict) -> list[str]:
 
     direction = schema_doc.get("$defs", {}).get("direction", {})
     required = set(direction.get("required", []))
-    expected = {"id", "name", "status", "has_dependent_truth"}
+    expected = {"id", "name", "direction_type", "status", "has_dependent_truth"}
     if required != expected:
         errors.append(
             f"organization direction required fields differ: expected={sorted(expected)} actual={sorted(required)}"
