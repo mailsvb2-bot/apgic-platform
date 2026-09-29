@@ -4,30 +4,65 @@
   "title": "APGIC Organization v1",
   "type": "object",
   "additionalProperties": false,
-  "required": ["id", "name", "directions"],
+  "required": [
+    "id",
+    "name",
+    "directions"
+  ],
   "$defs": {
     "direction_status": {
       "type": "string",
-      "enum": ["ACTIVE", "ARCHIVED"]
+      "enum": [
+        "ACTIVE",
+        "ARCHIVED"
+      ]
     },
     "direction": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "name", "status", "has_dependent_truth"],
+      "required": [
+        "id",
+        "name",
+        "direction_type",
+        "status",
+        "has_dependent_truth"
+      ],
       "properties": {
-        "id": {"type": "string", "minLength": 1},
-        "name": {"type": "string", "minLength": 1},
-        "status": {"$ref": "#/$defs/direction_status"},
-        "has_dependent_truth": {"type": "boolean"}
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "$ref": "#/$defs/direction_status"
+        },
+        "has_dependent_truth": {
+          "type": "boolean"
+        },
+        "direction_type": {
+          "type": "string",
+          "minLength": 1
+        }
       }
     }
   },
   "properties": {
-    "id": {"type": "string", "minLength": 1},
-    "name": {"type": "string", "minLength": 1},
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
     "directions": {
       "type": "array",
-      "items": {"$ref": "#/$defs/direction"}
+      "items": {
+        "$ref": "#/$defs/direction"
+      }
     }
   }
 }
