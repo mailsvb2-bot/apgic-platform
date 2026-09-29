@@ -19,6 +19,8 @@ def validate() -> list[str]:
         "/readyz",
         "/v1/meta",
         "APGIC_COMMIT_SHA",
+        'APGIC_ENV_FILE:-/etc/apgic/staging.env',
+        'source "$ENV_FILE"',
         "runtime SHA mismatch",
         'Host: ${APGIC_PUBLIC_HOST}',
         "--max-time 5",

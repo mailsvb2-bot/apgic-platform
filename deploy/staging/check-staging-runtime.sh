@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+ENV_FILE="${APGIC_ENV_FILE:-/etc/apgic/staging.env}"
+if [[ -f "$ENV_FILE" ]]; then
+  set -a
+  source "$ENV_FILE"
+  set +a
+fi
+
 : "${APGIC_HTTP_ADDR:=127.0.0.1:43111}"
 : "${APGIC_WEB_ORIGIN:=http://127.0.0.1}"
 : "${APGIC_PUBLIC_HOST:=apgic.ru}"
