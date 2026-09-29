@@ -622,8 +622,10 @@ fieldset {
 .organization-directions li > div { min-width: 0; display: grid; gap: 4px; }
 .organization-directions li span { color: #68756e; font-size: .9rem; }
 .organization-directions button { width: auto; flex: 0 0 auto; }
-.archived-directions li { opacity: .78; }
+.archived-directions li { opacity: 1; }
+.archived-directions li span { color: #4f5d55; }
 @media (max-width: 860px) {
+  .organization-nav-link { display: none; }
   .organization-hero,
   .organization-workspace { grid-template-columns: 1fr; }
 }
