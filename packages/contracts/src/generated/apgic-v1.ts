@@ -260,7 +260,6 @@ export interface ProductCommercialOwnerResponse {
   product_id: string;
 }
 
-
 export interface ProviderEvent {
   amount_minor: number;
   currency: string;
