@@ -216,7 +216,17 @@ func TestOrganizationProductHTTPPublishesExplicitOwnershipSnapshot(t *testing.T)
 	`, legacyProductID, org.ID, "organization/"+org.ID, "identity/legacy-author"); err != nil {
 		t.Fatalf("insert legacy draft product: %v", err)
 	}
-	legacy, err := store.OrganizationProduct(org.OwnerIdentityID, org.ID, legacyProductID)
+	var ownerIdentityID string
+	if err := db.QueryRow(`
+		SELECT identity_id::text
+		  FROM organization_ownerships
+		 WHERE organization_id = $1::uuid
+		   AND status = 'ACTIVE'
+		 LIMIT 1
+	`, org.ID).Scan(&ownerIdentityID); err != nil {
+		t.Fatal(err)
+	}
+	legacy, err := store.OrganizationProduct(ownerIdentityID, org.ID, legacyProductID)
 	if err != nil {
 		t.Fatalf("read legacy draft product: %v", err)
 	}
