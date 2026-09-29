@@ -40,8 +40,11 @@ func TestHighRiskProductOwnershipRequiresFreshStepUpAndAudits(t *testing.T) {
 	}
 	if _, err := db.Exec(`
 		INSERT INTO products (
-			id, owner_type, owner_id, commercial_owner_ref, revenue_beneficiary_ref
-		) VALUES ($1::uuid, 'IDENTITY', $2::uuid, 'commercial:old', 'beneficiary:test')
+			id, owner_type, owner_id, commercial_owner_ref, revenue_beneficiary_ref, author_refs
+		) VALUES (
+			$1::uuid, 'IDENTITY', $2::uuid, 'commercial:old', 'beneficiary:test',
+			ARRAY['author:test']::text[]
+		)
 	`, productID, identityID); err != nil {
 		t.Fatal(err)
 	}
