@@ -105,7 +105,7 @@ func (c *Checker) Organization(identityID, organizationID string) (OrganizationR
 		identityID, organizationID,
 	).Scan(&record.ID, &record.Name, &record.Status); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return OrganizationRecord{}, organization.ErrDirectionNotFound
+			return OrganizationRecord{}, organization.ErrOrganizationNotFound
 		}
 		return OrganizationRecord{}, fmt.Errorf("read organization: %w", err)
 	}
