@@ -716,10 +716,10 @@ func (c *Checker) CreateCheckout(persistence demand.CheckoutPersistence) (string
 		return "", fmt.Errorf("ensure checkout product: %w", err)
 	}
 	var productOwnerID, productCommercialOwner, productRevenueBeneficiary, productDirectionID string
-	var productAuthors []string
+	var productAuthorsJSON string
 	if err := tx.QueryRowContext(ctx,
 		`SELECT owner_id::text, commercial_owner_ref, revenue_beneficiary_ref,
-		        author_refs, organization_direction_id::text
+		        to_json(author_refs)::text, organization_direction_id::text
 		   FROM products
 		  WHERE id = $1::uuid
 		    AND owner_type = 'ORGANIZATION'`,
@@ -728,10 +728,14 @@ func (c *Checker) CreateCheckout(persistence demand.CheckoutPersistence) (string
 		&productOwnerID,
 		&productCommercialOwner,
 		&productRevenueBeneficiary,
-		&productAuthors,
+		&productAuthorsJSON,
 		&productDirectionID,
 	); err != nil {
 		return "", fmt.Errorf("read checkout product: %w", err)
+	}
+	var productAuthors []string
+	if err := json.Unmarshal([]byte(productAuthorsJSON), &productAuthors); err != nil {
+		return "", fmt.Errorf("decode checkout product authors: %w", err)
 	}
 	if productOwnerID != ownerOrganizationID ||
 		productCommercialOwner != order.CommercialOwnerRef ||
