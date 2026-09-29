@@ -125,7 +125,7 @@ for _ in {1..20}; do
 done
 
 echo "=== Verify runtime ==="
-"$REPO_ROOT/deploy/staging/check-staging-runtime.sh"
+bash "$REPO_ROOT/deploy/staging/check-staging-runtime.sh"
 
 actual_meta="$(curl -fsS --max-time 5 http://127.0.0.1:43111/v1/meta)"
 python3 - "$TARGET_SHA" "$actual_meta" <<'PY'
