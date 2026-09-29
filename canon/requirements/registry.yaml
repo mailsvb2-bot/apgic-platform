@@ -577,6 +577,7 @@ requirements:
   - backend/internal/runtimepostgres/journey.go
   - backend/internal/httpapi/organization_product.go
   - backend/internal/runtimepostgres/organization_product.go
+  - apps/web/app/organization/workspace.tsx
   - backend/migrations/000023_r0_product_runtime.sql
   - backend/migrations/000001_r0_foundation.sql
   - backend/migrations/000003_r0_semantic_invariants.sql
@@ -593,6 +594,7 @@ requirements:
   - backend/migrations/ci_r2_booking_order_invariants.sql
   - tools/product_contract_guard.py
   - backend/internal/httpapi/organization_product_integration_test.go
+  - apps/web/e2e/foundation.spec.ts
   - .github/workflows/ci.yml
   evidence_refs:
   - docs/traceability/R0-prod001-organization-product-publication.md

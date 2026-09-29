@@ -25,6 +25,17 @@ APGIC-PROD-001 requires a specialist to create a Product inside an Organization 
 - `backend/internal/httpapi/organization_product.go`
   - exposes the signed-session runtime path.
 
+## Web user flow
+
+- `apps/web/app/organization/workspace.tsx`
+  - loads products for the selected Organization;
+  - creates a DRAFT only through the canonical Organization product endpoint;
+  - requires the user to provide commercial owner, authors and revenue beneficiary explicitly;
+  - publishes through the canonical publish endpoint;
+  - reloads persisted PUBLISHED state after refresh.
+- `apps/web/e2e/foundation.spec.ts`
+  - proves create -> publish -> refresh through browser-visible controls and the canonical API contract.
+
 ## Automated evidence
 
 - `backend/internal/httpapi/organization_product_integration_test.go`
@@ -34,6 +45,10 @@ APGIC-PROD-001 requires a specialist to create a Product inside an Organization 
   - proves PostgreSQL contains owner/commercial owner/authors/revenue beneficiary/direction/status;
   - proves publication audit evidence exists;
   - proves the published product is returned by the Organization product listing.
+- `apps/web/e2e/foundation.spec.ts`
+  - proves the product lifecycle is usable from the Organization Web workspace;
+  - proves explicit legal/revenue role refs remain visible before and after publication;
+  - proves published state survives a browser reload through the list endpoint.
 - `.github/workflows/ci.yml`
   - applies migration 000023 in the migration proof and isolated restore drill;
   - runs the APGIC-PROD-001 integration proof.
