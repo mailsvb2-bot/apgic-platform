@@ -87,6 +87,13 @@ npm run build
 cd "$REPO_ROOT"
 
 if (("${#new_migrations[@]}" > 0)); then
+  for migration in "${new_migrations[@]}"; do
+    if grep -Eiq '^[[:space:]]*(BEGIN|COMMIT)[[:space:]]*;' "$REPO_ROOT/$migration"; then
+      echo "refusing deployment: managed migration contains transaction control: $migration" >&2
+      exit 1
+    fi
+  done
+
   echo "=== Backup PostgreSQL ==="
   systemctl start apgic-staging-backup.service
   backup_result="$(systemctl show -p Result --value apgic-staging-backup.service)"
@@ -94,13 +101,13 @@ if (("${#new_migrations[@]}" > 0)); then
     echo "staging backup failed: Result=$backup_result" >&2
     exit 1
   fi
-
-  echo "=== Apply migrations ==="
-  for migration in "${new_migrations[@]}"; do
-    echo "Applying $migration"
-    psql "$APGIC_DATABASE_URL" -v ON_ERROR_STOP=1 -f "$REPO_ROOT/$migration"
-  done
 fi
+
+echo "=== Reconcile migration ledger ==="
+APGIC_REPO_ROOT="$REPO_ROOT" \
+APGIC_DATABASE_URL="$APGIC_DATABASE_URL" \
+bash "$REPO_ROOT/deploy/staging/apply-staging-migrations.sh" \
+  "$CURRENT_SHA" "$TARGET_SHA" "${new_migrations[@]}"
 
 echo "=== Pin deployed SHA ==="
 if grep -q '^APGIC_COMMIT_SHA=' "$ENV_FILE"; then
