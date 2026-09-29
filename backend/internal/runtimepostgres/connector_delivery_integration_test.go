@@ -3,9 +3,9 @@ package runtimepostgres
 import (
 	"context"
 	"crypto/ed25519"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
-	"database/sql"
 	"errors"
 	"os"
 	"testing"
