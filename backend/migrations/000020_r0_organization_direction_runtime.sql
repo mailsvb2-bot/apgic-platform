@@ -89,17 +89,5 @@ ALTER TABLE organization_directions
   ADD CONSTRAINT organization_directions_type_nonblank
     CHECK (btrim(direction_type) <> '');
 
-CREATE OR REPLACE FUNCTION apgic_organization_direction_delete_guard()
-RETURNS trigger
-LANGUAGE plpgsql
-AS $$
-BEGIN
-  RAISE EXCEPTION 'organization direction hard delete is forbidden; archive it instead';
-END;
-$$;
-
-CREATE TRIGGER organization_directions_no_delete
-BEFORE DELETE ON organization_directions
-FOR EACH ROW EXECUTE FUNCTION apgic_organization_direction_delete_guard();
 
 COMMIT;
