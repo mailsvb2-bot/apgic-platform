@@ -28,7 +28,12 @@ def main() -> None:
         'npm run build',
         'systemctl restart apgic-api-staging.service',
         'systemctl restart apgic-web-staging.service',
-        'check-staging-runtime.sh',
+        'wait_for_http()',
+        'wait_for_http "API" "http://127.0.0.1:43111/readyz" 30 1',
+        'wait_for_http "Web" "http://127.0.0.1:43112/" 30 1',
+        'journalctl -u apgic-api-staging.service -n 80 --no-pager',
+        'journalctl -u apgic-web-staging.service -n 80 --no-pager',
+        'bash "$REPO_ROOT/deploy/staging/check-staging-runtime.sh"',
         'runtime SHA mismatch',
     ):
         require(text, needle)
@@ -38,7 +43,9 @@ def main() -> None:
     ordered(text, 'systemctl start apgic-staging-backup.service', 'psql "$APGIC_DATABASE_URL" -v ON_ERROR_STOP=1 -f')
     ordered(text, 'psql "$APGIC_DATABASE_URL" -v ON_ERROR_STOP=1 -f', 'APGIC_COMMIT_SHA=$TARGET_SHA')
     ordered(text, 'APGIC_COMMIT_SHA=$TARGET_SHA', 'systemctl restart apgic-api-staging.service')
-    ordered(text, 'systemctl restart apgic-web-staging.service', 'check-staging-runtime.sh')
+    ordered(text, 'systemctl restart apgic-web-staging.service', 'wait_for_http "API" "http://127.0.0.1:43111/readyz" 30 1')
+    ordered(text, 'wait_for_http "API" "http://127.0.0.1:43111/readyz" 30 1', 'wait_for_http "Web" "http://127.0.0.1:43112/" 30 1')
+    ordered(text, 'wait_for_http "Web" "http://127.0.0.1:43112/" 30 1', 'bash "$REPO_ROOT/deploy/staging/check-staging-runtime.sh"')
 
     print("staging update guard: PASS")
 

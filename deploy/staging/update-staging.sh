@@ -117,12 +117,36 @@ echo "=== Restart runtime ==="
 systemctl restart apgic-api-staging.service
 systemctl restart apgic-web-staging.service
 
-for _ in {1..20}; do
-  if curl -fsS --max-time 2 "http://127.0.0.1:43111/readyz" >/dev/null; then
-    break
-  fi
-  sleep 1
-done
+wait_for_http() {
+  local name="$1"
+  local url="$2"
+  local attempts="${3:-30}"
+  local delay="${4:-1}"
+
+  for ((attempt = 1; attempt <= attempts; attempt++)); do
+    if curl -fsS --max-time 2 "$url" >/dev/null; then
+      printf '%s ready after %d attempt(s): %s\n' "$name" "$attempt" "$url"
+      return 0
+    fi
+    sleep "$delay"
+  done
+
+  printf '%s did not become ready after %d attempts: %s\n' "$name" "$attempts" "$url" >&2
+  return 1
+}
+
+echo "=== Wait for runtime readiness ==="
+if ! wait_for_http "API" "http://127.0.0.1:43111/readyz" 30 1; then
+  systemctl --no-pager --full status apgic-api-staging.service >&2 || true
+  journalctl -u apgic-api-staging.service -n 80 --no-pager >&2 || true
+  exit 1
+fi
+
+if ! wait_for_http "Web" "http://127.0.0.1:43112/" 30 1; then
+  systemctl --no-pager --full status apgic-web-staging.service >&2 || true
+  journalctl -u apgic-web-staging.service -n 80 --no-pager >&2 || true
+  exit 1
+fi
 
 echo "=== Verify runtime ==="
 bash "$REPO_ROOT/deploy/staging/check-staging-runtime.sh"
