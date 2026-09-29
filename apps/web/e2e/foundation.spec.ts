@@ -2,7 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
 test("public HTML is not served with an immutable one-year cache", async ({ request }) => {
-  for (const path of ["/", "/specialist"]) {
+  for (const path of ["/", "/specialist", "/organization"]) {
     const response = await request.get(path);
     expect(response.ok()).toBeTruthy();
     const cacheControl = response.headers()["cache-control"] ?? "";
@@ -335,6 +335,90 @@ test("specialist onboarding preserves evidence and publish boundaries", async ({
     documentWidth: document.documentElement.scrollWidth,
   }));
   expect(layout.documentWidth).toBeLessThanOrEqual(layout.viewportWidth + 1);
+
+  const accessibility = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+    .analyze();
+  expect(accessibility.violations).toEqual([]);
+});
+
+
+test("organization workspace uses real organization lifecycle endpoints", async ({ page }) => {
+  type Snapshot = {
+    id: string;
+    name: string;
+    status: string;
+    directions: Array<{
+      id: string;
+      organization_id: string;
+      name: string;
+      direction_type: string;
+      status: string;
+    }>;
+  };
+  let snapshot: Snapshot | null = null;
+
+  await page.route("**/v1/organizations**", async (route) => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    const body = request.postDataJSON?.() as Record<string, string> | undefined;
+
+    if (path === "/v1/organizations" && request.method() === "GET") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ organizations: snapshot ? [snapshot] : [] }),
+      });
+      return;
+    }
+
+    if (path === "/v1/organizations" && request.method() === "POST") {
+      snapshot = { id: "org-e2e", name: body?.name || "", status: "ACTIVE", directions: [] };
+      await route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify(snapshot) });
+      return;
+    }
+    if (path === "/v1/organizations/org-e2e/directions" && request.method() === "POST" && snapshot) {
+      snapshot.directions.push({
+        id: "direction-e2e",
+        organization_id: snapshot.id,
+        name: body?.name || "",
+        direction_type: body?.direction_type || "GENERAL",
+        status: "ACTIVE",
+      });
+      await route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify(snapshot) });
+      return;
+    }
+    if (path === "/v1/organizations/org-e2e/directions/direction-e2e/archive" && request.method() === "POST" && snapshot) {
+      snapshot.directions = snapshot.directions.map((direction) =>
+        direction.id === "direction-e2e" ? { ...direction, status: "ARCHIVED" } : direction
+      );
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(snapshot) });
+      return;
+    }
+    await route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ message_safe: "Не найдено" }) });
+  });
+
+  await page.goto("/organization");
+  await expect(page.getByRole("heading", { level: 1, name: /Управляйте организацией/ })).toBeVisible();
+  await page.getByLabel("Название организации").fill("Центр развития");
+  await page.getByRole("button", { name: "Создать организацию" }).click();
+  await expect(page.getByRole("heading", { name: "Центр развития" })).toBeVisible();
+  await expect(page.getByRole("status")).toContainText("активный владелец");
+
+  await page.getByLabel("Название направления").fill("Психологическая помощь");
+  await page.getByLabel("Тип направления").selectOption("SERVICE");
+  await page.getByRole("button", { name: "Добавить направление" }).click();
+  await expect(page.getByText("Психологическая помощь")).toBeVisible();
+  await expect(page.getByText("SERVICE · ACTIVE")).toBeVisible();
+
+  await page.getByRole("button", { name: "Архивировать" }).click();
+  await expect(page.getByText("SERVICE · ARCHIVED")).toBeVisible();
+  await expect(page.getByRole("status")).toContainText("История сохранена");
+
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Центр развития" })).toBeVisible();
+  await expect(page.getByText("SERVICE · ARCHIVED")).toBeVisible();
+  await expect(page.getByRole("status")).toContainText("Организации загружены");
 
   const accessibility = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])

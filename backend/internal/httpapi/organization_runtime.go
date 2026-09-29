@@ -11,6 +11,7 @@ import (
 
 type organizationRuntimeStore interface {
 	CreateOrganization(identityID, name string) (organization.Snapshot, error)
+	Organizations(identityID string) ([]organization.Snapshot, error)
 	Organization(identityID, organizationID string) (organization.Snapshot, error)
 	CreateOrganizationDirection(identityID, organizationID, name, directionType string) (organization.Snapshot, error)
 	ArchiveOrganizationDirection(identityID, organizationID, directionID string) (organization.Snapshot, error)
@@ -31,6 +32,23 @@ func registerOrganizationRuntime(
 	sessions *clientSessionManager,
 	sessionConfigErr error,
 ) {
+	mux.HandleFunc("GET /v1/organizations", func(w http.ResponseWriter, r *http.Request) {
+		if store == nil {
+			writeOrganizationRuntimeError(w, r, http.StatusServiceUnavailable, "ORGANIZATION_STORE_UNAVAILABLE", "Организационный контур временно недоступен.")
+			return
+		}
+		identityID, ok := trustedClientIdentity(w, r, sessions, sessionConfigErr, "")
+		if !ok {
+			return
+		}
+		snapshots, err := store.Organizations(identityID)
+		if err != nil {
+			writeOrganizationRuntimeFailure(w, r, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"organizations": snapshots})
+	})
+
 	mux.HandleFunc("POST /v1/organizations", func(w http.ResponseWriter, r *http.Request) {
 		if store == nil || sessions == nil || sessionConfigErr != nil {
 			writeOrganizationRuntimeError(w, r, http.StatusServiceUnavailable, "ORGANIZATION_STORE_UNAVAILABLE", "Организационный контур временно недоступен.")

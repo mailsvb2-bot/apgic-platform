@@ -73,6 +73,24 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
   /v1/organizations:
+    get:
+      operationId: listOrganizations
+      description: Lists organizations visible to the signed Identity through ACTIVE membership.
+      security:
+        - ClientSession: []
+      responses:
+        '200':
+          description: Organizations visible to the signed Identity
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [organizations]
+                properties:
+                  organizations:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/OrganizationSnapshot'
     post:
       operationId: createOrganization
       description: Creates an Organization and atomically attaches the signed Identity as ACTIVE member and explicit ACTIVE owner. Creates a signed client session when absent.

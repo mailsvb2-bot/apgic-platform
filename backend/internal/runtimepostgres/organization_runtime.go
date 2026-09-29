@@ -66,6 +66,51 @@ func (c *Checker) CreateOrganization(identityID, name string) (organization.Snap
 	return c.Organization(identityID, orgID)
 }
 
+func (c *Checker) Organizations(identityID string) ([]organization.Snapshot, error) {
+	if c == nil || c.db == nil {
+		return nil, errors.New("postgres checker is not initialized")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), organizationWriteTimeout)
+	defer cancel()
+
+	rows, err := c.db.QueryContext(ctx,
+		`SELECT o.id::text
+		   FROM organizations o
+		   JOIN organization_memberships m
+		     ON m.organization_id = o.id
+		    AND m.identity_id = $1::uuid
+		    AND m.status = 'ACTIVE'
+		  ORDER BY o.created_at, o.id`,
+		identityID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list organizations: %w", err)
+	}
+	defer rows.Close()
+
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scan organization id: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate organizations: %w", err)
+	}
+
+	snapshots := make([]organization.Snapshot, 0, len(ids))
+	for _, id := range ids {
+		snapshot, err := c.Organization(identityID, id)
+		if err != nil {
+			return nil, err
+		}
+		snapshots = append(snapshots, snapshot)
+	}
+	return snapshots, nil
+}
+
 func (c *Checker) Organization(identityID, organizationID string) (organization.Snapshot, error) {
 	if c == nil || c.db == nil {
 		return organization.Snapshot{}, errors.New("postgres checker is not initialized")
