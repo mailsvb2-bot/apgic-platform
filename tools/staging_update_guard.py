@@ -23,7 +23,9 @@ def main() -> None:
         'A)',
         'refusing deployment: existing migration changed',
         'systemctl start apgic-staging-backup.service',
-        'psql "$APGIC_DATABASE_URL" -v ON_ERROR_STOP=1 -f',
+        'refusing deployment: managed migration contains transaction control',
+        'deploy/staging/apply-staging-migrations.sh',
+        '=== Reconcile migration ledger ===',
         'go build -o bin/apgic-api ./cmd/api',
         'npm run build',
         'systemctl restart apgic-api-staging.service',
@@ -40,8 +42,8 @@ def main() -> None:
 
     ordered(text, 'git merge-base --is-ancestor', 'git reset --hard "$TARGET_SHA"')
     ordered(text, 'go build -o bin/apgic-api ./cmd/api', 'systemctl start apgic-staging-backup.service')
-    ordered(text, 'systemctl start apgic-staging-backup.service', 'psql "$APGIC_DATABASE_URL" -v ON_ERROR_STOP=1 -f')
-    ordered(text, 'psql "$APGIC_DATABASE_URL" -v ON_ERROR_STOP=1 -f', 'APGIC_COMMIT_SHA=$TARGET_SHA')
+    ordered(text, 'systemctl start apgic-staging-backup.service', '=== Reconcile migration ledger ===')
+    ordered(text, '=== Reconcile migration ledger ===', 'APGIC_COMMIT_SHA=$TARGET_SHA')
     ordered(text, 'APGIC_COMMIT_SHA=$TARGET_SHA', 'systemctl restart apgic-api-staging.service')
     ordered(text, 'systemctl restart apgic-web-staging.service', 'wait_for_http "API" "http://127.0.0.1:43111/readyz" 30 1')
     ordered(text, 'wait_for_http "API" "http://127.0.0.1:43111/readyz" 30 1', 'wait_for_http "Web" "http://127.0.0.1:43112/" 30 1')
