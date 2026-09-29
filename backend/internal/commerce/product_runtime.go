@@ -14,24 +14,24 @@ const (
 )
 
 var (
-	ErrProductInvalid            = errors.New("invalid product")
-	ErrProductNotFound           = errors.New("product not found")
-	ErrProductOwnerRequired      = errors.New("active organization owner required")
-	ErrProductDirectionInvalid   = errors.New("active organization direction required")
-	ErrProductAlreadyPublished   = errors.New("product already published")
+	ErrProductInvalid          = errors.New("invalid product")
+	ErrProductNotFound         = errors.New("product not found")
+	ErrProductOwnerRequired    = errors.New("active organization owner required")
+	ErrProductDirectionInvalid = errors.New("active organization direction required")
+	ErrProductAlreadyPublished = errors.New("product already published")
 )
 
 type ProductSnapshot struct {
-	ID                    string        `json:"id"`
-	Name                  string        `json:"name"`
-	Status                ProductStatus `json:"status"`
-	OwnerType             OwnerType     `json:"owner_type"`
-	OwnerID               string        `json:"owner_id"`
-	CommercialOwnerRef    string        `json:"commercial_owner_ref"`
-	AuthorRefs            []string      `json:"author_refs"`
-	RevenueBeneficiaryRef string        `json:"revenue_beneficiary_ref"`
-	OrganizationDirectionID string      `json:"organization_direction_id"`
-	PublishedAt           *time.Time    `json:"published_at,omitempty"`
+	ID                      string        `json:"id"`
+	Name                    string        `json:"name"`
+	Status                  ProductStatus `json:"status"`
+	OwnerType               OwnerType     `json:"owner_type"`
+	OwnerID                 string        `json:"owner_id"`
+	CommercialOwnerRef      string        `json:"commercial_owner_ref"`
+	AuthorRefs              []string      `json:"author_refs"`
+	RevenueBeneficiaryRef   string        `json:"revenue_beneficiary_ref"`
+	OrganizationDirectionID string        `json:"organization_direction_id"`
+	PublishedAt             *time.Time    `json:"published_at,omitempty"`
 }
 
 type OrganizationProductDraft struct {
