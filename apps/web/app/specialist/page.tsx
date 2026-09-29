@@ -42,6 +42,7 @@ export default function SpecialistPage() {
           </a>
           <nav className="top-nav" aria-label="Разделы">
             <a href="/">Для клиентов</a>
+            <a href="/organization">Организация</a>
             <a href="#path">Как подключиться</a>
           </nav>
         </header>
