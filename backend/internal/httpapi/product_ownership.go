@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"encoding/json"
 	"net/http"
 	"strings"
 	"time"
@@ -43,7 +44,7 @@ func registerHighRiskProductOwnership(
 			return
 		}
 		productID := strings.TrimSpace(r.PathValue("productID"))
-		currentOwner, found, err := store.IdentityOwnedProductCommercialOwner(productID, identityID)
+		_, found, err := store.IdentityOwnedProductCommercialOwner(productID, identityID)
 		if err != nil {
 			writeDemandError(w, r, http.StatusServiceUnavailable, "AUTH_STORE_UNAVAILABLE", "Защищённая операция временно недоступна.", true, nil)
 			return
@@ -54,7 +55,7 @@ func registerHighRiskProductOwnership(
 		}
 
 		var body productCommercialOwnerRequest
-		if err := readJSONBody(r, &body); err != nil || strings.TrimSpace(body.CommercialOwnerRef) == "" {
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || strings.TrimSpace(body.CommercialOwnerRef) == "" {
 			writeDemandError(w, r, http.StatusBadRequest, "PRODUCT_COMMERCIAL_OWNER_INVALID", "Укажите нового коммерческого владельца.", false, nil)
 			return
 		}
@@ -107,7 +108,6 @@ func registerHighRiskProductOwnership(
 			writeDemandError(w, r, http.StatusConflict, "PRODUCT_OWNERSHIP_UPDATE_FAILED", "Не удалось изменить коммерческого владельца.", false, nil)
 			return
 		}
-		_ = currentOwner
 		writeJSON(w, http.StatusOK, productCommercialOwnerResponse{
 			ProductID:          productID,
 			CommercialOwnerRef: body.CommercialOwnerRef,
