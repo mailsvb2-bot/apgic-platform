@@ -35,6 +35,21 @@ type Direction struct {
 	HasDependentTruth bool
 }
 
+type Snapshot struct {
+	ID         string              `json:"id"`
+	Name       string              `json:"name"`
+	Status     string              `json:"status"`
+	Directions []DirectionSnapshot `json:"directions"`
+}
+
+type DirectionSnapshot struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+	Name           string `json:"name"`
+	Type           string `json:"direction_type"`
+	Status         string `json:"status"`
+}
+
 func New(id, name string) *Organization {
 	return &Organization{ID: strings.TrimSpace(id), Name: strings.TrimSpace(name), Directions: make(map[string]*Direction)}
 }
