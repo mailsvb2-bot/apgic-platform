@@ -19,6 +19,8 @@ type OrderSnapshot struct {
 	PricingPolicyVersion    string
 	CommissionPolicyVersion string
 	LegalSnapshotRef        string
+	ProductID               string
+	OrganizationDirectionID string
 	ProductOwnerRef         string
 	AuthorRefs              []string
 	SellerRef               string
@@ -41,6 +43,8 @@ func NewOrderSnapshot(snapshot OrderSnapshot) (OrderSnapshot, error) {
 		snapshot.PricingPolicyVersion,
 		snapshot.CommissionPolicyVersion,
 		snapshot.LegalSnapshotRef,
+		snapshot.ProductID,
+		snapshot.OrganizationDirectionID,
 		snapshot.ProductOwnerRef,
 		snapshot.SellerRef,
 		snapshot.CommercialOwnerRef,
