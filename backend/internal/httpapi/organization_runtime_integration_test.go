@@ -106,6 +106,23 @@ func TestOrganizationDirectionHTTPPersistsOwnershipAndArchivesInsteadOfDelete(t 
 		t.Fatal("organization ownership hard delete unexpectedly succeeded")
 	}
 
+	listOrganizations := httptest.NewRequest(http.MethodGet, "/v1/organizations", nil)
+	listOrganizations.AddCookie(cookies[0])
+	listOrganizationsRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(listOrganizationsRecorder, listOrganizations)
+	if listOrganizationsRecorder.Code != http.StatusOK {
+		t.Fatalf("list organizations status=%d body=%s", listOrganizationsRecorder.Code, listOrganizationsRecorder.Body.String())
+	}
+	var listed struct {
+		Organizations []organization.Snapshot `json:"organizations"`
+	}
+	if err := json.Unmarshal(listOrganizationsRecorder.Body.Bytes(), &listed); err != nil {
+		t.Fatal(err)
+	}
+	if len(listed.Organizations) != 1 || listed.Organizations[0].ID != created.ID {
+		t.Fatalf("listed organizations=%#v", listed.Organizations)
+	}
+
 	createDirection := httptest.NewRequest(
 		http.MethodPost,
 		"/v1/organizations/"+created.ID+"/directions",
