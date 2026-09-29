@@ -356,7 +356,20 @@ test("organization workspace uses real organization lifecycle endpoints", async 
       status: string;
     }>;
   };
+  type Product = {
+    id: string;
+    name: string;
+    status: "DRAFT" | "PUBLISHED";
+    owner_type: "ORGANIZATION";
+    owner_id: string;
+    commercial_owner_ref: string;
+    author_refs: string[];
+    revenue_beneficiary_ref: string;
+    organization_direction_id: string;
+    published_at?: string;
+  };
   let snapshot: Snapshot | null = null;
+  let products: Product[] = [];
 
   await page.route("**/v1/organizations**", async (route) => {
     const request = route.request();
@@ -375,6 +388,46 @@ test("organization workspace uses real organization lifecycle endpoints", async 
     if (path === "/v1/organizations" && request.method() === "POST") {
       snapshot = { id: "org-e2e", name: body?.name || "", status: "ACTIVE", directions: [] };
       await route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify(snapshot) });
+      return;
+    }
+    if (path === "/v1/organizations/org-e2e/products" && request.method() === "GET") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ products }),
+      });
+      return;
+    }
+    if (path === "/v1/organizations/org-e2e/products" && request.method() === "POST" && snapshot) {
+      const requestBody = request.postDataJSON() as {
+        name: string;
+        direction_id: string;
+        commercial_owner_ref: string;
+        author_refs: string[];
+        revenue_beneficiary_ref: string;
+      };
+      const product: Product = {
+        id: "product-e2e",
+        name: requestBody.name,
+        status: "DRAFT",
+        owner_type: "ORGANIZATION",
+        owner_id: snapshot.id,
+        commercial_owner_ref: requestBody.commercial_owner_ref,
+        author_refs: requestBody.author_refs,
+        revenue_beneficiary_ref: requestBody.revenue_beneficiary_ref,
+        organization_direction_id: requestBody.direction_id,
+      };
+      products = [product];
+      await route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify(product) });
+      return;
+    }
+    if (
+      path === "/v1/organizations/org-e2e/products/product-e2e/publish" &&
+      request.method() === "POST" &&
+      products.length
+    ) {
+      products = [{ ...products[0], status: "PUBLISHED", published_at: "2026-09-29T18:00:00Z" }];
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(products[0]) });
       return;
     }
     if (path === "/v1/organizations/org-e2e/directions" && request.method() === "POST" && snapshot) {
@@ -411,6 +464,22 @@ test("organization workspace uses real organization lifecycle endpoints", async 
   await expect(page.getByText("Психологическая помощь")).toBeVisible();
   await expect(page.getByText("SERVICE · ACTIVE")).toBeVisible();
 
+  await page.getByLabel("Название продукта").fill("Первичная консультация");
+  await page.getByLabel("Направление продукта").selectOption("direction-e2e");
+  await page.getByLabel("Коммерческий владелец").fill("organization/org-e2e");
+  await page.getByLabel("Авторы").fill("identity/specialist-e2e");
+  await page.getByLabel("Получатель выручки").fill("identity/specialist-e2e");
+  await page.getByRole("button", { name: "Создать черновик продукта" }).click();
+  await expect(page.getByText("DRAFT · направление direction-e2e")).toBeVisible();
+  await expect(page.getByText("Коммерческий владелец: organization/org-e2e")).toBeVisible();
+  await expect(page.getByText("Авторы: identity/specialist-e2e")).toBeVisible();
+  await expect(page.getByText("Получатель выручки: identity/specialist-e2e")).toBeVisible();
+
+  await page.getByRole("button", { name: "Опубликовать" }).click();
+  await expect(page.getByText("PUBLISHED · направление direction-e2e")).toBeVisible();
+  await expect(page.getByText("Опубликован")).toBeVisible();
+  await expect(page.getByRole("status")).toContainText("опубликован");
+
   await page.getByRole("button", { name: "Архивировать" }).click();
   await expect(page.getByText("SERVICE · ARCHIVED")).toBeVisible();
   await expect(page.getByRole("status")).toContainText("История сохранена");
@@ -418,6 +487,8 @@ test("organization workspace uses real organization lifecycle endpoints", async 
   await page.reload();
   await expect(page.getByRole("heading", { name: "Центр развития" })).toBeVisible();
   await expect(page.getByText("SERVICE · ARCHIVED")).toBeVisible();
+  await expect(page.getByText("PUBLISHED · направление direction-e2e")).toBeVisible();
+  await expect(page.getByText("Опубликован")).toBeVisible();
   await expect(page.getByRole("status")).toContainText("Организации загружены");
 
   const accessibility = await new AxeBuilder({ page })
