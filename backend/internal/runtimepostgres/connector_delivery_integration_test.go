@@ -5,6 +5,7 @@ import (
 	"crypto/ed25519"
 	"encoding/base64"
 	"encoding/json"
+	"database/sql"
 	"errors"
 	"os"
 	"testing"
@@ -104,28 +105,6 @@ func TestConnectorWebhookAppliesBusinessEffectExactlyOnceAcrossOutOfOrderAndRetr
 			Signature:           base64.StdEncoding.EncodeToString(ed25519.Sign(privateKey, message)),
 		}
 	}
-
-	applyAuditEffect := func(ctx context.Context, tx interface {
-		ExecContext(context.Context, string, ...any) (sqlResult, error)
-	}, payload json.RawMessage) error {
-		var effect struct {
-			AuditID  string `json:"audit_id"`
-			Sequence uint64 `json:"sequence"`
-		}
-		if err := json.Unmarshal(payload, &effect); err != nil {
-			return err
-		}
-		_, err := tx.ExecContext(ctx, `
-			INSERT INTO audit_records (
-				id, actor_id, action, scope, reason, policy_version, correlation_id
-			) VALUES (
-				$1::uuid, 'connector-test', 'connector.business_effect', 'connector-test',
-				'WEBHOOK_APPLIED', 'connector-v1', $2
-			)
-		`, effect.AuditID, eventIDs[effect.Sequence-1])
-		return err
-	}
-	_ = applyAuditEffect
 
 	apply := connectorEffectInsertAudit(t, eventIDs)
 
