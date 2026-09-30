@@ -2433,7 +2433,9 @@ requirements:
   - tools/tests/test_multisurface_guard.py
   - .github/workflows/ci.yml
   - tools/multisurface_guard.py
-  evidence_refs: []
+  - tools/multisurface_verification_e2e.py
+  evidence_refs:
+  - docs/traceability/R0-mobile003-multisurface-verification.md
   acceptance:
     given: launch-critical requirement входит в R0–R4
     when: его заявляют VERIFIED/RELEASED
