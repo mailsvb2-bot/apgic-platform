@@ -31,6 +31,16 @@ func TestConnectorPersistenceKeepsProviderKindBehindCanonicalCapability(t *testi
 		t.Fatal(err)
 	}
 
+	t.Cleanup(func() {
+		if _, cleanupErr := store.db.Exec(
+			`DELETE FROM connector_instances WHERE id IN ($1::uuid, $2::uuid)`,
+			firstID,
+			secondID,
+		); cleanupErr != nil {
+			t.Errorf("cleanup provider-neutral connector proof: %v", cleanupErr)
+		}
+	})
+
 	for _, row := range []struct {
 		id           string
 		providerKind string
