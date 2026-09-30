@@ -20,9 +20,8 @@ def scan_file(path: Path) -> list[str]:
     text = path.read_text(encoding="utf-8", errors="ignore")
     errors: list[str] = []
     for number, line in enumerate(text.splitlines(), start=1):
-        for pattern in PATTERNS:
-            if pattern.search(line):
-                errors.append(f"{path.as_posix()}:{number}: client credential material/reference is forbidden")
+        if any(pattern.search(line) for pattern in PATTERNS):
+            errors.append(f"{path.as_posix()}:{number}: client credential material/reference is forbidden")
     return errors
 
 
