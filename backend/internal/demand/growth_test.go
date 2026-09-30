@@ -19,3 +19,34 @@ func TestGrowthCannotReceiveRawConsultationWithoutPurposeConsent(t *testing.T) {
 		t.Fatalf("consented export = %#v err=%v", exported, err)
 	}
 }
+
+func TestGrowthExportRequiresBookingOwner(t *testing.T) {
+	service := NewConformanceService(nil)
+	intent, err := service.CreateIntentForIdentity(
+		"11111111-1111-4111-8111-111111111111",
+		"бессонница",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.ConfirmIntent(intent.ID, []string{"sleep"}, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	slots, err := service.Slots("spec-lebedeva")
+	if err != nil || len(slots) == 0 {
+		t.Fatalf("slots=%#v err=%v", slots, err)
+	}
+	hold, err := service.AcquireHold(intent.ID, slots[0].ID, intent.ClientIdentityID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := service.RequireBookingOwner(hold.BookingID, intent.ClientIdentityID); err != nil {
+		t.Fatalf("owner rejected: %v", err)
+	}
+	if err := service.RequireBookingOwner(
+		hold.BookingID,
+		"22222222-2222-4222-8222-222222222222",
+	); !errors.Is(err, ErrBookingIdentityMismatch) {
+		t.Fatalf("cross-subject booking access err=%v", err)
+	}
+}
