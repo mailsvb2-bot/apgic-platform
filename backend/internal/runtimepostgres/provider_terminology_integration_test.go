@@ -105,10 +105,10 @@ func TestConnectorPersistenceKeepsProviderKindBehindCanonicalCapability(t *testi
 	if _, err := store.db.Exec(
 		`INSERT INTO connector_instances (
 			id, capability_class, provider_kind, status, config_ref
-		) VALUES ($1::uuid, 'ClientPlatform', 'vendor-gamma', 'ACTIVE', $2)`,
+		) VALUES ($1::uuid, 'vendor-alpha', 'vendor-gamma', 'ACTIVE', $2)`,
 		brandCapabilityID,
 		"secretref://connector/"+brandCapabilityID,
 	); err == nil {
-		t.Fatal("brand-coupled capability class unexpectedly persisted")
+		t.Fatal("provider-kind value unexpectedly persisted as canonical capability class")
 	}
 }
