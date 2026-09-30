@@ -3,7 +3,9 @@ package connector
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/security"
 )
@@ -29,13 +31,28 @@ func (p *fakeProvider) Execute(context.Context, CapabilityClass, Request) (Resul
 	return p.result, p.err
 }
 
-func scopedPrincipal(t *testing.T, scope string) security.ServicePrincipal {
+func scopedPrincipal(t *testing.T, scope string) security.AuthenticatedServicePrincipal {
 	t.Helper()
 	principal, err := security.NewServicePrincipal("connector-runtime", []string{scope})
 	if err != nil {
 		t.Fatal(err)
 	}
-	return principal
+	now := time.Now().UTC()
+	credential, err := security.NewServiceCredential(
+		principal.ID,
+		"test-v1",
+		strings.Repeat("s", 32),
+		now.Add(-time.Minute),
+		now.Add(time.Hour),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	authenticated, err := credential.Authenticate(principal, strings.Repeat("s", 32), now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return authenticated
 }
 
 func activeNotificationInstance(t *testing.T) Instance {
@@ -184,5 +201,47 @@ func TestRetryPolicyNeverRetriesAmbiguousOutcome(t *testing.T) {
 	}
 	if ShouldRetry(OutcomeRetryableFailure, 3, 3) {
 		t.Fatal("retry budget must be enforced")
+	}
+}
+
+func TestExpiredAuthenticatedPrincipalFailsBeforeProviderExecution(t *testing.T) {
+	instance := activeNotificationInstance(t)
+	provider := &fakeProvider{
+		kind:         "provider-a",
+		capabilities: []CapabilityClass{CapabilityNotification},
+		result:       Result{Outcome: OutcomeSuccess},
+	}
+	principal, err := security.NewServicePrincipal("connector-runtime", []string{instance.ExecuteScope})
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	credential, err := security.NewServiceCredential(
+		principal.ID,
+		"short-v1",
+		strings.Repeat("e", 32),
+		now.Add(-2*time.Second),
+		now.Add(time.Millisecond),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	authenticated, err := credential.Authenticate(principal, strings.Repeat("e", 32), now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(2 * time.Millisecond)
+	if _, err := Execute(
+		context.Background(),
+		instance,
+		provider,
+		authenticated,
+		validConnectorRequest(),
+		ExecutionPolicy{},
+	); !errors.Is(err, ErrConnectorScopeDenied) {
+		t.Fatalf("expired authenticated principal err=%v", err)
+	}
+	if provider.calls != 0 {
+		t.Fatal("provider called with expired authenticated principal")
 	}
 }
