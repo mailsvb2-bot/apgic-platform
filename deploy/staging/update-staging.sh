@@ -94,6 +94,22 @@ npm run build
 
 cd "$REPO_ROOT"
 
+ledger_exists="$(
+  psql "$APGIC_DATABASE_URL" -Atqc     "SELECT to_regclass('public.apgic_schema_migrations') IS NOT NULL"
+)"
+case "$ledger_exists" in
+  t|f) ;;
+  *)
+    echo "could not determine migration ledger state: $ledger_exists" >&2
+    exit 1
+    ;;
+esac
+
+backup_required=false
+if [[ "$ledger_exists" != "t" ]] || (("${#new_migrations[@]}" > 0)); then
+  backup_required=true
+fi
+
 if (("${#new_migrations[@]}" > 0)); then
   for migration in "${new_migrations[@]}"; do
     if grep -Eiq '^[[:space:]]*(BEGIN|COMMIT)[[:space:]]*;' "$REPO_ROOT/$migration"; then
@@ -101,8 +117,14 @@ if (("${#new_migrations[@]}" > 0)); then
       exit 1
     fi
   done
+fi
 
-  echo "=== Backup PostgreSQL ==="
+if [[ "$backup_required" == "true" ]]; then
+  if [[ "$ledger_exists" != "t" ]]; then
+    echo "=== Backup PostgreSQL before migration ledger bootstrap ==="
+  else
+    echo "=== Backup PostgreSQL before new migrations ==="
+  fi
   systemctl start apgic-staging-backup.service
   backup_result="$(systemctl show -p Result --value apgic-staging-backup.service)"
   if [[ "$backup_result" != "success" ]]; then

@@ -25,6 +25,11 @@ def main() -> None:
         'case "$status" in',
         'A)',
         'refusing deployment: existing migration changed',
+        "SELECT to_regclass('public.apgic_schema_migrations') IS NOT NULL",
+        'backup_required=false',
+        '[[ "$ledger_exists" != "t" ]] || (("${#new_migrations[@]}" > 0))',
+        '=== Backup PostgreSQL before migration ledger bootstrap ===',
+        '=== Backup PostgreSQL before new migrations ===',
         'systemctl start apgic-staging-backup.service',
         'refusing deployment: managed migration contains transaction control',
         'deploy/staging/apply-staging-migrations.sh',
@@ -45,7 +50,8 @@ def main() -> None:
 
     ordered(text, 'flock -n 9', 'git merge-base --is-ancestor')
     ordered(text, 'git merge-base --is-ancestor', 'git reset --hard "$TARGET_SHA"')
-    ordered(text, 'go build -o bin/apgic-api ./cmd/api', 'systemctl start apgic-staging-backup.service')
+    ordered(text, 'go build -o bin/apgic-api ./cmd/api', "SELECT to_regclass('public.apgic_schema_migrations') IS NOT NULL")
+    ordered(text, "SELECT to_regclass('public.apgic_schema_migrations') IS NOT NULL", 'systemctl start apgic-staging-backup.service')
     ordered(text, 'systemctl start apgic-staging-backup.service', '=== Reconcile migration ledger ===')
     ordered(text, '=== Reconcile migration ledger ===', 'APGIC_COMMIT_SHA=$TARGET_SHA')
     ordered(text, 'APGIC_COMMIT_SHA=$TARGET_SHA', 'systemctl restart apgic-api-staging.service')
