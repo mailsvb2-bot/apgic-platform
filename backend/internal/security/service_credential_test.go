@@ -2,6 +2,7 @@ package security
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -36,8 +37,8 @@ func TestServiceCredentialAuthenticatesWithoutRetainingPlaintext(t *testing.T) {
 		authenticated.CredentialVersion() != "v1" {
 		t.Fatalf("unexpected authenticated principal: %#v", authenticated)
 	}
-	if strings.Contains(strings.TrimSpace(strings.ReplaceAll(strings.TrimSpace(secret), " ", "")), "not-present") {
-		t.Fatal("unreachable")
+	if strings.Contains(fmt.Sprintf("%#v", credential), secret) {
+		t.Fatal("plaintext secret leaked through credential state")
 	}
 }
 
