@@ -2068,7 +2068,9 @@ requirements:
   - tools/canon_lint.py
   - .github/workflows/ci.yml
   - tools/canon_freeze_contract_guard.py
-  evidence_refs: []
+  - tools/tests/test_canon_launch_freeze_e2e.py
+  evidence_refs:
+  - docs/traceability/R0-canon001-launch-freeze.md
   acceptance:
     given: R0–R4 утверждены
     when: появляется новая полезная идея
