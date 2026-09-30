@@ -29,9 +29,10 @@ func New(id string, initial ...Role) (*Identity, error) {
 	}
 	i := &Identity{ID: id, version: 1, roles: make(map[Role]struct{})}
 	for _, role := range initial {
-		if _, err := i.AddRole(role); err != nil {
-			return nil, err
+		if !validRole(role) {
+			return nil, ErrInvalidRole
 		}
+		i.roles[role] = struct{}{}
 	}
 	return i, nil
 }
