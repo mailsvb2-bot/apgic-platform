@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"os"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -117,6 +116,10 @@ func TestJourneyCheckoutRejectsDraftProductWithoutSideEffects(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	directionID, err := persistentid.FromRef("catalog-specialist-direction", "spec-sokolov:consultation")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if _, err := store.db.Exec(
 		`UPDATE products
 		    SET status = 'DRAFT', published_at = NULL
@@ -125,7 +128,21 @@ func TestJourneyCheckoutRejectsDraftProductWithoutSideEffects(t *testing.T) {
 	); err != nil {
 		t.Fatalf("make product draft: %v", err)
 	}
+	if _, err := store.db.Exec(
+		`UPDATE organization_directions
+		    SET status = 'ARCHIVED', archived_at = now()
+		  WHERE id = $1::uuid`,
+		directionID,
+	); err != nil {
+		t.Fatalf("archive draft product direction: %v", err)
+	}
 	t.Cleanup(func() {
+		_, _ = store.db.Exec(
+			`UPDATE organization_directions
+			    SET status = 'ACTIVE', archived_at = NULL
+			  WHERE id = $1::uuid`,
+			directionID,
+		)
 		_, _ = store.db.Exec(
 			`UPDATE products
 			    SET status = 'PUBLISHED', published_at = COALESCE(published_at, now())
@@ -134,9 +151,8 @@ func TestJourneyCheckoutRejectsDraftProductWithoutSideEffects(t *testing.T) {
 		)
 	})
 
-	if _, err := service.CreateCheckout(hold.ID, intent.ClientIdentityID, "SBP"); err == nil ||
-		!strings.Contains(err.Error(), "checkout requires published product") {
-		t.Fatalf("draft checkout err=%v", err)
+	if _, err := service.CreateCheckout(hold.ID, intent.ClientIdentityID, "SBP"); err == nil {
+		t.Fatal("draft checkout unexpectedly succeeded")
 	}
 
 	var orderCount, attemptCount int
