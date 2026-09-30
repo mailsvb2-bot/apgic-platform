@@ -3,28 +3,31 @@ package connector
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/security"
 )
 
 var (
-	ErrConnectorUnavailable  = errors.New("connector is not available for execution")
-	ErrConnectorDegraded     = errors.New("connector is degraded and degraded execution is not allowed")
-	ErrConnectorScopeDenied  = errors.New("service principal lacks connector execute scope")
-	ErrProviderMismatch      = errors.New("provider does not match connector instance")
-	ErrCapabilityMismatch    = errors.New("provider does not expose connector capability")
-	ErrInvalidProviderResult = errors.New("provider result violates connector contract")
+	ErrConnectorUnavailable      = errors.New("connector is not available for execution")
+	ErrConnectorDegraded         = errors.New("connector is degraded and degraded execution is not allowed")
+	ErrConnectorScopeDenied      = errors.New("service principal lacks connector execute scope")
+	ErrConnectorCredentialDenied = errors.New("service principal credential is not active")
+	ErrProviderMismatch          = errors.New("provider does not match connector instance")
+	ErrCapabilityMismatch        = errors.New("provider does not expose connector capability")
+	ErrInvalidProviderResult     = errors.New("provider result violates connector contract")
 )
 
 type ExecutionPolicy struct {
 	AllowDegraded bool
+	Now           func() time.Time
 }
 
 func Execute(
 	ctx context.Context,
 	instance Instance,
 	provider Provider,
-	principal security.ServicePrincipal,
+	principal security.AuthenticatedServicePrincipal,
 	request Request,
 	policy ExecutionPolicy,
 ) (Result, error) {
@@ -34,6 +37,13 @@ func Execute(
 	}
 	if err := request.Validate(); err != nil {
 		return Result{}, err
+	}
+	now := time.Now().UTC()
+	if policy.Now != nil {
+		now = policy.Now().UTC()
+	}
+	if !principal.ValidAt(now) {
+		return Result{}, ErrConnectorCredentialDenied
 	}
 	if !principal.HasScope(instance.ExecuteScope) {
 		return Result{}, ErrConnectorScopeDenied
