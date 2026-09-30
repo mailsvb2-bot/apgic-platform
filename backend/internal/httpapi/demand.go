@@ -398,6 +398,14 @@ func registerDemand(mux *http.ServeMux, service *demand.Service, sessions *clien
 			writeDemandError(w, r, http.StatusServiceUnavailable, "DEMAND_CATALOG_UNAVAILABLE", "Каталог спроса не подключён.", false, nil)
 			return
 		}
+		clientIdentityID, ok := trustedClientIdentity(w, r, sessions, sessionConfigErr, "")
+		if !ok {
+			return
+		}
+		if err := service.RequireBookingOwner(r.PathValue("bookingID"), clientIdentityID); err != nil {
+			writeDemandFailure(w, r, err)
+			return
+		}
 		var body struct {
 			PurposeConsent bool `json:"purpose_consent"`
 		}
@@ -533,6 +541,8 @@ func writeDemandFailure(w http.ResponseWriter, r *http.Request, err error) {
 		writeDemandError(w, r, http.StatusConflict, "HELP_INTENT_NOT_CONFIRMED", "Сначала подтвердите, как мы поняли запрос.", false, []string{"HELP_INTENT_NOT_CONFIRMED"})
 	case errors.Is(err, demand.ErrIdentityMismatch):
 		writeDemandError(w, r, http.StatusForbidden, "HELP_INTENT_IDENTITY_MISMATCH", "Этот запрос принадлежит другому клиенту.", false, nil)
+	case errors.Is(err, demand.ErrBookingIdentityMismatch):
+		writeDemandError(w, r, http.StatusForbidden, "DATA_SUBJECT_IDENTITY_MISMATCH", "Эта консультация принадлежит другому клиенту.", false, []string{"DATA_SUBJECT_IDENTITY_MISMATCH"})
 	case errors.Is(err, demand.ErrSlotHeld):
 		writeDemandError(w, r, http.StatusConflict, "BOOK_SLOT_HELD", "Этот слот уже удерживается другим клиентом.", false, []string{"BOOK_SLOT_HELD"})
 	case errors.Is(err, demand.ErrSlotBooked):
