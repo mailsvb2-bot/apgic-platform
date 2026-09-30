@@ -117,7 +117,6 @@ if (("${#new_migrations[@]}" > 0)); then
       exit 1
     fi
   done
-
 fi
 
 if [[ "$backup_required" == "true" ]]; then
