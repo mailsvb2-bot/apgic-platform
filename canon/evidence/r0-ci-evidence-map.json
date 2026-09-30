@@ -651,11 +651,23 @@
             "apps/mobile/src/device-capability.test.ts",
             "tools/mobile_capability_contract_guard.py"
           ]
+        },
+        "NATIVE_E2E": {
+          "gates": [
+            "android-native-build",
+            "ios-native-build"
+          ],
+          "proof_refs": [
+            "apps/mobile/src/App.tsx",
+            "apps/mobile/android/app/src/main/java/com/apgic/ci/MainActivity.kt",
+            "apps/mobile/ios/APGIC/AppDelegate.swift",
+            "tools/mobile_android_capability_e2e.sh",
+            "tools/mobile_ios_capability_e2e.sh",
+            ".github/workflows/ci.yml"
+          ]
         }
       },
-      "unproven_evidence": [
-        "NATIVE_E2E"
-      ]
+      "unproven_evidence": []
     },
     "APGIC-MOBILE-005": {
       "claims": {
