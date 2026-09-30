@@ -11,6 +11,7 @@ METRO_LOG="/tmp/apgic-metro-android.log"
 EMULATOR_LOG="/tmp/apgic-emulator.log"
 METRO_PID=""
 EMULATOR_PID=""
+ADB=""
 
 fail() {
   echo "ANDROID CAPABILITY NATIVE E2E: FAIL: $*" >&2
@@ -27,7 +28,9 @@ cleanup() {
   if [[ -n "$METRO_PID" ]]; then
     kill "$METRO_PID" 2>/dev/null || true
   fi
-  adb emu kill >/dev/null 2>&1 || true
+  if [[ -n "$ADB" ]]; then
+    "$ADB" emu kill >/dev/null 2>&1 || true
+  fi
   if [[ -n "$EMULATOR_PID" ]]; then
     kill "$EMULATOR_PID" 2>/dev/null || true
   fi
@@ -47,6 +50,10 @@ AVDMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/avdmanager"
 yes | "$SDKMANAGER" --licenses >/dev/null || true
 "$SDKMANAGER" "platform-tools" "emulator" "$SYSTEM_IMAGE"
 
+ADB="$SDK_ROOT/platform-tools/adb"
+[[ -x "$ADB" ]] || ADB="$(command -v adb || true)"
+[[ -x "$ADB" ]] || fail "platform-tools installed but adb binary not found"
+
 EMULATOR="$SDK_ROOT/emulator/emulator"
 [[ -x "$EMULATOR" ]] || EMULATOR="$(command -v emulator || true)"
 [[ -x "$EMULATOR" ]] || fail "emulator package installed but binary not found"
@@ -61,19 +68,19 @@ fi
 "$EMULATOR"   -avd "$AVD_NAME"   -no-window   -no-audio   -no-snapshot   -no-boot-anim   -gpu swiftshader_indirect   >"$EMULATOR_LOG" 2>&1 &
 EMULATOR_PID=$!
 
-adb wait-for-device
+"$ADB" wait-for-device
 for _ in $(seq 1 120); do
-  if [[ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" == "1" ]]; then
+  if [[ "$("$ADB" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" == "1" ]]; then
     break
   fi
   sleep 2
 done
-[[ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" == "1" ]] ||
+[[ "$("$ADB" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" == "1" ]] ||
   fail "emulator did not finish booting"
 
-adb shell settings put global window_animation_scale 0
-adb shell settings put global transition_animation_scale 0
-adb shell settings put global animator_duration_scale 0
+"$ADB" shell settings put global window_animation_scale 0
+"$ADB" shell settings put global transition_animation_scale 0
+"$ADB" shell settings put global animator_duration_scale 0
 
 (
   cd "$ROOT/apps/mobile"
@@ -90,8 +97,8 @@ done
 curl -fsS http://127.0.0.1:8081/status | grep -q "packager-status:running" ||
   fail "Metro did not become ready"
 
-adb reverse tcp:8081 tcp:8081
-adb install -r "$APK" >/dev/null
+"$ADB" reverse tcp:8081 tcp:8081
+"$ADB" install -r "$APK" >/dev/null
 mkdir -p "$EVIDENCE_DIR"
 
 assert_state() {
@@ -100,12 +107,12 @@ assert_state() {
   local remote="/sdcard/apgic-capability-${state}.xml"
   local local_file="$EVIDENCE_DIR/android-capability-e2e-${state}.xml"
 
-  adb shell am force-stop com.apgic.ci
-  adb shell am start -W     -n com.apgic.ci/.MainActivity     --es APGIC_E2E_CAPABILITY_STATE "$state"     >/dev/null
+  "$ADB" shell am force-stop com.apgic.ci
+  "$ADB" shell am start -W     -n com.apgic.ci/.MainActivity     --es APGIC_E2E_CAPABILITY_STATE "$state"     >/dev/null
 
   for _ in $(seq 1 30); do
-    if adb shell uiautomator dump "$remote" >/dev/null 2>&1 &&
-       adb pull "$remote" "$local_file" >/dev/null 2>&1 &&
+    if "$ADB" shell uiautomator dump "$remote" >/dev/null 2>&1 &&
+       "$ADB" pull "$remote" "$local_file" >/dev/null 2>&1 &&
        grep -q "capability-state:${state}" "$local_file" &&
        grep -q "capability-fallback:${reason}" "$local_file"; then
       echo "Android native E2E state $state: PASS"
