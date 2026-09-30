@@ -656,13 +656,24 @@ requirements:
   dependencies: []
   implementation_refs:
   - backend/internal/security/service_principal.go
+  - backend/internal/security/service_credential.go
+  - backend/internal/connector/executor.go
   - tools/architecture_guard.py
+  - tools/client_credential_guard.py
   contract_refs:
   - contracts/jsonschema/service-principal-v1.schema.json
+  - contracts/jsonschema/service-credential-metadata-v1.schema.json
   test_refs:
   - backend/internal/security/service_principal_test.go
+  - backend/internal/security/service_credential_test.go
+  - backend/internal/connector/executor_test.go
   - tools/security_contract_guard.py
-  evidence_refs: []
+  - tools/service_credential_contract_guard.py
+  - tools/client_credential_guard.py
+  - tools/tests/test_client_credential_guard.py
+  - tools/repository_secret_scan.py
+  evidence_refs:
+  - docs/traceability/R0-sec001-service-credential-lifecycle.md
   acceptance:
     given: connector/service запускается в production
     when: он аутентифицируется
