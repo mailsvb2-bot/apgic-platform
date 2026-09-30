@@ -22,8 +22,8 @@ jobs:
     name: Canon / architecture conformance
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.13'
       - run: python -m pip install -r requirements-dev.txt
@@ -150,8 +150,8 @@ jobs:
     name: Go format / vet / race tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version: '1.27.1'
           cache-dependency-path: backend/go.mod
@@ -191,8 +191,8 @@ jobs:
     env:
       PGPASSWORD: apgic
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
@@ -358,7 +358,7 @@ jobs:
       PGDATABASE: apgic_ci
       APGIC_CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - shell: bash
         run: |
           psql -v ON_ERROR_STOP=1 -f backend/migrations/000001_r0_foundation.sql
@@ -386,7 +386,7 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f backend/migrations/000023_r0_product_runtime.sql
           psql -v ON_ERROR_STOP=1 -f backend/migrations/000024_r0_published_product_order_gate.sql
           bash backend/ci/restore_drill.sh
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: r0-restore-drill-evidence
           path: evidence/restore-drill.json
@@ -399,8 +399,8 @@ jobs:
     env:
       NEXT_TELEMETRY_DISABLED: '1'
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
       - working-directory: apps/web
@@ -417,11 +417,11 @@ jobs:
     name: Native / React Native typecheck
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.13'
       - working-directory: apps/mobile
@@ -435,7 +435,7 @@ jobs:
           python ../../tools/mobile_sbom.py \
             --tree ../../evidence/mobile-npm-tree.json \
             --output ../../evidence/mobile-sbom.cdx.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: mobile-cyclonedx-sbom
           path: |
@@ -452,11 +452,11 @@ jobs:
     name: Android native debug build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
-      - uses: actions/setup-java@v5
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
@@ -528,7 +528,7 @@ jobs:
           test -n "$MERGED_MANIFEST"
           python tools/mobile_build_privacy_inspection.py             --android-manifest "$MERGED_MANIFEST"             --android-data-safety apps/mobile/android/data-safety.yaml             --output evidence/android-build-privacy-inspection.json
           sha256sum apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk > evidence/android-debug.sha256
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: android-native-debug-build
           path: |
@@ -542,8 +542,8 @@ jobs:
     name: iOS native simulator build
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
       - working-directory: apps/mobile
@@ -569,7 +569,7 @@ jobs:
           python tools/mobile_build_privacy_inspection.py             --ios-app "$APP"             --canonical-ios-manifest apps/mobile/ios/APGIC/PrivacyInfo.xcprivacy             --output evidence/ios-build-privacy-inspection.json
           ditto -c -k --keepParent "$APP" evidence/APGIC-ios-simulator.zip
           shasum -a 256 evidence/APGIC-ios-simulator.zip > evidence/ios-simulator.sha256
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ios-native-simulator-build
           path: |
@@ -583,7 +583,7 @@ jobs:
     name: Multi-surface contract guard
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - shell: bash
         run: |
           test -f contracts/openapi/apgic-v1.yaml
@@ -602,7 +602,7 @@ jobs:
     needs: [canon, backend, postgres-invariants, restore-drill, web-build, mobile-typecheck, mobile-android-build, mobile-ios-build, client-contract-presence]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - shell: bash
         run: |
           test "${{ needs.canon.result }}" = "success"
@@ -617,7 +617,7 @@ jobs:
       - shell: bash
         run: |
           python tools/release_evidence.py             --candidate-sha "${{ github.event.pull_request.head.sha || github.sha }}"             --output evidence/r0-release-evidence.json             --gate "canon=${{ needs.canon.result }}"             --gate "backend=${{ needs.backend.result }}"             --gate "postgres-invariants=${{ needs.postgres-invariants.result }}"             --gate "restore-drill=${{ needs.restore-drill.result }}"             --gate "web-build=${{ needs.web-build.result }}"             --gate "mobile-typecheck=${{ needs.mobile-typecheck.result }}"             --gate "android-native-build=${{ needs.mobile-android-build.result }}"             --gate "ios-native-build=${{ needs.mobile-ios-build.result }}"             --gate "client-contract-presence=${{ needs.client-contract-presence.result }}"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: r0-release-evidence
           path: evidence/r0-release-evidence.json
