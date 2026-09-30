@@ -253,7 +253,8 @@ requirements:
   - backend/internal/httpapi/client_session_http_test.go
   - tools/tests/test_auth_contract_guard.py
   - docs/traceability/R0-auth001-tenant-isolation.md
-  evidence_refs: []
+  evidence_refs:
+  - docs/traceability/R0-auth001-tenant-isolation.md
   acceptance:
     given: principal Organization A знает UUID private resource Organization B
     when: он вызывает protected endpoint
@@ -278,6 +279,9 @@ requirements:
   - backend/internal/authz/authz.go
   - backend/internal/runtimepostgres/check.go
   - tools/auth_contract_guard.py
+  - backend/internal/httpapi/step_up.go
+  - backend/internal/httpapi/product_ownership.go
+  - backend/internal/runtimepostgres/product_ownership.go
   contract_refs:
   - packages/contracts/src/foundation.ts
   - contracts/jsonschema/authorization-v1.schema.json
@@ -286,7 +290,9 @@ requirements:
   - backend/internal/authz/authz_test.go
   - backend/internal/runtimepostgres/check_test.go
   - tools/tests/test_auth_contract_guard.py
-  evidence_refs: []
+  - backend/internal/httpapi/product_ownership_integration_test.go
+  evidence_refs:
+  - docs/traceability/R0-auth002-step-up.md
   acceptance:
     given: авторизованный пользователь пытается изменить payout requisites/ownership/secret
     when: step-up отсутствует или устарел
@@ -319,7 +325,8 @@ requirements:
   - backend/internal/organization/organization_test.go
   - backend/internal/httpapi/organization_runtime_integration_test.go
   - tools/organization_contract_guard.py
-  evidence_refs: []
+  evidence_refs:
+  - docs/traceability/R0-organization-directions.md
   acceptance:
     given: создана Organization
     when: владелец создаёт направление деятельности любого поддерживаемого типа
@@ -360,7 +367,9 @@ requirements:
   - backend/internal/httpapi/organization_runtime_integration_test.go
   - backend/migrations/ci_invariants.sql
   - tools/organization_contract_guard.py
-  evidence_refs: []
+  evidence_refs:
+  - docs/traceability/R0-organization-directions.md
+  - docs/traceability/R0-org002-history-links.md
   acceptance:
     given: direction имеет продажи/booking
     when: администратор пытается удалить direction
@@ -436,7 +445,8 @@ requirements:
   - backend/migrations/ci_r0_connector_delivery_invariants.sql
   - tools/connector_contract_guard.py
   - docs/traceability/R0-conn002-atomic-webhook-effects.md
-  evidence_refs: []
+  evidence_refs:
+  - docs/traceability/R0-conn002-atomic-webhook-effects.md
   acceptance:
     given: provider повторяет/переставляет webhook
     when: connector обрабатывает delivery
@@ -475,7 +485,8 @@ requirements:
   - backend/migrations/ci_invariants.sql
   - tools/event_contract_guard.py
   - docs/traceability/R0-event001-transactional-outbox.md
-  evidence_refs: []
+  evidence_refs:
+  - docs/traceability/R0-event001-transactional-outbox.md
   acceptance:
     given: domain transaction создаёт событие
     when: процесс падает после DB commit до внешней доставки
@@ -500,13 +511,16 @@ requirements:
   implementation_refs:
   - backend/internal/audit/audit.go
   - backend/migrations/000001_r0_foundation.sql
+  - backend/internal/runtimepostgres/product_ownership.go
   contract_refs:
   - contracts/jsonschema/audit-evidence-v1.schema.json
   test_refs:
   - backend/internal/authz/evaluator_test.go
   - backend/internal/audit/audit_test.go
   - tools/audit_contract_guard.py
-  evidence_refs: []
+  - backend/internal/runtimepostgres/product_ownership_audit_integration_test.go
+  evidence_refs:
+  - canon/evidence/r0-ci-evidence-map.json
   acceptance:
     given: оператор выполняет high-risk override
     when: операция завершается
@@ -547,7 +561,8 @@ requirements:
   - backend/migrations/ci_invariants.sql
   - .github/workflows/ci.yml
   - tools/ledger_contract_guard.py
-  evidence_refs: []
+  evidence_refs:
+  - canon/evidence/r0-ci-evidence-map.json
   acceptance:
     given: создан payment/commission/refund effect
     when: финансовое состояние читается системой
@@ -906,7 +921,8 @@ requirements:
   - backend/internal/legal/transaction_snapshot_test.go
   - backend/internal/runtimepostgres/journey_test.go
   - tools/legal_snapshot_contract_guard.py
-  evidence_refs: []
+  evidence_refs:
+  - canon/evidence/r0-ci-evidence-map.json
   acceptance:
     given: Order создаётся
     when: цена/продавец/роль платформы определены
@@ -940,7 +956,8 @@ requirements:
   - backend/internal/runtimepostgres/legal_acceptance_test.go
   - tools/legal_acceptance_contract_guard.py
   - tools/auth_contract_guard.py
-  evidence_refs: []
+  evidence_refs:
+  - canon/evidence/r0-ci-evidence-map.json
   acceptance:
     given: пользователь принимает документ vN
     when: позже публикуется vN+1
@@ -2340,7 +2357,8 @@ requirements:
   test_refs:
   - .github/workflows/ci.yml
   - tools/multisurface_guard.py
-  evidence_refs: []
+  evidence_refs:
+  - canon/evidence/r0-ci-evidence-map.json
   acceptance:
     given: существуют web и native clients
     when: они выполняют одинаковую business command
@@ -2372,7 +2390,8 @@ requirements:
   test_refs:
   - .github/workflows/ci.yml
   - tools/multisurface_guard.py
-  evidence_refs: []
+  evidence_refs:
+  - canon/evidence/r0-ci-evidence-map.json
   acceptance:
     given: создан native workspace
     when: проверяются imports/shared packages
@@ -2633,7 +2652,8 @@ requirements:
   - .github/workflows/ci.yml
   - tools/mobile_storage_contract_guard.py
   - tools/tests/test_mobile_native_storage_audit.py
-  evidence_refs: []
+  evidence_refs:
+  - canon/evidence/r0-ci-evidence-map.json
   acceptance:
     given: native client обрабатывает sensitive/session data
     when: данные кешируются или logout/revoke
@@ -2675,7 +2695,8 @@ requirements:
   - tools/tests/test_client_contract_generation.py
   - .github/workflows/ci.yml
   - tools/multisurface_guard.py
-  evidence_refs: []
+  evidence_refs:
+  - canon/evidence/r0-ci-evidence-map.json
   acceptance:
     given: OpenAPI/schema меняется
     when: CI генерирует web+iOS/Android client packages
@@ -3074,7 +3095,8 @@ requirements:
   - tools/mobile_dependency_contract_guard.py
   - tools/tests/test_mobile_sbom.py
   - tools/tests/test_repository_secret_scan.py
-  evidence_refs: []
+  evidence_refs:
+  - canon/evidence/r0-ci-evidence-map.json
   acceptance:
     given: mobile dependency is added/upgraded
     when: CI evaluates build graph
@@ -3112,7 +3134,8 @@ requirements:
   - .github/workflows/ci.yml
   - tools/mobile_privacy_contract_guard.py
   - tools/tests/test_mobile_build_privacy_inspection.py
-  evidence_refs: []
+  evidence_refs:
+  - canon/evidence/r0-ci-evidence-map.json
   acceptance:
     given: release candidate contains native SDKs/APIs
     when: privacy preflight compares declarations and build
@@ -3246,7 +3269,8 @@ requirements:
   test_refs:
   - backend/internal/remoteconfig/config_test.go
   - .github/workflows/ci.yml
-  evidence_refs: []
+  evidence_refs:
+  - canon/evidence/r0-ci-evidence-map.json
   acceptance:
     given: installed versions span compatibility window
     when: config/backend changes or incident occurs
@@ -3429,7 +3453,8 @@ requirements:
   test_refs:
   - backend/internal/payments/taxonomy_test.go
   - tools/tests/test_payment_taxonomy_architecture_guard.py
-  evidence_refs: []
+  evidence_refs:
+  - canon/evidence/r0-ci-evidence-map.json
   acceptance:
     given: payment contracts are generated
     when: provider/method/rail values are created or processed
