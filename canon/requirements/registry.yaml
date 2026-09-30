@@ -511,13 +511,16 @@ requirements:
   implementation_refs:
   - backend/internal/audit/audit.go
   - backend/migrations/000001_r0_foundation.sql
+  - backend/internal/runtimepostgres/product_ownership.go
   contract_refs:
   - contracts/jsonschema/audit-evidence-v1.schema.json
   test_refs:
   - backend/internal/authz/evaluator_test.go
   - backend/internal/audit/audit_test.go
   - tools/audit_contract_guard.py
-  evidence_refs: []
+  - backend/internal/runtimepostgres/product_ownership_audit_integration_test.go
+  evidence_refs:
+  - canon/evidence/r0-ci-evidence-map.json
   acceptance:
     given: оператор выполняет high-risk override
     when: операция завершается
