@@ -27,7 +27,8 @@ var (
 	ErrSlotUnavailable    = errors.New("slot is not available")
 	ErrSlotHeld           = errors.New("slot already has an active hold")
 	ErrSlotBooked         = errors.New("slot already has a live booking")
-	ErrIdentityMismatch   = errors.New("client identity does not own the help intent")
+	ErrIdentityMismatch        = errors.New("client identity does not own the help intent")
+	ErrBookingIdentityMismatch = errors.New("client identity does not own the booking")
 	ErrHoldNotFound       = errors.New("slot hold not found")
 	ErrHoldNotActive      = errors.New("slot hold is not active")
 	ErrMethodNotEligible  = errors.New("payment method is not eligible")
@@ -375,6 +376,22 @@ func (s *Service) RequireIntentOwner(intentID, clientIdentityID string) error {
 	}
 	if intent.ClientIdentityID != clientIdentityID {
 		return ErrIdentityMismatch
+	}
+	return nil
+}
+
+func (s *Service) RequireBookingOwner(bookingID, clientIdentityID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.refreshJourneyLocked(); err != nil {
+		return err
+	}
+	booked, ok := s.bookings[bookingID]
+	if !ok || booked == nil {
+		return ErrOrderNotFound
+	}
+	if booked.ClientIdentityID != clientIdentityID {
+		return ErrBookingIdentityMismatch
 	}
 	return nil
 }
