@@ -253,7 +253,8 @@ requirements:
   - backend/internal/httpapi/client_session_http_test.go
   - tools/tests/test_auth_contract_guard.py
   - docs/traceability/R0-auth001-tenant-isolation.md
-  evidence_refs: []
+  evidence_refs:
+  - docs/traceability/R0-auth001-tenant-isolation.md
   acceptance:
     given: principal Organization A знает UUID private resource Organization B
     when: он вызывает protected endpoint
@@ -278,6 +279,9 @@ requirements:
   - backend/internal/authz/authz.go
   - backend/internal/runtimepostgres/check.go
   - tools/auth_contract_guard.py
+  - backend/internal/httpapi/step_up.go
+  - backend/internal/httpapi/product_ownership.go
+  - backend/internal/runtimepostgres/product_ownership.go
   contract_refs:
   - packages/contracts/src/foundation.ts
   - contracts/jsonschema/authorization-v1.schema.json
@@ -286,7 +290,9 @@ requirements:
   - backend/internal/authz/authz_test.go
   - backend/internal/runtimepostgres/check_test.go
   - tools/tests/test_auth_contract_guard.py
-  evidence_refs: []
+  - backend/internal/httpapi/product_ownership_integration_test.go
+  evidence_refs:
+  - docs/traceability/R0-auth002-step-up.md
   acceptance:
     given: авторизованный пользователь пытается изменить payout requisites/ownership/secret
     when: step-up отсутствует или устарел
@@ -319,7 +325,8 @@ requirements:
   - backend/internal/organization/organization_test.go
   - backend/internal/httpapi/organization_runtime_integration_test.go
   - tools/organization_contract_guard.py
-  evidence_refs: []
+  evidence_refs:
+  - docs/traceability/R0-organization-directions.md
   acceptance:
     given: создана Organization
     when: владелец создаёт направление деятельности любого поддерживаемого типа
@@ -360,7 +367,9 @@ requirements:
   - backend/internal/httpapi/organization_runtime_integration_test.go
   - backend/migrations/ci_invariants.sql
   - tools/organization_contract_guard.py
-  evidence_refs: []
+  evidence_refs:
+  - docs/traceability/R0-organization-directions.md
+  - docs/traceability/R0-org002-history-links.md
   acceptance:
     given: direction имеет продажи/booking
     when: администратор пытается удалить direction
@@ -436,7 +445,8 @@ requirements:
   - backend/migrations/ci_r0_connector_delivery_invariants.sql
   - tools/connector_contract_guard.py
   - docs/traceability/R0-conn002-atomic-webhook-effects.md
-  evidence_refs: []
+  evidence_refs:
+  - docs/traceability/R0-conn002-atomic-webhook-effects.md
   acceptance:
     given: provider повторяет/переставляет webhook
     when: connector обрабатывает delivery
@@ -475,7 +485,8 @@ requirements:
   - backend/migrations/ci_invariants.sql
   - tools/event_contract_guard.py
   - docs/traceability/R0-event001-transactional-outbox.md
-  evidence_refs: []
+  evidence_refs:
+  - docs/traceability/R0-event001-transactional-outbox.md
   acceptance:
     given: domain transaction создаёт событие
     when: процесс падает после DB commit до внешней доставки
