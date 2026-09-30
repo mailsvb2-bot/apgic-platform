@@ -2458,13 +2458,19 @@ requirements:
   - APGIC-MOBILE-002
   implementation_refs:
   - apps/mobile/src/device-capability.ts
+  - apps/mobile/src/App.tsx
+  - apps/mobile/android/app/src/main/java/com/apgic/ci/MainActivity.kt
+  - apps/mobile/ios/APGIC/AppDelegate.swift
   contract_refs:
   - contracts/jsonschema/mobile-device-capability-v1.schema.json
   test_refs:
   - apps/mobile/src/device-capability.test.ts
   - .github/workflows/ci.yml
   - tools/mobile_capability_contract_guard.py
-  evidence_refs: []
+  - tools/mobile_android_capability_e2e.sh
+  - tools/mobile_ios_capability_e2e.sh
+  evidence_refs:
+  - docs/traceability/R0-mobile004-native-capability-e2e.md
   acceptance:
     given: capability требует microphone/camera/calendar/secure storage
     when: permission denied/restricted/unavailable
