@@ -559,6 +559,8 @@ func writeDemandFailure(w http.ResponseWriter, r *http.Request, err error) {
 		writeDemandError(w, r, http.StatusConflict, "CHECKOUT_METHOD_LOCKED", "Способ оплаты уже зафиксирован.", false, nil)
 	case errors.Is(err, demand.ErrCustodyForbidden):
 		writeDemandError(w, r, http.StatusConflict, "PAY_CUSTODY_FORBIDDEN", "APGIC не принимает деньги.", false, []string{"PAY_EXTERNAL_EXECUTION_REQUIRED"})
+	case errors.Is(err, demand.ErrBookingNotFound):
+		writeDemandError(w, r, http.StatusNotFound, "NOT_FOUND", "Бронирование не найдено.", false, nil)
 	case errors.Is(err, demand.ErrOrderNotFound):
 		writeDemandError(w, r, http.StatusNotFound, "NOT_FOUND", "Поручение на оплату не найдено.", false, nil)
 	case errors.Is(err, demand.ErrEvidenceMismatch):
