@@ -30,8 +30,7 @@
             "postgres-invariants"
           ],
           "proof_refs": [
-            "backend/internal/httpapi/identity_multirole_integration_test.go",
-            ".github/workflows/ci.yml"
+            "backend/internal/httpapi/identity_multirole_integration_test.go"
           ]
         }
       },
