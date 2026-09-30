@@ -2453,7 +2453,7 @@ requirements:
   release_profile: R0
   risk: HIGH
   priority: P0
-  status: IN_PROGRESS
+  status: VERIFIED
   dependencies:
   - APGIC-MOBILE-002
   implementation_refs:
