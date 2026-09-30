@@ -12,7 +12,9 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
+  # Push and pull_request runs for the same branch are independent gates.
+  # A newer run only supersedes an older run of the same event type.
+  group: ci-${{ github.workflow }}-${{ github.event_name }}-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
