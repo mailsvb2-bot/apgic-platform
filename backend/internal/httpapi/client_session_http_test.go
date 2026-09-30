@@ -279,3 +279,67 @@ func TestHelpIntentFailsClosedOnWeakConfiguredSessionKey(t *testing.T) {
 		t.Fatalf("weak session key reason missing: %s", recorder.Body.String())
 	}
 }
+
+func TestGrowthExportRequiresOwningTrustedSession(t *testing.T) {
+	key := []byte(strings.Repeat("s", 32))
+	ownerID := "11111111-1111-4111-8111-111111111111"
+	otherID := "22222222-2222-4222-8222-222222222222"
+
+	service := demand.NewConformanceService(nil)
+	intent, err := service.CreateIntentForIdentity(ownerID, "нужна помощь со сном")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.ConfirmIntent(intent.ID, []string{"sleep"}, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	slots, err := service.Slots("spec-lebedeva")
+	if err != nil || len(slots) == 0 {
+		t.Fatalf("slots=%#v err=%v", slots, err)
+	}
+	hold, err := service.AcquireHold(intent.ID, slots[0].ID, ownerID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	handler := New(Options{Demand: service, ClientSessionKey: key})
+	manager, err := newClientSessionManager(key, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherCookie, err := manager.issue(otherID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cross := httptest.NewRequest(
+		http.MethodPost,
+		"/v1/consultations/"+hold.BookingID+"/growth-export",
+		strings.NewReader(`{"purpose_consent":true}`),
+	)
+	cross.Header.Set("content-type", "application/json")
+	cross.AddCookie(otherCookie)
+	crossRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(crossRecorder, cross)
+	if crossRecorder.Code != http.StatusForbidden {
+		t.Fatalf("cross-subject growth export status=%d body=%s", crossRecorder.Code, crossRecorder.Body.String())
+	}
+	if !strings.Contains(crossRecorder.Body.String(), "DATA_SUBJECT_IDENTITY_MISMATCH") {
+		t.Fatalf("cross-subject denial reason missing: %s", crossRecorder.Body.String())
+	}
+
+	missing := httptest.NewRequest(
+		http.MethodPost,
+		"/v1/consultations/"+hold.BookingID+"/growth-export",
+		strings.NewReader(`{"purpose_consent":true}`),
+	)
+	missing.Header.Set("content-type", "application/json")
+	missingRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(missingRecorder, missing)
+	if missingRecorder.Code != http.StatusUnauthorized {
+		t.Fatalf("missing-session growth export status=%d body=%s", missingRecorder.Code, missingRecorder.Body.String())
+	}
+	if !strings.Contains(missingRecorder.Body.String(), "CLIENT_SESSION_REQUIRED") {
+		t.Fatalf("missing-session denial reason missing: %s", missingRecorder.Body.String())
+	}
+}
