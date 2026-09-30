@@ -73,6 +73,10 @@ curl -fsS http://127.0.0.1:8081/status | grep -q "packager-status:running" ||
   fail "Metro did not become ready"
 
 if ! command -v idb >/dev/null 2>&1; then
+  brew tap facebook/fb
+  for formula in idb idb-cli idb-companion; do
+    brew trust --formula "facebook/fb/$formula"
+  done
   brew install facebook/fb/idb
 fi
 IDB="$(command -v idb)"

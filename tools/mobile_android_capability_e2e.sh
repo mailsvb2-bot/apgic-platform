@@ -6,6 +6,7 @@ APK="$ROOT/apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk"
 EVIDENCE_DIR="$ROOT/evidence"
 SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
 AVD_NAME="apgic-native-e2e"
+AVD_HOME="${ANDROID_AVD_HOME:-$HOME/.android/avd}"
 SYSTEM_IMAGE="${APGIC_ANDROID_E2E_IMAGE:-system-images;android-36;google_apis;x86_64}"
 METRO_LOG="/tmp/apgic-metro-android.log"
 EMULATOR_LOG="/tmp/apgic-emulator.log"
@@ -58,8 +59,12 @@ EMULATOR="$SDK_ROOT/emulator/emulator"
 [[ -x "$EMULATOR" ]] || EMULATOR="$(command -v emulator || true)"
 [[ -x "$EMULATOR" ]] || fail "emulator package installed but binary not found"
 
+export ANDROID_AVD_HOME="$AVD_HOME"
+mkdir -p "$ANDROID_AVD_HOME"
 "$AVDMANAGER" delete avd -n "$AVD_NAME" >/dev/null 2>&1 || true
 echo "no" | "$AVDMANAGER" create avd --force -n "$AVD_NAME" -k "$SYSTEM_IMAGE"
+"$EMULATOR" -list-avds | grep -Fxq "$AVD_NAME" ||
+  fail "AVD $AVD_NAME was created outside emulator search path $ANDROID_AVD_HOME"
 
 if [[ -e /dev/kvm ]]; then
   sudo chmod 666 /dev/kvm
