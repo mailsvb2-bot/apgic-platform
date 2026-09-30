@@ -21,7 +21,9 @@ func TestCoreJourneyContinuesWithCommunicationProviderUnavailable(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer store.Close()
+	t.Cleanup(func() {
+		store.Close()
+	})
 
 	connectorID, err := persistentid.New()
 	if err != nil {
