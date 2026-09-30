@@ -579,6 +579,7 @@ requirements:
   - backend/internal/runtimepostgres/organization_product.go
   - apps/web/app/organization/workspace.tsx
   - backend/migrations/000023_r0_product_runtime.sql
+  - backend/migrations/000024_r0_published_product_order_gate.sql
   - backend/migrations/000001_r0_foundation.sql
   - backend/migrations/000003_r0_semantic_invariants.sql
   - backend/migrations/000018_r0_order_product_ownership_snapshot.sql

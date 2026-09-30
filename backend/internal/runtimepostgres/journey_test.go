@@ -76,6 +76,106 @@ func TestJourneyStoreReusesCanonicalClientIdentityAcrossIntents(t *testing.T) {
 	}
 }
 
+func TestJourneyCheckoutRejectsDraftProductWithoutSideEffects(t *testing.T) {
+	databaseURL := os.Getenv("APGIC_JOURNEY_STORE_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("journey integration database not configured")
+	}
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.PingContext(context.Background()); err != nil {
+		db.Close()
+		t.Fatal(err)
+	}
+	store := &Checker{db: db}
+	defer store.Close()
+
+	now := time.Now().UTC().Truncate(time.Second)
+	service, err := demand.NewConformanceServiceWithStores(func() time.Time { return now }, store, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	intent, err := service.CreateIntent("нужна помощь с тревогой")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.ConfirmIntent(intent.ID, []string{"anxiety"}, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	slots, err := service.Slots("spec-sokolov")
+	if err != nil || len(slots) == 0 {
+		t.Fatalf("slots=%#v err=%v", slots, err)
+	}
+	hold, err := service.AcquireHold(intent.ID, slots[0].ID, intent.ClientIdentityID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	productID, err := persistentid.FromRef("catalog-specialist-product", "spec-sokolov")
+	if err != nil {
+		t.Fatal(err)
+	}
+	directionID, err := persistentid.FromRef("catalog-specialist-direction", "spec-sokolov:consultation")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.db.Exec(
+		`UPDATE products
+		    SET status = 'DRAFT', published_at = NULL
+		  WHERE id = $1::uuid`,
+		productID,
+	); err != nil {
+		t.Fatalf("make product draft: %v", err)
+	}
+	if _, err := store.db.Exec(
+		`UPDATE organization_directions
+		    SET status = 'ARCHIVED', archived_at = now()
+		  WHERE id = $1::uuid`,
+		directionID,
+	); err != nil {
+		t.Fatalf("archive draft product direction: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = store.db.Exec(
+			`UPDATE organization_directions
+			    SET status = 'ACTIVE', archived_at = NULL
+			  WHERE id = $1::uuid`,
+			directionID,
+		)
+		_, _ = store.db.Exec(
+			`UPDATE products
+			    SET status = 'PUBLISHED', published_at = COALESCE(published_at, now())
+			  WHERE id = $1::uuid`,
+			productID,
+		)
+	})
+
+	if _, err := service.CreateCheckout(hold.ID, intent.ClientIdentityID, "SBP"); err == nil {
+		t.Fatal("draft checkout unexpectedly succeeded")
+	}
+
+	var orderCount, attemptCount int
+	if err := store.db.QueryRow(
+		`SELECT count(*) FROM orders WHERE booking_id = $1::uuid`,
+		hold.BookingID,
+	).Scan(&orderCount); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.db.QueryRow(
+		`SELECT count(*)
+		   FROM payment_attempts attempt
+		   JOIN orders order_row ON order_row.id = attempt.order_id
+		  WHERE order_row.booking_id = $1::uuid`,
+		hold.BookingID,
+	).Scan(&attemptCount); err != nil {
+		t.Fatal(err)
+	}
+	if orderCount != 0 || attemptCount != 0 {
+		t.Fatalf("draft checkout created side effects orders=%d attempts=%d", orderCount, attemptCount)
+	}
+}
+
 func TestJourneyStoreSurvivesServiceRestart(t *testing.T) {
 	databaseURL := os.Getenv("APGIC_JOURNEY_STORE_TEST_DATABASE_URL")
 	if databaseURL == "" {

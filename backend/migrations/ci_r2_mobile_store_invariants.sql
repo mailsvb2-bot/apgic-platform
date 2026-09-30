@@ -33,10 +33,14 @@ INSERT INTO organization_directions (
 );
 
 INSERT INTO products (
-  id, owner_type, owner_id, commercial_owner_ref, revenue_beneficiary_ref,
+  id, name, status, published_at,
+  owner_type, owner_id, commercial_owner_ref, revenue_beneficiary_ref,
   author_refs, organization_direction_id
 ) VALUES (
   '00000000-0000-0000-0000-00000000af03',
+  'Store Subscription',
+  'PUBLISHED',
+  now(),
   'ORGANIZATION',
   '00000000-0000-0000-0000-00000000af01',
   'identity/specialist-store-ci',

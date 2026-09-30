@@ -96,6 +96,7 @@ type Service struct {
 	ledgerState     ledgerState
 	ledgerStore     LedgerStore
 	journeyStore    JourneyStore
+	journeyRefSlots []Slot
 	notices         map[string]*BookingNotice
 	sessions        map[string]*consultation.Session
 	projection      marketplace.SearchProjection
@@ -158,7 +159,8 @@ func newConformanceService(
 	if journeyStore == nil {
 		return service, nil
 	}
-	slots, err := journeyStore.BootstrapCatalog(service.catalog.slots)
+	service.journeyRefSlots = append([]Slot(nil), service.catalog.slots...)
+	slots, err := journeyStore.BootstrapCatalog(service.journeyRefSlots)
 	if err != nil {
 		return nil, err
 	}
@@ -166,7 +168,7 @@ func newConformanceService(
 	if err := journeyStore.Expire(service.now().UTC()); err != nil {
 		return nil, err
 	}
-	snapshot, err := journeyStore.LoadJourney(service.catalog.slots)
+	snapshot, err := journeyStore.LoadJourney(service.journeyRefSlots)
 	if err != nil {
 		return nil, err
 	}
@@ -271,7 +273,8 @@ func (s *Service) applyJourneySnapshotLocked(snapshot JourneySnapshot) error {
 func (s *Service) refreshCatalogLocked() error {
 	fresh := conformanceCatalog(s.now().UTC())
 	if s.journeyStore != nil {
-		slots, err := s.journeyStore.BootstrapCatalog(fresh.slots)
+		s.journeyRefSlots = append([]Slot(nil), fresh.slots...)
+		slots, err := s.journeyStore.BootstrapCatalog(s.journeyRefSlots)
 		if err != nil {
 			return err
 		}
@@ -288,7 +291,7 @@ func (s *Service) refreshJourneyLocked() error {
 	if err := s.refreshCatalogLocked(); err != nil {
 		return err
 	}
-	snapshot, err := s.journeyStore.LoadJourney(s.catalog.slots)
+	snapshot, err := s.journeyStore.LoadJourney(s.journeyRefSlots)
 	if err != nil {
 		return err
 	}

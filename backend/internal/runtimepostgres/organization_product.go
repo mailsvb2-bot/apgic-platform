@@ -144,9 +144,9 @@ func (c *Checker) OrganizationProduct(identityID, organizationID, productID stri
 	var authorsJSON string
 	var publishedAt sql.NullTime
 	if err := c.db.QueryRowContext(ctx,
-		`SELECT p.id::text, p.name, p.status, p.owner_type, p.owner_id::text,
-		        p.commercial_owner_ref, to_json(p.author_refs)::text,
-		        p.revenue_beneficiary_ref, p.organization_direction_id::text, p.published_at
+		`SELECT p.id::text, COALESCE(p.name, ''), p.status, p.owner_type, p.owner_id::text,
+		        COALESCE(p.commercial_owner_ref, ''), COALESCE(to_json(p.author_refs)::text, '[]'),
+		        COALESCE(p.revenue_beneficiary_ref, ''), COALESCE(p.organization_direction_id::text, ''), p.published_at
 		   FROM products p
 		   JOIN organization_memberships m
 		     ON m.organization_id = p.owner_id
@@ -208,16 +208,16 @@ func (c *Checker) PublishOrganizationProduct(
 		return commerce.ProductSnapshot{}, commerce.ErrProductOwnerRequired
 	}
 
-	var oldStatus string
+	var oldStatus, directionID string
 	if err := tx.QueryRowContext(ctx,
-		`SELECT status
+		`SELECT status, COALESCE(organization_direction_id::text, '')
 		   FROM products
 		  WHERE id = $1::uuid
 		    AND owner_type = 'ORGANIZATION'
 		    AND owner_id = $2::uuid
 		  FOR UPDATE`,
 		productID, organizationID,
-	).Scan(&oldStatus); err != nil {
+	).Scan(&oldStatus, &directionID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return commerce.ProductSnapshot{}, commerce.ErrProductNotFound
 		}
@@ -225,6 +225,26 @@ func (c *Checker) PublishOrganizationProduct(
 	}
 	if oldStatus == string(commerce.ProductPublished) {
 		return commerce.ProductSnapshot{}, commerce.ErrProductAlreadyPublished
+	}
+	if directionID == "" {
+		return commerce.ProductSnapshot{}, commerce.ErrProductDirectionInvalid
+	}
+	var directionStatus string
+	if err := tx.QueryRowContext(ctx,
+		`SELECT status
+		   FROM organization_directions
+		  WHERE id = $1::uuid
+		    AND organization_id = $2::uuid
+		  FOR SHARE`,
+		directionID, organizationID,
+	).Scan(&directionStatus); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return commerce.ProductSnapshot{}, commerce.ErrProductDirectionInvalid
+		}
+		return commerce.ProductSnapshot{}, fmt.Errorf("read product publish direction: %w", err)
+	}
+	if directionStatus != "ACTIVE" {
+		return commerce.ProductSnapshot{}, commerce.ErrProductDirectionInvalid
 	}
 
 	publishedAt := now.UTC()

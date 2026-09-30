@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/persistentid"
+
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/commerce"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/organization"
@@ -198,5 +200,87 @@ func TestOrganizationProductHTTPPublishesExplicitOwnershipSnapshot(t *testing.T)
 		 WHERE id = $1::uuid
 	`, product.ID); err != nil {
 		t.Fatalf("idempotent database publication validation failed: %v", err)
+	}
+
+	legacyProductID, err := persistentid.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`
+		INSERT INTO products (
+			id, owner_type, owner_id, commercial_owner_ref,
+			revenue_beneficiary_ref, author_refs
+		) VALUES (
+			$1::uuid, 'ORGANIZATION', $2::uuid, $3, $4, ARRAY[$4]::text[]
+		)
+	`, legacyProductID, org.ID, "organization/"+org.ID, "identity/legacy-author"); err != nil {
+		t.Fatalf("insert legacy draft product: %v", err)
+	}
+	var ownerIdentityID string
+	if err := db.QueryRow(`
+		SELECT identity_id::text
+		  FROM organization_ownerships
+		 WHERE organization_id = $1::uuid
+		   AND status = 'ACTIVE'
+		 LIMIT 1
+	`, org.ID).Scan(&ownerIdentityID); err != nil {
+		t.Fatal(err)
+	}
+	legacy, err := store.OrganizationProduct(ownerIdentityID, org.ID, legacyProductID)
+	if err != nil {
+		t.Fatalf("read legacy draft product: %v", err)
+	}
+	if legacy.Name != "" || legacy.OrganizationDirectionID != "" || legacy.Status != commerce.ProductDraft {
+		t.Fatalf("legacy product compatibility=%#v", legacy)
+	}
+
+	secondBody := strings.Replace(body, "Initial consultation", "Second consultation", 1)
+	createSecond := httptest.NewRequest(
+		http.MethodPost,
+		"/v1/organizations/"+org.ID+"/products",
+		strings.NewReader(secondBody),
+	)
+	createSecond.Header.Set("content-type", "application/json")
+	createSecond.AddCookie(cookies[0])
+	createSecondRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(createSecondRecorder, createSecond)
+	if createSecondRecorder.Code != http.StatusCreated {
+		t.Fatalf("create second product status=%d body=%s", createSecondRecorder.Code, createSecondRecorder.Body.String())
+	}
+	var secondProduct commerce.ProductSnapshot
+	if err := json.Unmarshal(createSecondRecorder.Body.Bytes(), &secondProduct); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`
+		UPDATE organization_directions
+		   SET status = 'ARCHIVED', archived_at = $2
+		 WHERE id = $1::uuid
+	`, directionID, now); err != nil {
+		t.Fatalf("archive direction before publish: %v", err)
+	}
+
+	publishArchived := httptest.NewRequest(
+		http.MethodPost,
+		"/v1/organizations/"+org.ID+"/products/"+secondProduct.ID+"/publish",
+		nil,
+	)
+	publishArchived.AddCookie(cookies[0])
+	publishArchivedRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(publishArchivedRecorder, publishArchived)
+	if publishArchivedRecorder.Code != http.StatusConflict ||
+		!strings.Contains(publishArchivedRecorder.Body.String(), "PRODUCT_DIRECTION_INVALID") {
+		t.Fatalf("publish archived direction status=%d body=%s", publishArchivedRecorder.Code, publishArchivedRecorder.Body.String())
+	}
+	var archivedAuditCount int
+	if err := db.QueryRow(`
+		SELECT count(*)
+		  FROM audit_records
+		 WHERE resource_ref = $1
+		   AND action = 'product.published'
+	`, secondProduct.ID).Scan(&archivedAuditCount); err != nil {
+		t.Fatal(err)
+	}
+	if archivedAuditCount != 0 {
+		t.Fatalf("archived direction publication audit count=%d", archivedAuditCount)
 	}
 }
