@@ -16,32 +16,34 @@ import (
 const holdTTL = 15 * time.Minute
 
 var (
-	ErrTextRequired       = errors.New("help intent free text is required")
-	ErrIntentNotFound     = errors.New("help intent not found")
-	ErrTopicRequired      = errors.New("at least one topic is required")
-	ErrTopicUnknown       = errors.New("topic is outside the conformance catalog")
-	ErrNotConfirmed       = errors.New("help intent must be confirmed before matching")
-	ErrSpecialistNotFound = errors.New("specialist not found")
-	ErrSlotNotFound       = errors.New("slot not found")
-	ErrSlotNotExclusive   = errors.New("slot is not exclusive")
-	ErrSlotUnavailable    = errors.New("slot is not available")
-	ErrSlotHeld           = errors.New("slot already has an active hold")
-	ErrSlotBooked         = errors.New("slot already has a live booking")
-	ErrIdentityMismatch   = errors.New("client identity does not own the help intent")
-	ErrHoldNotFound       = errors.New("slot hold not found")
-	ErrHoldNotActive      = errors.New("slot hold is not active")
-	ErrMethodNotEligible  = errors.New("payment method is not eligible")
-	ErrCheckoutLocked     = errors.New("checkout method is already locked")
-	ErrCustodyForbidden   = errors.New("APGIC must not accept funds")
-	ErrOrderNotFound      = errors.New("checkout order not found")
-	ErrEvidenceMismatch   = errors.New("provider evidence does not match the instruction")
-	ErrDuplicateEffect    = errors.New("order already has a captured economic effect")
-	ErrCancelNotAllowed   = errors.New("booking cannot be cancelled")
-	ErrConsultNotReady    = errors.New("consultation is not ready")
-	ErrConsultEvidence    = errors.New("consultation completion evidence required")
-	ErrRecoveryInvalid    = errors.New("invalid communication recovery input")
-	ErrNotDeletion        = errors.New("deactivation is not account deletion")
-	ErrPurposeConsent     = errors.New("purpose-specific consent required")
+	ErrTextRequired            = errors.New("help intent free text is required")
+	ErrIntentNotFound          = errors.New("help intent not found")
+	ErrTopicRequired           = errors.New("at least one topic is required")
+	ErrTopicUnknown            = errors.New("topic is outside the conformance catalog")
+	ErrNotConfirmed            = errors.New("help intent must be confirmed before matching")
+	ErrSpecialistNotFound      = errors.New("specialist not found")
+	ErrSlotNotFound            = errors.New("slot not found")
+	ErrSlotNotExclusive        = errors.New("slot is not exclusive")
+	ErrSlotUnavailable         = errors.New("slot is not available")
+	ErrSlotHeld                = errors.New("slot already has an active hold")
+	ErrSlotBooked              = errors.New("slot already has a live booking")
+	ErrIdentityMismatch        = errors.New("client identity does not own the help intent")
+	ErrBookingIdentityMismatch = errors.New("client identity does not own the booking")
+	ErrBookingNotFound         = errors.New("booking not found")
+	ErrHoldNotFound            = errors.New("slot hold not found")
+	ErrHoldNotActive           = errors.New("slot hold is not active")
+	ErrMethodNotEligible       = errors.New("payment method is not eligible")
+	ErrCheckoutLocked          = errors.New("checkout method is already locked")
+	ErrCustodyForbidden        = errors.New("APGIC must not accept funds")
+	ErrOrderNotFound           = errors.New("checkout order not found")
+	ErrEvidenceMismatch        = errors.New("provider evidence does not match the instruction")
+	ErrDuplicateEffect         = errors.New("order already has a captured economic effect")
+	ErrCancelNotAllowed        = errors.New("booking cannot be cancelled")
+	ErrConsultNotReady         = errors.New("consultation is not ready")
+	ErrConsultEvidence         = errors.New("consultation completion evidence required")
+	ErrRecoveryInvalid         = errors.New("invalid communication recovery input")
+	ErrNotDeletion             = errors.New("deactivation is not account deletion")
+	ErrPurposeConsent          = errors.New("purpose-specific consent required")
 )
 
 type Intent struct {
@@ -377,6 +379,30 @@ func (s *Service) RequireIntentOwner(intentID, clientIdentityID string) error {
 		return ErrIdentityMismatch
 	}
 	return nil
+}
+
+func (s *Service) RequireBookingOwner(bookingID, clientIdentityID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.refreshJourneyLocked(); err != nil {
+		return err
+	}
+	if booked, ok := s.bookings[bookingID]; ok && booked != nil {
+		if booked.ClientIdentityID != clientIdentityID {
+			return ErrBookingIdentityMismatch
+		}
+		return nil
+	}
+	for _, hold := range s.holds {
+		if hold == nil || hold.BookingID != bookingID {
+			continue
+		}
+		if hold.ClientIdentityID != clientIdentityID {
+			return ErrBookingIdentityMismatch
+		}
+		return nil
+	}
+	return ErrBookingNotFound
 }
 
 func (s *Service) ConfirmIntent(id string, topics, goals []string, context map[string]string) (*Intent, error) {
