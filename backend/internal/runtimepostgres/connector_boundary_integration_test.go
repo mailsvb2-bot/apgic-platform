@@ -58,6 +58,30 @@ func TestCoreJourneyContinuesWithCommunicationProviderUnavailable(t *testing.T) 
 		t.Fatalf("booking hold with communication provider disabled: %v", err)
 	}
 
+	t.Cleanup(func() {
+		result, cleanupErr := store.db.Exec(
+			`UPDATE booking_holds
+			    SET state = 'RELEASED',
+			        updated_at = $2
+			  WHERE id = $1::uuid
+			    AND state = 'ACTIVE'`,
+			hold.ID,
+			time.Now().UTC(),
+		)
+		if cleanupErr != nil {
+			t.Errorf("release CONN-001 booking hold: %v", cleanupErr)
+			return
+		}
+		affected, cleanupErr := result.RowsAffected()
+		if cleanupErr != nil {
+			t.Errorf("read CONN-001 booking hold cleanup result: %v", cleanupErr)
+			return
+		}
+		if affected != 1 {
+			t.Errorf("released CONN-001 booking holds=%d want=1", affected)
+		}
+	})
+
 	ledgerID, err := persistentid.New()
 	if err != nil {
 		t.Fatal(err)
