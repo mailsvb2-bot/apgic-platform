@@ -11,7 +11,8 @@ import (
 var (
 	ErrConnectorUnavailable  = errors.New("connector is not available for execution")
 	ErrConnectorDegraded     = errors.New("connector is degraded and degraded execution is not allowed")
-	ErrConnectorScopeDenied  = errors.New("service principal lacks connector execute scope")
+	ErrConnectorScopeDenied      = errors.New("service principal lacks connector execute scope")
+	ErrConnectorCredentialDenied = errors.New("service principal credential is not active")
 	ErrProviderMismatch      = errors.New("provider does not match connector instance")
 	ErrCapabilityMismatch    = errors.New("provider does not expose connector capability")
 	ErrInvalidProviderResult = errors.New("provider result violates connector contract")
@@ -19,6 +20,7 @@ var (
 
 type ExecutionPolicy struct {
 	AllowDegraded bool
+	Now           func() time.Time
 }
 
 func Execute(
@@ -36,8 +38,12 @@ func Execute(
 	if err := request.Validate(); err != nil {
 		return Result{}, err
 	}
-	if !principal.ValidAt(time.Now().UTC()) {
-		return Result{}, ErrConnectorScopeDenied
+	now := time.Now().UTC()
+	if policy.Now != nil {
+		now = policy.Now().UTC()
+	}
+	if !principal.ValidAt(now) {
+		return Result{}, ErrConnectorCredentialDenied
 	}
 	if !principal.HasScope(instance.ExecuteScope) {
 		return Result{}, ErrConnectorScopeDenied
