@@ -137,6 +137,20 @@ func (c *Checker) BootstrapCatalog(slots []demand.Slot) ([]demand.Slot, error) {
 		); err != nil {
 			return nil, fmt.Errorf("bootstrap specialist direction %s: %w", slot.SpecialistID, err)
 		}
+		var directionStatus string
+		if err := tx.QueryRowContext(ctx,
+			`SELECT status
+			   FROM organization_directions
+			  WHERE id = $1::uuid
+			    AND organization_id = $2::uuid`,
+			productContext.directionID,
+			productContext.organizationID,
+		).Scan(&directionStatus); err != nil {
+			return nil, fmt.Errorf("read bootstrap specialist direction %s: %w", slot.SpecialistID, err)
+		}
+		if directionStatus != "ACTIVE" {
+			continue
+		}
 		if _, err := tx.ExecContext(ctx,
 			`INSERT INTO products (
 				id, name, status, published_at, owner_type, owner_id,
