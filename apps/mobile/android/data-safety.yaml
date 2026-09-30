@@ -6,5 +6,6 @@ collected_data_classes: []
 shared_data_classes: []
 android_permissions:
   - android.permission.INTERNET
+  - android.permission.RECORD_AUDIO
 notes:
   - "Repository artifact for build/privacy conformance only; not Google Play production evidence."

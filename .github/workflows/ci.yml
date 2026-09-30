@@ -59,6 +59,11 @@ jobs:
       - run: python tools/legal_snapshot_contract_guard.py
       - run: python tools/legal_acceptance_contract_guard.py
       - run: python tools/mobile_capability_contract_guard.py
+      - name: Validate native capability E2E harness syntax
+        shell: bash
+        run: |
+          bash -n tools/mobile_android_capability_e2e.sh
+          bash -n tools/mobile_ios_capability_e2e.sh
       - run: python tools/event_contract_guard.py
       - run: python tools/audit_contract_guard.py
       - run: python tools/ledger_contract_guard.py
@@ -472,6 +477,7 @@ jobs:
   mobile-android-build:
     name: Android native debug build
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -549,6 +555,9 @@ jobs:
           test -n "$MERGED_MANIFEST"
           python tools/mobile_build_privacy_inspection.py             --android-manifest "$MERGED_MANIFEST"             --android-data-safety apps/mobile/android/data-safety.yaml             --output evidence/android-build-privacy-inspection.json
           sha256sum apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk > evidence/android-debug.sha256
+      - name: Prove typed capability fallbacks on Android emulator
+        shell: bash
+        run: bash tools/mobile_android_capability_e2e.sh
       - uses: actions/upload-artifact@v7
         with:
           name: android-native-debug-build
@@ -556,12 +565,14 @@ jobs:
             apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
             evidence/android-debug.sha256
             evidence/android-build-privacy-inspection.json
+            evidence/android-capability-e2e-*.xml
           if-no-files-found: error
           retention-days: 30
 
   mobile-ios-build:
     name: iOS native simulator build
     runs-on: macos-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -590,6 +601,9 @@ jobs:
           python tools/mobile_build_privacy_inspection.py             --ios-app "$APP"             --canonical-ios-manifest apps/mobile/ios/APGIC/PrivacyInfo.xcprivacy             --output evidence/ios-build-privacy-inspection.json
           ditto -c -k --keepParent "$APP" evidence/APGIC-ios-simulator.zip
           shasum -a 256 evidence/APGIC-ios-simulator.zip > evidence/ios-simulator.sha256
+      - name: Prove typed capability fallbacks on iOS Simulator
+        shell: bash
+        run: bash tools/mobile_ios_capability_e2e.sh
       - uses: actions/upload-artifact@v7
         with:
           name: ios-native-simulator-build
@@ -597,6 +611,7 @@ jobs:
             evidence/APGIC-ios-simulator.zip
             evidence/ios-simulator.sha256
             evidence/ios-build-privacy-inspection.json
+            evidence/ios-capability-e2e-*.json
           if-no-files-found: error
           retention-days: 30
 
