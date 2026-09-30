@@ -17,12 +17,12 @@ var (
 const minServiceSecretBytes = 32
 
 type ServiceCredential struct {
-	PrincipalID      string
+	PrincipalID       string
 	CredentialVersion string
-	NotBefore        time.Time
-	ExpiresAt        time.Time
-	RevokedAt        *time.Time
-	secretDigest     [sha256.Size]byte
+	NotBefore         time.Time
+	ExpiresAt         time.Time
+	RevokedAt         *time.Time
+	secretDigest      [sha256.Size]byte
 }
 
 type AuthenticatedServicePrincipal struct {
