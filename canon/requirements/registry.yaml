@@ -558,7 +558,8 @@ requirements:
   - backend/migrations/ci_invariants.sql
   - .github/workflows/ci.yml
   - tools/ledger_contract_guard.py
-  evidence_refs: []
+  evidence_refs:
+  - canon/evidence/r0-ci-evidence-map.json
   acceptance:
     given: создан payment/commission/refund effect
     when: финансовое состояние читается системой
@@ -917,7 +918,8 @@ requirements:
   - backend/internal/legal/transaction_snapshot_test.go
   - backend/internal/runtimepostgres/journey_test.go
   - tools/legal_snapshot_contract_guard.py
-  evidence_refs: []
+  evidence_refs:
+  - canon/evidence/r0-ci-evidence-map.json
   acceptance:
     given: Order создаётся
     when: цена/продавец/роль платформы определены
@@ -951,7 +953,8 @@ requirements:
   - backend/internal/runtimepostgres/legal_acceptance_test.go
   - tools/legal_acceptance_contract_guard.py
   - tools/auth_contract_guard.py
-  evidence_refs: []
+  evidence_refs:
+  - canon/evidence/r0-ci-evidence-map.json
   acceptance:
     given: пользователь принимает документ vN
     when: позже публикуется vN+1
