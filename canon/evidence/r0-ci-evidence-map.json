@@ -49,8 +49,7 @@
           ],
           "proof_refs": [
             "backend/internal/httpapi/organization_authz_integration_test.go",
-            "backend/internal/runtimepostgres/authz_integration_test.go",
-            ".github/workflows/ci.yml"
+            "backend/internal/runtimepostgres/authz_integration_test.go"
           ]
         }
       },
@@ -74,8 +73,7 @@
             "postgres-invariants"
           ],
           "proof_refs": [
-            "backend/internal/httpapi/product_ownership_integration_test.go",
-            ".github/workflows/ci.yml"
+            "backend/internal/httpapi/product_ownership_integration_test.go"
           ]
         }
       },
@@ -98,8 +96,7 @@
             "postgres-invariants"
           ],
           "proof_refs": [
-            "backend/internal/httpapi/organization_runtime_integration_test.go",
-            ".github/workflows/ci.yml"
+            "backend/internal/httpapi/organization_runtime_integration_test.go"
           ]
         }
       },
@@ -126,8 +123,7 @@
           "proof_refs": [
             "backend/internal/runtimepostgres/journey_test.go",
             "backend/migrations/ci_r2_mobile_store_invariants.sql",
-            "backend/internal/httpapi/organization_runtime_integration_test.go",
-            ".github/workflows/ci.yml"
+            "backend/internal/httpapi/organization_runtime_integration_test.go"
           ]
         }
       },
@@ -223,8 +219,7 @@
             "postgres-invariants"
           ],
           "proof_refs": [
-            "backend/internal/runtimepostgres/product_ownership_audit_integration_test.go",
-            ".github/workflows/ci.yml"
+            "backend/internal/runtimepostgres/product_ownership_audit_integration_test.go"
           ]
         }
       },
