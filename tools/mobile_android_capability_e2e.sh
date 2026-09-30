@@ -54,6 +54,10 @@ EMULATOR="$SDK_ROOT/emulator/emulator"
 "$AVDMANAGER" delete avd -n "$AVD_NAME" >/dev/null 2>&1 || true
 echo "no" | "$AVDMANAGER" create avd --force -n "$AVD_NAME" -k "$SYSTEM_IMAGE"
 
+if [[ -e /dev/kvm ]]; then
+  sudo chmod 666 /dev/kvm
+fi
+
 "$EMULATOR"   -avd "$AVD_NAME"   -no-window   -no-audio   -no-snapshot   -no-boot-anim   -gpu swiftshader_indirect   >"$EMULATOR_LOG" 2>&1 &
 EMULATOR_PID=$!
 
