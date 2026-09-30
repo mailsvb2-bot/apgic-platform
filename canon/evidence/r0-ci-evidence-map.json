@@ -24,11 +24,18 @@
             "backend/internal/identity/identity_test.go",
             "tools/tests/test_identity_contract_guard.py"
           ]
+        },
+        "E2E_OR_STAGING_PROOF": {
+          "gates": [
+            "postgres-invariants"
+          ],
+          "proof_refs": [
+            "backend/internal/httpapi/identity_multirole_integration_test.go",
+            ".github/workflows/ci.yml"
+          ]
         }
       },
-      "unproven_evidence": [
-        "E2E_OR_STAGING_PROOF"
-      ]
+      "unproven_evidence": []
     },
     "APGIC-AUTH-001": {
       "claims": {
