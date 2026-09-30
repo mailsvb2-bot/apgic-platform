@@ -9,8 +9,9 @@ Sensitive/raw consultation/persona content must not flow into growth/intelligenc
 1. `privacy.CanExportToGrowth` classifies raw consultation/persona data as consent-gated.
 2. `demand.Service.RequireBookingOwner` binds a growth export to the booking's client identity before any export decision.
 3. `httpapi.trustedClientIdentity` resolves the signed client session and rejects missing/tampered sessions.
-4. `POST /v1/consultations/{bookingID}/growth-export` requires both trusted data-subject ownership and purpose consent.
-5. Even after consent, `ExportSessionToGrowth` exports only the minimal consultation state projection; `raw_content_included=false`.
+4. The OpenAPI operation declares `ClientSession` security and 401/403 ownership failures.
+5. `POST /v1/consultations/{bookingID}/growth-export` requires both trusted data-subject ownership and purpose consent.
+6. Even after consent, `ExportSessionToGrowth` exports only the minimal consultation state projection; `raw_content_included=false`.
 
 ## Failure behavior
 
@@ -27,6 +28,8 @@ Sensitive/raw consultation/persona content must not flow into growth/intelligenc
   - no-consent export fails;
   - consented export contains no raw content;
   - booking ownership rejects cross-subject access.
+- `contracts/openapi/apgic-v1.yaml`
+  - declares the signed client-session security boundary and 401/403 response contract.
 - `backend/internal/httpapi/client_session_http_test.go`
   - missing trusted session blocks growth export;
   - a trusted session for a different identity is forbidden before export.
