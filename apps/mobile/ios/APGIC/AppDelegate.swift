@@ -1,4 +1,5 @@
 import UIKit
+import AVFoundation
 import React
 import React_RCTAppDelegate
 import ReactAppDependencyProvider
@@ -9,6 +10,15 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
   var reactNativeDelegate: ReactNativeDelegate?
   var reactNativeFactory: RCTReactNativeFactory?
+
+  private let capabilityStates = Set([
+    "UNKNOWN",
+    "NOT_REQUESTED",
+    "GRANTED",
+    "DENIED",
+    "RESTRICTED",
+    "UNAVAILABLE",
+  ])
 
   func application(
     _ application: UIApplication,
@@ -23,13 +33,39 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     window = UIWindow(frame: UIScreen.main.bounds)
 
+    let initialProperties: [String: Any] = [
+      "deviceCapability": "MICROPHONE",
+      "deviceCapabilityState": microphoneState(),
+    ]
+
     factory.startReactNative(
       withModuleName: "APGIC",
       in: window,
+      initialProperties: initialProperties,
       launchOptions: launchOptions
     )
 
     return true
+  }
+
+  private func microphoneState() -> String {
+#if DEBUG
+    if let override = ProcessInfo.processInfo.environment["APGIC_E2E_CAPABILITY_STATE"],
+       capabilityStates.contains(override) {
+      return override
+    }
+#endif
+
+    switch AVAudioSession.sharedInstance().recordPermission {
+    case .undetermined:
+      return "NOT_REQUESTED"
+    case .denied:
+      return "DENIED"
+    case .granted:
+      return "GRANTED"
+    @unknown default:
+      return "UNKNOWN"
+    }
   }
 }
 
