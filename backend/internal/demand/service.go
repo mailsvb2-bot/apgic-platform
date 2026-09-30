@@ -29,6 +29,7 @@ var (
 	ErrSlotBooked         = errors.New("slot already has a live booking")
 	ErrIdentityMismatch        = errors.New("client identity does not own the help intent")
 	ErrBookingIdentityMismatch = errors.New("client identity does not own the booking")
+	ErrBookingNotFound         = errors.New("booking not found")
 	ErrHoldNotFound       = errors.New("slot hold not found")
 	ErrHoldNotActive      = errors.New("slot hold is not active")
 	ErrMethodNotEligible  = errors.New("payment method is not eligible")
@@ -388,7 +389,7 @@ func (s *Service) RequireBookingOwner(bookingID, clientIdentityID string) error 
 	}
 	booked, ok := s.bookings[bookingID]
 	if !ok || booked == nil {
-		return ErrOrderNotFound
+		return ErrBookingNotFound
 	}
 	if booked.ClientIdentityID != clientIdentityID {
 		return ErrBookingIdentityMismatch
