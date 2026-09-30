@@ -7,7 +7,6 @@ if [ -z "${APGIC_HTTP_ADDR:-}" ]; then
     API_PORT="$(node - <<'NODE'
 const net = require("node:net");
 const server = net.createServer();
-server.unref();
 server.listen(0, "127.0.0.1", () => {
   const address = server.address();
   if (!address || typeof address === "string") {
