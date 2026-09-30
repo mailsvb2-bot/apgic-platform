@@ -987,12 +987,15 @@ requirements:
   - canon/contracts/provider-terminology.yaml
   - backend/internal/connector/registry.go
   - tools/terminology_guard.py
+  - backend/migrations/000016_r0_connector_delivery_semantics.sql
   contract_refs:
   - canon/contracts/provider-terminology.yaml
   test_refs:
   - tools/terminology_guard.py
   - .github/workflows/ci.yml
-  evidence_refs: []
+  - backend/internal/runtimepostgres/provider_terminology_integration_test.go
+  evidence_refs:
+  - docs/traceability/R0-term001-provider-neutral-terminology.md
   acceptance:
     given: разработчик добавляет новый domain type/API
     when: он связан с CRM/live/persona/intelligence provider

@@ -405,11 +405,17 @@
             "tools/terminology_guard.py",
             ".github/workflows/ci.yml"
           ]
+        },
+        "E2E_OR_STAGING_PROOF": {
+          "gates": [
+            "postgres-invariants"
+          ],
+          "proof_refs": [
+            "backend/internal/runtimepostgres/provider_terminology_integration_test.go"
+          ]
         }
       },
-      "unproven_evidence": [
-        "E2E_OR_STAGING_PROOF"
-      ]
+      "unproven_evidence": []
     },
     "APGIC-CANON-001": {
       "claims": {

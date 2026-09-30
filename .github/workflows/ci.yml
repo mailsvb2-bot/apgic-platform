@@ -253,6 +253,11 @@ jobs:
         env:
           APGIC_JOURNEY_STORE_TEST_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable
         run: go test ./internal/runtimepostgres -run TestCoreJourneyContinuesWithCommunicationProviderUnavailable -count=1
+      - name: Prove provider brand stays behind canonical capability boundary
+        working-directory: backend
+        env:
+          APGIC_CONNECTOR_DELIVERY_TEST_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable
+        run: go test ./internal/runtimepostgres -run TestConnectorPersistenceKeepsProviderKindBehindCanonicalCapability -count=1
       - name: Prove connector webhook business effects are atomic and exactly once
         working-directory: backend
         env:
