@@ -68,15 +68,21 @@ fi
 "$EMULATOR"   -avd "$AVD_NAME"   -no-window   -no-audio   -no-snapshot   -no-boot-anim   -gpu swiftshader_indirect   >"$EMULATOR_LOG" 2>&1 &
 EMULATOR_PID=$!
 
-"$ADB" wait-for-device
+if ! timeout 120 "$ADB" wait-for-device; then
+  fail "emulator did not become visible to adb within 120 seconds"
+fi
+
 for _ in $(seq 1 120); do
+  if ! kill -0 "$EMULATOR_PID" 2>/dev/null; then
+    fail "emulator process exited before boot completed"
+  fi
   if [[ "$("$ADB" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" == "1" ]]; then
     break
   fi
   sleep 2
 done
 [[ "$("$ADB" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" == "1" ]] ||
-  fail "emulator did not finish booting"
+  fail "emulator did not finish booting within 240 seconds"
 
 "$ADB" shell settings put global window_animation_scale 0
 "$ADB" shell settings put global transition_animation_scale 0
