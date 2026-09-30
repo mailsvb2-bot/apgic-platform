@@ -149,11 +149,17 @@
             "backend/migrations/ci_r0_connector_delivery_invariants.sql",
             "tools/connector_contract_guard.py"
           ]
+        },
+        "E2E_OR_STAGING_PROOF": {
+          "gates": [
+            "postgres-invariants"
+          ],
+          "proof_refs": [
+            "backend/internal/runtimepostgres/connector_boundary_integration_test.go"
+          ]
         }
       },
-      "unproven_evidence": [
-        "E2E_OR_STAGING_PROOF"
-      ]
+      "unproven_evidence": []
     },
     "APGIC-CONN-002": {
       "claims": {
