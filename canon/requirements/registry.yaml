@@ -630,8 +630,10 @@ requirements:
   test_refs:
   - backend/internal/privacy/classification_test.go
   - backend/internal/demand/growth_test.go
+  - backend/internal/httpapi/client_session_http_test.go
   - apps/web/e2e/foundation.spec.ts
-  evidence_refs: []
+  evidence_refs:
+  - docs/traceability/R0-data001-growth-export-boundary.md
   acceptance:
     given: raw session content существует
     when: growth connector запрашивает данные без целевого consent
