@@ -75,7 +75,8 @@ curl -fsS http://127.0.0.1:8081/status | grep -q "packager-status:running" ||
 
 if ! command -v idb_companion >/dev/null 2>&1; then
   brew tap facebook/fb
-  brew install idb-companion
+  brew trust --formula facebook/fb/idb-companion
+  brew install facebook/fb/idb-companion
 fi
 
 rm -rf "$IDB_VENV"
