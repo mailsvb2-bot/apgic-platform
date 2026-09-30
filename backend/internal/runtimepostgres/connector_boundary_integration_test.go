@@ -92,15 +92,18 @@ func TestCoreJourneyContinuesWithCommunicationProviderUnavailable(t *testing.T) 
 		t.Fatalf("canonical identity rows=%d want=1", identityCount)
 	}
 
-	var bookingState string
+	var holdState string
 	if err := store.db.QueryRow(
-		`SELECT state FROM bookings WHERE id = $1::uuid`,
-		hold.BookingID,
-	).Scan(&bookingState); err != nil {
+		`SELECT state FROM booking_holds WHERE id = $1::uuid`,
+		hold.ID,
+	).Scan(&holdState); err != nil {
 		t.Fatal(err)
 	}
-	if bookingState != "HELD" {
-		t.Fatalf("durable booking state=%q want HELD", bookingState)
+	if holdState != "ACTIVE" {
+		t.Fatalf("durable booking hold state=%q want ACTIVE", holdState)
+	}
+	if hold.BookingState != "HELD" {
+		t.Fatalf("domain booking state=%q want HELD", hold.BookingState)
 	}
 
 	var ledgerCount int
