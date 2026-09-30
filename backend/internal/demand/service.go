@@ -387,14 +387,22 @@ func (s *Service) RequireBookingOwner(bookingID, clientIdentityID string) error 
 	if err := s.refreshJourneyLocked(); err != nil {
 		return err
 	}
-	booked, ok := s.bookings[bookingID]
-	if !ok || booked == nil {
-		return ErrBookingNotFound
+	if booked, ok := s.bookings[bookingID]; ok && booked != nil {
+		if booked.ClientIdentityID != clientIdentityID {
+			return ErrBookingIdentityMismatch
+		}
+		return nil
 	}
-	if booked.ClientIdentityID != clientIdentityID {
-		return ErrBookingIdentityMismatch
+	for _, hold := range s.holds {
+		if hold == nil || hold.BookingID != bookingID {
+			continue
+		}
+		if hold.ClientIdentityID != clientIdentityID {
+			return ErrBookingIdentityMismatch
+		}
+		return nil
 	}
-	return nil
+	return ErrBookingNotFound
 }
 
 func (s *Service) ConfirmIntent(id string, topics, goals []string, context map[string]string) (*Intent, error) {
