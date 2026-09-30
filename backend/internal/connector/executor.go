@@ -3,6 +3,7 @@ package connector
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/security"
 )
@@ -24,7 +25,7 @@ func Execute(
 	ctx context.Context,
 	instance Instance,
 	provider Provider,
-	principal security.ServicePrincipal,
+	principal security.AuthenticatedServicePrincipal,
 	request Request,
 	policy ExecutionPolicy,
 ) (Result, error) {
@@ -34,6 +35,9 @@ func Execute(
 	}
 	if err := request.Validate(); err != nil {
 		return Result{}, err
+	}
+	if !principal.ValidAt(time.Now().UTC()) {
+		return Result{}, ErrConnectorScopeDenied
 	}
 	if !principal.HasScope(instance.ExecuteScope) {
 		return Result{}, ErrConnectorScopeDenied
