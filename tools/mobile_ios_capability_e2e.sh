@@ -5,7 +5,6 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP="$ROOT/apps/mobile/ios/build/derived/Build/Products/Debug-iphonesimulator/APGIC.app"
 EVIDENCE_DIR="$ROOT/evidence"
 METRO_LOG="/tmp/apgic-metro-ios.log"
-IDB_VENV="/tmp/apgic-idb-venv"
 METRO_PID=""
 UDID=""
 
@@ -73,16 +72,11 @@ done
 curl -fsS http://127.0.0.1:8081/status | grep -q "packager-status:running" ||
   fail "Metro did not become ready"
 
-if ! command -v idb_companion >/dev/null 2>&1; then
-  brew tap facebook/fb
-  brew trust --formula facebook/fb/idb-companion
-  brew install facebook/fb/idb-companion
+if ! command -v idb >/dev/null 2>&1; then
+  brew install facebook/fb/idb
 fi
-
-rm -rf "$IDB_VENV"
-python3 -m venv "$IDB_VENV"
-"$IDB_VENV/bin/pip" install --disable-pip-version-check "fb-idb==1.6.1"
-IDB="$IDB_VENV/bin/idb"
+IDB="$(command -v idb)"
+[[ -x "$IDB" ]] || fail "idb CLI was not installed"
 
 mkdir -p "$EVIDENCE_DIR"
 
@@ -95,7 +89,7 @@ assert_state() {
   SIMCTL_CHILD_APGIC_E2E_CAPABILITY_STATE="$state"     xcrun simctl launch "$UDID" com.apgic.ci >/dev/null
 
   for _ in $(seq 1 30); do
-    if "$IDB" ui describe-all --udid "$UDID" --key AXLabel --key AXUniqueId >"$output" 2>/dev/null &&
+    if "$IDB" ui describe-all --udid "$UDID" --api axbridge --json --nested >"$output" 2>/dev/null &&
        grep -q "capability-state:${state}" "$output" &&
        grep -q "capability-fallback:${reason}" "$output"; then
       echo "iOS native E2E state $state: PASS"
