@@ -2354,7 +2354,8 @@ requirements:
   test_refs:
   - .github/workflows/ci.yml
   - tools/multisurface_guard.py
-  evidence_refs: []
+  evidence_refs:
+  - canon/evidence/r0-ci-evidence-map.json
   acceptance:
     given: существуют web и native clients
     when: они выполняют одинаковую business command
@@ -2386,7 +2387,8 @@ requirements:
   test_refs:
   - .github/workflows/ci.yml
   - tools/multisurface_guard.py
-  evidence_refs: []
+  evidence_refs:
+  - canon/evidence/r0-ci-evidence-map.json
   acceptance:
     given: создан native workspace
     when: проверяются imports/shared packages
@@ -2647,7 +2649,8 @@ requirements:
   - .github/workflows/ci.yml
   - tools/mobile_storage_contract_guard.py
   - tools/tests/test_mobile_native_storage_audit.py
-  evidence_refs: []
+  evidence_refs:
+  - canon/evidence/r0-ci-evidence-map.json
   acceptance:
     given: native client обрабатывает sensitive/session data
     when: данные кешируются или logout/revoke
@@ -2689,7 +2692,8 @@ requirements:
   - tools/tests/test_client_contract_generation.py
   - .github/workflows/ci.yml
   - tools/multisurface_guard.py
-  evidence_refs: []
+  evidence_refs:
+  - canon/evidence/r0-ci-evidence-map.json
   acceptance:
     given: OpenAPI/schema меняется
     when: CI генерирует web+iOS/Android client packages
@@ -3088,7 +3092,8 @@ requirements:
   - tools/mobile_dependency_contract_guard.py
   - tools/tests/test_mobile_sbom.py
   - tools/tests/test_repository_secret_scan.py
-  evidence_refs: []
+  evidence_refs:
+  - canon/evidence/r0-ci-evidence-map.json
   acceptance:
     given: mobile dependency is added/upgraded
     when: CI evaluates build graph
@@ -3126,7 +3131,8 @@ requirements:
   - .github/workflows/ci.yml
   - tools/mobile_privacy_contract_guard.py
   - tools/tests/test_mobile_build_privacy_inspection.py
-  evidence_refs: []
+  evidence_refs:
+  - canon/evidence/r0-ci-evidence-map.json
   acceptance:
     given: release candidate contains native SDKs/APIs
     when: privacy preflight compares declarations and build
@@ -3260,7 +3266,8 @@ requirements:
   test_refs:
   - backend/internal/remoteconfig/config_test.go
   - .github/workflows/ci.yml
-  evidence_refs: []
+  evidence_refs:
+  - canon/evidence/r0-ci-evidence-map.json
   acceptance:
     given: installed versions span compatibility window
     when: config/backend changes or incident occurs
@@ -3443,7 +3450,8 @@ requirements:
   test_refs:
   - backend/internal/payments/taxonomy_test.go
   - tools/tests/test_payment_taxonomy_architecture_guard.py
-  evidence_refs: []
+  evidence_refs:
+  - canon/evidence/r0-ci-evidence-map.json
   acceptance:
     given: payment contracts are generated
     when: provider/method/rail values are created or processed
