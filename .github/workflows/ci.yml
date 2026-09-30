@@ -278,6 +278,11 @@ jobs:
         env:
           APGIC_AUTHZ_HTTP_TEST_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable
         run: go test ./internal/httpapi -run TestHighRiskProductOwnershipRequiresFreshStepUpAndAudits -count=1
+      - name: Prove high-risk ownership mutation and audit are atomic
+        working-directory: backend
+        env:
+          APGIC_AUTHZ_HTTP_TEST_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable
+        run: go test ./internal/runtimepostgres -run TestProductOwnershipMutationAndAuditAreAtomic -count=1
       - name: Prove booking journey survives PostgreSQL-backed restart
         working-directory: backend
         env:
