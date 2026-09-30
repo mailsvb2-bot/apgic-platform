@@ -39,16 +39,18 @@ trap cleanup EXIT
 
 SDKMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
 AVDMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/avdmanager"
-EMULATOR="$SDK_ROOT/emulator/emulator"
 [[ -x "$SDKMANAGER" ]] || SDKMANAGER="$(command -v sdkmanager || true)"
 [[ -x "$AVDMANAGER" ]] || AVDMANAGER="$(command -v avdmanager || true)"
-[[ -x "$EMULATOR" ]] || EMULATOR="$(command -v emulator || true)"
 [[ -x "$SDKMANAGER" ]] || fail "sdkmanager not found"
 [[ -x "$AVDMANAGER" ]] || fail "avdmanager not found"
-[[ -x "$EMULATOR" ]] || fail "emulator not found"
 
 yes | "$SDKMANAGER" --licenses >/dev/null || true
 "$SDKMANAGER" "platform-tools" "emulator" "$SYSTEM_IMAGE"
+
+EMULATOR="$SDK_ROOT/emulator/emulator"
+[[ -x "$EMULATOR" ]] || EMULATOR="$(command -v emulator || true)"
+[[ -x "$EMULATOR" ]] || fail "emulator package installed but binary not found"
+
 "$AVDMANAGER" delete avd -n "$AVD_NAME" >/dev/null 2>&1 || true
 echo "no" | "$AVDMANAGER" create avd --force -n "$AVD_NAME" -k "$SYSTEM_IMAGE"
 
