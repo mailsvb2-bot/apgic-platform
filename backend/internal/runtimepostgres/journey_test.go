@@ -239,9 +239,18 @@ func TestJourneyStoreSurvivesServiceRestart(t *testing.T) {
 		err         error
 	}
 	startCheckout := make(chan struct{})
-	checkoutResults := make(chan checkoutResult, 2)
+	const concurrentCheckoutWorkers = 8
+	checkoutResults := make(chan checkoutResult, concurrentCheckoutWorkers)
 	var checkoutWG sync.WaitGroup
-	for _, service := range []*demand.Service{second, peer} {
+	services := make([]*demand.Service, 0, concurrentCheckoutWorkers)
+	for i := 0; i < concurrentCheckoutWorkers; i++ {
+		if i%2 == 0 {
+			services = append(services, second)
+		} else {
+			services = append(services, peer)
+		}
+	}
+	for _, service := range services {
 		service := service
 		checkoutWG.Add(1)
 		go func() {
