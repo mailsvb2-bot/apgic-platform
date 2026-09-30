@@ -1110,7 +1110,7 @@ func (c *Checker) CreateCheckout(persistence demand.CheckoutPersistence) (string
 		if err != nil {
 			return "", err
 		}
-		if _, err := tx.ExecContext(ctx,
+		result, err := tx.ExecContext(ctx,
 			`INSERT INTO payment_provider_health_snapshots (
 				id, provider_config_id, health, conversion_rate_bps, latency_p95_ms,
 				provider_reported_fee_bps, reconciliation_pending_count,
@@ -1118,15 +1118,40 @@ func (c *Checker) CreateCheckout(persistence demand.CheckoutPersistence) (string
 			) VALUES (
 				$1::uuid, $2::uuid, 'HEALTHY', 10000, 0, 0, 0, 0,
 				'ALLOW_NEW_ATTEMPTS', ARRAY['conformance:not-production-health'], $3
-			)`,
+			)
+			ON CONFLICT (id) DO NOTHING`,
 			healthSnapshotID,
 			providerConfigID,
 			persistence.DecidedAt,
-		); err != nil {
+		)
+		if err != nil {
 			return "", fmt.Errorf("persist provider health snapshot: %w", err)
 		}
-		health = "HEALTHY"
-		guardrail = "ALLOW_NEW_ATTEMPTS"
+		inserted, err := result.RowsAffected()
+		if err != nil {
+			return "", fmt.Errorf("read provider health snapshot insert result: %w", err)
+		}
+		if inserted == 0 {
+			var existingProviderConfigID string
+			var observedAt time.Time
+			if err := tx.QueryRowContext(ctx,
+				`SELECT provider_config_id::text, health, guardrail_action, observed_at
+				   FROM payment_provider_health_snapshots
+				  WHERE id = $1::uuid`,
+				healthSnapshotID,
+			).Scan(&existingProviderConfigID, &health, &guardrail, &observedAt); err != nil {
+				return "", fmt.Errorf("read concurrent provider health baseline: %w", err)
+			}
+			if existingProviderConfigID != providerConfigID {
+				return "", errors.New("provider health baseline belongs to another provider config")
+			}
+			if observedAt.After(persistence.DecidedAt) {
+				return "", errors.New("provider health baseline is newer than routing decision")
+			}
+		} else {
+			health = "HEALTHY"
+			guardrail = "ALLOW_NEW_ATTEMPTS"
+		}
 	}
 	if health == "UNAVAILABLE" || guardrail != "ALLOW_NEW_ATTEMPTS" {
 		return "", errors.New("provider health blocks new payment attempts")
