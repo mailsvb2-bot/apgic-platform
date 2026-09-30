@@ -42,11 +42,19 @@
             "backend/internal/authz/authz_test.go",
             "tools/tests/test_auth_contract_guard.py"
           ]
+        },
+        "DB/API_NEGATIVE_TEST": {
+          "gates": [
+            "postgres-invariants"
+          ],
+          "proof_refs": [
+            "backend/internal/httpapi/organization_authz_integration_test.go",
+            "backend/internal/runtimepostgres/authz_integration_test.go",
+            ".github/workflows/ci.yml"
+          ]
         }
       },
-      "unproven_evidence": [
-        "DB/API_NEGATIVE_TEST"
-      ]
+      "unproven_evidence": []
     },
     "APGIC-AUTH-002": {
       "claims": {
@@ -60,11 +68,18 @@
             "backend/internal/authz/authz_test.go",
             "tools/tests/test_auth_contract_guard.py"
           ]
+        },
+        "E2E_OR_STAGING_PROOF": {
+          "gates": [
+            "postgres-invariants"
+          ],
+          "proof_refs": [
+            "backend/internal/httpapi/product_ownership_integration_test.go",
+            ".github/workflows/ci.yml"
+          ]
         }
       },
-      "unproven_evidence": [
-        "E2E_OR_STAGING_PROOF"
-      ]
+      "unproven_evidence": []
     },
     "APGIC-ORG-001": {
       "claims": {
@@ -77,11 +92,18 @@
             "backend/internal/organization/organization_test.go",
             "tools/organization_contract_guard.py"
           ]
+        },
+        "E2E_OR_STAGING_PROOF": {
+          "gates": [
+            "postgres-invariants"
+          ],
+          "proof_refs": [
+            "backend/internal/httpapi/organization_runtime_integration_test.go",
+            ".github/workflows/ci.yml"
+          ]
         }
       },
-      "unproven_evidence": [
-        "E2E_OR_STAGING_PROOF"
-      ]
+      "unproven_evidence": []
     },
     "APGIC-ORG-002": {
       "claims": {
@@ -96,11 +118,20 @@
             "backend/migrations/ci_invariants.sql",
             "tools/organization_contract_guard.py"
           ]
+        },
+        "E2E_OR_STAGING_PROOF": {
+          "gates": [
+            "postgres-invariants"
+          ],
+          "proof_refs": [
+            "backend/internal/runtimepostgres/journey_test.go",
+            "backend/migrations/ci_r2_mobile_store_invariants.sql",
+            "backend/internal/httpapi/organization_runtime_integration_test.go",
+            ".github/workflows/ci.yml"
+          ]
         }
       },
-      "unproven_evidence": [
-        "E2E_OR_STAGING_PROOF"
-      ]
+      "unproven_evidence": []
     },
     "APGIC-CONN-001": {
       "claims": {
@@ -136,11 +167,19 @@
             "backend/migrations/ci_r0_connector_delivery_invariants.sql",
             "tools/connector_contract_guard.py"
           ]
+        },
+        "E2E_OR_STAGING_PROOF": {
+          "gates": [
+            "postgres-invariants"
+          ],
+          "proof_refs": [
+            "backend/internal/runtimepostgres/connector_delivery_integration_test.go",
+            "backend/migrations/ci_r0_connector_delivery_invariants.sql",
+            ".github/workflows/ci.yml"
+          ]
         }
       },
-      "unproven_evidence": [
-        "E2E_OR_STAGING_PROOF"
-      ]
+      "unproven_evidence": []
     },
     "APGIC-EVENT-001": {
       "claims": {
