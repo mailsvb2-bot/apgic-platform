@@ -49,4 +49,10 @@ func TestGrowthExportRequiresBookingOwner(t *testing.T) {
 	); !errors.Is(err, ErrBookingIdentityMismatch) {
 		t.Fatalf("cross-subject booking access err=%v", err)
 	}
+	if err := service.RequireBookingOwner(
+		"33333333-3333-4333-8333-333333333333",
+		intent.ClientIdentityID,
+	); !errors.Is(err, ErrBookingNotFound) {
+		t.Fatalf("missing booking ownership err=%v", err)
+	}
 }
