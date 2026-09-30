@@ -1,9 +1,34 @@
 #!/usr/bin/env bash
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
-export APGIC_HTTP_ADDR="${APGIC_HTTP_ADDR:-:43131}"
-export APGIC_API_ORIGIN="${APGIC_API_ORIGIN:-http://127.0.0.1:43131}"
 export APGIC_WEB_PORT="${APGIC_WEB_PORT:-43110}"
+if [ -z "${APGIC_HTTP_ADDR:-}" ]; then
+  if [ -n "${CI:-}" ]; then
+    API_PORT="$(node - <<'NODE'
+const net = require("node:net");
+const server = net.createServer();
+server.listen(0, "127.0.0.1", () => {
+  const address = server.address();
+  if (!address || typeof address === "string") {
+    process.exitCode = 1;
+    server.close();
+    return;
+  }
+  process.stdout.write(String(address.port));
+  server.close();
+});
+NODE
+)"
+    export APGIC_HTTP_ADDR=":${API_PORT}"
+    export APGIC_API_ORIGIN="http://127.0.0.1:${API_PORT}"
+  else
+    export APGIC_HTTP_ADDR=":43131"
+    export APGIC_API_ORIGIN="${APGIC_API_ORIGIN:-http://127.0.0.1:43131}"
+  fi
+else
+  api_port="${APGIC_HTTP_ADDR##*:}"
+  export APGIC_API_ORIGIN="${APGIC_API_ORIGIN:-http://127.0.0.1:${api_port}}"
+fi
 export APGIC_CLIENT_SESSION_KEY="${APGIC_CLIENT_SESSION_KEY:-local-only-client-session-key-000000000000}"
 if ! command -v go >/dev/null 2>&1; then
   case "$(uname -m)" in
