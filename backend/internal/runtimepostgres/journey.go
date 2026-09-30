@@ -28,12 +28,12 @@ func catalogSlotUUID(publicRef string) (string, error) {
 }
 
 type catalogProductContext struct {
-	organizationID      string
-	directionID         string
-	productID           string
-	authorRef           string
-	commercialOwnerRef  string
-	beneficiaryRef      string
+	organizationID     string
+	directionID        string
+	productID          string
+	authorRef          string
+	commercialOwnerRef string
+	beneficiaryRef     string
 }
 
 func catalogProductForSpecialist(specialistID string) (catalogProductContext, error) {
