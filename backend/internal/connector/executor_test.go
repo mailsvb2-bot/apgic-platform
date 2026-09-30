@@ -230,15 +230,14 @@ func TestExpiredAuthenticatedPrincipalFailsBeforeProviderExecution(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	time.Sleep(2 * time.Millisecond)
 	if _, err := Execute(
 		context.Background(),
 		instance,
 		provider,
 		authenticated,
 		validConnectorRequest(),
-		ExecutionPolicy{},
-	); !errors.Is(err, ErrConnectorScopeDenied) {
+		ExecutionPolicy{Now: func() time.Time { return now.Add(time.Second) }},
+	); !errors.Is(err, ErrConnectorCredentialDenied) {
 		t.Fatalf("expired authenticated principal err=%v", err)
 	}
 	if provider.calls != 0 {
