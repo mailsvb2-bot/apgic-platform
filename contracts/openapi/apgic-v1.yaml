@@ -831,6 +831,8 @@ paths:
   /v1/consultations/{bookingID}/growth-export:
     post:
       operationId: exportConsultationToGrowth
+      security:
+        - ClientSession: []
       parameters:
         - name: bookingID
           in: path
@@ -849,6 +851,18 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/GrowthExport'
+        '401':
+          description: Trusted client session is required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: The trusted client session does not own the booking/data subject
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
         '409':
           description: Purpose consent is required for raw consultation content
           content:
