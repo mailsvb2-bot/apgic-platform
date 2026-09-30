@@ -46,7 +46,6 @@ def main() -> None:
                 ".git",
                 "node_modules",
                 ".next",
-                "evidence",
                 "__pycache__",
                 "*.pyc",
             ),
