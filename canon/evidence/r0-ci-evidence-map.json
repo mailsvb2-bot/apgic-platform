@@ -627,11 +627,18 @@
             "tools/tests/test_multisurface_guard.py",
             "tools/multisurface_guard.py"
           ]
+        },
+        "E2E_OR_STAGING_PROOF": {
+          "gates": [
+            "canon"
+          ],
+          "proof_refs": [
+            "tools/multisurface_verification_e2e.py",
+            ".github/workflows/ci.yml"
+          ]
         }
       },
-      "unproven_evidence": [
-        "E2E_OR_STAGING_PROOF"
-      ]
+      "unproven_evidence": []
     },
     "APGIC-MOBILE-004": {
       "claims": {
