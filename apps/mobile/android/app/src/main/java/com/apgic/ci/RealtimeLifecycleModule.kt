@@ -3,6 +3,7 @@ package com.apgic.ci
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.media.AudioDeviceCallback
 import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.net.ConnectivityManager
@@ -35,7 +36,7 @@ class RealtimeLifecycleModule(
     override fun onLost(network: Network) = emit("NETWORK_OFFLINE")
   }
 
-  private val audioDeviceCallback = object : AudioManager.AudioDeviceCallback() {
+  private val audioDeviceCallback = object : AudioDeviceCallback() {
     override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>?) = emitAudioRoute()
     override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>?) = emitAudioRoute()
   }
