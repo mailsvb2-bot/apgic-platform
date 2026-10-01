@@ -17,9 +17,9 @@ import (
 )
 
 const (
-	deepLinkTokenVersion = "v1"
-	minDeepLinkKeyBytes  = 32
-	MaxDeepLinkLifetime   = 24 * time.Hour
+	deepLinkTokenVersion   = "v1"
+	minDeepLinkKeyBytes    = 32
+	MaxDeepLinkLifetime    = 24 * time.Hour
 	maxDeepLinkTokenLength = 4096
 )
 
