@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"sort"
 	"strings"
@@ -14,6 +15,7 @@ import (
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/demand"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/httpapi"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/mobile"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/mutation"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/notification"
 )
 
@@ -154,20 +156,174 @@ func (conformanceNotificationStore) MobileNotificationDelivery(_ context.Context
 	}, true, nil
 }
 
+type conformanceMutationRecord struct {
+	envelope      mutation.Envelope
+	mutationID    string
+	state         string
+	sideEffectRef string
+	failureCode   string
+}
+
+type conformanceMutationStore struct {
+	mu      sync.Mutex
+	records map[string]conformanceMutationRecord
+}
+
+func newConformanceMutationStore() *conformanceMutationStore {
+	return &conformanceMutationStore{records: make(map[string]conformanceMutationRecord)}
+}
+
+func mutationRecordKey(envelope mutation.Envelope) string {
+	return envelope.IdentityID + "|" + envelope.Operation + "|" + envelope.IdempotencyKey
+}
+
+func (s *conformanceMutationStore) Claim(_ context.Context, mutationID string, envelope mutation.Envelope, _ time.Time) (mutation.ClaimResult, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	key := mutationRecordKey(envelope)
+	if existing, ok := s.records[key]; ok {
+		if existing.envelope.RequestDigest != envelope.RequestDigest {
+			return mutation.ClaimResult{
+				Outcome:    mutation.OutcomeConflict,
+				MutationID: existing.mutationID,
+				State:      existing.state,
+			}, nil
+		}
+		outcome := mutation.OutcomeDuplicate
+		switch existing.state {
+		case mutation.StateApplied:
+			outcome = mutation.OutcomeDuplicateApplied
+		case mutation.StateFailed:
+			outcome = mutation.OutcomeFailed
+		}
+		return mutation.ClaimResult{
+			Outcome:       outcome,
+			MutationID:    existing.mutationID,
+			State:         existing.state,
+			SideEffectRef: existing.sideEffectRef,
+			FailureCode:   existing.failureCode,
+		}, nil
+	}
+
+	s.records[key] = conformanceMutationRecord{
+		envelope:   envelope,
+		mutationID: mutationID,
+		state:      mutation.StateClaimed,
+	}
+	return mutation.ClaimResult{
+		Outcome:    mutation.OutcomeClaimed,
+		MutationID: mutationID,
+		State:      mutation.StateClaimed,
+	}, nil
+}
+
+func (s *conformanceMutationStore) Finalize(_ context.Context, mutationID, sideEffectRef string, _ time.Time) (mutation.FinalizeResult, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for key, record := range s.records {
+		if record.mutationID != mutationID {
+			continue
+		}
+		switch record.state {
+		case mutation.StateApplied:
+			if record.sideEffectRef == sideEffectRef {
+				return mutation.FinalizeResult{ReasonCode: "MUTATION_ALREADY_APPLIED"}, nil
+			}
+			return mutation.FinalizeResult{ReasonCode: "MUTATION_SIDE_EFFECT_CONFLICT"}, nil
+		case mutation.StateFailed:
+			return mutation.FinalizeResult{ReasonCode: "MUTATION_ALREADY_FAILED"}, nil
+		}
+		record.state = mutation.StateApplied
+		record.sideEffectRef = sideEffectRef
+		s.records[key] = record
+		return mutation.FinalizeResult{Changed: true, ReasonCode: "MUTATION_APPLIED"}, nil
+	}
+	return mutation.FinalizeResult{ReasonCode: "MUTATION_FINALIZE_INVALID"}, nil
+}
+
+func (s *conformanceMutationStore) Fail(_ context.Context, mutationID, failureCode string, _ time.Time) (mutation.FinalizeResult, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for key, record := range s.records {
+		if record.mutationID != mutationID {
+			continue
+		}
+		switch record.state {
+		case mutation.StateApplied:
+			return mutation.FinalizeResult{ReasonCode: "MUTATION_ALREADY_APPLIED"}, nil
+		case mutation.StateFailed:
+			return mutation.FinalizeResult{ReasonCode: "MUTATION_ALREADY_FAILED"}, nil
+		}
+		record.state = mutation.StateFailed
+		record.failureCode = failureCode
+		s.records[key] = record
+		return mutation.FinalizeResult{Changed: true, ReasonCode: "MUTATION_FAILED"}, nil
+	}
+	return mutation.FinalizeResult{ReasonCode: "MUTATION_FAIL_INVALID"}, nil
+}
+
+type loseFirstCheckoutResponse struct {
+	next http.Handler
+	mu   sync.Mutex
+	lost bool
+}
+
+func (h *loseFirstCheckoutResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost || r.URL.Path != "/v1/mobile/checkout-instructions" {
+		h.next.ServeHTTP(w, r)
+		return
+	}
+
+	h.mu.Lock()
+	lose := !h.lost
+	if lose {
+		h.lost = true
+	}
+	h.mu.Unlock()
+
+	if !lose {
+		h.next.ServeHTTP(w, r)
+		return
+	}
+
+	recorder := httptest.NewRecorder()
+	h.next.ServeHTTP(recorder, r)
+	if recorder.Code != http.StatusOK && recorder.Code != http.StatusCreated {
+		for key, values := range recorder.Header() {
+			for _, value := range values {
+				w.Header().Add(key, value)
+			}
+		}
+		w.WriteHeader(recorder.Code)
+		_, _ = w.Write(recorder.Body.Bytes())
+		return
+	}
+
+	w.Header().Set("content-type", "application/json")
+	w.WriteHeader(http.StatusServiceUnavailable)
+	_, _ = w.Write([]byte(`{"code":"E2E_RESPONSE_LOST","message_safe":"Committed response intentionally lost for offline retry proof.","correlation_id":"e2e-offline-retry","retryable":true}`))
+}
+
 func main() {
 	addr := os.Getenv("APGIC_MOBILE_E2E_ADDR")
 	if addr == "" {
 		addr = "127.0.0.1:43113"
 	}
 	key := []byte(strings.Repeat("e", 32))
-	handler := httpapi.New(httpapi.Options{
+	mutations := newConformanceMutationStore()
+	canonicalHandler := httpapi.New(httpapi.Options{
 		Demand:             demand.NewConformanceService(nil),
 		Installations:      newConformanceInstallationStore(),
 		Notifications:      conformanceNotificationStore{},
+		ClientMutations:    mutations,
 		DeepLinks:          conformanceDeepLinkStore{},
 		DeepLinkSigningKey: key,
 		ClientSessionKey:   key,
 	})
+	handler := &loseFirstCheckoutResponse{next: canonicalHandler}
 	server := &http.Server{
 		Addr:              addr,
 		Handler:           handler,
