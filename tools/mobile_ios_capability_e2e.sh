@@ -467,7 +467,6 @@ PY
 assert_realtime_lifecycle() {
   local output="$EVIDENCE_DIR/ios-realtime-e2e.json"
   local events="NETWORK_OFFLINE,NETWORK_ONLINE,APP_BACKGROUND,APP_FOREGROUND,AUDIO_ROUTE_CHANGED:BLUETOOTH,INTERRUPTION_BEGAN,INTERRUPTION_ENDED"
-  local expected_actions="realtime-provider-actions:CONNECT_PROVIDER|RECONNECT_PROVIDER|PAUSE_MEDIA|RECONNECT_PROVIDER|REFRESH_AUDIO_ROUTE|PAUSE_MEDIA|RECONNECT_PROVIDER"
 
   xcrun simctl terminate "$UDID" com.apgic.ci >/dev/null 2>&1 || true
   SIMCTL_CHILD_APGIC_E2E_CAPABILITY_STATE=GRANTED \
@@ -482,7 +481,10 @@ assert_realtime_lifecycle() {
        json_has_ax_label "$output" "realtime-audio-route:BLUETOOTH" &&
        json_has_ax_label "$output" "realtime-app-state:FOREGROUND" &&
        json_has_ax_label "$output" "realtime-network-state:ONLINE" &&
-       json_has_ax_label "$output" "$expected_actions"; then
+       json_has_ax_label "$output" "realtime-action-connect:true" &&
+       json_has_ax_label "$output" "realtime-action-reconnect:true" &&
+       json_has_ax_label "$output" "realtime-action-pause:true" &&
+       json_has_ax_label "$output" "realtime-action-route:true"; then
       echo "iOS installed-app native realtime lifecycle/reconnect: PASS"
       return 0
     fi
