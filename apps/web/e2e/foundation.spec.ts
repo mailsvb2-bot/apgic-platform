@@ -499,3 +499,54 @@ test("organization workspace uses real organization lifecycle endpoints", async 
     .analyze();
   expect(accessibility.violations).toEqual([]);
 });
+
+
+test("canonical web deep-link fallback revalidates before opening resource route", async ({ page }) => {
+  const token = "v1.c2VhbGVkLWFlYWQtYmxvYg";
+  const canonicalPath = "/specialists/e2e-specialist";
+  await page.route("**/v1/mobile/deep-links/resolve?token=*", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        decision: "ALLOW",
+        reason_code: "DEEPLINK_ALLOWED",
+        canonical_path: canonicalPath,
+        canonical_web_fallback: `https://apgic.ru${canonicalPath}`,
+        expires_at: "2026-10-01T12:15:00Z",
+      }),
+    });
+  });
+
+  await page.goto(`/l/${token}`);
+  await expect(page).toHaveURL(/\/specialists\/e2e-specialist$/);
+  await expect(page.getByRole("heading", { name: "Специалист" })).toBeVisible();
+  await expect(page.getByRole("status")).toHaveText("Ресурс подтверждён сервером.");
+  await expect(page.getByText("Идентификатор: e2e-specialist")).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("status")).toHaveText("Ресурс подтверждён сервером.");
+});
+
+test("canonical resource route fails closed when revalidation does not match path", async ({ page }) => {
+  const token = "v1.c2VhbGVkLWFlYWQtYmxvYg";
+  await page.route("**/v1/mobile/deep-links/resolve?token=*", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        decision: "ALLOW",
+        reason_code: "DEEPLINK_ALLOWED",
+        canonical_path: "/bookings/other-booking",
+        canonical_web_fallback: "https://apgic.ru/bookings/other-booking",
+        expires_at: "2026-10-01T12:15:00Z",
+      }),
+    });
+  });
+
+  await page.goto("/bookings/booking-1");
+  await page.evaluate((value) => {
+    sessionStorage.setItem("apgic:deeplink:/bookings/booking-1", value);
+  }, token);
+  await page.reload();
+  await expect(page.locator("main").getByRole("alert")).toContainText("доступ к ресурсу не подтверждён");
+});

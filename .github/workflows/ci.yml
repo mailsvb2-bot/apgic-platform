@@ -53,6 +53,7 @@ jobs:
       - run: python tools/service_credential_contract_guard.py
       - run: python tools/client_credential_guard.py
       - run: python tools/mobile_installation_contract_guard.py
+      - run: python tools/mobile_deeplink_contract_guard.py
       - run: python tools/mobile_storage_contract_guard.py
       - run: python tools/mobile_native_storage_audit.py
       - run: python tools/repository_secret_scan.py
@@ -579,6 +580,8 @@ jobs:
             evidence/android-capability-e2e-*.xml
             evidence/android-installation-e2e.xml
             evidence/android-installation-server-state.json
+            evidence/android-deeplink-issued.json
+            evidence/android-deeplink-e2e.xml
           if-no-files-found: error
           retention-days: 30
 
@@ -631,6 +634,8 @@ jobs:
             evidence/ios-capability-e2e-*.json
             evidence/ios-installation-e2e.json
             evidence/ios-installation-server-state.json
+            evidence/ios-deeplink-issued.json
+            evidence/ios-deeplink-e2e.json
           if-no-files-found: error
           retention-days: 30
 

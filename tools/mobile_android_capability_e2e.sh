@@ -16,6 +16,7 @@ SERVER_PID=""
 ADB=""
 SERVER_LOG="/tmp/apgic-mobile-installation-server-android.log"
 SESSION_COOKIE=""
+DEEP_LINK_URL=""
 
 fail() {
   echo "ANDROID CAPABILITY NATIVE E2E: FAIL: $*" >&2
@@ -88,6 +89,24 @@ PY
   )"
   rm -f "$headers"
   [[ -n "$SESSION_COOKIE" ]] || fail "signed client session cookie was not issued"
+}
+
+
+issue_deep_link() {
+  local output="$EVIDENCE_DIR/android-deeplink-issued.json"
+  curl -fsS     -H 'content-type: application/json'     --data '{"kind":"SPECIALIST","target_id":"e2e-specialist"}'     http://127.0.0.1:43113/v1/mobile/deep-links     -o "$output"
+  DEEP_LINK_URL="$(
+    python3 - "$output" <<'PY'
+import json
+import sys
+payload = json.load(open(sys.argv[1], encoding="utf-8"))
+url = payload.get("universal_url", "")
+if not url.startswith("https://apgic.ru/l/v1."):
+    raise SystemExit(f"unexpected universal_url: {url!r}")
+print(url)
+PY
+  )"
+  [[ -n "$DEEP_LINK_URL" ]] || fail "deep-link issue did not return canonical universal URL"
 }
 
 [[ -f "$APK" ]] || fail "debug APK missing: $APK"
@@ -165,6 +184,7 @@ curl -fsS --max-time 120 "http://127.0.0.1:8081/index.bundle?platform=android&de
 
 start_installation_server
 bootstrap_installation_session
+issue_deep_link
 
 "$ADB" reverse tcp:8081 tcp:8081
 "$ADB" reverse tcp:43113 tcp:43113
@@ -244,6 +264,30 @@ PY
   fail "installed app did not complete register/rotate/revoke lifecycle"
 }
 
-assert_installation_lifecycle
 
-echo "ANDROID CAPABILITY + INSTALLATION NATIVE E2E: PASS"
+assert_deep_link_runtime() {
+  local output="$EVIDENCE_DIR/android-deeplink-e2e.xml"
+  local expected_target="/specialists/e2e-specialist"
+
+  "$ADB" shell am force-stop com.apgic.ci
+  "$ADB" shell am start -W     -a android.intent.action.VIEW     -c android.intent.category.BROWSABLE     -d "$DEEP_LINK_URL"     -p com.apgic.ci     --es APGIC_E2E_DEEP_LINK_BASE_URL http://127.0.0.1:43113     >/dev/null
+
+  for _ in $(seq 1 60); do
+    if "$ADB" shell uiautomator dump /sdcard/apgic-deeplink-e2e.xml >/dev/null 2>&1 &&
+       "$ADB" pull /sdcard/apgic-deeplink-e2e.xml "$output" >/dev/null 2>&1 &&
+       grep -q 'deep-link-state:OPEN' "$output" &&
+       grep -q "deep-link-target:${expected_target}" "$output"; then
+      echo "Android installed-app canonical deep-link VIEW intent: PASS"
+      return 0
+    fi
+    sleep 1
+  done
+
+  [[ -f "$output" ]] && cat "$output" >&2 || true
+  fail "installed Android app did not resolve canonical deep-link VIEW intent"
+}
+
+assert_installation_lifecycle
+assert_deep_link_runtime
+
+echo "ANDROID CAPABILITY + INSTALLATION + DEEP-LINK NATIVE E2E: PASS"

@@ -6,24 +6,55 @@
   "$defs": {
     "ClientSurface": {
       "type": "string",
-      "enum": ["WEB", "IOS", "ANDROID"]
+      "enum": [
+        "WEB",
+        "IOS",
+        "ANDROID"
+      ]
     },
     "DeepLinkResolution": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["decision", "reason_code", "expires_at"],
+      "required": [
+        "decision",
+        "reason_code"
+      ],
       "properties": {
-        "decision": { "type": "string", "enum": ["ALLOW", "DENY"] },
-        "reason_code": { "type": "string", "minLength": 1 },
-        "canonical_path": { "type": "string", "minLength": 1 },
-        "canonical_web_fallback": { "type": "string", "format": "uri" },
-        "expires_at": { "type": "string", "format": "date-time" }
+        "decision": {
+          "type": "string",
+          "enum": [
+            "ALLOW",
+            "DENY"
+          ]
+        },
+        "reason_code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "canonical_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "canonical_web_fallback": {
+          "type": "string",
+          "format": "uri"
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "date-time"
+        }
       }
     },
     "CanonicalAnalyticsEvent": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["event_name", "event_version", "occurred_at", "journey_id", "business_properties"],
+      "required": [
+        "event_name",
+        "event_version",
+        "occurred_at",
+        "journey_id",
+        "business_properties"
+      ],
       "properties": {
         "event_name": {
           "type": "string",
@@ -33,23 +64,50 @@
             "account_deletion_requested"
           ]
         },
-        "event_version": { "const": "1" },
-        "occurred_at": { "type": "string", "format": "date-time" },
-        "journey_id": { "type": "string", "minLength": 1 },
-        "identity_ref": { "type": "string", "minLength": 1 },
+        "event_version": {
+          "const": "1"
+        },
+        "occurred_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "journey_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "identity_ref": {
+          "type": "string",
+          "minLength": 1
+        },
         "business_properties": {
           "type": "object",
           "additionalProperties": {
-            "type": ["string", "number", "boolean", "null"]
+            "type": [
+              "string",
+              "number",
+              "boolean",
+              "null"
+            ]
           }
         },
         "platform_extensions": {
           "type": "object",
-          "propertyNames": { "enum": ["WEB", "IOS", "ANDROID"] },
+          "propertyNames": {
+            "enum": [
+              "WEB",
+              "IOS",
+              "ANDROID"
+            ]
+          },
           "additionalProperties": {
             "type": "object",
             "additionalProperties": {
-              "type": ["string", "number", "boolean", "null"]
+              "type": [
+                "string",
+                "number",
+                "boolean",
+                "null"
+              ]
             }
           }
         }
@@ -58,12 +116,27 @@
     "DeleteAccountInitiation": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["contract_version", "request_id", "identity_id", "source"],
+      "required": [
+        "contract_version",
+        "request_id",
+        "identity_id",
+        "source"
+      ],
       "properties": {
-        "contract_version": { "const": "delete-account-v1" },
-        "request_id": { "type": "string", "minLength": 1 },
-        "identity_id": { "type": "string", "minLength": 1 },
-        "source": { "$ref": "#/$defs/ClientSurface" }
+        "contract_version": {
+          "const": "delete-account-v1"
+        },
+        "request_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "identity_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source": {
+          "$ref": "#/$defs/ClientSurface"
+        }
       }
     },
     "DeleteAccountState": {
@@ -90,12 +163,33 @@
         "reason_code"
       ],
       "properties": {
-        "workspace_id": { "type": "string", "minLength": 1 },
-        "identity_id": { "type": "string", "minLength": 1 },
-        "tenant_id": { "type": "string", "minLength": 1 },
-        "kind": { "type": "string", "enum": ["CLIENT", "SPECIALIST", "ORGANIZATION"] },
-        "authorization_decision": { "const": "ALLOW" },
-        "reason_code": { "type": "string", "minLength": 1 }
+        "workspace_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "identity_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tenant_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "CLIENT",
+            "SPECIALIST",
+            "ORGANIZATION"
+          ]
+        },
+        "authorization_decision": {
+          "const": "ALLOW"
+        },
+        "reason_code": {
+          "type": "string",
+          "minLength": 1
+        }
       }
     }
   }

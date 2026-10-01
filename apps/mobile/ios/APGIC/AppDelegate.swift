@@ -45,6 +45,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
       "APGIC_E2E_SESSION_COOKIE": "installationE2ESessionCookie",
       "APGIC_E2E_INSTALLATION_ID": "installationE2EInstallationID",
       "APGIC_E2E_INSTALLATION_PLATFORM": "installationE2EPlatform",
+      "APGIC_E2E_DEEP_LINK_BASE_URL": "deepLinkAPIBaseURL",
+      "APGIC_E2E_DEEP_LINK_SESSION_COOKIE": "deepLinkE2ESessionCookie",
+      "APGIC_E2E_DEEP_LINK_URL": "deepLinkE2EURL",
     ]
     for (environmentKey, propertyKey) in installationE2EKeys {
       if let value = environment[environmentKey], !value.isEmpty {
@@ -61,6 +64,26 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     )
 
     return true
+  }
+
+  func application(
+    _ app: UIApplication,
+    open url: URL,
+    options: [UIApplication.OpenURLOptionsKey: Any] = [:]
+  ) -> Bool {
+    RCTLinkingManager.application(app, open: url, options: options)
+  }
+
+  func application(
+    _ application: UIApplication,
+    continue userActivity: NSUserActivity,
+    restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void
+  ) -> Bool {
+    RCTLinkingManager.application(
+      application,
+      continue: userActivity,
+      restorationHandler: restorationHandler
+    )
   }
 
   private func microphoneState() -> String {

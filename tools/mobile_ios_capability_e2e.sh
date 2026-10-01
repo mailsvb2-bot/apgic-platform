@@ -10,6 +10,7 @@ SERVER_PID=""
 UDID=""
 SERVER_LOG="/tmp/apgic-mobile-installation-server-ios.log"
 SESSION_COOKIE=""
+DEEP_LINK_URL=""
 
 fail() {
   echo "IOS CAPABILITY NATIVE E2E: FAIL: $*" >&2
@@ -78,6 +79,24 @@ PY
   [[ -n "$SESSION_COOKIE" ]] || fail "signed client session cookie was not issued"
 }
 
+
+issue_deep_link() {
+  local output="$EVIDENCE_DIR/ios-deeplink-issued.json"
+  curl -fsS     -H 'content-type: application/json'     --data '{"kind":"SPECIALIST","target_id":"e2e-specialist"}'     http://127.0.0.1:43113/v1/mobile/deep-links     -o "$output"
+  DEEP_LINK_URL="$(
+    python3 - "$output" <<'PY'
+import json
+import sys
+payload = json.load(open(sys.argv[1], encoding="utf-8"))
+url = payload.get("universal_url", "")
+if not url.startswith("https://apgic.ru/l/v1."):
+    raise SystemExit(f"unexpected universal_url: {url!r}")
+print(url)
+PY
+  )"
+  [[ -n "$DEEP_LINK_URL" ]] || fail "deep-link issue did not return canonical universal URL"
+}
+
 [[ -d "$APP" ]] || fail "simulator app missing: $APP"
 
 xcrun simctl shutdown all >/dev/null 2>&1 || true
@@ -129,15 +148,38 @@ curl -fsS --max-time 120 "http://127.0.0.1:8081/index.bundle?platform=ios&dev=tr
 
 start_installation_server
 bootstrap_installation_session
+issue_deep_link
 
-if ! command -v idb >/dev/null 2>&1; then
+install_idb_with_retry() {
+  if command -v idb >/dev/null 2>&1; then
+    return 0
+  fi
+
   brew tap facebook/fb
   for formula in idb idb-cli idb-companion; do
     brew trust --formula "facebook/fb/$formula"
   done
-  brew install facebook/fb/idb
-fi
-IDB="$(command -v idb)"
+
+  local max_attempts=4
+  local attempt
+  for attempt in $(seq 1 "$max_attempts"); do
+    echo "Installing idb (attempt $attempt/$max_attempts)..."
+    if HOMEBREW_NO_AUTO_UPDATE=1 brew install facebook/fb/idb; then
+      return 0
+    fi
+    if [[ "$attempt" -lt "$max_attempts" ]]; then
+      # A transient GitHub Releases/Homebrew resource failure must not turn a
+      # healthy installed-app E2E into a false product regression. Retry the
+      # dependency download, but keep the E2E itself strictly fail-closed.
+      sleep $((attempt * 10))
+    fi
+  done
+
+  return 1
+}
+
+install_idb_with_retry || fail "idb CLI installation failed after bounded retries"
+IDB="$(command -v idb || true)"
 [[ -x "$IDB" ]] || fail "idb CLI was not installed"
 
 mkdir -p "$EVIDENCE_DIR"
@@ -210,6 +252,52 @@ PY
   fail "installed app did not complete register/rotate/revoke lifecycle"
 }
 
-assert_installation_lifecycle
 
-echo "IOS CAPABILITY + INSTALLATION NATIVE E2E: PASS"
+json_has_ax_label() {
+  local file="$1"
+  local expected="$2"
+  python3 - "$file" "$expected" <<'PY'
+import json
+import sys
+
+payload = json.load(open(sys.argv[1], encoding="utf-8"))
+expected = sys.argv[2]
+
+def walk(value):
+    if isinstance(value, dict):
+        if value.get("AXLabel") == expected:
+            return True
+        return any(walk(item) for item in value.values())
+    if isinstance(value, list):
+        return any(walk(item) for item in value)
+    return False
+
+raise SystemExit(0 if walk(payload) else 1)
+PY
+}
+
+assert_deep_link_runtime() {
+  local output="$EVIDENCE_DIR/ios-deeplink-e2e.json"
+  local expected_target="/specialists/e2e-specialist"
+
+  xcrun simctl terminate "$UDID" com.apgic.ci >/dev/null 2>&1 || true
+  SIMCTL_CHILD_APGIC_E2E_CAPABILITY_STATE=GRANTED   SIMCTL_CHILD_APGIC_E2E_DEEP_LINK_BASE_URL=http://127.0.0.1:43113   SIMCTL_CHILD_APGIC_E2E_DEEP_LINK_URL="$DEEP_LINK_URL"     xcrun simctl launch "$UDID" com.apgic.ci >/dev/null
+
+  for _ in $(seq 1 60); do
+    if "$IDB" ui describe-all --udid "$UDID" --api axbridge --json --nested >"$output" 2>/dev/null &&
+       json_has_ax_label "$output" "deep-link-state:OPEN" &&
+       json_has_ax_label "$output" "deep-link-target:${expected_target}"; then
+      echo "iOS installed-app canonical deep-link resolution: PASS"
+      return 0
+    fi
+    sleep 1
+  done
+
+  [[ -f "$output" ]] && cat "$output" >&2 || true
+  fail "installed iOS app did not resolve canonical deep link"
+}
+
+assert_installation_lifecycle
+assert_deep_link_runtime
+
+echo "IOS CAPABILITY + INSTALLATION + DEEP-LINK NATIVE E2E: PASS"

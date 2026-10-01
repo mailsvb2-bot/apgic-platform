@@ -10,6 +10,7 @@ import (
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/demand"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/httpapi"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/launchconfig"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/mobile"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/runtimepostgres"
 )
 
@@ -19,7 +20,14 @@ func main() {
 	var ledgerStore demand.LedgerStore
 	var journeyStore demand.JourneyStore
 	environment := os.Getenv("APGIC_ENVIRONMENT")
+	releaseTrack := envOr("APGIC_RELEASE_TRACK", "R0")
 	clientSessionKey := []byte(os.Getenv("APGIC_CLIENT_SESSION_KEY"))
+	deepLinkSigningKey := []byte(os.Getenv("APGIC_DEEPLINK_SIGNING_KEY"))
+	if releaseTrack != "R0" {
+		if _, err := mobile.NewDeepLinkTokenManager(deepLinkSigningKey); err != nil {
+			log.Fatalf("APGIC deep-link signing configuration failed for %s: %v", releaseTrack, err)
+		}
+	}
 	if runtimepostgres.RequiresDatabase(environment) {
 		if err := httpapi.ValidateClientSessionKey(clientSessionKey); err != nil {
 			log.Fatalf("APGIC client session configuration failed: %v", err)
@@ -45,18 +53,20 @@ func main() {
 		demandService = demand.NewConformanceServiceWithLedgerStore(nil, ledgerStore)
 	}
 	handler := httpapi.New(httpapi.Options{
-		CommitSHA:        os.Getenv("APGIC_COMMIT_SHA"),
-		ReleaseTrack:     "R0",
-		Demand:           demandService,
-		ClientSessionKey: clientSessionKey,
-		ReadinessCheck:   readinessCheck,
-		LegalAcceptances: storage,
-		Installations:    storage,
-		Specialists:      storage,
-		OrganizationAuth: storage,
-		Organizations:    storage,
-		ProductOwnership: storage,
-		Products:         storage,
+		CommitSHA:          os.Getenv("APGIC_COMMIT_SHA"),
+		ReleaseTrack:       releaseTrack,
+		Demand:             demandService,
+		ClientSessionKey:   clientSessionKey,
+		ReadinessCheck:     readinessCheck,
+		LegalAcceptances:   storage,
+		Installations:      storage,
+		DeepLinks:          storage,
+		DeepLinkSigningKey: deepLinkSigningKey,
+		Specialists:        storage,
+		OrganizationAuth:   storage,
+		Organizations:      storage,
+		ProductOwnership:   storage,
+		Products:           storage,
 		LaunchConfig: launchconfig.Config{
 			JurisdictionMatrixVersion: os.Getenv("APGIC_JURISDICTION_MATRIX_VERSION"),
 			RetentionPolicyVersion:    os.Getenv("APGIC_RETENTION_POLICY_VERSION"),

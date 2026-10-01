@@ -120,6 +120,19 @@ func (s *conformanceInstallationStore) ListInstallations(identityID string) ([]m
 	return values, nil
 }
 
+type conformanceDeepLinkStore struct{}
+
+func (conformanceDeepLinkStore) DeepLinkResource(kind mobile.LinkKind, targetID string) (mobile.DeepLinkResource, bool, error) {
+	if kind != mobile.LinkSpecialist || targetID != "e2e-specialist" {
+		return mobile.DeepLinkResource{}, false, nil
+	}
+	return mobile.DeepLinkResource{
+		Kind:        mobile.LinkSpecialist,
+		TargetID:    targetID,
+		AccessClass: mobile.LinkPublicResource,
+	}, true, nil
+}
+
 func main() {
 	addr := os.Getenv("APGIC_MOBILE_E2E_ADDR")
 	if addr == "" {
@@ -127,9 +140,11 @@ func main() {
 	}
 	key := []byte(strings.Repeat("e", 32))
 	handler := httpapi.New(httpapi.Options{
-		Demand:           demand.NewConformanceService(nil),
-		Installations:    newConformanceInstallationStore(),
-		ClientSessionKey: key,
+		Demand:             demand.NewConformanceService(nil),
+		Installations:      newConformanceInstallationStore(),
+		DeepLinks:          conformanceDeepLinkStore{},
+		DeepLinkSigningKey: key,
+		ClientSessionKey:   key,
 	})
 	server := &http.Server{
 		Addr:              addr,

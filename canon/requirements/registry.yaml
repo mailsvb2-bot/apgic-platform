@@ -2535,21 +2535,46 @@ requirements:
   release_profile: R1
   risk: HIGH
   priority: P0
-  status: IN_PROGRESS
+  status: VERIFIED
   dependencies:
   - APGIC-MOBILE-005
   implementation_refs:
   - backend/internal/mobile/deeplink.go
-  - apps/mobile/src/r1-cross-surface.ts
-  - apps/web/src/r1-cross-surface.ts
+  - backend/internal/mobile/deeplink_token.go
+  - backend/internal/runtimepostgres/deeplink.go
+  - backend/internal/httpapi/mobile_deeplink.go
+  - backend/cmd/api/main.go
+  - apps/mobile/src/mobile-deep-link-client.ts
+  - apps/mobile/src/App.tsx
+  - apps/mobile/android/app/src/main/AndroidManifest.xml
+  - apps/mobile/android/app/src/main/java/com/apgic/ci/MainActivity.kt
+  - apps/mobile/ios/APGIC/AppDelegate.swift
+  - apps/mobile/ios/APGIC/APGIC.entitlements
+  - apps/web/app/l/[token]/page.tsx
+  - apps/web/src/deep-linked-resource.tsx
+  - apps/web/src/mobile-app-link-association.ts
   contract_refs:
+  - contracts/openapi/apgic-v1.yaml
+  - packages/contracts/src/generated/apgic-v1.ts
   - packages/contracts/src/r1-mobile.ts
   - contracts/jsonschema/r1-mobile-cross-surface-v1.schema.json
   test_refs:
   - backend/internal/mobile/r1_mobile_test.go
+  - backend/internal/mobile/deeplink_token_test.go
+  - backend/internal/httpapi/mobile_deeplink_test.go
   - apps/mobile/src/r1-cross-surface.test.ts
+  - apps/mobile/src/mobile-deep-link-client.test.ts
+  - apps/web/e2e/foundation.spec.ts
+  - tools/mobile_deeplink_contract_guard.py
+  - tools/mobile_android_capability_e2e.sh
+  - tools/mobile_ios_capability_e2e.sh
   - tools/r1_multisurface_guard.py
-  evidence_refs: []
+  - .github/workflows/ci.yml
+  evidence_refs:
+  - docs/traceability/R1-mobile006-deeplink-runtime.md
+  - surface://WEB/mobile006-safe-deeplink/run-36890270476/job-110463830832
+  - surface://IOS/mobile006-safe-deeplink/run-36890270476/job-110463830845
+  - surface://ANDROID/mobile006-safe-deeplink/run-36890270476/job-110463831035
   acceptance:
     given: пользователь открывает booking/specialist/notification link
     when: app установлен или отсутствует
