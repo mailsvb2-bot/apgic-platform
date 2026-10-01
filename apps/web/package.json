@@ -20,5 +20,8 @@
     "typescript": "^5.9.0",
     "@playwright/test": "1.63.0",
     "@axe-core/playwright": "4.13.0"
+  },
+  "overrides": {
+    "baseline-browser-mapping": "2.11.26"
   }
 }
