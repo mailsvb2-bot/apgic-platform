@@ -55,9 +55,8 @@ export default function DeepLinkRedirect({ token }: { token: string }) {
           setStatus("Ссылка недействительна или доступ к ресурсу не подтверждён.");
           return;
         }
-        const next = new URL(target, window.location.origin);
-        next.searchParams.set("link", token);
-        window.location.replace(next.pathname + next.search);
+        sessionStorage.setItem(`apgic:deeplink:${target}`, token);
+        window.location.replace(target);
       })
       .catch(() => {
         if (active) {

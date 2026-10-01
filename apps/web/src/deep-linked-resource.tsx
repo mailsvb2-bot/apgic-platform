@@ -47,11 +47,9 @@ function validResolution(
 export default function DeepLinkedResource({
   kind,
   id,
-  token,
 }: {
   kind: ResourceKind;
   id: string;
-  token: string;
 }) {
   const expectedPath =
     kind === "SPECIALIST"
@@ -65,6 +63,8 @@ export default function DeepLinkedResource({
 
   useEffect(() => {
     let active = true;
+    const storageKey = `apgic:deeplink:${expectedPath}`;
+    const token = sessionStorage.getItem(storageKey);
     if (!token) {
       setState("DENIED");
       return () => {
@@ -89,7 +89,13 @@ export default function DeepLinkedResource({
         if (!active) {
           return;
         }
-        setState(validResolution(resolution, expectedPath) ? "ALLOWED" : "DENIED");
+        if (validResolution(resolution, expectedPath)) {
+          sessionStorage.removeItem(storageKey);
+          setState("ALLOWED");
+        } else {
+          sessionStorage.removeItem(storageKey);
+          setState("DENIED");
+        }
       })
       .catch(() => {
         if (active) {
@@ -99,7 +105,7 @@ export default function DeepLinkedResource({
     return () => {
       active = false;
     };
-  }, [expectedPath, token]);
+  }, [expectedPath]);
 
   return (
     <main>
