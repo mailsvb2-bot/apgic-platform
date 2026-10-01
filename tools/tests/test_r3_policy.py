@@ -89,6 +89,13 @@ class R3PolicyTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             realtime_guard.validate_policy(policy, "ci")
 
+    def test_android_realtime_requires_network_state_permission(self) -> None:
+        manifest = "\n".join(sorted(realtime_guard.REQUIRED_ANDROID_PERMISSIONS))
+        realtime_guard.validate_android_manifest(manifest)
+        without_network = manifest.replace("android.permission.ACCESS_NETWORK_STATE", "")
+        with self.assertRaises(SystemExit):
+            realtime_guard.validate_android_manifest(without_network)
+
 
 if __name__ == "__main__":
     unittest.main()
