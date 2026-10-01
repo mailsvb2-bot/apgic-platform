@@ -8,6 +8,13 @@ from pathlib import Path
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
+
+ANDROID_MANIFEST = ROOT / "apps/mobile/android/app/src/main/AndroidManifest.xml"
+REQUIRED_ANDROID_PERMISSIONS = {
+    "android.permission.INTERNET",
+    "android.permission.ACCESS_NETWORK_STATE",
+    "android.permission.RECORD_AUDIO",
+}
 REQUIRED_PROHIBITED_FIELDS = {
     "token",
     "password",
@@ -82,6 +89,12 @@ def validate_policy(policy: dict, mode: str) -> None:
         fail(f"diagnostics prohibited fields missing: {missing}")
 
 
+def validate_android_manifest(text: str) -> None:
+    missing = sorted(permission for permission in REQUIRED_ANDROID_PERMISSIONS if permission not in text)
+    if missing:
+        fail(f"Android realtime permissions missing: {missing}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("policy")
@@ -95,6 +108,7 @@ def main() -> None:
     if not isinstance(document, dict):
         fail("policy must be a mapping")
     validate_policy(document, args.mode)
+    validate_android_manifest(ANDROID_MANIFEST.read_text(encoding="utf-8"))
     print(
         "MOBILE REALTIME PRECHECK: PASS "
         f"(mode={args.mode}, version={document['policy_version']})"
