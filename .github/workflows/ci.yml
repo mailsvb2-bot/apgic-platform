@@ -53,6 +53,7 @@ jobs:
       - run: python tools/service_credential_contract_guard.py
       - run: python tools/client_credential_guard.py
       - run: python tools/mobile_installation_contract_guard.py
+      - run: python tools/mobile_deeplink_contract_guard.py
       - run: python tools/mobile_storage_contract_guard.py
       - run: python tools/mobile_native_storage_audit.py
       - run: python tools/repository_secret_scan.py
