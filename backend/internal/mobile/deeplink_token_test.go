@@ -1,6 +1,7 @@
 package mobile
 
 import (
+	"encoding/base64"
 	"errors"
 	"strings"
 	"testing"
@@ -9,7 +10,7 @@ import (
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/authz"
 )
 
-func TestDeepLinkTokenIsOpaqueSignedBoundedAndReauthorized(t *testing.T) {
+func TestDeepLinkTokenIsOpaqueAuthenticatedBoundedAndReauthorized(t *testing.T) {
 	key := []byte(strings.Repeat("k", 32))
 	manager, err := NewDeepLinkTokenManager(key)
 	if err != nil {
@@ -27,9 +28,20 @@ func TestDeepLinkTokenIsOpaqueSignedBoundedAndReauthorized(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(token, resource.SubjectIdentityID) || strings.Contains(token, resource.TenantID) {
-		t.Fatal("opaque token leaked raw protected scope")
+	parts := strings.Split(token, ".")
+	if len(parts) != 2 || parts[0] != deepLinkTokenVersion {
+		t.Fatalf("unexpected opaque token shape: %q", token)
 	}
+	sealed, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(sealed), resource.SubjectIdentityID) ||
+		strings.Contains(string(sealed), resource.TenantID) ||
+		strings.Contains(string(sealed), resource.TargetID) {
+		t.Fatal("encrypted token leaked raw protected claims")
+	}
+
 	claims, err := manager.Parse(token, now.Add(time.Minute))
 	if err != nil {
 		t.Fatal(err)
@@ -46,7 +58,9 @@ func TestDeepLinkTokenIsOpaqueSignedBoundedAndReauthorized(t *testing.T) {
 		t.Fatalf("unexpected resolution: %#v", resolution)
 	}
 
-	tampered := token[:len(token)-1] + "A"
+	tamperedBytes := append([]byte(nil), sealed...)
+	tamperedBytes[len(tamperedBytes)-1] ^= 0x01
+	tampered := deepLinkTokenVersion + "." + base64.RawURLEncoding.EncodeToString(tamperedBytes)
 	if _, err := manager.Parse(tampered, now.Add(time.Minute)); !errors.Is(err, ErrDeepLinkTokenInvalid) {
 		t.Fatalf("tampered token error=%v", err)
 	}

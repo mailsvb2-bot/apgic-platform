@@ -41,7 +41,7 @@ export function extractCanonicalDeepLinkToken(rawURL: string): string | null {
   ) {
     return null;
   }
-  const match = /^\/l\/(v1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)$/.exec(parsed.pathname);
+  const match = /^\/l\/(v1\.[A-Za-z0-9_-]+)$/.exec(parsed.pathname);
   return match?.[1] ?? null;
 }
 

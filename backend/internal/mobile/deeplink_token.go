@@ -2,11 +2,14 @@ package mobile
 
 import (
 	"bytes"
-	"crypto/hmac"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"io"
 	"strings"
 	"time"
 
@@ -56,14 +59,14 @@ type deepLinkTokenPayload struct {
 }
 
 type DeepLinkTokenManager struct {
-	key []byte
+	key [32]byte
 }
 
 func NewDeepLinkTokenManager(key []byte) (*DeepLinkTokenManager, error) {
 	if len(key) < minDeepLinkKeyBytes {
 		return nil, ErrDeepLinkSigningKeyInvalid
 	}
-	return &DeepLinkTokenManager{key: append([]byte(nil), key...)}, nil
+	return &DeepLinkTokenManager{key: sha256.Sum256(key)}, nil
 }
 
 func (m *DeepLinkTokenManager) Issue(
@@ -96,10 +99,16 @@ func (m *DeepLinkTokenManager) Issue(
 	if err != nil {
 		return "", ErrDeepLinkTokenInvalid
 	}
-	encoded := base64.RawURLEncoding.EncodeToString(raw)
-	signed := deepLinkTokenVersion + "." + encoded
-	signature := base64.RawURLEncoding.EncodeToString(m.sign(signed))
-	return signed + "." + signature, nil
+	aead, err := m.aead()
+	if err != nil {
+		return "", ErrDeepLinkTokenInvalid
+	}
+	nonce := make([]byte, aead.NonceSize())
+	if _, err := rand.Read(nonce); err != nil {
+		return "", ErrDeepLinkTokenInvalid
+	}
+	sealed := aead.Seal(nonce, nonce, raw, []byte(deepLinkTokenVersion))
+	return deepLinkTokenVersion + "." + base64.RawURLEncoding.EncodeToString(sealed), nil
 }
 
 func (m *DeepLinkTokenManager) Parse(token string, now time.Time) (DeepLinkTokenClaims, error) {
@@ -107,26 +116,34 @@ func (m *DeepLinkTokenManager) Parse(token string, now time.Time) (DeepLinkToken
 		return DeepLinkTokenClaims{}, ErrDeepLinkTokenInvalid
 	}
 	parts := strings.Split(token, ".")
-	if len(parts) != 3 || parts[0] != deepLinkTokenVersion {
+	if len(parts) != 2 || parts[0] != deepLinkTokenVersion || parts[1] == "" {
 		return DeepLinkTokenClaims{}, ErrDeepLinkTokenInvalid
 	}
-	provided, err := base64.RawURLEncoding.DecodeString(parts[2])
-	if err != nil || !hmac.Equal(provided, m.sign(parts[0]+"."+parts[1])) {
-		return DeepLinkTokenClaims{}, ErrDeepLinkTokenInvalid
-	}
-	raw, err := base64.RawURLEncoding.DecodeString(parts[1])
+	sealed, err := base64.RawURLEncoding.DecodeString(parts[1])
 	if err != nil {
 		return DeepLinkTokenClaims{}, ErrDeepLinkTokenInvalid
 	}
+	aead, err := m.aead()
+	if err != nil || len(sealed) <= aead.NonceSize() {
+		return DeepLinkTokenClaims{}, ErrDeepLinkTokenInvalid
+	}
+	nonce := sealed[:aead.NonceSize()]
+	ciphertext := sealed[aead.NonceSize():]
+	raw, err := aead.Open(nil, nonce, ciphertext, []byte(deepLinkTokenVersion))
+	if err != nil {
+		return DeepLinkTokenClaims{}, ErrDeepLinkTokenInvalid
+	}
+
 	var payload deepLinkTokenPayload
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&payload); err != nil {
 		return DeepLinkTokenClaims{}, ErrDeepLinkTokenInvalid
 	}
-	if decoder.Decode(&struct{}{}) == nil {
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
 		return DeepLinkTokenClaims{}, ErrDeepLinkTokenInvalid
 	}
+
 	claims := DeepLinkTokenClaims{
 		LinkID:            payload.LinkID,
 		Kind:              payload.Kind,
@@ -212,8 +229,10 @@ func sameDeepLinkResource(claims DeepLinkTokenClaims, resource DeepLinkResource)
 		validDeepLinkResource(resource)
 }
 
-func (m *DeepLinkTokenManager) sign(value string) []byte {
-	mac := hmac.New(sha256.New, m.key)
-	_, _ = mac.Write([]byte(value))
-	return mac.Sum(nil)
+func (m *DeepLinkTokenManager) aead() (cipher.AEAD, error) {
+	block, err := aes.NewCipher(m.key[:])
+	if err != nil {
+		return nil, err
+	}
+	return cipher.NewGCM(block)
 }

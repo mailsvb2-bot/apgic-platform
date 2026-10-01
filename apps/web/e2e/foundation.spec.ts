@@ -502,7 +502,7 @@ test("organization workspace uses real organization lifecycle endpoints", async 
 
 
 test("canonical web deep-link fallback revalidates before opening resource route", async ({ page }) => {
-  const token = "v1.cGF5bG9hZA.c2lnbmF0dXJl";
+  const token = "v1.c2VhbGVkLWFlYWQtYmxvYg";
   const canonicalPath = "/specialists/e2e-specialist";
   await page.route("**/v1/mobile/deep-links/resolve?token=*", async (route) => {
     await route.fulfill({
@@ -526,7 +526,7 @@ test("canonical web deep-link fallback revalidates before opening resource route
 });
 
 test("canonical resource route fails closed when revalidation does not match path", async ({ page }) => {
-  const token = "v1.cGF5bG9hZA.c2lnbmF0dXJl";
+  const token = "v1.c2VhbGVkLWFlYWQtYmxvYg";
   await page.route("**/v1/mobile/deep-links/resolve?token=*", async (route) => {
     await route.fulfill({
       status: 200,

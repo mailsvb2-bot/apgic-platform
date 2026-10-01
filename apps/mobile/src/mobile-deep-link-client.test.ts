@@ -6,7 +6,7 @@ import {
   resolveCanonicalUniversalLink,
 } from "./mobile-deep-link-client.ts";
 
-const token = "v1.cGF5bG9hZA.c2lnbmF0dXJl";
+const token = "v1.c2VhbGVkLWFlYWQtYmxvYg";
 
 test("canonical universal-link parser rejects alternate origins and URL smuggling", () => {
   assert.equal(extractCanonicalDeepLinkToken(`https://apgic.ru/l/${token}`), token);

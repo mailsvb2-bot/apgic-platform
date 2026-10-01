@@ -36,7 +36,10 @@ checks = {
         "APP_LINK_ASSOCIATION_NOT_CONFIGURED",
     ],
     "backend/internal/mobile/deeplink_token.go": [
-        "hmac.New(sha256.New",
+        "aes.NewCipher",
+        "cipher.NewGCM",
+        "aead.Seal",
+        "aead.Open",
         "MaxDeepLinkLifetime",
         "ResolveTrustedDeepLink",
     ],
