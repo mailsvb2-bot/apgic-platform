@@ -10,6 +10,7 @@ export type OfflineCheckoutState =
 export type OfflineCheckoutQueueItem = {
   contract_version: "offline-checkout-queue-v1";
   idempotency_key: string;
+  correlation_id: string;
   hold_id: string;
   method_code: string;
   state: OfflineCheckoutState;
@@ -53,6 +54,7 @@ const defaultFetch: OfflineCheckoutFetch = (url, options) => fetch(url, options)
 const queueKeys = [
   "contract_version",
   "idempotency_key",
+  "correlation_id",
   "hold_id",
   "method_code",
   "state",
@@ -116,6 +118,8 @@ export function requireOfflineCheckoutQueueItem(
     candidate.contract_version !== "offline-checkout-queue-v1" ||
     typeof candidate.idempotency_key !== "string" ||
     !/^[A-Za-z0-9._:-]{1,128}$/.test(candidate.idempotency_key) ||
+    typeof candidate.correlation_id !== "string" ||
+    !/^[A-Za-z0-9._:/-]{1,160}$/.test(candidate.correlation_id) ||
     typeof candidate.hold_id !== "string" ||
     !candidate.hold_id.trim() ||
     typeof candidate.method_code !== "string" ||
@@ -146,6 +150,7 @@ export function requireOfflineCheckoutQueueItem(
 
 export function createOfflineCheckoutQueueItem(input: {
   idempotencyKey: string;
+  correlationID?: string;
   holdID: string;
   methodCode: string;
   now: Date;
@@ -155,6 +160,7 @@ export function createOfflineCheckoutQueueItem(input: {
   return requireOfflineCheckoutQueueItem({
     contract_version: "offline-checkout-queue-v1",
     idempotency_key: input.idempotencyKey,
+    correlation_id: input.correlationID ?? `offline:${input.idempotencyKey}`,
     hold_id: input.holdID,
     method_code: input.methodCode,
     state: "LOCAL_PENDING",
@@ -279,6 +285,7 @@ export async function syncOfflineCheckout(
     Accept: "application/json",
     "Content-Type": "application/json",
     "Idempotency-Key": current.idempotency_key,
+    "X-Correlation-Id": current.correlation_id,
   };
   if (config.sessionCookie) {
     headers.Cookie = config.sessionCookie;
