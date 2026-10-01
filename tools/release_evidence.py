@@ -46,6 +46,14 @@ SURFACE_EVIDENCE_REF = re.compile(
 )
 
 
+def valid_surface_evidence_ref(ref: str) -> bool:
+    if not SURFACE_EVIDENCE_REF.fullmatch(ref):
+        return False
+    tail = ref.split("://", 1)[1].split("/", 1)[1]
+    parts = tail.split("/")
+    return bool(parts) and all(part not in {"", ".", ".."} for part in parts)
+
+
 def sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -213,7 +221,7 @@ def build_requirement_evidence(
                         f"requirement traceability: {ref}"
                     )
                 if ref.startswith("surface://"):
-                    if not SURFACE_EVIDENCE_REF.fullmatch(ref):
+                    if not valid_surface_evidence_ref(ref):
                         fail(
                             f"{requirement_id}/{evidence_kind}: malformed surface evidence ref: {ref}"
                         )
