@@ -148,3 +148,28 @@ func TestMobileDeepLinkIssueRejectsCrossUser(t *testing.T) {
 		t.Fatalf("cross-user issue status=%d body=%s", rec.Code, rec.Body.String())
 	}
 }
+
+
+func TestMobileDeepLinkIssueRejectsTrailingOrOversizedJSON(t *testing.T) {
+	now := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
+	handler := New(Options{
+		DeepLinks: deepLinkTestStore{resources: map[string]mobile.DeepLinkResource{}},
+		DeepLinkSigningKey: []byte(strings.Repeat("d", 32)),
+		ClientSessionKey:   []byte(strings.Repeat("s", 32)),
+		Now:                func() time.Time { return now },
+	})
+
+	for name, body := range map[string]string{
+		"trailing object": `{"kind":"SPECIALIST","target_id":"x"}{"kind":"SPECIALIST","target_id":"y"}`,
+		"oversized":       `{"kind":"SPECIALIST","target_id":"` + strings.Repeat("x", maxDeepLinkIssueBodySize) + `"}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "/v1/mobile/deep-links", strings.NewReader(body))
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+			}
+		})
+	}
+}

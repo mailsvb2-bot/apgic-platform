@@ -19,7 +19,8 @@ import (
 const (
 	deepLinkTokenVersion = "v1"
 	minDeepLinkKeyBytes  = 32
-	MaxDeepLinkLifetime  = 24 * time.Hour
+	MaxDeepLinkLifetime   = 24 * time.Hour
+	maxDeepLinkTokenLength = 4096
 )
 
 var (
@@ -112,7 +113,7 @@ func (m *DeepLinkTokenManager) Issue(
 }
 
 func (m *DeepLinkTokenManager) Parse(token string, now time.Time) (DeepLinkTokenClaims, error) {
-	if m == nil || now.IsZero() {
+	if m == nil || now.IsZero() || len(token) == 0 || len(token) > maxDeepLinkTokenLength {
 		return DeepLinkTokenClaims{}, ErrDeepLinkTokenInvalid
 	}
 	parts := strings.Split(token, ".")

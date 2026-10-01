@@ -104,3 +104,16 @@ func TestDeepLinkTokenRejectsInvalidResourceAndUnboundedLifetime(t *testing.T) {
 		t.Fatalf("short key error=%v", err)
 	}
 }
+
+
+func TestDeepLinkTokenRejectsOversizedInput(t *testing.T) {
+	manager, err := NewDeepLinkTokenManager([]byte(strings.Repeat("z", 32)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
+	oversized := deepLinkTokenVersion + "." + strings.Repeat("A", maxDeepLinkTokenLength)
+	if _, err := manager.Parse(oversized, now); !errors.Is(err, ErrDeepLinkTokenInvalid) {
+		t.Fatalf("oversized token error=%v", err)
+	}
+}

@@ -3,6 +3,7 @@ package httpapi
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -13,7 +14,10 @@ import (
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/persistentid"
 )
 
-const deepLinkTTL = 15 * time.Minute
+const (
+	deepLinkTTL             = 15 * time.Minute
+	maxDeepLinkIssueBodySize = 4 * 1024
+)
 
 type deepLinkResourceStore interface {
 	DeepLinkResource(kind mobile.LinkKind, targetID string) (mobile.DeepLinkResource, bool, error)
@@ -52,10 +56,15 @@ func registerMobileDeepLinks(
 			writeDemandError(w, r, http.StatusServiceUnavailable, "DEEPLINK_UNAVAILABLE", "Безопасные ссылки временно недоступны.", false, nil)
 			return
 		}
+		r.Body = http.MaxBytesReader(w, r.Body, maxDeepLinkIssueBodySize)
 		var body issueDeepLinkRequest
 		decoder := json.NewDecoder(r.Body)
 		decoder.DisallowUnknownFields()
 		if err := decoder.Decode(&body); err != nil {
+			writeDemandError(w, r, http.StatusBadRequest, mobile.ReasonLinkInvalid, "Параметры ссылки некорректны.", false, nil)
+			return
+		}
+		if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
 			writeDemandError(w, r, http.StatusBadRequest, mobile.ReasonLinkInvalid, "Параметры ссылки некорректны.", false, nil)
 			return
 		}
