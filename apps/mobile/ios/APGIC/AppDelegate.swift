@@ -45,6 +45,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
       "APGIC_E2E_SESSION_COOKIE": "installationE2ESessionCookie",
       "APGIC_E2E_INSTALLATION_ID": "installationE2EInstallationID",
       "APGIC_E2E_INSTALLATION_PLATFORM": "installationE2EPlatform",
+      "APGIC_E2E_DEEP_LINK_BASE_URL": "deepLinkAPIBaseURL",
+      "APGIC_E2E_DEEP_LINK_SESSION_COOKIE": "deepLinkE2ESessionCookie",
+      "APGIC_E2E_DEEP_LINK_URL": "deepLinkE2EURL",
     ]
     for (environmentKey, propertyKey) in installationE2EKeys {
       if let value = environment[environmentKey], !value.isEmpty {

@@ -15,6 +15,9 @@ class MainActivity : ReactActivity() {
     private const val E2E_SESSION_COOKIE = "APGIC_E2E_SESSION_COOKIE"
     private const val E2E_INSTALLATION_ID = "APGIC_E2E_INSTALLATION_ID"
     private const val E2E_INSTALLATION_PLATFORM = "APGIC_E2E_INSTALLATION_PLATFORM"
+    private const val E2E_DEEP_LINK_BASE_URL = "APGIC_E2E_DEEP_LINK_BASE_URL"
+    private const val E2E_DEEP_LINK_SESSION_COOKIE = "APGIC_E2E_DEEP_LINK_SESSION_COOKIE"
+    private const val E2E_DEEP_LINK_URL = "APGIC_E2E_DEEP_LINK_URL"
     private val CAPABILITY_STATES = setOf(
       "UNKNOWN",
       "NOT_REQUESTED",
@@ -67,6 +70,15 @@ class MainActivity : ReactActivity() {
             intent?.getStringExtra(E2E_INSTALLATION_PLATFORM)
               ?.takeIf { it == "IOS" || it == "ANDROID" }
               ?.let { putString("installationE2EPlatform", it) }
+            intent?.getStringExtra(E2E_DEEP_LINK_BASE_URL)
+              ?.takeIf { it.isNotBlank() }
+              ?.let { putString("deepLinkAPIBaseURL", it) }
+            intent?.getStringExtra(E2E_DEEP_LINK_SESSION_COOKIE)
+              ?.takeIf { it.isNotBlank() }
+              ?.let { putString("deepLinkE2ESessionCookie", it) }
+            intent?.getStringExtra(E2E_DEEP_LINK_URL)
+              ?.takeIf { it.isNotBlank() }
+              ?.let { putString("deepLinkE2EURL", it) }
           }
         }
     }

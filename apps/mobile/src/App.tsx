@@ -1,5 +1,5 @@
-import React, {useEffect, useState} from "react";
-import { SafeAreaView, StyleSheet, Text, View } from "react-native";
+import React, {useCallback, useEffect, useState} from "react";
+import { Linking, SafeAreaView, StyleSheet, Text, View } from "react-native";
 
 import {
   decideCapability,
@@ -10,6 +10,10 @@ import {
   runInstallationE2ELifecycle,
   type MobileInstallationPlatform,
 } from "./mobile-installation-client.ts";
+import {
+  canonicalAPGICOrigin,
+  resolveCanonicalUniversalLink,
+} from "./mobile-deep-link-client.ts";
 
 type AppProps = {
   deviceCapability?: DeviceCapability;
@@ -18,6 +22,9 @@ type AppProps = {
   installationE2ESessionCookie?: string;
   installationE2EInstallationID?: string;
   installationE2EPlatform?: MobileInstallationPlatform;
+  deepLinkAPIBaseURL?: string;
+  deepLinkE2ESessionCookie?: string;
+  deepLinkE2EURL?: string;
 };
 
 const fallbackCopy = {
@@ -40,6 +47,9 @@ export default function App({
   installationE2ESessionCookie,
   installationE2EInstallationID,
   installationE2EPlatform,
+  deepLinkAPIBaseURL = canonicalAPGICOrigin,
+  deepLinkE2ESessionCookie,
+  deepLinkE2EURL,
 }: AppProps) {
   const decision = decideCapability(deviceCapabilityState);
   const [installationE2E, setInstallationE2E] = useState<
@@ -47,6 +57,61 @@ export default function App({
     | {status: "PASS"; identityID: string; pushGeneration: number; state: "REVOKED"}
     | {status: "FAIL"; reason: string}
   >({status: "IDLE"});
+
+  const [deepLinkState, setDeepLinkState] = useState<
+    | {status: "IDLE" | "RESOLVING"}
+    | {status: "OPEN"; target: string}
+    | {status: "FALLBACK"; target: string}
+    | {status: "BLOCKED"}
+    | {status: "FAIL"; reason: string}
+  >({status: "IDLE"});
+
+  const handleDeepLink = useCallback(
+    async (url: string) => {
+      setDeepLinkState({status: "RESOLVING"});
+      try {
+        const action = await resolveCanonicalUniversalLink(url, {
+          apiOrigin: deepLinkAPIBaseURL,
+          sessionCookie: deepLinkE2ESessionCookie,
+        });
+        if (action.action === "OPEN_APP_PATH") {
+          setDeepLinkState({status: "OPEN", target: action.target});
+          return;
+        }
+        if (action.action === "OPEN_WEB_FALLBACK") {
+          setDeepLinkState({status: "FALLBACK", target: action.target});
+          await Linking.openURL(action.target);
+          return;
+        }
+        setDeepLinkState({status: "BLOCKED"});
+      } catch (error: unknown) {
+        setDeepLinkState({
+          status: "FAIL",
+          reason: error instanceof Error ? error.message : "DEEPLINK_RESOLUTION_FAILED",
+        });
+      }
+    },
+    [deepLinkAPIBaseURL, deepLinkE2ESessionCookie],
+  );
+
+  useEffect(() => {
+    let active = true;
+    const receive = (url: string | null) => {
+      if (active && url) {
+        void handleDeepLink(url);
+      }
+    };
+    if (deepLinkE2EURL) {
+      receive(deepLinkE2EURL);
+    } else {
+      void Linking.getInitialURL().then(receive);
+    }
+    const subscription = Linking.addEventListener("url", ({url}) => receive(url));
+    return () => {
+      active = false;
+      subscription.remove();
+    };
+  }, [deepLinkE2EURL, handleDeepLink]);
 
   useEffect(() => {
     if (
@@ -117,6 +182,24 @@ export default function App({
             </Text>
           ) : null}
         </View>
+
+        {deepLinkState.status !== "IDLE" ? (
+          <View style={styles.capability} accessibilityRole="summary">
+            <Text accessibilityLabel={`deep-link-state:${deepLinkState.status}`}>
+              Deep link: {deepLinkState.status}
+            </Text>
+            {deepLinkState.status === "OPEN" ? (
+              <Text accessibilityLabel={`deep-link-target:${deepLinkState.target}`}>
+                {deepLinkState.target}
+              </Text>
+            ) : null}
+            {deepLinkState.status === "FALLBACK" ? (
+              <Text accessibilityLabel={`deep-link-fallback:${deepLinkState.target}`}>
+                Web fallback
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
 
         {installationE2E.status !== "IDLE" ? (
           <View style={styles.capability} accessibilityRole="summary">
