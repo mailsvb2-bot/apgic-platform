@@ -2565,9 +2565,9 @@ requirements:
   - .github/workflows/ci.yml
   evidence_refs:
   - docs/traceability/R1-mobile006-deeplink-runtime.md
-  - surface://WEB/mobile006-safe-deeplink/run-36880963294/job-110433285677
-  - surface://IOS/mobile006-safe-deeplink/run-36880963294/job-110433285950
-  - surface://ANDROID/mobile006-safe-deeplink/run-36880963294/job-110433285987
+  - surface://WEB/mobile006-safe-deeplink/run-36890270476/job-110463830832
+  - surface://IOS/mobile006-safe-deeplink/run-36890270476/job-110463830845
+  - surface://ANDROID/mobile006-safe-deeplink/run-36890270476/job-110463831035
   acceptance:
     given: пользователь открывает booking/specialist/notification link
     when: app установлен или отсутствует
