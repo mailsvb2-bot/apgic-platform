@@ -42,7 +42,7 @@ func TestRequiredCanonicalTablesAndIndexesAreStable(t *testing.T) {
 		}
 	}
 	wantIndexes := map[string]bool{
-		"ledger_entries_economic_event_ref_unique": true,
+		"ledger_entries_economic_event_ref_unique":      true,
 		"client_installations_active_push_endpoint_idx": true,
 	}
 	if len(requiredIndexes) != len(wantIndexes) {
