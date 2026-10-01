@@ -137,6 +137,10 @@ func validCanonicalTargetID(targetID string) bool {
 	return url.PathEscape(targetID) == targetID
 }
 
+func ValidDeepLinkTarget(kind LinkKind, targetID string) bool {
+	return validLinkKind(kind) && validCanonicalTargetID(targetID)
+}
+
 func canonicalPathFor(kind LinkKind, targetID string) (string, bool) {
 	if !validCanonicalTargetID(targetID) {
 		return "", false

@@ -69,6 +69,10 @@ func registerMobileDeepLinks(
 			return
 		}
 		body.TargetID = strings.TrimSpace(body.TargetID)
+		if !mobile.ValidDeepLinkTarget(body.Kind, body.TargetID) {
+			writeDemandError(w, r, http.StatusBadRequest, mobile.ReasonLinkInvalid, "Параметры ссылки некорректны.", false, nil)
+			return
+		}
 		resource, found, err := store.DeepLinkResource(body.Kind, body.TargetID)
 		switch {
 		case err != nil:
