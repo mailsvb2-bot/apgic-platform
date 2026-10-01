@@ -2600,13 +2600,25 @@ requirements:
   - APGIC-MOBILE-005
   implementation_refs:
   - apps/mobile/src/r2-transaction-edge.ts
+  - apps/mobile/src/mobile-notification-client.ts
+  - backend/internal/notification/transport.go
+  - backend/internal/runtimepostgres/notification.go
+  - backend/internal/httpapi/mobile_notification.go
   - backend/migrations/000011_r2_transaction_edge.sql
+  - backend/migrations/000025_r2_notification_policy_runtime.sql
   contract_refs:
+  - contracts/openapi/apgic-v1.yaml
+  - packages/contracts/src/generated/apgic-v1.ts
   - packages/contracts/src/r2-transaction-edge.ts
   - contracts/jsonschema/transaction-edge-v1.schema.json
   test_refs:
   - apps/mobile/src/r2-transaction-edge.test.ts
+  - apps/mobile/src/mobile-notification-client.test.ts
+  - backend/internal/notification/transport_test.go
+  - backend/internal/runtimepostgres/notification_test.go
   - backend/migrations/ci_r2_transaction_edge_invariants.sql
+  - tools/mobile_android_capability_e2e.sh
+  - tools/mobile_ios_capability_e2e.sh
   - .github/workflows/ci.yml
   evidence_refs: []
   acceptance:
