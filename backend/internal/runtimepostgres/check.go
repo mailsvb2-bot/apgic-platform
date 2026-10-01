@@ -20,6 +20,8 @@ var requiredTables = []string{
 	"identities",
 	"identity_roles",
 	"client_installations",
+	"notification_intents",
+	"notification_deliveries",
 	"help_intents",
 	"outbox_events",
 	"audit_records",

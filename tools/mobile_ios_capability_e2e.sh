@@ -297,7 +297,36 @@ assert_deep_link_runtime() {
   fail "installed iOS app did not resolve canonical deep link"
 }
 
+assert_notification_runtime() {
+  local output="$EVIDENCE_DIR/ios-notification-e2e.json"
+  local delivery_id="00000000-0000-0000-0000-00000000e701"
+  local intent_id="00000000-0000-0000-0000-00000000e702"
+
+  xcrun simctl terminate "$UDID" com.apgic.ci >/dev/null 2>&1 || true
+  SIMCTL_CHILD_APGIC_E2E_CAPABILITY_STATE=GRANTED \
+  SIMCTL_CHILD_APGIC_E2E_NOTIFICATION_BASE_URL=http://127.0.0.1:43113 \
+  SIMCTL_CHILD_APGIC_E2E_NOTIFICATION_SESSION_COOKIE="$SESSION_COOKIE" \
+  SIMCTL_CHILD_APGIC_E2E_NOTIFICATION_DELIVERY_ID="$delivery_id" \
+  SIMCTL_CHILD_APGIC_E2E_NOTIFICATION_INTENT_ID="$intent_id" \
+    xcrun simctl launch "$UDID" com.apgic.ci >/dev/null
+
+  for _ in $(seq 1 60); do
+    if "$IDB" ui describe-all --udid "$UDID" --api axbridge --json --nested >"$output" 2>/dev/null &&
+       json_has_ax_label "$output" "notification-e2e:PASS" &&
+       json_has_ax_label "$output" "notification-e2e-intent:$intent_id" &&
+       json_has_ax_label "$output" "notification-e2e-preview:GENERIC"; then
+      echo "iOS installed-app canonical notification transport: PASS"
+      return 0
+    fi
+    sleep 1
+  done
+
+  [[ -f "$output" ]] && cat "$output" >&2 || true
+  fail "installed iOS app did not resolve canonical notification transport"
+}
+
 assert_installation_lifecycle
 assert_deep_link_runtime
+assert_notification_runtime
 
-echo "IOS CAPABILITY + INSTALLATION + DEEP-LINK NATIVE E2E: PASS"
+echo "IOS CAPABILITY + INSTALLATION + DEEP-LINK + NOTIFICATION NATIVE E2E: PASS"

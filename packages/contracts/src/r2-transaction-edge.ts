@@ -54,3 +54,27 @@ export type CalendarSyncProjectionV1 = {
   state: "PENDING" | "SYNCED" | "CONFLICT" | "FAILED_RETRYABLE";
   provider_event_ref?: string;
 };
+
+
+export type MobileNotificationTransportV1 = {
+  contract_version: "notification-transport-v1";
+  delivery_id: string;
+  intent_id: string;
+};
+
+export type MobileNotificationProjectionV1 = {
+  contract_version: "notification-projection-v1";
+  delivery_id: string;
+  intent_id: string;
+  purpose: string;
+  related_object_ref: string;
+  channel: "PUSH";
+  delivery_state:
+    | "PENDING"
+    | "SENT"
+    | "DELIVERED"
+    | "FAILED_RETRYABLE"
+    | "SUPPRESSED";
+  data_class: string;
+  preview_mode: "GENERIC" | "FULL";
+};

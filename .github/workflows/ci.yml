@@ -231,6 +231,7 @@ jobs:
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000022_r0_connector_atomic_application.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000023_r0_product_runtime.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000024_r0_published_product_order_gate.sql
+          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000025_r2_notification_policy_runtime.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r0_connector_delivery_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r1_mobile_invariants.sql
@@ -332,6 +333,11 @@ jobs:
         env:
           APGIC_MOBILE_INSTALLATION_TEST_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable
         run: go test ./internal/runtimepostgres -run TestMobileInstallationHTTPPreservesIdentityAcrossRotationReinstallAndRevoke -count=1
+      - name: Prove notification push parity idempotency audit and ownership
+        working-directory: backend
+        env:
+          APGIC_NOTIFICATION_TEST_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable
+        run: go test ./internal/runtimepostgres -run TestNotificationTransportClaimIsIdempotentAuditedAndOwned -count=1
       - name: Prove staging API requires PostgreSQL readiness
         working-directory: backend
         shell: bash
@@ -419,6 +425,7 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f backend/migrations/000022_r0_connector_atomic_application.sql
           psql -v ON_ERROR_STOP=1 -f backend/migrations/000023_r0_product_runtime.sql
           psql -v ON_ERROR_STOP=1 -f backend/migrations/000024_r0_published_product_order_gate.sql
+          psql -v ON_ERROR_STOP=1 -f backend/migrations/000025_r2_notification_policy_runtime.sql
           bash backend/ci/restore_drill.sh
       - uses: actions/upload-artifact@v7
         with:
@@ -582,6 +589,7 @@ jobs:
             evidence/android-installation-server-state.json
             evidence/android-deeplink-issued.json
             evidence/android-deeplink-e2e.xml
+            evidence/android-notification-e2e.xml
           if-no-files-found: error
           retention-days: 30
 
@@ -636,6 +644,7 @@ jobs:
             evidence/ios-installation-server-state.json
             evidence/ios-deeplink-issued.json
             evidence/ios-deeplink-e2e.json
+            evidence/ios-notification-e2e.json
           if-no-files-found: error
           retention-days: 30
 

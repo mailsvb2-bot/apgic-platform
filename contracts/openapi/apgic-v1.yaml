@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: APGIC Public API
-  version: 0.6.0-r1-deep-link-runtime
+  version: 0.7.0-r2-notification-runtime
 servers: []
 paths:
   /healthz:
@@ -242,6 +242,48 @@ paths:
                 $ref: '#/components/schemas/ErrorEnvelope'
         '503':
           description: Deep-link signing or canonical resource storage is unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /v1/mobile/notification-deliveries/{deliveryID}:
+    get:
+      operationId: getMobileNotificationDelivery
+      description: Re-reads the canonical owner-scoped notification projection after an opaque mobile push transport envelope. The push payload is not notification business truth.
+      security:
+        - ClientSession: []
+      parameters:
+        - in: path
+          name: deliveryID
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 128 }
+      responses:
+        '200':
+          description: Canonical push delivery projection with sensitive-preview policy already applied.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MobileNotificationProjection'
+        '400':
+          description: Invalid delivery identifier.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Trusted client session is required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Delivery is absent or is not owned by the signed Identity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '503':
+          description: Canonical notification storage is unavailable.
           content:
             application/json:
               schema:
@@ -1238,6 +1280,28 @@ components:
         token: { type: string, minLength: 1 }
         universal_url: { type: string, format: uri }
         expires_at: { type: string, format: date-time }
+    MobileNotificationProjection:
+      type: object
+      additionalProperties: false
+      required: [contract_version, delivery_id, intent_id, purpose, related_object_ref, channel, delivery_state, data_class, preview_mode]
+      properties:
+        contract_version:
+          type: string
+          enum: [notification-projection-v1]
+        delivery_id: { type: string, minLength: 1 }
+        intent_id: { type: string, minLength: 1 }
+        purpose: { type: string, minLength: 1 }
+        related_object_ref: { type: string, minLength: 1 }
+        channel:
+          type: string
+          enum: [PUSH]
+        delivery_state:
+          type: string
+          enum: [PENDING, SENT, DELIVERED, FAILED_RETRYABLE, SUPPRESSED]
+        data_class: { type: string, minLength: 1 }
+        preview_mode:
+          type: string
+          enum: [GENERIC, FULL]
     ProductCommercialOwnerRequest:
       type: object
       additionalProperties: false
