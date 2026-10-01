@@ -2622,6 +2622,7 @@ requirements:
   - .github/workflows/ci.yml
   evidence_refs:
   - docs/traceability/R2-mobile007-notification-runtime.md
+  - surface://WEB/mobile007-notification-transport/run-36906994292/job-110519954885
   - surface://IOS/mobile007-notification-transport/run-36906994292/job-110519955325
   - surface://ANDROID/mobile007-notification-transport/run-36906994292/job-110519955578
   - surface://SERVER/mobile007-notification-transport/run-36906994292/job-110519955475
