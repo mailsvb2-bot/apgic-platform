@@ -2471,6 +2471,8 @@ requirements:
   - tools/mobile_ios_capability_e2e.sh
   evidence_refs:
   - docs/traceability/R0-mobile004-native-capability-e2e.md
+  - surface://IOS/native-capability-fallback/run-36783400366/job-110118946335
+  - surface://ANDROID/native-capability-fallback/run-36783400366/job-110118946422
   acceptance:
     given: capability требует microphone/camera/calendar/secure storage
     when: permission denied/restricted/unavailable
