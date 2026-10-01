@@ -7,7 +7,7 @@ export interface DeepLinkResolutionV1 {
   reason_code: string;
   canonical_path?: string;
   canonical_web_fallback?: string;
-  expires_at: string;
+  expires_at?: string;
 }
 
 export type AnalyticsPrimitive = string | number | boolean | null;

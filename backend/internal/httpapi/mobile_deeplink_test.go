@@ -80,7 +80,7 @@ func TestMobileDeepLinkHTTPUsesTrustedSessionAndCurrentResourceTruth(t *testing.
 	if err := json.Unmarshal(resolved.Body.Bytes(), &resolution); err != nil {
 		t.Fatal(err)
 	}
-	if !resolution.Allowed || resolution.CanonicalPath != "/bookings/"+targetID {
+	if resolution.Decision != "ALLOW" || resolution.CanonicalPath != "/bookings/"+targetID {
 		t.Fatalf("unexpected resolution: %#v", resolution)
 	}
 
@@ -94,7 +94,7 @@ func TestMobileDeepLinkHTTPUsesTrustedSessionAndCurrentResourceTruth(t *testing.
 	if err := json.Unmarshal(crossUserRec.Body.Bytes(), &resolution); err != nil {
 		t.Fatal(err)
 	}
-	if resolution.Allowed || !strings.HasPrefix(resolution.ReasonCode, mobile.ReasonLinkSubjectMismatch) {
+	if resolution.Decision != "DENY" || !strings.HasPrefix(resolution.ReasonCode, mobile.ReasonLinkSubjectMismatch) {
 		t.Fatalf("cross-user token must fail closed: %#v", resolution)
 	}
 
@@ -114,7 +114,7 @@ func TestMobileDeepLinkHTTPUsesTrustedSessionAndCurrentResourceTruth(t *testing.
 	if err := json.Unmarshal(staleRec.Body.Bytes(), &resolution); err != nil {
 		t.Fatal(err)
 	}
-	if resolution.Allowed || resolution.ReasonCode != mobile.ReasonLinkInvalid {
+	if resolution.Decision != "DENY" || resolution.ReasonCode != mobile.ReasonLinkInvalid {
 		t.Fatalf("stale ownership token must be invalidated: %#v", resolution)
 	}
 }

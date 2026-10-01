@@ -31,11 +31,11 @@ type issueDeepLinkResponse struct {
 }
 
 type deepLinkResolutionResponse struct {
-	Allowed       bool      `json:"allowed"`
-	ReasonCode    string    `json:"reason_code"`
-	CanonicalPath string    `json:"canonical_path,omitempty"`
-	WebFallback   string    `json:"web_fallback,omitempty"`
-	ExpiresAt     time.Time `json:"expires_at,omitempty"`
+	Decision             string `json:"decision"`
+	ReasonCode           string `json:"reason_code"`
+	CanonicalPath        string `json:"canonical_path,omitempty"`
+	CanonicalWebFallback string `json:"canonical_web_fallback,omitempty"`
+	ExpiresAt            string `json:"expires_at,omitempty"`
 }
 
 func registerMobileDeepLinks(
@@ -110,7 +110,7 @@ func registerMobileDeepLinks(
 			if errors.Is(err, mobile.ErrDeepLinkTokenExpired) {
 				reason = mobile.ReasonLinkExpired
 			}
-			writeJSON(w, http.StatusOK, deepLinkResolutionResponse{Allowed: false, ReasonCode: reason})
+			writeJSON(w, http.StatusOK, deepLinkResolutionResponse{Decision: "DENY", ReasonCode: reason})
 			return
 		}
 		resource, found, err := store.DeepLinkResource(claims.Kind, claims.TargetID)
@@ -119,7 +119,7 @@ func registerMobileDeepLinks(
 			writeDemandError(w, r, http.StatusServiceUnavailable, "DEEPLINK_RESOURCE_UNAVAILABLE", "Ресурс ссылки временно недоступен.", true, nil)
 			return
 		case !found:
-			writeJSON(w, http.StatusOK, deepLinkResolutionResponse{Allowed: false, ReasonCode: mobile.ReasonLinkInvalid})
+			writeJSON(w, http.StatusOK, deepLinkResolutionResponse{Decision: "DENY", ReasonCode: mobile.ReasonLinkInvalid})
 			return
 		}
 
@@ -139,12 +139,20 @@ func registerMobileDeepLinks(
 			}
 		}
 		resolution := mobile.ResolveTrustedDeepLink(claims, resource, principal, now().UTC())
+		decision := "DENY"
+		if resolution.Allowed {
+			decision = "ALLOW"
+		}
+		expiresAt := ""
+		if !resolution.ExpiresAt.IsZero() {
+			expiresAt = resolution.ExpiresAt.UTC().Format(time.RFC3339)
+		}
 		writeJSON(w, http.StatusOK, deepLinkResolutionResponse{
-			Allowed:       resolution.Allowed,
-			ReasonCode:    resolution.ReasonCode,
-			CanonicalPath: resolution.CanonicalPath,
-			WebFallback:   resolution.WebFallback,
-			ExpiresAt:     resolution.ExpiresAt,
+			Decision:             decision,
+			ReasonCode:           resolution.ReasonCode,
+			CanonicalPath:        resolution.CanonicalPath,
+			CanonicalWebFallback: resolution.WebFallback,
+			ExpiresAt:            expiresAt,
 		})
 	})
 }
