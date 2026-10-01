@@ -38,6 +38,7 @@ func TestClientMutationPersistsAppliedFailedAndConflictOutcomes(t *testing.T) {
 		IdentityID:     identityID,
 		Operation:      "CREATE_CHECKOUT",
 		IdempotencyKey: "runtime-checkout-1",
+		CorrelationID:  "corr-runtime-checkout-1",
 		RequestDigest:  "sha256:payload-a",
 	}
 
@@ -56,6 +57,17 @@ func TestClientMutationPersistsAppliedFailedAndConflictOutcomes(t *testing.T) {
 	}
 	if retry.Outcome != mutation.OutcomeDuplicate || retry.MutationID != mutationID {
 		t.Fatalf("retry claim = %#v", retry)
+	}
+
+	changedCorrelation := envelope
+	changedCorrelation.CorrelationID = "corr-runtime-checkout-other"
+	correlationConflictID, _ := persistentid.New()
+	correlationConflict, err := store.Claim(context.Background(), correlationConflictID, changedCorrelation, now.Add(1500*time.Millisecond))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if correlationConflict.Outcome != mutation.OutcomeConflict || correlationConflict.MutationID != mutationID {
+		t.Fatalf("changed correlation = %#v", correlationConflict)
 	}
 
 	changed := envelope
@@ -98,6 +110,7 @@ func TestClientMutationPersistsAppliedFailedAndConflictOutcomes(t *testing.T) {
 		IdentityID:     identityID,
 		Operation:      "CREATE_CHECKOUT",
 		IdempotencyKey: "runtime-checkout-2",
+		CorrelationID:  "corr-runtime-checkout-2",
 		RequestDigest:  "sha256:payload-c",
 	}
 	appliedClaim, err := store.Claim(context.Background(), appliedID, appliedEnvelope, now.Add(6*time.Second))
