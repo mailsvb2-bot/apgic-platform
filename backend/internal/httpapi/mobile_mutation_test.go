@@ -40,7 +40,8 @@ func (s *memoryMutationStore) Claim(_ context.Context, mutationID string, envelo
 	defer s.mu.Unlock()
 	key := s.key(envelope)
 	if existing, ok := s.records[key]; ok {
-		if existing.envelope.RequestDigest != envelope.RequestDigest {
+		if existing.envelope.CorrelationID != envelope.CorrelationID ||
+			existing.envelope.RequestDigest != envelope.RequestDigest {
 			return mutation.ClaimResult{
 				Outcome:    mutation.OutcomeConflict,
 				MutationID: existing.mutationID,
@@ -193,7 +194,10 @@ func TestMobileCheckoutMutationReplaysOneCanonicalCheckout(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	headers := map[string]string{"Idempotency-Key": "mobile-checkout-retry-1"}
+	headers := map[string]string{
+		"Idempotency-Key": "mobile-checkout-retry-1",
+		"X-Correlation-Id": "corr-mobile-checkout-retry-1",
+	}
 	body := `{"hold_id":"` + hold.ID + `","method_code":"BANK_CARD"}`
 	first := call(session, http.MethodPost, "/v1/mobile/checkout-instructions", body, headers)
 	if first.Code != http.StatusCreated {
@@ -222,6 +226,15 @@ func TestMobileCheckoutMutationReplaysOneCanonicalCheckout(t *testing.T) {
 		retryResult.Checkout.OrderID != firstResult.Checkout.OrderID ||
 		retryResult.Checkout.BookingID != firstResult.Checkout.BookingID {
 		t.Fatalf("retry created divergent side effect: first=%#v retry=%#v", firstResult, retryResult)
+	}
+
+	correlationHeaders := map[string]string{
+		"Idempotency-Key": "mobile-checkout-retry-1",
+		"X-Correlation-Id": "corr-mobile-checkout-other",
+	}
+	correlationConflict := call(session, http.MethodPost, "/v1/mobile/checkout-instructions", body, correlationHeaders)
+	if correlationConflict.Code != http.StatusConflict || !strings.Contains(correlationConflict.Body.String(), "MUTATION_IDEMPOTENCY_CONFLICT") {
+		t.Fatalf("changed correlation status=%d body=%s", correlationConflict.Code, correlationConflict.Body.String())
 	}
 
 	conflict := call(session, http.MethodPost, "/v1/mobile/checkout-instructions",
@@ -261,6 +274,7 @@ func TestMobileCheckoutMutationPersistsTerminalFailure(t *testing.T) {
 			strings.NewReader(`{"hold_id":"missing-hold","method_code":"NOT_A_METHOD"}`))
 		req.Header.Set("content-type", "application/json")
 		req.Header.Set("Idempotency-Key", "mobile-checkout-failure-1")
+		req.Header.Set("X-Correlation-Id", "corr-mobile-checkout-failure-1")
 		req.AddCookie(session)
 		out := httptest.NewRecorder()
 		handler.ServeHTTP(out, req)
