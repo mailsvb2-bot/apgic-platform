@@ -53,6 +53,29 @@ func TestRequiredCanonicalTablesAndIndexesAreStable(t *testing.T) {
 			t.Fatalf("unexpected required index %q", index)
 		}
 	}
+	wantColumns := map[requiredColumn]bool{
+		{table: "client_mutation_records", column: "correlation_id"}: true,
+		{table: "client_mutation_records", column: "failure_code"}:   true,
+	}
+	if len(requiredColumns) != len(wantColumns) {
+		t.Fatalf("required columns = %v", requiredColumns)
+	}
+	for _, column := range requiredColumns {
+		if !wantColumns[column] {
+			t.Fatalf("unexpected required column %#v", column)
+		}
+	}
+	wantProcedures := map[string]bool{
+		"public.apgic_claim_client_mutation(uuid,uuid,text,text,text,text,timestamptz)": true,
+	}
+	if len(requiredProcedures) != len(wantProcedures) {
+		t.Fatalf("required procedures = %v", requiredProcedures)
+	}
+	for _, procedure := range requiredProcedures {
+		if !wantProcedures[procedure] {
+			t.Fatalf("unexpected required procedure %q", procedure)
+		}
+	}
 }
 
 func TestLedgerStorePersistsAndReplays(t *testing.T) {
