@@ -23,6 +23,7 @@ import {
   type OfflineCheckoutState,
 } from "./mobile-offline-checkout.ts";
 import {offlineMutationStorage} from "./offline-mutation-storage.ts";
+import {runNativeRealtimeE2E, type NativeRealtimeE2EResult} from "./r3-realtime-e2e.ts";
 
 type AppProps = {
   deviceCapability?: DeviceCapability;
@@ -43,6 +44,8 @@ type AppProps = {
   offlineMutationE2EHoldID?: string;
   offlineMutationE2EIdempotencyKey?: string;
   offlineMutationE2EMethodCode?: string;
+  realtimeE2EEvents?: string;
+  realtimeE2EReconnectFailures?: string;
 };
 
 const fallbackCopy = {
@@ -77,6 +80,8 @@ export default function App({
   offlineMutationE2EHoldID,
   offlineMutationE2EIdempotencyKey,
   offlineMutationE2EMethodCode,
+  realtimeE2EEvents,
+  realtimeE2EReconnectFailures,
 }: AppProps) {
   const decision = decideCapability(deviceCapabilityState);
   const [installationE2E, setInstallationE2E] = useState<
@@ -108,6 +113,12 @@ export default function App({
         reasonCode?: string;
       }
     | {status: "ERROR"; reason: string}
+  >({status: "IDLE"});
+
+  const [realtimeE2E, setRealtimeE2E] = useState<
+    | {status: "IDLE" | "RUNNING"}
+    | ({status: "PASS"} & NativeRealtimeE2EResult)
+    | {status: "FAIL"; reason: string}
   >({status: "IDLE"});
 
   const handleDeepLink = useCallback(
@@ -280,6 +291,34 @@ export default function App({
   ]);
 
   useEffect(() => {
+    if (!realtimeE2EEvents) {
+      return;
+    }
+    let active = true;
+    setRealtimeE2E({status: "RUNNING"});
+    const reconnectFailures = Number.parseInt(realtimeE2EReconnectFailures ?? "0", 10);
+    void runNativeRealtimeE2E(
+      realtimeE2EEvents,
+      Number.isFinite(reconnectFailures) && reconnectFailures >= 0 ? reconnectFailures : 0,
+    ).then(
+      (result) => {
+        if (active) setRealtimeE2E({status: "PASS", ...result});
+      },
+      (error: unknown) => {
+        if (active) {
+          setRealtimeE2E({
+            status: "FAIL",
+            reason: error instanceof Error ? error.message : "REALTIME_E2E_FAILED",
+          });
+        }
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [realtimeE2EEvents, realtimeE2EReconnectFailures]);
+
+  useEffect(() => {
     if (
       !installationE2EBaseURL ||
       !installationE2ESessionCookie ||
@@ -426,6 +465,27 @@ export default function App({
               >
                 Offline mutation runtime failed safely.
               </Text>
+            ) : null}
+          </View>
+        ) : null}
+
+        {realtimeE2E.status !== "IDLE" ? (
+          <View style={styles.capability} accessibilityRole="summary">
+            <Text accessibilityLabel={`realtime-e2e:${realtimeE2E.status}`}>
+              Realtime E2E: {realtimeE2E.status}
+            </Text>
+            {realtimeE2E.status === "PASS" ? (
+              <>
+                <Text accessibilityLabel={`realtime-phase:${realtimeE2E.phase}`}>Phase: {realtimeE2E.phase}</Text>
+                <Text accessibilityLabel={`realtime-business-transition:${realtimeE2E.businessTransitions.every((value) => value === "NONE") ? "NONE" : "INVALID"}`}>Business transition: NONE</Text>
+                <Text accessibilityLabel={`realtime-audio-route:${realtimeE2E.audioRoute}`}>Audio route: {realtimeE2E.audioRoute}</Text>
+                <Text accessibilityLabel={`realtime-app-state:${realtimeE2E.appState}`}>App state: {realtimeE2E.appState}</Text>
+                <Text accessibilityLabel={`realtime-network-state:${realtimeE2E.networkState}`}>Network: {realtimeE2E.networkState}</Text>
+                <Text accessibilityLabel={`realtime-provider-actions:${realtimeE2E.providerActions.join("|")}`}>Provider actions recorded.</Text>
+              </>
+            ) : null}
+            {realtimeE2E.status === "FAIL" ? (
+              <Text accessibilityLabel={`realtime-e2e-error:${realtimeE2E.reason}`}>Realtime lifecycle failed safely.</Text>
             ) : null}
           </View>
         ) : null}
