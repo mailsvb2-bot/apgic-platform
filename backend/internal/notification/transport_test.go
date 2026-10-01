@@ -27,9 +27,12 @@ func TestPushTransportIsOneIdempotentIntentWithSafePreview(t *testing.T) {
 		t.Fatal(err)
 	}
 	intent, err := NewTransactional(Intent{
-		ID: "intent-1", BookingID: "booking-1", Purpose: "BOOKING_CONFIRMATION",
-		IdempotencyKey: "booking-1:confirmation", DataClass: "SENSITIVE",
-		CreatedAt: time.Unix(1000, 0).UTC(),
+		ID:             "intent-1",
+		BookingID:      "booking-1",
+		Purpose:        "BOOKING_CONFIRMATION",
+		IdempotencyKey: "booking-1:confirmation",
+		DataClass:      "SENSITIVE",
+		CreatedAt:      time.Unix(1000, 0).UTC(),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -39,9 +42,13 @@ func TestPushTransportIsOneIdempotentIntentWithSafePreview(t *testing.T) {
 		t.Fatal(err)
 	}
 	request := DeliveryRequest{
-		DeliveryID: "delivery-1", AuditID: "audit-1", ActorID: "system:notification",
-		Channel: ChannelPush, EndpointRef: "device-1", ProviderInstanceID: "provider-1",
-		OccurredAt: time.Unix(1010, 0).UTC(),
+		DeliveryID:         "delivery-1",
+		AuditID:            "audit-1",
+		ActorID:            "system:notification",
+		Channel:            ChannelPush,
+		EndpointRef:        "device-1",
+		ProviderInstanceID: "provider-1",
+		OccurredAt:         time.Unix(1010, 0).UTC(),
 	}
 	first, duplicate, err := service.Claim(context.Background(), intent, request, policy)
 	if err != nil || duplicate {
@@ -75,23 +82,29 @@ func TestChannelPreferenceSuppressesBeforeProviderEnvelope(t *testing.T) {
 		t.Fatal(err)
 	}
 	intent, err := NewTransactional(Intent{
-		ID: "intent-2", BookingID: "booking-2", Purpose: "BOOKING_CONFIRMATION",
-		IdempotencyKey: "booking-2:confirmation", DataClass: "PUBLIC",
-		CreatedAt: time.Unix(2000, 0).UTC(),
+		ID:             "intent-2",
+		BookingID:      "booking-2",
+		Purpose:        "BOOKING_CONFIRMATION",
+		IdempotencyKey: "booking-2:confirmation",
+		DataClass:      "PUBLIC",
+		CreatedAt:      time.Unix(2000, 0).UTC(),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	plan, auditDecision, err := PlanDelivery(intent, DeliveryRequest{
-		DeliveryID: "delivery-2", AuditID: "audit-2", ActorID: "system:notification",
-		Channel: ChannelPush, EndpointRef: "device-2", ProviderInstanceID: "provider-2",
-		OccurredAt: time.Unix(2010, 0).UTC(),
+		DeliveryID:         "delivery-2",
+		AuditID:            "audit-2",
+		ActorID:            "system:notification",
+		Channel:            ChannelPush,
+		EndpointRef:        "device-2",
+		ProviderInstanceID: "provider-2",
+		OccurredAt:         time.Unix(2010, 0).UTC(),
 	}, policy)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if plan.State != DeliverySuppressed || plan.ReasonCode != ReasonDeliveryPreferenceSuppressed ||
-		auditDecision.ReasonCode != ReasonDeliveryPreferenceSuppressed {
+	if plan.State != DeliverySuppressed || plan.ReasonCode != ReasonDeliveryPreferenceSuppressed || auditDecision.ReasonCode != ReasonDeliveryPreferenceSuppressed {
 		t.Fatalf("preference was not applied before provider: plan=%#v audit=%#v", plan, auditDecision)
 	}
 	if _, err := PushEnvelope(plan); err == nil {
