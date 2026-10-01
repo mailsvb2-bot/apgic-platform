@@ -29,6 +29,13 @@ FORBIDDEN_RUNTIME_DEPENDENCIES = {
     "react-native-mmkv",
 }
 
+AUDITED_NATIVE_STORAGE_ADAPTERS = {
+    "apps/mobile/android/app/src/main/java/com/apgic/ci/OfflineMutationStorageModule.kt":
+        "APGIC_AUDITED_STORAGE_ADAPTER: INTERNAL_OFFLINE_MUTATION_QUEUE",
+    "apps/mobile/ios/APGIC/OfflineMutationStorage.m":
+        "APGIC_AUDITED_STORAGE_ADAPTER: INTERNAL_OFFLINE_MUTATION_QUEUE",
+}
+
 def scan_files(root: Path, base: str, suffixes: set[str], pattern: re.Pattern[str]) -> list[str]:
     errors: list[str] = []
     folder = root / base
@@ -40,9 +47,21 @@ def scan_files(root: Path, base: str, suffixes: set[str], pattern: re.Pattern[st
         text = path.read_text(encoding="utf-8", errors="ignore")
         match = pattern.search(text)
         if match:
+            rel = path.relative_to(root).as_posix()
+            marker = AUDITED_NATIVE_STORAGE_ADAPTERS.get(rel)
+            if marker is not None:
+                if marker not in text:
+                    errors.append(f"{rel}: audited storage adapter marker missing")
+                if SENSITIVE_MARKERS.search(text):
+                    errors.append(
+                        f"{rel}: audited INTERNAL offline queue adapter must not reference sensitive DataClass markers"
+                    )
+                if "8192" not in text:
+                    errors.append(f"{rel}: audited offline queue adapter must enforce the 8192-byte payload bound")
+                continue
             line = text.count("\n", 0, match.start()) + 1
             errors.append(
-                f"{path.relative_to(root).as_posix()}:{line}: direct native/local persistence "
+                f"{rel}:{line}: direct native/local persistence "
                 "is forbidden until routed through an audited storage adapter and DataClass policy"
             )
     return errors

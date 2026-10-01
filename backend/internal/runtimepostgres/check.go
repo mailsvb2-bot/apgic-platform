@@ -22,6 +22,7 @@ var requiredTables = []string{
 	"client_installations",
 	"notification_intents",
 	"notification_deliveries",
+	"client_mutation_records",
 	"help_intents",
 	"outbox_events",
 	"audit_records",

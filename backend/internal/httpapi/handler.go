@@ -10,6 +10,7 @@ import (
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/launchconfig"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/legal"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/mobile"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/mutation"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/notification"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/specialist"
 )
@@ -24,6 +25,7 @@ type Options struct {
 	LegalAcceptances   legal.AcceptanceStore
 	Installations      mobile.InstallationStore
 	Notifications      notification.MobileProjectionStore
+	ClientMutations    mutation.Store
 	DeepLinks          deepLinkResourceStore
 	DeepLinkSigningKey []byte
 	Specialists        specialist.Store
@@ -106,6 +108,7 @@ func New(options Options) http.Handler {
 	registerLegalAcceptance(mux, options.LegalAcceptances, sessions, sessionConfigErr, options.Now)
 	registerMobileInstallations(mux, options.Installations, sessions, sessionConfigErr, options.Now)
 	registerMobileNotifications(mux, options.Notifications, sessions, sessionConfigErr)
+	registerMobileCheckoutMutation(mux, options.Demand, options.ClientMutations, sessions, sessionConfigErr, options.Now)
 	var deepLinkTokens *mobile.DeepLinkTokenManager
 	var deepLinkTokenConfigErr error
 	if len(options.DeepLinkSigningKey) > 0 {
