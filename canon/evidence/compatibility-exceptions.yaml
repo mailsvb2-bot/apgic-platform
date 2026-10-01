@@ -11,3 +11,16 @@ exceptions:
       permission behavior is outside this requirement and must not be represented
       by fabricated WEB evidence.
     approved_by: mailsvb2-bot
+
+  - exception_id: APGIC-MOBILE-005-WEB-NOT-APPLICABLE
+    requirement_id: APGIC-MOBILE-005
+    status: APPROVED
+    surfaces:
+      - WEB
+    reason: >-
+      APGIC-MOBILE-005 implements the native Device Identity / ClientInstallation /
+      PushEndpoint lifecycle from Canon section 319. Web participates in the same
+      user Identity but has no iOS/Android ClientInstallation or push-token rotation
+      lifecycle under this requirement; fabricating WEB installation evidence would
+      create a false parallel device truth.
+    approved_by: mailsvb2-bot
