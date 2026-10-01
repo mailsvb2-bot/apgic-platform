@@ -189,6 +189,7 @@ BEGIN
     '00000000-0000-0000-0000-00000000f401',
     'BOOKING_CONFIRM',
     'offline-mutation-1',
+    'corr-offline-mutation-1',
     'sha256:payload-a',
     now() + interval '17 minutes'
   );
@@ -200,6 +201,7 @@ BEGIN
     '00000000-0000-0000-0000-00000000f401',
     'BOOKING_CONFIRM',
     'offline-mutation-1',
+    'corr-offline-mutation-1',
     'sha256:payload-a',
     now() + interval '18 minutes'
   );
@@ -211,6 +213,7 @@ BEGIN
     '00000000-0000-0000-0000-00000000f401',
     'BOOKING_CONFIRM',
     'offline-mutation-1',
+    'corr-offline-mutation-1',
     'sha256:payload-b',
     now() + interval '19 minutes'
   );
@@ -248,6 +251,7 @@ BEGIN
     '00000000-0000-0000-0000-00000000f401',
     'BOOKING_CONFIRM',
     'offline-mutation-1',
+    'corr-offline-mutation-1',
     'sha256:payload-a',
     now() + interval '21 minutes'
   );
