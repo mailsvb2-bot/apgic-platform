@@ -43,6 +43,20 @@ var requiredIndexes = []string{
 	"client_installations_active_push_endpoint_idx",
 }
 
+type requiredColumn struct {
+	table  string
+	column string
+}
+
+var requiredColumns = []requiredColumn{
+	{table: "client_mutation_records", column: "correlation_id"},
+	{table: "client_mutation_records", column: "failure_code"},
+}
+
+var requiredProcedures = []string{
+	"public.apgic_claim_client_mutation(uuid,uuid,text,text,text,text,timestamptz)",
+}
+
 type Checker struct {
 	db *sql.DB
 }
@@ -107,6 +121,41 @@ func (c *Checker) Ready(ctx context.Context) error {
 		}
 		if !exists {
 			return fmt.Errorf("required index missing: %s", index)
+		}
+	}
+	for _, required := range requiredColumns {
+		var exists bool
+		err := c.db.QueryRowContext(
+			probeCtx,
+			`SELECT EXISTS (
+				SELECT 1
+				FROM information_schema.columns
+				WHERE table_schema = 'public'
+				  AND table_name = $1
+				  AND column_name = $2
+			)`,
+			required.table,
+			required.column,
+		).Scan(&exists)
+		if err != nil {
+			return fmt.Errorf("probe %s.%s: %w", required.table, required.column, err)
+		}
+		if !exists {
+			return fmt.Errorf("required column missing: %s.%s", required.table, required.column)
+		}
+	}
+	for _, procedure := range requiredProcedures {
+		var exists bool
+		err := c.db.QueryRowContext(
+			probeCtx,
+			"SELECT to_regprocedure($1) IS NOT NULL",
+			procedure,
+		).Scan(&exists)
+		if err != nil {
+			return fmt.Errorf("probe %s: %w", procedure, err)
+		}
+		if !exists {
+			return fmt.Errorf("required procedure missing: %s", procedure)
 		}
 	}
 	return nil
