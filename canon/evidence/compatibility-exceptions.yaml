@@ -1,2 +1,13 @@
 version: 1
-exceptions: []
+exceptions:
+  - exception_id: APGIC-MOBILE-004-WEB-NOT-APPLICABLE
+    requirement_id: APGIC-MOBILE-004
+    status: APPROVED
+    surfaces:
+      - WEB
+    reason: >-
+      APGIC-MOBILE-004 implements Canon section 318 Native OS Capability Layer.
+      Its acceptance and required evidence are explicitly native-only; browser/web
+      permission behavior is outside this requirement and must not be represented
+      by fabricated WEB evidence.
+    approved_by: mailsvb2-bot
