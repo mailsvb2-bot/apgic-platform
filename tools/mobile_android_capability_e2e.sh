@@ -464,9 +464,42 @@ PY
   echo "Android installed-app offline checkout restart/retry: PASS"
 }
 
+assert_realtime_lifecycle() {
+  local output="$EVIDENCE_DIR/android-realtime-e2e.xml"
+  local events="NETWORK_OFFLINE,NETWORK_ONLINE,APP_BACKGROUND,APP_FOREGROUND,AUDIO_ROUTE_CHANGED:BLUETOOTH,INTERRUPTION_BEGAN,INTERRUPTION_ENDED"
+  local expected_actions="realtime-provider-actions:CONNECT_PROVIDER|RECONNECT_PROVIDER|PAUSE_MEDIA|RECONNECT_PROVIDER|REFRESH_AUDIO_ROUTE|PAUSE_MEDIA|RECONNECT_PROVIDER"
+
+  "$ADB" shell am force-stop com.apgic.ci
+  "$ADB" shell am start -W \
+    -n com.apgic.ci/.MainActivity \
+    --es APGIC_E2E_CAPABILITY_STATE GRANTED \
+    --es APGIC_E2E_REALTIME_EVENTS "$events" \
+    >/dev/null
+
+  for _ in $(seq 1 60); do
+    if "$ADB" shell uiautomator dump /sdcard/apgic-realtime-e2e.xml >/dev/null 2>&1 &&
+       "$ADB" pull /sdcard/apgic-realtime-e2e.xml "$output" >/dev/null 2>&1 &&
+       grep -q 'realtime-e2e:PASS' "$output" &&
+       grep -q 'realtime-phase:CONNECTED' "$output" &&
+       grep -q 'realtime-business-transition:NONE' "$output" &&
+       grep -q 'realtime-audio-route:BLUETOOTH' "$output" &&
+       grep -q 'realtime-app-state:FOREGROUND' "$output" &&
+       grep -q 'realtime-network-state:ONLINE' "$output" &&
+       grep -Fq "$expected_actions" "$output"; then
+      echo "Android installed-app native realtime lifecycle/reconnect: PASS"
+      return 0
+    fi
+    sleep 1
+  done
+
+  [[ -f "$output" ]] && cat "$output" >&2 || true
+  fail "installed Android app did not complete native realtime lifecycle/reconnect proof"
+}
+
 assert_installation_lifecycle
 assert_deep_link_runtime
 assert_notification_runtime
 assert_offline_mutation_restart
+assert_realtime_lifecycle
 
-echo "ANDROID CAPABILITY + INSTALLATION + DEEP-LINK + NOTIFICATION + OFFLINE-SYNC NATIVE E2E: PASS"
+echo "ANDROID CAPABILITY + INSTALLATION + DEEP-LINK + NOTIFICATION + OFFLINE-SYNC + REALTIME NATIVE E2E: PASS"
