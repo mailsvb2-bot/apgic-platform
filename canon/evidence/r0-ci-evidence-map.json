@@ -687,8 +687,8 @@
         },
         "NATIVE_E2E": {
           "gates": [
-            "mobile-android-build",
-            "mobile-ios-build"
+            "android-native-build",
+            "ios-native-build"
           ],
           "proof_refs": [
             "apps/mobile/src/App.tsx",
