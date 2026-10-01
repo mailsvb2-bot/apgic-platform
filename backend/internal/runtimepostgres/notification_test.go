@@ -22,8 +22,8 @@ func TestNotificationTransportClaimIsIdempotentAuditedAndOwned(t *testing.T) {
 	defer store.Close()
 
 	const (
-		intentID = "00000000-0000-0000-0000-00000000f101"
-		bookingID = "00000000-0000-0000-0000-00000000b301"
+		intentID   = "00000000-0000-0000-0000-00000000f101"
+		bookingID  = "00000000-0000-0000-0000-00000000b301"
 		providerID = "00000000-0000-0000-0000-00000000f001"
 	)
 	var ownerIdentity string
@@ -40,13 +40,13 @@ func TestNotificationTransportClaimIsIdempotentAuditedAndOwned(t *testing.T) {
 		t.Fatal(err)
 	}
 	intent := notification.Intent{
-		ID: intentID,
-		BookingID: bookingID,
-		Purpose: "BOOKING_CONFIRMATION",
+		ID:             intentID,
+		BookingID:      bookingID,
+		Purpose:        "BOOKING_CONFIRMATION",
 		IdempotencyKey: "booking-b301:confirmation",
-		Transactional: true,
-		DataClass: "SENSITIVE",
-		CreatedAt: time.Now().UTC(),
+		Transactional:  true,
+		DataClass:      "SENSITIVE",
+		CreatedAt:      time.Now().UTC(),
 	}
 	deliveryID, err := persistentid.New()
 	if err != nil {
@@ -59,13 +59,13 @@ func TestNotificationTransportClaimIsIdempotentAuditedAndOwned(t *testing.T) {
 	endpoint := "device/runtime-" + deliveryID
 	occurredAt := time.Now().UTC().Add(time.Minute)
 	request := notification.DeliveryRequest{
-		DeliveryID: deliveryID,
-		AuditID: auditID,
-		ActorID: "system:notification",
-		Channel: notification.ChannelPush,
-		EndpointRef: endpoint,
+		DeliveryID:         deliveryID,
+		AuditID:            auditID,
+		ActorID:            "system:notification",
+		Channel:            notification.ChannelPush,
+		EndpointRef:        endpoint,
 		ProviderInstanceID: providerID,
-		OccurredAt: occurredAt,
+		OccurredAt:         occurredAt,
 	}
 
 	first, duplicate, err := service.Claim(context.Background(), intent, request, policy)
