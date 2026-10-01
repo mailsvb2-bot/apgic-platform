@@ -33,6 +33,18 @@ The proof runs in the `postgres-invariants` CI job with an isolated PostgreSQL s
 
 ## Verification boundary
 
-This closes the durable server/runtime portion and strengthens the `DOMAIN_OR_CONTRACT_TEST` evidence class. The Requirement Registry remains `IN_PROGRESS` because the Canon also requires `NATIVE_E2E`: an installed iOS/Android app must still demonstrate registration/rotation/revoke against this canonical server path before `APGIC-MOBILE-005` can be advanced to `VERIFIED`.
+The missing `NATIVE_E2E` evidence is now closed by CI run `36852204179` (`CI #1791`) for implementation candidate `9337addd3bec3399eede0455bf44ffc1d6064f11`.
 
-No production/store release claim is made here.
+- Android native job `110336244160`: debug APK build plus installed-app registration → push rotation → revoke lifecycle, conclusion `success`.
+- iOS native job `110336244354`: simulator build plus the same installed-app lifecycle, conclusion `success`.
+- PostgreSQL invariant job `110336244157`: authenticated HTTP lifecycle against canonical durable storage, conclusion `success`.
+- Go format/vet/race, Canon/architecture conformance, Web production build, native typecheck, multi-surface contract guard and the final R0 bootstrap gate all concluded `success`.
+
+Multi-surface evidence bindings:
+
+- iOS: `surface://IOS/mobile-installation-lifecycle/run-36852204179/job-110336244354`
+- Android: `surface://ANDROID/mobile-installation-lifecycle/run-36852204179/job-110336244160`
+
+The installed applications use one signed client Identity while creating independent installation records, rotate the push endpoint without changing Identity, and finish with the canonical installation in `REVOKED` state at generation 2. Captured app accessibility state and server state are retained as workflow artifacts.
+
+The Requirement Registry is therefore advanced to `VERIFIED`. This does **not** claim `RELEASED`: production signing, organization-owned store accounts and production rollout evidence remain separate release gates.

@@ -684,11 +684,23 @@
             ".github/workflows/ci.yml",
             "contracts/openapi/apgic-v1.yaml"
           ]
+        },
+        "NATIVE_E2E": {
+          "gates": [
+            "mobile-android-build",
+            "mobile-ios-build"
+          ],
+          "proof_refs": [
+            "apps/mobile/src/App.tsx",
+            "tools/mobile_android_capability_e2e.sh",
+            "tools/mobile_ios_capability_e2e.sh",
+            ".github/workflows/ci.yml",
+            "surface://IOS/mobile-installation-lifecycle/run-36852204179/job-110336244354",
+            "surface://ANDROID/mobile-installation-lifecycle/run-36852204179/job-110336244160"
+          ]
         }
       },
-      "unproven_evidence": [
-        "NATIVE_E2E"
-      ]
+      "unproven_evidence": []
     },
     "APGIC-MOBILE-010": {
       "claims": {
