@@ -26,11 +26,12 @@ func (c *Checker) Claim(ctx context.Context, mutationID string, envelope mutatio
 	if err := c.db.QueryRowContext(
 		ctx,
 		`SELECT outcome, mutation_id::text, mutation_state, COALESCE(side_effect_ref, '')
-		   FROM apgic_claim_client_mutation($1::uuid, $2::uuid, $3, $4, $5, $6)`,
+		   FROM apgic_claim_client_mutation($1::uuid, $2::uuid, $3, $4, $5, $6, $7)`,
 		mutationID,
 		envelope.IdentityID,
 		envelope.Operation,
 		envelope.IdempotencyKey,
+		envelope.CorrelationID,
 		envelope.RequestDigest,
 		now.UTC(),
 	).Scan(&outcome, &result.MutationID, &result.State, &result.SideEffectRef); err != nil {
