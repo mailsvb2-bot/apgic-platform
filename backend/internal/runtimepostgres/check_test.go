@@ -26,7 +26,7 @@ func TestRequiresDatabaseOnlyForRuntimeEnvironments(t *testing.T) {
 
 func TestRequiredCanonicalTablesAndIndexesAreStable(t *testing.T) {
 	wantTables := map[string]bool{
-		"identities": true, "identity_roles": true, "client_installations": true, "help_intents": true,
+		"identities": true, "identity_roles": true, "client_installations": true, "notification_intents": true, "notification_deliveries": true, "help_intents": true,
 		"outbox_events": true, "audit_records": true, "ledger_entries": true,
 		"booking_slots": true, "booking_holds": true, "bookings": true,
 		"specialist_profiles": true, "specialist_capabilities": true,
