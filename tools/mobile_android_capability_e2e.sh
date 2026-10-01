@@ -287,7 +287,39 @@ assert_deep_link_runtime() {
   fail "installed Android app did not resolve canonical deep-link VIEW intent"
 }
 
+assert_notification_runtime() {
+  local output="$EVIDENCE_DIR/android-notification-e2e.xml"
+  local delivery_id="00000000-0000-0000-0000-00000000e701"
+  local intent_id="00000000-0000-0000-0000-00000000e702"
+
+  "$ADB" shell am force-stop com.apgic.ci
+  "$ADB" shell am start -W \
+    -n com.apgic.ci/.MainActivity \
+    --es APGIC_E2E_CAPABILITY_STATE GRANTED \
+    --es APGIC_E2E_NOTIFICATION_BASE_URL http://127.0.0.1:43113 \
+    --es APGIC_E2E_NOTIFICATION_SESSION_COOKIE "$SESSION_COOKIE" \
+    --es APGIC_E2E_NOTIFICATION_DELIVERY_ID "$delivery_id" \
+    --es APGIC_E2E_NOTIFICATION_INTENT_ID "$intent_id" \
+    >/dev/null
+
+  for _ in $(seq 1 60); do
+    if "$ADB" shell uiautomator dump /sdcard/apgic-notification-e2e.xml >/dev/null 2>&1 &&
+       "$ADB" pull /sdcard/apgic-notification-e2e.xml "$output" >/dev/null 2>&1 &&
+       grep -q 'notification-e2e:PASS' "$output" &&
+       grep -q "notification-e2e-intent:$intent_id" "$output" &&
+       grep -q 'notification-e2e-preview:GENERIC' "$output"; then
+      echo "Android installed-app canonical notification transport: PASS"
+      return 0
+    fi
+    sleep 1
+  done
+
+  [[ -f "$output" ]] && cat "$output" >&2 || true
+  fail "installed Android app did not resolve canonical notification transport"
+}
+
 assert_installation_lifecycle
 assert_deep_link_runtime
+assert_notification_runtime
 
-echo "ANDROID CAPABILITY + INSTALLATION + DEEP-LINK NATIVE E2E: PASS"
+echo "ANDROID CAPABILITY + INSTALLATION + DEEP-LINK + NOTIFICATION NATIVE E2E: PASS"
