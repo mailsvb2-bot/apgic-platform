@@ -8,36 +8,37 @@ import (
 )
 
 type DeliveryState string
+
 type PreviewMode string
 
 const (
-	DeliveryPending DeliveryState = "PENDING"
-	DeliverySent DeliveryState = "SENT"
-	DeliveryDelivered DeliveryState = "DELIVERED"
-	DeliveryRetryable DeliveryState = "FAILED_RETRYABLE"
+	DeliveryPending    DeliveryState = "PENDING"
+	DeliverySent       DeliveryState = "SENT"
+	DeliveryDelivered  DeliveryState = "DELIVERED"
+	DeliveryRetryable  DeliveryState = "FAILED_RETRYABLE"
 	DeliverySuppressed DeliveryState = "SUPPRESSED"
 
 	PreviewGeneric PreviewMode = "GENERIC"
-	PreviewFull PreviewMode = "FULL"
+	PreviewFull    PreviewMode = "FULL"
 )
 
 const (
-	ReasonDeliveryAllowed = "NOTIFICATION_DELIVERY_ALLOWED"
+	ReasonDeliveryAllowed              = "NOTIFICATION_DELIVERY_ALLOWED"
 	ReasonDeliveryPreferenceSuppressed = "NOTIFICATION_DELIVERY_PREFERENCE_SUPPRESSED"
-	ReasonDeliveryDuplicate = "NOTIFICATION_DELIVERY_DUPLICATE"
-	ReasonDeliveryIdempotencyConflict = "NOTIFICATION_DELIVERY_IDEMPOTENCY_CONFLICT"
+	ReasonDeliveryDuplicate            = "NOTIFICATION_DELIVERY_DUPLICATE"
+	ReasonDeliveryIdempotencyConflict  = "NOTIFICATION_DELIVERY_IDEMPOTENCY_CONFLICT"
 )
 
 var (
-	ErrInvalidDelivery = errors.New("invalid notification delivery")
+	ErrInvalidDelivery             = errors.New("invalid notification delivery")
 	ErrDeliveryIdempotencyConflict = errors.New("notification delivery idempotency conflict")
 )
 
 type DeliveryPolicy struct {
-	Version string
-	EnabledChannels map[Channel]bool
+	Version               string
+	EnabledChannels       map[Channel]bool
 	AllowSensitivePreview bool
-	GrowthOptIn bool
+	GrowthOptIn           bool
 }
 
 func NewDeliveryPolicy(version string, enabled []Channel, allowSensitivePreview, growthOptIn bool) (DeliveryPolicy, error) {
@@ -52,64 +53,64 @@ func NewDeliveryPolicy(version string, enabled []Channel, allowSensitivePreview,
 		channels[channel] = true
 	}
 	return DeliveryPolicy{
-		Version: strings.TrimSpace(version),
-		EnabledChannels: channels,
+		Version:               strings.TrimSpace(version),
+		EnabledChannels:       channels,
 		AllowSensitivePreview: allowSensitivePreview,
-		GrowthOptIn: growthOptIn,
+		GrowthOptIn:           growthOptIn,
 	}, nil
 }
 
 type DeliveryRequest struct {
-	DeliveryID string
-	AuditID string
-	ActorID string
-	Channel Channel
-	EndpointRef string
+	DeliveryID         string
+	AuditID            string
+	ActorID            string
+	Channel            Channel
+	EndpointRef        string
 	ProviderInstanceID string
-	OccurredAt time.Time
+	OccurredAt         time.Time
 }
 
 type DeliveryPlan struct {
-	DeliveryID string
-	IntentID string
-	BookingID string
-	DataClass string
-	Channel Channel
-	EndpointRef string
+	DeliveryID         string
+	IntentID           string
+	BookingID          string
+	DataClass          string
+	Channel            Channel
+	EndpointRef        string
 	ProviderInstanceID string
-	IdempotencyKey string
-	State DeliveryState
-	PreviewMode PreviewMode
-	ReasonCode string
-	PolicyVersion string
-	OccurredAt time.Time
+	IdempotencyKey     string
+	State              DeliveryState
+	PreviewMode        PreviewMode
+	ReasonCode         string
+	PolicyVersion      string
+	OccurredAt         time.Time
 }
 
 type DeliveryAudit struct {
-	ID string
-	ActorID string
-	ReasonCode string
+	ID            string
+	ActorID       string
+	ReasonCode    string
 	PolicyVersion string
 	CorrelationID string
-	OccurredAt time.Time
+	OccurredAt    time.Time
 }
 
 type PushTransportEnvelope struct {
 	ContractVersion string `json:"contract_version"`
-	DeliveryID string `json:"delivery_id"`
-	IntentID string `json:"intent_id"`
+	DeliveryID      string `json:"delivery_id"`
+	IntentID        string `json:"intent_id"`
 }
 
 type MobileDeliveryProjection struct {
-	ContractVersion string `json:"contract_version"`
-	DeliveryID string `json:"delivery_id"`
-	IntentID string `json:"intent_id"`
-	Purpose string `json:"purpose"`
-	RelatedObjectRef string `json:"related_object_ref"`
-	Channel Channel `json:"channel"`
-	DeliveryState DeliveryState `json:"delivery_state"`
-	DataClass string `json:"data_class"`
-	PreviewMode PreviewMode `json:"preview_mode"`
+	ContractVersion  string        `json:"contract_version"`
+	DeliveryID       string        `json:"delivery_id"`
+	IntentID         string        `json:"intent_id"`
+	Purpose          string        `json:"purpose"`
+	RelatedObjectRef string        `json:"related_object_ref"`
+	Channel          Channel       `json:"channel"`
+	DeliveryState    DeliveryState `json:"delivery_state"`
+	DataClass        string        `json:"data_class"`
+	PreviewMode      PreviewMode   `json:"preview_mode"`
 }
 
 type DeliveryStore interface {
@@ -160,40 +161,39 @@ func PlanDelivery(intent Intent, request DeliveryRequest, policy DeliveryPolicy)
 	}
 	preview := PreviewModeFor(intent.DataClass, request.Channel, policy.AllowSensitivePreview)
 	plan := DeliveryPlan{
-		DeliveryID: strings.TrimSpace(request.DeliveryID),
-		IntentID: strings.TrimSpace(intent.ID),
-		BookingID: strings.TrimSpace(intent.BookingID),
-		DataClass: strings.TrimSpace(intent.DataClass),
-		Channel: request.Channel,
-		EndpointRef: strings.TrimSpace(request.EndpointRef),
+		DeliveryID:         strings.TrimSpace(request.DeliveryID),
+		IntentID:           strings.TrimSpace(intent.ID),
+		BookingID:          strings.TrimSpace(intent.BookingID),
+		DataClass:          strings.TrimSpace(intent.DataClass),
+		Channel:            request.Channel,
+		EndpointRef:        strings.TrimSpace(request.EndpointRef),
 		ProviderInstanceID: strings.TrimSpace(request.ProviderInstanceID),
-		IdempotencyKey: idempotencyKey,
-		State: state,
-		PreviewMode: preview,
-		ReasonCode: reason,
-		PolicyVersion: strings.TrimSpace(policy.Version),
-		OccurredAt: request.OccurredAt.UTC(),
+		IdempotencyKey:     idempotencyKey,
+		State:              state,
+		PreviewMode:        preview,
+		ReasonCode:         reason,
+		PolicyVersion:      strings.TrimSpace(policy.Version),
+		OccurredAt:         request.OccurredAt.UTC(),
 	}
 	decision := DeliveryAudit{
-		ID: strings.TrimSpace(request.AuditID),
-		ActorID: strings.TrimSpace(request.ActorID),
-		ReasonCode: reason,
+		ID:            strings.TrimSpace(request.AuditID),
+		ActorID:       strings.TrimSpace(request.ActorID),
+		ReasonCode:    reason,
 		PolicyVersion: strings.TrimSpace(policy.Version),
 		CorrelationID: idempotencyKey,
-		OccurredAt: request.OccurredAt.UTC(),
+		OccurredAt:    request.OccurredAt.UTC(),
 	}
 	return plan, decision, nil
 }
 
 func PushEnvelope(plan DeliveryPlan) (PushTransportEnvelope, error) {
-	if plan.Channel != ChannelPush || strings.TrimSpace(plan.DeliveryID) == "" ||
-		strings.TrimSpace(plan.IntentID) == "" || plan.State == DeliverySuppressed {
+	if plan.Channel != ChannelPush || strings.TrimSpace(plan.DeliveryID) == "" || strings.TrimSpace(plan.IntentID) == "" || plan.State == DeliverySuppressed {
 		return PushTransportEnvelope{}, ErrInvalidDelivery
 	}
 	return PushTransportEnvelope{
 		ContractVersion: "notification-transport-v1",
-		DeliveryID: plan.DeliveryID,
-		IntentID: plan.IntentID,
+		DeliveryID:      plan.DeliveryID,
+		IntentID:        plan.IntentID,
 	}, nil
 }
 
