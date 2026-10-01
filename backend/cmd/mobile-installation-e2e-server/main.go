@@ -183,7 +183,8 @@ func (s *conformanceMutationStore) Claim(_ context.Context, mutationID string, e
 
 	key := mutationRecordKey(envelope)
 	if existing, ok := s.records[key]; ok {
-		if existing.envelope.RequestDigest != envelope.RequestDigest {
+		if existing.envelope.CorrelationID != envelope.CorrelationID ||
+			existing.envelope.RequestDigest != envelope.RequestDigest {
 			return mutation.ClaimResult{
 				Outcome:    mutation.OutcomeConflict,
 				MutationID: existing.mutationID,
