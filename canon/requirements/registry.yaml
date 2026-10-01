@@ -2648,16 +2648,34 @@ requirements:
   - APGIC-MOBILE-003
   implementation_refs:
   - apps/mobile/src/r2-transaction-edge.ts
+  - apps/mobile/src/mobile-offline-checkout.ts
+  - apps/mobile/src/offline-mutation-storage.ts
+  - apps/mobile/android/app/src/main/java/com/apgic/ci/OfflineMutationStorageModule.kt
+  - apps/mobile/ios/APGIC/OfflineMutationStorage.m
   - backend/internal/mutation/idempotency.go
+  - backend/internal/mutation/store.go
+  - backend/internal/runtimepostgres/client_mutation.go
+  - backend/internal/httpapi/mobile_mutation.go
   - backend/migrations/000011_r2_transaction_edge.sql
+  - backend/migrations/000026_r2_offline_mutation_failure.sql
   contract_refs:
+  - contracts/openapi/apgic-v1.yaml
+  - packages/contracts/src/generated/apgic-v1.ts
   - packages/contracts/src/r2-transaction-edge.ts
   - contracts/jsonschema/transaction-edge-v1.schema.json
+  - apps/mobile/src/storage-policy.ts
   test_refs:
   - apps/mobile/src/r2-transaction-edge.test.ts
+  - apps/mobile/src/mobile-offline-checkout.test.ts
   - backend/internal/mutation/idempotency_test.go
+  - backend/internal/runtimepostgres/client_mutation_test.go
+  - backend/internal/httpapi/mobile_mutation_test.go
   - backend/migrations/ci_r2_transaction_edge_invariants.sql
   - backend/ci/r2_mutation_concurrency.sh
+  - tools/mobile_android_capability_e2e.sh
+  - tools/mobile_ios_capability_e2e.sh
+  - tools/mobile_native_storage_audit.py
+  - tools/tests/test_mobile_native_storage_audit.py
   - .github/workflows/ci.yml
   evidence_refs: []
   acceptance:
