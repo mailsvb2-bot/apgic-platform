@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { DeepLinkResolution } from "../../../../packages/contracts/src/generated/apgic-v1";
+import type { DeepLinkResolution } from "../../../../../packages/contracts/src/generated/apgic-v1";
 
 function safeCanonicalFallback(value: DeepLinkResolution): string | null {
   if (
