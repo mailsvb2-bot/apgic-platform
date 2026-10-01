@@ -68,6 +68,22 @@ class MobileInstallationContractGuardTest(unittest.TestCase):
         self.assertTrue(any("debug-only" in error for error in errors))
         self.assertTrue(any("iOS installed-app E2E proof missing" in error for error in errors))
 
+    def test_native_e2e_guard_rejects_separate_test_only_http_implementation(self):
+        broken_client = self.native_client.replace(
+            "registerMobileInstallation(\n    clientConfig,",
+            "testOnlyRegister(\n    clientConfig,",
+        )
+        errors = validate_mobile_installation_native_e2e(
+            broken_client,
+            self.android_bridge,
+            self.ios_bridge,
+            self.android_e2e,
+            self.ios_e2e,
+        )
+        self.assertTrue(
+            any("E2E must compose production mobile installation functions" in error for error in errors)
+        )
+
     def test_runtime_guard_requires_trusted_session_and_serialized_store(self):
         broken_http = self.http.replace("requiredClientSessionIdentity", "callerSuppliedIdentity")
         broken_store = self.store.replace("pg_advisory_xact_lock", "missing_lock")
