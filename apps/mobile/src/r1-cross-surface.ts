@@ -28,7 +28,10 @@ export function resolveNativeDeepLink(
   | { action: "OPEN_APP_PATH"; target: string }
   | { action: "OPEN_WEB_FALLBACK"; target: string }
   | { action: "BLOCK" } {
-  if (resolution.decision === "ALLOW" && resolution.canonical_path) {
+  if (resolution.decision !== "ALLOW") {
+    return { action: "BLOCK" };
+  }
+  if (resolution.canonical_path) {
     return { action: "OPEN_APP_PATH", target: resolution.canonical_path };
   }
   if (resolution.canonical_web_fallback) {

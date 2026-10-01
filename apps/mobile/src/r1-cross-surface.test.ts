@@ -28,10 +28,17 @@ test("native deep link never converts a server DENY into app authorization", () 
       canonical_web_fallback: "https://apgic.ru/login",
       expires_at: "2026-09-24T13:00:00Z",
     }),
-    {
-      action: "OPEN_WEB_FALLBACK",
-      target: "https://apgic.ru/login",
-    },
+    { action: "BLOCK" },
+  );
+});
+
+test("native deep link blocks ALLOW without canonical destination", () => {
+  assert.deepEqual(
+    resolveNativeDeepLink({
+      decision: "ALLOW",
+      reason_code: "DEEPLINK_ALLOWED",
+    }),
+    { action: "BLOCK" },
   );
 });
 
