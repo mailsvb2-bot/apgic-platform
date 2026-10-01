@@ -50,7 +50,10 @@ func (c *Checker) ClaimNotificationDelivery(ctx context.Context, plan notificati
 		return notification.DeliveryPlan{}, false, notification.ErrInvalidDelivery
 	}
 
-	if !channelAllowed {
+	if channelAllowed {
+		plan.State = notification.DeliveryPending
+		plan.ReasonCode = notification.ReasonDeliveryAllowed
+	} else {
 		plan.State = notification.DeliverySuppressed
 		plan.ReasonCode = notification.ReasonDeliveryPreferenceSuppressed
 	}
