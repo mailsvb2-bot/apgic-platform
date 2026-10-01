@@ -18,7 +18,7 @@ ANDROID_STORAGE = re.compile(
     r"openFileOutput|FileOutputStream)\b"
 )
 IOS_STORAGE = re.compile(
-    r"\b(?:UserDefaults|NSKeyedArchiver|CoreData|NSPersistentContainer|"
+    r"\b(?:UserDefaults|NSUserDefaults|NSKeyedArchiver|CoreData|NSPersistentContainer|"
     r"FileManager\.default|sqlite3_)\b"
 )
 SENSITIVE_MARKERS = re.compile(
