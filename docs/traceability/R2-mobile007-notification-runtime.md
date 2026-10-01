@@ -40,6 +40,7 @@ Required evidence:
 
 Exact multi-surface evidence bindings:
 
+- Web: `surface://WEB/mobile007-notification-transport/run-36906994292/job-110519954885`
 - iOS: `surface://IOS/mobile007-notification-transport/run-36906994292/job-110519955325`
 - Android: `surface://ANDROID/mobile007-notification-transport/run-36906994292/job-110519955578`
 - Server/PostgreSQL: `surface://SERVER/mobile007-notification-transport/run-36906994292/job-110519955475`
