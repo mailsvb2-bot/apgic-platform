@@ -149,11 +149,10 @@ func TestMobileDeepLinkIssueRejectsCrossUser(t *testing.T) {
 	}
 }
 
-
 func TestMobileDeepLinkIssueRejectsTrailingOrOversizedJSON(t *testing.T) {
 	now := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
 	handler := New(Options{
-		DeepLinks: deepLinkTestStore{resources: map[string]mobile.DeepLinkResource{}},
+		DeepLinks:          deepLinkTestStore{resources: map[string]mobile.DeepLinkResource{}},
 		DeepLinkSigningKey: []byte(strings.Repeat("d", 32)),
 		ClientSessionKey:   []byte(strings.Repeat("s", 32)),
 		Now:                func() time.Time { return now },

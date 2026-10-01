@@ -105,7 +105,6 @@ func TestDeepLinkTokenRejectsInvalidResourceAndUnboundedLifetime(t *testing.T) {
 	}
 }
 
-
 func TestDeepLinkTokenRejectsOversizedInput(t *testing.T) {
 	manager, err := NewDeepLinkTokenManager([]byte(strings.Repeat("z", 32)))
 	if err != nil {

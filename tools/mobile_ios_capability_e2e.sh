@@ -231,6 +231,29 @@ PY
 }
 
 
+json_has_ax_label() {
+  local file="$1"
+  local expected="$2"
+  python3 - "$file" "$expected" <<'PY'
+import json
+import sys
+
+payload = json.load(open(sys.argv[1], encoding="utf-8"))
+expected = sys.argv[2]
+
+def walk(value):
+    if isinstance(value, dict):
+        if value.get("AXLabel") == expected:
+            return True
+        return any(walk(item) for item in value.values())
+    if isinstance(value, list):
+        return any(walk(item) for item in value)
+    return False
+
+raise SystemExit(0 if walk(payload) else 1)
+PY
+}
+
 assert_deep_link_runtime() {
   local output="$EVIDENCE_DIR/ios-deeplink-e2e.json"
   local expected_target="/specialists/e2e-specialist"
@@ -240,8 +263,8 @@ assert_deep_link_runtime() {
 
   for _ in $(seq 1 60); do
     if "$IDB" ui describe-all --udid "$UDID" --api axbridge --json --nested >"$output" 2>/dev/null &&
-       grep -q 'deep-link-state:OPEN' "$output" &&
-       grep -q "deep-link-target:${expected_target}" "$output"; then
+       json_has_ax_label "$output" "deep-link-state:OPEN" &&
+       json_has_ax_label "$output" "deep-link-target:${expected_target}"; then
       echo "iOS installed-app canonical deep-link resolution: PASS"
       return 0
     fi

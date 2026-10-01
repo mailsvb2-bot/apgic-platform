@@ -548,5 +548,5 @@ test("canonical resource route fails closed when revalidation does not match pat
     sessionStorage.setItem("apgic:deeplink:/bookings/booking-1", value);
   }, token);
   await page.reload();
-  await expect(page.getByRole("alert")).toContainText("доступ к ресурсу не подтверждён");
+  await expect(page.locator("main").getByRole("alert")).toContainText("доступ к ресурсу не подтверждён");
 });
