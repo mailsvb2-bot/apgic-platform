@@ -14,23 +14,23 @@ import (
 )
 
 type Options struct {
-	CommitSHA        string
-	ReleaseTrack     string
-	Surfaces         []string
-	LaunchConfig     launchconfig.Config
-	ReadinessCheck   func(context.Context) error
-	Demand           *demand.Service
-	LegalAcceptances legal.AcceptanceStore
-	Installations    mobile.InstallationStore
-	DeepLinks         deepLinkResourceStore
+	CommitSHA          string
+	ReleaseTrack       string
+	Surfaces           []string
+	LaunchConfig       launchconfig.Config
+	ReadinessCheck     func(context.Context) error
+	Demand             *demand.Service
+	LegalAcceptances   legal.AcceptanceStore
+	Installations      mobile.InstallationStore
+	DeepLinks          deepLinkResourceStore
 	DeepLinkSigningKey []byte
-	Specialists      specialist.Store
-	OrganizationAuth organizationAuthorizationStore
-	Organizations    organizationRuntimeStore
-	ProductOwnership productOwnershipStore
-	Products         organizationProductStore
-	ClientSessionKey []byte
-	Now              func() time.Time
+	Specialists        specialist.Store
+	OrganizationAuth   organizationAuthorizationStore
+	Organizations      organizationRuntimeStore
+	ProductOwnership   productOwnershipStore
+	Products           organizationProductStore
+	ClientSessionKey   []byte
+	Now                func() time.Time
 }
 
 type metaResponse struct {

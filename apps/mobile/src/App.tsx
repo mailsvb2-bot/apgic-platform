@@ -96,7 +96,7 @@ export default function App({
 
   useEffect(() => {
     let active = true;
-    const receive = (url: string | null) => {
+    const receive = (url: string | null | undefined) => {
       if (active && url) {
         void handleDeepLink(url);
       }
