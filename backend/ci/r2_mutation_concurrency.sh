@@ -30,6 +30,7 @@ claim() {
       '$identity_id',
       'PAYMENT_CREATE',
       'concurrent-offline-key',
+      'corr-concurrent-offline',
       'sha256:concurrent-payload',
       now()
     );
