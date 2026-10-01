@@ -48,6 +48,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
       "APGIC_E2E_DEEP_LINK_BASE_URL": "deepLinkAPIBaseURL",
       "APGIC_E2E_DEEP_LINK_SESSION_COOKIE": "deepLinkE2ESessionCookie",
       "APGIC_E2E_DEEP_LINK_URL": "deepLinkE2EURL",
+      "APGIC_E2E_NOTIFICATION_BASE_URL": "notificationE2EBaseURL",
+      "APGIC_E2E_NOTIFICATION_SESSION_COOKIE": "notificationE2ESessionCookie",
+      "APGIC_E2E_NOTIFICATION_DELIVERY_ID": "notificationE2EDeliveryID",
+      "APGIC_E2E_NOTIFICATION_INTENT_ID": "notificationE2EIntentID",
     ]
     for (environmentKey, propertyKey) in installationE2EKeys {
       if let value = environment[environmentKey], !value.isEmpty {
