@@ -1,4 +1,4 @@
-import type { CheckoutInstruction } from "../../../packages/contracts/src/generated/apgic-v1";
+import type { MobileCheckoutMutationResponse } from "../../../packages/contracts/src/generated/apgic-v1";
 
 export type OfflineCheckoutState =
   | "LOCAL_PENDING"
@@ -19,14 +19,6 @@ export type OfflineCheckoutQueueItem = {
   expires_at: string;
   reason_code?: string;
   side_effect_ref?: string;
-};
-
-export type MobileCheckoutMutationResponse = {
-  contract_version: "offline-checkout-mutation-v1";
-  outcome: "APPLIED" | "DUPLICATE_APPLIED";
-  reason_code: string;
-  side_effect_ref: string;
-  checkout: CheckoutInstruction;
 };
 
 export type OfflineMutationStorage = {
