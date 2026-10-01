@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: APGIC Public API
-  version: 0.5.0-r0-mobile-installation
+  version: 0.6.0-r1-deep-link-runtime
 servers: []
 paths:
   /healthz:
@@ -167,6 +167,81 @@ paths:
                 $ref: '#/components/schemas/ErrorEnvelope'
         '503':
           description: Installation storage is unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /v1/mobile/deep-links:
+    post:
+      operationId: issueMobileDeepLink
+      description: Issues a short-lived opaque signed universal/app link. Protected resource ownership is derived server-side and bound to the signed client Identity.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IssueMobileDeepLinkRequest'
+      responses:
+        '201':
+          description: Signed universal/app link issued.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IssueMobileDeepLinkResponse'
+        '400':
+          description: Invalid resource or link request.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Protected resource requires a trusted client session.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Signed Identity does not own the protected resource.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Canonical resource is not available for linking.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '503':
+          description: Deep-link signing or canonical resource storage is unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /v1/mobile/deep-links/resolve:
+    get:
+      operationId: resolveMobileDeepLink
+      description: Verifies signature and expiry, re-reads canonical resource scope and re-authorizes protected resources. The link itself is never an authorization grant.
+      parameters:
+        - in: query
+          name: token
+          required: true
+          schema: { type: string, minLength: 1 }
+      responses:
+        '200':
+          description: Deterministic ALLOW/DENY resolution. Invalid or expired tokens fail closed without a fallback.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeepLinkResolution'
+        '401':
+          description: Protected resource requires a trusted client session.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '503':
+          description: Deep-link signing or canonical resource storage is unavailable.
           content:
             application/json:
               schema:
@@ -1132,6 +1207,37 @@ components:
       required: [push_endpoint]
       properties:
         push_endpoint: { type: string, minLength: 1 }
+    DeepLinkKind:
+      type: string
+      enum: [BOOKING, SPECIALIST, NOTIFICATION]
+    DeepLinkResolution:
+      type: object
+      additionalProperties: false
+      required: [decision, reason_code]
+      properties:
+        decision:
+          type: string
+          enum: [ALLOW, DENY]
+        reason_code: { type: string }
+        canonical_path: { type: string }
+        canonical_web_fallback: { type: string, format: uri }
+        expires_at: { type: string, format: date-time }
+    IssueMobileDeepLinkRequest:
+      type: object
+      additionalProperties: false
+      required: [kind, target_id]
+      properties:
+        kind:
+          $ref: '#/components/schemas/DeepLinkKind'
+        target_id: { type: string, minLength: 1 }
+    IssueMobileDeepLinkResponse:
+      type: object
+      additionalProperties: false
+      required: [token, universal_url, expires_at]
+      properties:
+        token: { type: string, minLength: 1 }
+        universal_url: { type: string, format: uri }
+        expires_at: { type: string, format: date-time }
     ProductCommercialOwnerRequest:
       type: object
       additionalProperties: false

@@ -1,14 +1,9 @@
+import type { DeepLinkResolution as GeneratedDeepLinkResolution } from "./generated/apgic-v1";
+
 export type R1ClientSurface = "WEB" | "IOS" | "ANDROID";
 
-export type DeepLinkDecision = "ALLOW" | "DENY";
-
-export interface DeepLinkResolutionV1 {
-  decision: DeepLinkDecision;
-  reason_code: string;
-  canonical_path?: string;
-  canonical_web_fallback?: string;
-  expires_at?: string;
-}
+export type DeepLinkResolutionV1 = GeneratedDeepLinkResolution;
+export type DeepLinkDecision = DeepLinkResolutionV1["decision"];
 
 export type AnalyticsPrimitive = string | number | boolean | null;
 
