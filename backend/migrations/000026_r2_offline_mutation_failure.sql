@@ -3,8 +3,18 @@ ALTER TABLE client_mutation_records
 
 ALTER TABLE client_mutation_records
   ADD COLUMN failure_code text,
+  ADD COLUMN correlation_id text;
+
+UPDATE client_mutation_records
+SET correlation_id = 'legacy:' || id::text
+WHERE correlation_id IS NULL;
+
+ALTER TABLE client_mutation_records
+  ALTER COLUMN correlation_id SET NOT NULL,
   ADD CONSTRAINT client_mutation_records_state_check
     CHECK (state IN ('CLAIMED','APPLIED','FAILED')),
+  ADD CONSTRAINT client_mutation_records_correlation_nonempty
+    CHECK (btrim(correlation_id) <> ''),
   ADD CONSTRAINT client_mutation_records_terminal_shape_check CHECK (
     (state = 'CLAIMED' AND side_effect_ref IS NULL AND failure_code IS NULL) OR
     (state = 'APPLIED' AND side_effect_ref IS NOT NULL AND btrim(side_effect_ref) <> '' AND failure_code IS NULL) OR
@@ -29,6 +39,7 @@ BEGIN
   IF NEW.identity_id <> OLD.identity_id OR
      NEW.operation <> OLD.operation OR
      NEW.idempotency_key <> OLD.idempotency_key OR
+     NEW.correlation_id <> OLD.correlation_id OR
      NEW.request_digest <> OLD.request_digest OR
      NEW.created_at <> OLD.created_at THEN
     RAISE EXCEPTION 'client mutation identity/payload digest are immutable';
@@ -71,6 +82,7 @@ CREATE OR REPLACE FUNCTION apgic_claim_client_mutation(
   p_identity_id uuid,
   p_operation text,
   p_idempotency_key text,
+  p_correlation_id text,
   p_request_digest text,
   p_now timestamptz
 )
@@ -83,6 +95,7 @@ BEGIN
   IF p_id IS NULL OR p_identity_id IS NULL OR
      btrim(coalesce(p_operation, '')) = '' OR
      btrim(coalesce(p_idempotency_key, '')) = '' OR
+     btrim(coalesce(p_correlation_id, '')) = '' OR
      btrim(coalesce(p_request_digest, '')) = '' OR
      p_now IS NULL THEN
     RETURN QUERY SELECT 'INVALID', NULL::uuid, NULL::text, NULL::text;
@@ -90,10 +103,10 @@ BEGIN
   END IF;
 
   INSERT INTO client_mutation_records (
-    id, identity_id, operation, idempotency_key,
+    id, identity_id, operation, idempotency_key, correlation_id,
     request_digest, state, created_at, updated_at
   ) VALUES (
-    p_id, p_identity_id, p_operation, p_idempotency_key,
+    p_id, p_identity_id, p_operation, p_idempotency_key, p_correlation_id,
     p_request_digest, 'CLAIMED', p_now, p_now
   )
   ON CONFLICT (identity_id, operation, idempotency_key) DO NOTHING;
@@ -110,7 +123,8 @@ BEGIN
     AND operation = p_operation
     AND idempotency_key = p_idempotency_key;
 
-  IF existing.request_digest <> p_request_digest THEN
+  IF existing.correlation_id <> p_correlation_id OR
+     existing.request_digest <> p_request_digest THEN
     RETURN QUERY SELECT 'CONFLICT', existing.id, existing.state, existing.side_effect_ref;
   ELSE
     RETURN QUERY SELECT
