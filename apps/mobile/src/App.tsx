@@ -482,6 +482,10 @@ export default function App({
                 <Text accessibilityLabel={`realtime-app-state:${realtimeE2E.appState}`}>App state: {realtimeE2E.appState}</Text>
                 <Text accessibilityLabel={`realtime-network-state:${realtimeE2E.networkState}`}>Network: {realtimeE2E.networkState}</Text>
                 <Text accessibilityLabel={`realtime-provider-actions:${realtimeE2E.providerActions.join("|")}`}>Provider actions recorded.</Text>
+                <Text accessibilityLabel={`realtime-action-connect:${realtimeE2E.providerActions.includes("CONNECT_PROVIDER")}`}>Connect action observed.</Text>
+                <Text accessibilityLabel={`realtime-action-reconnect:${realtimeE2E.providerActions.includes("RECONNECT_PROVIDER")}`}>Reconnect action observed.</Text>
+                <Text accessibilityLabel={`realtime-action-pause:${realtimeE2E.providerActions.includes("PAUSE_MEDIA")}`}>Pause action observed.</Text>
+                <Text accessibilityLabel={`realtime-action-route:${realtimeE2E.providerActions.includes("REFRESH_AUDIO_ROUTE")}`}>Audio-route action observed.</Text>
               </>
             ) : null}
             {realtimeE2E.status === "FAIL" ? (
