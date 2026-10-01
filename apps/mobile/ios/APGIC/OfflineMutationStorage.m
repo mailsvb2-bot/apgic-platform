@@ -17,7 +17,7 @@ RCT_REMAP_METHOD(load,
                  rejecter:(RCTPromiseRejectBlock)reject)
 {
   NSString *value = [[NSUserDefaults standardUserDefaults] stringForKey:APGICOfflineMutationQueueKey];
-  resolve(value ?: (id)kCFNull);
+  resolve(value ?: [NSNull null]);
 }
 
 RCT_REMAP_METHOD(save,
