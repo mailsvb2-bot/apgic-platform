@@ -41,6 +41,17 @@ FIXED_ARTIFACTS = [
 REQUIREMENT_BLOCK = re.compile(
     r"(?ms)^- requirement_id: (APGIC-[A-Z0-9-]+)\n(.*?)(?=^- requirement_id: |\Z)"
 )
+SURFACE_EVIDENCE_REF = re.compile(
+    r"^surface://(?:WEB|PWA|IOS|ANDROID)/[A-Za-z0-9._/-]+$"
+)
+
+
+def valid_surface_evidence_ref(ref: str) -> bool:
+    if not SURFACE_EVIDENCE_REF.fullmatch(ref):
+        return False
+    tail = ref.split("://", 1)[1].split("/", 1)[1]
+    parts = tail.split("/")
+    return bool(parts) and all(part not in {"", ".", ".."} for part in parts)
 
 
 def sha256(path: Path) -> str:
@@ -209,6 +220,12 @@ def build_requirement_evidence(
                         f"{requirement_id}/{evidence_kind}: proof ref is outside "
                         f"requirement traceability: {ref}"
                     )
+                if ref.startswith("surface://"):
+                    if not valid_surface_evidence_ref(ref):
+                        fail(
+                            f"{requirement_id}/{evidence_kind}: malformed surface evidence ref: {ref}"
+                        )
+                    continue
                 candidate = ROOT / ref.rstrip("/")
                 if not candidate.exists():
                     fail(f"{requirement_id}/{evidence_kind}: proof ref does not exist: {ref}")

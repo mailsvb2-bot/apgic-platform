@@ -19,6 +19,7 @@ const ReasonStorageUnavailable = "STORAGE_UNAVAILABLE"
 var requiredTables = []string{
 	"identities",
 	"identity_roles",
+	"client_installations",
 	"help_intents",
 	"outbox_events",
 	"audit_records",
@@ -36,6 +37,7 @@ var requiredTables = []string{
 
 var requiredIndexes = []string{
 	"ledger_entries_economic_event_ref_unique",
+	"client_installations_active_push_endpoint_idx",
 }
 
 type Checker struct {

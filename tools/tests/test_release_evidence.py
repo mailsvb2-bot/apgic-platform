@@ -57,6 +57,25 @@ class ReleaseEvidenceTests(unittest.TestCase):
             ["ANDROID_BUILD_PROOF", "IOS_BUILD_PROOF", "RELEASE_EVIDENCE"],
         )
 
+    def test_mobile005_native_e2e_surface_refs_are_ci_proven(self) -> None:
+        result = build_requirement_evidence(
+            ALL_GREEN_GATES,
+            registry=self.registry,
+            evidence_map=self.evidence_map,
+        )
+        self.assertEqual(result["APGIC-MOBILE-005"]["status"], "CI_PROVEN")
+        native = result["APGIC-MOBILE-005"]["proven_evidence"]["NATIVE_E2E"]
+        self.assertEqual(
+            native["gates"],
+            ["android-native-build", "ios-native-build"],
+        )
+        self.assertTrue(
+            any(ref.startswith("surface://IOS/") for ref in native["proof_refs"])
+        )
+        self.assertTrue(
+            any(ref.startswith("surface://ANDROID/") for ref in native["proof_refs"])
+        )
+
     def test_non_green_gate_cannot_back_a_claim(self) -> None:
         gates = dict(ALL_GREEN_GATES)
         gates["backend"] = "failure"
@@ -89,6 +108,22 @@ class ReleaseEvidenceTests(unittest.TestCase):
             build_requirement_evidence(
                 ALL_GREEN_GATES,
                 registry=self.registry,
+                evidence_map=evidence_map,
+            )
+
+    def test_malformed_surface_ref_is_rejected(self) -> None:
+        registry = copy.deepcopy(self.registry)
+        evidence_map = copy.deepcopy(self.evidence_map)
+        bad_ref = "surface://IOS/../../forged"
+        registry["APGIC-MOBILE-005"]["evidence_refs"].append(bad_ref)
+        evidence_map["requirements"]["APGIC-MOBILE-005"]["claims"]["NATIVE_E2E"][
+            "proof_refs"
+        ].append(bad_ref)
+
+        with self.assertRaises(SystemExit):
+            build_requirement_evidence(
+                ALL_GREEN_GATES,
+                registry=registry,
                 evidence_map=evidence_map,
             )
 

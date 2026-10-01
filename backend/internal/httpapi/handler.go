@@ -9,6 +9,7 @@ import (
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/demand"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/launchconfig"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/legal"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/mobile"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/specialist"
 )
 
@@ -20,6 +21,7 @@ type Options struct {
 	ReadinessCheck   func(context.Context) error
 	Demand           *demand.Service
 	LegalAcceptances legal.AcceptanceStore
+	Installations    mobile.InstallationStore
 	Specialists      specialist.Store
 	OrganizationAuth organizationAuthorizationStore
 	Organizations    organizationRuntimeStore
@@ -98,6 +100,7 @@ func New(options Options) http.Handler {
 	}
 	registerDemand(mux, options.Demand, sessions, sessionConfigErr)
 	registerLegalAcceptance(mux, options.LegalAcceptances, sessions, sessionConfigErr, options.Now)
+	registerMobileInstallations(mux, options.Installations, sessions, sessionConfigErr, options.Now)
 	registerSpecialist(mux, options.Specialists, sessions, sessionConfigErr)
 	registerOrganizationAuthorization(mux, options.OrganizationAuth, sessions, sessionConfigErr, options.Now)
 	registerOrganizationRuntime(mux, options.Organizations, sessions, sessionConfigErr)

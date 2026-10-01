@@ -6,7 +6,11 @@ import (
 	"time"
 )
 
-var ErrInvalidInstallation = errors.New("invalid client installation")
+var (
+	ErrInvalidInstallation      = errors.New("invalid client installation")
+	ErrInstallationNotFound     = errors.New("client installation not found")
+	ErrPushEndpointAlreadyInUse = errors.New("push endpoint already in use")
+)
 
 type InstallationState string
 
@@ -16,20 +20,31 @@ const (
 )
 
 type ClientInstallation struct {
-	ID             string
-	IdentityID     string
-	Platform       string
-	PushEndpoint   string
-	PushGeneration uint64
-	State          InstallationState
-	UpdatedAt      time.Time
+	ID             string            `json:"id"`
+	IdentityID     string            `json:"identity_id"`
+	Platform       string            `json:"platform"`
+	PushEndpoint   string            `json:"push_endpoint,omitempty"`
+	PushGeneration uint64            `json:"push_generation"`
+	State          InstallationState `json:"state"`
+	UpdatedAt      time.Time         `json:"updated_at"`
+}
+
+type InstallationStore interface {
+	RegisterInstallation(ClientInstallation) (ClientInstallation, bool, error)
+	RotateInstallationPushEndpoint(identityID, installationID, endpoint string, now time.Time) (ClientInstallation, bool, error)
+	RevokeInstallation(identityID, installationID string, now time.Time) (ClientInstallation, bool, error)
+	ListInstallations(identityID string) ([]ClientInstallation, error)
 }
 
 func NewInstallation(id, identityID, platform, pushEndpoint string, now time.Time) (ClientInstallation, error) {
-	if strings.TrimSpace(id) == "" ||
-		strings.TrimSpace(identityID) == "" ||
-		strings.TrimSpace(platform) == "" ||
-		strings.TrimSpace(pushEndpoint) == "" ||
+	id = strings.TrimSpace(id)
+	identityID = strings.TrimSpace(identityID)
+	platform = strings.ToUpper(strings.TrimSpace(platform))
+	pushEndpoint = strings.TrimSpace(pushEndpoint)
+	if id == "" ||
+		identityID == "" ||
+		(platform != "IOS" && platform != "ANDROID") ||
+		pushEndpoint == "" ||
 		now.IsZero() {
 		return ClientInstallation{}, ErrInvalidInstallation
 	}
@@ -45,10 +60,14 @@ func NewInstallation(id, identityID, platform, pushEndpoint string, now time.Tim
 }
 
 func (i *ClientInstallation) RotatePushEndpoint(endpoint string, now time.Time) error {
+	endpoint = strings.TrimSpace(endpoint)
 	if i.State != InstallationActive ||
-		strings.TrimSpace(endpoint) == "" ||
+		endpoint == "" ||
 		now.IsZero() {
 		return ErrInvalidInstallation
+	}
+	if i.PushEndpoint == endpoint {
+		return nil
 	}
 	i.PushEndpoint = endpoint
 	i.PushGeneration++
@@ -59,6 +78,9 @@ func (i *ClientInstallation) RotatePushEndpoint(endpoint string, now time.Time) 
 func (i *ClientInstallation) Revoke(now time.Time) error {
 	if now.IsZero() {
 		return ErrInvalidInstallation
+	}
+	if i.State == InstallationRevoked {
+		return nil
 	}
 	i.State = InstallationRevoked
 	i.PushEndpoint = ""

@@ -35,7 +35,7 @@ func registerLegalAcceptance(
 			writeDemandError(w, r, http.StatusServiceUnavailable, "LEGAL_ACCEPTANCE_UNAVAILABLE", "Хранилище согласий недоступно.", false, nil)
 			return
 		}
-		identityID, ok := requiredLegalSessionIdentity(w, r, sessions, sessionConfigErr)
+		identityID, ok := requiredClientSessionIdentity(w, r, sessions, sessionConfigErr)
 		if !ok {
 			return
 		}
@@ -91,7 +91,7 @@ func registerLegalAcceptance(
 			writeDemandError(w, r, http.StatusServiceUnavailable, "LEGAL_ACCEPTANCE_UNAVAILABLE", "Хранилище согласий недоступно.", false, nil)
 			return
 		}
-		identityID, ok := requiredLegalSessionIdentity(w, r, sessions, sessionConfigErr)
+		identityID, ok := requiredClientSessionIdentity(w, r, sessions, sessionConfigErr)
 		if !ok {
 			return
 		}
@@ -118,7 +118,7 @@ func registerLegalAcceptance(
 	})
 }
 
-func requiredLegalSessionIdentity(
+func requiredClientSessionIdentity(
 	w http.ResponseWriter,
 	r *http.Request,
 	sessions *clientSessionManager,

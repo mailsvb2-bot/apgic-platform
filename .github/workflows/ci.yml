@@ -64,6 +64,8 @@ jobs:
         run: |
           bash -n tools/mobile_android_capability_e2e.sh
           bash -n tools/mobile_ios_capability_e2e.sh
+          test -f backend/internal/runtimepostgres/mobile_installation_test.go
+          grep -q 'POST /v1/mobile/installations' backend/internal/httpapi/mobile_installation.go
       - run: python tools/event_contract_guard.py
       - run: python tools/audit_contract_guard.py
       - run: python tools/ledger_contract_guard.py
@@ -324,6 +326,11 @@ jobs:
         env:
           APGIC_SPECIALIST_TEST_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable
         run: go test ./internal/runtimepostgres -run TestSpecialistSupplyPersistsEvidenceReviewAndPublishGate -count=1
+      - name: Prove mobile installation rotation reinstall and revoke through PostgreSQL HTTP
+        working-directory: backend
+        env:
+          APGIC_MOBILE_INSTALLATION_TEST_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable
+        run: go test ./internal/runtimepostgres -run TestMobileInstallationHTTPPreservesIdentityAcrossRotationReinstallAndRevoke -count=1
       - name: Prove staging API requires PostgreSQL readiness
         working-directory: backend
         shell: bash
@@ -480,6 +487,10 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.27.1'
+          cache-dependency-path: backend/go.mod
       - uses: actions/setup-node@v7
         with:
           node-version: '24'
@@ -555,7 +566,7 @@ jobs:
           test -n "$MERGED_MANIFEST"
           python tools/mobile_build_privacy_inspection.py             --android-manifest "$MERGED_MANIFEST"             --android-data-safety apps/mobile/android/data-safety.yaml             --output evidence/android-build-privacy-inspection.json
           sha256sum apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk > evidence/android-debug.sha256
-      - name: Prove typed capability fallbacks on Android emulator
+      - name: Prove native capability and installation lifecycle on Android emulator
         shell: bash
         run: bash tools/mobile_android_capability_e2e.sh
       - uses: actions/upload-artifact@v7
@@ -566,6 +577,8 @@ jobs:
             evidence/android-debug.sha256
             evidence/android-build-privacy-inspection.json
             evidence/android-capability-e2e-*.xml
+            evidence/android-installation-e2e.xml
+            evidence/android-installation-server-state.json
           if-no-files-found: error
           retention-days: 30
 
@@ -575,6 +588,10 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.27.1'
+          cache-dependency-path: backend/go.mod
       - uses: actions/setup-node@v7
         with:
           node-version: '24'
@@ -601,7 +618,7 @@ jobs:
           python tools/mobile_build_privacy_inspection.py             --ios-app "$APP"             --canonical-ios-manifest apps/mobile/ios/APGIC/PrivacyInfo.xcprivacy             --output evidence/ios-build-privacy-inspection.json
           ditto -c -k --keepParent "$APP" evidence/APGIC-ios-simulator.zip
           shasum -a 256 evidence/APGIC-ios-simulator.zip > evidence/ios-simulator.sha256
-      - name: Prove typed capability fallbacks on iOS Simulator
+      - name: Prove native capability and installation lifecycle on iOS Simulator
         shell: bash
         run: bash tools/mobile_ios_capability_e2e.sh
       - uses: actions/upload-artifact@v7
@@ -612,6 +629,8 @@ jobs:
             evidence/ios-simulator.sha256
             evidence/ios-build-privacy-inspection.json
             evidence/ios-capability-e2e-*.json
+            evidence/ios-installation-e2e.json
+            evidence/ios-installation-server-state.json
           if-no-files-found: error
           retention-days: 30
 

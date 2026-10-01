@@ -26,7 +26,7 @@ func TestRequiresDatabaseOnlyForRuntimeEnvironments(t *testing.T) {
 
 func TestRequiredCanonicalTablesAndIndexesAreStable(t *testing.T) {
 	wantTables := map[string]bool{
-		"identities": true, "identity_roles": true, "help_intents": true,
+		"identities": true, "identity_roles": true, "client_installations": true, "help_intents": true,
 		"outbox_events": true, "audit_records": true, "ledger_entries": true,
 		"booking_slots": true, "booking_holds": true, "bookings": true,
 		"specialist_profiles": true, "specialist_capabilities": true,
@@ -41,8 +41,17 @@ func TestRequiredCanonicalTablesAndIndexesAreStable(t *testing.T) {
 			t.Fatalf("unexpected required table %q", table)
 		}
 	}
-	if len(requiredIndexes) != 1 || requiredIndexes[0] != "ledger_entries_economic_event_ref_unique" {
+	wantIndexes := map[string]bool{
+		"ledger_entries_economic_event_ref_unique":      true,
+		"client_installations_active_push_endpoint_idx": true,
+	}
+	if len(requiredIndexes) != len(wantIndexes) {
 		t.Fatalf("required indexes = %v", requiredIndexes)
+	}
+	for _, index := range requiredIndexes {
+		if !wantIndexes[index] {
+			t.Fatalf("unexpected required index %q", index)
+		}
 	}
 }
 

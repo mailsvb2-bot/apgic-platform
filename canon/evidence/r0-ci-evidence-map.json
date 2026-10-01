@@ -674,17 +674,34 @@
         "DOMAIN_OR_CONTRACT_TEST": {
           "gates": [
             "backend",
-            "canon"
+            "canon",
+            "postgres-invariants"
           ],
           "proof_refs": [
             "backend/internal/mobile/installation_test.go",
-            "tools/mobile_installation_contract_guard.py"
+            "tools/mobile_installation_contract_guard.py",
+            "backend/internal/runtimepostgres/mobile_installation_test.go",
+            ".github/workflows/ci.yml",
+            "contracts/openapi/apgic-v1.yaml"
+          ]
+        },
+        "NATIVE_E2E": {
+          "gates": [
+            "android-native-build",
+            "ios-native-build"
+          ],
+          "proof_refs": [
+            "apps/mobile/src/mobile-installation-client.ts",
+            "apps/mobile/src/App.tsx",
+            "tools/mobile_android_capability_e2e.sh",
+            "tools/mobile_ios_capability_e2e.sh",
+            ".github/workflows/ci.yml",
+            "surface://IOS/mobile-installation-lifecycle/run-36852204179/job-110336244354",
+            "surface://ANDROID/mobile-installation-lifecycle/run-36852204179/job-110336244160"
           ]
         }
       },
-      "unproven_evidence": [
-        "NATIVE_E2E"
-      ]
+      "unproven_evidence": []
     },
     "APGIC-MOBILE-010": {
       "claims": {

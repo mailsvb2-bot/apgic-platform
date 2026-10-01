@@ -51,6 +51,7 @@ func main() {
 		ClientSessionKey: clientSessionKey,
 		ReadinessCheck:   readinessCheck,
 		LegalAcceptances: storage,
+		Installations:    storage,
 		Specialists:      storage,
 		OrganizationAuth: storage,
 		Organizations:    storage,

@@ -12,7 +12,10 @@ METRO_LOG="/tmp/apgic-metro-android.log"
 EMULATOR_LOG="/tmp/apgic-emulator.log"
 METRO_PID=""
 EMULATOR_PID=""
+SERVER_PID=""
 ADB=""
+SERVER_LOG="/tmp/apgic-mobile-installation-server-android.log"
+SESSION_COOKIE=""
 
 fail() {
   echo "ANDROID CAPABILITY NATIVE E2E: FAIL: $*" >&2
@@ -22,12 +25,18 @@ fail() {
   if [[ -f "$EMULATOR_LOG" ]]; then
     tail -n 120 "$EMULATOR_LOG" >&2 || true
   fi
+  if [[ -f "$SERVER_LOG" ]]; then
+    tail -n 120 "$SERVER_LOG" >&2 || true
+  fi
   exit 1
 }
 
 cleanup() {
   if [[ -n "$METRO_PID" ]]; then
     kill "$METRO_PID" 2>/dev/null || true
+  fi
+  if [[ -n "$SERVER_PID" ]]; then
+    kill "$SERVER_PID" 2>/dev/null || true
   fi
   if [[ -n "$ADB" ]]; then
     "$ADB" emu kill >/dev/null 2>&1 || true
@@ -37,6 +46,49 @@ cleanup() {
   fi
 }
 trap cleanup EXIT
+
+start_installation_server() {
+  local binary="/tmp/apgic-mobile-installation-e2e-server"
+  (
+    cd "$ROOT/backend"
+    go build -o "$binary" ./cmd/mobile-installation-e2e-server
+  ) || fail "mobile installation E2E server build failed"
+  APGIC_MOBILE_E2E_ADDR=127.0.0.1:43113 "$binary" >"$SERVER_LOG" 2>&1 &
+  SERVER_PID=$!
+
+  for _ in $(seq 1 60); do
+    if curl -fsS http://127.0.0.1:43113/healthz >/dev/null 2>&1; then
+      return 0
+    fi
+    if ! kill -0 "$SERVER_PID" 2>/dev/null; then
+      fail "mobile installation E2E server exited before becoming ready"
+    fi
+    sleep 1
+  done
+  fail "mobile installation E2E server did not become ready"
+}
+
+bootstrap_installation_session() {
+  local headers
+  headers="$(mktemp)"
+  curl -fsS -D "$headers" -o /tmp/apgic-installation-bootstrap-android.json \
+    -H 'content-type: application/json' \
+    --data '{"free_text":"android native installation e2e"}' \
+    http://127.0.0.1:43113/v1/help-intents >/dev/null
+  SESSION_COOKIE="$(
+    python3 - "$headers" <<'PY'
+import sys
+for raw in open(sys.argv[1], encoding="utf-8", errors="ignore"):
+    if raw.lower().startswith("set-cookie:"):
+        cookie = raw.split(":", 1)[1].strip().split(";", 1)[0]
+        if cookie.startswith("__Host-apgic_session="):
+            print(cookie)
+            break
+PY
+  )"
+  rm -f "$headers"
+  [[ -n "$SESSION_COOKIE" ]] || fail "signed client session cookie was not issued"
+}
 
 [[ -f "$APK" ]] || fail "debug APK missing: $APK"
 [[ -n "$SDK_ROOT" ]] || fail "ANDROID_SDK_ROOT/ANDROID_HOME is not set"
@@ -107,8 +159,15 @@ for _ in $(seq 1 60); do
 done
 curl -fsS http://127.0.0.1:8081/status | grep -q "packager-status:running" ||
   fail "Metro did not become ready"
+curl -fsS --max-time 120 "http://127.0.0.1:8081/index.bundle?platform=android&dev=true&minify=false" \
+  -o /tmp/apgic-android-e2e.bundle ||
+  fail "Metro Android bundle did not become ready"
+
+start_installation_server
+bootstrap_installation_session
 
 "$ADB" reverse tcp:8081 tcp:8081
+"$ADB" reverse tcp:43113 tcp:43113
 "$ADB" install -r "$APK" >/dev/null
 mkdir -p "$EVIDENCE_DIR"
 
@@ -140,4 +199,51 @@ assert_state "DENIED" "PERMISSION_DENIED"
 assert_state "RESTRICTED" "OS_RESTRICTED"
 assert_state "UNAVAILABLE" "CAPABILITY_UNAVAILABLE"
 
-echo "ANDROID CAPABILITY NATIVE E2E: PASS"
+assert_installation_lifecycle() {
+  local installation_id
+  local output="$EVIDENCE_DIR/android-installation-e2e.xml"
+  installation_id="$(python3 -c 'import uuid; print(uuid.uuid4())')"
+
+  "$ADB" shell am force-stop com.apgic.ci
+  "$ADB" shell am start -W \
+    -n com.apgic.ci/.MainActivity \
+    --es APGIC_E2E_CAPABILITY_STATE GRANTED \
+    --es APGIC_E2E_INSTALLATION_BASE_URL http://127.0.0.1:43113 \
+    --es APGIC_E2E_SESSION_COOKIE "$SESSION_COOKIE" \
+    --es APGIC_E2E_INSTALLATION_ID "$installation_id" \
+    --es APGIC_E2E_INSTALLATION_PLATFORM ANDROID \
+    >/dev/null
+
+  for _ in $(seq 1 60); do
+    if "$ADB" shell uiautomator dump /sdcard/apgic-installation-e2e.xml >/dev/null 2>&1 &&
+       "$ADB" pull /sdcard/apgic-installation-e2e.xml "$output" >/dev/null 2>&1 &&
+       grep -q 'installation-e2e:PASS' "$output" &&
+       grep -q 'installation-e2e-state:REVOKED' "$output" &&
+       grep -q 'installation-e2e-generation:2' "$output"; then
+      curl -fsS -H "Cookie: $SESSION_COOKIE" http://127.0.0.1:43113/v1/mobile/installations \
+        -o "$EVIDENCE_DIR/android-installation-server-state.json"
+      python3 - "$EVIDENCE_DIR/android-installation-server-state.json" "$installation_id" <<'PY'
+import json
+import sys
+payload = json.load(open(sys.argv[1], encoding="utf-8"))
+installation_id = sys.argv[2]
+matches = [item for item in payload.get("installations", []) if item.get("id") == installation_id]
+if len(matches) != 1:
+    raise SystemExit("expected exactly one installation record")
+item = matches[0]
+if item.get("state") != "REVOKED" or item.get("push_generation") != 2 or item.get("push_endpoint"):
+    raise SystemExit(f"unexpected canonical installation state: {item!r}")
+PY
+      echo "Android installed-app installation lifecycle: PASS"
+      return 0
+    fi
+    sleep 1
+  done
+
+  [[ -f "$output" ]] && cat "$output" >&2 || true
+  fail "installed app did not complete register/rotate/revoke lifecycle"
+}
+
+assert_installation_lifecycle
+
+echo "ANDROID CAPABILITY + INSTALLATION NATIVE E2E: PASS"

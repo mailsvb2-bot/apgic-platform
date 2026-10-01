@@ -33,10 +33,25 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     window = UIWindow(frame: UIScreen.main.bounds)
 
-    let initialProperties: [String: Any] = [
+    var initialProperties: [String: Any] = [
       "deviceCapability": "MICROPHONE",
       "deviceCapabilityState": microphoneState(),
     ]
+
+#if DEBUG
+    let environment = ProcessInfo.processInfo.environment
+    let installationE2EKeys = [
+      "APGIC_E2E_INSTALLATION_BASE_URL": "installationE2EBaseURL",
+      "APGIC_E2E_SESSION_COOKIE": "installationE2ESessionCookie",
+      "APGIC_E2E_INSTALLATION_ID": "installationE2EInstallationID",
+      "APGIC_E2E_INSTALLATION_PLATFORM": "installationE2EPlatform",
+    ]
+    for (environmentKey, propertyKey) in installationE2EKeys {
+      if let value = environment[environmentKey], !value.isEmpty {
+        initialProperties[propertyKey] = value
+      }
+    }
+#endif
 
     factory.startReactNative(
       withModuleName: "APGIC",
