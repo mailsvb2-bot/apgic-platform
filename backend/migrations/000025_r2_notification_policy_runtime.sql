@@ -1,5 +1,3 @@
-BEGIN;
-
 ALTER TABLE notification_intents
   ADD COLUMN recipient_identity_id uuid REFERENCES identities(id),
   ADD COLUMN template_version text,
@@ -93,4 +91,3 @@ CREATE TRIGGER notification_intents_policy_guard
 BEFORE INSERT ON notification_intents
 FOR EACH ROW EXECUTE FUNCTION apgic_notification_intent_policy_guard();
 
-COMMIT;
