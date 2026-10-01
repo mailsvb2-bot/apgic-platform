@@ -41,4 +41,10 @@ Verification binding:
 - iOS native job: `110118946335` — simulator build + installed-app fallback proof, conclusion `success`
 - `mobile-typecheck` unit/typecheck job and `canon` capability-contract guard also concluded `success`
 
+Multi-surface binding:
+
+- iOS proof: `surface://IOS/native-capability-fallback/run-36783400366/job-110118946335`
+- Android proof: `surface://ANDROID/native-capability-fallback/run-36783400366/job-110118946422`
+- WEB is formally marked not applicable for this requirement in `canon/evidence/compatibility-exceptions.yaml`, because Canon section 318 defines APGIC-MOBILE-004 as the Native OS Capability Layer and its acceptance/evidence are explicitly native-only.
+
 The Requirement Registry is therefore advanced to `VERIFIED`. This does **not** claim `RELEASED`: production rollout, signing/store approval, and production release evidence remain governed separately.
