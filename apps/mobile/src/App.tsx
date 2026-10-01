@@ -14,6 +14,7 @@ import {
   canonicalAPGICOrigin,
   resolveCanonicalUniversalLink,
 } from "./mobile-deep-link-client.ts";
+import { resolvePushNotification } from "./mobile-notification-client.ts";
 
 type AppProps = {
   deviceCapability?: DeviceCapability;
@@ -25,6 +26,10 @@ type AppProps = {
   deepLinkAPIBaseURL?: string;
   deepLinkE2ESessionCookie?: string;
   deepLinkE2EURL?: string;
+  notificationE2EBaseURL?: string;
+  notificationE2ESessionCookie?: string;
+  notificationE2EDeliveryID?: string;
+  notificationE2EIntentID?: string;
 };
 
 const fallbackCopy = {
@@ -50,6 +55,10 @@ export default function App({
   deepLinkAPIBaseURL = canonicalAPGICOrigin,
   deepLinkE2ESessionCookie,
   deepLinkE2EURL,
+  notificationE2EBaseURL,
+  notificationE2ESessionCookie,
+  notificationE2EDeliveryID,
+  notificationE2EIntentID,
 }: AppProps) {
   const decision = decideCapability(deviceCapabilityState);
   const [installationE2E, setInstallationE2E] = useState<
@@ -63,6 +72,12 @@ export default function App({
     | {status: "OPEN"; target: string}
     | {status: "FALLBACK"; target: string}
     | {status: "BLOCKED"}
+    | {status: "FAIL"; reason: string}
+  >({status: "IDLE"});
+
+  const [notificationE2E, setNotificationE2E] = useState<
+    | {status: "IDLE" | "RUNNING"}
+    | {status: "PASS"; intentID: string; previewMode: "GENERIC" | "FULL"}
     | {status: "FAIL"; reason: string}
   >({status: "IDLE"});
 
@@ -112,6 +127,56 @@ export default function App({
       subscription.remove();
     };
   }, [deepLinkE2EURL, handleDeepLink]);
+
+  useEffect(() => {
+    if (
+      !notificationE2EBaseURL ||
+      !notificationE2ESessionCookie ||
+      !notificationE2EDeliveryID ||
+      !notificationE2EIntentID
+    ) {
+      return;
+    }
+    let active = true;
+    setNotificationE2E({status: "RUNNING"});
+    void resolvePushNotification(
+      {
+        contract_version: "notification-transport-v1",
+        delivery_id: notificationE2EDeliveryID,
+        intent_id: notificationE2EIntentID,
+      },
+      {
+        baseURL: notificationE2EBaseURL,
+        sessionCookie: notificationE2ESessionCookie,
+      },
+    ).then(
+      (projection) => {
+        if (active) {
+          setNotificationE2E({
+            status: "PASS",
+            intentID: projection.intent_id,
+            previewMode: projection.preview_mode,
+          });
+        }
+      },
+      (error: unknown) => {
+        if (active) {
+          setNotificationE2E({
+            status: "FAIL",
+            reason: error instanceof Error ? error.message : "NOTIFICATION_E2E_FAILED",
+          });
+        }
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [
+    notificationE2EBaseURL,
+    notificationE2ESessionCookie,
+    notificationE2EDeliveryID,
+    notificationE2EIntentID,
+  ]);
 
   useEffect(() => {
     if (
@@ -196,6 +261,29 @@ export default function App({
             {deepLinkState.status === "FALLBACK" ? (
               <Text accessibilityLabel={`deep-link-fallback:${deepLinkState.target}`}>
                 Web fallback
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
+
+        {notificationE2E.status !== "IDLE" ? (
+          <View style={styles.capability} accessibilityRole="summary">
+            <Text accessibilityLabel={`notification-e2e:${notificationE2E.status}`}>
+              Notification E2E: {notificationE2E.status}
+            </Text>
+            {notificationE2E.status === "PASS" ? (
+              <>
+                <Text accessibilityLabel={`notification-e2e-intent:${notificationE2E.intentID}`}>
+                  Intent: {notificationE2E.intentID}
+                </Text>
+                <Text accessibilityLabel={`notification-e2e-preview:${notificationE2E.previewMode}`}>
+                  Preview: {notificationE2E.previewMode}
+                </Text>
+              </>
+            ) : null}
+            {notificationE2E.status === "FAIL" ? (
+              <Text accessibilityLabel={`notification-e2e-error:${notificationE2E.reason}`}>
+                Notification transport failed safely.
               </Text>
             ) : null}
           </View>
