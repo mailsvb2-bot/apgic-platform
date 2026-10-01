@@ -19,6 +19,7 @@ type Envelope struct {
 	IdentityID     string
 	Operation      string
 	IdempotencyKey string
+	CorrelationID  string
 	RequestDigest  string
 }
 
@@ -26,6 +27,7 @@ func (e Envelope) Validate() error {
 	if strings.TrimSpace(e.IdentityID) == "" ||
 		strings.TrimSpace(e.Operation) == "" ||
 		strings.TrimSpace(e.IdempotencyKey) == "" ||
+		strings.TrimSpace(e.CorrelationID) == "" ||
 		strings.TrimSpace(e.RequestDigest) == "" {
 		return ErrInvalidMutation
 	}
@@ -44,8 +46,10 @@ func ClassifyRetry(existing, incoming Envelope) (Outcome, error) {
 		existing.IdempotencyKey != incoming.IdempotencyKey {
 		return OutcomeClaimed, nil
 	}
-	if existing.RequestDigest == incoming.RequestDigest {
-		return OutcomeDuplicate, nil
+	if existing.CorrelationID != incoming.CorrelationID ||
+		existing.RequestDigest != incoming.RequestDigest {
+		return OutcomeConflict, nil
 	}
+	return OutcomeDuplicate, nil
 	return OutcomeConflict, nil
 }
