@@ -195,7 +195,7 @@ func TestMobileCheckoutMutationReplaysOneCanonicalCheckout(t *testing.T) {
 	}
 
 	headers := map[string]string{
-		"Idempotency-Key": "mobile-checkout-retry-1",
+		"Idempotency-Key":  "mobile-checkout-retry-1",
 		"X-Correlation-Id": "corr-mobile-checkout-retry-1",
 	}
 	body := `{"hold_id":"` + hold.ID + `","method_code":"BANK_CARD"}`
