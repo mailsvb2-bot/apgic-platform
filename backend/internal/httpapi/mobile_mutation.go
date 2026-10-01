@@ -17,7 +17,46 @@ import (
 
 const mobileCheckoutMutationOperation = "CREATE_CHECKOUT"
 
-var mobileMutationKeyPattern = regexp.MustCompile(`^[A-Za-z0-9._:-]{1,128}$`)
+var mobileMutationKeyPattern = regexp.MustCompile(`^[A-Za-z0-9._:-]{1,128}package httpapi
+
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"net/http"
+	"regexp"
+	"strings"
+	"time"
+
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/demand"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/mutation"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/persistentid"
+)
+
+const mobileCheckoutMutationOperation = "CREATE_CHECKOUT"
+
+)
+var mobileMutationCorrelationPattern = regexp.MustCompile(`^[A-Za-z0-9._:/-]{1,160}package httpapi
+
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"net/http"
+	"regexp"
+	"strings"
+	"time"
+
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/demand"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/mutation"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/persistentid"
+)
+
+const mobileCheckoutMutationOperation = "CREATE_CHECKOUT"
+
+)
 
 type mobileCheckoutMutationRequest struct {
 	HoldID     string `json:"hold_id"`
@@ -54,6 +93,11 @@ func registerMobileCheckoutMutation(
 			writeDemandError(w, r, http.StatusBadRequest, "MUTATION_IDEMPOTENCY_KEY_INVALID", "Ключ повтора действия некорректен.", false, nil)
 			return
 		}
+		correlationID := strings.TrimSpace(r.Header.Get("X-Correlation-Id"))
+		if !mobileMutationCorrelationPattern.MatchString(correlationID) {
+			writeDemandError(w, r, http.StatusBadRequest, "MUTATION_CORRELATION_ID_INVALID", "Идентификатор корреляции действия некорректен.", false, nil)
+			return
+		}
 		var body mobileCheckoutMutationRequest
 		decoder := json.NewDecoder(r.Body)
 		decoder.DisallowUnknownFields()
@@ -78,6 +122,7 @@ func registerMobileCheckoutMutation(
 			IdentityID:     identityID,
 			Operation:      mobileCheckoutMutationOperation,
 			IdempotencyKey: idempotencyKey,
+			CorrelationID:  correlationID,
 			RequestDigest:  digest,
 		}, now().UTC())
 		if err != nil {
