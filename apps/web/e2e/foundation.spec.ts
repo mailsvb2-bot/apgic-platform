@@ -499,3 +499,48 @@ test("organization workspace uses real organization lifecycle endpoints", async 
     .analyze();
   expect(accessibility.violations).toEqual([]);
 });
+
+
+test("canonical web deep-link fallback revalidates before opening resource route", async ({ page }) => {
+  const token = "v1.cGF5bG9hZA.c2lnbmF0dXJl";
+  const canonicalPath = "/specialists/e2e-specialist";
+  await page.route("**/v1/mobile/deep-links/resolve?token=*", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        decision: "ALLOW",
+        reason_code: "DEEPLINK_ALLOWED",
+        canonical_path: canonicalPath,
+        canonical_web_fallback: `https://apgic.ru${canonicalPath}`,
+        expires_at: "2026-10-01T12:15:00Z",
+      }),
+    });
+  });
+
+  await page.goto(`/l/${token}`);
+  await expect(page).toHaveURL(new RegExp(`/specialists/e2e-specialist\\?link=`));
+  await expect(page.getByRole("heading", { name: "Специалист" })).toBeVisible();
+  await expect(page.getByRole("status")).toHaveText("Ресурс подтверждён сервером.");
+  await expect(page.getByText("Идентификатор: e2e-specialist")).toBeVisible();
+});
+
+test("canonical resource route fails closed when revalidation does not match path", async ({ page }) => {
+  const token = "v1.cGF5bG9hZA.c2lnbmF0dXJl";
+  await page.route("**/v1/mobile/deep-links/resolve?token=*", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        decision: "ALLOW",
+        reason_code: "DEEPLINK_ALLOWED",
+        canonical_path: "/bookings/other-booking",
+        canonical_web_fallback: "https://apgic.ru/bookings/other-booking",
+        expires_at: "2026-10-01T12:15:00Z",
+      }),
+    });
+  });
+
+  await page.goto(`/bookings/booking-1?link=${encodeURIComponent(token)}`);
+  await expect(page.getByRole("alert")).toContainText("доступ к ресурсу не подтверждён");
+});
