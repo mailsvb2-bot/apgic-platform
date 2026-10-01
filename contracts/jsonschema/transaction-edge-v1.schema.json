@@ -8,45 +8,222 @@
     "notification_intent": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["intent_id","booking_id","purpose","idempotency_key","transactional","data_class"],
+      "required": [
+        "intent_id",
+        "booking_id",
+        "purpose",
+        "idempotency_key",
+        "transactional",
+        "data_class"
+      ],
       "properties": {
-        "intent_id": {"type":"string","minLength":1},
-        "booking_id": {"type":"string","minLength":1},
-        "purpose": {"type":"string","minLength":1},
-        "idempotency_key": {"type":"string","minLength":1},
-        "transactional": {"const":true},
-        "data_class": {"type":"string","minLength":1}
+        "intent_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "booking_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "purpose": {
+          "type": "string",
+          "minLength": 1
+        },
+        "idempotency_key": {
+          "type": "string",
+          "minLength": 1
+        },
+        "transactional": {
+          "const": true
+        },
+        "data_class": {
+          "type": "string",
+          "minLength": 1
+        }
       }
     },
     "calendar_sync": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["booking_id","booking_version","provider_instance_id","target_ref","idempotency_key","state"],
+      "required": [
+        "booking_id",
+        "booking_version",
+        "provider_instance_id",
+        "target_ref",
+        "idempotency_key",
+        "state"
+      ],
       "properties": {
-        "booking_id": {"type":"string","minLength":1},
-        "booking_version": {"type":"integer","minimum":1},
-        "provider_instance_id": {"type":"string","minLength":1},
-        "target_ref": {"type":"string","minLength":1},
-        "idempotency_key": {"type":"string","minLength":1},
-        "state": {"enum":["PENDING","SYNCED","CONFLICT","FAILED_RETRYABLE"]},
-        "provider_event_ref": {"type":["string","null"]}
+        "booking_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "booking_version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "provider_instance_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "idempotency_key": {
+          "type": "string",
+          "minLength": 1
+        },
+        "state": {
+          "enum": [
+            "PENDING",
+            "SYNCED",
+            "CONFLICT",
+            "FAILED_RETRYABLE"
+          ]
+        },
+        "provider_event_ref": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
       }
     },
     "offline_mutation": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["identity_id","operation","idempotency_key","request_digest"],
+      "required": [
+        "identity_id",
+        "operation",
+        "idempotency_key",
+        "request_digest"
+      ],
       "properties": {
-        "identity_id": {"type":"string","minLength":1},
-        "operation": {"type":"string","minLength":1},
-        "idempotency_key": {"type":"string","minLength":1},
-        "request_digest": {"type":"string","minLength":1}
+        "identity_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "operation": {
+          "type": "string",
+          "minLength": 1
+        },
+        "idempotency_key": {
+          "type": "string",
+          "minLength": 1
+        },
+        "request_digest": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "mobile_notification_transport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract_version",
+        "delivery_id",
+        "intent_id"
+      ],
+      "properties": {
+        "contract_version": {
+          "const": "notification-transport-v1"
+        },
+        "delivery_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "intent_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "mobile_notification_projection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract_version",
+        "delivery_id",
+        "intent_id",
+        "purpose",
+        "related_object_ref",
+        "channel",
+        "delivery_state",
+        "data_class",
+        "preview_mode"
+      ],
+      "properties": {
+        "contract_version": {
+          "const": "notification-projection-v1"
+        },
+        "delivery_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "intent_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "purpose": {
+          "type": "string",
+          "minLength": 1
+        },
+        "related_object_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "channel": {
+          "const": "PUSH"
+        },
+        "delivery_state": {
+          "enum": [
+            "PENDING",
+            "SENT",
+            "DELIVERED",
+            "FAILED_RETRYABLE",
+            "SUPPRESSED"
+          ]
+        },
+        "data_class": {
+          "type": "string",
+          "minLength": 1
+        },
+        "preview_mode": {
+          "enum": [
+            "GENERIC",
+            "FULL"
+          ]
+        }
       }
     }
   },
   "anyOf": [
-    {"required":["notification_intent"]},
-    {"required":["calendar_sync"]},
-    {"required":["offline_mutation"]}
+    {
+      "required": [
+        "notification_intent"
+      ]
+    },
+    {
+      "required": [
+        "calendar_sync"
+      ]
+    },
+    {
+      "required": [
+        "offline_mutation"
+      ]
+    },
+    {
+      "required": [
+        "mobile_notification_transport"
+      ]
+    },
+    {
+      "required": [
+        "mobile_notification_projection"
+      ]
+    }
   ]
 }
