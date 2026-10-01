@@ -185,6 +185,13 @@ paths:
             type: string
             minLength: 1
             maxLength: 128
+        - in: header
+          name: X-Correlation-Id
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 160
       requestBody:
         required: true
         content:
