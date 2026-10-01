@@ -6,12 +6,18 @@ APP="$ROOT/apps/mobile/ios/build/derived/Build/Products/Debug-iphonesimulator/AP
 EVIDENCE_DIR="$ROOT/evidence"
 METRO_LOG="/tmp/apgic-metro-ios.log"
 METRO_PID=""
+SERVER_PID=""
 UDID=""
+SERVER_LOG="/tmp/apgic-mobile-installation-server-ios.log"
+SESSION_COOKIE=""
 
 fail() {
   echo "IOS CAPABILITY NATIVE E2E: FAIL: $*" >&2
   if [[ -f "$METRO_LOG" ]]; then
     tail -n 120 "$METRO_LOG" >&2 || true
+  fi
+  if [[ -f "$SERVER_LOG" ]]; then
+    tail -n 120 "$SERVER_LOG" >&2 || true
   fi
   exit 1
 }
@@ -20,11 +26,57 @@ cleanup() {
   if [[ -n "$METRO_PID" ]]; then
     kill "$METRO_PID" 2>/dev/null || true
   fi
+  if [[ -n "$SERVER_PID" ]]; then
+    kill "$SERVER_PID" 2>/dev/null || true
+  fi
   if [[ -n "$UDID" ]]; then
     xcrun simctl shutdown "$UDID" >/dev/null 2>&1 || true
   fi
 }
 trap cleanup EXIT
+
+start_installation_server() {
+  local binary="/tmp/apgic-mobile-installation-e2e-server"
+  (
+    cd "$ROOT/backend"
+    go build -o "$binary" ./cmd/mobile-installation-e2e-server
+  ) || fail "mobile installation E2E server build failed"
+  APGIC_MOBILE_E2E_ADDR=127.0.0.1:43113 "$binary" >"$SERVER_LOG" 2>&1 &
+  SERVER_PID=$!
+
+  for _ in $(seq 1 60); do
+    if curl -fsS http://127.0.0.1:43113/healthz >/dev/null 2>&1; then
+      return 0
+    fi
+    if ! kill -0 "$SERVER_PID" 2>/dev/null; then
+      fail "mobile installation E2E server exited before becoming ready"
+    fi
+    sleep 1
+  done
+  fail "mobile installation E2E server did not become ready"
+}
+
+bootstrap_installation_session() {
+  local headers
+  headers="$(mktemp)"
+  curl -fsS -D "$headers" -o /tmp/apgic-installation-bootstrap-ios.json \
+    -H 'content-type: application/json' \
+    --data '{"free_text":"ios native installation e2e"}' \
+    http://127.0.0.1:43113/v1/help-intents >/dev/null
+  SESSION_COOKIE="$(
+    python3 - "$headers" <<'PY'
+import sys
+for raw in open(sys.argv[1], encoding="utf-8", errors="ignore"):
+    if raw.lower().startswith("set-cookie:"):
+        cookie = raw.split(":", 1)[1].strip().split(";", 1)[0]
+        if cookie.startswith("__Host-apgic_session="):
+            print(cookie)
+            break
+PY
+  )"
+  rm -f "$headers"
+  [[ -n "$SESSION_COOKIE" ]] || fail "signed client session cookie was not issued"
+}
 
 [[ -d "$APP" ]] || fail "simulator app missing: $APP"
 
@@ -71,6 +123,12 @@ for _ in $(seq 1 60); do
 done
 curl -fsS http://127.0.0.1:8081/status | grep -q "packager-status:running" ||
   fail "Metro did not become ready"
+curl -fsS --max-time 120 "http://127.0.0.1:8081/index.bundle?platform=ios&dev=true&minify=false" \
+  -o /tmp/apgic-ios-e2e.bundle ||
+  fail "Metro iOS bundle did not become ready"
+
+start_installation_server
+bootstrap_installation_session
 
 if ! command -v idb >/dev/null 2>&1; then
   brew tap facebook/fb
@@ -110,4 +168,48 @@ assert_state "DENIED" "PERMISSION_DENIED"
 assert_state "RESTRICTED" "OS_RESTRICTED"
 assert_state "UNAVAILABLE" "CAPABILITY_UNAVAILABLE"
 
-echo "IOS CAPABILITY NATIVE E2E: PASS"
+assert_installation_lifecycle() {
+  local installation_id
+  local output="$EVIDENCE_DIR/ios-installation-e2e.json"
+  installation_id="$(python3 -c 'import uuid; print(uuid.uuid4())')"
+
+  xcrun simctl terminate "$UDID" com.apgic.ci >/dev/null 2>&1 || true
+  SIMCTL_CHILD_APGIC_E2E_CAPABILITY_STATE=GRANTED \
+  SIMCTL_CHILD_APGIC_E2E_INSTALLATION_BASE_URL=http://127.0.0.1:43113 \
+  SIMCTL_CHILD_APGIC_E2E_SESSION_COOKIE="$SESSION_COOKIE" \
+  SIMCTL_CHILD_APGIC_E2E_INSTALLATION_ID="$installation_id" \
+  SIMCTL_CHILD_APGIC_E2E_INSTALLATION_PLATFORM=IOS \
+    xcrun simctl launch "$UDID" com.apgic.ci >/dev/null
+
+  for _ in $(seq 1 60); do
+    if "$IDB" ui describe-all --udid "$UDID" --api axbridge --json --nested >"$output" 2>/dev/null &&
+       grep -q 'installation-e2e:PASS' "$output" &&
+       grep -q 'installation-e2e-state:REVOKED' "$output" &&
+       grep -q 'installation-e2e-generation:2' "$output"; then
+      curl -fsS -H "Cookie: $SESSION_COOKIE" http://127.0.0.1:43113/v1/mobile/installations \
+        -o "$EVIDENCE_DIR/ios-installation-server-state.json"
+      python3 - "$EVIDENCE_DIR/ios-installation-server-state.json" "$installation_id" <<'PY'
+import json
+import sys
+payload = json.load(open(sys.argv[1], encoding="utf-8"))
+installation_id = sys.argv[2]
+matches = [item for item in payload.get("installations", []) if item.get("id") == installation_id]
+if len(matches) != 1:
+    raise SystemExit("expected exactly one installation record")
+item = matches[0]
+if item.get("state") != "REVOKED" or item.get("push_generation") != 2 or item.get("push_endpoint"):
+    raise SystemExit(f"unexpected canonical installation state: {item!r}")
+PY
+      echo "iOS installed-app installation lifecycle: PASS"
+      return 0
+    fi
+    sleep 1
+  done
+
+  [[ -f "$output" ]] && cat "$output" >&2 || true
+  fail "installed app did not complete register/rotate/revoke lifecycle"
+}
+
+assert_installation_lifecycle
+
+echo "IOS CAPABILITY + INSTALLATION NATIVE E2E: PASS"

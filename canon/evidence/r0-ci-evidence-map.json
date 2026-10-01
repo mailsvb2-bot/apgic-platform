@@ -674,11 +674,15 @@
         "DOMAIN_OR_CONTRACT_TEST": {
           "gates": [
             "backend",
-            "canon"
+            "canon",
+            "postgres-invariants"
           ],
           "proof_refs": [
             "backend/internal/mobile/installation_test.go",
-            "tools/mobile_installation_contract_guard.py"
+            "tools/mobile_installation_contract_guard.py",
+            "backend/internal/runtimepostgres/mobile_installation_test.go",
+            ".github/workflows/ci.yml",
+            "contracts/openapi/apgic-v1.yaml"
           ]
         }
       },

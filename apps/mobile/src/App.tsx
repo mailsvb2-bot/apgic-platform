@@ -1,4 +1,4 @@
-import React from "react";
+import React, {useEffect, useState} from "react";
 import { SafeAreaView, StyleSheet, Text, View } from "react-native";
 
 import {
@@ -6,10 +6,18 @@ import {
   type CapabilityState,
   type DeviceCapability,
 } from "./device-capability.ts";
+import {
+  runInstallationE2ELifecycle,
+  type MobileInstallationPlatform,
+} from "./mobile-installation-client.ts";
 
 type AppProps = {
   deviceCapability?: DeviceCapability;
   deviceCapabilityState?: CapabilityState;
+  installationE2EBaseURL?: string;
+  installationE2ESessionCookie?: string;
+  installationE2EInstallationID?: string;
+  installationE2EPlatform?: MobileInstallationPlatform;
 };
 
 const fallbackCopy = {
@@ -28,8 +36,58 @@ const actionCopy = {
 export default function App({
   deviceCapability = "MICROPHONE",
   deviceCapabilityState = "UNKNOWN",
+  installationE2EBaseURL,
+  installationE2ESessionCookie,
+  installationE2EInstallationID,
+  installationE2EPlatform,
 }: AppProps) {
   const decision = decideCapability(deviceCapabilityState);
+  const [installationE2E, setInstallationE2E] = useState<
+    | {status: "IDLE" | "RUNNING"}
+    | {status: "PASS"; identityID: string; pushGeneration: number; state: "REVOKED"}
+    | {status: "FAIL"; reason: string}
+  >({status: "IDLE"});
+
+  useEffect(() => {
+    if (
+      !installationE2EBaseURL ||
+      !installationE2ESessionCookie ||
+      !installationE2EInstallationID ||
+      !installationE2EPlatform
+    ) {
+      return;
+    }
+    let active = true;
+    setInstallationE2E({status: "RUNNING"});
+    void runInstallationE2ELifecycle({
+      baseURL: installationE2EBaseURL,
+      sessionCookie: installationE2ESessionCookie,
+      installationID: installationE2EInstallationID,
+      platform: installationE2EPlatform,
+    }).then(
+      (result) => {
+        if (active) {
+          setInstallationE2E({status: "PASS", ...result});
+        }
+      },
+      (error: unknown) => {
+        if (active) {
+          setInstallationE2E({
+            status: "FAIL",
+            reason: error instanceof Error ? error.message : "MOBILE_INSTALLATION_E2E_FAILED",
+          });
+        }
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [
+    installationE2EBaseURL,
+    installationE2ESessionCookie,
+    installationE2EInstallationID,
+    installationE2EPlatform,
+  ]);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -59,6 +117,29 @@ export default function App({
             </Text>
           ) : null}
         </View>
+
+        {installationE2E.status !== "IDLE" ? (
+          <View style={styles.capability} accessibilityRole="summary">
+            <Text accessibilityLabel={`installation-e2e:${installationE2E.status}`}>
+              Installation E2E: {installationE2E.status}
+            </Text>
+            {installationE2E.status === "PASS" ? (
+              <>
+                <Text accessibilityLabel={`installation-e2e-state:${installationE2E.state}`}>
+                  State: {installationE2E.state}
+                </Text>
+                <Text accessibilityLabel={`installation-e2e-generation:${installationE2E.pushGeneration}`}>
+                  Push generation: {installationE2E.pushGeneration}
+                </Text>
+              </>
+            ) : null}
+            {installationE2E.status === "FAIL" ? (
+              <Text accessibilityLabel={`installation-e2e-error:${installationE2E.reason}`}>
+                Installation lifecycle failed safely.
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
       </View>
     </SafeAreaView>
   );

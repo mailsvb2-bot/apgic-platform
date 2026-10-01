@@ -11,6 +11,10 @@ import com.facebook.react.defaults.DefaultReactActivityDelegate
 class MainActivity : ReactActivity() {
   companion object {
     private const val E2E_CAPABILITY_STATE = "APGIC_E2E_CAPABILITY_STATE"
+    private const val E2E_INSTALLATION_BASE_URL = "APGIC_E2E_INSTALLATION_BASE_URL"
+    private const val E2E_SESSION_COOKIE = "APGIC_E2E_SESSION_COOKIE"
+    private const val E2E_INSTALLATION_ID = "APGIC_E2E_INSTALLATION_ID"
+    private const val E2E_INSTALLATION_PLATFORM = "APGIC_E2E_INSTALLATION_PLATFORM"
     private val CAPABILITY_STATES = setOf(
       "UNKNOWN",
       "NOT_REQUESTED",
@@ -50,6 +54,20 @@ class MainActivity : ReactActivity() {
         Bundle().apply {
           putString("deviceCapability", "MICROPHONE")
           putString("deviceCapabilityState", microphoneState())
+          if (BuildConfig.DEBUG) {
+            intent?.getStringExtra(E2E_INSTALLATION_BASE_URL)
+              ?.takeIf { it.isNotBlank() }
+              ?.let { putString("installationE2EBaseURL", it) }
+            intent?.getStringExtra(E2E_SESSION_COOKIE)
+              ?.takeIf { it.isNotBlank() }
+              ?.let { putString("installationE2ESessionCookie", it) }
+            intent?.getStringExtra(E2E_INSTALLATION_ID)
+              ?.takeIf { it.isNotBlank() }
+              ?.let { putString("installationE2EInstallationID", it) }
+            intent?.getStringExtra(E2E_INSTALLATION_PLATFORM)
+              ?.takeIf { it == "IOS" || it == "ANDROID" }
+              ?.let { putString("installationE2EPlatform", it) }
+          }
         }
     }
 }

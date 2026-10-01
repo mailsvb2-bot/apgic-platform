@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: APGIC Public API
-  version: 0.4.0-r0-organization
+  version: 0.5.0-r0-mobile-installation
 servers: []
 paths:
   /healthz:
@@ -32,6 +32,145 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Meta'
+  /v1/mobile/installations:
+    get:
+      operationId: listMobileInstallations
+      description: Lists device installations owned by the signed Identity. Installation identity is separate from user Identity.
+      security:
+        - ClientSession: []
+      responses:
+        '200':
+          description: Installations for the signed Identity, including revoked historical installations.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientInstallationList'
+        '401':
+          description: Trusted client session is required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '503':
+          description: Installation storage is unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    post:
+      operationId: registerMobileInstallation
+      description: Registers one iOS/Android installation under the signed Identity. Exact replay is idempotent; caller cannot supply identity_id.
+      security:
+        - ClientSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterMobileInstallationRequest'
+      responses:
+        '201':
+          description: Installation registered.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientInstallation'
+        '200':
+          description: Exact registration replay returned the existing installation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientInstallation'
+        '400':
+          description: Invalid installation input or conflicting reuse of an installation identifier.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Push endpoint is active under another Identity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '503':
+          description: Installation storage is unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /v1/mobile/installations/{installationID}/push-endpoint:
+    patch:
+      operationId: rotateMobilePushEndpoint
+      description: Rotates the push endpoint of an ACTIVE installation owned by the signed Identity. Same-endpoint replay is idempotent.
+      security:
+        - ClientSession: []
+      parameters:
+        - in: path
+          name: installationID
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RotateMobilePushEndpointRequest'
+      responses:
+        '200':
+          description: Current installation snapshot after rotation or idempotent replay.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientInstallation'
+        '400':
+          description: Invalid rotation or revoked installation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Installation is absent or is not owned by the signed Identity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Push endpoint is active under another Identity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /v1/mobile/installations/{installationID}/revoke:
+    post:
+      operationId: revokeMobileInstallation
+      description: Revokes an installation owned by the signed Identity and clears its push endpoint. Replay is idempotent.
+      security:
+        - ClientSession: []
+      parameters:
+        - in: path
+          name: installationID
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Revoked installation snapshot.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientInstallation'
+        '404':
+          description: Installation is absent or is not owned by the signed Identity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '503':
+          description: Installation storage is unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /v1/products/{productID}/commercial-owner:
     patch:
       operationId: updateProductCommercialOwner
@@ -952,6 +1091,47 @@ components:
           items: { $ref: '#/components/schemas/Surface' }
         commit_sha: { type: string }
         time: { type: string, format: date-time }
+    ClientInstallation:
+      type: object
+      additionalProperties: false
+      required: [id, identity_id, platform, push_generation, state, updated_at]
+      properties:
+        id: { type: string, minLength: 1 }
+        identity_id: { type: string, minLength: 1 }
+        platform:
+          type: string
+          enum: [IOS, ANDROID]
+        push_endpoint: { type: string, minLength: 1 }
+        push_generation: { type: integer, minimum: 1 }
+        state:
+          type: string
+          enum: [ACTIVE, REVOKED]
+        updated_at: { type: string, format: date-time }
+    ClientInstallationList:
+      type: object
+      additionalProperties: false
+      required: [installations]
+      properties:
+        installations:
+          type: array
+          items:
+            $ref: '#/components/schemas/ClientInstallation'
+    RegisterMobileInstallationRequest:
+      type: object
+      additionalProperties: false
+      required: [id, platform, push_endpoint]
+      properties:
+        id: { type: string, minLength: 1 }
+        platform:
+          type: string
+          enum: [IOS, ANDROID]
+        push_endpoint: { type: string, minLength: 1 }
+    RotateMobilePushEndpointRequest:
+      type: object
+      additionalProperties: false
+      required: [push_endpoint]
+      properties:
+        push_endpoint: { type: string, minLength: 1 }
     ProductCommercialOwnerRequest:
       type: object
       additionalProperties: false

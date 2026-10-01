@@ -10,6 +10,14 @@ ROOT = Path(__file__).resolve().parents[1]
 GO_INSTALLATION = ROOT / "backend/internal/mobile/installation.go"
 MIGRATION = ROOT / "backend/migrations/000002_legal_acceptance_mobile_installation.sql"
 SCHEMA = ROOT / "contracts/jsonschema/mobile-installation-v1.schema.json"
+HTTP_API = ROOT / "backend/internal/httpapi/mobile_installation.go"
+POSTGRES_STORE = ROOT / "backend/internal/runtimepostgres/mobile_installation.go"
+OPENAPI = ROOT / "contracts/openapi/apgic-v1.yaml"
+NATIVE_CLIENT = ROOT / "apps/mobile/src/mobile-installation-client.ts"
+ANDROID_BRIDGE = ROOT / "apps/mobile/android/app/src/main/java/com/apgic/ci/MainActivity.kt"
+IOS_BRIDGE = ROOT / "apps/mobile/ios/APGIC/AppDelegate.swift"
+ANDROID_E2E = ROOT / "tools/mobile_android_capability_e2e.sh"
+IOS_E2E = ROOT / "tools/mobile_ios_capability_e2e.sh"
 
 STATE_RE = re.compile(r'Installation[A-Za-z0-9_]+\s+InstallationState\s*=\s*"([A-Z0-9_]+)"')
 GO_FIELD_RE = re.compile(
@@ -82,11 +90,126 @@ def validate_mobile_installation_contract(go_text: str, migration_text: str, sch
     return errors
 
 
+
+
+def validate_mobile_installation_runtime(http_text: str, store_text: str, openapi_text: str) -> list[str]:
+    errors: list[str] = []
+    http_snippets = (
+        'POST /v1/mobile/installations',
+        'GET /v1/mobile/installations',
+        'PATCH /v1/mobile/installations/{installationID}/push-endpoint',
+        'POST /v1/mobile/installations/{installationID}/revoke',
+        'requiredClientSessionIdentity',
+        'MOBILE_PUSH_ENDPOINT_CONFLICT',
+    )
+    for snippet in http_snippets:
+        if snippet not in http_text:
+            errors.append(f"mobile installation HTTP runtime missing: {snippet}")
+
+    store_snippets = (
+        "RegisterInstallation",
+        "RotateInstallationPushEndpoint",
+        "RevokeInstallation",
+        "ListInstallations",
+        "pg_advisory_xact_lock",
+        "push-endpoint:",
+        "FOR UPDATE",
+    )
+    for snippet in store_snippets:
+        if snippet not in store_text:
+            errors.append(f"mobile installation PostgreSQL runtime missing: {snippet}")
+
+    openapi_snippets = (
+        "/v1/mobile/installations:",
+        "operationId: registerMobileInstallation",
+        "operationId: listMobileInstallations",
+        "operationId: rotateMobilePushEndpoint",
+        "operationId: revokeMobileInstallation",
+        "$ref: '#/components/schemas/ClientInstallation'",
+        "ClientSession: []",
+    )
+    for snippet in openapi_snippets:
+        if snippet not in openapi_text:
+            errors.append(f"mobile installation OpenAPI contract missing: {snippet}")
+    return errors
+
+def validate_mobile_installation_native_e2e(
+    client_text: str,
+    android_bridge_text: str,
+    ios_bridge_text: str,
+    android_e2e_text: str,
+    ios_e2e_text: str,
+) -> list[str]:
+    errors: list[str] = []
+    client_snippets = (
+        "runInstallationE2ELifecycle",
+        "/v1/mobile/installations",
+        "/push-endpoint",
+        "/revoke",
+        "MOBILE_INSTALLATION_REGISTER_INVARIANT",
+        "MOBILE_INSTALLATION_ROTATE_INVARIANT",
+        "MOBILE_INSTALLATION_REVOKE_INVARIANT",
+        "MOBILE_INSTALLATION_LIST_INVARIANT",
+        "MOBILE_INSTALLATION_E2E_DISABLED",
+        'Cookie: sessionCookie',
+    )
+    for snippet in client_snippets:
+        if snippet not in client_text:
+            errors.append(f"mobile installation native client proof missing: {snippet}")
+
+    bridge_snippets = (
+        "APGIC_E2E_INSTALLATION_BASE_URL",
+        "APGIC_E2E_SESSION_COOKIE",
+        "APGIC_E2E_INSTALLATION_ID",
+        "APGIC_E2E_INSTALLATION_PLATFORM",
+    )
+    for snippet in bridge_snippets:
+        if snippet not in android_bridge_text:
+            errors.append(f"Android installation E2E bridge missing: {snippet}")
+        if snippet not in ios_bridge_text:
+            errors.append(f"iOS installation E2E bridge missing: {snippet}")
+    if "BuildConfig.DEBUG" not in android_bridge_text:
+        errors.append("Android installation E2E bridge must be debug-only")
+    if "#if DEBUG" not in ios_bridge_text:
+        errors.append("iOS installation E2E bridge must be debug-only")
+
+    script_snippets = (
+        "mobile-installation-e2e-server",
+        "__Host-apgic_session=",
+        "installation-e2e:PASS",
+        "installation-e2e-state:REVOKED",
+        "installation-e2e-generation:2",
+        "/v1/mobile/installations",
+    )
+    for snippet in script_snippets:
+        if snippet not in android_e2e_text:
+            errors.append(f"Android installed-app E2E proof missing: {snippet}")
+        if snippet not in ios_e2e_text:
+            errors.append(f"iOS installed-app E2E proof missing: {snippet}")
+    return errors
+
+
 def main() -> int:
     errors = validate_mobile_installation_contract(
         GO_INSTALLATION.read_text(encoding="utf-8"),
         MIGRATION.read_text(encoding="utf-8"),
         json.loads(SCHEMA.read_text(encoding="utf-8")),
+    )
+    errors.extend(
+        validate_mobile_installation_runtime(
+            HTTP_API.read_text(encoding="utf-8"),
+            POSTGRES_STORE.read_text(encoding="utf-8"),
+            OPENAPI.read_text(encoding="utf-8"),
+        )
+    )
+    errors.extend(
+        validate_mobile_installation_native_e2e(
+            NATIVE_CLIENT.read_text(encoding="utf-8"),
+            ANDROID_BRIDGE.read_text(encoding="utf-8"),
+            IOS_BRIDGE.read_text(encoding="utf-8"),
+            ANDROID_E2E.read_text(encoding="utf-8"),
+            IOS_E2E.read_text(encoding="utf-8"),
+        )
     )
     if errors:
         print("MOBILE INSTALLATION CONTRACT GUARD: FAIL")
