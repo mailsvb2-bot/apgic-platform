@@ -142,20 +142,41 @@ def validate_mobile_installation_native_e2e(
 ) -> list[str]:
     errors: list[str] = []
     client_snippets = (
+        "registerMobileInstallation",
+        "rotateMobilePushEndpoint",
+        "revokeMobileInstallation",
+        "listMobileInstallations",
         "runInstallationE2ELifecycle",
         "/v1/mobile/installations",
         "/push-endpoint",
         "/revoke",
+        'credentials: "include"',
+        "headers.Cookie = config.sessionCookie",
         "MOBILE_INSTALLATION_REGISTER_INVARIANT",
         "MOBILE_INSTALLATION_ROTATE_INVARIANT",
         "MOBILE_INSTALLATION_REVOKE_INVARIANT",
         "MOBILE_INSTALLATION_LIST_INVARIANT",
         "MOBILE_INSTALLATION_E2E_DISABLED",
-        'Cookie: sessionCookie',
     )
     for snippet in client_snippets:
         if snippet not in client_text:
             errors.append(f"mobile installation native client proof missing: {snippet}")
+
+    e2e_body = client_text.split("export async function runInstallationE2ELifecycle", 1)
+    if len(e2e_body) != 2:
+        errors.append("mobile installation E2E orchestrator is missing")
+    else:
+        for production_call in (
+            "registerMobileInstallation(",
+            "rotateMobilePushEndpoint(",
+            "revokeMobileInstallation(",
+            "listMobileInstallations(",
+        ):
+            if production_call not in e2e_body[1]:
+                errors.append(
+                    "E2E must compose production mobile installation functions: "
+                    + production_call
+                )
 
     bridge_snippets = (
         "APGIC_E2E_INSTALLATION_BASE_URL",
