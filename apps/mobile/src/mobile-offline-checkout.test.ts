@@ -64,6 +64,7 @@ test("network failure remains visibly pending and survives restart", async () =>
 
   const recovered: OfflineCheckoutFetch = async (_url, options) => {
     assert.equal(options?.headers?.["Idempotency-Key"], initial.idempotency_key);
+    assert.equal(options?.headers?.["X-Correlation-Id"], initial.correlation_id);
     return {
       status: 200,
       async json() {
