@@ -11,6 +11,8 @@ UDID=""
 SERVER_LOG="/tmp/apgic-mobile-installation-server-ios.log"
 SESSION_COOKIE=""
 DEEP_LINK_URL=""
+OFFLINE_HOLD_ID=""
+OFFLINE_IDEMPOTENCY_KEY="mobile-offline-e2e-ios"
 
 fail() {
   echo "IOS CAPABILITY NATIVE E2E: FAIL: $*" >&2
@@ -80,6 +82,70 @@ PY
 }
 
 
+prepare_offline_checkout() {
+  local intent_id
+  local slot_id
+  local confirm_output="$EVIDENCE_DIR/ios-offline-confirm.json"
+  local slots_output="$EVIDENCE_DIR/ios-offline-slots.json"
+  local hold_output="$EVIDENCE_DIR/ios-offline-hold.json"
+
+  intent_id="$(
+    python3 - /tmp/apgic-installation-bootstrap-ios.json <<'PY'
+import json
+import sys
+payload = json.load(open(sys.argv[1], encoding="utf-8"))
+value = payload.get("id", "")
+if not value:
+    raise SystemExit("bootstrap intent id missing")
+print(value)
+PY
+  )"
+
+  curl -fsS \
+    -H "Cookie: $SESSION_COOKIE" \
+    -H 'content-type: application/json' \
+    --data '{"topics":["sleep"],"goals":[],"context":{}}' \
+    "http://127.0.0.1:43113/v1/help-intents/$intent_id/confirm" \
+    -o "$confirm_output"
+
+  curl -fsS \
+    -H "Cookie: $SESSION_COOKIE" \
+    http://127.0.0.1:43113/v1/specialists/spec-lebedeva/slots \
+    -o "$slots_output"
+
+  slot_id="$(
+    python3 - "$slots_output" <<'PY'
+import json
+import sys
+payload = json.load(open(sys.argv[1], encoding="utf-8"))
+slots = payload.get("slots", [])
+if not slots:
+    raise SystemExit("offline E2E slot missing")
+print(slots[0]["id"])
+PY
+  )"
+
+  curl -fsS \
+    -H "Cookie: $SESSION_COOKIE" \
+    -H 'content-type: application/json' \
+    --data "{\"help_intent_id\":\"$intent_id\",\"slot_id\":\"$slot_id\"}" \
+    http://127.0.0.1:43113/v1/slot-holds \
+    -o "$hold_output"
+
+  OFFLINE_HOLD_ID="$(
+    python3 - "$hold_output" <<'PY'
+import json
+import sys
+payload = json.load(open(sys.argv[1], encoding="utf-8"))
+value = payload.get("id", "")
+if not value:
+    raise SystemExit("offline E2E hold id missing")
+print(value)
+PY
+  )"
+  [[ -n "$OFFLINE_HOLD_ID" ]] || fail "offline E2E hold was not created"
+}
+
 issue_deep_link() {
   local output="$EVIDENCE_DIR/ios-deeplink-issued.json"
   curl -fsS     -H 'content-type: application/json'     --data '{"kind":"SPECIALIST","target_id":"e2e-specialist"}'     http://127.0.0.1:43113/v1/mobile/deep-links     -o "$output"
@@ -148,6 +214,7 @@ curl -fsS --max-time 120 "http://127.0.0.1:8081/index.bundle?platform=ios&dev=tr
 
 start_installation_server
 bootstrap_installation_session
+prepare_offline_checkout
 issue_deep_link
 
 install_idb_with_retry() {
@@ -325,8 +392,80 @@ assert_notification_runtime() {
   fail "installed iOS app did not resolve canonical notification transport"
 }
 
+assert_offline_mutation_restart() {
+  local pending_output="$EVIDENCE_DIR/ios-offline-mutation-pending.json"
+  local confirmed_output="$EVIDENCE_DIR/ios-offline-mutation-confirmed.json"
+  local replay_output="$EVIDENCE_DIR/ios-offline-mutation-server-replay.json"
+  local side_effect
+
+  xcrun simctl terminate "$UDID" com.apgic.ci >/dev/null 2>&1 || true
+  SIMCTL_CHILD_APGIC_E2E_CAPABILITY_STATE=GRANTED \
+  SIMCTL_CHILD_APGIC_E2E_OFFLINE_MUTATION_BASE_URL=http://127.0.0.1:43113 \
+  SIMCTL_CHILD_APGIC_E2E_OFFLINE_MUTATION_SESSION_COOKIE="$SESSION_COOKIE" \
+  SIMCTL_CHILD_APGIC_E2E_OFFLINE_MUTATION_HOLD_ID="$OFFLINE_HOLD_ID" \
+  SIMCTL_CHILD_APGIC_E2E_OFFLINE_MUTATION_IDEMPOTENCY_KEY="$OFFLINE_IDEMPOTENCY_KEY" \
+  SIMCTL_CHILD_APGIC_E2E_OFFLINE_MUTATION_METHOD_CODE=BANK_CARD \
+    xcrun simctl launch "$UDID" com.apgic.ci >/dev/null
+
+  for _ in $(seq 1 60); do
+    if "$IDB" ui describe-all --udid "$UDID" --api axbridge --json --nested >"$pending_output" 2>/dev/null &&
+       json_has_ax_label "$pending_output" "offline-mutation-e2e:LOCAL_PENDING" &&
+       json_has_ax_label "$pending_output" "offline-mutation-attempts:1"; then
+      break
+    fi
+    sleep 1
+  done
+  json_has_ax_label "$pending_output" "offline-mutation-e2e:LOCAL_PENDING" ||
+    fail "offline checkout did not remain LOCAL_PENDING after committed response was lost"
+
+  xcrun simctl terminate "$UDID" com.apgic.ci >/dev/null 2>&1 || true
+  SIMCTL_CHILD_APGIC_E2E_CAPABILITY_STATE=GRANTED \
+  SIMCTL_CHILD_APGIC_E2E_OFFLINE_MUTATION_BASE_URL=http://127.0.0.1:43113 \
+  SIMCTL_CHILD_APGIC_E2E_OFFLINE_MUTATION_SESSION_COOKIE="$SESSION_COOKIE" \
+    xcrun simctl launch "$UDID" com.apgic.ci >/dev/null
+
+  for _ in $(seq 1 60); do
+    if "$IDB" ui describe-all --udid "$UDID" --api axbridge --json --nested >"$confirmed_output" 2>/dev/null &&
+       json_has_ax_label "$confirmed_output" "offline-mutation-e2e:SERVER_CONFIRMED" &&
+       json_has_ax_label "$confirmed_output" "offline-mutation-attempts:2"; then
+      break
+    fi
+    sleep 1
+  done
+  json_has_ax_label "$confirmed_output" "offline-mutation-e2e:SERVER_CONFIRMED" ||
+    fail "offline checkout did not recover from persisted queue after app restart"
+
+  curl -fsS \
+    -H "Cookie: $SESSION_COOKIE" \
+    -H "Idempotency-Key: $OFFLINE_IDEMPOTENCY_KEY" \
+    -H 'content-type: application/json' \
+    --data "{\"hold_id\":\"$OFFLINE_HOLD_ID\",\"method_code\":\"BANK_CARD\"}" \
+    http://127.0.0.1:43113/v1/mobile/checkout-instructions \
+    -o "$replay_output"
+
+  side_effect="$(
+    python3 - "$replay_output" <<'PY'
+import json
+import sys
+payload = json.load(open(sys.argv[1], encoding="utf-8"))
+if payload.get("outcome") != "DUPLICATE_APPLIED":
+    raise SystemExit(f"unexpected retry outcome: {payload!r}")
+side_effect = payload.get("side_effect_ref", "")
+checkout = payload.get("checkout") or {}
+if not side_effect.startswith("checkout/") or side_effect != "checkout/" + checkout.get("id", ""):
+    raise SystemExit(f"unexpected side effect: {payload!r}")
+print(side_effect)
+PY
+  )"
+  json_has_ax_label "$confirmed_output" "offline-mutation-side-effect:${side_effect}" ||
+    fail "installed app and server replay disagree on canonical checkout side effect"
+
+  echo "iOS installed-app offline checkout restart/retry: PASS"
+}
+
 assert_installation_lifecycle
 assert_deep_link_runtime
 assert_notification_runtime
+assert_offline_mutation_restart
 
-echo "IOS CAPABILITY + INSTALLATION + DEEP-LINK + NOTIFICATION NATIVE E2E: PASS"
+echo "IOS CAPABILITY + INSTALLATION + DEEP-LINK + NOTIFICATION + OFFLINE-SYNC NATIVE E2E: PASS"
