@@ -438,6 +438,7 @@ assert_offline_mutation_restart() {
   curl -fsS \
     -H "Cookie: $SESSION_COOKIE" \
     -H "Idempotency-Key: $OFFLINE_IDEMPOTENCY_KEY" \
+    -H "X-Correlation-Id: offline:$OFFLINE_IDEMPOTENCY_KEY" \
     -H 'content-type: application/json' \
     --data "{\"hold_id\":\"$OFFLINE_HOLD_ID\",\"method_code\":\"BANK_CARD\"}" \
     http://127.0.0.1:43113/v1/mobile/checkout-instructions \
