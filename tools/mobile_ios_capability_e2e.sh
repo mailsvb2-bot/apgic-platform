@@ -464,9 +464,39 @@ PY
   echo "iOS installed-app offline checkout restart/retry: PASS"
 }
 
+assert_realtime_lifecycle() {
+  local output="$EVIDENCE_DIR/ios-realtime-e2e.json"
+  local events="NETWORK_OFFLINE,NETWORK_ONLINE,APP_BACKGROUND,APP_FOREGROUND,AUDIO_ROUTE_CHANGED:BLUETOOTH,INTERRUPTION_BEGAN,INTERRUPTION_ENDED"
+  local expected_actions="realtime-provider-actions:CONNECT_PROVIDER|RECONNECT_PROVIDER|PAUSE_MEDIA|RECONNECT_PROVIDER|REFRESH_AUDIO_ROUTE|PAUSE_MEDIA|RECONNECT_PROVIDER"
+
+  xcrun simctl terminate "$UDID" com.apgic.ci >/dev/null 2>&1 || true
+  SIMCTL_CHILD_APGIC_E2E_CAPABILITY_STATE=GRANTED \
+  SIMCTL_CHILD_APGIC_E2E_REALTIME_EVENTS="$events" \
+    xcrun simctl launch "$UDID" com.apgic.ci >/dev/null
+
+  for _ in $(seq 1 60); do
+    if "$IDB" ui describe-all --udid "$UDID" --api axbridge --json --nested >"$output" 2>/dev/null &&
+       json_has_ax_label "$output" "realtime-e2e:PASS" &&
+       json_has_ax_label "$output" "realtime-phase:CONNECTED" &&
+       json_has_ax_label "$output" "realtime-business-transition:NONE" &&
+       json_has_ax_label "$output" "realtime-audio-route:BLUETOOTH" &&
+       json_has_ax_label "$output" "realtime-app-state:FOREGROUND" &&
+       json_has_ax_label "$output" "realtime-network-state:ONLINE" &&
+       json_has_ax_label "$output" "$expected_actions"; then
+      echo "iOS installed-app native realtime lifecycle/reconnect: PASS"
+      return 0
+    fi
+    sleep 1
+  done
+
+  [[ -f "$output" ]] && cat "$output" >&2 || true
+  fail "installed iOS app did not complete native realtime lifecycle/reconnect proof"
+}
+
 assert_installation_lifecycle
 assert_deep_link_runtime
 assert_notification_runtime
 assert_offline_mutation_restart
+assert_realtime_lifecycle
 
-echo "IOS CAPABILITY + INSTALLATION + DEEP-LINK + NOTIFICATION + OFFLINE-SYNC NATIVE E2E: PASS"
+echo "IOS CAPABILITY + INSTALLATION + DEEP-LINK + NOTIFICATION + OFFLINE-SYNC + REALTIME NATIVE E2E: PASS"
