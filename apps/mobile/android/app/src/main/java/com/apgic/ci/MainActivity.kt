@@ -27,6 +27,8 @@ class MainActivity : ReactActivity() {
     private const val E2E_OFFLINE_MUTATION_HOLD_ID = "APGIC_E2E_OFFLINE_MUTATION_HOLD_ID"
     private const val E2E_OFFLINE_MUTATION_IDEMPOTENCY_KEY = "APGIC_E2E_OFFLINE_MUTATION_IDEMPOTENCY_KEY"
     private const val E2E_OFFLINE_MUTATION_METHOD_CODE = "APGIC_E2E_OFFLINE_MUTATION_METHOD_CODE"
+    private const val E2E_REALTIME_EVENTS = "APGIC_E2E_REALTIME_EVENTS"
+    private const val E2E_REALTIME_RECONNECT_FAILURES = "APGIC_E2E_REALTIME_RECONNECT_FAILURES"
     private val CAPABILITY_STATES = setOf(
       "UNKNOWN",
       "NOT_REQUESTED",
@@ -115,6 +117,12 @@ class MainActivity : ReactActivity() {
             intent?.getStringExtra(E2E_OFFLINE_MUTATION_METHOD_CODE)
               ?.takeIf { it.isNotBlank() }
               ?.let { putString("offlineMutationE2EMethodCode", it) }
+            intent?.getStringExtra(E2E_REALTIME_EVENTS)
+              ?.takeIf { it.isNotBlank() }
+              ?.let { putString("realtimeE2EEvents", it) }
+            intent?.getStringExtra(E2E_REALTIME_RECONNECT_FAILURES)
+              ?.takeIf { it.isNotBlank() }
+              ?.let { putString("realtimeE2EReconnectFailures", it) }
           }
         }
     }
