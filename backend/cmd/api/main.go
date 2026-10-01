@@ -20,6 +20,7 @@ func main() {
 	var journeyStore demand.JourneyStore
 	environment := os.Getenv("APGIC_ENVIRONMENT")
 	clientSessionKey := []byte(os.Getenv("APGIC_CLIENT_SESSION_KEY"))
+	deepLinkSigningKey := []byte(os.Getenv("APGIC_DEEPLINK_SIGNING_KEY"))
 	if runtimepostgres.RequiresDatabase(environment) {
 		if err := httpapi.ValidateClientSessionKey(clientSessionKey); err != nil {
 			log.Fatalf("APGIC client session configuration failed: %v", err)
@@ -52,6 +53,8 @@ func main() {
 		ReadinessCheck:   readinessCheck,
 		LegalAcceptances: storage,
 		Installations:    storage,
+		DeepLinks:         storage,
+		DeepLinkSigningKey: deepLinkSigningKey,
 		Specialists:      storage,
 		OrganizationAuth: storage,
 		Organizations:    storage,

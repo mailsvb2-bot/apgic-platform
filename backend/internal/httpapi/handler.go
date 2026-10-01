@@ -22,6 +22,8 @@ type Options struct {
 	Demand           *demand.Service
 	LegalAcceptances legal.AcceptanceStore
 	Installations    mobile.InstallationStore
+	DeepLinks         deepLinkResourceStore
+	DeepLinkSigningKey []byte
 	Specialists      specialist.Store
 	OrganizationAuth organizationAuthorizationStore
 	Organizations    organizationRuntimeStore
@@ -101,6 +103,12 @@ func New(options Options) http.Handler {
 	registerDemand(mux, options.Demand, sessions, sessionConfigErr)
 	registerLegalAcceptance(mux, options.LegalAcceptances, sessions, sessionConfigErr, options.Now)
 	registerMobileInstallations(mux, options.Installations, sessions, sessionConfigErr, options.Now)
+	var deepLinkTokens *mobile.DeepLinkTokenManager
+	var deepLinkTokenConfigErr error
+	if len(options.DeepLinkSigningKey) > 0 {
+		deepLinkTokens, deepLinkTokenConfigErr = mobile.NewDeepLinkTokenManager(options.DeepLinkSigningKey)
+	}
+	registerMobileDeepLinks(mux, options.DeepLinks, deepLinkTokens, deepLinkTokenConfigErr, sessions, sessionConfigErr, options.Now)
 	registerSpecialist(mux, options.Specialists, sessions, sessionConfigErr)
 	registerOrganizationAuthorization(mux, options.OrganizationAuth, sessions, sessionConfigErr, options.Now)
 	registerOrganizationRuntime(mux, options.Organizations, sessions, sessionConfigErr)
