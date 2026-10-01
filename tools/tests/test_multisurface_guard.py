@@ -61,6 +61,40 @@ class LaunchSurfaceEvidenceTests(unittest.TestCase):
         )
         self.assertEqual(errors, [])
 
+    def test_native_only_requirement_uses_native_surface_evidence_and_web_exception(self) -> None:
+        requirements = [
+            {
+                "requirement_id": "APGIC-MOBILE-004",
+                "release_profile": "R0",
+                "status": "VERIFIED",
+                "evidence_refs": [
+                    "surface://IOS/native-capability-fallback/run-1/job-1",
+                    "surface://ANDROID/native-capability-fallback/run-1/job-2",
+                ],
+            }
+        ]
+        exceptions = [
+            {
+                "exception_id": "APGIC-MOBILE-004-WEB-NOT-APPLICABLE",
+                "requirement_id": "APGIC-MOBILE-004",
+                "status": "APPROVED",
+                "surfaces": ["WEB"],
+                "reason": "Requirement is the Native OS Capability Layer.",
+                "approved_by": "repository-owner",
+            }
+        ]
+        errors = launch_surface_errors(
+            requirements,
+            exceptions,
+            {"R0", "R1", "R2", "R3", "R4"},
+            {
+                "WEB": "surface://WEB/",
+                "IOS": "surface://IOS/",
+                "ANDROID": "surface://ANDROID/",
+            },
+        )
+        self.assertEqual(errors, [])
+
     def test_in_progress_requirement_does_not_claim_surface_completion(self) -> None:
         requirements = [
             {

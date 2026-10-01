@@ -31,4 +31,20 @@ Expected fallback mapping:
 
 ## Scope
 
-This evidence is intended to close the `NATIVE_E2E` evidence class only after both Android and iOS CI jobs pass. The Requirement Registry remains `IN_PROGRESS`; this PR does not claim production/store release evidence.
+This evidence closes the `NATIVE_E2E` evidence class after both native jobs passed on the merged implementation candidate.
+
+Verification binding:
+
+- implementation merge SHA: `25d9218a6d2cbb1b27dac17047b793eb663b7027`
+- CI run: `36783400366` (`CI #1720`, push to `main`, conclusion `success`)
+- Android native job: `110118946422` — build + installed-app emulator fallback proof, conclusion `success`
+- iOS native job: `110118946335` — simulator build + installed-app fallback proof, conclusion `success`
+- `mobile-typecheck` unit/typecheck job and `canon` capability-contract guard also concluded `success`
+
+Multi-surface binding:
+
+- iOS proof: `surface://IOS/native-capability-fallback/run-36783400366/job-110118946335`
+- Android proof: `surface://ANDROID/native-capability-fallback/run-36783400366/job-110118946422`
+- WEB is formally marked not applicable for this requirement in `canon/evidence/compatibility-exceptions.yaml`, because Canon section 318 defines APGIC-MOBILE-004 as the Native OS Capability Layer and its acceptance/evidence are explicitly native-only.
+
+The Requirement Registry is therefore advanced to `VERIFIED`. This does **not** claim `RELEASED`: production rollout, signing/store approval, and production release evidence remain governed separately.
