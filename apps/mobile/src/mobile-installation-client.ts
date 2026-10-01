@@ -64,7 +64,7 @@ function canonicalBaseURL(raw: string): string {
     parsed.password !== "" ||
     parsed.search !== "" ||
     parsed.hash !== "" ||
-    parsed.pathname !== ""
+    (parsed.pathname !== "" && parsed.pathname !== "/")
   ) {
     throw new Error("MOBILE_INSTALLATION_BASE_URL_INVALID");
   }
