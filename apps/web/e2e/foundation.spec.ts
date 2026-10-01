@@ -523,6 +523,8 @@ test("canonical web deep-link fallback revalidates before opening resource route
   await expect(page.getByRole("heading", { name: "Специалист" })).toBeVisible();
   await expect(page.getByRole("status")).toHaveText("Ресурс подтверждён сервером.");
   await expect(page.getByText("Идентификатор: e2e-specialist")).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("status")).toHaveText("Ресурс подтверждён сервером.");
 });
 
 test("canonical resource route fails closed when revalidation does not match path", async ({ page }) => {
@@ -544,7 +546,7 @@ test("canonical resource route fails closed when revalidation does not match pat
   await page.goto("/bookings/booking-1");
   await page.evaluate((value) => {
     sessionStorage.setItem("apgic:deeplink:/bookings/booking-1", value);
-    location.reload();
   }, token);
+  await page.reload();
   await expect(page.getByRole("alert")).toContainText("доступ к ресурсу не подтверждён");
 });

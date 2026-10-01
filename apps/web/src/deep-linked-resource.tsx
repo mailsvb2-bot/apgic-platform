@@ -90,7 +90,6 @@ export default function DeepLinkedResource({
           return;
         }
         if (validResolution(resolution, expectedPath)) {
-          sessionStorage.removeItem(storageKey);
           setState("ALLOWED");
         } else {
           sessionStorage.removeItem(storageKey);
