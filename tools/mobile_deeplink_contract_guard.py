@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
+import json
 from pathlib import Path
+
+import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -60,6 +63,38 @@ for relative, needles in checks.items():
     for needle in needles:
         if needle not in text:
             missing.append(f"{relative}: missing {needle!r}")
+
+openapi = yaml.safe_load((ROOT / "contracts/openapi/apgic-v1.yaml").read_text(encoding="utf-8"))
+r1_schema = json.loads(
+    (ROOT / "contracts/jsonschema/r1-mobile-cross-surface-v1.schema.json").read_text(
+        encoding="utf-8"
+    )
+)
+openapi_resolution = (
+    ((openapi.get("components") or {}).get("schemas") or {}).get("DeepLinkResolution")
+    or {}
+)
+r1_resolution = ((r1_schema.get("$defs") or {}).get("DeepLinkResolution") or {})
+if set(openapi_resolution.get("required") or []) != set(r1_resolution.get("required") or []):
+    missing.append(
+        "deep-link response required-field drift between OpenAPI and R1 JSON schema"
+    )
+openapi_props = set((openapi_resolution.get("properties") or {}).keys())
+r1_props = set((r1_resolution.get("properties") or {}).keys())
+if openapi_props != r1_props:
+    missing.append(
+        "deep-link response property drift between OpenAPI and R1 JSON schema"
+    )
+openapi_decisions = set(
+    (((openapi_resolution.get("properties") or {}).get("decision") or {}).get("enum") or [])
+)
+r1_decisions = set(
+    (((r1_resolution.get("properties") or {}).get("decision") or {}).get("enum") or [])
+)
+if openapi_decisions != r1_decisions:
+    missing.append(
+        "deep-link response decision enum drift between OpenAPI and R1 JSON schema"
+    )
 
 association = (ROOT / "apps/web/src/mobile-app-link-association.ts").read_text(encoding="utf-8")
 for forbidden in ("TEAMID.", "AA:BB:CC:", "example.com"):
