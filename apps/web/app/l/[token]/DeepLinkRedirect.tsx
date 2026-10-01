@@ -36,6 +36,12 @@ export default function DeepLinkRedirect({ token }: { token: string }) {
 
   useEffect(() => {
     let active = true;
+    if (!/^v1\.[A-Za-z0-9_-]+$/.test(token) || token.length > 4096) {
+      setStatus("Ссылка недействительна или доступ к ресурсу не подтверждён.");
+      return () => {
+        active = false;
+      };
+    }
     void fetch(`/v1/mobile/deep-links/resolve?token=${encodeURIComponent(token)}`, {
       credentials: "include",
       headers: { Accept: "application/json" },

@@ -18,6 +18,7 @@ test("canonical universal-link parser rejects alternate origins and URL smugglin
     `https://apgic.ru/l/${token}?next=https://evil.example`,
     `https://apgic.ru/l/${token}#fragment`,
     "https://apgic.ru/l/not-a-signed-token",
+    `https://apgic.ru/l/v1.${"A".repeat(4097)}`,
   ]) {
     assert.equal(extractCanonicalDeepLinkToken(value), null, value);
   }
@@ -68,4 +69,56 @@ test("native client fails closed on invalid or denied server responses", async (
     },
   );
   assert.deepEqual(denied, {action: "BLOCK"});
+});
+
+
+test("native client rejects alternate API origins and malformed ALLOW payloads", async () => {
+  let called = false;
+  assert.deepEqual(
+    await resolveCanonicalUniversalLink(`https://apgic.ru/l/${token}`, {
+      apiOrigin: "https://evil.example",
+      request: async () => {
+        called = true;
+        throw new Error("must not call alternate origin");
+      },
+    }),
+    {action: "BLOCK"},
+  );
+  assert.equal(called, false);
+
+  for (const payload of [
+    {
+      decision: "DENY",
+      reason_code: "DEEPLINK_AUTHORIZATION_DENY",
+      canonical_web_fallback: "https://apgic.ru/bookings/booking-1",
+    },
+    {
+      decision: "ALLOW",
+      reason_code: "DEEPLINK_ALLOWED",
+      canonical_path: "//evil.example",
+      canonical_web_fallback: "https://evil.example/",
+      expires_at: "2026-10-01T12:15:00Z",
+    },
+    {
+      decision: "ALLOW",
+      reason_code: "DEEPLINK_ALLOWED",
+      canonical_path: "/bookings/booking-1",
+      canonical_web_fallback: "https://apgic.ru/bookings/other-booking",
+      expires_at: "2026-10-01T12:15:00Z",
+    },
+  ]) {
+    const action = await resolveCanonicalUniversalLink(
+      `https://apgic.ru/l/${token}`,
+      {
+        apiOrigin: "http://127.0.0.1:43114",
+        request: async () => ({
+          status: 200,
+          async json() {
+            return payload;
+          },
+        }),
+      },
+    );
+    assert.deepEqual(action, {action: "BLOCK"});
+  }
 });
