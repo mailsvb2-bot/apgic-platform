@@ -77,6 +77,8 @@ BEGIN
 END;
 $$;
 
+DROP FUNCTION apgic_claim_client_mutation(uuid, uuid, text, text, text, timestamptz);
+
 CREATE OR REPLACE FUNCTION apgic_claim_client_mutation(
   p_id uuid,
   p_identity_id uuid,
