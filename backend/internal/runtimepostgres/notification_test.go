@@ -31,7 +31,7 @@ func TestNotificationTransportClaimIsIdempotentAuditedAndOwned(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	policy, err := notification.NewDeliveryPolicy("channel-policy-ci-v1", []notification.Channel{notification.ChannelPush}, false, false)
+	policy, err := notification.NewDeliveryPolicy("channel-policy-ci-v1", []notification.Channel{notification.ChannelEmail}, false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,6 +72,8 @@ func TestNotificationTransportClaimIsIdempotentAuditedAndOwned(t *testing.T) {
 	if err != nil || duplicate {
 		t.Fatalf("first claim=%#v duplicate=%v err=%v", first, duplicate, err)
 	}
+	// The caller cache says PUSH is disabled; canonical PostgreSQL preferences for this intent say PUSH=true.
+	// Provider-side truth must win before any side effect.
 	if first.State != notification.DeliveryPending || first.PreviewMode != notification.PreviewGeneric {
 		t.Fatalf("unsafe first push plan: %#v", first)
 	}
