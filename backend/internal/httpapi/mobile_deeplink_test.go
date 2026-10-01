@@ -16,6 +16,12 @@ type deepLinkTestStore struct {
 	resources map[string]mobile.DeepLinkResource
 }
 
+type failOnDeepLinkLookupStore struct{}
+
+func (failOnDeepLinkLookupStore) DeepLinkResource(mobile.LinkKind, string) (mobile.DeepLinkResource, bool, error) {
+	panic("protected resource lookup occurred before authentication")
+}
+
 func (s deepLinkTestStore) DeepLinkResource(kind mobile.LinkKind, targetID string) (mobile.DeepLinkResource, bool, error) {
 	value, ok := s.resources[string(kind)+":"+targetID]
 	return value, ok, nil
@@ -116,6 +122,48 @@ func TestMobileDeepLinkHTTPUsesTrustedSessionAndCurrentResourceTruth(t *testing.
 	}
 	if resolution.Decision != "DENY" || resolution.ReasonCode != mobile.ReasonLinkInvalid {
 		t.Fatalf("stale ownership token must be invalidated: %#v", resolution)
+	}
+}
+
+func TestMobileDeepLinkProtectedLookupRequiresSessionFirst(t *testing.T) {
+	now := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
+	signingKey := []byte(strings.Repeat("d", 32))
+	sessionKey := []byte(strings.Repeat("s", 32))
+	handler := New(Options{
+		DeepLinks:          failOnDeepLinkLookupStore{},
+		DeepLinkSigningKey: signingKey,
+		ClientSessionKey:   sessionKey,
+		Now:                func() time.Time { return now },
+	})
+
+	targetID := "00000000-0000-0000-0000-000000000799"
+	body, _ := json.Marshal(issueDeepLinkRequest{Kind: mobile.LinkBooking, TargetID: targetID})
+	issue := httptest.NewRequest(http.MethodPost, "/v1/mobile/deep-links", bytes.NewReader(body))
+	issueRec := httptest.NewRecorder()
+	handler.ServeHTTP(issueRec, issue)
+	if issueRec.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated protected issue status=%d body=%s", issueRec.Code, issueRec.Body.String())
+	}
+
+	manager, err := mobile.NewDeepLinkTokenManager(signingKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	token, err := manager.Issue(mobile.DeepLinkResource{
+		Kind:              mobile.LinkBooking,
+		TargetID:          targetID,
+		AccessClass:       mobile.LinkProtectedResource,
+		TenantID:          "tenant-a",
+		SubjectIdentityID: "identity-a",
+	}, "link-preauth", now, now.Add(15*time.Minute))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolve := httptest.NewRequest(http.MethodGet, "/v1/mobile/deep-links/resolve?token="+token, nil)
+	resolveRec := httptest.NewRecorder()
+	handler.ServeHTTP(resolveRec, resolve)
+	if resolveRec.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated protected resolve status=%d body=%s", resolveRec.Code, resolveRec.Body.String())
 	}
 }
 

@@ -73,6 +73,14 @@ func registerMobileDeepLinks(
 			writeDemandError(w, r, http.StatusBadRequest, mobile.ReasonLinkInvalid, "Параметры ссылки некорректны.", false, nil)
 			return
 		}
+		identityID := ""
+		if body.Kind == mobile.LinkBooking || body.Kind == mobile.LinkNotification {
+			var ok bool
+			identityID, ok = requiredClientSessionIdentity(w, r, sessions, sessionConfigErr)
+			if !ok {
+				return
+			}
+		}
 		resource, found, err := store.DeepLinkResource(body.Kind, body.TargetID)
 		switch {
 		case err != nil:
@@ -83,9 +91,12 @@ func registerMobileDeepLinks(
 			return
 		}
 		if resource.AccessClass == mobile.LinkProtectedResource {
-			identityID, ok := requiredClientSessionIdentity(w, r, sessions, sessionConfigErr)
-			if !ok {
-				return
+			if identityID == "" {
+				var ok bool
+				identityID, ok = requiredClientSessionIdentity(w, r, sessions, sessionConfigErr)
+				if !ok {
+					return
+				}
 			}
 			if identityID != resource.SubjectIdentityID {
 				writeDemandError(w, r, http.StatusForbidden, mobile.ReasonLinkAuthorizationDeny, "Ссылка не может быть выпущена для этого пользователя.", false, []string{mobile.ReasonLinkAuthorizationDeny})
@@ -126,6 +137,16 @@ func registerMobileDeepLinks(
 			writeJSON(w, http.StatusOK, deepLinkResolutionResponse{Decision: "DENY", ReasonCode: reason})
 			return
 		}
+		identityID := ""
+		if claims.AccessClass == mobile.LinkProtectedResource ||
+			claims.Kind == mobile.LinkBooking ||
+			claims.Kind == mobile.LinkNotification {
+			var ok bool
+			identityID, ok = requiredClientSessionIdentity(w, r, sessions, sessionConfigErr)
+			if !ok {
+				return
+			}
+		}
 		resource, found, err := store.DeepLinkResource(claims.Kind, claims.TargetID)
 		switch {
 		case err != nil:
@@ -138,9 +159,12 @@ func registerMobileDeepLinks(
 
 		principal := authz.Principal{}
 		if resource.AccessClass == mobile.LinkProtectedResource {
-			identityID, ok := requiredClientSessionIdentity(w, r, sessions, sessionConfigErr)
-			if !ok {
-				return
+			if identityID == "" {
+				var ok bool
+				identityID, ok = requiredClientSessionIdentity(w, r, sessions, sessionConfigErr)
+				if !ok {
+					return
+				}
 			}
 			action := "deeplink.open." + strings.ToLower(string(resource.Kind))
 			principal = authz.Principal{
