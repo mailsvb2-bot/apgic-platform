@@ -156,12 +156,12 @@ func appendNotificationDeliveryAudit(ctx context.Context, tx *sql.Tx, plan notif
 		reason = notification.ReasonDeliveryDuplicate
 	}
 	state, err := json.Marshal(map[string]any{
-		"intent_id": plan.IntentID,
-		"channel": plan.Channel,
-		"delivery_state": plan.State,
-		"preview_mode": plan.PreviewMode,
+		"intent_id":       plan.IntentID,
+		"channel":         plan.Channel,
+		"delivery_state":  plan.State,
+		"preview_mode":    plan.PreviewMode,
 		"idempotency_key": plan.IdempotencyKey,
-		"duplicate": duplicate,
+		"duplicate":       duplicate,
 	})
 	if err != nil {
 		return err
