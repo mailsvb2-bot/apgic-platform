@@ -60,6 +60,7 @@ func main() {
 		ReadinessCheck:     readinessCheck,
 		LegalAcceptances:   storage,
 		Installations:      storage,
+		Notifications:      storage,
 		DeepLinks:          storage,
 		DeepLinkSigningKey: deepLinkSigningKey,
 		Specialists:        storage,
