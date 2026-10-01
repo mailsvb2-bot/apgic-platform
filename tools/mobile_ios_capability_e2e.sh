@@ -150,14 +150,36 @@ start_installation_server
 bootstrap_installation_session
 issue_deep_link
 
-if ! command -v idb >/dev/null 2>&1; then
+install_idb_with_retry() {
+  if command -v idb >/dev/null 2>&1; then
+    return 0
+  fi
+
   brew tap facebook/fb
   for formula in idb idb-cli idb-companion; do
     brew trust --formula "facebook/fb/$formula"
   done
-  brew install facebook/fb/idb
-fi
-IDB="$(command -v idb)"
+
+  local max_attempts=4
+  local attempt
+  for attempt in $(seq 1 "$max_attempts"); do
+    echo "Installing idb (attempt $attempt/$max_attempts)..."
+    if HOMEBREW_NO_AUTO_UPDATE=1 brew install facebook/fb/idb; then
+      return 0
+    fi
+    if [[ "$attempt" -lt "$max_attempts" ]]; then
+      # A transient GitHub Releases/Homebrew resource failure must not turn a
+      # healthy installed-app E2E into a false product regression. Retry the
+      # dependency download, but keep the E2E itself strictly fail-closed.
+      sleep $((attempt * 10))
+    fi
+  done
+
+  return 1
+}
+
+install_idb_with_retry || fail "idb CLI installation failed after bounded retries"
+IDB="$(command -v idb || true)"
 [[ -x "$IDB" ]] || fail "idb CLI was not installed"
 
 mkdir -p "$EVIDENCE_DIR"
