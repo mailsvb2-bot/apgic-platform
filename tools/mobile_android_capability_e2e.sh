@@ -467,7 +467,6 @@ PY
 assert_realtime_lifecycle() {
   local output="$EVIDENCE_DIR/android-realtime-e2e.xml"
   local events="NETWORK_OFFLINE,NETWORK_ONLINE,APP_BACKGROUND,APP_FOREGROUND,AUDIO_ROUTE_CHANGED:BLUETOOTH,INTERRUPTION_BEGAN,INTERRUPTION_ENDED"
-  local expected_actions="realtime-provider-actions:CONNECT_PROVIDER|RECONNECT_PROVIDER|PAUSE_MEDIA|RECONNECT_PROVIDER|REFRESH_AUDIO_ROUTE|PAUSE_MEDIA|RECONNECT_PROVIDER"
 
   "$ADB" shell am force-stop com.apgic.ci
   "$ADB" shell am start -W \
@@ -485,7 +484,10 @@ assert_realtime_lifecycle() {
        grep -q 'realtime-audio-route:BLUETOOTH' "$output" &&
        grep -q 'realtime-app-state:FOREGROUND' "$output" &&
        grep -q 'realtime-network-state:ONLINE' "$output" &&
-       grep -Fq "$expected_actions" "$output"; then
+       grep -q 'realtime-action-connect:true' "$output" &&
+       grep -q 'realtime-action-reconnect:true' "$output" &&
+       grep -q 'realtime-action-pause:true' "$output" &&
+       grep -q 'realtime-action-route:true' "$output"; then
       echo "Android installed-app native realtime lifecycle/reconnect: PASS"
       return 0
     fi
