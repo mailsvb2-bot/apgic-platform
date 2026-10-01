@@ -44,6 +44,7 @@ jobs:
           bash -n deploy/staging/apply-staging-migrations.sh
           bash -n deploy/staging/test-staging-migration-ledger.sh
           python tools/staging_update_guard.py
+          python -m py_compile deploy/staging/prove-mobile-realtime.py
       - run: python tools/dedicated_host_bootstrap_guard.py
       - run: python tools/identity_contract_guard.py
       - run: python tools/auth_contract_guard.py
