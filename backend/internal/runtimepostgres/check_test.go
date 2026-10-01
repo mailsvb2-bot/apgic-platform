@@ -26,7 +26,7 @@ func TestRequiresDatabaseOnlyForRuntimeEnvironments(t *testing.T) {
 
 func TestRequiredCanonicalTablesAndIndexesAreStable(t *testing.T) {
 	wantTables := map[string]bool{
-		"identities": true, "identity_roles": true, "client_installations": true, "notification_intents": true, "notification_deliveries": true, "help_intents": true,
+		"identities": true, "identity_roles": true, "client_installations": true, "notification_intents": true, "notification_deliveries": true, "client_mutation_records": true, "help_intents": true,
 		"outbox_events": true, "audit_records": true, "ledger_entries": true,
 		"booking_slots": true, "booking_holds": true, "bookings": true,
 		"specialist_profiles": true, "specialist_capabilities": true,
@@ -51,6 +51,29 @@ func TestRequiredCanonicalTablesAndIndexesAreStable(t *testing.T) {
 	for _, index := range requiredIndexes {
 		if !wantIndexes[index] {
 			t.Fatalf("unexpected required index %q", index)
+		}
+	}
+	wantColumns := map[requiredColumn]bool{
+		{table: "client_mutation_records", column: "correlation_id"}: true,
+		{table: "client_mutation_records", column: "failure_code"}:   true,
+	}
+	if len(requiredColumns) != len(wantColumns) {
+		t.Fatalf("required columns = %v", requiredColumns)
+	}
+	for _, column := range requiredColumns {
+		if !wantColumns[column] {
+			t.Fatalf("unexpected required column %#v", column)
+		}
+	}
+	wantProcedures := map[string]bool{
+		"public.apgic_claim_client_mutation(uuid,uuid,text,text,text,text,timestamptz)": true,
+	}
+	if len(requiredProcedures) != len(wantProcedures) {
+		t.Fatalf("required procedures = %v", requiredProcedures)
+	}
+	for _, procedure := range requiredProcedures {
+		if !wantProcedures[procedure] {
+			t.Fatalf("unexpected required procedure %q", procedure)
 		}
 	}
 }

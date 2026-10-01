@@ -79,6 +79,48 @@ class NativeStorageAuditTests(unittest.TestCase):
             errors = validate_native_storage(root)
             self.assertTrue(any("direct native/local persistence" in error for error in errors))
 
+
+    def test_allows_only_marked_bounded_offline_queue_adapters(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            valid_fixture(root)
+            marker = "APGIC_AUDITED_STORAGE_ADAPTER: INTERNAL_OFFLINE_MUTATION_QUEUE"
+            write(
+                root,
+                "apps/mobile/android/app/src/main/java/com/apgic/ci/OfflineMutationStorageModule.kt",
+                f"// {marker}\nval max = 8192\nval prefs = getSharedPreferences(\"queue\", 0)\n",
+            )
+            write(
+                root,
+                "apps/mobile/ios/APGIC/OfflineMutationStorage.m",
+                f"// {marker}\nconst int max = 8192;\nNSUserDefaults *defaults;\n",
+            )
+            self.assertEqual(validate_native_storage(root), [])
+
+    def test_rejects_unmarked_or_sensitive_audited_adapter(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            valid_fixture(root)
+            write(
+                root,
+                "apps/mobile/android/app/src/main/java/com/apgic/ci/OfflineMutationStorageModule.kt",
+                'val max = 8192\nval prefs = getSharedPreferences("queue", 0)\n',
+            )
+            errors = validate_native_storage(root)
+            self.assertTrue(any("audited storage adapter marker missing" in error for error in errors))
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            valid_fixture(root)
+            marker = "APGIC_AUDITED_STORAGE_ADAPTER: INTERNAL_OFFLINE_MUTATION_QUEUE"
+            write(
+                root,
+                "apps/mobile/ios/APGIC/OfflineMutationStorage.m",
+                f"// {marker}\nconst int max = 8192;\nNSUserDefaults *defaults;\n// CREDENTIAL\n",
+            )
+            errors = validate_native_storage(root)
+            self.assertTrue(any("must not reference sensitive DataClass markers" in error for error in errors))
+
     def test_rejects_android_backup_enablement(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

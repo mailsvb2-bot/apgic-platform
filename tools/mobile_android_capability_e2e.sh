@@ -17,6 +17,8 @@ ADB=""
 SERVER_LOG="/tmp/apgic-mobile-installation-server-android.log"
 SESSION_COOKIE=""
 DEEP_LINK_URL=""
+OFFLINE_HOLD_ID=""
+OFFLINE_IDEMPOTENCY_KEY="mobile-offline-e2e-android"
 
 fail() {
   echo "ANDROID CAPABILITY NATIVE E2E: FAIL: $*" >&2
@@ -91,6 +93,70 @@ PY
   [[ -n "$SESSION_COOKIE" ]] || fail "signed client session cookie was not issued"
 }
 
+
+prepare_offline_checkout() {
+  local intent_id
+  local slot_id
+  local confirm_output="$EVIDENCE_DIR/android-offline-confirm.json"
+  local slots_output="$EVIDENCE_DIR/android-offline-slots.json"
+  local hold_output="$EVIDENCE_DIR/android-offline-hold.json"
+
+  intent_id="$(
+    python3 - /tmp/apgic-installation-bootstrap-android.json <<'PY'
+import json
+import sys
+payload = json.load(open(sys.argv[1], encoding="utf-8"))
+value = payload.get("id", "")
+if not value:
+    raise SystemExit("bootstrap intent id missing")
+print(value)
+PY
+  )"
+
+  curl -fsS \
+    -H "Cookie: $SESSION_COOKIE" \
+    -H 'content-type: application/json' \
+    --data '{"topics":["sleep"],"goals":[],"context":{}}' \
+    "http://127.0.0.1:43113/v1/help-intents/$intent_id/confirm" \
+    -o "$confirm_output"
+
+  curl -fsS \
+    -H "Cookie: $SESSION_COOKIE" \
+    http://127.0.0.1:43113/v1/specialists/spec-lebedeva/slots \
+    -o "$slots_output"
+
+  slot_id="$(
+    python3 - "$slots_output" <<'PY'
+import json
+import sys
+payload = json.load(open(sys.argv[1], encoding="utf-8"))
+slots = payload.get("slots", [])
+if not slots:
+    raise SystemExit("offline E2E slot missing")
+print(slots[0]["id"])
+PY
+  )"
+
+  curl -fsS \
+    -H "Cookie: $SESSION_COOKIE" \
+    -H 'content-type: application/json' \
+    --data "{\"help_intent_id\":\"$intent_id\",\"slot_id\":\"$slot_id\"}" \
+    http://127.0.0.1:43113/v1/slot-holds \
+    -o "$hold_output"
+
+  OFFLINE_HOLD_ID="$(
+    python3 - "$hold_output" <<'PY'
+import json
+import sys
+payload = json.load(open(sys.argv[1], encoding="utf-8"))
+value = payload.get("id", "")
+if not value:
+    raise SystemExit("offline E2E hold id missing")
+print(value)
+PY
+  )"
+  [[ -n "$OFFLINE_HOLD_ID" ]] || fail "offline E2E hold was not created"
+}
 
 issue_deep_link() {
   local output="$EVIDENCE_DIR/android-deeplink-issued.json"
@@ -184,6 +250,7 @@ curl -fsS --max-time 120 "http://127.0.0.1:8081/index.bundle?platform=android&de
 
 start_installation_server
 bootstrap_installation_session
+prepare_offline_checkout
 issue_deep_link
 
 "$ADB" reverse tcp:8081 tcp:8081
@@ -318,8 +385,88 @@ assert_notification_runtime() {
   fail "installed Android app did not resolve canonical notification transport"
 }
 
+assert_offline_mutation_restart() {
+  local pending_output="$EVIDENCE_DIR/android-offline-mutation-pending.xml"
+  local confirmed_output="$EVIDENCE_DIR/android-offline-mutation-confirmed.xml"
+  local replay_output="$EVIDENCE_DIR/android-offline-mutation-server-replay.json"
+  local side_effect
+
+  "$ADB" shell am force-stop com.apgic.ci
+  "$ADB" shell am start -W \
+    -n com.apgic.ci/.MainActivity \
+    --es APGIC_E2E_CAPABILITY_STATE GRANTED \
+    --es APGIC_E2E_OFFLINE_MUTATION_BASE_URL http://127.0.0.1:43113 \
+    --es APGIC_E2E_OFFLINE_MUTATION_SESSION_COOKIE "$SESSION_COOKIE" \
+    --es APGIC_E2E_OFFLINE_MUTATION_HOLD_ID "$OFFLINE_HOLD_ID" \
+    --es APGIC_E2E_OFFLINE_MUTATION_IDEMPOTENCY_KEY "$OFFLINE_IDEMPOTENCY_KEY" \
+    --es APGIC_E2E_OFFLINE_MUTATION_METHOD_CODE BANK_CARD \
+    >/dev/null
+
+  for _ in $(seq 1 60); do
+    if "$ADB" shell uiautomator dump /sdcard/apgic-offline-pending.xml >/dev/null 2>&1 &&
+       "$ADB" pull /sdcard/apgic-offline-pending.xml "$pending_output" >/dev/null 2>&1 &&
+       grep -q 'offline-mutation-e2e:LOCAL_PENDING' "$pending_output" &&
+       grep -q 'offline-mutation-attempts:1' "$pending_output"; then
+      break
+    fi
+    sleep 1
+  done
+  grep -q 'offline-mutation-e2e:LOCAL_PENDING' "$pending_output" ||
+    fail "offline checkout did not remain LOCAL_PENDING after committed response was lost"
+
+  "$ADB" shell am force-stop com.apgic.ci
+  "$ADB" shell am start -W \
+    -n com.apgic.ci/.MainActivity \
+    --es APGIC_E2E_CAPABILITY_STATE GRANTED \
+    --es APGIC_E2E_OFFLINE_MUTATION_BASE_URL http://127.0.0.1:43113 \
+    --es APGIC_E2E_OFFLINE_MUTATION_SESSION_COOKIE "$SESSION_COOKIE" \
+    >/dev/null
+
+  for _ in $(seq 1 60); do
+    if "$ADB" shell uiautomator dump /sdcard/apgic-offline-confirmed.xml >/dev/null 2>&1 &&
+       "$ADB" pull /sdcard/apgic-offline-confirmed.xml "$confirmed_output" >/dev/null 2>&1 &&
+       grep -q 'offline-mutation-e2e:SERVER_CONFIRMED' "$confirmed_output" &&
+       grep -q 'offline-mutation-attempts:2' "$confirmed_output" &&
+       grep -q 'offline-mutation-side-effect:checkout/' "$confirmed_output"; then
+      break
+    fi
+    sleep 1
+  done
+  grep -q 'offline-mutation-e2e:SERVER_CONFIRMED' "$confirmed_output" ||
+    fail "offline checkout did not recover from persisted queue after app restart"
+
+  curl -fsS \
+    -H "Cookie: $SESSION_COOKIE" \
+    -H "Idempotency-Key: $OFFLINE_IDEMPOTENCY_KEY" \
+    -H "X-Correlation-Id: offline:$OFFLINE_IDEMPOTENCY_KEY" \
+    -H 'content-type: application/json' \
+    --data "{\"hold_id\":\"$OFFLINE_HOLD_ID\",\"method_code\":\"BANK_CARD\"}" \
+    http://127.0.0.1:43113/v1/mobile/checkout-instructions \
+    -o "$replay_output"
+
+  side_effect="$(
+    python3 - "$replay_output" <<'PY'
+import json
+import sys
+payload = json.load(open(sys.argv[1], encoding="utf-8"))
+if payload.get("outcome") != "DUPLICATE_APPLIED":
+    raise SystemExit(f"unexpected retry outcome: {payload!r}")
+side_effect = payload.get("side_effect_ref", "")
+checkout = payload.get("checkout") or {}
+if not side_effect.startswith("checkout/") or side_effect != "checkout/" + checkout.get("id", ""):
+    raise SystemExit(f"unexpected side effect: {payload!r}")
+print(side_effect)
+PY
+  )"
+  grep -q "offline-mutation-side-effect:${side_effect}" "$confirmed_output" ||
+    fail "installed app and server replay disagree on canonical checkout side effect"
+
+  echo "Android installed-app offline checkout restart/retry: PASS"
+}
+
 assert_installation_lifecycle
 assert_deep_link_runtime
 assert_notification_runtime
+assert_offline_mutation_restart
 
-echo "ANDROID CAPABILITY + INSTALLATION + DEEP-LINK + NOTIFICATION NATIVE E2E: PASS"
+echo "ANDROID CAPABILITY + INSTALLATION + DEEP-LINK + NOTIFICATION + OFFLINE-SYNC NATIVE E2E: PASS"

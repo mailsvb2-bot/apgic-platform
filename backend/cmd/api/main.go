@@ -61,6 +61,7 @@ func main() {
 		LegalAcceptances:   storage,
 		Installations:      storage,
 		Notifications:      storage,
+		ClientMutations:    storage,
 		DeepLinks:          storage,
 		DeepLinkSigningKey: deepLinkSigningKey,
 		Specialists:        storage,

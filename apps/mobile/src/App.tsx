@@ -15,6 +15,14 @@ import {
   resolveCanonicalUniversalLink,
 } from "./mobile-deep-link-client.ts";
 import { resolvePushNotification } from "./mobile-notification-client.ts";
+import {
+  createOfflineCheckoutQueueItem,
+  loadOfflineCheckout,
+  persistOfflineCheckout,
+  syncOfflineCheckout,
+  type OfflineCheckoutState,
+} from "./mobile-offline-checkout.ts";
+import {offlineMutationStorage} from "./offline-mutation-storage.ts";
 
 type AppProps = {
   deviceCapability?: DeviceCapability;
@@ -30,6 +38,11 @@ type AppProps = {
   notificationE2ESessionCookie?: string;
   notificationE2EDeliveryID?: string;
   notificationE2EIntentID?: string;
+  offlineMutationE2EBaseURL?: string;
+  offlineMutationE2ESessionCookie?: string;
+  offlineMutationE2EHoldID?: string;
+  offlineMutationE2EIdempotencyKey?: string;
+  offlineMutationE2EMethodCode?: string;
 };
 
 const fallbackCopy = {
@@ -59,6 +72,11 @@ export default function App({
   notificationE2ESessionCookie,
   notificationE2EDeliveryID,
   notificationE2EIntentID,
+  offlineMutationE2EBaseURL,
+  offlineMutationE2ESessionCookie,
+  offlineMutationE2EHoldID,
+  offlineMutationE2EIdempotencyKey,
+  offlineMutationE2EMethodCode,
 }: AppProps) {
   const decision = decideCapability(deviceCapabilityState);
   const [installationE2E, setInstallationE2E] = useState<
@@ -79,6 +97,17 @@ export default function App({
     | {status: "IDLE" | "RUNNING"}
     | {status: "PASS"; intentID: string; previewMode: "GENERIC" | "FULL"}
     | {status: "FAIL"; reason: string}
+  >({status: "IDLE"});
+
+  const [offlineMutationE2E, setOfflineMutationE2E] = useState<
+    | {status: "IDLE" | "RUNNING"}
+    | {
+        status: OfflineCheckoutState;
+        attempts: number;
+        sideEffectRef?: string;
+        reasonCode?: string;
+      }
+    | {status: "ERROR"; reason: string}
   >({status: "IDLE"});
 
   const handleDeepLink = useCallback(
@@ -176,6 +205,78 @@ export default function App({
     notificationE2ESessionCookie,
     notificationE2EDeliveryID,
     notificationE2EIntentID,
+  ]);
+
+  useEffect(() => {
+    if (!offlineMutationE2EBaseURL || !offlineMutationE2ESessionCookie) {
+      return;
+    }
+    let active = true;
+    setOfflineMutationE2E({status: "RUNNING"});
+
+    void (async () => {
+      try {
+        let item = null;
+        if (
+          offlineMutationE2EHoldID &&
+          offlineMutationE2EIdempotencyKey &&
+          offlineMutationE2EMethodCode
+        ) {
+          await offlineMutationStorage.clear();
+          const createdAt = new Date();
+          item = createOfflineCheckoutQueueItem({
+            idempotencyKey: offlineMutationE2EIdempotencyKey,
+            holdID: offlineMutationE2EHoldID,
+            methodCode: offlineMutationE2EMethodCode,
+            now: createdAt,
+            expiresAt: new Date(createdAt.getTime() + 10 * 60_000),
+            maxAttempts: 3,
+          });
+          await persistOfflineCheckout(offlineMutationStorage, item);
+        } else {
+          item = await loadOfflineCheckout(offlineMutationStorage);
+        }
+        if (!item) {
+          throw new Error("OFFLINE_MUTATION_E2E_QUEUE_MISSING");
+        }
+        const result = await syncOfflineCheckout(
+          item,
+          offlineMutationStorage,
+          {
+            baseURL: offlineMutationE2EBaseURL,
+            sessionCookie: offlineMutationE2ESessionCookie,
+          },
+        );
+        if (active) {
+          setOfflineMutationE2E({
+            status: result.state,
+            attempts: result.attempts,
+            sideEffectRef: result.side_effect_ref,
+            reasonCode: result.reason_code,
+          });
+        }
+      } catch (error: unknown) {
+        if (active) {
+          setOfflineMutationE2E({
+            status: "ERROR",
+            reason:
+              error instanceof Error
+                ? error.message
+                : "OFFLINE_MUTATION_E2E_FAILED",
+          });
+        }
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [
+    offlineMutationE2EBaseURL,
+    offlineMutationE2ESessionCookie,
+    offlineMutationE2EHoldID,
+    offlineMutationE2EIdempotencyKey,
+    offlineMutationE2EMethodCode,
   ]);
 
   useEffect(() => {
@@ -284,6 +385,46 @@ export default function App({
             {notificationE2E.status === "FAIL" ? (
               <Text accessibilityLabel={`notification-e2e-error:${notificationE2E.reason}`}>
                 Notification transport failed safely.
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
+
+        {offlineMutationE2E.status !== "IDLE" ? (
+          <View style={styles.capability} accessibilityRole="summary">
+            <Text
+              accessibilityLabel={`offline-mutation-e2e:${offlineMutationE2E.status}`}
+            >
+              Offline mutation: {offlineMutationE2E.status}
+            </Text>
+            {"attempts" in offlineMutationE2E ? (
+              <Text
+                accessibilityLabel={`offline-mutation-attempts:${offlineMutationE2E.attempts}`}
+              >
+                Attempts: {offlineMutationE2E.attempts}
+              </Text>
+            ) : null}
+            {"sideEffectRef" in offlineMutationE2E &&
+            offlineMutationE2E.sideEffectRef ? (
+              <Text
+                accessibilityLabel={`offline-mutation-side-effect:${offlineMutationE2E.sideEffectRef}`}
+              >
+                Server side effect confirmed.
+              </Text>
+            ) : null}
+            {"reasonCode" in offlineMutationE2E &&
+            offlineMutationE2E.reasonCode ? (
+              <Text
+                accessibilityLabel={`offline-mutation-reason:${offlineMutationE2E.reasonCode}`}
+              >
+                {offlineMutationE2E.reasonCode}
+              </Text>
+            ) : null}
+            {offlineMutationE2E.status === "ERROR" ? (
+              <Text
+                accessibilityLabel={`offline-mutation-error:${offlineMutationE2E.reason}`}
+              >
+                Offline mutation runtime failed safely.
               </Text>
             ) : null}
           </View>

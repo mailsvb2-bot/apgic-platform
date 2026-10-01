@@ -28,5 +28,8 @@
   "type": "module",
   "engines": {
     "node": ">=22.11.0"
+  },
+  "overrides": {
+    "baseline-browser-mapping": "2.11.26"
   }
 }

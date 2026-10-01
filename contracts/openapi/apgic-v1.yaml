@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: APGIC Public API
-  version: 0.7.0-r2-notification-runtime
+  version: 0.8.0-r2-offline-sync
 servers: []
 paths:
   /healthz:
@@ -167,6 +167,70 @@ paths:
                 $ref: '#/components/schemas/ErrorEnvelope'
         '503':
           description: Installation storage is unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /v1/mobile/checkout-instructions:
+    post:
+      operationId: createMobileCheckoutInstruction
+      description: Executes the canonical checkout command through the same demand/domain truth as web while binding mobile timeout/retry to one server-side idempotency record.
+      security:
+        - ClientSession: []
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 128
+        - in: header
+          name: X-Correlation-Id
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 160
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MobileCheckoutMutationRequest'
+      responses:
+        '201':
+          description: Canonical checkout side effect applied and acknowledged.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MobileCheckoutMutationResponse'
+        '200':
+          description: Idempotent retry resolved to the already applied canonical checkout side effect.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MobileCheckoutMutationResponse'
+        '400':
+          description: Invalid mutation envelope or checkout input.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Trusted client session is required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Idempotency conflict, terminal prior failure or canonical checkout conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '503':
+          description: Mutation persistence or canonical checkout runtime is temporarily unavailable.
           content:
             application/json:
               schema:
@@ -1280,6 +1344,28 @@ components:
         token: { type: string, minLength: 1 }
         universal_url: { type: string, format: uri }
         expires_at: { type: string, format: date-time }
+    MobileCheckoutMutationRequest:
+      type: object
+      additionalProperties: false
+      required: [hold_id, method_code]
+      properties:
+        hold_id: { type: string, minLength: 1 }
+        method_code: { type: string, minLength: 1 }
+    MobileCheckoutMutationResponse:
+      type: object
+      additionalProperties: false
+      required: [contract_version, outcome, reason_code, side_effect_ref, checkout]
+      properties:
+        contract_version:
+          type: string
+          enum: [offline-checkout-mutation-v1]
+        outcome:
+          type: string
+          enum: [APPLIED, DUPLICATE_APPLIED]
+        reason_code: { type: string, minLength: 1 }
+        side_effect_ref: { type: string, minLength: 1 }
+        checkout:
+          $ref: '#/components/schemas/CheckoutInstruction'
     MobileNotificationProjection:
       type: object
       additionalProperties: false

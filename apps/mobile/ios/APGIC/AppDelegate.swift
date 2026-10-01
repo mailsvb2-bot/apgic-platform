@@ -52,6 +52,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
       "APGIC_E2E_NOTIFICATION_SESSION_COOKIE": "notificationE2ESessionCookie",
       "APGIC_E2E_NOTIFICATION_DELIVERY_ID": "notificationE2EDeliveryID",
       "APGIC_E2E_NOTIFICATION_INTENT_ID": "notificationE2EIntentID",
+      "APGIC_E2E_OFFLINE_MUTATION_BASE_URL": "offlineMutationE2EBaseURL",
+      "APGIC_E2E_OFFLINE_MUTATION_SESSION_COOKIE": "offlineMutationE2ESessionCookie",
+      "APGIC_E2E_OFFLINE_MUTATION_HOLD_ID": "offlineMutationE2EHoldID",
+      "APGIC_E2E_OFFLINE_MUTATION_IDEMPOTENCY_KEY": "offlineMutationE2EIdempotencyKey",
+      "APGIC_E2E_OFFLINE_MUTATION_METHOD_CODE": "offlineMutationE2EMethodCode",
     ]
     for (environmentKey, propertyKey) in installationE2EKeys {
       if let value = environment[environmentKey], !value.isEmpty {

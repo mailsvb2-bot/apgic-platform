@@ -22,6 +22,11 @@ class MainActivity : ReactActivity() {
     private const val E2E_NOTIFICATION_SESSION_COOKIE = "APGIC_E2E_NOTIFICATION_SESSION_COOKIE"
     private const val E2E_NOTIFICATION_DELIVERY_ID = "APGIC_E2E_NOTIFICATION_DELIVERY_ID"
     private const val E2E_NOTIFICATION_INTENT_ID = "APGIC_E2E_NOTIFICATION_INTENT_ID"
+    private const val E2E_OFFLINE_MUTATION_BASE_URL = "APGIC_E2E_OFFLINE_MUTATION_BASE_URL"
+    private const val E2E_OFFLINE_MUTATION_SESSION_COOKIE = "APGIC_E2E_OFFLINE_MUTATION_SESSION_COOKIE"
+    private const val E2E_OFFLINE_MUTATION_HOLD_ID = "APGIC_E2E_OFFLINE_MUTATION_HOLD_ID"
+    private const val E2E_OFFLINE_MUTATION_IDEMPOTENCY_KEY = "APGIC_E2E_OFFLINE_MUTATION_IDEMPOTENCY_KEY"
+    private const val E2E_OFFLINE_MUTATION_METHOD_CODE = "APGIC_E2E_OFFLINE_MUTATION_METHOD_CODE"
     private val CAPABILITY_STATES = setOf(
       "UNKNOWN",
       "NOT_REQUESTED",
@@ -95,6 +100,21 @@ class MainActivity : ReactActivity() {
             intent?.getStringExtra(E2E_NOTIFICATION_INTENT_ID)
               ?.takeIf { it.isNotBlank() }
               ?.let { putString("notificationE2EIntentID", it) }
+            intent?.getStringExtra(E2E_OFFLINE_MUTATION_BASE_URL)
+              ?.takeIf { it.isNotBlank() }
+              ?.let { putString("offlineMutationE2EBaseURL", it) }
+            intent?.getStringExtra(E2E_OFFLINE_MUTATION_SESSION_COOKIE)
+              ?.takeIf { it.isNotBlank() }
+              ?.let { putString("offlineMutationE2ESessionCookie", it) }
+            intent?.getStringExtra(E2E_OFFLINE_MUTATION_HOLD_ID)
+              ?.takeIf { it.isNotBlank() }
+              ?.let { putString("offlineMutationE2EHoldID", it) }
+            intent?.getStringExtra(E2E_OFFLINE_MUTATION_IDEMPOTENCY_KEY)
+              ?.takeIf { it.isNotBlank() }
+              ?.let { putString("offlineMutationE2EIdempotencyKey", it) }
+            intent?.getStringExtra(E2E_OFFLINE_MUTATION_METHOD_CODE)
+              ?.takeIf { it.isNotBlank() }
+              ?.let { putString("offlineMutationE2EMethodCode", it) }
           }
         }
     }

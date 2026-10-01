@@ -232,6 +232,7 @@ jobs:
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000023_r0_product_runtime.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000024_r0_published_product_order_gate.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000025_r2_notification_policy_runtime.sql
+          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000026_r2_offline_mutation_failure.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r0_connector_delivery_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r1_mobile_invariants.sql
@@ -338,6 +339,11 @@ jobs:
         env:
           APGIC_NOTIFICATION_TEST_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable
         run: go test ./internal/runtimepostgres -run TestNotificationTransportClaimIsIdempotentAuditedAndOwned -count=1
+      - name: Prove durable client mutation applied failed conflict and replay outcomes
+        working-directory: backend
+        env:
+          APGIC_CLIENT_MUTATION_TEST_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable
+        run: go test ./internal/runtimepostgres -run TestClientMutationPersistsAppliedFailedAndConflictOutcomes -count=1
       - name: Prove staging API requires PostgreSQL readiness
         working-directory: backend
         shell: bash
@@ -426,6 +432,7 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f backend/migrations/000023_r0_product_runtime.sql
           psql -v ON_ERROR_STOP=1 -f backend/migrations/000024_r0_published_product_order_gate.sql
           psql -v ON_ERROR_STOP=1 -f backend/migrations/000025_r2_notification_policy_runtime.sql
+          psql -v ON_ERROR_STOP=1 -f backend/migrations/000026_r2_offline_mutation_failure.sql
           bash backend/ci/restore_drill.sh
       - uses: actions/upload-artifact@v7
         with:
@@ -590,6 +597,10 @@ jobs:
             evidence/android-deeplink-issued.json
             evidence/android-deeplink-e2e.xml
             evidence/android-notification-e2e.xml
+            evidence/android-offline-mutation-pending.xml
+            evidence/android-offline-mutation-confirmed.xml
+            evidence/android-offline-mutation-server-replay.json
+            evidence/android-offline-hold.json
           if-no-files-found: error
           retention-days: 30
 
@@ -645,6 +656,10 @@ jobs:
             evidence/ios-deeplink-issued.json
             evidence/ios-deeplink-e2e.json
             evidence/ios-notification-e2e.json
+            evidence/ios-offline-mutation-pending.json
+            evidence/ios-offline-mutation-confirmed.json
+            evidence/ios-offline-mutation-server-replay.json
+            evidence/ios-offline-hold.json
           if-no-files-found: error
           retention-days: 30
 
