@@ -8,7 +8,7 @@
 @property(nonatomic, assign) BOOL started;
 @property(nonatomic, assign) BOOL interrupted;
 @property(nonatomic, strong) dispatch_queue_t networkQueue;
-@property(nonatomic, assign) nw_path_monitor_t networkMonitor;
+@property(nonatomic, strong) nw_path_monitor_t networkMonitor;
 @end
 
 @implementation APGICRealtimeLifecycle
