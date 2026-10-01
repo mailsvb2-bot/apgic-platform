@@ -17,46 +17,8 @@ import (
 
 const mobileCheckoutMutationOperation = "CREATE_CHECKOUT"
 
-var mobileMutationKeyPattern = regexp.MustCompile(`^[A-Za-z0-9._:-]{1,128}package httpapi
-
-import (
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
-	"errors"
-	"net/http"
-	"regexp"
-	"strings"
-	"time"
-
-	"github.com/mailsvb2-bot/apgic-platform/backend/internal/demand"
-	"github.com/mailsvb2-bot/apgic-platform/backend/internal/mutation"
-	"github.com/mailsvb2-bot/apgic-platform/backend/internal/persistentid"
-)
-
-const mobileCheckoutMutationOperation = "CREATE_CHECKOUT"
-
-)
-var mobileMutationCorrelationPattern = regexp.MustCompile(`^[A-Za-z0-9._:/-]{1,160}package httpapi
-
-import (
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
-	"errors"
-	"net/http"
-	"regexp"
-	"strings"
-	"time"
-
-	"github.com/mailsvb2-bot/apgic-platform/backend/internal/demand"
-	"github.com/mailsvb2-bot/apgic-platform/backend/internal/mutation"
-	"github.com/mailsvb2-bot/apgic-platform/backend/internal/persistentid"
-)
-
-const mobileCheckoutMutationOperation = "CREATE_CHECKOUT"
-
-)
+var mobileMutationKeyPattern = regexp.MustCompile("^[A-Za-z0-9._:-]{1,128}$")
+var mobileMutationCorrelationPattern = regexp.MustCompile("^[A-Za-z0-9._:/-]{1,160}$")
 
 type mobileCheckoutMutationRequest struct {
 	HoldID     string `json:"hold_id"`
