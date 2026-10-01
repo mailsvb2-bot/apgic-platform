@@ -229,7 +229,7 @@ func TestMobileCheckoutMutationReplaysOneCanonicalCheckout(t *testing.T) {
 	}
 
 	correlationHeaders := map[string]string{
-		"Idempotency-Key": "mobile-checkout-retry-1",
+		"Idempotency-Key":  "mobile-checkout-retry-1",
 		"X-Correlation-Id": "corr-mobile-checkout-other",
 	}
 	correlationConflict := call(session, http.MethodPost, "/v1/mobile/checkout-instructions", body, correlationHeaders)
