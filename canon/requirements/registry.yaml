@@ -2620,7 +2620,11 @@ requirements:
   - tools/mobile_android_capability_e2e.sh
   - tools/mobile_ios_capability_e2e.sh
   - .github/workflows/ci.yml
-  evidence_refs: []
+  evidence_refs:
+  - docs/traceability/R2-mobile007-notification-runtime.md
+  - surface://IOS/mobile007-notification-transport/run-36906994292/job-110519955325
+  - surface://ANDROID/mobile007-notification-transport/run-36906994292/job-110519955578
+  - surface://SERVER/mobile007-notification-transport/run-36906994292/job-110519955475
   acceptance:
     given: transactional NotificationIntent создан
     when: delivery идёт через push и другие каналы
