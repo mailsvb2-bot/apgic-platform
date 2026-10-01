@@ -51,5 +51,4 @@ func ClassifyRetry(existing, incoming Envelope) (Outcome, error) {
 		return OutcomeConflict, nil
 	}
 	return OutcomeDuplicate, nil
-	return OutcomeConflict, nil
 }
