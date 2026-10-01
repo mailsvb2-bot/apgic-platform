@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	deepLinkTTL             = 15 * time.Minute
+	deepLinkTTL              = 15 * time.Minute
 	maxDeepLinkIssueBodySize = 4 * 1024
 )
 
