@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import {runInstallationE2ELifecycle} from "./mobile-installation-client.ts";
+import {
+  registerMobileInstallation,
+  runInstallationE2ELifecycle,
+} from "./mobile-installation-client.ts";
 
 test("installed client lifecycle preserves identity through rotation and revoke", async () => {
   const identityID = "11111111-1111-4111-8111-111111111111";
@@ -124,5 +127,74 @@ test("lifecycle fails closed when rotation changes canonical identity", async ()
       request,
     ),
     /MOBILE_INSTALLATION_ROTATE_INVARIANT/,
+  );
+});
+
+
+test("production registration uses the canonical authenticated HTTP contract", async () => {
+  const installationID = "44444444-4444-4444-8444-444444444444";
+  let captured:
+    | {url: string; method?: string; cookie?: string; credentials?: string; body?: string}
+    | undefined;
+  const result = await registerMobileInstallation(
+    {baseURL: "https://apgic.ru"},
+    {
+      id: installationID,
+      platform: "ANDROID",
+      pushEndpoint: "provider-token-1",
+    },
+    async (url, options) => {
+      captured = {
+        url,
+        method: options?.method,
+        cookie: options?.headers?.Cookie,
+        credentials: options?.credentials,
+        body: options?.body,
+      };
+      return {
+        status: 201,
+        async json() {
+          return {
+            id: installationID,
+            identity_id: "55555555-5555-4555-8555-555555555555",
+            platform: "ANDROID",
+            push_endpoint: "provider-token-1",
+            push_generation: 1,
+            state: "ACTIVE",
+          };
+        },
+      };
+    },
+  );
+
+  assert.equal(result.idempotent, false);
+  assert.equal(result.installation.id, installationID);
+  assert.deepEqual(captured, {
+    url: "https://apgic.ru/v1/mobile/installations",
+    method: "POST",
+    cookie: undefined,
+    credentials: "include",
+    body: JSON.stringify({
+      id: installationID,
+      platform: "ANDROID",
+      push_endpoint: "provider-token-1",
+    }),
+  });
+});
+
+test("production client rejects insecure non-loopback API origins", async () => {
+  await assert.rejects(
+    registerMobileInstallation(
+      {baseURL: "http://example.com"},
+      {
+        id: "66666666-6666-4666-8666-666666666666",
+        platform: "IOS",
+        pushEndpoint: "provider-token-2",
+      },
+      async () => {
+        throw new Error("request must not be reached");
+      },
+    ),
+    /MOBILE_INSTALLATION_BASE_URL_INVALID/,
   );
 });

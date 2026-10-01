@@ -16,6 +16,12 @@ The production server now owns a durable `ClientInstallation` lifecycle that is 
 
 The API is versioned in `contracts/openapi/apgic-v1.yaml` and generated into the shared TypeScript client contract. Production readiness now requires the `client_installations` table.
 
+## Production-capable native client boundary
+
+The installed-app E2E no longer owns a separate HTTP implementation. `apps/mobile/src/mobile-installation-client.ts` exposes ordinary production-capable register, rotate, revoke and list functions that use the same versioned API contract with cookie credentials. The debug-only E2E orchestrator only supplies deterministic synthetic provider tokens and composes those production functions; it does not bypass or reimplement the client protocol.
+
+The push provider that supplies a real APNs/Android provider token is intentionally outside this R0 lifecycle contract and remains subject to the later notification transport/provider work. The lifecycle here proves that whatever provider token is supplied is installation-scoped, rotates independently of Identity and becomes ineligible after revoke.
+
 ## Automated proof
 
 `TestMobileInstallationHTTPPreservesIdentityAcrossRotationReinstallAndRevoke` executes the authenticated HTTP API against PostgreSQL and proves:

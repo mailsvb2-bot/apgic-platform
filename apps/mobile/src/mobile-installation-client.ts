@@ -11,8 +11,12 @@ export type MobileInstallation = {
   state: "ACTIVE" | "REVOKED";
 };
 
-export type InstallationE2EConfig = {
+export type InstallationClientConfig = {
   baseURL: string;
+  sessionCookie?: string;
+};
+
+export type InstallationE2EConfig = InstallationClientConfig & {
   sessionCookie: string;
   installationID: string;
   platform: MobileInstallationPlatform;
@@ -28,6 +32,7 @@ type FetchOptions = {
   method?: string;
   headers?: Record<string, string>;
   body?: string;
+  credentials?: "include";
 };
 
 type FetchResponse = {
@@ -35,11 +40,38 @@ type FetchResponse = {
   json(): Promise<unknown>;
 };
 
-type FetchLike = (url: string, options?: FetchOptions) => Promise<FetchResponse>;
+export type InstallationFetch = (
+  url: string,
+  options?: FetchOptions,
+) => Promise<FetchResponse>;
 
-const defaultFetch: FetchLike = (url, options) => fetch(url, options);
+const defaultFetch: InstallationFetch = (url, options) => fetch(url, options);
 
-function requireInstallation(value: unknown): MobileInstallation {
+function canonicalBaseURL(raw: string): string {
+  const candidate = raw.trim().replace(/\/$/, "");
+  let parsed: URL;
+  try {
+    parsed = new URL(candidate);
+  } catch {
+    throw new Error("MOBILE_INSTALLATION_BASE_URL_INVALID");
+  }
+  const loopback =
+    parsed.protocol === "http:" &&
+    (parsed.hostname === "127.0.0.1" || parsed.hostname === "localhost");
+  if (
+    (parsed.protocol !== "https:" && !loopback) ||
+    parsed.username !== "" ||
+    parsed.password !== "" ||
+    parsed.search !== "" ||
+    parsed.hash !== "" ||
+    parsed.pathname !== ""
+  ) {
+    throw new Error("MOBILE_INSTALLATION_BASE_URL_INVALID");
+  }
+  return candidate;
+}
+
+export function requireInstallation(value: unknown): MobileInstallation {
   if (!value || typeof value !== "object") {
     throw new Error("MOBILE_INSTALLATION_RESPONSE_INVALID");
   }
@@ -49,7 +81,11 @@ function requireInstallation(value: unknown): MobileInstallation {
     typeof candidate.identity_id !== "string" ||
     (candidate.platform !== "IOS" && candidate.platform !== "ANDROID") ||
     typeof candidate.push_generation !== "number" ||
-    (candidate.state !== "ACTIVE" && candidate.state !== "REVOKED")
+    !Number.isInteger(candidate.push_generation) ||
+    candidate.push_generation < 1 ||
+    (candidate.state !== "ACTIVE" && candidate.state !== "REVOKED") ||
+    (candidate.push_endpoint !== undefined &&
+      typeof candidate.push_endpoint !== "string")
   ) {
     throw new Error("MOBILE_INSTALLATION_RESPONSE_INVALID");
   }
@@ -57,38 +93,134 @@ function requireInstallation(value: unknown): MobileInstallation {
 }
 
 async function requestJSON(
-  request: FetchLike,
-  url: string,
-  sessionCookie: string,
+  config: InstallationClientConfig,
+  request: InstallationFetch,
+  path: string,
   method: string,
-  expectedStatus: number,
+  expectedStatuses: readonly number[],
   body?: Record<string, string>,
-): Promise<unknown> {
-  const response = await request(url, {
+): Promise<{status: number; payload: unknown}> {
+  const baseURL = canonicalBaseURL(config.baseURL);
+  const headers: Record<string, string> = {Accept: "application/json"};
+  if (config.sessionCookie) {
+    headers.Cookie = config.sessionCookie;
+  }
+  if (body) {
+    headers["Content-Type"] = "application/json";
+  }
+  const response = await request(baseURL + path, {
     method,
-    headers: {
-      Accept: "application/json",
-      Cookie: sessionCookie,
-      ...(body ? {"Content-Type": "application/json"} : {}),
-    },
+    headers,
+    credentials: "include",
     ...(body ? {body: JSON.stringify(body)} : {}),
   });
-  if (response.status !== expectedStatus) {
+  if (!expectedStatuses.includes(response.status)) {
     throw new Error(`MOBILE_INSTALLATION_HTTP_${response.status}`);
   }
-  return response.json();
+  return {status: response.status, payload: await response.json()};
+}
+
+export async function registerMobileInstallation(
+  config: InstallationClientConfig,
+  input: {
+    id: string;
+    platform: MobileInstallationPlatform;
+    pushEndpoint: string;
+  },
+  request: InstallationFetch = defaultFetch,
+): Promise<{installation: MobileInstallation; idempotent: boolean}> {
+  if (
+    !input.id.trim() ||
+    (input.platform !== "IOS" && input.platform !== "ANDROID") ||
+    !input.pushEndpoint.trim()
+  ) {
+    throw new Error("MOBILE_INSTALLATION_REGISTER_INVALID");
+  }
+  const response = await requestJSON(
+    config,
+    request,
+    "/v1/mobile/installations",
+    "POST",
+    [200, 201],
+    {
+      id: input.id,
+      platform: input.platform,
+      push_endpoint: input.pushEndpoint,
+    },
+  );
+  return {
+    installation: requireInstallation(response.payload),
+    idempotent: response.status === 200,
+  };
+}
+
+export async function rotateMobilePushEndpoint(
+  config: InstallationClientConfig,
+  installationID: string,
+  pushEndpoint: string,
+  request: InstallationFetch = defaultFetch,
+): Promise<MobileInstallation> {
+  if (!installationID.trim() || !pushEndpoint.trim()) {
+    throw new Error("MOBILE_INSTALLATION_ROTATE_INVALID");
+  }
+  const response = await requestJSON(
+    config,
+    request,
+    `/v1/mobile/installations/${encodeURIComponent(installationID)}/push-endpoint`,
+    "PATCH",
+    [200],
+    {push_endpoint: pushEndpoint},
+  );
+  return requireInstallation(response.payload);
+}
+
+export async function revokeMobileInstallation(
+  config: InstallationClientConfig,
+  installationID: string,
+  request: InstallationFetch = defaultFetch,
+): Promise<MobileInstallation> {
+  if (!installationID.trim()) {
+    throw new Error("MOBILE_INSTALLATION_REVOKE_INVALID");
+  }
+  const response = await requestJSON(
+    config,
+    request,
+    `/v1/mobile/installations/${encodeURIComponent(installationID)}/revoke`,
+    "POST",
+    [200],
+  );
+  return requireInstallation(response.payload);
+}
+
+export async function listMobileInstallations(
+  config: InstallationClientConfig,
+  request: InstallationFetch = defaultFetch,
+): Promise<MobileInstallation[]> {
+  const response = await requestJSON(
+    config,
+    request,
+    "/v1/mobile/installations",
+    "GET",
+    [200],
+  );
+  if (!response.payload || typeof response.payload !== "object") {
+    throw new Error("MOBILE_INSTALLATION_LIST_INVALID");
+  }
+  const values = (response.payload as {installations?: unknown}).installations;
+  if (!Array.isArray(values)) {
+    throw new Error("MOBILE_INSTALLATION_LIST_INVALID");
+  }
+  return values.map(requireInstallation);
 }
 
 export async function runInstallationE2ELifecycle(
   config: InstallationE2EConfig,
-  request: FetchLike = defaultFetch,
+  request: InstallationFetch = defaultFetch,
 ): Promise<InstallationE2EResult> {
   if (typeof __DEV__ !== "undefined" && !__DEV__) {
     throw new Error("MOBILE_INSTALLATION_E2E_DISABLED");
   }
-  const baseURL = config.baseURL.replace(/\/$/, "");
   if (
-    !baseURL ||
     !config.sessionCookie ||
     !config.installationID ||
     (config.platform !== "IOS" && config.platform !== "ANDROID")
@@ -96,24 +228,25 @@ export async function runInstallationE2ELifecycle(
     throw new Error("MOBILE_INSTALLATION_E2E_CONFIG_INVALID");
   }
 
+  const clientConfig: InstallationClientConfig = {
+    baseURL: config.baseURL,
+    sessionCookie: config.sessionCookie,
+  };
   const tokenA = `e2e-${config.platform.toLowerCase()}-${config.installationID}-a`;
   const tokenB = `e2e-${config.platform.toLowerCase()}-${config.installationID}-b`;
 
-  const registered = requireInstallation(
-    await requestJSON(
-      request,
-      `${baseURL}/v1/mobile/installations`,
-      config.sessionCookie,
-      "POST",
-      201,
-      {
-        id: config.installationID,
-        platform: config.platform,
-        push_endpoint: tokenA,
-      },
-    ),
+  const registeredResult = await registerMobileInstallation(
+    clientConfig,
+    {
+      id: config.installationID,
+      platform: config.platform,
+      pushEndpoint: tokenA,
+    },
+    request,
   );
+  const registered = registeredResult.installation;
   if (
+    registeredResult.idempotent ||
     registered.id !== config.installationID ||
     registered.platform !== config.platform ||
     registered.state !== "ACTIVE" ||
@@ -123,15 +256,11 @@ export async function runInstallationE2ELifecycle(
     throw new Error("MOBILE_INSTALLATION_REGISTER_INVARIANT");
   }
 
-  const rotated = requireInstallation(
-    await requestJSON(
-      request,
-      `${baseURL}/v1/mobile/installations/${config.installationID}/push-endpoint`,
-      config.sessionCookie,
-      "PATCH",
-      200,
-      {push_endpoint: tokenB},
-    ),
+  const rotated = await rotateMobilePushEndpoint(
+    clientConfig,
+    config.installationID,
+    tokenB,
+    request,
   );
   if (
     rotated.identity_id !== registered.identity_id ||
@@ -142,14 +271,10 @@ export async function runInstallationE2ELifecycle(
     throw new Error("MOBILE_INSTALLATION_ROTATE_INVARIANT");
   }
 
-  const revoked = requireInstallation(
-    await requestJSON(
-      request,
-      `${baseURL}/v1/mobile/installations/${config.installationID}/revoke`,
-      config.sessionCookie,
-      "POST",
-      200,
-    ),
+  const revoked = await revokeMobileInstallation(
+    clientConfig,
+    config.installationID,
+    request,
   );
   if (
     revoked.identity_id !== registered.identity_id ||
@@ -160,23 +285,10 @@ export async function runInstallationE2ELifecycle(
     throw new Error("MOBILE_INSTALLATION_REVOKE_INVARIANT");
   }
 
-  const listedPayload = await requestJSON(
-    request,
-    `${baseURL}/v1/mobile/installations`,
-    config.sessionCookie,
-    "GET",
-    200,
+  const listed = await listMobileInstallations(clientConfig, request);
+  const persisted = listed.find(
+    (candidate) => candidate.id === config.installationID,
   );
-  if (!listedPayload || typeof listedPayload !== "object") {
-    throw new Error("MOBILE_INSTALLATION_LIST_INVALID");
-  }
-  const listed = (listedPayload as {installations?: unknown}).installations;
-  if (!Array.isArray(listed)) {
-    throw new Error("MOBILE_INSTALLATION_LIST_INVALID");
-  }
-  const persisted = listed
-    .map(requireInstallation)
-    .find((candidate) => candidate.id === config.installationID);
   if (
     !persisted ||
     persisted.identity_id !== registered.identity_id ||

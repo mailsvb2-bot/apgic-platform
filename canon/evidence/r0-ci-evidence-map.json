@@ -691,6 +691,7 @@
             "ios-native-build"
           ],
           "proof_refs": [
+            "apps/mobile/src/mobile-installation-client.ts",
             "apps/mobile/src/App.tsx",
             "tools/mobile_android_capability_e2e.sh",
             "tools/mobile_ios_capability_e2e.sh",

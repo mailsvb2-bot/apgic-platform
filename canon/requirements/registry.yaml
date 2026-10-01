@@ -2499,6 +2499,8 @@ requirements:
   - backend/internal/httpapi/mobile_installation.go
   - backend/cmd/api/main.go
   - backend/migrations/000002_legal_acceptance_mobile_installation.sql
+  - apps/mobile/src/mobile-installation-client.ts
+  - apps/mobile/src/App.tsx
   contract_refs:
   - contracts/jsonschema/mobile-installation-v1.schema.json
   - contracts/openapi/apgic-v1.yaml
@@ -2506,6 +2508,9 @@ requirements:
   test_refs:
   - backend/internal/mobile/installation_test.go
   - backend/internal/runtimepostgres/mobile_installation_test.go
+  - apps/mobile/src/mobile-installation-client.test.ts
+  - tools/mobile_android_capability_e2e.sh
+  - tools/mobile_ios_capability_e2e.sh
   - tools/mobile_installation_contract_guard.py
   - tools/tests/test_mobile_installation_contract_guard.py
   - .github/workflows/ci.yml
