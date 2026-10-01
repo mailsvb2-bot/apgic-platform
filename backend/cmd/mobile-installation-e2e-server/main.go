@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"log"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/demand"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/httpapi"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/mobile"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/notification"
 )
 
 type conformanceInstallationStore struct {
@@ -133,6 +135,25 @@ func (conformanceDeepLinkStore) DeepLinkResource(kind mobile.LinkKind, targetID 
 	}, true, nil
 }
 
+type conformanceNotificationStore struct{}
+
+func (conformanceNotificationStore) MobileNotificationDelivery(_ context.Context, identityID, deliveryID string) (notification.MobileDeliveryProjection, bool, error) {
+	if strings.TrimSpace(identityID) == "" || deliveryID != "00000000-0000-0000-0000-00000000e701" {
+		return notification.MobileDeliveryProjection{}, false, nil
+	}
+	return notification.MobileDeliveryProjection{
+		ContractVersion:  "notification-projection-v1",
+		DeliveryID:       deliveryID,
+		IntentID:         "00000000-0000-0000-0000-00000000e702",
+		Purpose:          "BOOKING_CONFIRMATION",
+		RelatedObjectRef: "booking/e2e-booking",
+		Channel:          notification.ChannelPush,
+		DeliveryState:    notification.DeliveryPending,
+		DataClass:        "SENSITIVE",
+		PreviewMode:      notification.PreviewGeneric,
+	}, true, nil
+}
+
 func main() {
 	addr := os.Getenv("APGIC_MOBILE_E2E_ADDR")
 	if addr == "" {
@@ -142,6 +163,7 @@ func main() {
 	handler := httpapi.New(httpapi.Options{
 		Demand:             demand.NewConformanceService(nil),
 		Installations:      newConformanceInstallationStore(),
+		Notifications:      conformanceNotificationStore{},
 		DeepLinks:          conformanceDeepLinkStore{},
 		DeepLinkSigningKey: key,
 		ClientSessionKey:   key,
