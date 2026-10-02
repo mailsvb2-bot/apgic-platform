@@ -2,7 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
 test("public HTML is not served with an immutable one-year cache", async ({ request }) => {
-  for (const path of ["/", "/specialist", "/organization"]) {
+  for (const path of ["/", "/specialist", "/organization", "/update"]) {
     const response = await request.get(path);
     expect(response.ok()).toBeTruthy();
     const cacheControl = response.headers()["cache-control"] ?? "";
@@ -549,4 +549,13 @@ test("canonical resource route fails closed when revalidation does not match pat
   }, token);
   await page.reload();
   await expect(page.locator("main").getByRole("alert")).toContainText("доступ к ресурсу не подтверждён");
+});
+
+
+test("mobile forced-update destination is safe and does not invent store availability", async ({ page }) => {
+  await page.goto("/update");
+  await expect(page.getByRole("heading", { level: 1, name: "Обновите приложение APGIC" })).toBeVisible();
+  await expect(page.getByText("Не удаляйте приложение и не повторяйте оплату")).toBeVisible();
+  await expect(page.getByText("официальный магазин или канал", { exact: false })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Вернуться на сайт" })).toHaveAttribute("href", "/");
 });
