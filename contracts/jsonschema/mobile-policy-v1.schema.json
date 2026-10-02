@@ -25,12 +25,45 @@
           "enum": [
             "CLIENT_VERSION_SUPPORTED",
             "CLIENT_VERSION_DEPRECATED",
-            "CLIENT_VERSION_BELOW_MINIMUM"
+            "CLIENT_VERSION_BELOW_MINIMUM",
+            "CLIENT_CONTRACT_UNSUPPORTED"
           ]
         },
         "policy_version": { "type": "string", "minLength": 1 },
-        "contract_version": { "type": "string", "minLength": 1 }
-      }
+        "contract_version": { "type": "string", "minLength": 1 },
+        "update_reason": {
+          "type": "string",
+          "enum": ["SECURITY_CRITICAL", "LEGAL_CRITICAL", "INCOMPATIBLE_CRITICAL"]
+        },
+        "update_url": { "type": "string", "format": "uri", "pattern": "^https://" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "status": { "const": "UPDATE_REQUIRED" } },
+            "required": ["status"]
+          },
+          "then": { "required": ["update_reason", "update_url"] }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "enum": ["SUPPORTED", "DEPRECATED_BUT_SUPPORTED"]
+              }
+            },
+            "required": ["status"]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                { "required": ["update_reason"] },
+                { "required": ["update_url"] }
+              ]
+            }
+          }
+        }
+      ]
     },
     "remote_config_version": { "type": "integer", "minimum": 1 },
     "remote_config_policy_id": { "type": "string", "minLength": 1 },
