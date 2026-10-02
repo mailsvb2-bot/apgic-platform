@@ -217,6 +217,9 @@ bootstrap_installation_session
 prepare_offline_checkout
 issue_deep_link
 
+export SIMCTL_CHILD_APGIC_E2E_COMPATIBILITY_BASE_URL=http://127.0.0.1:43113
+export SIMCTL_CHILD_APGIC_E2E_CONTRACT_VERSION=0.9.0-r0-mobile-compatibility
+
 install_idb_with_retry() {
   if command -v idb >/dev/null 2>&1; then
     return 0
