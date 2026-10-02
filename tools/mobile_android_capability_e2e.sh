@@ -296,7 +296,7 @@ assert_compatibility_policy() {
     --es APGIC_E2E_CAPABILITY_STATE GRANTED \
     --es APGIC_E2E_COMPATIBILITY_BASE_URL http://127.0.0.1:43113 \
     --es APGIC_E2E_APP_VERSION 1.5.0 \
-    --es APGIC_E2E_CONTRACT_VERSION contract-v1 \
+    --es APGIC_E2E_CONTRACT_VERSION 0.8.0-r2-offline-sync \
     >/dev/null
 
   for _ in $(seq 1 60); do
@@ -306,7 +306,7 @@ assert_compatibility_policy() {
        grep -q 'compatibility-status:DEPRECATED_BUT_SUPPORTED' "$supported_output" &&
        grep -q 'compatibility-reason:CLIENT_VERSION_DEPRECATED' "$supported_output" &&
        grep -q 'compatibility-policy:mobile013-e2e-v1' "$supported_output" &&
-       grep -q 'compatibility-contract:contract-v2' "$supported_output"; then
+       grep -q 'compatibility-contract:0.9.0-r0-mobile-compatibility' "$supported_output"; then
       break
     fi
     sleep 1
@@ -320,7 +320,7 @@ assert_compatibility_policy() {
     --es APGIC_E2E_CAPABILITY_STATE GRANTED \
     --es APGIC_E2E_COMPATIBILITY_BASE_URL http://127.0.0.1:43113 \
     --es APGIC_E2E_APP_VERSION 1.6.0 \
-    --es APGIC_E2E_CONTRACT_VERSION contract-v0 \
+    --es APGIC_E2E_CONTRACT_VERSION 0.7.0-unsupported \
     >/dev/null
 
   for _ in $(seq 1 60); do
