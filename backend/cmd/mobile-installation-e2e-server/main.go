@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/clientcompat"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/demand"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/httpapi"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/mobile"
@@ -315,6 +316,27 @@ func main() {
 	}
 	key := []byte(strings.Repeat("e", 32))
 	mutations := newConformanceMutationStore()
+	minimum, err := clientcompat.ParseVersion("1.4.0")
+	if err != nil {
+		log.Fatal(err)
+	}
+	recommended, err := clientcompat.ParseVersion("1.6.0")
+	if err != nil {
+		log.Fatal(err)
+	}
+	compatibilityPolicies := map[clientcompat.Platform]clientcompat.Policy{}
+	for _, platform := range []clientcompat.Platform{clientcompat.IOS, clientcompat.Android} {
+		compatibilityPolicies[platform] = clientcompat.Policy{
+			Platform:                  platform,
+			MinimumSupported:          minimum,
+			Recommended:               recommended,
+			ContractVersion:           "contract-v2",
+			SupportedContractVersions: []string{"contract-v1", "contract-v2"},
+			PolicyVersion:             "mobile013-e2e-v1",
+			MinimumUpdateReason:       clientcompat.IncompatibleCritical,
+			UpdateURL:                 "https://apgic.ru/update",
+		}
+	}
 	canonicalHandler := httpapi.New(httpapi.Options{
 		Demand:             demand.NewConformanceService(nil),
 		Installations:      newConformanceInstallationStore(),
@@ -322,7 +344,8 @@ func main() {
 		ClientMutations:    mutations,
 		DeepLinks:          conformanceDeepLinkStore{},
 		DeepLinkSigningKey: key,
-		ClientSessionKey:   key,
+		ClientSessionKey:            key,
+		ClientCompatibilityPolicies: compatibilityPolicies,
 	})
 	handler := &loseFirstCheckoutResponse{next: canonicalHandler}
 	server := &http.Server{
