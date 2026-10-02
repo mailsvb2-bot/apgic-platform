@@ -1,6 +1,14 @@
 import React, {useCallback, useEffect, useState} from "react";
-import { Linking, SafeAreaView, StyleSheet, Text, View } from "react-native";
+import {
+  Linking,
+  Pressable,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
+import {apiContractVersion} from "./api-contract.ts";
 import {
   decideCapability,
   type CapabilityState,
@@ -14,6 +22,10 @@ import {
   canonicalAPGICOrigin,
   resolveCanonicalUniversalLink,
 } from "./mobile-deep-link-client.ts";
+import {
+  fetchClientCompatibility,
+} from "./mobile-compatibility-client.ts";
+import type {MobilePlatform} from "../../../packages/contracts/src/mobile-policy.ts";
 import { resolvePushNotification } from "./mobile-notification-client.ts";
 import {
   createOfflineCheckoutQueueItem,
@@ -47,6 +59,10 @@ type AppProps = {
   realtimeE2EEvents?: string;
   realtimeE2EReconnectFailures?: string;
   realtimeE2EConsultationID?: string;
+  compatibilityBaseURL?: string;
+  compatibilityPlatform?: MobilePlatform;
+  appVersion?: string;
+  compatibilityContractVersion?: string;
 };
 
 const fallbackCopy = {
@@ -84,8 +100,21 @@ export default function App({
   realtimeE2EEvents,
   realtimeE2EReconnectFailures,
   realtimeE2EConsultationID,
+  compatibilityBaseURL = canonicalAPGICOrigin,
+  compatibilityPlatform,
+  appVersion,
+  compatibilityContractVersion = apiContractVersion,
 }: AppProps) {
   const decision = decideCapability(deviceCapabilityState);
+  const [compatibility, setCompatibility] = useState<
+    | {status: "IDLE" | "RUNNING"}
+    | {
+        status: "PASS";
+        decision: Awaited<ReturnType<typeof fetchClientCompatibility>>;
+      }
+    | {status: "FAIL"; reason: string}
+  >({status: "IDLE"});
+
   const [installationE2E, setInstallationE2E] = useState<
     | {status: "IDLE" | "RUNNING"}
     | {status: "PASS"; identityID: string; pushGeneration: number; state: "REVOKED"}
@@ -150,6 +179,45 @@ export default function App({
     },
     [deepLinkAPIBaseURL, deepLinkE2ESessionCookie],
   );
+
+  useEffect(() => {
+    if (!compatibilityBaseURL || !compatibilityPlatform || !appVersion) {
+      return;
+    }
+    let active = true;
+    setCompatibility({status: "RUNNING"});
+    void fetchClientCompatibility({
+      baseURL: compatibilityBaseURL,
+      platform: compatibilityPlatform,
+      appVersion,
+      contractVersion: compatibilityContractVersion,
+    }).then(
+      (decision) => {
+        if (active) {
+          setCompatibility({status: "PASS", decision});
+        }
+      },
+      (error: unknown) => {
+        if (active) {
+          setCompatibility({
+            status: "FAIL",
+            reason:
+              error instanceof Error
+                ? error.message
+                : "CLIENT_COMPATIBILITY_CHECK_FAILED",
+          });
+        }
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [
+    compatibilityBaseURL,
+    compatibilityPlatform,
+    appVersion,
+    compatibilityContractVersion,
+  ]);
 
   useEffect(() => {
     let active = true;
@@ -370,6 +438,57 @@ export default function App({
         <Text style={styles.body}>
           Одна Identity и одна server truth для iOS, Android, Web и PWA.
         </Text>
+
+        {compatibility.status !== "IDLE" ? (
+          <View style={styles.capability} accessibilityRole="alert">
+            <Text accessibilityLabel={`compatibility-e2e:${compatibility.status}`}>
+              Совместимость приложения: {compatibility.status}
+            </Text>
+            {compatibility.status === "PASS" ? (
+              <>
+                <Text accessibilityLabel={`compatibility-status:${compatibility.decision.status}`}>
+                  {compatibility.decision.status === "SUPPORTED"
+                    ? "Версия приложения поддерживается."
+                    : compatibility.decision.status === "DEPRECATED_BUT_SUPPORTED"
+                      ? "Версия приложения пока поддерживается, но доступно обновление."
+                      : "Нужно обновить приложение, чтобы безопасно продолжить. Данные не изменены."}
+                </Text>
+                <Text accessibilityLabel={`compatibility-reason:${compatibility.decision.reason_code}`}>
+                  {compatibility.decision.reason_code}
+                </Text>
+                <Text accessibilityLabel={`compatibility-policy:${compatibility.decision.policy_version}`}>
+                  Policy: {compatibility.decision.policy_version}
+                </Text>
+                <Text accessibilityLabel={`compatibility-contract:${compatibility.decision.contract_version}`}>
+                  Contract: {compatibility.decision.contract_version}
+                </Text>
+                {compatibility.decision.status === "UPDATE_REQUIRED" ? (
+                  <>
+                    <Text accessibilityLabel={`compatibility-update-reason:${compatibility.decision.update_reason}`}>
+                      {compatibility.decision.update_reason}
+                    </Text>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="compatibility-update-action"
+                      onPress={() => {
+                        if (compatibility.decision.update_url) {
+                          void Linking.openURL(compatibility.decision.update_url);
+                        }
+                      }}
+                    >
+                      <Text>Обновить приложение</Text>
+                    </Pressable>
+                  </>
+                ) : null}
+              </>
+            ) : null}
+            {compatibility.status === "FAIL" ? (
+              <Text accessibilityLabel={`compatibility-error:${compatibility.reason}`}>
+                Не удалось безопасно проверить совместимость. Повторите попытку позже. Данные не изменены.
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
 
         <View
           style={styles.capability}
