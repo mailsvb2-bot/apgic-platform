@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/ed25519"
+	"encoding/base64"
 	"fmt"
 	"log"
 	"net/http"
@@ -15,6 +17,7 @@ import (
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/httpapi"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/launchconfig"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/mobile"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/remoteconfig"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/runtimepostgres"
 )
 
@@ -30,6 +33,10 @@ func main() {
 	clientCompatibilityPolicies, err := clientCompatibilityPoliciesFromEnvironment(environment)
 	if err != nil {
 		log.Fatalf("APGIC mobile compatibility configuration failed: %v", err)
+	}
+	remoteConfigProvider, err := remoteConfigProviderFromEnvironment(environment)
+	if err != nil {
+		log.Fatalf("APGIC remote config configuration failed: %v", err)
 	}
 	if releaseTrack != "R0" {
 		if _, err := mobile.NewDeepLinkTokenManager(deepLinkSigningKey); err != nil {
@@ -66,6 +73,7 @@ func main() {
 		Demand:                      demandService,
 		ClientSessionKey:            clientSessionKey,
 		ClientCompatibilityPolicies: clientCompatibilityPolicies,
+		RemoteConfigProvider:        remoteConfigProvider,
 		ReadinessCheck:              readinessCheck,
 		LegalAcceptances:            storage,
 		Installations:               storage,
@@ -215,4 +223,79 @@ func splitCSV(raw string) []string {
 		values = append(values, value)
 	}
 	return values
+}
+
+func remoteConfigProviderFromEnvironment(environment string) (func(time.Time) (remoteconfig.SignedEnvelope, error), error) {
+	keyID := strings.TrimSpace(os.Getenv("APGIC_REMOTE_CONFIG_KEY_ID"))
+	privateKeyRaw := strings.TrimSpace(os.Getenv("APGIC_REMOTE_CONFIG_PRIVATE_KEY_BASE64"))
+	versionRaw := strings.TrimSpace(os.Getenv("APGIC_REMOTE_CONFIG_VERSION"))
+	policyID := strings.TrimSpace(os.Getenv("APGIC_REMOTE_CONFIG_POLICY_ID"))
+	ttlRaw := strings.TrimSpace(os.Getenv("APGIC_REMOTE_CONFIG_TTL_SECONDS"))
+	disabledRaw := strings.TrimSpace(os.Getenv("APGIC_REMOTE_CONFIG_DISABLED_CAPABILITIES"))
+
+	values := []string{keyID, privateKeyRaw, versionRaw, policyID, ttlRaw}
+	anyConfigured := false
+	for _, value := range values {
+		if value != "" {
+			anyConfigured = true
+			break
+		}
+	}
+	if !anyConfigured {
+		if runtimepostgres.RequiresDatabase(environment) {
+			return nil, fmt.Errorf("signed remote config is required in %s", environment)
+		}
+		return nil, nil
+	}
+	for _, value := range values {
+		if value == "" {
+			return nil, fmt.Errorf("remote config is incomplete")
+		}
+	}
+
+	privateKeyBytes, err := base64.StdEncoding.DecodeString(privateKeyRaw)
+	if err != nil {
+		return nil, fmt.Errorf("remote config private key must be valid base64")
+	}
+	var privateKey ed25519.PrivateKey
+	switch len(privateKeyBytes) {
+	case ed25519.SeedSize:
+		privateKey = ed25519.NewKeyFromSeed(privateKeyBytes)
+	case ed25519.PrivateKeySize:
+		privateKey = ed25519.PrivateKey(privateKeyBytes)
+	default:
+		return nil, fmt.Errorf("remote config private key must decode to 32-byte seed or 64-byte Ed25519 private key")
+	}
+	version, err := strconv.ParseUint(versionRaw, 10, 64)
+	if err != nil || version == 0 {
+		return nil, fmt.Errorf("remote config version must be a positive integer")
+	}
+	ttlSeconds, err := strconv.Atoi(ttlRaw)
+	if err != nil || ttlSeconds < 60 || ttlSeconds > 604800 {
+		return nil, fmt.Errorf("remote config TTL must be between 60 and 604800 seconds")
+	}
+
+	disabled := make([]remoteconfig.Capability, 0)
+	reasons := make(map[remoteconfig.Capability]string)
+	for _, item := range splitCSV(disabledRaw) {
+		parts := strings.SplitN(item, ":", 2)
+		capability := remoteconfig.Capability(strings.TrimSpace(parts[0]))
+		disabled = append(disabled, capability)
+		if len(parts) == 2 && strings.TrimSpace(parts[1]) != "" {
+			reasons[capability] = strings.TrimSpace(parts[1])
+		}
+	}
+	publisher, err := remoteconfig.NewPublisher(
+		keyID,
+		privateKey,
+		version,
+		policyID,
+		time.Duration(ttlSeconds)*time.Second,
+		disabled,
+		reasons,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return publisher.Envelope, nil
 }

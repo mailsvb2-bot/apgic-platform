@@ -364,8 +364,13 @@ jobs:
           APGIC_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           APGIC_CLIENT_SESSION_KEY: ci-only-client-session-key-000000000000
           APGIC_MOBILE_POLICY_VERSION: mobile013-ci-v1
-          APGIC_MOBILE_CONTRACT_VERSION: 0.9.0-r0-mobile-compatibility
-          APGIC_MOBILE_SUPPORTED_CONTRACTS: 0.8.0-r2-offline-sync,0.9.0-r0-mobile-compatibility
+          APGIC_MOBILE_CONTRACT_VERSION: 0.10.0-r0-remote-config
+          APGIC_MOBILE_SUPPORTED_CONTRACTS: 0.8.0-r2-offline-sync,0.9.0-r0-mobile-compatibility,0.10.0-r0-remote-config
+          APGIC_REMOTE_CONFIG_KEY_ID: mobile027-ci-v1
+          APGIC_REMOTE_CONFIG_VERSION: 1
+          APGIC_REMOTE_CONFIG_POLICY_ID: mobile027-ci-v1
+          APGIC_REMOTE_CONFIG_TTL_SECONDS: 3600
+          APGIC_REMOTE_CONFIG_DISABLED_CAPABILITIES:
           APGIC_MOBILE_FORCED_UPDATE_REASON: INCOMPATIBLE_CRITICAL
           APGIC_IOS_MIN_VERSION: 1.4.0
           APGIC_IOS_RECOMMENDED_VERSION: 1.6.0
@@ -377,6 +382,7 @@ jobs:
           APGIC_ANDROID_UPDATE_URL: https://apgic.ru/update
         run: |
           set -euo pipefail
+          export APGIC_REMOTE_CONFIG_PRIVATE_KEY_BASE64="$(python3 -c 'import base64; print(base64.b64encode(b"r"*32).decode())')"
           psql -h 127.0.0.1 -U apgic -d postgres -v ON_ERROR_STOP=1 \
             -c 'CREATE DATABASE apgic_mobile009_staging'
           for migration in migrations/[0-9][0-9][0-9][0-9][0-9][0-9]_*.sql; do
@@ -632,6 +638,8 @@ jobs:
             evidence/android-capability-e2e-*.xml
             evidence/android-compatibility-supported.xml
             evidence/android-compatibility-update-required.xml
+            evidence/android-remote-config-network.xml
+            evidence/android-remote-config-last-known-safe.xml
             evidence/android-installation-e2e.xml
             evidence/android-installation-server-state.json
             evidence/android-deeplink-issued.json
@@ -695,6 +703,8 @@ jobs:
             evidence/ios-capability-e2e-*.json
             evidence/ios-compatibility-supported.json
             evidence/ios-compatibility-update-required.json
+            evidence/ios-remote-config-network.json
+            evidence/ios-remote-config-last-known-safe.json
             evidence/ios-installation-e2e.json
             evidence/ios-installation-server-state.json
             evidence/ios-deeplink-issued.json

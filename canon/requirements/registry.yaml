@@ -3405,14 +3405,32 @@ requirements:
   - APGIC-MOBILE-013
   implementation_refs:
   - backend/internal/remoteconfig/config.go
+  - backend/internal/httpapi/mobile_remote_config.go
+  - backend/cmd/api/main.go
+  - apps/mobile/src/remote-config-client.ts
+  - apps/mobile/src/remote-config-storage.ts
+  - apps/mobile/src/App.tsx
+  - apps/mobile/android/app/src/main/java/com/apgic/ci/MainActivity.kt
+  - apps/mobile/android/app/src/main/java/com/apgic/ci/OfflineMutationStorageModule.kt
+  - apps/mobile/ios/APGIC/AppDelegate.swift
+  - apps/mobile/ios/APGIC/OfflineMutationStorage.m
+  - apps/mobile/dependency-registry.yaml
   - packages/contracts/src/mobile-policy.ts
   contract_refs:
-  - contracts/jsonschema/mobile-policy-v1.schema.json
+  - contracts/openapi/apgic-v1.yaml
+  - contracts/jsonschema/mobile-remote-config-v1.schema.json
+  - packages/contracts/src/generated/apgic-v1.ts
   test_refs:
   - backend/internal/remoteconfig/config_test.go
+  - backend/internal/httpapi/mobile_remote_config_test.go
+  - apps/mobile/src/remote-config-client.test.ts
+  - tools/mobile_android_capability_e2e.sh
+  - tools/mobile_ios_capability_e2e.sh
+  - tools/tests/test_staging_update_guard.py
   - .github/workflows/ci.yml
   evidence_refs:
   - canon/evidence/r0-ci-evidence-map.json
+  - docs/traceability/R0-mobile027-remote-config-kill-switch.md
   acceptance:
     given: installed versions span compatibility window
     when: config/backend changes or incident occurs

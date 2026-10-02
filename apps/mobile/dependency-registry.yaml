@@ -161,3 +161,16 @@ dependencies:
     security_status: BUILD_ONLY
     removal_strategy: Remove development dependency and update native build graph
     kill_strategy: Not shipped as an independent runtime capability
+  - name: tweetnacl
+    declared_version: "1.0.3"
+    scope: RUNTIME
+    purpose: Ed25519 verification of signed mobile remote configuration envelopes
+    data_classes:
+      - INTERNAL
+    egress: NONE
+    permissions: []
+    provenance: "npm:tweetnacl@1.0.3 sha512-6rt+RN7aOi1nGMyC4Xa5DdYiukl2UWCbcJft7YhxReBGQD7OAM8Pbxw6YMo4r2diNEA8FEmu32YOn9rhaiE5yw=="
+    privacy_status: REVIEWED_NO_EGRESS_PURE_JS
+    security_status: REVIEWED_CRYPTO_VERIFY_ONLY
+    removal_strategy: Replace detached-signature verifier and rebuild native clients
+    kill_strategy: Fail safe with remote-configurable capabilities disabled until a trusted verifier is available

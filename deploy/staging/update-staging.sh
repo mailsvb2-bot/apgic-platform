@@ -38,6 +38,11 @@ set +a
 : "${APGIC_ANDROID_RECOMMENDED_VERSION:?APGIC_ANDROID_RECOMMENDED_VERSION is required}"
 : "${APGIC_ANDROID_MIN_BUILD:?APGIC_ANDROID_MIN_BUILD is required}"
 : "${APGIC_ANDROID_UPDATE_URL:?APGIC_ANDROID_UPDATE_URL is required}"
+: "${APGIC_REMOTE_CONFIG_KEY_ID:?APGIC_REMOTE_CONFIG_KEY_ID is required}"
+: "${APGIC_REMOTE_CONFIG_PRIVATE_KEY_BASE64:?APGIC_REMOTE_CONFIG_PRIVATE_KEY_BASE64 is required}"
+: "${APGIC_REMOTE_CONFIG_VERSION:?APGIC_REMOTE_CONFIG_VERSION is required}"
+: "${APGIC_REMOTE_CONFIG_POLICY_ID:?APGIC_REMOTE_CONFIG_POLICY_ID is required}"
+: "${APGIC_REMOTE_CONFIG_TTL_SECONDS:?APGIC_REMOTE_CONFIG_TTL_SECONDS is required}"
 
 validate_semver() {
   [[ "$1" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
@@ -64,6 +69,23 @@ validate_positive_integer "$APGIC_IOS_MIN_BUILD" || { echo "invalid APGIC_IOS_MI
 validate_positive_integer "$APGIC_ANDROID_MIN_BUILD" || { echo "invalid APGIC_ANDROID_MIN_BUILD" >&2; exit 1; }
 validate_https_url "$APGIC_IOS_UPDATE_URL" || { echo "invalid APGIC_IOS_UPDATE_URL" >&2; exit 1; }
 validate_https_url "$APGIC_ANDROID_UPDATE_URL" || { echo "invalid APGIC_ANDROID_UPDATE_URL" >&2; exit 1; }
+validate_positive_integer "$APGIC_REMOTE_CONFIG_VERSION" || { echo "invalid APGIC_REMOTE_CONFIG_VERSION" >&2; exit 1; }
+validate_positive_integer "$APGIC_REMOTE_CONFIG_TTL_SECONDS" || { echo "invalid APGIC_REMOTE_CONFIG_TTL_SECONDS" >&2; exit 1; }
+if (( APGIC_REMOTE_CONFIG_TTL_SECONDS < 60 || APGIC_REMOTE_CONFIG_TTL_SECONDS > 604800 )); then
+  echo "APGIC_REMOTE_CONFIG_TTL_SECONDS must be between 60 and 604800" >&2
+  exit 1
+fi
+python3 - "$APGIC_REMOTE_CONFIG_PRIVATE_KEY_BASE64" <<'PY'
+import base64
+import binascii
+import sys
+try:
+    raw = base64.b64decode(sys.argv[1], validate=True)
+except (binascii.Error, ValueError):
+    raise SystemExit("APGIC_REMOTE_CONFIG_PRIVATE_KEY_BASE64 is not valid base64")
+if len(raw) not in (32, 64):
+    raise SystemExit("APGIC_REMOTE_CONFIG_PRIVATE_KEY_BASE64 must decode to 32-byte Ed25519 seed or 64-byte private key")
+PY
 
 case ",$APGIC_MOBILE_SUPPORTED_CONTRACTS," in
   *,"$APGIC_MOBILE_CONTRACT_VERSION",*) ;;
@@ -87,6 +109,17 @@ if ! git merge-base --is-ancestor "$CURRENT_SHA" "$TARGET_SHA"; then
   echo "refusing non-forward deployment: current=$CURRENT_SHA target=$TARGET_SHA" >&2
   exit 1
 fi
+
+while IFS= read -r target_key; do
+  [[ -z "$target_key" ]] && continue
+  if ! grep -q "^${target_key}=" "$ENV_FILE"; then
+    echo "target deployment requires missing environment key: $target_key" >&2
+    exit 1
+  fi
+done < <(
+  git show "$TARGET_SHA:deploy/staging/staging.env.example" |
+    sed -n 's/^\([A-Z0-9_][A-Z0-9_]*\)=.*/\1/p'
+)
 
 if [[ "$CURRENT_SHA" == "$TARGET_SHA" ]]; then
   echo "APGIC staging already runs target commit $TARGET_SHA"
@@ -127,6 +160,11 @@ else
 fi
 
 git reset --hard "$TARGET_SHA"
+
+if [[ "${APGIC_UPDATE_REEXEC:-0}" != "1" ]]; then
+  echo "=== Re-exec target updater ==="
+  APGIC_UPDATE_REEXEC=1 exec bash "$REPO_ROOT/deploy/staging/update-staging.sh" "$TARGET_SHA"
+fi
 
 echo "=== Build API ==="
 cd "$REPO_ROOT/backend"

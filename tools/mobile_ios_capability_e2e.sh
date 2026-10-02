@@ -218,7 +218,7 @@ prepare_offline_checkout
 issue_deep_link
 
 export SIMCTL_CHILD_APGIC_E2E_COMPATIBILITY_BASE_URL=http://127.0.0.1:43113
-export SIMCTL_CHILD_APGIC_E2E_CONTRACT_VERSION=0.9.0-r0-mobile-compatibility
+export SIMCTL_CHILD_APGIC_E2E_CONTRACT_VERSION=0.10.0-r0-remote-config
 
 install_idb_with_retry() {
   if command -v idb >/dev/null 2>&1; then
@@ -331,6 +331,52 @@ assert_compatibility_policy() {
 
   [[ -f "$update_output" ]] && cat "$update_output" >&2 || true
   fail "incompatible iOS client did not expose governed update-required UX"
+}
+
+assert_remote_config_kill_switch() {
+  local network_output="$EVIDENCE_DIR/ios-remote-config-network.json"
+  local cached_output="$EVIDENCE_DIR/ios-remote-config-last-known-safe.json"
+  local consultation_id="mobile027-ios-kill-switch"
+  local events="MICROPHONE_PERMISSION_GRANTED,NETWORK_TRANSPORT_CHANGED:CELLULAR,APP_FOREGROUND"
+
+  xcrun simctl terminate "$UDID" com.apgic.ci >/dev/null 2>&1 || true
+  SIMCTL_CHILD_APGIC_E2E_CAPABILITY_STATE=GRANTED   SIMCTL_CHILD_APGIC_E2E_COMPATIBILITY_BASE_URL="$COMPATIBILITY_BASE_URL"   SIMCTL_CHILD_APGIC_E2E_CONTRACT_VERSION="$COMPATIBILITY_CONTRACT_VERSION"   SIMCTL_CHILD_APGIC_E2E_REMOTE_CONFIG_BASE_URL=http://127.0.0.1:43113   SIMCTL_CHILD_APGIC_E2E_REMOTE_CONFIG_KEY_ID="$REMOTE_CONFIG_E2E_KEY_ID"   SIMCTL_CHILD_APGIC_E2E_REMOTE_CONFIG_PUBLIC_KEY_BASE64="$REMOTE_CONFIG_E2E_PUBLIC_KEY_BASE64"   SIMCTL_CHILD_APGIC_E2E_REALTIME_EVENTS="$events"   SIMCTL_CHILD_APGIC_E2E_REALTIME_CONSULTATION_ID="$consultation_id"     xcrun simctl launch "$UDID" com.apgic.ci >/dev/null
+
+  for _ in $(seq 1 60); do
+    if "$IDB" ui describe-all --udid "$UDID" --api axbridge --json --nested >"$network_output" 2>/dev/null &&
+       json_has_ax_label "$network_output" "remote-config-e2e:PASS" &&
+       json_has_ax_label "$network_output" "remote-config-source:NETWORK" &&
+       json_has_ax_label "$network_output" "remote-config-reason:REMOTE_CONFIG_APPLIED" &&
+       json_has_ax_label "$network_output" "remote-config-capability:REALTIME_CONSULTATION:DISABLED" &&
+       ! json_has_ax_label "$network_output" "realtime-e2e:PASS"; then
+      break
+    fi
+    sleep 1
+  done
+
+  json_has_ax_label "$network_output" "remote-config-source:NETWORK" ||
+    fail "iOS did not apply signed remote config from canonical backend"
+  ! json_has_ax_label "$network_output" "realtime-e2e:PASS" ||
+    fail "iOS realtime ran despite remote kill switch"
+
+  xcrun simctl terminate "$UDID" com.apgic.ci >/dev/null 2>&1 || true
+  SIMCTL_CHILD_APGIC_E2E_CAPABILITY_STATE=GRANTED   SIMCTL_CHILD_APGIC_E2E_COMPATIBILITY_BASE_URL="$COMPATIBILITY_BASE_URL"   SIMCTL_CHILD_APGIC_E2E_CONTRACT_VERSION="$COMPATIBILITY_CONTRACT_VERSION"   SIMCTL_CHILD_APGIC_E2E_REMOTE_CONFIG_BASE_URL=http://127.0.0.1:43199   SIMCTL_CHILD_APGIC_E2E_REMOTE_CONFIG_KEY_ID="$REMOTE_CONFIG_E2E_KEY_ID"   SIMCTL_CHILD_APGIC_E2E_REMOTE_CONFIG_PUBLIC_KEY_BASE64="$REMOTE_CONFIG_E2E_PUBLIC_KEY_BASE64"   SIMCTL_CHILD_APGIC_E2E_REALTIME_EVENTS="$events"   SIMCTL_CHILD_APGIC_E2E_REALTIME_CONSULTATION_ID="$consultation_id"     xcrun simctl launch "$UDID" com.apgic.ci >/dev/null
+
+  for _ in $(seq 1 60); do
+    if "$IDB" ui describe-all --udid "$UDID" --api axbridge --json --nested >"$cached_output" 2>/dev/null &&
+       json_has_ax_label "$cached_output" "remote-config-e2e:PASS" &&
+       json_has_ax_label "$cached_output" "remote-config-source:LAST_KNOWN_SAFE" &&
+       json_has_ax_label "$cached_output" "remote-config-reason:REMOTE_CONFIG_FETCH_FAILED" &&
+       json_has_ax_label "$cached_output" "remote-config-capability:REALTIME_CONSULTATION:DISABLED" &&
+       ! json_has_ax_label "$cached_output" "realtime-e2e:PASS"; then
+      echo "iOS signed remote config kill-switch + restart last-known-safe: PASS"
+      return 0
+    fi
+    sleep 1
+  done
+
+  [[ -f "$cached_output" ]] && cat "$cached_output" >&2 || true
+  fail "iOS did not preserve last-known-safe remote config across restart"
 }
 
 assert_installation_lifecycle() {
@@ -605,6 +651,7 @@ assert_realtime_lifecycle() {
 }
 
 assert_compatibility_policy
+assert_remote_config_kill_switch
 assert_installation_lifecycle
 assert_deep_link_runtime
 assert_notification_runtime
