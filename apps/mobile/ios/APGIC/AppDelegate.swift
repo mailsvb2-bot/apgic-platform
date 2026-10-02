@@ -38,6 +38,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
       "deviceCapabilityState": microphoneState(),
       "compatibilityPlatform": "IOS",
       "appVersion": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0",
+      "buildNumber": Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0",
     ]
 
 #if DEBUG
@@ -64,6 +65,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
       "APGIC_E2E_REALTIME_CONSULTATION_ID": "realtimeE2EConsultationID",
       "APGIC_E2E_COMPATIBILITY_BASE_URL": "compatibilityBaseURL",
       "APGIC_E2E_APP_VERSION": "appVersion",
+      "APGIC_E2E_BUILD_NUMBER": "buildNumber",
       "APGIC_E2E_CONTRACT_VERSION": "compatibilityContractVersion",
     ]
     for (environmentKey, propertyKey) in installationE2EKeys {

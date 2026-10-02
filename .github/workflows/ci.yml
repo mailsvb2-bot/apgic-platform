@@ -369,9 +369,11 @@ jobs:
           APGIC_MOBILE_FORCED_UPDATE_REASON: INCOMPATIBLE_CRITICAL
           APGIC_IOS_MIN_VERSION: 1.4.0
           APGIC_IOS_RECOMMENDED_VERSION: 1.6.0
+          APGIC_IOS_MIN_BUILD: 1
           APGIC_IOS_UPDATE_URL: https://apgic.ru/update
           APGIC_ANDROID_MIN_VERSION: 1.4.0
           APGIC_ANDROID_RECOMMENDED_VERSION: 1.6.0
+          APGIC_ANDROID_MIN_BUILD: 1
           APGIC_ANDROID_UPDATE_URL: https://apgic.ru/update
         run: |
           set -euo pipefail
