@@ -338,12 +338,12 @@ func main() {
 		}
 	}
 	canonicalHandler := httpapi.New(httpapi.Options{
-		Demand:             demand.NewConformanceService(nil),
-		Installations:      newConformanceInstallationStore(),
-		Notifications:      conformanceNotificationStore{},
-		ClientMutations:    mutations,
-		DeepLinks:          conformanceDeepLinkStore{},
-		DeepLinkSigningKey: key,
+		Demand:                      demand.NewConformanceService(nil),
+		Installations:               newConformanceInstallationStore(),
+		Notifications:               conformanceNotificationStore{},
+		ClientMutations:             mutations,
+		DeepLinks:                   conformanceDeepLinkStore{},
+		DeepLinkSigningKey:          key,
 		ClientSessionKey:            key,
 		ClientCompatibilityPolicies: compatibilityPolicies,
 	})
