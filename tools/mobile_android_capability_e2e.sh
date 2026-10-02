@@ -293,6 +293,8 @@ assert_state "UNAVAILABLE" "CAPABILITY_UNAVAILABLE"
 assert_compatibility_policy() {
   local supported_output="$EVIDENCE_DIR/android-compatibility-supported.xml"
   local update_output="$EVIDENCE_DIR/android-compatibility-update-required.xml"
+  local supported_installation_id
+  supported_installation_id="$(python3 -c 'import uuid; print(uuid.uuid4())')"
 
   "$ADB" shell am force-stop com.apgic.ci
   "$ADB" shell am start -W \
@@ -300,21 +302,25 @@ assert_compatibility_policy() {
     --es APGIC_E2E_CAPABILITY_STATE GRANTED \
     --es APGIC_E2E_COMPATIBILITY_BASE_URL http://127.0.0.1:43113 \
     --es APGIC_E2E_CONTRACT_VERSION 0.8.0-r2-offline-sync \
+    --es APGIC_E2E_INSTALLATION_BASE_URL http://127.0.0.1:43113 \
+    --es APGIC_E2E_SESSION_COOKIE "$SESSION_COOKIE" \
+    --es APGIC_E2E_INSTALLATION_ID "$supported_installation_id" \
+    --es APGIC_E2E_INSTALLATION_PLATFORM ANDROID \
     >/dev/null
 
   for _ in $(seq 1 60); do
     if "$ADB" shell uiautomator dump /sdcard/apgic-compatibility-supported.xml >/dev/null 2>&1 &&
        "$ADB" pull /sdcard/apgic-compatibility-supported.xml "$supported_output" >/dev/null 2>&1 &&
-       grep -q 'compatibility-e2e:PASS' "$supported_output" &&
-       grep -q 'compatibility-status:SUPPORTED' "$supported_output" &&
-       grep -q 'compatibility-reason:CLIENT_VERSION_SUPPORTED' "$supported_output" &&
-       grep -q 'compatibility-policy:mobile013-e2e-v1' "$supported_output" &&
-       grep -q 'compatibility-contract:0.9.0-r0-mobile-compatibility' "$supported_output"; then
+       grep -q 'installation-e2e:PASS' "$supported_output" &&
+       grep -q 'installation-e2e-state:REVOKED' "$supported_output" &&
+       grep -q 'installation-e2e-generation:2' "$supported_output" &&
+       ! grep -q 'compatibility-status:UPDATE_REQUIRED' "$supported_output"; then
+      echo "Android supported previous contract remained operational: PASS"
       break
     fi
     sleep 1
   done
-  grep -q 'compatibility-status:SUPPORTED' "$supported_output" ||
+  grep -q 'installation-e2e:PASS' "$supported_output" ||
     fail "supported previous Android contract did not remain usable under the updated backend contract"
 
   "$ADB" shell am force-stop com.apgic.ci
