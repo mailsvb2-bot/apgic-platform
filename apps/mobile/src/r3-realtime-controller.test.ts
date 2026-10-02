@@ -100,3 +100,22 @@ test("reconnect exhaustion reports technical failure only", async () => {
   assert.equal(controller.snapshot().phase, "TECHNICAL_FAILURE");
   assert.ok(p.actions.includes("technical:REALTIME_RECONNECT_EXHAUSTED"));
 });
+
+
+test("controller never reconnects while microphone permission is denied", async () => {
+  const lifecycle = new Lifecycle();
+  const p = provider();
+  const denied = {...initial(), microphone_permission: "DENIED" as const};
+  const controller = new NativeRealtimeController(denied, policy, p.port, lifecycle);
+  await controller.start();
+  assert.equal(controller.snapshot().phase, "BLOCKED");
+  assert.deepEqual(p.actions, ["permission"]);
+  await controller.dispatch({type: "NETWORK_OFFLINE"});
+  await controller.dispatch({type: "NETWORK_ONLINE"});
+  assert.equal(controller.snapshot().phase, "BLOCKED");
+  assert.equal(p.actions.includes("reconnect"), false);
+  await controller.dispatch({type: "MICROPHONE_PERMISSION_GRANTED"});
+  assert.equal(controller.snapshot().phase, "CONNECTED");
+  assert.equal(controller.snapshot().microphone_permission, "GRANTED");
+  assert.deepEqual(p.actions, ["permission", "permission", "connect"]);
+});

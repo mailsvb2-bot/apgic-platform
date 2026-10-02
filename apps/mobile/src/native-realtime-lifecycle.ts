@@ -26,6 +26,7 @@ const simpleTypes = new Set<NativeRealtimeEvent["type"]>([
   "INTERRUPTION_BEGAN",
   "INTERRUPTION_ENDED",
   "MICROPHONE_PERMISSION_REVOKED",
+  "MICROPHONE_PERMISSION_GRANTED",
 ]);
 
 function module(): NativeRealtimeLifecycleModule {

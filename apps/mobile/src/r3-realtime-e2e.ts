@@ -43,6 +43,7 @@ export function parseRealtimeE2EEvents(value: string): NativeRealtimeEvent[] {
       "INTERRUPTION_BEGAN",
       "INTERRUPTION_ENDED",
       "MICROPHONE_PERMISSION_REVOKED",
+      "MICROPHONE_PERMISSION_GRANTED",
     ].includes(token)) {
       return {type: token} as NativeRealtimeEvent;
     }

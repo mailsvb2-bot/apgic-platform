@@ -65,3 +65,39 @@ test("revoked microphone permission blocks media without changing business truth
   assert.equal(result.technical_action, "REQUEST_PERMISSION");
   assert.equal(result.business_transition, "NONE");
 });
+
+
+test("permission revocation cannot be bypassed by network recovery", () => {
+  const revoked = reduceNativeRealtime(connected(), { type: "MICROPHONE_PERMISSION_REVOKED" }, policy);
+  assert.equal(revoked.snapshot.phase, "BLOCKED");
+  assert.equal(revoked.technical_action, "REQUEST_PERMISSION");
+  const offline = reduceNativeRealtime(revoked.snapshot, { type: "NETWORK_OFFLINE" }, policy);
+  const online = reduceNativeRealtime(offline.snapshot, { type: "NETWORK_ONLINE" }, policy);
+  assert.equal(online.snapshot.phase, "BLOCKED");
+  assert.equal(online.technical_action, "REQUEST_PERMISSION");
+  assert.equal(online.snapshot.microphone_permission, "DENIED");
+  const restored = reduceNativeRealtime(online.snapshot, { type: "MICROPHONE_PERMISSION_GRANTED" }, policy);
+  assert.equal(restored.snapshot.microphone_permission, "GRANTED");
+  assert.equal(restored.technical_action, "RECONNECT_PROVIDER");
+  assert.equal(restored.business_transition, "NONE");
+});
+
+test("initial permission grant starts a fresh provider connection", () => {
+  const initial: NativeRealtimeSnapshotV1 = {...connected(), phase: "IDLE", microphone_permission: "DENIED", provider_connection_ref: undefined};
+  const opened = reduceNativeRealtime(initial, { type: "SESSION_OPENED" }, policy);
+  assert.equal(opened.snapshot.phase, "BLOCKED");
+  assert.equal(opened.technical_action, "REQUEST_PERMISSION");
+  const granted = reduceNativeRealtime(opened.snapshot, { type: "MICROPHONE_PERMISSION_GRANTED" }, policy);
+  assert.equal(granted.snapshot.phase, "CONNECTING");
+  assert.equal(granted.technical_action, "CONNECT_PROVIDER");
+});
+
+test("active interruption blocks network-triggered reconnect until interruption ends", () => {
+  const interrupted = reduceNativeRealtime(connected(), { type: "INTERRUPTION_BEGAN" }, policy);
+  const online = reduceNativeRealtime(interrupted.snapshot, { type: "NETWORK_ONLINE" }, policy);
+  assert.equal(online.snapshot.phase, "DEGRADED");
+  assert.equal(online.technical_action, "PAUSE_MEDIA");
+  const resumed = reduceNativeRealtime(online.snapshot, { type: "INTERRUPTION_ENDED" }, policy);
+  assert.equal(resumed.snapshot.interruption, "NONE");
+  assert.equal(resumed.technical_action, "RECONNECT_PROVIDER");
+});
