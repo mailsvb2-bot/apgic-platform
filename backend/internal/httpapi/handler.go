@@ -17,23 +17,23 @@ import (
 )
 
 type Options struct {
-	CommitSHA          string
-	ReleaseTrack       string
-	Surfaces           []string
-	LaunchConfig       launchconfig.Config
-	ReadinessCheck     func(context.Context) error
-	Demand             *demand.Service
-	LegalAcceptances   legal.AcceptanceStore
-	Installations      mobile.InstallationStore
-	Notifications      notification.MobileProjectionStore
-	ClientMutations    mutation.Store
-	DeepLinks          deepLinkResourceStore
-	DeepLinkSigningKey []byte
-	Specialists        specialist.Store
-	OrganizationAuth   organizationAuthorizationStore
-	Organizations      organizationRuntimeStore
-	ProductOwnership   productOwnershipStore
-	Products           organizationProductStore
+	CommitSHA                   string
+	ReleaseTrack                string
+	Surfaces                    []string
+	LaunchConfig                launchconfig.Config
+	ReadinessCheck              func(context.Context) error
+	Demand                      *demand.Service
+	LegalAcceptances            legal.AcceptanceStore
+	Installations               mobile.InstallationStore
+	Notifications               notification.MobileProjectionStore
+	ClientMutations             mutation.Store
+	DeepLinks                   deepLinkResourceStore
+	DeepLinkSigningKey          []byte
+	Specialists                 specialist.Store
+	OrganizationAuth            organizationAuthorizationStore
+	Organizations               organizationRuntimeStore
+	ProductOwnership            productOwnershipStore
+	Products                    organizationProductStore
 	ClientSessionKey            []byte
 	ClientCompatibilityPolicies map[clientcompat.Platform]clientcompat.Policy
 	Now                         func() time.Time
