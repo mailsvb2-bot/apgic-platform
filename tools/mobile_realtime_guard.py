@@ -8,6 +8,13 @@ from pathlib import Path
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
+
+ANDROID_MANIFEST = ROOT / "apps/mobile/android/app/src/main/AndroidManifest.xml"
+REQUIRED_ANDROID_PERMISSIONS = {
+    "android.permission.INTERNET",
+    "android.permission.ACCESS_NETWORK_STATE",
+    "android.permission.RECORD_AUDIO",
+}
 REQUIRED_PROHIBITED_FIELDS = {
     "token",
     "password",
@@ -59,6 +66,16 @@ def validate_policy(policy: dict, mode: str) -> None:
         fail("offline network action must be RECONNECT_WHEN_ONLINE")
     if network.get("degraded_action") != "KEEP_SESSION_DEGRADED":
         fail("degraded network action must preserve degraded technical state")
+    if network.get("transport_change_action") != "RECONNECT_PROVIDER":
+        fail("network transport changes must reconnect the provider")
+
+    screen = policy.get("screen") or {}
+    if screen.get("lock_action") != "PAUSE_MEDIA_AND_RECONNECT":
+        fail("screen lock policy must pause media and reconnect after unlock")
+
+    auth = policy.get("auth") or {}
+    if auth.get("join_token_expiry_action") != "REFRESH_AND_REJOIN":
+        fail("join/auth expiry must refresh credentials and rejoin")
 
     audio = policy.get("audio") or {}
     if audio.get("route_change_action") != "REFRESH_ROUTE":
@@ -82,6 +99,12 @@ def validate_policy(policy: dict, mode: str) -> None:
         fail(f"diagnostics prohibited fields missing: {missing}")
 
 
+def validate_android_manifest(text: str) -> None:
+    missing = sorted(permission for permission in REQUIRED_ANDROID_PERMISSIONS if permission not in text)
+    if missing:
+        fail(f"Android realtime permissions missing: {missing}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("policy")
@@ -95,6 +118,7 @@ def main() -> None:
     if not isinstance(document, dict):
         fail("policy must be a mapping")
     validate_policy(document, args.mode)
+    validate_android_manifest(ANDROID_MANIFEST.read_text(encoding="utf-8"))
     print(
         "MOBILE REALTIME PRECHECK: PASS "
         f"(mode={args.mode}, version={document['policy_version']})"

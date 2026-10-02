@@ -8,6 +8,7 @@ const policy: NativeRealtimePolicy = {
   policyVersion: "mobile-realtime-r3-ci-v1",
   maxReconnectAttempts: 2,
   allowBackgroundReconnect: true,
+  allowScreenLockedReconnect: false,
 };
 
 function connected(): NativeRealtimeSnapshotV1 {
@@ -17,9 +18,12 @@ function connected(): NativeRealtimeSnapshotV1 {
     phase: "CONNECTED",
     app_state: "FOREGROUND",
     network_state: "ONLINE",
+    network_transport: "WIFI",
     microphone_permission: "GRANTED",
     audio_route: "SPEAKER",
     interruption: "NONE",
+    screen_state: "UNLOCKED",
+    join_auth_state: "VALID",
     reconnect_attempt: 0,
     provider_connection_ref: "provider-connection-1",
   };
@@ -64,4 +68,101 @@ test("revoked microphone permission blocks media without changing business truth
   assert.equal(result.snapshot.phase, "BLOCKED");
   assert.equal(result.technical_action, "REQUEST_PERMISSION");
   assert.equal(result.business_transition, "NONE");
+});
+
+
+test("permission revocation cannot be bypassed by network recovery", () => {
+  const revoked = reduceNativeRealtime(connected(), { type: "MICROPHONE_PERMISSION_REVOKED" }, policy);
+  assert.equal(revoked.snapshot.phase, "BLOCKED");
+  assert.equal(revoked.technical_action, "REQUEST_PERMISSION");
+  const offline = reduceNativeRealtime(revoked.snapshot, { type: "NETWORK_OFFLINE" }, policy);
+  const online = reduceNativeRealtime(offline.snapshot, { type: "NETWORK_ONLINE" }, policy);
+  assert.equal(online.snapshot.phase, "BLOCKED");
+  assert.equal(online.technical_action, "NONE");
+  assert.equal(online.snapshot.microphone_permission, "DENIED");
+  const restored = reduceNativeRealtime(online.snapshot, { type: "MICROPHONE_PERMISSION_GRANTED" }, policy);
+  assert.equal(restored.snapshot.microphone_permission, "GRANTED");
+  assert.equal(restored.technical_action, "RECONNECT_PROVIDER");
+  assert.equal(restored.business_transition, "NONE");
+});
+
+test("initial permission grant starts a fresh provider connection", () => {
+  const initial: NativeRealtimeSnapshotV1 = {...connected(), phase: "IDLE", microphone_permission: "DENIED", provider_connection_ref: undefined};
+  const opened = reduceNativeRealtime(initial, { type: "SESSION_OPENED" }, policy);
+  assert.equal(opened.snapshot.phase, "BLOCKED");
+  assert.equal(opened.technical_action, "REQUEST_PERMISSION");
+  const granted = reduceNativeRealtime(opened.snapshot, { type: "MICROPHONE_PERMISSION_GRANTED" }, policy);
+  assert.equal(granted.snapshot.phase, "CONNECTING");
+  assert.equal(granted.technical_action, "CONNECT_PROVIDER");
+});
+
+test("active interruption blocks network-triggered reconnect until interruption ends", () => {
+  const interrupted = reduceNativeRealtime(connected(), { type: "INTERRUPTION_BEGAN" }, policy);
+  const online = reduceNativeRealtime(interrupted.snapshot, { type: "NETWORK_ONLINE" }, policy);
+  assert.equal(online.snapshot.phase, "DEGRADED");
+  assert.equal(online.technical_action, "PAUSE_MEDIA");
+  const resumed = reduceNativeRealtime(online.snapshot, { type: "INTERRUPTION_ENDED" }, policy);
+  assert.equal(resumed.snapshot.interruption, "NONE");
+  assert.equal(resumed.technical_action, "RECONNECT_PROVIDER");
+});
+
+
+test("permission block survives unrelated lifecycle transitions until explicit grant", () => {
+  let result = reduceNativeRealtime(connected(), { type: "MICROPHONE_PERMISSION_REVOKED" }, policy);
+  assert.equal(result.snapshot.phase, "BLOCKED");
+
+  for (const event of [
+    { type: "NETWORK_OFFLINE" } as const,
+    { type: "NETWORK_DEGRADED" } as const,
+    { type: "APP_BACKGROUND" } as const,
+    { type: "AUDIO_ROUTE_CHANGED", route: "BLUETOOTH" } as const,
+    { type: "INTERRUPTION_BEGAN" } as const,
+    { type: "NETWORK_ONLINE" } as const,
+    { type: "APP_FOREGROUND" } as const,
+    { type: "INTERRUPTION_ENDED" } as const,
+  ]) {
+    result = reduceNativeRealtime(result.snapshot, event, policy);
+    assert.equal(result.snapshot.phase, "BLOCKED");
+    assert.equal(result.technical_action, "NONE");
+    assert.equal(result.business_transition, "NONE");
+  }
+
+  result = reduceNativeRealtime(result.snapshot, { type: "MICROPHONE_PERMISSION_GRANTED" }, policy);
+  assert.equal(result.snapshot.microphone_permission, "GRANTED");
+  assert.notEqual(result.snapshot.phase, "BLOCKED");
+});
+
+
+test("network transport handoff reconnects provider without business transition", () => {
+  const result = reduceNativeRealtime(
+    connected(),
+    { type: "NETWORK_TRANSPORT_CHANGED", transport: "CELLULAR" },
+    policy,
+  );
+  assert.equal(result.snapshot.network_transport, "CELLULAR");
+  assert.equal(result.technical_action, "RECONNECT_PROVIDER");
+  assert.equal(result.business_transition, "NONE");
+});
+
+test("screen lock pauses and unlock resumes according to policy", () => {
+  const locked = reduceNativeRealtime(connected(), { type: "SCREEN_LOCKED" }, policy);
+  assert.equal(locked.snapshot.screen_state, "LOCKED");
+  assert.equal(locked.snapshot.phase, "DEGRADED");
+  assert.equal(locked.technical_action, "PAUSE_MEDIA");
+
+  const unlocked = reduceNativeRealtime(locked.snapshot, { type: "SCREEN_UNLOCKED" }, policy);
+  assert.equal(unlocked.snapshot.screen_state, "UNLOCKED");
+  assert.equal(unlocked.technical_action, "RECONNECT_PROVIDER");
+  assert.equal(unlocked.business_transition, "NONE");
+});
+
+test("expired join auth refreshes before provider rejoin and fails closed", () => {
+  const expired = reduceNativeRealtime(connected(), { type: "JOIN_AUTH_EXPIRED" }, policy);
+  assert.equal(expired.snapshot.join_auth_state, "EXPIRED");
+  assert.equal(expired.technical_action, "REFRESH_JOIN_AUTH");
+
+  const failed = reduceNativeRealtime(expired.snapshot, { type: "JOIN_AUTH_REFRESH_FAILED" }, policy);
+  assert.equal(failed.snapshot.phase, "TECHNICAL_FAILURE");
+  assert.equal(failed.technical_action, "REPORT_TECHNICAL_FAILURE");
+  assert.equal(failed.business_transition, "NONE");
 });

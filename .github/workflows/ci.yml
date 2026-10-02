@@ -44,6 +44,7 @@ jobs:
           bash -n deploy/staging/apply-staging-migrations.sh
           bash -n deploy/staging/test-staging-migration-ledger.sh
           python tools/staging_update_guard.py
+          python -m py_compile deploy/staging/prove-mobile-realtime.py
       - run: python tools/dedicated_host_bootstrap_guard.py
       - run: python tools/identity_contract_guard.py
       - run: python tools/auth_contract_guard.py
@@ -352,7 +353,7 @@ jobs:
         env:
           APGIC_ENVIRONMENT: STAGING
           APGIC_HTTP_ADDR: 127.0.0.1:43111
-          APGIC_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable
+          APGIC_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_mobile009_staging?sslmode=disable
           APGIC_JURISDICTION_MATRIX_VERSION: jurisdiction-ci-v1
           APGIC_RETENTION_POLICY_VERSION: retention-ci-v1
           APGIC_SLO_POLICY_VERSION: slo-r0-ci-v1
@@ -361,6 +362,11 @@ jobs:
           APGIC_CLIENT_SESSION_KEY: ci-only-client-session-key-000000000000
         run: |
           set -euo pipefail
+          psql -h 127.0.0.1 -U apgic -d postgres -v ON_ERROR_STOP=1 \
+            -c 'CREATE DATABASE apgic_mobile009_staging'
+          for migration in migrations/[0-9][0-9][0-9][0-9][0-9][0-9]_*.sql; do
+            psql "$APGIC_DATABASE_URL" -v ON_ERROR_STOP=1 -f "$migration"
+          done
           go build -o /tmp/apgic-api ./cmd/api
           /tmp/apgic-api >/tmp/apgic-api.log 2>&1 &
           api_pid=$!
@@ -372,6 +378,9 @@ jobs:
             sleep 0.5
           done
           curl -fsS http://127.0.0.1:43111/readyz | grep -q '"status":"ready"'
+          python ../deploy/staging/prove-mobile-realtime.py \
+            --base-url http://127.0.0.1:43111 \
+            --output ../evidence/mobile009-staging-realtime.json
           kill "$api_pid"
           wait "$api_pid" 2>/dev/null || true
           trap - EXIT
@@ -380,6 +389,13 @@ jobs:
             exit 1
           fi
           grep -q 'PostgreSQL readiness failed' /tmp/apgic-api-negative.log
+      - name: Upload MOBILE-009 staging realtime evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: mobile009-staging-realtime-evidence
+          path: evidence/mobile009-staging-realtime.json
+          if-no-files-found: error
+          retention-days: 30
 
   restore-drill:
     name: PostgreSQL isolated restore drill
@@ -604,6 +620,8 @@ jobs:
             evidence/android-offline-mutation-confirmed.xml
             evidence/android-offline-mutation-server-replay.json
             evidence/android-offline-hold.json
+            evidence/android-realtime-e2e.xml
+            evidence/android-realtime-rejoin.xml
           if-no-files-found: error
           retention-days: 30
 
@@ -663,6 +681,8 @@ jobs:
             evidence/ios-offline-mutation-confirmed.json
             evidence/ios-offline-mutation-server-replay.json
             evidence/ios-offline-hold.json
+            evidence/ios-realtime-e2e.json
+            evidence/ios-realtime-rejoin.json
           if-no-files-found: error
           retention-days: 30
 

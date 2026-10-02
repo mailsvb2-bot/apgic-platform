@@ -9,8 +9,11 @@ export type RealtimePhase =
 
 export type AppLifecycleState = "FOREGROUND" | "BACKGROUND";
 export type NetworkLifecycleState = "ONLINE" | "DEGRADED" | "OFFLINE";
+export type NetworkTransport = "WIFI" | "CELLULAR" | "ETHERNET" | "OTHER" | "UNKNOWN";
 export type AudioRoute = "SPEAKER" | "EARPIECE" | "BLUETOOTH" | "WIRED" | "UNKNOWN";
 export type InterruptionState = "NONE" | "INTERRUPTED";
+export type ScreenLifecycleState = "UNLOCKED" | "LOCKED";
+export type JoinAuthState = "VALID" | "EXPIRED";
 
 export interface NativeRealtimeSnapshotV1 {
   contract_version: "native-realtime-v1";
@@ -18,9 +21,12 @@ export interface NativeRealtimeSnapshotV1 {
   phase: RealtimePhase;
   app_state: AppLifecycleState;
   network_state: NetworkLifecycleState;
+  network_transport: NetworkTransport;
   microphone_permission: "GRANTED" | "DENIED" | "RESTRICTED" | "UNAVAILABLE";
   audio_route: AudioRoute;
   interruption: InterruptionState;
+  screen_state: ScreenLifecycleState;
+  join_auth_state: JoinAuthState;
   reconnect_attempt: number;
   provider_connection_ref?: string;
 }
@@ -32,6 +38,7 @@ export type NativeRealtimeTechnicalAction =
   | "WAIT_FOR_NETWORK"
   | "PAUSE_MEDIA"
   | "REFRESH_AUDIO_ROUTE"
+  | "REFRESH_JOIN_AUTH"
   | "REQUEST_PERMISSION"
   | "REPORT_TECHNICAL_FAILURE";
 

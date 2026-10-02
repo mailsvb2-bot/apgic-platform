@@ -47,7 +47,10 @@ def valid_realtime_policy() -> dict:
         "network": {
             "offline_action": "RECONNECT_WHEN_ONLINE",
             "degraded_action": "KEEP_SESSION_DEGRADED",
+            "transport_change_action": "RECONNECT_PROVIDER",
         },
+        "screen": {"lock_action": "PAUSE_MEDIA_AND_RECONNECT"},
+        "auth": {"join_token_expiry_action": "REFRESH_AND_REJOIN"},
         "audio": {"route_change_action": "REFRESH_ROUTE"},
         "interruption": {"action": "PAUSE_MEDIA_AND_RECONNECT"},
         "diagnostics": {
@@ -88,6 +91,29 @@ class R3PolicyTests(unittest.TestCase):
         policy["reconnect"]["backoff_ms"] = [250]
         with self.assertRaises(SystemExit):
             realtime_guard.validate_policy(policy, "ci")
+
+    def test_transport_screen_and_join_auth_policy_fail_closed(self) -> None:
+        policy = valid_realtime_policy()
+        policy["network"]["transport_change_action"] = "IGNORE"
+        with self.assertRaises(SystemExit):
+            realtime_guard.validate_policy(policy, "ci")
+
+        policy = valid_realtime_policy()
+        policy["screen"]["lock_action"] = "KEEP_MEDIA_RUNNING"
+        with self.assertRaises(SystemExit):
+            realtime_guard.validate_policy(policy, "ci")
+
+        policy = valid_realtime_policy()
+        policy["auth"]["join_token_expiry_action"] = "USE_STALE_TOKEN"
+        with self.assertRaises(SystemExit):
+            realtime_guard.validate_policy(policy, "ci")
+
+    def test_android_realtime_requires_network_state_permission(self) -> None:
+        manifest = "\n".join(sorted(realtime_guard.REQUIRED_ANDROID_PERMISSIONS))
+        realtime_guard.validate_android_manifest(manifest)
+        without_network = manifest.replace("android.permission.ACCESS_NETWORK_STATE", "")
+        with self.assertRaises(SystemExit):
+            realtime_guard.validate_android_manifest(without_network)
 
 
 if __name__ == "__main__":
