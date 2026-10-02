@@ -32,9 +32,9 @@ const (
 )
 
 const (
-	ReasonClientVersionSupported   = "CLIENT_VERSION_SUPPORTED"
-	ReasonClientVersionDeprecated  = "CLIENT_VERSION_DEPRECATED"
-	ReasonClientVersionBelowMin    = "CLIENT_VERSION_BELOW_MINIMUM"
+	ReasonClientVersionSupported    = "CLIENT_VERSION_SUPPORTED"
+	ReasonClientVersionDeprecated   = "CLIENT_VERSION_DEPRECATED"
+	ReasonClientVersionBelowMin     = "CLIENT_VERSION_BELOW_MINIMUM"
 	ReasonClientContractUnsupported = "CLIENT_CONTRACT_UNSUPPORTED"
 )
 
