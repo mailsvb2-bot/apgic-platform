@@ -233,6 +233,7 @@ jobs:
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000024_r0_published_product_order_gate.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000025_r2_notification_policy_runtime.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000026_r2_offline_mutation_failure.sql
+          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000027_r0_order_snapshot_baseline_repair.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r0_connector_delivery_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r1_mobile_invariants.sql
@@ -247,6 +248,7 @@ jobs:
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r2_refund_invariants.sql
           APGIC_DATABASE_URL='postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable' \
             bash deploy/staging/test-staging-migration-ledger.sh
+          PGHOST=127.0.0.1 PGUSER=apgic PGDATABASE=apgic_ci bash backend/ci/r0_order_snapshot_baseline_repair.sh
           bash backend/ci/r2_booking_concurrency.sh
           bash backend/ci/r2_mutation_concurrency.sh
       - name: Prove runtime ledger persists and replays from PostgreSQL
@@ -433,6 +435,7 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f backend/migrations/000024_r0_published_product_order_gate.sql
           psql -v ON_ERROR_STOP=1 -f backend/migrations/000025_r2_notification_policy_runtime.sql
           psql -v ON_ERROR_STOP=1 -f backend/migrations/000026_r2_offline_mutation_failure.sql
+          psql -v ON_ERROR_STOP=1 -f backend/migrations/000027_r0_order_snapshot_baseline_repair.sql
           bash backend/ci/restore_drill.sh
       - uses: actions/upload-artifact@v7
         with:
