@@ -371,6 +371,9 @@ jobs:
             sleep 0.5
           done
           curl -fsS http://127.0.0.1:43111/readyz | grep -q '"status":"ready"'
+          python ../deploy/staging/prove-mobile-realtime.py \
+            --base-url http://127.0.0.1:43111 \
+            --output ../evidence/mobile009-staging-realtime.json
           kill "$api_pid"
           wait "$api_pid" 2>/dev/null || true
           trap - EXIT
@@ -379,6 +382,13 @@ jobs:
             exit 1
           fi
           grep -q 'PostgreSQL readiness failed' /tmp/apgic-api-negative.log
+      - name: Upload MOBILE-009 staging realtime evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: mobile009-staging-realtime-evidence
+          path: evidence/mobile009-staging-realtime.json
+          if-no-files-found: error
+          retention-days: 30
 
   restore-drill:
     name: PostgreSQL isolated restore drill
