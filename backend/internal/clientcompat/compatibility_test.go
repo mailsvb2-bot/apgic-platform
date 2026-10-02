@@ -17,6 +17,7 @@ func testPolicy(t *testing.T, platform Platform) Policy {
 		Platform:                  platform,
 		MinimumSupported:          mustVersion(t, "1.4.0"),
 		Recommended:               mustVersion(t, "1.6.0"),
+		MinimumBuild:              100,
 		ContractVersion:           "contract-v2",
 		SupportedContractVersions: []string{"contract-v1", "contract-v2"},
 		PolicyVersion:             "mobile-compat-v7",
@@ -41,7 +42,7 @@ func TestCompatibilityWindowIsDeterministic(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		decision, err := EvaluateClient(mustVersion(t, tc.version), "contract-v1", policy)
+		decision, err := EvaluateClient(mustVersion(t, tc.version), 100, "contract-v1", policy)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -62,7 +63,7 @@ func TestCompatibilityWindowIsDeterministic(t *testing.T) {
 }
 
 func TestSupportedPreviousContractSurvivesBackendUpdate(t *testing.T) {
-	decision, err := EvaluateClient(mustVersion(t, "1.5.0"), "contract-v1", testPolicy(t, Android))
+	decision, err := EvaluateClient(mustVersion(t, "1.5.0"), 100, "contract-v1", testPolicy(t, Android))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,8 +72,20 @@ func TestSupportedPreviousContractSurvivesBackendUpdate(t *testing.T) {
 	}
 }
 
+func TestBuildBelowMinimumGetsGovernedCriticalUpdate(t *testing.T) {
+	decision, err := EvaluateClient(mustVersion(t, "1.6.0"), 99, "contract-v1", testPolicy(t, IOS))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decision.Status != UpdateRequired ||
+		decision.ReasonCode != ReasonClientBuildBelowMin ||
+		decision.UpdateReason != IncompatibleCritical {
+		t.Fatalf("unsupported build must use governed update path: %+v", decision)
+	}
+}
+
 func TestUnsupportedContractGetsGovernedCriticalUpdate(t *testing.T) {
-	decision, err := EvaluateClient(mustVersion(t, "1.6.0"), "contract-v0", testPolicy(t, IOS))
+	decision, err := EvaluateClient(mustVersion(t, "1.6.0"), 100, "contract-v0", testPolicy(t, IOS))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,13 +105,13 @@ func TestInvalidOrMissingPolicyFailsClosed(t *testing.T) {
 
 	policy := testPolicy(t, IOS)
 	policy.MinimumUpdateReason = "MARKETING"
-	if _, err := EvaluateClient(mustVersion(t, "1.0.0"), "contract-v1", policy); err == nil {
+	if _, err := EvaluateClient(mustVersion(t, "1.0.0"), 100, "contract-v1", policy); err == nil {
 		t.Fatal("arbitrary forced-update reason must fail closed")
 	}
 
 	policy = testPolicy(t, IOS)
 	policy.UpdateURL = "http://example.test/update"
-	if _, err := EvaluateClient(mustVersion(t, "1.0.0"), "contract-v1", policy); err == nil {
+	if _, err := EvaluateClient(mustVersion(t, "1.0.0"), 100, "contract-v1", policy); err == nil {
 		t.Fatal("non-https update URL must fail closed")
 	}
 }

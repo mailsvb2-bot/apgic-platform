@@ -330,6 +330,7 @@ func main() {
 			Platform:                  platform,
 			MinimumSupported:          minimum,
 			Recommended:               recommended,
+			MinimumBuild:              1,
 			ContractVersion:           "0.9.0-r0-mobile-compatibility",
 			SupportedContractVersions: []string{"0.8.0-r2-offline-sync", "0.9.0-r0-mobile-compatibility"},
 			PolicyVersion:             "mobile013-e2e-v1",

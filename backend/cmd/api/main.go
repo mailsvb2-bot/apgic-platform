@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -118,9 +119,11 @@ func clientCompatibilityPoliciesFromEnvironment(environment string) (map[clientc
 		forcedReasonRaw,
 		strings.TrimSpace(os.Getenv("APGIC_IOS_MIN_VERSION")),
 		strings.TrimSpace(os.Getenv("APGIC_IOS_RECOMMENDED_VERSION")),
+		strings.TrimSpace(os.Getenv("APGIC_IOS_MIN_BUILD")),
 		strings.TrimSpace(os.Getenv("APGIC_IOS_UPDATE_URL")),
 		strings.TrimSpace(os.Getenv("APGIC_ANDROID_MIN_VERSION")),
 		strings.TrimSpace(os.Getenv("APGIC_ANDROID_RECOMMENDED_VERSION")),
+		strings.TrimSpace(os.Getenv("APGIC_ANDROID_MIN_BUILD")),
 		strings.TrimSpace(os.Getenv("APGIC_ANDROID_UPDATE_URL")),
 	}
 	anyConfigured := false
@@ -162,17 +165,22 @@ func clientCompatibilityPoliciesFromEnvironment(environment string) (map[clientc
 		if err != nil {
 			return clientcompat.Policy{}, fmt.Errorf("%s recommended version: %w", platform, err)
 		}
+		minimumBuild, err := strconv.Atoi(strings.TrimSpace(os.Getenv(prefix + "_MIN_BUILD")))
+		if err != nil || minimumBuild <= 0 {
+			return clientcompat.Policy{}, fmt.Errorf("%s minimum build must be a positive integer", platform)
+		}
 		policy := clientcompat.Policy{
 			Platform:                  platform,
 			MinimumSupported:          minimum,
 			Recommended:               recommended,
+			MinimumBuild:              minimumBuild,
 			ContractVersion:           contractVersion,
 			SupportedContractVersions: supportedContracts,
 			PolicyVersion:             policyVersion,
 			MinimumUpdateReason:       forcedReason,
 			UpdateURL:                 strings.TrimSpace(os.Getenv(prefix + "_UPDATE_URL")),
 		}
-		if _, err := clientcompat.EvaluateClient(recommended, contractVersion, policy); err != nil {
+		if _, err := clientcompat.EvaluateClient(recommended, minimumBuild, contractVersion, policy); err != nil {
 			return clientcompat.Policy{}, fmt.Errorf("%s policy: %w", platform, err)
 		}
 		return policy, nil

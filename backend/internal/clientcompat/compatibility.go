@@ -35,11 +35,13 @@ const (
 	ReasonClientVersionSupported    = "CLIENT_VERSION_SUPPORTED"
 	ReasonClientVersionDeprecated   = "CLIENT_VERSION_DEPRECATED"
 	ReasonClientVersionBelowMin     = "CLIENT_VERSION_BELOW_MINIMUM"
+	ReasonClientBuildBelowMin       = "CLIENT_BUILD_BELOW_MINIMUM"
 	ReasonClientContractUnsupported = "CLIENT_CONTRACT_UNSUPPORTED"
 )
 
 var (
 	ErrInvalidVersion  = errors.New("invalid semantic version")
+	ErrInvalidBuild    = errors.New("invalid client build number")
 	ErrInvalidContract = errors.New("invalid client contract version")
 	ErrPolicyMissing   = errors.New("client compatibility policy missing")
 )
@@ -96,6 +98,7 @@ type Policy struct {
 	Platform                  Platform
 	MinimumSupported          Version
 	Recommended               Version
+	MinimumBuild              int
 	ContractVersion           string
 	SupportedContractVersions []string
 	PolicyVersion             string
@@ -113,12 +116,15 @@ type Decision struct {
 }
 
 func Evaluate(appVersion Version, policy Policy) (Decision, error) {
-	return EvaluateClient(appVersion, policy.ContractVersion, policy)
+	return EvaluateClient(appVersion, policy.MinimumBuild, policy.ContractVersion, policy)
 }
 
-func EvaluateClient(appVersion Version, clientContractVersion string, policy Policy) (Decision, error) {
+func EvaluateClient(appVersion Version, buildNumber int, clientContractVersion string, policy Policy) (Decision, error) {
 	if err := validatePolicy(policy); err != nil {
 		return Decision{}, err
+	}
+	if buildNumber <= 0 {
+		return Decision{}, ErrInvalidBuild
 	}
 	clientContractVersion = strings.TrimSpace(clientContractVersion)
 	if clientContractVersion == "" {
@@ -144,6 +150,11 @@ func EvaluateClient(appVersion Version, clientContractVersion string, policy Pol
 		decision.ReasonCode = ReasonClientVersionBelowMin
 		decision.UpdateReason = policy.MinimumUpdateReason
 		decision.UpdateURL = policy.UpdateURL
+	case buildNumber < policy.MinimumBuild:
+		decision.Status = UpdateRequired
+		decision.ReasonCode = ReasonClientBuildBelowMin
+		decision.UpdateReason = policy.MinimumUpdateReason
+		decision.UpdateURL = policy.UpdateURL
 	case appVersion.Compare(policy.Recommended) < 0:
 		decision.Status = DeprecatedButSupported
 		decision.ReasonCode = ReasonClientVersionDeprecated
@@ -163,6 +174,9 @@ func validatePolicy(policy Policy) error {
 	}
 	if policy.Recommended.Compare(policy.MinimumSupported) < 0 {
 		return fmt.Errorf("%w: recommended below minimum", ErrPolicyMissing)
+	}
+	if policy.MinimumBuild <= 0 {
+		return fmt.Errorf("%w: minimum build must be positive", ErrPolicyMissing)
 	}
 	switch policy.MinimumUpdateReason {
 	case SecurityCritical, LegalCritical, IncompatibleCritical:

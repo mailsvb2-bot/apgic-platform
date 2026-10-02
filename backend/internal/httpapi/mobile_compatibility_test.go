@@ -22,6 +22,7 @@ func compatibilityPolicy(t *testing.T, platform clientcompat.Platform) clientcom
 		Platform:                  platform,
 		MinimumSupported:          minimum,
 		Recommended:               recommended,
+		MinimumBuild:              100,
 		ContractVersion:           "contract-v2",
 		SupportedContractVersions: []string{"contract-v1", "contract-v2"},
 		PolicyVersion:             "mobile-compat-v7",
@@ -37,7 +38,7 @@ func TestMobileCompatibilityKeepsSupportedPreviousContractWorking(t *testing.T) 
 		},
 	})
 	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodGet, "/v1/mobile/compatibility?platform=IOS&app_version=1.5.0&contract_version=contract-v1", nil)
+	request := httptest.NewRequest(http.MethodGet, "/v1/mobile/compatibility?platform=IOS&app_version=1.5.0&build_number=100&contract_version=contract-v1", nil)
 	handler.ServeHTTP(recorder, request)
 
 	if recorder.Code != http.StatusOK {
@@ -58,6 +59,18 @@ func TestMobileCompatibilityKeepsSupportedPreviousContractWorking(t *testing.T) 
 	}
 }
 
+func TestMobileCompatibilityUsesGovernedUpdateForOldBuild(t *testing.T) {
+	handler := New(Options{ClientCompatibilityPolicies: map[clientcompat.Platform]clientcompat.Policy{
+		clientcompat.Android: compatibilityPolicy(t, clientcompat.Android),
+	}})
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/v1/mobile/compatibility?platform=ANDROID&app_version=1.6.0&build_number=99&contract_version=contract-v1", nil)
+	handler.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK || !contains(recorder.Body.String(), "CLIENT_BUILD_BELOW_MINIMUM") {
+		t.Fatalf("old build must receive governed update: status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
 func TestMobileCompatibilityUsesGovernedUpdateForUnsupportedContract(t *testing.T) {
 	handler := New(Options{
 		ClientCompatibilityPolicies: map[clientcompat.Platform]clientcompat.Policy{
@@ -65,7 +78,7 @@ func TestMobileCompatibilityUsesGovernedUpdateForUnsupportedContract(t *testing.
 		},
 	})
 	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodGet, "/v1/mobile/compatibility?platform=ANDROID&app_version=1.6.0&contract_version=contract-v0", nil)
+	request := httptest.NewRequest(http.MethodGet, "/v1/mobile/compatibility?platform=ANDROID&app_version=1.6.0&build_number=100&contract_version=contract-v0", nil)
 	handler.ServeHTTP(recorder, request)
 
 	if recorder.Code != http.StatusOK {
@@ -86,7 +99,7 @@ func TestMobileCompatibilityUsesGovernedUpdateForUnsupportedContract(t *testing.
 func TestMobileCompatibilityFailsClosedWithoutGovernedPolicy(t *testing.T) {
 	handler := New(Options{})
 	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodGet, "/v1/mobile/compatibility?platform=IOS&app_version=1.6.0&contract_version=contract-v1", nil)
+	request := httptest.NewRequest(http.MethodGet, "/v1/mobile/compatibility?platform=IOS&app_version=1.6.0&build_number=100&contract_version=contract-v1", nil)
 	handler.ServeHTTP(recorder, request)
 
 	if recorder.Code != http.StatusServiceUnavailable {
