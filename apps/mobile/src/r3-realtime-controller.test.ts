@@ -122,7 +122,7 @@ test("controller never reconnects while microphone permission is denied", async 
   await controller.dispatch({type: "MICROPHONE_PERMISSION_GRANTED"});
   assert.equal(controller.snapshot().phase, "CONNECTED");
   assert.equal(controller.snapshot().microphone_permission, "GRANTED");
-  assert.deepEqual(p.actions, ["permission", "permission", "connect"]);
+  assert.deepEqual(p.actions, ["permission", "connect"]);
 });
 
 
