@@ -466,42 +466,63 @@ PY
 
 assert_realtime_lifecycle() {
   local output="$EVIDENCE_DIR/ios-realtime-e2e.json"
+  local rejoin_output="$EVIDENCE_DIR/ios-realtime-rejoin.json"
   local consultation_id="mobile009-ios-rejoin"
   local events="MICROPHONE_PERMISSION_REVOKED,NETWORK_OFFLINE,NETWORK_ONLINE,MICROPHONE_PERMISSION_GRANTED,NETWORK_TRANSPORT_CHANGED:CELLULAR,SCREEN_LOCKED,SCREEN_UNLOCKED,JOIN_AUTH_EXPIRED,APP_BACKGROUND,APP_FOREGROUND,AUDIO_ROUTE_CHANGED:BLUETOOTH,INTERRUPTION_BEGAN,NETWORK_ONLINE,INTERRUPTION_ENDED"
 
   xcrun simctl privacy "$UDID" grant microphone com.apgic.ci >/dev/null ||
     fail "failed to grant iOS microphone permission for realtime E2E"
-  xcrun simctl terminate "$UDID" com.apgic.ci >/dev/null 2>&1 || true
-  SIMCTL_CHILD_APGIC_E2E_CAPABILITY_STATE=GRANTED \
-  SIMCTL_CHILD_APGIC_E2E_REALTIME_EVENTS="$events" \
-  SIMCTL_CHILD_APGIC_E2E_REALTIME_CONSULTATION_ID="$consultation_id" \
-    xcrun simctl launch "$UDID" com.apgic.ci >/dev/null
 
+  launch_realtime() {
+    xcrun simctl terminate "$UDID" com.apgic.ci >/dev/null 2>&1 || true
+    SIMCTL_CHILD_APGIC_E2E_CAPABILITY_STATE=GRANTED     SIMCTL_CHILD_APGIC_E2E_REALTIME_EVENTS="$events"     SIMCTL_CHILD_APGIC_E2E_REALTIME_CONSULTATION_ID="$consultation_id"       xcrun simctl launch "$UDID" com.apgic.ci >/dev/null
+  }
+
+  realtime_ready() {
+    local target="$1"
+    "$IDB" ui describe-all --udid "$UDID" --api axbridge --json --nested >"$target" 2>/dev/null &&
+      json_has_ax_label "$target" "realtime-e2e:PASS" &&
+      json_has_ax_label "$target" "realtime-phase:CONNECTED" &&
+      json_has_ax_label "$target" "realtime-business-transition:NONE" &&
+      json_has_ax_label "$target" "realtime-audio-route:BLUETOOTH" &&
+      json_has_ax_label "$target" "realtime-app-state:FOREGROUND" &&
+      json_has_ax_label "$target" "realtime-network-state:ONLINE" &&
+      json_has_ax_label "$target" "realtime-network-transport:CELLULAR" &&
+      json_has_ax_label "$target" "realtime-screen-state:UNLOCKED" &&
+      json_has_ax_label "$target" "realtime-join-auth-state:VALID" &&
+      json_has_ax_label "$target" "realtime-consultation-id:${consultation_id}" &&
+      json_has_ax_label "$target" "realtime-action-connect:true" &&
+      json_has_ax_label "$target" "realtime-action-reconnect:true" &&
+      json_has_ax_label "$target" "realtime-action-pause:true" &&
+      json_has_ax_label "$target" "realtime-action-route:true" &&
+      json_has_ax_label "$target" "realtime-action-auth:true"
+  }
+
+  launch_realtime
+  local first_pass=false
   for _ in $(seq 1 60); do
-    if "$IDB" ui describe-all --udid "$UDID" --api axbridge --json --nested >"$output" 2>/dev/null &&
-       json_has_ax_label "$output" "realtime-e2e:PASS" &&
-       json_has_ax_label "$output" "realtime-phase:CONNECTED" &&
-       json_has_ax_label "$output" "realtime-business-transition:NONE" &&
-       json_has_ax_label "$output" "realtime-audio-route:BLUETOOTH" &&
-       json_has_ax_label "$output" "realtime-app-state:FOREGROUND" &&
-       json_has_ax_label "$output" "realtime-network-state:ONLINE" &&
-       json_has_ax_label "$output" "realtime-network-transport:CELLULAR" &&
-       json_has_ax_label "$output" "realtime-screen-state:UNLOCKED" &&
-       json_has_ax_label "$output" "realtime-join-auth-state:VALID" &&
-       json_has_ax_label "$output" "realtime-consultation-id:${consultation_id}" &&
-       json_has_ax_label "$output" "realtime-action-connect:true" &&
-       json_has_ax_label "$output" "realtime-action-reconnect:true" &&
-       json_has_ax_label "$output" "realtime-action-pause:true" &&
-       json_has_ax_label "$output" "realtime-action-route:true" &&
-       json_has_ax_label "$output" "realtime-action-auth:true"; then
-      echo "iOS installed-app native realtime lifecycle/reconnect: PASS"
+    if realtime_ready "$output"; then
+      first_pass=true
+      break
+    fi
+    sleep 1
+  done
+  if [[ "$first_pass" != "true" ]]; then
+    [[ -f "$output" ]] && cat "$output" >&2 || true
+    fail "installed iOS app did not complete native realtime lifecycle proof"
+  fi
+
+  launch_realtime
+  for _ in $(seq 1 60); do
+    if realtime_ready "$rejoin_output"; then
+      echo "iOS installed-app native realtime lifecycle + restart/rejoin: PASS"
       return 0
     fi
     sleep 1
   done
 
-  [[ -f "$output" ]] && cat "$output" >&2 || true
-  fail "installed iOS app did not complete native realtime lifecycle/reconnect proof"
+  [[ -f "$rejoin_output" ]] && cat "$rejoin_output" >&2 || true
+  fail "installed iOS app did not rejoin the same canonical consultation after process restart"
 }
 
 assert_installation_lifecycle
