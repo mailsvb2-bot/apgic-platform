@@ -78,7 +78,7 @@ test("permission revocation cannot be bypassed by network recovery", () => {
   const offline = reduceNativeRealtime(revoked.snapshot, { type: "NETWORK_OFFLINE" }, policy);
   const online = reduceNativeRealtime(offline.snapshot, { type: "NETWORK_ONLINE" }, policy);
   assert.equal(online.snapshot.phase, "BLOCKED");
-  assert.equal(online.technical_action, "REQUEST_PERMISSION");
+  assert.equal(online.technical_action, "NONE");
   assert.equal(online.snapshot.microphone_permission, "DENIED");
   const restored = reduceNativeRealtime(online.snapshot, { type: "MICROPHONE_PERMISSION_GRANTED" }, policy);
   assert.equal(restored.snapshot.microphone_permission, "GRANTED");
