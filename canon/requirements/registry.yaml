@@ -2902,7 +2902,7 @@ requirements:
   release_profile: R1
   risk: HIGH
   priority: P0
-  status: IN_PROGRESS
+  status: VERIFIED
   dependencies:
   - APGIC-MOBILE-003
   implementation_refs:
@@ -2921,7 +2921,13 @@ requirements:
   - tools/r1_multisurface_guard.py
   - tools/r1_analytics_parity_e2e.mjs
   - .github/workflows/ci.yml
-  evidence_refs: []
+  evidence_refs:
+  - docs/traceability/R1-mobile014-analytics-parity.md
+  - surface://SERVER/mobile014-analytics-schema/run-37001131994/job-110819152240
+  - surface://WEB/mobile014-analytics-parity/run-37001131994/job-110819152528
+  - surface://IOS/mobile014-analytics-parity/run-37001131994/job-110819152520
+  - surface://ANDROID/mobile014-analytics-parity/run-37001131994/job-110819152520
+  - surface://ANDROID/mobile014-native-build/run-37001131994/job-110819152505
   acceptance:
     given: один canonical journey выполнен на web/iOS/Android
     when: события отправлены
