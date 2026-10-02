@@ -351,7 +351,7 @@ jobs:
         env:
           APGIC_ENVIRONMENT: STAGING
           APGIC_HTTP_ADDR: 127.0.0.1:43111
-          APGIC_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable
+          APGIC_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_mobile009_staging?sslmode=disable
           APGIC_JURISDICTION_MATRIX_VERSION: jurisdiction-ci-v1
           APGIC_RETENTION_POLICY_VERSION: retention-ci-v1
           APGIC_SLO_POLICY_VERSION: slo-r0-ci-v1
@@ -360,6 +360,11 @@ jobs:
           APGIC_CLIENT_SESSION_KEY: ci-only-client-session-key-000000000000
         run: |
           set -euo pipefail
+          psql -h 127.0.0.1 -U apgic -d postgres -v ON_ERROR_STOP=1 \
+            -c 'CREATE DATABASE apgic_mobile009_staging'
+          for migration in migrations/[0-9][0-9][0-9][0-9][0-9][0-9]_*.sql; do
+            psql "$APGIC_DATABASE_URL" -v ON_ERROR_STOP=1 -f "$migration"
+          done
           go build -o /tmp/apgic-api ./cmd/api
           /tmp/apgic-api >/tmp/apgic-api.log 2>&1 &
           api_pid=$!
