@@ -59,6 +59,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
       "APGIC_E2E_OFFLINE_MUTATION_METHOD_CODE": "offlineMutationE2EMethodCode",
       "APGIC_E2E_REALTIME_EVENTS": "realtimeE2EEvents",
       "APGIC_E2E_REALTIME_RECONNECT_FAILURES": "realtimeE2EReconnectFailures",
+      "APGIC_E2E_REALTIME_CONSULTATION_ID": "realtimeE2EConsultationID",
     ]
     for (environmentKey, propertyKey) in installationE2EKeys {
       if let value = environment[environmentKey], !value.isEmpty {
