@@ -88,6 +88,18 @@
               "boolean",
               "null"
             ]
+          },
+          "propertyNames": {
+            "not": {
+              "enum": [
+                "raw_transcript",
+                "transcript",
+                "raw_audio",
+                "audio_blob",
+                "raw_video",
+                "video_blob"
+              ]
+            }
           }
         },
         "platform_extensions": {
@@ -109,7 +121,9 @@
                 "null"
               ]
             }
-          }
+          },
+          "minProperties": 1,
+          "maxProperties": 1
         }
       }
     },

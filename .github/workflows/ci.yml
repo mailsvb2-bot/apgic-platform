@@ -473,6 +473,10 @@ jobs:
       - working-directory: apps/web
         run: npm install --ignore-scripts --no-audit --no-fund
       - working-directory: apps/web
+        run: npm test
+      - name: Prove Web/iOS/Android analytics semantic parity
+        run: node tools/r1_analytics_parity_e2e.mjs
+      - working-directory: apps/web
         run: npx playwright install --with-deps chromium
       - working-directory: apps/web
         run: npm run build

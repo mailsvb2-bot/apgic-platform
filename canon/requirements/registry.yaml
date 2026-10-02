@@ -2907,13 +2907,18 @@ requirements:
   - APGIC-MOBILE-003
   implementation_refs:
   - apps/mobile/src/r1-cross-surface.ts
+  - apps/mobile/src/analytics-client.ts
   - apps/web/src/r1-cross-surface.ts
+  - apps/web/src/analytics-client.ts
   contract_refs:
   - packages/contracts/src/r1-mobile.ts
   - contracts/jsonschema/r1-mobile-cross-surface-v1.schema.json
   test_refs:
   - apps/mobile/src/r1-cross-surface.test.ts
+  - apps/mobile/src/analytics-client.test.ts
+  - apps/web/src/r1-cross-surface.test.ts
   - tools/r1_multisurface_guard.py
+  - tools/r1_analytics_parity_e2e.mjs
   - .github/workflows/ci.yml
   evidence_refs: []
   acceptance:
