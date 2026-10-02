@@ -66,6 +66,16 @@ def validate_policy(policy: dict, mode: str) -> None:
         fail("offline network action must be RECONNECT_WHEN_ONLINE")
     if network.get("degraded_action") != "KEEP_SESSION_DEGRADED":
         fail("degraded network action must preserve degraded technical state")
+    if network.get("transport_change_action") != "RECONNECT_PROVIDER":
+        fail("network transport changes must reconnect the provider")
+
+    screen = policy.get("screen") or {}
+    if screen.get("lock_action") != "PAUSE_MEDIA_AND_RECONNECT":
+        fail("screen lock policy must pause media and reconnect after unlock")
+
+    auth = policy.get("auth") or {}
+    if auth.get("join_token_expiry_action") != "REFRESH_AND_REJOIN":
+        fail("join/auth expiry must refresh credentials and rejoin")
 
     audio = policy.get("audio") or {}
     if audio.get("route_change_action") != "REFRESH_ROUTE":
