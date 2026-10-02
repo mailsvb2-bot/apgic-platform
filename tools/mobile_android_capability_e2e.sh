@@ -19,6 +19,8 @@ SESSION_COOKIE=""
 DEEP_LINK_URL=""
 OFFLINE_HOLD_ID=""
 OFFLINE_IDEMPOTENCY_KEY="mobile-offline-e2e-android"
+COMPATIBILITY_BASE_URL="http://127.0.0.1:43113"
+COMPATIBILITY_CONTRACT_VERSION="0.9.0-r0-mobile-compatibility"
 
 fail() {
   echo "ANDROID CAPABILITY NATIVE E2E: FAIL: $*" >&2
@@ -265,7 +267,7 @@ assert_state() {
   local local_file="$EVIDENCE_DIR/android-capability-e2e-${state}.xml"
 
   "$ADB" shell am force-stop com.apgic.ci
-  "$ADB" shell am start -W     -n com.apgic.ci/.MainActivity     --es APGIC_E2E_CAPABILITY_STATE "$state"     >/dev/null
+  "$ADB" shell am start -W     -n com.apgic.ci/.MainActivity     --es APGIC_E2E_CAPABILITY_STATE "$state"     --es APGIC_E2E_COMPATIBILITY_BASE_URL "$COMPATIBILITY_BASE_URL"     --es APGIC_E2E_CONTRACT_VERSION "$COMPATIBILITY_CONTRACT_VERSION"     >/dev/null
 
   for _ in $(seq 1 30); do
     if "$ADB" shell uiautomator dump "$remote" >/dev/null 2>&1 &&
@@ -348,6 +350,8 @@ assert_installation_lifecycle() {
   "$ADB" shell am start -W \
     -n com.apgic.ci/.MainActivity \
     --es APGIC_E2E_CAPABILITY_STATE GRANTED \
+    --es APGIC_E2E_COMPATIBILITY_BASE_URL "$COMPATIBILITY_BASE_URL" \
+    --es APGIC_E2E_CONTRACT_VERSION "$COMPATIBILITY_CONTRACT_VERSION" \
     --es APGIC_E2E_INSTALLATION_BASE_URL http://127.0.0.1:43113 \
     --es APGIC_E2E_SESSION_COOKIE "$SESSION_COOKIE" \
     --es APGIC_E2E_INSTALLATION_ID "$installation_id" \
@@ -390,7 +394,7 @@ assert_deep_link_runtime() {
   local expected_target="/specialists/e2e-specialist"
 
   "$ADB" shell am force-stop com.apgic.ci
-  "$ADB" shell am start -W     -a android.intent.action.VIEW     -c android.intent.category.BROWSABLE     -d "$DEEP_LINK_URL"     -p com.apgic.ci     --es APGIC_E2E_DEEP_LINK_BASE_URL http://127.0.0.1:43113     >/dev/null
+  "$ADB" shell am start -W     -a android.intent.action.VIEW     -c android.intent.category.BROWSABLE     -d "$DEEP_LINK_URL"     -p com.apgic.ci     --es APGIC_E2E_COMPATIBILITY_BASE_URL "$COMPATIBILITY_BASE_URL"     --es APGIC_E2E_CONTRACT_VERSION "$COMPATIBILITY_CONTRACT_VERSION"     --es APGIC_E2E_DEEP_LINK_BASE_URL http://127.0.0.1:43113     >/dev/null
 
   for _ in $(seq 1 60); do
     if "$ADB" shell uiautomator dump /sdcard/apgic-deeplink-e2e.xml >/dev/null 2>&1 &&
@@ -416,6 +420,8 @@ assert_notification_runtime() {
   "$ADB" shell am start -W \
     -n com.apgic.ci/.MainActivity \
     --es APGIC_E2E_CAPABILITY_STATE GRANTED \
+    --es APGIC_E2E_COMPATIBILITY_BASE_URL "$COMPATIBILITY_BASE_URL" \
+    --es APGIC_E2E_CONTRACT_VERSION "$COMPATIBILITY_CONTRACT_VERSION" \
     --es APGIC_E2E_NOTIFICATION_BASE_URL http://127.0.0.1:43113 \
     --es APGIC_E2E_NOTIFICATION_SESSION_COOKIE "$SESSION_COOKIE" \
     --es APGIC_E2E_NOTIFICATION_DELIVERY_ID "$delivery_id" \
@@ -448,6 +454,8 @@ assert_offline_mutation_restart() {
   "$ADB" shell am start -W \
     -n com.apgic.ci/.MainActivity \
     --es APGIC_E2E_CAPABILITY_STATE GRANTED \
+    --es APGIC_E2E_COMPATIBILITY_BASE_URL "$COMPATIBILITY_BASE_URL" \
+    --es APGIC_E2E_CONTRACT_VERSION "$COMPATIBILITY_CONTRACT_VERSION" \
     --es APGIC_E2E_OFFLINE_MUTATION_BASE_URL http://127.0.0.1:43113 \
     --es APGIC_E2E_OFFLINE_MUTATION_SESSION_COOKIE "$SESSION_COOKIE" \
     --es APGIC_E2E_OFFLINE_MUTATION_HOLD_ID "$OFFLINE_HOLD_ID" \
@@ -471,6 +479,8 @@ assert_offline_mutation_restart() {
   "$ADB" shell am start -W \
     -n com.apgic.ci/.MainActivity \
     --es APGIC_E2E_CAPABILITY_STATE GRANTED \
+    --es APGIC_E2E_COMPATIBILITY_BASE_URL "$COMPATIBILITY_BASE_URL" \
+    --es APGIC_E2E_CONTRACT_VERSION "$COMPATIBILITY_CONTRACT_VERSION" \
     --es APGIC_E2E_OFFLINE_MUTATION_BASE_URL http://127.0.0.1:43113 \
     --es APGIC_E2E_OFFLINE_MUTATION_SESSION_COOKIE "$SESSION_COOKIE" \
     >/dev/null
@@ -528,7 +538,7 @@ assert_realtime_lifecycle() {
 
   launch_realtime() {
     "$ADB" shell am force-stop com.apgic.ci
-    "$ADB" shell am start -W       -n com.apgic.ci/.MainActivity       --es APGIC_E2E_CAPABILITY_STATE GRANTED       --es APGIC_E2E_REALTIME_EVENTS "$events"       --es APGIC_E2E_REALTIME_CONSULTATION_ID "$consultation_id"       >/dev/null
+    "$ADB" shell am start -W       -n com.apgic.ci/.MainActivity       --es APGIC_E2E_CAPABILITY_STATE GRANTED       --es APGIC_E2E_COMPATIBILITY_BASE_URL "$COMPATIBILITY_BASE_URL"       --es APGIC_E2E_CONTRACT_VERSION "$COMPATIBILITY_CONTRACT_VERSION"       --es APGIC_E2E_REALTIME_EVENTS "$events"       --es APGIC_E2E_REALTIME_CONSULTATION_ID "$consultation_id"       >/dev/null
   }
 
   realtime_ready() {
