@@ -283,25 +283,31 @@ assert_state "UNAVAILABLE" "CAPABILITY_UNAVAILABLE"
 assert_compatibility_policy() {
   local supported_output="$EVIDENCE_DIR/ios-compatibility-supported.json"
   local update_output="$EVIDENCE_DIR/ios-compatibility-update-required.json"
+  local supported_installation_id
+  supported_installation_id="$(python3 -c 'import uuid; print(uuid.uuid4())')"
 
   xcrun simctl terminate "$UDID" com.apgic.ci >/dev/null 2>&1 || true
   SIMCTL_CHILD_APGIC_E2E_CAPABILITY_STATE=GRANTED \
   SIMCTL_CHILD_APGIC_E2E_COMPATIBILITY_BASE_URL=http://127.0.0.1:43113 \
   SIMCTL_CHILD_APGIC_E2E_CONTRACT_VERSION=0.8.0-r2-offline-sync \
+  SIMCTL_CHILD_APGIC_E2E_INSTALLATION_BASE_URL=http://127.0.0.1:43113 \
+  SIMCTL_CHILD_APGIC_E2E_SESSION_COOKIE="$SESSION_COOKIE" \
+  SIMCTL_CHILD_APGIC_E2E_INSTALLATION_ID="$supported_installation_id" \
+  SIMCTL_CHILD_APGIC_E2E_INSTALLATION_PLATFORM=IOS \
     xcrun simctl launch "$UDID" com.apgic.ci >/dev/null
 
   for _ in $(seq 1 60); do
     if "$IDB" ui describe-all --udid "$UDID" --api axbridge --json --nested >"$supported_output" 2>/dev/null &&
-       json_has_ax_label "$supported_output" "compatibility-e2e:PASS" &&
-       json_has_ax_label "$supported_output" "compatibility-status:SUPPORTED" &&
-       json_has_ax_label "$supported_output" "compatibility-reason:CLIENT_VERSION_SUPPORTED" &&
-       json_has_ax_label "$supported_output" "compatibility-policy:mobile013-e2e-v1" &&
-       json_has_ax_label "$supported_output" "compatibility-contract:0.9.0-r0-mobile-compatibility"; then
+       json_has_ax_label "$supported_output" "installation-e2e:PASS" &&
+       json_has_ax_label "$supported_output" "installation-e2e-state:REVOKED" &&
+       json_has_ax_label "$supported_output" "installation-e2e-generation:2" &&
+       ! json_has_ax_label "$supported_output" "compatibility-status:UPDATE_REQUIRED"; then
+      echo "iOS supported previous contract remained operational: PASS"
       break
     fi
     sleep 1
   done
-  json_has_ax_label "$supported_output" "compatibility-status:SUPPORTED" ||
+  json_has_ax_label "$supported_output" "installation-e2e:PASS" ||
     fail "supported previous iOS contract did not remain usable under the updated backend contract"
 
   xcrun simctl terminate "$UDID" com.apgic.ci >/dev/null 2>&1 || true
