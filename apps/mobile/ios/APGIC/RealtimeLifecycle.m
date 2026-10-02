@@ -32,8 +32,11 @@ RCT_REMAP_METHOD(start,
     [center addObserver:self selector:@selector(appForeground:) name:UIApplicationWillEnterForegroundNotification object:nil];
     [center addObserver:self selector:@selector(audioRouteChanged:) name:AVAudioSessionRouteChangeNotification object:nil];
     [center addObserver:self selector:@selector(audioInterrupted:) name:AVAudioSessionInterruptionNotification object:nil];
+    [center addObserver:self selector:@selector(screenLocked:) name:UIApplicationProtectedDataWillBecomeUnavailable object:nil];
+    [center addObserver:self selector:@selector(screenUnlocked:) name:UIApplicationProtectedDataDidBecomeAvailable object:nil];
     [self startNetworkMonitor];
     [self emitMicrophonePermission];
+    [self emit:(UIApplication.sharedApplication.protectedDataAvailable ? @"SCREEN_UNLOCKED" : @"SCREEN_LOCKED") route:nil];
     [self emitAudioRoute];
     resolve(nil);
   });
@@ -54,7 +57,11 @@ RCT_REMAP_METHOD(debugEmit,
                  resolver:(RCTPromiseResolveBlock)resolve
                  rejecter:(RCTPromiseRejectBlock)reject) {
 #if DEBUG
-  [self emit:type route:route];
+  if ([type isEqualToString:@"NETWORK_TRANSPORT_CHANGED"]) {
+    [self emitNetworkTransport:(route ?: @"UNKNOWN")];
+  } else {
+    [self emit:type route:route];
+  }
   resolve(nil);
 #else
   reject(@"REALTIME_DEBUG_DISABLED", @"Debug lifecycle injection is disabled", nil);
@@ -83,6 +90,12 @@ RCT_REMAP_METHOD(debugEmit,
   nw_path_monitor_set_update_handler(self.networkMonitor, ^(nw_path_t path) {
     __strong typeof(weakSelf) self = weakSelf;
     if (!self || !self.started) return;
+    NSString *transport = @"OTHER";
+    if (nw_path_uses_interface_type(path, nw_interface_type_wifi)) transport = @"WIFI";
+    else if (nw_path_uses_interface_type(path, nw_interface_type_cellular)) transport = @"CELLULAR";
+    else if (nw_path_uses_interface_type(path, nw_interface_type_wired)) transport = @"ETHERNET";
+    [self emitNetworkTransport:transport];
+
     nw_path_status_t status = nw_path_get_status(path);
     if (status != nw_path_status_satisfied) {
       [self emit:@"NETWORK_OFFLINE" route:nil];
@@ -102,6 +115,8 @@ RCT_REMAP_METHOD(debugEmit,
   [self emitMicrophonePermission];
 }
 - (void)audioRouteChanged:(NSNotification *)notification { [self emitAudioRoute]; }
+- (void)screenLocked:(NSNotification *)notification { [self emit:@"SCREEN_LOCKED" route:nil]; }
+- (void)screenUnlocked:(NSNotification *)notification { [self emit:@"SCREEN_UNLOCKED" route:nil]; }
 
 - (void)audioInterrupted:(NSNotification *)notification {
   NSNumber *value = notification.userInfo[AVAudioSessionInterruptionTypeKey];
@@ -125,6 +140,16 @@ RCT_REMAP_METHOD(debugEmit,
       [self emit:@"MICROPHONE_PERMISSION_REVOKED" route:nil];
       break;
   }
+}
+
+- (void)emitNetworkTransport:(NSString *)transport {
+  if (!self.started) return;
+  dispatch_async(dispatch_get_main_queue(), ^{
+    if (self.started) {
+      [self sendEventWithName:@"APGICRealtimeLifecycleEvent"
+                         body:@{@"type": @"NETWORK_TRANSPORT_CHANGED", @"transport": transport}];
+    }
+  });
 }
 
 - (void)emitAudioRoute {

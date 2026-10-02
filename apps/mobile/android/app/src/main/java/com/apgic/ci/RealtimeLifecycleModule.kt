@@ -1,8 +1,13 @@
 package com.apgic.ci
 
 import android.Manifest
+import android.app.KeyguardManager
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.os.Build
 import android.media.AudioDeviceCallback
 import android.media.AudioDeviceInfo
 import android.media.AudioManager
@@ -27,6 +32,7 @@ class RealtimeLifecycleModule(
 
   private val connectivity = reactContext.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
   private val audio = reactContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+  private val keyguard = reactContext.getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
   private var started = false
   private var interrupted = false
 
@@ -39,6 +45,15 @@ class RealtimeLifecycleModule(
   private val audioDeviceCallback = object : AudioDeviceCallback() {
     override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>?) = emitAudioRoute()
     override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>?) = emitAudioRoute()
+  }
+
+  private val screenReceiver = object : BroadcastReceiver() {
+    override fun onReceive(context: Context?, intent: Intent?) {
+      when (intent?.action) {
+        Intent.ACTION_SCREEN_OFF -> emit("SCREEN_LOCKED")
+        Intent.ACTION_USER_PRESENT -> emit("SCREEN_UNLOCKED")
+      }
+    }
   }
 
   private val focusListener = AudioManager.OnAudioFocusChangeListener { change ->
@@ -79,9 +94,20 @@ class RealtimeLifecycleModule(
       reactApplicationContext.addLifecycleEventListener(this)
       connectivity.registerDefaultNetworkCallback(networkCallback)
       audio.registerAudioDeviceCallback(audioDeviceCallback, null)
+      val screenFilter = IntentFilter().apply {
+        addAction(Intent.ACTION_SCREEN_OFF)
+        addAction(Intent.ACTION_USER_PRESENT)
+      }
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        reactApplicationContext.registerReceiver(screenReceiver, screenFilter, Context.RECEIVER_NOT_EXPORTED)
+      } else {
+        @Suppress("DEPRECATION")
+        reactApplicationContext.registerReceiver(screenReceiver, screenFilter)
+      }
       @Suppress("DEPRECATION")
       audio.requestAudioFocus(focusListener, AudioManager.STREAM_VOICE_CALL, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
       emitMicrophonePermission()
+      emit(if (keyguard.isKeyguardLocked) "SCREEN_LOCKED" else "SCREEN_UNLOCKED")
       connectivity.activeNetwork?.let(::emitNetwork) ?: emit("NETWORK_OFFLINE")
       emitAudioRoute()
       promise.resolve(null)
@@ -98,15 +124,15 @@ class RealtimeLifecycleModule(
   }
 
   @ReactMethod
-  fun debugEmit(type: String, route: String?, promise: Promise) {
+  fun debugEmit(type: String, detail: String?, promise: Promise) {
     if (!BuildConfig.DEBUG) {
       promise.reject("REALTIME_DEBUG_DISABLED", "Debug lifecycle injection is disabled")
       return
     }
-    if (type == "AUDIO_ROUTE_CHANGED") {
-      emit(type, route ?: "UNKNOWN")
-    } else {
-      emit(type)
+    when (type) {
+      "AUDIO_ROUTE_CHANGED" -> emit(type, route = detail ?: "UNKNOWN")
+      "NETWORK_TRANSPORT_CHANGED" -> emit(type, transport = detail ?: "UNKNOWN")
+      else -> emit(type)
     }
     promise.resolve(null)
   }
@@ -132,6 +158,7 @@ class RealtimeLifecycleModule(
     started = false
     reactApplicationContext.removeLifecycleEventListener(this)
     runCatching { connectivity.unregisterNetworkCallback(networkCallback) }
+    runCatching { reactApplicationContext.unregisterReceiver(screenReceiver) }
     audio.unregisterAudioDeviceCallback(audioDeviceCallback)
     @Suppress("DEPRECATION")
     audio.abandonAudioFocus(focusListener)
@@ -143,6 +170,13 @@ class RealtimeLifecycleModule(
   }
 
   private fun emitNetwork(capabilities: NetworkCapabilities) {
+    val transport = when {
+      capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> "WIFI"
+      capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> "CELLULAR"
+      capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> "ETHERNET"
+      else -> "OTHER"
+    }
+    emit("NETWORK_TRANSPORT_CHANGED", transport = transport)
     when {
       !capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) -> emit("NETWORK_OFFLINE")
       capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) -> emit("NETWORK_ONLINE")
@@ -163,11 +197,12 @@ class RealtimeLifecycleModule(
     emit("AUDIO_ROUTE_CHANGED", route)
   }
 
-  private fun emit(type: String, route: String? = null) {
+  private fun emit(type: String, route: String? = null, transport: String? = null) {
     if (!started && !BuildConfig.DEBUG) return
     val payload = Arguments.createMap().apply {
       putString("type", type)
       route?.let { putString("route", it) }
+      transport?.let { putString("transport", it) }
     }
     reactApplicationContext
       .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)

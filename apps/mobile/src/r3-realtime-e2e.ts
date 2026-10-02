@@ -16,16 +16,28 @@ export interface NativeRealtimeE2EResult {
   audioRoute: NativeRealtimeSnapshotV1["audio_route"];
   appState: NativeRealtimeSnapshotV1["app_state"];
   networkState: NativeRealtimeSnapshotV1["network_state"];
+  networkTransport: NativeRealtimeSnapshotV1["network_transport"];
+  screenState: NativeRealtimeSnapshotV1["screen_state"];
+  joinAuthState: NativeRealtimeSnapshotV1["join_auth_state"];
+  consultationId: string;
 }
 
 const e2ePolicy: NativeRealtimePolicy = {
   policyVersion: "mobile-realtime-r3-ci-v1",
   maxReconnectAttempts: 2,
   allowBackgroundReconnect: false,
+  allowScreenLockedReconnect: false,
 };
 
 export function parseRealtimeE2EEvents(value: string): NativeRealtimeEvent[] {
   return value.split(",").filter(Boolean).map((token) => {
+    if (token.startsWith("NETWORK_TRANSPORT_CHANGED:")) {
+      const transport = token.slice("NETWORK_TRANSPORT_CHANGED:".length);
+      if (!["WIFI", "CELLULAR", "ETHERNET", "OTHER", "UNKNOWN"].includes(transport)) {
+        throw new Error("REALTIME_E2E_NETWORK_TRANSPORT_INVALID");
+      }
+      return {type: "NETWORK_TRANSPORT_CHANGED", transport} as NativeRealtimeEvent;
+    }
     if (token.startsWith("AUDIO_ROUTE_CHANGED:")) {
       const route = token.slice("AUDIO_ROUTE_CHANGED:".length);
       if (!["SPEAKER", "EARPIECE", "BLUETOOTH", "WIRED", "UNKNOWN"].includes(route)) {
@@ -40,10 +52,13 @@ export function parseRealtimeE2EEvents(value: string): NativeRealtimeEvent[] {
       "NETWORK_ONLINE",
       "APP_BACKGROUND",
       "APP_FOREGROUND",
+      "SCREEN_LOCKED",
+      "SCREEN_UNLOCKED",
       "INTERRUPTION_BEGAN",
       "INTERRUPTION_ENDED",
       "MICROPHONE_PERMISSION_REVOKED",
       "MICROPHONE_PERMISSION_GRANTED",
+      "JOIN_AUTH_EXPIRED",
     ].includes(token)) {
       return {type: token} as NativeRealtimeEvent;
     }
@@ -51,16 +66,19 @@ export function parseRealtimeE2EEvents(value: string): NativeRealtimeEvent[] {
   });
 }
 
-function initialSnapshot(): NativeRealtimeSnapshotV1 {
+function initialSnapshot(consultationId: string): NativeRealtimeSnapshotV1 {
   return {
     contract_version: "native-realtime-v1",
-    consultation_id: "consultation-native-e2e",
+    consultation_id: consultationId,
     phase: "IDLE",
     app_state: "FOREGROUND",
     network_state: "ONLINE",
+    network_transport: "WIFI",
     microphone_permission: "GRANTED",
     audio_route: "SPEAKER",
     interruption: "NONE",
+    screen_state: "UNLOCKED",
+    join_auth_state: "VALID",
     reconnect_attempt: 0,
   };
 }
@@ -82,6 +100,10 @@ function provider(reconnectFailures: number, actions: string[]): CommunicationPr
     },
     async pauseMedia() { actions.push("PAUSE_MEDIA"); },
     async refreshAudioRoute() { actions.push("REFRESH_AUDIO_ROUTE"); },
+    async refreshJoinAuth() {
+      actions.push("REFRESH_JOIN_AUTH");
+      return "native-e2e-provider-auth-refreshed";
+    },
     async requestMicrophonePermission() { actions.push("REQUEST_PERMISSION"); },
     async reportTechnicalFailure(reasonCode) { actions.push(`REPORT_TECHNICAL_FAILURE:${reasonCode}`); },
   };
@@ -98,6 +120,7 @@ async function waitForReduction(count: () => number, previous: number): Promise<
 export async function runNativeRealtimeE2E(
   eventScript: string,
   reconnectFailures = 0,
+  consultationId = "consultation-native-e2e",
 ): Promise<NativeRealtimeE2EResult> {
   const events = parseRealtimeE2EEvents(eventScript);
   const lifecycle = new NativeRealtimeLifecycle();
@@ -105,7 +128,7 @@ export async function runNativeRealtimeE2E(
   const transitions: string[] = [];
   let reductions = 0;
   const controller = new NativeRealtimeController(
-    initialSnapshot(),
+    initialSnapshot(consultationId),
     e2ePolicy,
     provider(reconnectFailures, actions),
     lifecycle,
@@ -133,6 +156,10 @@ export async function runNativeRealtimeE2E(
       audioRoute: snapshot.audio_route,
       appState: snapshot.app_state,
       networkState: snapshot.network_state,
+      networkTransport: snapshot.network_transport,
+      screenState: snapshot.screen_state,
+      joinAuthState: snapshot.join_auth_state,
+      consultationId: snapshot.consultation_id,
     };
   } finally {
     await controller.stop();

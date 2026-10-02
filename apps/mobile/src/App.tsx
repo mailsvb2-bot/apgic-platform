@@ -46,6 +46,7 @@ type AppProps = {
   offlineMutationE2EMethodCode?: string;
   realtimeE2EEvents?: string;
   realtimeE2EReconnectFailures?: string;
+  realtimeE2EConsultationID?: string;
 };
 
 const fallbackCopy = {
@@ -82,6 +83,7 @@ export default function App({
   offlineMutationE2EMethodCode,
   realtimeE2EEvents,
   realtimeE2EReconnectFailures,
+  realtimeE2EConsultationID,
 }: AppProps) {
   const decision = decideCapability(deviceCapabilityState);
   const [installationE2E, setInstallationE2E] = useState<
@@ -300,6 +302,7 @@ export default function App({
     void runNativeRealtimeE2E(
       realtimeE2EEvents,
       Number.isFinite(reconnectFailures) && reconnectFailures >= 0 ? reconnectFailures : 0,
+      realtimeE2EConsultationID || "consultation-native-e2e",
     ).then(
       (result) => {
         if (active) setRealtimeE2E({status: "PASS", ...result});
@@ -316,7 +319,7 @@ export default function App({
     return () => {
       active = false;
     };
-  }, [realtimeE2EEvents, realtimeE2EReconnectFailures]);
+  }, [realtimeE2EEvents, realtimeE2EReconnectFailures, realtimeE2EConsultationID]);
 
   useEffect(() => {
     if (
@@ -481,11 +484,16 @@ export default function App({
                 <Text accessibilityLabel={`realtime-audio-route:${realtimeE2E.audioRoute}`}>Audio route: {realtimeE2E.audioRoute}</Text>
                 <Text accessibilityLabel={`realtime-app-state:${realtimeE2E.appState}`}>App state: {realtimeE2E.appState}</Text>
                 <Text accessibilityLabel={`realtime-network-state:${realtimeE2E.networkState}`}>Network: {realtimeE2E.networkState}</Text>
+                <Text accessibilityLabel={`realtime-network-transport:${realtimeE2E.networkTransport}`}>Transport: {realtimeE2E.networkTransport}</Text>
+                <Text accessibilityLabel={`realtime-screen-state:${realtimeE2E.screenState}`}>Screen: {realtimeE2E.screenState}</Text>
+                <Text accessibilityLabel={`realtime-join-auth-state:${realtimeE2E.joinAuthState}`}>Join auth: {realtimeE2E.joinAuthState}</Text>
+                <Text accessibilityLabel={`realtime-consultation-id:${realtimeE2E.consultationId}`}>Consultation: {realtimeE2E.consultationId}</Text>
                 <Text accessibilityLabel={`realtime-provider-actions:${realtimeE2E.providerActions.join("|")}`}>Provider actions recorded.</Text>
                 <Text accessibilityLabel={`realtime-action-connect:${realtimeE2E.providerActions.includes("CONNECT_PROVIDER")}`}>Connect action observed.</Text>
                 <Text accessibilityLabel={`realtime-action-reconnect:${realtimeE2E.providerActions.includes("RECONNECT_PROVIDER")}`}>Reconnect action observed.</Text>
                 <Text accessibilityLabel={`realtime-action-pause:${realtimeE2E.providerActions.includes("PAUSE_MEDIA")}`}>Pause action observed.</Text>
                 <Text accessibilityLabel={`realtime-action-route:${realtimeE2E.providerActions.includes("REFRESH_AUDIO_ROUTE")}`}>Audio-route action observed.</Text>
+                <Text accessibilityLabel={`realtime-action-auth:${realtimeE2E.providerActions.includes("REFRESH_JOIN_AUTH")}`}>Join-auth refresh observed.</Text>
               </>
             ) : null}
             {realtimeE2E.status === "FAIL" ? (
