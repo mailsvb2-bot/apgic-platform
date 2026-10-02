@@ -466,13 +466,15 @@ PY
 
 assert_realtime_lifecycle() {
   local output="$EVIDENCE_DIR/ios-realtime-e2e.json"
-  local events="MICROPHONE_PERMISSION_REVOKED,NETWORK_OFFLINE,NETWORK_ONLINE,MICROPHONE_PERMISSION_GRANTED,APP_BACKGROUND,APP_FOREGROUND,AUDIO_ROUTE_CHANGED:BLUETOOTH,INTERRUPTION_BEGAN,NETWORK_ONLINE,INTERRUPTION_ENDED"
+  local consultation_id="mobile009-ios-rejoin"
+  local events="MICROPHONE_PERMISSION_REVOKED,NETWORK_OFFLINE,NETWORK_ONLINE,MICROPHONE_PERMISSION_GRANTED,NETWORK_TRANSPORT_CHANGED:CELLULAR,SCREEN_LOCKED,SCREEN_UNLOCKED,JOIN_AUTH_EXPIRED,APP_BACKGROUND,APP_FOREGROUND,AUDIO_ROUTE_CHANGED:BLUETOOTH,INTERRUPTION_BEGAN,NETWORK_ONLINE,INTERRUPTION_ENDED"
 
   xcrun simctl privacy "$UDID" grant microphone com.apgic.ci >/dev/null ||
     fail "failed to grant iOS microphone permission for realtime E2E"
   xcrun simctl terminate "$UDID" com.apgic.ci >/dev/null 2>&1 || true
   SIMCTL_CHILD_APGIC_E2E_CAPABILITY_STATE=GRANTED \
   SIMCTL_CHILD_APGIC_E2E_REALTIME_EVENTS="$events" \
+  SIMCTL_CHILD_APGIC_E2E_REALTIME_CONSULTATION_ID="$consultation_id" \
     xcrun simctl launch "$UDID" com.apgic.ci >/dev/null
 
   for _ in $(seq 1 60); do
@@ -483,10 +485,15 @@ assert_realtime_lifecycle() {
        json_has_ax_label "$output" "realtime-audio-route:BLUETOOTH" &&
        json_has_ax_label "$output" "realtime-app-state:FOREGROUND" &&
        json_has_ax_label "$output" "realtime-network-state:ONLINE" &&
+       json_has_ax_label "$output" "realtime-network-transport:CELLULAR" &&
+       json_has_ax_label "$output" "realtime-screen-state:UNLOCKED" &&
+       json_has_ax_label "$output" "realtime-join-auth-state:VALID" &&
+       json_has_ax_label "$output" "realtime-consultation-id:${consultation_id}" &&
        json_has_ax_label "$output" "realtime-action-connect:true" &&
        json_has_ax_label "$output" "realtime-action-reconnect:true" &&
        json_has_ax_label "$output" "realtime-action-pause:true" &&
-       json_has_ax_label "$output" "realtime-action-route:true"; then
+       json_has_ax_label "$output" "realtime-action-route:true" &&
+       json_has_ax_label "$output" "realtime-action-auth:true"; then
       echo "iOS installed-app native realtime lifecycle/reconnect: PASS"
       return 0
     fi
