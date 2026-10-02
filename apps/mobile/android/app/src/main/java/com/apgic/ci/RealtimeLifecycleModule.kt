@@ -81,6 +81,7 @@ class RealtimeLifecycleModule(
       audio.registerAudioDeviceCallback(audioDeviceCallback, null)
       @Suppress("DEPRECATION")
       audio.requestAudioFocus(focusListener, AudioManager.STREAM_VOICE_CALL, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
+      emitMicrophonePermission()
       connectivity.activeNetwork?.let(::emitNetwork) ?: emit("NETWORK_OFFLINE")
       emitAudioRoute()
       promise.resolve(null)
@@ -112,13 +113,19 @@ class RealtimeLifecycleModule(
 
   override fun onHostResume() {
     emit("APP_FOREGROUND")
-    if (reactApplicationContext.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-      emit("MICROPHONE_PERMISSION_REVOKED")
-    }
+    emitMicrophonePermission()
   }
 
   override fun onHostPause() = emit("APP_BACKGROUND")
   override fun onHostDestroy() = stopNative()
+
+  private fun emitMicrophonePermission() {
+    if (reactApplicationContext.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+      emit("MICROPHONE_PERMISSION_GRANTED")
+    } else {
+      emit("MICROPHONE_PERMISSION_REVOKED")
+    }
+  }
 
   private fun stopNative() {
     if (!started) return

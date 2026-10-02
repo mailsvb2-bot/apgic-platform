@@ -33,6 +33,7 @@ RCT_REMAP_METHOD(start,
     [center addObserver:self selector:@selector(audioRouteChanged:) name:AVAudioSessionRouteChangeNotification object:nil];
     [center addObserver:self selector:@selector(audioInterrupted:) name:AVAudioSessionInterruptionNotification object:nil];
     [self startNetworkMonitor];
+    [self emitMicrophonePermission];
     [self emitAudioRoute];
     resolve(nil);
   });
@@ -96,7 +97,10 @@ RCT_REMAP_METHOD(debugEmit,
 }
 
 - (void)appBackground:(NSNotification *)notification { [self emit:@"APP_BACKGROUND" route:nil]; }
-- (void)appForeground:(NSNotification *)notification { [self emit:@"APP_FOREGROUND" route:nil]; }
+- (void)appForeground:(NSNotification *)notification {
+  [self emit:@"APP_FOREGROUND" route:nil];
+  [self emitMicrophonePermission];
+}
 - (void)audioRouteChanged:(NSNotification *)notification { [self emitAudioRoute]; }
 
 - (void)audioInterrupted:(NSNotification *)notification {
@@ -107,6 +111,19 @@ RCT_REMAP_METHOD(debugEmit,
   } else if (self.interrupted) {
     self.interrupted = NO;
     [self emit:@"INTERRUPTION_ENDED" route:nil];
+  }
+}
+
+- (void)emitMicrophonePermission {
+  switch (AVAudioSession.sharedInstance.recordPermission) {
+    case AVAudioSessionRecordPermissionGranted:
+      [self emit:@"MICROPHONE_PERMISSION_GRANTED" route:nil];
+      break;
+    case AVAudioSessionRecordPermissionDenied:
+    case AVAudioSessionRecordPermissionUndetermined:
+    default:
+      [self emit:@"MICROPHONE_PERMISSION_REVOKED" route:nil];
+      break;
   }
 }
 

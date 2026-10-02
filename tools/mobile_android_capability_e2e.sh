@@ -466,8 +466,10 @@ PY
 
 assert_realtime_lifecycle() {
   local output="$EVIDENCE_DIR/android-realtime-e2e.xml"
-  local events="NETWORK_OFFLINE,NETWORK_ONLINE,APP_BACKGROUND,APP_FOREGROUND,AUDIO_ROUTE_CHANGED:BLUETOOTH,INTERRUPTION_BEGAN,INTERRUPTION_ENDED"
+  local events="MICROPHONE_PERMISSION_REVOKED,NETWORK_OFFLINE,NETWORK_ONLINE,MICROPHONE_PERMISSION_GRANTED,APP_BACKGROUND,APP_FOREGROUND,AUDIO_ROUTE_CHANGED:BLUETOOTH,INTERRUPTION_BEGAN,NETWORK_ONLINE,INTERRUPTION_ENDED"
 
+  "$ADB" shell pm grant com.apgic.ci android.permission.RECORD_AUDIO >/dev/null ||
+    fail "failed to grant Android microphone permission for realtime E2E"
   "$ADB" shell am force-stop com.apgic.ci
   "$ADB" shell am start -W \
     -n com.apgic.ci/.MainActivity \
