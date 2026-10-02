@@ -285,7 +285,7 @@ assert_compatibility_policy() {
   SIMCTL_CHILD_APGIC_E2E_CAPABILITY_STATE=GRANTED \
   SIMCTL_CHILD_APGIC_E2E_COMPATIBILITY_BASE_URL=http://127.0.0.1:43113 \
   SIMCTL_CHILD_APGIC_E2E_APP_VERSION=1.5.0 \
-  SIMCTL_CHILD_APGIC_E2E_CONTRACT_VERSION=contract-v1 \
+  SIMCTL_CHILD_APGIC_E2E_CONTRACT_VERSION=0.8.0-r2-offline-sync \
     xcrun simctl launch "$UDID" com.apgic.ci >/dev/null
 
   for _ in $(seq 1 60); do
@@ -294,7 +294,7 @@ assert_compatibility_policy() {
        json_has_ax_label "$supported_output" "compatibility-status:DEPRECATED_BUT_SUPPORTED" &&
        json_has_ax_label "$supported_output" "compatibility-reason:CLIENT_VERSION_DEPRECATED" &&
        json_has_ax_label "$supported_output" "compatibility-policy:mobile013-e2e-v1" &&
-       json_has_ax_label "$supported_output" "compatibility-contract:contract-v2"; then
+       json_has_ax_label "$supported_output" "compatibility-contract:0.9.0-r0-mobile-compatibility"; then
       break
     fi
     sleep 1
@@ -306,7 +306,7 @@ assert_compatibility_policy() {
   SIMCTL_CHILD_APGIC_E2E_CAPABILITY_STATE=GRANTED \
   SIMCTL_CHILD_APGIC_E2E_COMPATIBILITY_BASE_URL=http://127.0.0.1:43113 \
   SIMCTL_CHILD_APGIC_E2E_APP_VERSION=1.6.0 \
-  SIMCTL_CHILD_APGIC_E2E_CONTRACT_VERSION=contract-v0 \
+  SIMCTL_CHILD_APGIC_E2E_CONTRACT_VERSION=0.7.0-unsupported \
     xcrun simctl launch "$UDID" com.apgic.ci >/dev/null
 
   for _ in $(seq 1 60); do
