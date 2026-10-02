@@ -466,45 +466,64 @@ PY
 
 assert_realtime_lifecycle() {
   local output="$EVIDENCE_DIR/android-realtime-e2e.xml"
+  local rejoin_output="$EVIDENCE_DIR/android-realtime-rejoin.xml"
   local consultation_id="mobile009-android-rejoin"
   local events="MICROPHONE_PERMISSION_REVOKED,NETWORK_OFFLINE,NETWORK_ONLINE,MICROPHONE_PERMISSION_GRANTED,NETWORK_TRANSPORT_CHANGED:CELLULAR,SCREEN_LOCKED,SCREEN_UNLOCKED,JOIN_AUTH_EXPIRED,APP_BACKGROUND,APP_FOREGROUND,AUDIO_ROUTE_CHANGED:BLUETOOTH,INTERRUPTION_BEGAN,NETWORK_ONLINE,INTERRUPTION_ENDED"
 
   "$ADB" shell pm grant com.apgic.ci android.permission.RECORD_AUDIO >/dev/null ||
     fail "failed to grant Android microphone permission for realtime E2E"
-  "$ADB" shell am force-stop com.apgic.ci
-  "$ADB" shell am start -W \
-    -n com.apgic.ci/.MainActivity \
-    --es APGIC_E2E_CAPABILITY_STATE GRANTED \
-    --es APGIC_E2E_REALTIME_EVENTS "$events" \
-    --es APGIC_E2E_REALTIME_CONSULTATION_ID "$consultation_id" \
-    >/dev/null
 
+  launch_realtime() {
+    "$ADB" shell am force-stop com.apgic.ci
+    "$ADB" shell am start -W       -n com.apgic.ci/.MainActivity       --es APGIC_E2E_CAPABILITY_STATE GRANTED       --es APGIC_E2E_REALTIME_EVENTS "$events"       --es APGIC_E2E_REALTIME_CONSULTATION_ID "$consultation_id"       >/dev/null
+  }
+
+  realtime_ready() {
+    local target="$1"
+    "$ADB" shell uiautomator dump /sdcard/apgic-realtime-e2e.xml >/dev/null 2>&1 &&
+      "$ADB" pull /sdcard/apgic-realtime-e2e.xml "$target" >/dev/null 2>&1 &&
+      grep -q 'realtime-e2e:PASS' "$target" &&
+      grep -q 'realtime-phase:CONNECTED' "$target" &&
+      grep -q 'realtime-business-transition:NONE' "$target" &&
+      grep -q 'realtime-audio-route:BLUETOOTH' "$target" &&
+      grep -q 'realtime-app-state:FOREGROUND' "$target" &&
+      grep -q 'realtime-network-state:ONLINE' "$target" &&
+      grep -q 'realtime-network-transport:CELLULAR' "$target" &&
+      grep -q 'realtime-screen-state:UNLOCKED' "$target" &&
+      grep -q 'realtime-join-auth-state:VALID' "$target" &&
+      grep -q "realtime-consultation-id:${consultation_id}" "$target" &&
+      grep -q 'realtime-action-connect:true' "$target" &&
+      grep -q 'realtime-action-reconnect:true' "$target" &&
+      grep -q 'realtime-action-pause:true' "$target" &&
+      grep -q 'realtime-action-route:true' "$target" &&
+      grep -q 'realtime-action-auth:true' "$target"
+  }
+
+  launch_realtime
+  local first_pass=false
   for _ in $(seq 1 60); do
-    if "$ADB" shell uiautomator dump /sdcard/apgic-realtime-e2e.xml >/dev/null 2>&1 &&
-       "$ADB" pull /sdcard/apgic-realtime-e2e.xml "$output" >/dev/null 2>&1 &&
-       grep -q 'realtime-e2e:PASS' "$output" &&
-       grep -q 'realtime-phase:CONNECTED' "$output" &&
-       grep -q 'realtime-business-transition:NONE' "$output" &&
-       grep -q 'realtime-audio-route:BLUETOOTH' "$output" &&
-       grep -q 'realtime-app-state:FOREGROUND' "$output" &&
-       grep -q 'realtime-network-state:ONLINE' "$output" &&
-       grep -q 'realtime-network-transport:CELLULAR' "$output" &&
-       grep -q 'realtime-screen-state:UNLOCKED' "$output" &&
-       grep -q 'realtime-join-auth-state:VALID' "$output" &&
-       grep -q "realtime-consultation-id:${consultation_id}" "$output" &&
-       grep -q 'realtime-action-connect:true' "$output" &&
-       grep -q 'realtime-action-reconnect:true' "$output" &&
-       grep -q 'realtime-action-pause:true' "$output" &&
-       grep -q 'realtime-action-route:true' "$output" &&
-       grep -q 'realtime-action-auth:true' "$output"; then
-      echo "Android installed-app native realtime lifecycle/reconnect: PASS"
+    if realtime_ready "$output"; then
+      first_pass=true
+      break
+    fi
+    sleep 1
+  done
+  if [[ "$first_pass" != "true" ]]; then
+    [[ -f "$output" ]] && cat "$output" >&2 || true
+    fail "installed Android app did not complete native realtime lifecycle proof"
+  fi
+
+  launch_realtime
+  for _ in $(seq 1 60); do
+    if realtime_ready "$rejoin_output"; then
+      echo "Android installed-app native realtime lifecycle + restart/rejoin: PASS"
       return 0
     fi
     sleep 1
   done
 
-  [[ -f "$output" ]] && cat "$output" >&2 || true
-  fail "installed Android app did not complete native realtime lifecycle/reconnect proof"
+  [[ -f "$rejoin_output" ]] && cat "$rejoin_output" >&2 || true
+  fail "installed Android app did not rejoin the same canonical consultation after process restart"
 }
 
 assert_installation_lifecycle
