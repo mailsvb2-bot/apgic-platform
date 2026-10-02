@@ -293,16 +293,16 @@ assert_compatibility_policy() {
   for _ in $(seq 1 60); do
     if "$IDB" ui describe-all --udid "$UDID" --api axbridge --json --nested >"$supported_output" 2>/dev/null &&
        json_has_ax_label "$supported_output" "compatibility-e2e:PASS" &&
-       json_has_ax_label "$supported_output" "compatibility-status:DEPRECATED_BUT_SUPPORTED" &&
-       json_has_ax_label "$supported_output" "compatibility-reason:CLIENT_VERSION_DEPRECATED" &&
+       json_has_ax_label "$supported_output" "compatibility-status:SUPPORTED" &&
+       json_has_ax_label "$supported_output" "compatibility-reason:CLIENT_VERSION_SUPPORTED" &&
        json_has_ax_label "$supported_output" "compatibility-policy:mobile013-e2e-v1" &&
        json_has_ax_label "$supported_output" "compatibility-contract:0.9.0-r0-mobile-compatibility"; then
       break
     fi
     sleep 1
   done
-  json_has_ax_label "$supported_output" "compatibility-status:DEPRECATED_BUT_SUPPORTED" ||
-    fail "supported previous iOS client did not remain usable under the updated backend contract"
+  json_has_ax_label "$supported_output" "compatibility-status:SUPPORTED" ||
+    fail "supported previous iOS contract did not remain usable under the updated backend contract"
 
   xcrun simctl terminate "$UDID" com.apgic.ci >/dev/null 2>&1 || true
   SIMCTL_CHILD_APGIC_E2E_CAPABILITY_STATE=GRANTED \
