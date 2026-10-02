@@ -17,6 +17,10 @@ Canon section 322 defines `AppVersion`, `BuildNumber`, `min_supported_version`, 
 - `apps/mobile/src/App.tsx` blocks critical runtime effects on `UPDATE_REQUIRED` or compatibility-check failure and shows governed update UX for incompatible clients.
 - `backend/cmd/api/main.go` requires a complete versioned compatibility policy in staging/production.
 
+## Surface applicability
+
+`APGIC-MOBILE-013` is an installed native-app compatibility requirement from Canon section 322. WEB has no native `AppVersion/BuildNumber` lifecycle under this requirement, so `canon/evidence/compatibility-exceptions.yaml` records approved exception `APGIC-MOBILE-013-WEB-NOT-APPLICABLE`. This avoids fabricating irrelevant WEB evidence while iOS and Android remain fully evidenced.
+
 ## Automated evidence
 
 Candidate CI run: `37044947386` (run #1984) — SUCCESS.
