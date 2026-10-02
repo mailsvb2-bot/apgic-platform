@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: APGIC Public API
-  version: 0.8.0-r2-offline-sync
+  version: 0.9.0-r0-mobile-compatibility
 servers: []
 paths:
   /healthz:
@@ -32,6 +32,48 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Meta'
+  /v1/mobile/compatibility:
+    get:
+      operationId: getMobileCompatibility
+      description: Evaluates the installed iOS/Android app version and client contract against the governed compatibility window. This endpoint never mutates business data.
+      parameters:
+        - name: platform
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [IOS, ANDROID]
+        - name: app_version
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 5
+        - name: contract_version
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+      responses:
+        '200':
+          description: Governed compatibility decision for the installed client.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientCompatibilityDecision'
+        '400':
+          description: Client platform, app version, or contract version is invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '503':
+          description: Compatibility policy is unavailable or invalid and the client must fail closed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /v1/mobile/installations:
     get:
       operationId: listMobileInstallations
@@ -1272,6 +1314,27 @@ components:
           items: { $ref: '#/components/schemas/Surface' }
         commit_sha: { type: string }
         time: { type: string, format: date-time }
+    ClientCompatibilityDecision:
+      type: object
+      additionalProperties: false
+      required: [status, reason_code, policy_version, contract_version]
+      properties:
+        status:
+          type: string
+          enum: [SUPPORTED, DEPRECATED_BUT_SUPPORTED, UPDATE_REQUIRED]
+        reason_code:
+          type: string
+          enum:
+            - CLIENT_VERSION_SUPPORTED
+            - CLIENT_VERSION_DEPRECATED
+            - CLIENT_VERSION_BELOW_MINIMUM
+            - CLIENT_CONTRACT_UNSUPPORTED
+        policy_version: { type: string, minLength: 1 }
+        contract_version: { type: string, minLength: 1 }
+        update_reason:
+          type: string
+          enum: [SECURITY_CRITICAL, LEGAL_CRITICAL, INCOMPATIBLE_CRITICAL]
+        update_url: { type: string, format: uri }
     ClientInstallation:
       type: object
       additionalProperties: false
