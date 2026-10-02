@@ -49,6 +49,12 @@ paths:
           schema:
             type: string
             minLength: 5
+        - name: build_number
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 1
         - name: contract_version
           in: query
           required: true
@@ -1328,6 +1334,7 @@ components:
             - CLIENT_VERSION_SUPPORTED
             - CLIENT_VERSION_DEPRECATED
             - CLIENT_VERSION_BELOW_MINIMUM
+            - CLIENT_BUILD_BELOW_MINIMUM
             - CLIENT_CONTRACT_UNSUPPORTED
         policy_version: { type: string, minLength: 1 }
         contract_version: { type: string, minLength: 1 }

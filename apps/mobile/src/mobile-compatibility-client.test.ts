@@ -64,11 +64,13 @@ test("fetches canonical compatibility decision with encoded client identity", as
       baseURL: "https://apgic.ru/",
       platform: "IOS",
       appVersion: "1.6.0",
+      buildNumber: "1",
       contractVersion: "contract-v1",
     });
     assert.equal(decision.status, "SUPPORTED");
     assert.match(requestedURL, /platform=IOS/);
     assert.match(requestedURL, /app_version=1.6.0/);
+    assert.match(requestedURL, /build_number=1/);
     assert.match(requestedURL, /contract_version=contract-v1/);
   } finally {
     globalThis.fetch = originalFetch;

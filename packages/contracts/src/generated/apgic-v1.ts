@@ -101,7 +101,7 @@ export interface CheckoutOptionList {
 export interface ClientCompatibilityDecision {
   contract_version: string;
   policy_version: string;
-  reason_code: "CLIENT_VERSION_SUPPORTED" | "CLIENT_VERSION_DEPRECATED" | "CLIENT_VERSION_BELOW_MINIMUM" | "CLIENT_CONTRACT_UNSUPPORTED";
+  reason_code: "CLIENT_VERSION_SUPPORTED" | "CLIENT_VERSION_DEPRECATED" | "CLIENT_VERSION_BELOW_MINIMUM" | "CLIENT_BUILD_BELOW_MINIMUM" | "CLIENT_CONTRACT_UNSUPPORTED";
   status: "SUPPORTED" | "DEPRECATED_BUT_SUPPORTED" | "UPDATE_REQUIRED";
   update_reason?: "SECURITY_CRITICAL" | "LEGAL_CRITICAL" | "INCOMPATIBLE_CRITICAL";
   update_url?: string;

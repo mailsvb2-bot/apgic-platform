@@ -26,6 +26,7 @@
             "CLIENT_VERSION_SUPPORTED",
             "CLIENT_VERSION_DEPRECATED",
             "CLIENT_VERSION_BELOW_MINIMUM",
+            "CLIENT_BUILD_BELOW_MINIMUM",
             "CLIENT_CONTRACT_UNSUPPORTED"
           ]
         },

@@ -5,6 +5,7 @@ export type CompatibilityRequest = {
   baseURL: string;
   platform: MobilePlatform;
   appVersion: string;
+  buildNumber: string;
   contractVersion: string;
 };
 
@@ -17,6 +18,7 @@ const reasons = new Set([
   "CLIENT_VERSION_SUPPORTED",
   "CLIENT_VERSION_DEPRECATED",
   "CLIENT_VERSION_BELOW_MINIMUM",
+  "CLIENT_BUILD_BELOW_MINIMUM",
   "CLIENT_CONTRACT_UNSUPPORTED",
 ]);
 const updateReasons = new Set([
@@ -32,6 +34,7 @@ export async function fetchClientCompatibility(
   const query = [
     ["platform", input.platform],
     ["app_version", input.appVersion],
+    ["build_number", input.buildNumber],
     ["contract_version", input.contractVersion],
   ]
     .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)

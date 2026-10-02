@@ -62,6 +62,7 @@ type AppProps = {
   compatibilityBaseURL?: string;
   compatibilityPlatform?: MobilePlatform;
   appVersion?: string;
+  buildNumber?: string;
   compatibilityContractVersion?: string;
 };
 
@@ -103,6 +104,7 @@ export default function App({
   compatibilityBaseURL = canonicalAPGICOrigin,
   compatibilityPlatform,
   appVersion,
+  buildNumber,
   compatibilityContractVersion = apiContractVersion,
 }: AppProps) {
   const decision = decideCapability(deviceCapabilityState);
@@ -181,7 +183,7 @@ export default function App({
   );
 
   useEffect(() => {
-    if (!compatibilityBaseURL || !compatibilityPlatform || !appVersion) {
+    if (!compatibilityBaseURL || !compatibilityPlatform || !appVersion || !buildNumber) {
       return;
     }
     let active = true;
@@ -190,6 +192,7 @@ export default function App({
       baseURL: compatibilityBaseURL,
       platform: compatibilityPlatform,
       appVersion,
+      buildNumber,
       contractVersion: compatibilityContractVersion,
     }).then(
       (decision) => {
@@ -216,6 +219,7 @@ export default function App({
     compatibilityBaseURL,
     compatibilityPlatform,
     appVersion,
+    buildNumber,
     compatibilityContractVersion,
   ]);
 
