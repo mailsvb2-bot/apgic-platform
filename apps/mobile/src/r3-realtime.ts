@@ -1,5 +1,6 @@
 import type {
   AudioRoute,
+  NetworkTransport,
   NativeRealtimeReductionV1,
   NativeRealtimeSnapshotV1,
 } from "../../../packages/contracts/src/r3-mobile-realtime";
@@ -8,6 +9,7 @@ export interface NativeRealtimePolicy {
   policyVersion: string;
   maxReconnectAttempts: number;
   allowBackgroundReconnect: boolean;
+  allowScreenLockedReconnect: boolean;
 }
 
 export type NativeRealtimeEvent =
@@ -17,13 +19,18 @@ export type NativeRealtimeEvent =
   | { type: "NETWORK_OFFLINE" }
   | { type: "NETWORK_DEGRADED" }
   | { type: "NETWORK_ONLINE" }
+  | { type: "NETWORK_TRANSPORT_CHANGED"; transport: NetworkTransport }
   | { type: "APP_BACKGROUND" }
   | { type: "APP_FOREGROUND" }
+  | { type: "SCREEN_LOCKED" }
+  | { type: "SCREEN_UNLOCKED" }
   | { type: "AUDIO_ROUTE_CHANGED"; route: AudioRoute }
   | { type: "INTERRUPTION_BEGAN" }
   | { type: "INTERRUPTION_ENDED" }
   | { type: "MICROPHONE_PERMISSION_REVOKED" }
-  | { type: "MICROPHONE_PERMISSION_GRANTED" };
+  | { type: "MICROPHONE_PERMISSION_GRANTED" }
+  | { type: "JOIN_AUTH_EXPIRED" }
+  | { type: "JOIN_AUTH_REFRESH_FAILED" };
 
 function reduce(
   snapshot: NativeRealtimeSnapshotV1,
@@ -63,6 +70,12 @@ function resumeConnection(
   if (snapshot.app_state === "BACKGROUND" && !policy.allowBackgroundReconnect) {
     return reduce(snapshot, { phase: "DEGRADED" }, "PAUSE_MEDIA", "REALTIME_BACKGROUND_PAUSED");
   }
+  if (snapshot.screen_state === "LOCKED" && !policy.allowScreenLockedReconnect) {
+    return reduce(snapshot, { phase: "DEGRADED" }, "PAUSE_MEDIA", "REALTIME_SCREEN_LOCKED");
+  }
+  if (snapshot.join_auth_state === "EXPIRED") {
+    return reduce(snapshot, { phase: "RECONNECTING" }, "REFRESH_JOIN_AUTH", "REALTIME_JOIN_AUTH_EXPIRED");
+  }
   if (!snapshot.provider_connection_ref) {
     return reduce(snapshot, { phase: "CONNECTING", reconnect_attempt: 0 }, "CONNECT_PROVIDER", reasonCode);
   }
@@ -91,6 +104,7 @@ export function reduceNativeRealtime(
           phase: "CONNECTED",
           reconnect_attempt: 0,
           provider_connection_ref: event.providerConnectionRef,
+          join_auth_state: "VALID",
         },
         "NONE",
         "REALTIME_CONNECTED",
@@ -123,6 +137,19 @@ export function reduceNativeRealtime(
       }
       return reduce(online, {}, "NONE", "REALTIME_NETWORK_ONLINE");
     }
+    case "NETWORK_TRANSPORT_CHANGED": {
+      const changed = { ...snapshot, network_transport: event.transport };
+      if (
+        event.transport === snapshot.network_transport ||
+        snapshot.phase === "IDLE" ||
+        snapshot.phase === "BLOCKED" ||
+        snapshot.phase === "CONNECTING" ||
+        snapshot.phase === "TECHNICAL_FAILURE"
+      ) {
+        return reduce(changed, {}, "NONE", "REALTIME_NETWORK_TRANSPORT_CHANGED");
+      }
+      return resumeConnection(changed, policy, "REALTIME_NETWORK_TRANSPORT_CHANGED");
+    }
     case "APP_BACKGROUND":
       if (snapshot.phase === "BLOCKED") {
         return reduce(snapshot, { app_state: "BACKGROUND" }, "NONE", "REALTIME_APP_BACKGROUND");
@@ -142,6 +169,27 @@ export function reduceNativeRealtime(
         return resumeConnection(foreground, policy, "REALTIME_APP_FOREGROUND_RECONNECT");
       }
       return reduce(foreground, {}, "NONE", "REALTIME_APP_FOREGROUND");
+    }
+    case "SCREEN_LOCKED":
+      if (
+        snapshot.phase === "IDLE" ||
+        snapshot.phase === "BLOCKED" ||
+        policy.allowScreenLockedReconnect
+      ) {
+        return reduce(snapshot, { screen_state: "LOCKED" }, "NONE", "REALTIME_SCREEN_LOCKED");
+      }
+      return reduce(
+        snapshot,
+        { screen_state: "LOCKED", phase: "DEGRADED" },
+        "PAUSE_MEDIA",
+        "REALTIME_SCREEN_LOCKED",
+      );
+    case "SCREEN_UNLOCKED": {
+      const unlocked = { ...snapshot, screen_state: "UNLOCKED" as const };
+      if (snapshot.phase === "DEGRADED" || snapshot.phase === "RECONNECTING") {
+        return resumeConnection(unlocked, policy, "REALTIME_SCREEN_UNLOCKED");
+      }
+      return reduce(unlocked, {}, "NONE", "REALTIME_SCREEN_UNLOCKED");
     }
     case "AUDIO_ROUTE_CHANGED":
       return reduce(
@@ -192,5 +240,19 @@ export function reduceNativeRealtime(
       }
       return reduce(granted, {}, "NONE", "REALTIME_MICROPHONE_GRANTED");
     }
+    case "JOIN_AUTH_EXPIRED": {
+      const expired = { ...snapshot, join_auth_state: "EXPIRED" as const };
+      if (snapshot.phase === "IDLE" || snapshot.phase === "BLOCKED") {
+        return reduce(expired, {}, "NONE", "REALTIME_JOIN_AUTH_EXPIRED");
+      }
+      return resumeConnection(expired, policy, "REALTIME_JOIN_AUTH_EXPIRED");
+    }
+    case "JOIN_AUTH_REFRESH_FAILED":
+      return reduce(
+        snapshot,
+        { phase: "TECHNICAL_FAILURE" },
+        "REPORT_TECHNICAL_FAILURE",
+        "REALTIME_JOIN_AUTH_REFRESH_FAILED",
+      );
   }
 }

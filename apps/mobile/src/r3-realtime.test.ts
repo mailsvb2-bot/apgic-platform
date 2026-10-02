@@ -8,6 +8,7 @@ const policy: NativeRealtimePolicy = {
   policyVersion: "mobile-realtime-r3-ci-v1",
   maxReconnectAttempts: 2,
   allowBackgroundReconnect: true,
+  allowScreenLockedReconnect: false,
 };
 
 function connected(): NativeRealtimeSnapshotV1 {
@@ -17,9 +18,12 @@ function connected(): NativeRealtimeSnapshotV1 {
     phase: "CONNECTED",
     app_state: "FOREGROUND",
     network_state: "ONLINE",
+    network_transport: "WIFI",
     microphone_permission: "GRANTED",
     audio_route: "SPEAKER",
     interruption: "NONE",
+    screen_state: "UNLOCKED",
+    join_auth_state: "VALID",
     reconnect_attempt: 0,
     provider_connection_ref: "provider-connection-1",
   };
@@ -126,4 +130,39 @@ test("permission block survives unrelated lifecycle transitions until explicit g
   result = reduceNativeRealtime(result.snapshot, { type: "MICROPHONE_PERMISSION_GRANTED" }, policy);
   assert.equal(result.snapshot.microphone_permission, "GRANTED");
   assert.notEqual(result.snapshot.phase, "BLOCKED");
+});
+
+
+test("network transport handoff reconnects provider without business transition", () => {
+  const result = reduceNativeRealtime(
+    connected(),
+    { type: "NETWORK_TRANSPORT_CHANGED", transport: "CELLULAR" },
+    policy,
+  );
+  assert.equal(result.snapshot.network_transport, "CELLULAR");
+  assert.equal(result.technical_action, "RECONNECT_PROVIDER");
+  assert.equal(result.business_transition, "NONE");
+});
+
+test("screen lock pauses and unlock resumes according to policy", () => {
+  const locked = reduceNativeRealtime(connected(), { type: "SCREEN_LOCKED" }, policy);
+  assert.equal(locked.snapshot.screen_state, "LOCKED");
+  assert.equal(locked.snapshot.phase, "DEGRADED");
+  assert.equal(locked.technical_action, "PAUSE_MEDIA");
+
+  const unlocked = reduceNativeRealtime(locked.snapshot, { type: "SCREEN_UNLOCKED" }, policy);
+  assert.equal(unlocked.snapshot.screen_state, "UNLOCKED");
+  assert.equal(unlocked.technical_action, "RECONNECT_PROVIDER");
+  assert.equal(unlocked.business_transition, "NONE");
+});
+
+test("expired join auth refreshes before provider rejoin and fails closed", () => {
+  const expired = reduceNativeRealtime(connected(), { type: "JOIN_AUTH_EXPIRED" }, policy);
+  assert.equal(expired.snapshot.join_auth_state, "EXPIRED");
+  assert.equal(expired.technical_action, "REFRESH_JOIN_AUTH");
+
+  const failed = reduceNativeRealtime(expired.snapshot, { type: "JOIN_AUTH_REFRESH_FAILED" }, policy);
+  assert.equal(failed.snapshot.phase, "TECHNICAL_FAILURE");
+  assert.equal(failed.technical_action, "REPORT_TECHNICAL_FAILURE");
+  assert.equal(failed.business_transition, "NONE");
 });

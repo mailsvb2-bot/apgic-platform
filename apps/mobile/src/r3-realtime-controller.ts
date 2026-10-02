@@ -13,6 +13,7 @@ export interface CommunicationProviderPort {
   reconnect(): Promise<string>;
   pauseMedia(): Promise<void>;
   refreshAudioRoute(): Promise<void>;
+  refreshJoinAuth(): Promise<string>;
   requestMicrophonePermission(): Promise<void>;
   reportTechnicalFailure(reasonCode: string): Promise<void>;
 }
@@ -111,6 +112,14 @@ export class NativeRealtimeController {
         return;
       case "REFRESH_AUDIO_ROUTE":
         await this.provider.refreshAudioRoute();
+        return;
+      case "REFRESH_JOIN_AUTH":
+        try {
+          const ref = await this.provider.refreshJoinAuth();
+          await this.apply({type: "PROVIDER_CONNECTED", providerConnectionRef: ref});
+        } catch {
+          await this.apply({type: "JOIN_AUTH_REFRESH_FAILED"});
+        }
         return;
       case "REQUEST_PERMISSION":
         await this.provider.requestMicrophonePermission();

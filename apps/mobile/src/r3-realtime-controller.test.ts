@@ -13,6 +13,7 @@ const policy: NativeRealtimePolicy = {
   policyVersion: "mobile-realtime-r3-ci-v1",
   maxReconnectAttempts: 2,
   allowBackgroundReconnect: false,
+  allowScreenLockedReconnect: false,
 };
 
 function initial(): NativeRealtimeSnapshotV1 {
@@ -22,9 +23,12 @@ function initial(): NativeRealtimeSnapshotV1 {
     phase: "IDLE",
     app_state: "FOREGROUND",
     network_state: "ONLINE",
+    network_transport: "WIFI",
     microphone_permission: "GRANTED",
     audio_route: "SPEAKER",
     interruption: "NONE",
+    screen_state: "UNLOCKED",
+    join_auth_state: "VALID",
     reconnect_attempt: 0,
   };
 }
@@ -50,6 +54,7 @@ function provider(options: {reconnectFailures?: number} = {}) {
     },
     async pauseMedia() { actions.push("pause"); },
     async refreshAudioRoute() { actions.push("route"); },
+    async refreshJoinAuth() { actions.push("auth"); return "provider-auth-refreshed"; },
     async requestMicrophonePermission() { actions.push("permission"); },
     async reportTechnicalFailure(reason) { actions.push(`technical:${reason}`); },
   };
@@ -118,4 +123,21 @@ test("controller never reconnects while microphone permission is denied", async 
   assert.equal(controller.snapshot().phase, "CONNECTED");
   assert.equal(controller.snapshot().microphone_permission, "GRANTED");
   assert.deepEqual(p.actions, ["permission", "permission", "connect"]);
+});
+
+
+test("join auth expiry refreshes auth and rejoins without business completion", async () => {
+  const lifecycle = new Lifecycle();
+  const p = provider();
+  const business: string[] = [];
+  const controller = new NativeRealtimeController(initial(), policy, p.port, lifecycle, (result) => {
+    business.push(result.business_transition);
+  });
+  await controller.start();
+  await controller.dispatch({type: "JOIN_AUTH_EXPIRED"});
+  assert.equal(controller.snapshot().phase, "CONNECTED");
+  assert.equal(controller.snapshot().join_auth_state, "VALID");
+  assert.equal(controller.snapshot().provider_connection_ref, "provider-auth-refreshed");
+  assert.ok(p.actions.includes("auth"));
+  assert.ok(business.every((value) => value === "NONE"));
 });
