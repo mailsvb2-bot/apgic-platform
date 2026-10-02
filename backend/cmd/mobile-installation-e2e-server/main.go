@@ -316,11 +316,11 @@ func main() {
 	}
 	key := []byte(strings.Repeat("e", 32))
 	mutations := newConformanceMutationStore()
-	minimum, err := clientcompat.ParseVersion("1.4.0")
+	minimum, err := clientcompat.ParseVersion("1.0.0")
 	if err != nil {
 		log.Fatal(err)
 	}
-	recommended, err := clientcompat.ParseVersion("1.6.0")
+	recommended, err := clientcompat.ParseVersion("1.1.0")
 	if err != nil {
 		log.Fatal(err)
 	}
