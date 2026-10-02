@@ -613,6 +613,7 @@ jobs:
             evidence/android-offline-mutation-server-replay.json
             evidence/android-offline-hold.json
             evidence/android-realtime-e2e.xml
+            evidence/android-realtime-rejoin.xml
           if-no-files-found: error
           retention-days: 30
 
@@ -673,6 +674,7 @@ jobs:
             evidence/ios-offline-mutation-server-replay.json
             evidence/ios-offline-hold.json
             evidence/ios-realtime-e2e.json
+            evidence/ios-realtime-rejoin.json
           if-no-files-found: error
           retention-days: 30
 
