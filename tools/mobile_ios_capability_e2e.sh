@@ -277,6 +277,55 @@ assert_state "DENIED" "PERMISSION_DENIED"
 assert_state "RESTRICTED" "OS_RESTRICTED"
 assert_state "UNAVAILABLE" "CAPABILITY_UNAVAILABLE"
 
+assert_compatibility_policy() {
+  local supported_output="$EVIDENCE_DIR/ios-compatibility-supported.json"
+  local update_output="$EVIDENCE_DIR/ios-compatibility-update-required.json"
+
+  xcrun simctl terminate "$UDID" com.apgic.ci >/dev/null 2>&1 || true
+  SIMCTL_CHILD_APGIC_E2E_CAPABILITY_STATE=GRANTED \
+  SIMCTL_CHILD_APGIC_E2E_COMPATIBILITY_BASE_URL=http://127.0.0.1:43113 \
+  SIMCTL_CHILD_APGIC_E2E_APP_VERSION=1.5.0 \
+  SIMCTL_CHILD_APGIC_E2E_CONTRACT_VERSION=contract-v1 \
+    xcrun simctl launch "$UDID" com.apgic.ci >/dev/null
+
+  for _ in $(seq 1 60); do
+    if "$IDB" ui describe-all --udid "$UDID" --api axbridge --json --nested >"$supported_output" 2>/dev/null &&
+       json_has_ax_label "$supported_output" "compatibility-e2e:PASS" &&
+       json_has_ax_label "$supported_output" "compatibility-status:DEPRECATED_BUT_SUPPORTED" &&
+       json_has_ax_label "$supported_output" "compatibility-reason:CLIENT_VERSION_DEPRECATED" &&
+       json_has_ax_label "$supported_output" "compatibility-policy:mobile013-e2e-v1" &&
+       json_has_ax_label "$supported_output" "compatibility-contract:contract-v2"; then
+      break
+    fi
+    sleep 1
+  done
+  json_has_ax_label "$supported_output" "compatibility-status:DEPRECATED_BUT_SUPPORTED" ||
+    fail "supported previous iOS client did not remain usable under the updated backend contract"
+
+  xcrun simctl terminate "$UDID" com.apgic.ci >/dev/null 2>&1 || true
+  SIMCTL_CHILD_APGIC_E2E_CAPABILITY_STATE=GRANTED \
+  SIMCTL_CHILD_APGIC_E2E_COMPATIBILITY_BASE_URL=http://127.0.0.1:43113 \
+  SIMCTL_CHILD_APGIC_E2E_APP_VERSION=1.6.0 \
+  SIMCTL_CHILD_APGIC_E2E_CONTRACT_VERSION=contract-v0 \
+    xcrun simctl launch "$UDID" com.apgic.ci >/dev/null
+
+  for _ in $(seq 1 60); do
+    if "$IDB" ui describe-all --udid "$UDID" --api axbridge --json --nested >"$update_output" 2>/dev/null &&
+       json_has_ax_label "$update_output" "compatibility-e2e:PASS" &&
+       json_has_ax_label "$update_output" "compatibility-status:UPDATE_REQUIRED" &&
+       json_has_ax_label "$update_output" "compatibility-reason:CLIENT_CONTRACT_UNSUPPORTED" &&
+       json_has_ax_label "$update_output" "compatibility-update-reason:INCOMPATIBLE_CRITICAL" &&
+       json_has_ax_label "$update_output" "compatibility-update-action"; then
+      echo "iOS installed-app compatibility + governed update path: PASS"
+      return 0
+    fi
+    sleep 1
+  done
+
+  [[ -f "$update_output" ]] && cat "$update_output" >&2 || true
+  fail "incompatible iOS client did not expose governed update-required UX"
+}
+
 assert_installation_lifecycle() {
   local installation_id
   local output="$EVIDENCE_DIR/ios-installation-e2e.json"
@@ -525,10 +574,11 @@ assert_realtime_lifecycle() {
   fail "installed iOS app did not rejoin the same canonical consultation after process restart"
 }
 
+assert_compatibility_policy
 assert_installation_lifecycle
 assert_deep_link_runtime
 assert_notification_runtime
 assert_offline_mutation_restart
 assert_realtime_lifecycle
 
-echo "IOS CAPABILITY + INSTALLATION + DEEP-LINK + NOTIFICATION + OFFLINE-SYNC + REALTIME NATIVE E2E: PASS"
+echo "IOS CAPABILITY + COMPATIBILITY + INSTALLATION + DEEP-LINK + NOTIFICATION + OFFLINE-SYNC + REALTIME NATIVE E2E: PASS"
