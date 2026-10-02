@@ -284,7 +284,6 @@ assert_compatibility_policy() {
   xcrun simctl terminate "$UDID" com.apgic.ci >/dev/null 2>&1 || true
   SIMCTL_CHILD_APGIC_E2E_CAPABILITY_STATE=GRANTED \
   SIMCTL_CHILD_APGIC_E2E_COMPATIBILITY_BASE_URL=http://127.0.0.1:43113 \
-  SIMCTL_CHILD_APGIC_E2E_APP_VERSION=1.5.0 \
   SIMCTL_CHILD_APGIC_E2E_CONTRACT_VERSION=0.8.0-r2-offline-sync \
     xcrun simctl launch "$UDID" com.apgic.ci >/dev/null
 
@@ -305,7 +304,6 @@ assert_compatibility_policy() {
   xcrun simctl terminate "$UDID" com.apgic.ci >/dev/null 2>&1 || true
   SIMCTL_CHILD_APGIC_E2E_CAPABILITY_STATE=GRANTED \
   SIMCTL_CHILD_APGIC_E2E_COMPATIBILITY_BASE_URL=http://127.0.0.1:43113 \
-  SIMCTL_CHILD_APGIC_E2E_APP_VERSION=1.6.0 \
   SIMCTL_CHILD_APGIC_E2E_CONTRACT_VERSION=0.7.0-unsupported \
     xcrun simctl launch "$UDID" com.apgic.ci >/dev/null
 
