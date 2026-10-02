@@ -306,16 +306,16 @@ assert_compatibility_policy() {
     if "$ADB" shell uiautomator dump /sdcard/apgic-compatibility-supported.xml >/dev/null 2>&1 &&
        "$ADB" pull /sdcard/apgic-compatibility-supported.xml "$supported_output" >/dev/null 2>&1 &&
        grep -q 'compatibility-e2e:PASS' "$supported_output" &&
-       grep -q 'compatibility-status:DEPRECATED_BUT_SUPPORTED' "$supported_output" &&
-       grep -q 'compatibility-reason:CLIENT_VERSION_DEPRECATED' "$supported_output" &&
+       grep -q 'compatibility-status:SUPPORTED' "$supported_output" &&
+       grep -q 'compatibility-reason:CLIENT_VERSION_SUPPORTED' "$supported_output" &&
        grep -q 'compatibility-policy:mobile013-e2e-v1' "$supported_output" &&
        grep -q 'compatibility-contract:0.9.0-r0-mobile-compatibility' "$supported_output"; then
       break
     fi
     sleep 1
   done
-  grep -q 'compatibility-status:DEPRECATED_BUT_SUPPORTED' "$supported_output" ||
-    fail "supported previous Android client did not remain usable under the updated backend contract"
+  grep -q 'compatibility-status:SUPPORTED' "$supported_output" ||
+    fail "supported previous Android contract did not remain usable under the updated backend contract"
 
   "$ADB" shell am force-stop com.apgic.ci
   "$ADB" shell am start -W \
