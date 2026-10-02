@@ -60,23 +60,23 @@ func main() {
 		demandService = demand.NewConformanceServiceWithLedgerStore(nil, ledgerStore)
 	}
 	handler := httpapi.New(httpapi.Options{
-		CommitSHA:          os.Getenv("APGIC_COMMIT_SHA"),
-		ReleaseTrack:       releaseTrack,
-		Demand:             demandService,
+		CommitSHA:                   os.Getenv("APGIC_COMMIT_SHA"),
+		ReleaseTrack:                releaseTrack,
+		Demand:                      demandService,
 		ClientSessionKey:            clientSessionKey,
 		ClientCompatibilityPolicies: clientCompatibilityPolicies,
-		ReadinessCheck:     readinessCheck,
-		LegalAcceptances:   storage,
-		Installations:      storage,
-		Notifications:      storage,
-		ClientMutations:    storage,
-		DeepLinks:          storage,
-		DeepLinkSigningKey: deepLinkSigningKey,
-		Specialists:        storage,
-		OrganizationAuth:   storage,
-		Organizations:      storage,
-		ProductOwnership:   storage,
-		Products:           storage,
+		ReadinessCheck:              readinessCheck,
+		LegalAcceptances:            storage,
+		Installations:               storage,
+		Notifications:               storage,
+		ClientMutations:             storage,
+		DeepLinks:                   storage,
+		DeepLinkSigningKey:          deepLinkSigningKey,
+		Specialists:                 storage,
+		OrganizationAuth:            storage,
+		Organizations:               storage,
+		ProductOwnership:            storage,
+		Products:                    storage,
 		LaunchConfig: launchconfig.Config{
 			JurisdictionMatrixVersion: os.Getenv("APGIC_JURISDICTION_MATRIX_VERSION"),
 			RetentionPolicyVersion:    os.Getenv("APGIC_RETENTION_POLICY_VERSION"),
@@ -104,7 +104,6 @@ func envOr(key, fallback string) string {
 	}
 	return fallback
 }
-
 
 func clientCompatibilityPoliciesFromEnvironment(environment string) (map[clientcompat.Platform]clientcompat.Policy, error) {
 	policyVersion := strings.TrimSpace(os.Getenv("APGIC_MOBILE_POLICY_VERSION"))
