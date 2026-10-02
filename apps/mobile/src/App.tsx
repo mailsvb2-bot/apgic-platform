@@ -154,6 +154,18 @@ export default function App({
     | {status: "FAIL"; reason: string}
   >({status: "IDLE"});
 
+  const compatibilityRequired = Boolean(
+    compatibilityPlatform && appVersion && buildNumber,
+  );
+  const compatibilityAllowsRuntime =
+    !compatibilityRequired ||
+    (compatibility.status === "PASS" &&
+      compatibility.decision.status !== "UPDATE_REQUIRED");
+  const showCompatibilityNotice =
+    compatibility.status !== "IDLE" &&
+    (compatibility.status !== "PASS" ||
+      compatibility.decision.status !== "SUPPORTED");
+
   const handleDeepLink = useCallback(
     async (url: string) => {
       setDeepLinkState({status: "RESOLVING"});
@@ -244,6 +256,7 @@ export default function App({
 
   useEffect(() => {
     if (
+      !compatibilityAllowsRuntime ||
       !notificationE2EBaseURL ||
       !notificationE2ESessionCookie ||
       !notificationE2EDeliveryID ||
@@ -286,6 +299,7 @@ export default function App({
       active = false;
     };
   }, [
+    compatibilityAllowsRuntime,
     notificationE2EBaseURL,
     notificationE2ESessionCookie,
     notificationE2EDeliveryID,
@@ -293,7 +307,11 @@ export default function App({
   ]);
 
   useEffect(() => {
-    if (!offlineMutationE2EBaseURL || !offlineMutationE2ESessionCookie) {
+    if (
+      !compatibilityAllowsRuntime ||
+      !offlineMutationE2EBaseURL ||
+      !offlineMutationE2ESessionCookie
+    ) {
       return;
     }
     let active = true;
@@ -357,6 +375,7 @@ export default function App({
       active = false;
     };
   }, [
+    compatibilityAllowsRuntime,
     offlineMutationE2EBaseURL,
     offlineMutationE2ESessionCookie,
     offlineMutationE2EHoldID,
@@ -365,7 +384,7 @@ export default function App({
   ]);
 
   useEffect(() => {
-    if (!realtimeE2EEvents) {
+    if (!compatibilityAllowsRuntime || !realtimeE2EEvents) {
       return;
     }
     let active = true;
@@ -391,10 +410,16 @@ export default function App({
     return () => {
       active = false;
     };
-  }, [realtimeE2EEvents, realtimeE2EReconnectFailures, realtimeE2EConsultationID]);
+  }, [
+    compatibilityAllowsRuntime,
+    realtimeE2EEvents,
+    realtimeE2EReconnectFailures,
+    realtimeE2EConsultationID,
+  ]);
 
   useEffect(() => {
     if (
+      !compatibilityAllowsRuntime ||
       !installationE2EBaseURL ||
       !installationE2ESessionCookie ||
       !installationE2EInstallationID ||
@@ -428,6 +453,7 @@ export default function App({
       active = false;
     };
   }, [
+    compatibilityAllowsRuntime,
     installationE2EBaseURL,
     installationE2ESessionCookie,
     installationE2EInstallationID,
@@ -443,7 +469,7 @@ export default function App({
           Одна Identity и одна server truth для iOS, Android, Web и PWA.
         </Text>
 
-        {compatibility.status !== "IDLE" ? (
+        {showCompatibilityNotice ? (
           <View style={styles.capability} accessibilityRole="alert">
             <Text accessibilityLabel={`compatibility-e2e:${compatibility.status}`}>
               Совместимость приложения: {compatibility.status}
