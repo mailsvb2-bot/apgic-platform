@@ -466,7 +466,8 @@ PY
 
 assert_realtime_lifecycle() {
   local output="$EVIDENCE_DIR/android-realtime-e2e.xml"
-  local events="MICROPHONE_PERMISSION_REVOKED,NETWORK_OFFLINE,NETWORK_ONLINE,MICROPHONE_PERMISSION_GRANTED,APP_BACKGROUND,APP_FOREGROUND,AUDIO_ROUTE_CHANGED:BLUETOOTH,INTERRUPTION_BEGAN,NETWORK_ONLINE,INTERRUPTION_ENDED"
+  local consultation_id="mobile009-android-rejoin"
+  local events="MICROPHONE_PERMISSION_REVOKED,NETWORK_OFFLINE,NETWORK_ONLINE,MICROPHONE_PERMISSION_GRANTED,NETWORK_TRANSPORT_CHANGED:CELLULAR,SCREEN_LOCKED,SCREEN_UNLOCKED,JOIN_AUTH_EXPIRED,APP_BACKGROUND,APP_FOREGROUND,AUDIO_ROUTE_CHANGED:BLUETOOTH,INTERRUPTION_BEGAN,NETWORK_ONLINE,INTERRUPTION_ENDED"
 
   "$ADB" shell pm grant com.apgic.ci android.permission.RECORD_AUDIO >/dev/null ||
     fail "failed to grant Android microphone permission for realtime E2E"
@@ -475,6 +476,7 @@ assert_realtime_lifecycle() {
     -n com.apgic.ci/.MainActivity \
     --es APGIC_E2E_CAPABILITY_STATE GRANTED \
     --es APGIC_E2E_REALTIME_EVENTS "$events" \
+    --es APGIC_E2E_REALTIME_CONSULTATION_ID "$consultation_id" \
     >/dev/null
 
   for _ in $(seq 1 60); do
@@ -486,10 +488,15 @@ assert_realtime_lifecycle() {
        grep -q 'realtime-audio-route:BLUETOOTH' "$output" &&
        grep -q 'realtime-app-state:FOREGROUND' "$output" &&
        grep -q 'realtime-network-state:ONLINE' "$output" &&
+       grep -q 'realtime-network-transport:CELLULAR' "$output" &&
+       grep -q 'realtime-screen-state:UNLOCKED' "$output" &&
+       grep -q 'realtime-join-auth-state:VALID' "$output" &&
+       grep -q "realtime-consultation-id:${consultation_id}" "$output" &&
        grep -q 'realtime-action-connect:true' "$output" &&
        grep -q 'realtime-action-reconnect:true' "$output" &&
        grep -q 'realtime-action-pause:true' "$output" &&
-       grep -q 'realtime-action-route:true' "$output"; then
+       grep -q 'realtime-action-route:true' "$output" &&
+       grep -q 'realtime-action-auth:true' "$output"; then
       echo "Android installed-app native realtime lifecycle/reconnect: PASS"
       return 0
     fi
