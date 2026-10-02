@@ -91,6 +91,7 @@ test("fails closed on unavailable policy instead of assuming compatibility", asy
         baseURL: "https://apgic.ru",
         platform: "ANDROID",
         appVersion: "1.6.0",
+        buildNumber: "1",
         contractVersion: "contract-v1",
       }),
       /CLIENT_COMPATIBILITY_HTTP_503/,
