@@ -320,7 +320,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	recommended, err := clientcompat.ParseVersion("1.1.0")
+	recommended, err := clientcompat.ParseVersion("1.0.0")
 	if err != nil {
 		log.Fatal(err)
 	}
