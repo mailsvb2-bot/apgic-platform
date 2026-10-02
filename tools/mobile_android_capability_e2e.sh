@@ -286,6 +286,61 @@ assert_state "DENIED" "PERMISSION_DENIED"
 assert_state "RESTRICTED" "OS_RESTRICTED"
 assert_state "UNAVAILABLE" "CAPABILITY_UNAVAILABLE"
 
+assert_compatibility_policy() {
+  local supported_output="$EVIDENCE_DIR/android-compatibility-supported.xml"
+  local update_output="$EVIDENCE_DIR/android-compatibility-update-required.xml"
+
+  "$ADB" shell am force-stop com.apgic.ci
+  "$ADB" shell am start -W \
+    -n com.apgic.ci/.MainActivity \
+    --es APGIC_E2E_CAPABILITY_STATE GRANTED \
+    --es APGIC_E2E_COMPATIBILITY_BASE_URL http://127.0.0.1:43113 \
+    --es APGIC_E2E_APP_VERSION 1.5.0 \
+    --es APGIC_E2E_CONTRACT_VERSION contract-v1 \
+    >/dev/null
+
+  for _ in $(seq 1 60); do
+    if "$ADB" shell uiautomator dump /sdcard/apgic-compatibility-supported.xml >/dev/null 2>&1 &&
+       "$ADB" pull /sdcard/apgic-compatibility-supported.xml "$supported_output" >/dev/null 2>&1 &&
+       grep -q 'compatibility-e2e:PASS' "$supported_output" &&
+       grep -q 'compatibility-status:DEPRECATED_BUT_SUPPORTED' "$supported_output" &&
+       grep -q 'compatibility-reason:CLIENT_VERSION_DEPRECATED' "$supported_output" &&
+       grep -q 'compatibility-policy:mobile013-e2e-v1' "$supported_output" &&
+       grep -q 'compatibility-contract:contract-v2' "$supported_output"; then
+      break
+    fi
+    sleep 1
+  done
+  grep -q 'compatibility-status:DEPRECATED_BUT_SUPPORTED' "$supported_output" ||
+    fail "supported previous Android client did not remain usable under the updated backend contract"
+
+  "$ADB" shell am force-stop com.apgic.ci
+  "$ADB" shell am start -W \
+    -n com.apgic.ci/.MainActivity \
+    --es APGIC_E2E_CAPABILITY_STATE GRANTED \
+    --es APGIC_E2E_COMPATIBILITY_BASE_URL http://127.0.0.1:43113 \
+    --es APGIC_E2E_APP_VERSION 1.6.0 \
+    --es APGIC_E2E_CONTRACT_VERSION contract-v0 \
+    >/dev/null
+
+  for _ in $(seq 1 60); do
+    if "$ADB" shell uiautomator dump /sdcard/apgic-compatibility-update.xml >/dev/null 2>&1 &&
+       "$ADB" pull /sdcard/apgic-compatibility-update.xml "$update_output" >/dev/null 2>&1 &&
+       grep -q 'compatibility-e2e:PASS' "$update_output" &&
+       grep -q 'compatibility-status:UPDATE_REQUIRED' "$update_output" &&
+       grep -q 'compatibility-reason:CLIENT_CONTRACT_UNSUPPORTED' "$update_output" &&
+       grep -q 'compatibility-update-reason:INCOMPATIBLE_CRITICAL' "$update_output" &&
+       grep -q 'compatibility-update-action' "$update_output"; then
+      echo "Android installed-app compatibility + governed update path: PASS"
+      return 0
+    fi
+    sleep 1
+  done
+
+  [[ -f "$update_output" ]] && cat "$update_output" >&2 || true
+  fail "incompatible Android client did not expose governed update-required UX"
+}
+
 assert_installation_lifecycle() {
   local installation_id
   local output="$EVIDENCE_DIR/android-installation-e2e.xml"
@@ -526,10 +581,11 @@ assert_realtime_lifecycle() {
   fail "installed Android app did not rejoin the same canonical consultation after process restart"
 }
 
+assert_compatibility_policy
 assert_installation_lifecycle
 assert_deep_link_runtime
 assert_notification_runtime
 assert_offline_mutation_restart
 assert_realtime_lifecycle
 
-echo "ANDROID CAPABILITY + INSTALLATION + DEEP-LINK + NOTIFICATION + OFFLINE-SYNC + REALTIME NATIVE E2E: PASS"
+echo "ANDROID CAPABILITY + COMPATIBILITY + INSTALLATION + DEEP-LINK + NOTIFICATION + OFFLINE-SYNC + REALTIME NATIVE E2E: PASS"
