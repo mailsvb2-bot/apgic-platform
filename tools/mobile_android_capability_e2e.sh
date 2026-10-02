@@ -496,7 +496,7 @@ assert_realtime_lifecycle() {
       grep -q 'realtime-action-reconnect:true' "$target" &&
       grep -q 'realtime-action-pause:true' "$target" &&
       grep -q 'realtime-action-route:true' "$target" &&
-      grep -q 'realtime-action-auth:true' "$target"
+      grep -Eq 'realtime-provider-actions:[^"]*REFRESH_JOIN_AUTH' "$target"
   }
 
   launch_realtime
