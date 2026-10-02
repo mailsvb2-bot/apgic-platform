@@ -568,17 +568,40 @@ assert_realtime_lifecycle() {
     fail "installed iOS app did not complete native realtime lifecycle proof"
   fi
 
-  launch_realtime
-  for _ in $(seq 1 60); do
-    if realtime_ready "$rejoin_output"; then
-      echo "iOS installed-app native realtime lifecycle + restart/rejoin: PASS"
-      return 0
+  local rejoin_attempt
+  for rejoin_attempt in $(seq 1 3); do
+    launch_realtime
+    for _ in $(seq 1 60); do
+      if realtime_ready "$rejoin_output"; then
+        echo "iOS installed-app native realtime lifecycle + restart/rejoin: PASS"
+        return 0
+      fi
+      sleep 1
+    done
+
+    # The iOS simulator may deliver a real AVAudioSession interruption after
+    # the scripted lifecycle has already completed. Retry only when the app
+    # still proves the same consultation and no business transition, and the
+    # sole unstable terminal condition is the technical DEGRADED phase.
+    if [[ -f "$rejoin_output" ]] &&
+       json_has_ax_label "$rejoin_output" "realtime-e2e:PASS" &&
+       json_has_ax_label "$rejoin_output" "realtime-phase:DEGRADED" &&
+       json_has_ax_label "$rejoin_output" "realtime-business-transition:NONE" &&
+       json_has_ax_label "$rejoin_output" "realtime-consultation-id:${consultation_id}" &&
+       json_has_ax_label "$rejoin_output" "realtime-app-state:FOREGROUND" &&
+       json_has_ax_label "$rejoin_output" "realtime-network-state:ONLINE" &&
+       json_has_ax_label "$rejoin_output" "realtime-screen-state:UNLOCKED" &&
+       json_has_ax_label "$rejoin_output" "realtime-join-auth-state:VALID"; then
+      echo "iOS rejoin attempt $rejoin_attempt ended in ambient technical DEGRADED state; retrying same consultation"
+      continue
     fi
-    sleep 1
+
+    [[ -f "$rejoin_output" ]] && cat "$rejoin_output" >&2 || true
+    fail "installed iOS app violated realtime restart/rejoin invariants"
   done
 
   [[ -f "$rejoin_output" ]] && cat "$rejoin_output" >&2 || true
-  fail "installed iOS app did not rejoin the same canonical consultation after process restart"
+  fail "installed iOS app did not rejoin the same canonical consultation after bounded restart retries"
 }
 
 assert_compatibility_policy
