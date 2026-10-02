@@ -13,6 +13,11 @@ permissions:
 network:
   offline_action: RECONNECT_WHEN_ONLINE
   degraded_action: KEEP_SESSION_DEGRADED
+  transport_change_action: RECONNECT_PROVIDER
+screen:
+  lock_action: PAUSE_MEDIA_AND_RECONNECT
+auth:
+  join_token_expiry_action: REFRESH_AND_REJOIN
 audio:
   route_change_action: REFRESH_ROUTE
 interruption:
