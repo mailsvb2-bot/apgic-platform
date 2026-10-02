@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/clientcompat"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/demand"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/launchconfig"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/legal"
@@ -33,8 +34,9 @@ type Options struct {
 	Organizations      organizationRuntimeStore
 	ProductOwnership   productOwnershipStore
 	Products           organizationProductStore
-	ClientSessionKey   []byte
-	Now                func() time.Time
+	ClientSessionKey            []byte
+	ClientCompatibilityPolicies map[clientcompat.Platform]clientcompat.Policy
+	Now                         func() time.Time
 }
 
 type metaResponse struct {
@@ -106,6 +108,7 @@ func New(options Options) http.Handler {
 	}
 	registerDemand(mux, options.Demand, sessions, sessionConfigErr)
 	registerLegalAcceptance(mux, options.LegalAcceptances, sessions, sessionConfigErr, options.Now)
+	registerMobileCompatibility(mux, options.ClientCompatibilityPolicies)
 	registerMobileInstallations(mux, options.Installations, sessions, sessionConfigErr, options.Now)
 	registerMobileNotifications(mux, options.Notifications, sessions, sessionConfigErr)
 	registerMobileCheckoutMutation(mux, options.Demand, options.ClientMutations, sessions, sessionConfigErr, options.Now)
