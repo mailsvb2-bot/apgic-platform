@@ -3,6 +3,7 @@ package clientcompat
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 )
@@ -22,9 +23,25 @@ const (
 	UpdateRequired         Status = "UPDATE_REQUIRED"
 )
 
+type ForcedUpdateReason string
+
+const (
+	SecurityCritical     ForcedUpdateReason = "SECURITY_CRITICAL"
+	LegalCritical        ForcedUpdateReason = "LEGAL_CRITICAL"
+	IncompatibleCritical ForcedUpdateReason = "INCOMPATIBLE_CRITICAL"
+)
+
+const (
+	ReasonClientVersionSupported   = "CLIENT_VERSION_SUPPORTED"
+	ReasonClientVersionDeprecated  = "CLIENT_VERSION_DEPRECATED"
+	ReasonClientVersionBelowMin    = "CLIENT_VERSION_BELOW_MINIMUM"
+	ReasonClientContractUnsupported = "CLIENT_CONTRACT_UNSUPPORTED"
+)
+
 var (
-	ErrInvalidVersion = errors.New("invalid semantic version")
-	ErrPolicyMissing  = errors.New("client compatibility policy missing")
+	ErrInvalidVersion  = errors.New("invalid semantic version")
+	ErrInvalidContract = errors.New("invalid client contract version")
+	ErrPolicyMissing   = errors.New("client compatibility policy missing")
 )
 
 type Version struct {
@@ -76,29 +93,36 @@ func compareInt(left, right int) int {
 }
 
 type Policy struct {
-	Platform         Platform
-	MinimumSupported Version
-	Recommended      Version
-	ContractVersion  string
-	PolicyVersion    string
+	Platform                  Platform
+	MinimumSupported          Version
+	Recommended               Version
+	ContractVersion           string
+	SupportedContractVersions []string
+	PolicyVersion             string
+	MinimumUpdateReason       ForcedUpdateReason
+	UpdateURL                 string
 }
 
 type Decision struct {
-	Status          Status
-	ReasonCode      string
-	PolicyVersion   string
-	ContractVersion string
+	Status          Status             `json:"status"`
+	ReasonCode      string             `json:"reason_code"`
+	PolicyVersion   string             `json:"policy_version"`
+	ContractVersion string             `json:"contract_version"`
+	UpdateReason    ForcedUpdateReason `json:"update_reason,omitempty"`
+	UpdateURL       string             `json:"update_url,omitempty"`
 }
 
 func Evaluate(appVersion Version, policy Policy) (Decision, error) {
-	if policy.Platform != IOS && policy.Platform != Android {
-		return Decision{}, ErrPolicyMissing
+	return EvaluateClient(appVersion, policy.ContractVersion, policy)
+}
+
+func EvaluateClient(appVersion Version, clientContractVersion string, policy Policy) (Decision, error) {
+	if err := validatePolicy(policy); err != nil {
+		return Decision{}, err
 	}
-	if strings.TrimSpace(policy.PolicyVersion) == "" || strings.TrimSpace(policy.ContractVersion) == "" {
-		return Decision{}, ErrPolicyMissing
-	}
-	if policy.Recommended.Compare(policy.MinimumSupported) < 0 {
-		return Decision{}, fmt.Errorf("%w: recommended below minimum", ErrPolicyMissing)
+	clientContractVersion = strings.TrimSpace(clientContractVersion)
+	if clientContractVersion == "" {
+		return Decision{}, ErrInvalidContract
 	}
 
 	decision := Decision{
@@ -106,16 +130,68 @@ func Evaluate(appVersion Version, policy Policy) (Decision, error) {
 		ContractVersion: policy.ContractVersion,
 	}
 
+	if !supportsContract(policy, clientContractVersion) {
+		decision.Status = UpdateRequired
+		decision.ReasonCode = ReasonClientContractUnsupported
+		decision.UpdateReason = IncompatibleCritical
+		decision.UpdateURL = policy.UpdateURL
+		return decision, nil
+	}
+
 	switch {
 	case appVersion.Compare(policy.MinimumSupported) < 0:
 		decision.Status = UpdateRequired
-		decision.ReasonCode = "CLIENT_VERSION_BELOW_MINIMUM"
+		decision.ReasonCode = ReasonClientVersionBelowMin
+		decision.UpdateReason = policy.MinimumUpdateReason
+		decision.UpdateURL = policy.UpdateURL
 	case appVersion.Compare(policy.Recommended) < 0:
 		decision.Status = DeprecatedButSupported
-		decision.ReasonCode = "CLIENT_VERSION_DEPRECATED"
+		decision.ReasonCode = ReasonClientVersionDeprecated
 	default:
 		decision.Status = Supported
-		decision.ReasonCode = "CLIENT_VERSION_SUPPORTED"
+		decision.ReasonCode = ReasonClientVersionSupported
 	}
 	return decision, nil
+}
+
+func validatePolicy(policy Policy) error {
+	if policy.Platform != IOS && policy.Platform != Android {
+		return ErrPolicyMissing
+	}
+	if strings.TrimSpace(policy.PolicyVersion) == "" || strings.TrimSpace(policy.ContractVersion) == "" {
+		return ErrPolicyMissing
+	}
+	if policy.Recommended.Compare(policy.MinimumSupported) < 0 {
+		return fmt.Errorf("%w: recommended below minimum", ErrPolicyMissing)
+	}
+	switch policy.MinimumUpdateReason {
+	case SecurityCritical, LegalCritical, IncompatibleCritical:
+	default:
+		return fmt.Errorf("%w: invalid forced-update reason", ErrPolicyMissing)
+	}
+	parsed, err := url.Parse(strings.TrimSpace(policy.UpdateURL))
+	if err != nil || parsed.Scheme != "https" || parsed.Host == "" {
+		return fmt.Errorf("%w: update URL must be https", ErrPolicyMissing)
+	}
+	if !supportsContract(policy, policy.ContractVersion) {
+		return fmt.Errorf("%w: current contract must remain supported", ErrPolicyMissing)
+	}
+	return nil
+}
+
+func supportsContract(policy Policy, contractVersion string) bool {
+	contractVersion = strings.TrimSpace(contractVersion)
+	if contractVersion == "" {
+		return false
+	}
+	supported := policy.SupportedContractVersions
+	if len(supported) == 0 {
+		supported = []string{policy.ContractVersion}
+	}
+	for _, candidate := range supported {
+		if strings.TrimSpace(candidate) == contractVersion {
+			return true
+		}
+	}
+	return false
 }
