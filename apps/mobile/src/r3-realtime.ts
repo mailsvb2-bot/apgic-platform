@@ -98,7 +98,7 @@ export function reduceNativeRealtime(
     case "PROVIDER_DISCONNECTED":
       return resumeConnection(snapshot, policy, "REALTIME_PROVIDER_DISCONNECTED");
     case "NETWORK_OFFLINE":
-      if (snapshot.phase === "IDLE") {
+      if (snapshot.phase === "IDLE" || snapshot.phase === "BLOCKED") {
         return reduce(snapshot, { network_state: "OFFLINE" }, "NONE", "REALTIME_NETWORK_OFFLINE");
       }
       return reduce(
@@ -110,7 +110,9 @@ export function reduceNativeRealtime(
     case "NETWORK_DEGRADED":
       return reduce(
         snapshot,
-        snapshot.phase === "IDLE" ? { network_state: "DEGRADED" } : { network_state: "DEGRADED", phase: "DEGRADED" },
+        snapshot.phase === "IDLE" || snapshot.phase === "BLOCKED"
+          ? { network_state: "DEGRADED" }
+          : { network_state: "DEGRADED", phase: "DEGRADED" },
         "NONE",
         "REALTIME_NETWORK_DEGRADED",
       );
@@ -122,6 +124,9 @@ export function reduceNativeRealtime(
       return reduce(online, {}, "NONE", "REALTIME_NETWORK_ONLINE");
     }
     case "APP_BACKGROUND":
+      if (snapshot.phase === "BLOCKED") {
+        return reduce(snapshot, { app_state: "BACKGROUND" }, "NONE", "REALTIME_APP_BACKGROUND");
+      }
       if (!policy.allowBackgroundReconnect && snapshot.phase !== "IDLE") {
         return reduce(
           snapshot,
@@ -142,11 +147,13 @@ export function reduceNativeRealtime(
       return reduce(
         snapshot,
         { audio_route: event.route },
-        snapshot.phase === "IDLE" || !snapshot.provider_connection_ref ? "NONE" : "REFRESH_AUDIO_ROUTE",
+        snapshot.phase === "IDLE" || snapshot.phase === "BLOCKED" || !snapshot.provider_connection_ref
+          ? "NONE"
+          : "REFRESH_AUDIO_ROUTE",
         "REALTIME_AUDIO_ROUTE_CHANGED",
       );
     case "INTERRUPTION_BEGAN":
-      if (snapshot.phase === "IDLE") {
+      if (snapshot.phase === "IDLE" || snapshot.phase === "BLOCKED") {
         return reduce(snapshot, { interruption: "INTERRUPTED" }, "NONE", "REALTIME_INTERRUPTED");
       }
       return reduce(
@@ -157,7 +164,7 @@ export function reduceNativeRealtime(
       );
     case "INTERRUPTION_ENDED": {
       const resumed = { ...snapshot, interruption: "NONE" as const };
-      if (snapshot.phase === "IDLE") {
+      if (snapshot.phase === "IDLE" || snapshot.phase === "BLOCKED") {
         return reduce(resumed, {}, "NONE", "REALTIME_INTERRUPTION_ENDED");
       }
       if (snapshot.interruption === "INTERRUPTED") {

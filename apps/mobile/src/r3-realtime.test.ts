@@ -101,3 +101,29 @@ test("active interruption blocks network-triggered reconnect until interruption 
   assert.equal(resumed.snapshot.interruption, "NONE");
   assert.equal(resumed.technical_action, "RECONNECT_PROVIDER");
 });
+
+
+test("permission block survives unrelated lifecycle transitions until explicit grant", () => {
+  let result = reduceNativeRealtime(connected(), { type: "MICROPHONE_PERMISSION_REVOKED" }, policy);
+  assert.equal(result.snapshot.phase, "BLOCKED");
+
+  for (const event of [
+    { type: "NETWORK_OFFLINE" } as const,
+    { type: "NETWORK_DEGRADED" } as const,
+    { type: "APP_BACKGROUND" } as const,
+    { type: "AUDIO_ROUTE_CHANGED", route: "BLUETOOTH" } as const,
+    { type: "INTERRUPTION_BEGAN" } as const,
+    { type: "NETWORK_ONLINE" } as const,
+    { type: "APP_FOREGROUND" } as const,
+    { type: "INTERRUPTION_ENDED" } as const,
+  ]) {
+    result = reduceNativeRealtime(result.snapshot, event, policy);
+    assert.equal(result.snapshot.phase, "BLOCKED");
+    assert.equal(result.technical_action, "NONE");
+    assert.equal(result.business_transition, "NONE");
+  }
+
+  result = reduceNativeRealtime(result.snapshot, { type: "MICROPHONE_PERMISSION_GRANTED" }, policy);
+  assert.equal(result.snapshot.microphone_permission, "GRANTED");
+  assert.notEqual(result.snapshot.phase, "BLOCKED");
+});
