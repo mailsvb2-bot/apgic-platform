@@ -67,9 +67,9 @@ def main() -> None:
     client.call(
         "POST",
         f"/v1/help-intents/{intent['id']}/confirm",
-        {"topics": ["sleep"], "goals": [], "context": {}},
+        {"topics": ["anxiety"], "goals": [], "context": {}},
     )
-    _, slots_payload = client.call("GET", "/v1/specialists/spec-lebedeva/slots")
+    _, slots_payload = client.call("GET", "/v1/specialists/spec-sokolov/slots")
 
     hold = None
     hold_errors: list[str] = []
