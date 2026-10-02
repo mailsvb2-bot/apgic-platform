@@ -1,7 +1,5 @@
-import type {
-  ClientCompatibilityDecision,
-  MobilePlatform,
-} from "../../../packages/contracts/src/mobile-policy.ts";
+import type {ClientCompatibilityDecision} from "./api-contract.ts";
+import type {MobilePlatform} from "../../../packages/contracts/src/mobile-policy.ts";
 
 export type CompatibilityRequest = {
   baseURL: string;
