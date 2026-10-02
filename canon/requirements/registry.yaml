@@ -2703,21 +2703,36 @@ requirements:
   release_profile: R3
   risk: HIGH
   priority: P0
-  status: IN_PROGRESS
+  status: VERIFIED
   dependencies:
   - APGIC-MOBILE-004
   - APGIC-MOBILE-008
   implementation_refs:
   - apps/mobile/src/r3-realtime.ts
+  - apps/mobile/src/r3-realtime-controller.ts
+  - apps/mobile/src/native-realtime-lifecycle.ts
+  - apps/mobile/src/App.tsx
+  - apps/mobile/android/app/src/main/java/com/apgic/ci/RealtimeLifecycleModule.kt
+  - apps/mobile/ios/APGIC/RealtimeLifecycle.m
   - config/mobile/r3-ci-realtime-policy.yaml
   - tools/mobile_realtime_guard.py
   contract_refs:
   - packages/contracts/src/r3-mobile-realtime.ts
   test_refs:
   - apps/mobile/src/r3-realtime.test.ts
+  - apps/mobile/src/r3-realtime-controller.test.ts
+  - apps/mobile/src/r3-realtime-e2e.ts
   - tools/tests/test_r3_policy.py
+  - tools/mobile_android_capability_e2e.sh
+  - tools/mobile_ios_capability_e2e.sh
+  - deploy/staging/prove-mobile-realtime.py
   - .github/workflows/ci.yml
-  evidence_refs: []
+  evidence_refs:
+  - docs/traceability/R3-mobile009-realtime-lifecycle.md
+  - surface://WEB/mobile009-realtime-lifecycle/run-36986013279/job-110771090354
+  - surface://IOS/mobile009-realtime-lifecycle/run-36986013279/job-110771090184
+  - surface://ANDROID/mobile009-realtime-lifecycle/run-36986013279/job-110771090200
+  - surface://SERVER/mobile009-realtime-lifecycle/run-36986013279/job-110771090196
   acceptance:
     given: активна consultation/avatar realtime session
     when: network/app/audio lifecycle меняется
