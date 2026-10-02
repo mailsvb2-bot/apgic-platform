@@ -30,6 +30,9 @@ class MainActivity : ReactActivity() {
     private const val E2E_REALTIME_EVENTS = "APGIC_E2E_REALTIME_EVENTS"
     private const val E2E_REALTIME_RECONNECT_FAILURES = "APGIC_E2E_REALTIME_RECONNECT_FAILURES"
     private const val E2E_REALTIME_CONSULTATION_ID = "APGIC_E2E_REALTIME_CONSULTATION_ID"
+    private const val E2E_COMPATIBILITY_BASE_URL = "APGIC_E2E_COMPATIBILITY_BASE_URL"
+    private const val E2E_APP_VERSION = "APGIC_E2E_APP_VERSION"
+    private const val E2E_CONTRACT_VERSION = "APGIC_E2E_CONTRACT_VERSION"
     private val CAPABILITY_STATES = setOf(
       "UNKNOWN",
       "NOT_REQUESTED",
@@ -69,6 +72,8 @@ class MainActivity : ReactActivity() {
         Bundle().apply {
           putString("deviceCapability", "MICROPHONE")
           putString("deviceCapabilityState", microphoneState())
+          putString("compatibilityPlatform", "ANDROID")
+          putString("appVersion", BuildConfig.VERSION_NAME)
           if (BuildConfig.DEBUG) {
             intent?.getStringExtra(E2E_INSTALLATION_BASE_URL)
               ?.takeIf { it.isNotBlank() }
@@ -127,6 +132,15 @@ class MainActivity : ReactActivity() {
             intent?.getStringExtra(E2E_REALTIME_CONSULTATION_ID)
               ?.takeIf { it.isNotBlank() }
               ?.let { putString("realtimeE2EConsultationID", it) }
+            intent?.getStringExtra(E2E_COMPATIBILITY_BASE_URL)
+              ?.takeIf { it.isNotBlank() }
+              ?.let { putString("compatibilityBaseURL", it) }
+            intent?.getStringExtra(E2E_APP_VERSION)
+              ?.takeIf { it.isNotBlank() }
+              ?.let { putString("appVersion", it) }
+            intent?.getStringExtra(E2E_CONTRACT_VERSION)
+              ?.takeIf { it.isNotBlank() }
+              ?.let { putString("compatibilityContractVersion", it) }
           }
         }
     }
