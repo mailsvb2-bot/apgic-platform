@@ -141,3 +141,53 @@ test("join auth expiry refreshes auth and rejoins without business completion", 
   assert.ok(p.actions.includes("auth"));
   assert.ok(business.every((value) => value === "NONE"));
 });
+
+
+test("settle waits for lifecycle-triggered reconnect to reach the stable provider state", async () => {
+  const lifecycle = new Lifecycle();
+  let releaseReconnect: ((value: string) => void) | undefined;
+  let reconnectStarted = false;
+  const actions: string[] = [];
+  const slowProvider: CommunicationProviderPort = {
+    async connect() {
+      actions.push("connect");
+      return "provider-connection-1";
+    },
+    async reconnect() {
+      actions.push("reconnect");
+      reconnectStarted = true;
+      return await new Promise<string>((resolve) => {
+        releaseReconnect = resolve;
+      });
+    },
+    async pauseMedia() { actions.push("pause"); },
+    async refreshAudioRoute() { actions.push("route"); },
+    async refreshJoinAuth() { actions.push("auth"); return "provider-auth-refreshed"; },
+    async requestMicrophonePermission() { actions.push("permission"); },
+    async reportTechnicalFailure(reason) { actions.push(`technical:${reason}`); },
+  };
+  const controller = new NativeRealtimeController(initial(), policy, slowProvider, lifecycle);
+  await controller.start();
+  assert.equal(controller.snapshot().phase, "CONNECTED");
+
+  lifecycle.listener?.({type: "NETWORK_OFFLINE"});
+  await controller.settle();
+  assert.equal(controller.snapshot().phase, "RECONNECTING");
+
+  lifecycle.listener?.({type: "NETWORK_ONLINE"});
+  for (let attempt = 0; attempt < 100 && !reconnectStarted; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 1));
+  }
+  assert.equal(reconnectStarted, true);
+  assert.equal(controller.snapshot().phase, "RECONNECTING");
+
+  const settled = controller.settle();
+  assert.ok(releaseReconnect);
+  releaseReconnect?.("provider-rejoined");
+  await settled;
+
+  assert.equal(controller.snapshot().phase, "CONNECTED");
+  assert.equal(controller.snapshot().provider_connection_ref, "provider-rejoined");
+  assert.deepEqual(actions, ["connect", "reconnect"]);
+  await controller.stop();
+});

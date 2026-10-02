@@ -78,6 +78,10 @@ export class NativeRealtimeController {
     return next;
   }
 
+  async settle(): Promise<void> {
+    await this.chain;
+  }
+
   private async apply(event: NativeRealtimeEvent): Promise<void> {
     const reduction = reduceNativeRealtime(this.current, event, this.policy);
     if (reduction.business_transition !== "NONE") {

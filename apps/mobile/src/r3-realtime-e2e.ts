@@ -144,7 +144,9 @@ export async function runNativeRealtimeE2E(
       const before = reductions;
       await debugEmitNativeRealtimeEvent(event);
       await waitForReduction(() => reductions, before);
+      await controller.settle();
     }
+    await controller.settle();
     const snapshot = controller.snapshot();
     if (transitions.some((value) => value !== "NONE")) {
       throw new Error("REALTIME_E2E_FALSE_BUSINESS_TRANSITION");
