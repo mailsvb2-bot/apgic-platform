@@ -2917,6 +2917,7 @@ requirements:
   - apps/mobile/src/r1-cross-surface.test.ts
   - apps/mobile/src/analytics-client.test.ts
   - apps/web/src/r1-cross-surface.test.ts
+  - tools/tests/test_r1_analytics_schema.py
   - tools/r1_multisurface_guard.py
   - tools/r1_analytics_parity_e2e.mjs
   - .github/workflows/ci.yml
