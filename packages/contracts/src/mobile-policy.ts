@@ -1,3 +1,5 @@
+import type {ClientCompatibilityDecision} from "./generated/apgic-v1";
+
 export type MobilePlatform = "IOS" | "ANDROID";
 
 export type ClientCompatibilityStatus =
@@ -5,15 +7,10 @@ export type ClientCompatibilityStatus =
   | "DEPRECATED_BUT_SUPPORTED"
   | "UPDATE_REQUIRED";
 
-export interface ClientCompatibilityDecision {
-  status: ClientCompatibilityStatus;
-  reason_code:
-    | "CLIENT_VERSION_SUPPORTED"
-    | "CLIENT_VERSION_DEPRECATED"
-    | "CLIENT_VERSION_BELOW_MINIMUM";
-  policy_version: string;
-  contract_version: string;
-}
+export type ForcedUpdateReason =
+  | "SECURITY_CRITICAL"
+  | "LEGAL_CRITICAL"
+  | "INCOMPATIBLE_CRITICAL";
 
 export type RemoteCapability =
   | "REALTIME_CONSULTATION"

@@ -2871,19 +2871,33 @@ requirements:
   release_profile: R0
   risk: HIGH
   priority: P0
-  status: IN_PROGRESS
+  status: VERIFIED
   dependencies:
   - APGIC-MOBILE-011
   - APGIC-MOBILE-012
   implementation_refs:
   - backend/internal/clientcompat/compatibility.go
+  - backend/internal/httpapi/mobile_compatibility.go
+  - backend/cmd/api/main.go
+  - apps/mobile/src/mobile-compatibility-client.ts
+  - apps/mobile/src/App.tsx
   - packages/contracts/src/mobile-policy.ts
   contract_refs:
   - contracts/jsonschema/mobile-policy-v1.schema.json
+  - contracts/openapi/apgic-v1.yaml
+  - packages/contracts/src/generated/apgic-v1.ts
   test_refs:
   - backend/internal/clientcompat/compatibility_test.go
+  - backend/internal/httpapi/mobile_compatibility_test.go
+  - apps/mobile/src/mobile-compatibility-client.test.ts
+  - tools/mobile_android_capability_e2e.sh
+  - tools/mobile_ios_capability_e2e.sh
   - .github/workflows/ci.yml
-  evidence_refs: []
+  evidence_refs:
+  - docs/traceability/R0-mobile013-safe-update-policy.md
+  - surface://SERVER/mobile013-contract-compatibility/run-37044947386/job-110963951025
+  - surface://IOS/mobile013-native-e2e/run-37044947386/job-110963951309
+  - surface://ANDROID/mobile013-native-e2e/run-37044947386/job-110963951104
   acceptance:
     given: installed client использует поддерживаемую предыдущую contract version
     when: backend обновлён

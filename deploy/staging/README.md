@@ -27,6 +27,12 @@ STAGING and PRODUCTION runtime modes require APGIC_DATABASE_URL.
 The API verifies PostgreSQL connectivity and canonical tables before startup and rechecks storage from /readyz.
 An unavailable or incomplete database must make the service fail closed; staging must never silently fall back to in-memory readiness.
 
+## Mobile compatibility deployment gate
+
+STAGING and PRODUCTION also require an explicit versioned mobile compatibility policy before the API starts. The policy includes AppVersion, BuildNumber, supported client contract revisions, the minimum/recommended app versions, a governed critical forced-update reason, and HTTPS update destinations for iOS and Android.
+
+Before changing the checked-out commit, `update-staging.sh` validates these values from `/etc/apgic/staging.env`. Missing or malformed compatibility policy therefore refuses the deployment before `git reset`, migrations, or service restart. Use `deploy/staging/staging.env.example` as the canonical variable list.
+
 ## Operational PostgreSQL backups
 
 Staging uses an operational backup path that is intentionally separate from CI restore evidence and production release evidence.
@@ -67,6 +73,7 @@ The updater:
 
 - reads the currently deployed commit from `APGIC_COMMIT_SHA`;
 - resolves the target commit (default: `origin/main`);
+- validates the complete mobile compatibility policy before changing the checkout;
 - refuses non-forward deployments;
 - inspects numbered migration files added between the deployed and target commits;
 - refuses modifications/deletions/renames of existing numbered migrations;

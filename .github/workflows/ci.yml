@@ -332,6 +332,9 @@ jobs:
         env:
           APGIC_SPECIALIST_TEST_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable
         run: go test ./internal/runtimepostgres -run TestSpecialistSupplyPersistsEvidenceReviewAndPublishGate -count=1
+      - name: Prove APGIC-MOBILE-013 contract compatibility and governed forced update
+        working-directory: backend
+        run: go test ./internal/clientcompat ./internal/httpapi -run 'TestCompatibility|TestSupportedPreviousContract|TestUnsupportedContract|TestMobileCompatibility' -count=1
       - name: Prove mobile installation rotation reinstall and revoke through PostgreSQL HTTP
         working-directory: backend
         env:
@@ -360,6 +363,18 @@ jobs:
           APGIC_PROVIDER_MATRIX_VERSION: providers-ci-v1
           APGIC_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           APGIC_CLIENT_SESSION_KEY: ci-only-client-session-key-000000000000
+          APGIC_MOBILE_POLICY_VERSION: mobile013-ci-v1
+          APGIC_MOBILE_CONTRACT_VERSION: 0.9.0-r0-mobile-compatibility
+          APGIC_MOBILE_SUPPORTED_CONTRACTS: 0.8.0-r2-offline-sync,0.9.0-r0-mobile-compatibility
+          APGIC_MOBILE_FORCED_UPDATE_REASON: INCOMPATIBLE_CRITICAL
+          APGIC_IOS_MIN_VERSION: 1.4.0
+          APGIC_IOS_RECOMMENDED_VERSION: 1.6.0
+          APGIC_IOS_MIN_BUILD: 1
+          APGIC_IOS_UPDATE_URL: https://apgic.ru/update
+          APGIC_ANDROID_MIN_VERSION: 1.4.0
+          APGIC_ANDROID_RECOMMENDED_VERSION: 1.6.0
+          APGIC_ANDROID_MIN_BUILD: 1
+          APGIC_ANDROID_UPDATE_URL: https://apgic.ru/update
         run: |
           set -euo pipefail
           psql -h 127.0.0.1 -U apgic -d postgres -v ON_ERROR_STOP=1 \
@@ -615,6 +630,8 @@ jobs:
             evidence/android-debug.sha256
             evidence/android-build-privacy-inspection.json
             evidence/android-capability-e2e-*.xml
+            evidence/android-compatibility-supported.xml
+            evidence/android-compatibility-update-required.xml
             evidence/android-installation-e2e.xml
             evidence/android-installation-server-state.json
             evidence/android-deeplink-issued.json
@@ -676,6 +693,8 @@ jobs:
             evidence/ios-simulator.sha256
             evidence/ios-build-privacy-inspection.json
             evidence/ios-capability-e2e-*.json
+            evidence/ios-compatibility-supported.json
+            evidence/ios-compatibility-update-required.json
             evidence/ios-installation-e2e.json
             evidence/ios-installation-server-state.json
             evidence/ios-deeplink-issued.json

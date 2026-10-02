@@ -217,6 +217,9 @@ bootstrap_installation_session
 prepare_offline_checkout
 issue_deep_link
 
+export SIMCTL_CHILD_APGIC_E2E_COMPATIBILITY_BASE_URL=http://127.0.0.1:43113
+export SIMCTL_CHILD_APGIC_E2E_CONTRACT_VERSION=0.9.0-r0-mobile-compatibility
+
 install_idb_with_retry() {
   if command -v idb >/dev/null 2>&1; then
     return 0
@@ -276,6 +279,59 @@ assert_state() {
 assert_state "DENIED" "PERMISSION_DENIED"
 assert_state "RESTRICTED" "OS_RESTRICTED"
 assert_state "UNAVAILABLE" "CAPABILITY_UNAVAILABLE"
+
+assert_compatibility_policy() {
+  local supported_output="$EVIDENCE_DIR/ios-compatibility-supported.json"
+  local update_output="$EVIDENCE_DIR/ios-compatibility-update-required.json"
+  local supported_installation_id
+  supported_installation_id="$(python3 -c 'import uuid; print(uuid.uuid4())')"
+
+  xcrun simctl terminate "$UDID" com.apgic.ci >/dev/null 2>&1 || true
+  SIMCTL_CHILD_APGIC_E2E_CAPABILITY_STATE=GRANTED \
+  SIMCTL_CHILD_APGIC_E2E_COMPATIBILITY_BASE_URL=http://127.0.0.1:43113 \
+  SIMCTL_CHILD_APGIC_E2E_CONTRACT_VERSION=0.8.0-r2-offline-sync \
+  SIMCTL_CHILD_APGIC_E2E_INSTALLATION_BASE_URL=http://127.0.0.1:43113 \
+  SIMCTL_CHILD_APGIC_E2E_SESSION_COOKIE="$SESSION_COOKIE" \
+  SIMCTL_CHILD_APGIC_E2E_INSTALLATION_ID="$supported_installation_id" \
+  SIMCTL_CHILD_APGIC_E2E_INSTALLATION_PLATFORM=IOS \
+    xcrun simctl launch "$UDID" com.apgic.ci >/dev/null
+
+  for _ in $(seq 1 60); do
+    if "$IDB" ui describe-all --udid "$UDID" --api axbridge --json --nested >"$supported_output" 2>/dev/null &&
+       json_has_ax_label "$supported_output" "installation-e2e:PASS" &&
+       json_has_ax_label "$supported_output" "installation-e2e-state:REVOKED" &&
+       json_has_ax_label "$supported_output" "installation-e2e-generation:2" &&
+       ! json_has_ax_label "$supported_output" "compatibility-status:UPDATE_REQUIRED"; then
+      echo "iOS supported previous contract remained operational: PASS"
+      break
+    fi
+    sleep 1
+  done
+  json_has_ax_label "$supported_output" "installation-e2e:PASS" ||
+    fail "supported previous iOS contract did not remain usable under the updated backend contract"
+
+  xcrun simctl terminate "$UDID" com.apgic.ci >/dev/null 2>&1 || true
+  SIMCTL_CHILD_APGIC_E2E_CAPABILITY_STATE=GRANTED \
+  SIMCTL_CHILD_APGIC_E2E_COMPATIBILITY_BASE_URL=http://127.0.0.1:43113 \
+  SIMCTL_CHILD_APGIC_E2E_CONTRACT_VERSION=0.7.0-unsupported \
+    xcrun simctl launch "$UDID" com.apgic.ci >/dev/null
+
+  for _ in $(seq 1 60); do
+    if "$IDB" ui describe-all --udid "$UDID" --api axbridge --json --nested >"$update_output" 2>/dev/null &&
+       json_has_ax_label "$update_output" "compatibility-e2e:PASS" &&
+       json_has_ax_label "$update_output" "compatibility-status:UPDATE_REQUIRED" &&
+       json_has_ax_label "$update_output" "compatibility-reason:CLIENT_CONTRACT_UNSUPPORTED" &&
+       json_has_ax_label "$update_output" "compatibility-update-reason:INCOMPATIBLE_CRITICAL" &&
+       json_has_ax_label "$update_output" "compatibility-update-action"; then
+      echo "iOS installed-app compatibility + governed update path: PASS"
+      return 0
+    fi
+    sleep 1
+  done
+
+  [[ -f "$update_output" ]] && cat "$update_output" >&2 || true
+  fail "incompatible iOS client did not expose governed update-required UX"
+}
 
 assert_installation_lifecycle() {
   local installation_id
@@ -512,23 +568,47 @@ assert_realtime_lifecycle() {
     fail "installed iOS app did not complete native realtime lifecycle proof"
   fi
 
-  launch_realtime
-  for _ in $(seq 1 60); do
-    if realtime_ready "$rejoin_output"; then
-      echo "iOS installed-app native realtime lifecycle + restart/rejoin: PASS"
-      return 0
+  local rejoin_attempt
+  for rejoin_attempt in $(seq 1 3); do
+    launch_realtime
+    for _ in $(seq 1 60); do
+      if realtime_ready "$rejoin_output"; then
+        echo "iOS installed-app native realtime lifecycle + restart/rejoin: PASS"
+        return 0
+      fi
+      sleep 1
+    done
+
+    # The iOS simulator may deliver a real AVAudioSession interruption after
+    # the scripted lifecycle has already completed. Retry only when the app
+    # still proves the same consultation and no business transition, and the
+    # sole unstable terminal condition is the technical DEGRADED phase.
+    if [[ -f "$rejoin_output" ]] &&
+       json_has_ax_label "$rejoin_output" "realtime-e2e:PASS" &&
+       json_has_ax_label "$rejoin_output" "realtime-phase:DEGRADED" &&
+       json_has_ax_label "$rejoin_output" "realtime-business-transition:NONE" &&
+       json_has_ax_label "$rejoin_output" "realtime-consultation-id:${consultation_id}" &&
+       json_has_ax_label "$rejoin_output" "realtime-app-state:FOREGROUND" &&
+       json_has_ax_label "$rejoin_output" "realtime-network-state:ONLINE" &&
+       json_has_ax_label "$rejoin_output" "realtime-screen-state:UNLOCKED" &&
+       json_has_ax_label "$rejoin_output" "realtime-join-auth-state:VALID"; then
+      echo "iOS rejoin attempt $rejoin_attempt ended in ambient technical DEGRADED state; retrying same consultation"
+      continue
     fi
-    sleep 1
+
+    [[ -f "$rejoin_output" ]] && cat "$rejoin_output" >&2 || true
+    fail "installed iOS app violated realtime restart/rejoin invariants"
   done
 
   [[ -f "$rejoin_output" ]] && cat "$rejoin_output" >&2 || true
-  fail "installed iOS app did not rejoin the same canonical consultation after process restart"
+  fail "installed iOS app did not rejoin the same canonical consultation after bounded restart retries"
 }
 
+assert_compatibility_policy
 assert_installation_lifecycle
 assert_deep_link_runtime
 assert_notification_runtime
 assert_offline_mutation_restart
 assert_realtime_lifecycle
 
-echo "IOS CAPABILITY + INSTALLATION + DEEP-LINK + NOTIFICATION + OFFLINE-SYNC + REALTIME NATIVE E2E: PASS"
+echo "IOS CAPABILITY + COMPATIBILITY + INSTALLATION + DEEP-LINK + NOTIFICATION + OFFLINE-SYNC + REALTIME NATIVE E2E: PASS"

@@ -26,6 +26,52 @@ set +a
 
 : "${APGIC_DATABASE_URL:?APGIC_DATABASE_URL is required}"
 : "${APGIC_COMMIT_SHA:?APGIC_COMMIT_SHA is required}"
+: "${APGIC_MOBILE_POLICY_VERSION:?APGIC_MOBILE_POLICY_VERSION is required}"
+: "${APGIC_MOBILE_CONTRACT_VERSION:?APGIC_MOBILE_CONTRACT_VERSION is required}"
+: "${APGIC_MOBILE_SUPPORTED_CONTRACTS:?APGIC_MOBILE_SUPPORTED_CONTRACTS is required}"
+: "${APGIC_MOBILE_FORCED_UPDATE_REASON:?APGIC_MOBILE_FORCED_UPDATE_REASON is required}"
+: "${APGIC_IOS_MIN_VERSION:?APGIC_IOS_MIN_VERSION is required}"
+: "${APGIC_IOS_RECOMMENDED_VERSION:?APGIC_IOS_RECOMMENDED_VERSION is required}"
+: "${APGIC_IOS_MIN_BUILD:?APGIC_IOS_MIN_BUILD is required}"
+: "${APGIC_IOS_UPDATE_URL:?APGIC_IOS_UPDATE_URL is required}"
+: "${APGIC_ANDROID_MIN_VERSION:?APGIC_ANDROID_MIN_VERSION is required}"
+: "${APGIC_ANDROID_RECOMMENDED_VERSION:?APGIC_ANDROID_RECOMMENDED_VERSION is required}"
+: "${APGIC_ANDROID_MIN_BUILD:?APGIC_ANDROID_MIN_BUILD is required}"
+: "${APGIC_ANDROID_UPDATE_URL:?APGIC_ANDROID_UPDATE_URL is required}"
+
+validate_semver() {
+  [[ "$1" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+}
+validate_positive_integer() {
+  [[ "$1" =~ ^[1-9][0-9]*$ ]]
+}
+validate_https_url() {
+  [[ "$1" =~ ^https://[^[:space:]]+$ ]]
+}
+
+case "$APGIC_MOBILE_FORCED_UPDATE_REASON" in
+  SECURITY_CRITICAL|LEGAL_CRITICAL|INCOMPATIBLE_CRITICAL) ;;
+  *)
+    echo "invalid APGIC_MOBILE_FORCED_UPDATE_REASON: $APGIC_MOBILE_FORCED_UPDATE_REASON" >&2
+    exit 1
+    ;;
+esac
+
+for value in "$APGIC_IOS_MIN_VERSION" "$APGIC_IOS_RECOMMENDED_VERSION" "$APGIC_ANDROID_MIN_VERSION" "$APGIC_ANDROID_RECOMMENDED_VERSION"; do
+  validate_semver "$value" || { echo "invalid mobile semantic version: $value" >&2; exit 1; }
+done
+validate_positive_integer "$APGIC_IOS_MIN_BUILD" || { echo "invalid APGIC_IOS_MIN_BUILD" >&2; exit 1; }
+validate_positive_integer "$APGIC_ANDROID_MIN_BUILD" || { echo "invalid APGIC_ANDROID_MIN_BUILD" >&2; exit 1; }
+validate_https_url "$APGIC_IOS_UPDATE_URL" || { echo "invalid APGIC_IOS_UPDATE_URL" >&2; exit 1; }
+validate_https_url "$APGIC_ANDROID_UPDATE_URL" || { echo "invalid APGIC_ANDROID_UPDATE_URL" >&2; exit 1; }
+
+case ",$APGIC_MOBILE_SUPPORTED_CONTRACTS," in
+  *,"$APGIC_MOBILE_CONTRACT_VERSION",*) ;;
+  *)
+    echo "current mobile contract is not in APGIC_MOBILE_SUPPORTED_CONTRACTS" >&2
+    exit 1
+    ;;
+esac
 
 CURRENT_SHA="$APGIC_COMMIT_SHA"
 

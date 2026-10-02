@@ -24,3 +24,16 @@ exceptions:
       lifecycle under this requirement; fabricating WEB installation evidence would
       create a false parallel device truth.
     approved_by: mailsvb2-bot
+
+  - exception_id: APGIC-MOBILE-013-WEB-NOT-APPLICABLE
+    requirement_id: APGIC-MOBILE-013
+    status: APPROVED
+    surfaces:
+      - WEB
+    reason: >-
+      APGIC-MOBILE-013 implements the installed native app version/build/contract
+      compatibility and safe forced-update policy from Canon section 322. Its
+      acceptance and required evidence are explicitly installed-client/native E2E;
+      WEB has no native AppVersion/BuildNumber lifecycle under this requirement.
+      Fabricating WEB compatibility evidence would misrepresent requirement scope.
+    approved_by: mailsvb2-bot

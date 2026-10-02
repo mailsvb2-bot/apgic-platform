@@ -17,6 +17,16 @@ def main() -> None:
     for needle in (
         'APGIC_COMMIT_SHA',
         'APGIC_DEPLOY_LOCK_FILE',
+        'APGIC_MOBILE_POLICY_VERSION',
+        'APGIC_MOBILE_CONTRACT_VERSION',
+        'APGIC_MOBILE_SUPPORTED_CONTRACTS',
+        'APGIC_MOBILE_FORCED_UPDATE_REASON',
+        'APGIC_IOS_MIN_BUILD',
+        'APGIC_ANDROID_MIN_BUILD',
+        'validate_semver()',
+        'validate_positive_integer()',
+        'validate_https_url()',
+        'current mobile contract is not in APGIC_MOBILE_SUPPORTED_CONTRACTS',
         'flock -n 9',
         'another APGIC staging deployment is already running',
         'git merge-base --is-ancestor',
@@ -48,7 +58,9 @@ def main() -> None:
     ):
         require(text, needle)
 
-    ordered(text, 'flock -n 9', 'git merge-base --is-ancestor')
+    ordered(text, 'flock -n 9', 'APGIC_MOBILE_POLICY_VERSION is required')
+    ordered(text, 'APGIC_MOBILE_POLICY_VERSION is required', 'git fetch origin main')
+    ordered(text, 'git fetch origin main', 'git merge-base --is-ancestor')
     ordered(text, 'git merge-base --is-ancestor', 'git reset --hard "$TARGET_SHA"')
     ordered(text, 'go build -o bin/apgic-api ./cmd/api', "SELECT to_regclass('public.apgic_schema_migrations') IS NOT NULL")
     ordered(text, "SELECT to_regclass('public.apgic_schema_migrations') IS NOT NULL", 'systemctl start apgic-staging-backup.service')
