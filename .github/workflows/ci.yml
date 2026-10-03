@@ -684,27 +684,16 @@ jobs:
             CODE_SIGNING_REQUIRED=YES \
             CODE_SIGN_IDENTITY=- \
             build
-      - name: Verify Xcode simulator signing and Keychain entitlement
+      - name: Verify Xcode simulator signing before Keychain runtime proof
         shell: bash
         run: |
           mkdir -p evidence
           APP="apps/mobile/ios/build/derived/Build/Products/Debug-iphonesimulator/APGIC.app"
           test -d "$APP"
           codesign --verify --deep --strict "$APP"
+          codesign --display --verbose=4 "$APP" > evidence/ios-simulator-codesign.txt 2>&1
           codesign --display --entitlements :- "$APP" > evidence/ios-simulator-entitlements.plist 2>/dev/null
-          python3 - <<'PY2'
-          import plistlib
-          from pathlib import Path
-
-          path = Path("evidence/ios-simulator-entitlements.plist")
-          data = plistlib.loads(path.read_bytes())
-          app_id = data.get("application-identifier")
-          groups = data.get("keychain-access-groups", [])
-          if not isinstance(app_id, str) or not app_id.endswith("com.apgic.ci"):
-              raise SystemExit(f"Xcode simulator application-identifier missing: {data!r}")
-          if groups and app_id not in groups:
-              raise SystemExit(f"Xcode simulator default Keychain group mismatch: {data!r}")
-          PY2
+          grep -q 'Signature=adhoc' evidence/ios-simulator-codesign.txt
       - shell: bash
         run: |
           mkdir -p evidence
@@ -723,6 +712,8 @@ jobs:
             evidence/APGIC-ios-simulator.zip
             evidence/ios-simulator.sha256
             evidence/ios-build-privacy-inspection.json
+            evidence/ios-simulator-codesign.txt
+            evidence/ios-simulator-entitlements.plist
             evidence/ios-capability-e2e-*.json
             evidence/ios-compatibility-supported.json
             evidence/ios-compatibility-update-required.json

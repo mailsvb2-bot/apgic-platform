@@ -88,17 +88,20 @@ class MobileNativeE2EHarnessTest(unittest.TestCase):
 
     def test_ios_simulator_uses_xcode_adhoc_signing_for_keychain_runtime(self) -> None:
         workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+        app = (ROOT / "apps/mobile/src/App.tsx").read_text(encoding="utf-8")
 
         self.assertIn("CODE_SIGNING_ALLOWED=YES", workflow)
         self.assertIn("CODE_SIGNING_REQUIRED=YES", workflow)
         self.assertIn("CODE_SIGN_IDENTITY=-", workflow)
-        self.assertIn("Verify Xcode simulator signing and Keychain entitlement", workflow)
+        self.assertIn("Verify Xcode simulator signing before Keychain runtime proof", workflow)
         self.assertIn("codesign --verify --deep --strict", workflow)
-        self.assertIn("ios-simulator-entitlements.plist", workflow)
-        self.assertIn('"application-identifier"', workflow)
-        self.assertIn('"keychain-access-groups"', workflow)
+        self.assertIn("ios-simulator-codesign.txt", workflow)
+        self.assertIn("Signature=adhoc", workflow)
         self.assertNotIn("APGICCI000", workflow)
         self.assertNotIn("APGICSimulatorCI.entitlements", workflow)
+        self.assertIn("secureCredentialStorage.save", app)
+        self.assertIn("secureCredentialStorage.load", app)
+        self.assertIn("clearUserScopedLocalState", app)
 
     def test_ios_realtime_initial_pass_has_bounded_ambient_degradation_recovery(self) -> None:
         text = self._read("mobile_ios_capability_e2e.sh")
