@@ -399,7 +399,7 @@ func main() {
 	canonicalHandler := httpapi.New(httpapi.Options{
 		Demand:                      demand.NewConformanceService(nil),
 		Installations:               newConformanceInstallationStore(),
-		MobileWorkspaces:             conformanceWorkspaceStore{},
+		MobileWorkspaces:            conformanceWorkspaceStore{},
 		Notifications:               conformanceNotificationStore{},
 		ClientMutations:             mutations,
 		DeepLinks:                   conformanceDeepLinkStore{},
