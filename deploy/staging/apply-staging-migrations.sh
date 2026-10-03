@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+bash "$SCRIPT_DIR/assert-authorized-host.sh"
+
 REPO_ROOT="${APGIC_REPO_ROOT:-/opt/apgic/current}"
 : "${APGIC_DATABASE_URL:?APGIC_DATABASE_URL is required}"
 
