@@ -64,6 +64,23 @@ class MobileNativeE2EHarnessTest(unittest.TestCase):
         self.assertIn("INTERRUPTION_ENDED", events[:-1])
 
 
+    def test_ios_realtime_initial_pass_has_bounded_ambient_degradation_recovery(self) -> None:
+        text = self._read("mobile_ios_capability_e2e.sh")
+        realtime = text[text.index("assert_realtime_lifecycle() {"):]
+        self.assertIn("ambient_technical_degraded() {", realtime)
+        self.assertIn("for initial_attempt in $(seq 1 3); do", realtime)
+        self.assertIn('json_has_ax_label "$target" "realtime-phase:DEGRADED"', realtime)
+        self.assertIn('json_has_ax_label "$target" "realtime-business-transition:NONE"', realtime)
+        self.assertIn('json_has_ax_label "$target" "realtime-audio-route:BLUETOOTH"', realtime)
+        self.assertIn('json_has_ax_label "$target" "realtime-network-transport:CELLULAR"', realtime)
+        self.assertIn('if realtime_ready "$output"; then', realtime)
+        self.assertIn("break 2", realtime)
+        self.assertIn(
+            "did not complete native realtime lifecycle proof after bounded ambient-degradation retries",
+            realtime,
+        )
+
+
     def test_release_remote_config_trust_bootstrap_is_wired(self) -> None:
         gradle = (ROOT / "apps/mobile/android/app/build.gradle").read_text(encoding="utf-8")
         android = (
