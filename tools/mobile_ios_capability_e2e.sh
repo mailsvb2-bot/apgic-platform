@@ -206,7 +206,12 @@ PYRUNTIME
 )"
 [[ -n "$IOS_RUNTIME" ]] || fail "could not select iOS simulator runtime"
 
-mapfile -t IOS_DEVICE_TYPES < <(
+IOS_DEVICE_TYPES=()
+while IFS= read -r device_type; do
+  if [[ -n "$device_type" ]]; then
+    IOS_DEVICE_TYPES+=("$device_type")
+  fi
+done < <(
   python3 - <<'PYDEVICES'
 import json
 import subprocess
