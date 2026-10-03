@@ -3463,15 +3463,32 @@ requirements:
   - APGIC-MOBILE-001
   implementation_refs:
   - backend/internal/mobile/workspace.go
+  - backend/internal/runtimepostgres/mobile_workspace.go
+  - backend/internal/httpapi/mobile_workspace.go
+  - backend/internal/httpapi/mobile_deeplink.go
   - apps/mobile/src/r1-cross-surface.ts
+  - apps/mobile/src/mobile-workspace-client.ts
+  - apps/mobile/src/mobile-deep-link-client.ts
+  - apps/mobile/src/App.tsx
   contract_refs:
+  - contracts/openapi/apgic-v1.yaml
+  - packages/contracts/src/generated/apgic-v1.ts
   - packages/contracts/src/r1-mobile.ts
   - contracts/jsonschema/r1-mobile-cross-surface-v1.schema.json
   test_refs:
   - backend/internal/mobile/r1_mobile_test.go
+  - backend/internal/httpapi/mobile_workspace_integration_test.go
+  - backend/internal/httpapi/mobile_deeplink_test.go
   - apps/mobile/src/r1-cross-surface.test.ts
+  - apps/mobile/src/mobile-workspace-client.test.ts
+  - apps/mobile/src/mobile-deep-link-client.test.ts
   - tools/r1_multisurface_guard.py
-  evidence_refs: []
+  - tools/mobile_android_capability_e2e.sh
+  - tools/mobile_ios_capability_e2e.sh
+  - tools/tests/test_mobile_native_e2e_harness.py
+  - .github/workflows/ci.yml
+  evidence_refs:
+  - docs/traceability/R1-mobile028-multirole-workspaces.md
   acceptance:
     given: user has multiple profiles/memberships
     when: user switches workspace or opens scoped link/push

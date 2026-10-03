@@ -26,6 +26,7 @@ type Options struct {
 	Demand                      *demand.Service
 	LegalAcceptances            legal.AcceptanceStore
 	Installations               mobile.InstallationStore
+	MobileWorkspaces            mobileWorkspaceStore
 	Notifications               notification.MobileProjectionStore
 	ClientMutations             mutation.Store
 	DeepLinks                   deepLinkResourceStore
@@ -113,6 +114,7 @@ func New(options Options) http.Handler {
 	registerMobileCompatibility(mux, options.ClientCompatibilityPolicies)
 	registerMobileRemoteConfig(mux, options.RemoteConfigProvider, options.Now)
 	registerMobileInstallations(mux, options.Installations, sessions, sessionConfigErr, options.Now)
+	registerMobileWorkspaces(mux, options.MobileWorkspaces, sessions, sessionConfigErr, options.Now)
 	registerMobileNotifications(mux, options.Notifications, sessions, sessionConfigErr)
 	registerMobileCheckoutMutation(mux, options.Demand, options.ClientMutations, sessions, sessionConfigErr, options.Now)
 	var deepLinkTokens *mobile.DeepLinkTokenManager
@@ -120,7 +122,7 @@ func New(options Options) http.Handler {
 	if len(options.DeepLinkSigningKey) > 0 {
 		deepLinkTokens, deepLinkTokenConfigErr = mobile.NewDeepLinkTokenManager(options.DeepLinkSigningKey)
 	}
-	registerMobileDeepLinks(mux, options.DeepLinks, deepLinkTokens, deepLinkTokenConfigErr, sessions, sessionConfigErr, options.Now)
+	registerMobileDeepLinks(mux, options.DeepLinks, options.MobileWorkspaces, deepLinkTokens, deepLinkTokenConfigErr, sessions, sessionConfigErr, options.Now)
 	registerSpecialist(mux, options.Specialists, sessions, sessionConfigErr)
 	registerOrganizationAuthorization(mux, options.OrganizationAuth, sessions, sessionConfigErr, options.Now)
 	registerOrganizationRuntime(mux, options.Organizations, sessions, sessionConfigErr)

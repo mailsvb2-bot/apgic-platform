@@ -14,6 +14,8 @@ MOBILE = ROOT / "apps/mobile/src/r1-cross-surface.ts"
 WEB_ANALYTICS = ROOT / "apps/web/src/analytics-client.ts"
 MOBILE_ANALYTICS = ROOT / "apps/mobile/src/analytics-client.ts"
 ANALYTICS_E2E = ROOT / "tools/r1_analytics_parity_e2e.mjs"
+WORKSPACE_CLIENT = ROOT / "apps/mobile/src/mobile-workspace-client.ts"
+WORKSPACE_HTTP = ROOT / "backend/internal/httpapi/mobile_workspace.go"
 
 CANONICAL_EVENTS = {
     "specialist_discovery_viewed",
@@ -30,7 +32,17 @@ FORBIDDEN_CONSUMER_DECLARATIONS = {
 
 def main() -> None:
     errors: list[str] = []
-    for path in (SHARED, SCHEMA, WEB, MOBILE, WEB_ANALYTICS, MOBILE_ANALYTICS, ANALYTICS_E2E):
+    for path in (
+        SHARED,
+        SCHEMA,
+        WEB,
+        MOBILE,
+        WEB_ANALYTICS,
+        MOBILE_ANALYTICS,
+        ANALYTICS_E2E,
+        WORKSPACE_CLIENT,
+        WORKSPACE_HTTP,
+    ):
         if not path.is_file():
             errors.append(f"missing R1 multi-surface contract file: {path.relative_to(ROOT)}")
 
@@ -43,6 +55,8 @@ def main() -> None:
     web_analytics = WEB_ANALYTICS.read_text(encoding="utf-8")
     mobile_analytics = MOBILE_ANALYTICS.read_text(encoding="utf-8")
     analytics_e2e = ANALYTICS_E2E.read_text(encoding="utf-8")
+    workspace_client = WORKSPACE_CLIENT.read_text(encoding="utf-8")
+    workspace_http = WORKSPACE_HTTP.read_text(encoding="utf-8")
     schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
 
     expected_import = "../../../packages/contracts/src/r1-mobile"
@@ -101,6 +115,18 @@ def main() -> None:
         errors.append("WEB deletion initiation does not bind source=WEB")
     if "NativeSurface" not in mobile or "source: platform" not in mobile:
         errors.append("native deletion initiation is not surface-bound")
+
+    for definition in ("AuthorizedWorkspace", "WorkspaceList", "WorkspaceResolution"):
+        if definition not in defs:
+            errors.append(f"workspace schema definition is missing: {definition}")
+    if "/v1/mobile/workspaces" not in workspace_client:
+        errors.append("native workspace client does not consume canonical workspace HTTP API")
+    if "consumeAuthorizedWorkspace" not in workspace_client:
+        errors.append("native workspace client bypasses shared authorized-workspace consumer")
+    if "requiredClientSessionIdentity" not in workspace_http:
+        errors.append("workspace HTTP API is not bound to trusted client session identity")
+    if "MobileWorkspace(identityID, workspaceID)" not in workspace_http:
+        errors.append("workspace HTTP API does not resolve workspace under signed Identity")
 
     if errors:
         report(errors)

@@ -81,6 +81,36 @@ class MobileNativeE2EHarnessTest(unittest.TestCase):
         )
 
 
+    def test_workspace_role_switch_is_exercised_on_both_native_surfaces(self) -> None:
+        android_script = self._read("mobile_android_capability_e2e.sh")
+        ios_script = self._read("mobile_ios_capability_e2e.sh")
+        android_activity = (
+            ROOT
+            / "apps/mobile/android/app/src/main/java/com/apgic/ci/MainActivity.kt"
+        ).read_text(encoding="utf-8")
+        ios_delegate = (
+            ROOT / "apps/mobile/ios/APGIC/AppDelegate.swift"
+        ).read_text(encoding="utf-8")
+        app = (ROOT / "apps/mobile/src/App.tsx").read_text(encoding="utf-8")
+        client = (
+            ROOT / "apps/mobile/src/mobile-workspace-client.ts"
+        ).read_text(encoding="utf-8")
+
+        for script in (android_script, ios_script):
+            self.assertIn("assert_workspace_switch() {", script)
+            self.assertIn("workspace-e2e:PASS", script)
+            self.assertIn("workspace-e2e-kinds:CLIENT|SPECIALIST|ORGANIZATION", script)
+            self.assertIn("workspace-e2e-foreign-denied:true", script)
+            self.assertIn("assert_workspace_switch", script)
+
+        self.assertIn("APGIC_E2E_WORKSPACE_BASE_URL", android_activity)
+        self.assertIn("workspaceE2EBaseURL", android_activity)
+        self.assertIn("APGIC_E2E_WORKSPACE_BASE_URL", ios_delegate)
+        self.assertIn("workspaceE2EBaseURL", ios_delegate)
+        self.assertIn("runWorkspaceE2EFlow", app)
+        self.assertIn("/v1/mobile/workspaces", client)
+        self.assertIn("WORKSPACE_E2E_FOREIGN_SCOPE_ALLOWED", client)
+
     def test_release_remote_config_trust_bootstrap_is_wired(self) -> None:
         gradle = (ROOT / "apps/mobile/android/app/build.gradle").read_text(encoding="utf-8")
         android = (

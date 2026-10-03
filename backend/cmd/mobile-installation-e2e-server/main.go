@@ -22,6 +22,48 @@ import (
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/remoteconfig"
 )
 
+type conformanceWorkspaceStore struct{}
+
+func (conformanceWorkspaceStore) MobileWorkspaces(identityID string) ([]mobile.Workspace, error) {
+	identityID = strings.TrimSpace(identityID)
+	if identityID == "" {
+		return nil, mobile.ErrWorkspaceIdentityNotFound
+	}
+	return []mobile.Workspace{
+		{
+			ID:         mobile.ClientWorkspaceID(identityID),
+			IdentityID: identityID,
+			TenantID:   identityID,
+			Kind:       mobile.WorkspaceClient,
+		},
+		{
+			ID:         mobile.SpecialistWorkspaceID("e2e-specialist"),
+			IdentityID: identityID,
+			TenantID:   identityID,
+			Kind:       mobile.WorkspaceSpecialist,
+		},
+		{
+			ID:         mobile.OrganizationWorkspaceID("e2e-organization"),
+			IdentityID: identityID,
+			TenantID:   "e2e-organization",
+			Kind:       mobile.WorkspaceOrganization,
+		},
+	}, nil
+}
+
+func (s conformanceWorkspaceStore) MobileWorkspace(identityID, workspaceID string) (mobile.Workspace, bool, error) {
+	workspaces, err := s.MobileWorkspaces(identityID)
+	if err != nil {
+		return mobile.Workspace{}, false, err
+	}
+	for _, workspace := range workspaces {
+		if workspace.ID == workspaceID {
+			return workspace, true, nil
+		}
+	}
+	return mobile.Workspace{}, false, nil
+}
+
 type conformanceInstallationStore struct {
 	mu     sync.Mutex
 	values map[string]mobile.ClientInstallation
@@ -357,6 +399,7 @@ func main() {
 	canonicalHandler := httpapi.New(httpapi.Options{
 		Demand:                      demand.NewConformanceService(nil),
 		Installations:               newConformanceInstallationStore(),
+		MobileWorkspaces:             conformanceWorkspaceStore{},
 		Notifications:               conformanceNotificationStore{},
 		ClientMutations:             mutations,
 		DeepLinks:                   conformanceDeepLinkStore{},
