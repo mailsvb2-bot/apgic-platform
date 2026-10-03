@@ -73,6 +73,12 @@ A systemd watchdog verifies the live staging runtime without using public DNS:
 Enable apgic-staging-runtime-watchdog.timer after installing the service and timer units.
 
 
+## GitHub-first deployment rule
+
+GitHub is the source of truth for APGIC application code. Every deployed change must already exist in `mailsvb2-bot/apgic-platform` and be identified by a Git commit SHA before it reaches `92.51.23.254`.
+
+Direct server edits are not an accepted development path. Generated artifacts, logs, caches, backups, and rollback binaries may exist on the host, but server-only source code is prohibited. If a useful change is discovered in a temporary worktree or server file, commit and push it to GitHub first, then deploy through the canonical updater.
+
 ## Migration-aware updates
 
 Use `deploy/staging/update-staging.sh` for normal staging updates instead of manually applying individual migrations.
