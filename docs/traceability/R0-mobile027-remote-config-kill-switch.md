@@ -57,4 +57,18 @@ The corrected candidate additionally requires:
 - the highest verified signed version to remain an anti-rollback high-water mark after its capability policy expires;
 - a formal WEB compatibility exception because section 330 is an installed-native version/config capability, not a fabricated web flow.
 
-Status: **IN_PROGRESS** until fresh CI proves the corrected candidate.
+## Corrected verified evidence
+
+CI run `37114332039` completed successfully for corrected candidate commit `c764e31623d3a694d4c2a63a47269e040a62f1fe`.
+
+- Canon / architecture gate `111178106947`: PASS, including multisurface verification and repository guard tests.
+- Server / Go gate `111178107128`: PASS, including remote-config signing and emergency kill-switch drill.
+- Android native gate `111178107111`: PASS, including installed-app remote-config network/last-known-safe and compatibility scenarios.
+- iOS native gate `111178107001`: PASS, including installed-app remote-config network/last-known-safe and compatibility scenarios.
+- Final R0 bootstrap gate `111181084063`: PASS.
+- Release trust bootstrap is now wired for Android and iOS; production builds receive only pinned public verification material while private signing material remains outside the client/repository.
+- Persistence failure no longer causes a verified network kill-switch to be ignored.
+- Expired signed cache retains its verified version as an anti-rollback high-water mark while its expired capability policy is not applied.
+- WEB is covered by formal compatibility exception because this requirement governs installed-native app version/config behavior.
+
+Status: **VERIFIED**.
