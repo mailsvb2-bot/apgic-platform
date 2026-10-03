@@ -197,8 +197,47 @@ PY
 )"
 [[ -n "$UDID" ]] || fail "could not select iPhone simulator"
 
-xcrun simctl boot "$UDID"
-xcrun simctl bootstatus "$UDID" -b
+SIMULATOR_BOOT_LOG="/tmp/apgic-ios-simulator-boot.log"
+
+boot_simulator_with_recovery() {
+  local boot_attempt
+  local boot_status
+
+  for boot_attempt in 1 2; do
+    rm -f "$SIMULATOR_BOOT_LOG"
+
+    if ! xcrun simctl boot "$UDID" >/dev/null 2>&1; then
+      boot_status=1
+    else
+      if xcrun simctl bootstatus "$UDID" -b 2>&1 | tee "$SIMULATOR_BOOT_LOG"; then
+        boot_status=0
+      else
+        boot_status=$?
+      fi
+    fi
+
+    if [[ "$boot_status" -eq 0 ]] &&
+       ! grep -q "Data Migration Failed" "$SIMULATOR_BOOT_LOG" 2>/dev/null; then
+      return 0
+    fi
+
+    if [[ "$boot_attempt" -eq 1 ]]; then
+      echo "iOS simulator boot/data migration failed; erasing and retrying once" >&2
+      xcrun simctl shutdown "$UDID" >/dev/null 2>&1 || true
+      xcrun simctl erase "$UDID" >/dev/null 2>&1 ||
+        fail "iOS simulator erase failed after boot/data-migration failure"
+      continue
+    fi
+
+    [[ -f "$SIMULATOR_BOOT_LOG" ]] && cat "$SIMULATOR_BOOT_LOG" >&2 || true
+    return 1
+  done
+
+  return 1
+}
+
+boot_simulator_with_recovery ||
+  fail "iOS simulator failed clean boot after bounded migration recovery"
 xcrun simctl install "$UDID" "$APP"
 
 (
@@ -314,8 +353,10 @@ assert_compatibility_policy() {
     fi
     sleep 1
   done
-  json_has_ax_label "$supported_output" "installation-e2e:PASS" ||
+  if ! json_has_ax_label "$supported_output" "installation-e2e:PASS"; then
+    [[ -f "$supported_output" ]] && cat "$supported_output" >&2 || true
     fail "supported previous iOS contract did not remain usable under the updated backend contract"
+  fi
 
   xcrun simctl terminate "$UDID" com.apgic.ci >/dev/null 2>&1 || true
   SIMCTL_CHILD_APGIC_E2E_CAPABILITY_STATE=GRANTED \

@@ -64,6 +64,18 @@ class MobileNativeE2EHarnessTest(unittest.TestCase):
         self.assertIn("INTERRUPTION_ENDED", events[:-1])
 
 
+    def test_ios_simulator_boot_has_bounded_data_migration_recovery(self) -> None:
+        text = self._read("mobile_ios_capability_e2e.sh")
+        self.assertIn("boot_simulator_with_recovery() {", text)
+        self.assertIn("for boot_attempt in 1 2; do", text)
+        self.assertIn('grep -q "Data Migration Failed" "$SIMULATOR_BOOT_LOG"', text)
+        self.assertIn('xcrun simctl erase "$UDID"', text)
+        self.assertIn(
+            "failed clean boot after bounded migration recovery",
+            text,
+        )
+        self.assertIn('cat "$supported_output" >&2', text)
+
     def test_ios_realtime_initial_pass_has_bounded_ambient_degradation_recovery(self) -> None:
         text = self._read("mobile_ios_capability_e2e.sh")
         realtime = text[text.index("assert_realtime_lifecycle() {"):]
