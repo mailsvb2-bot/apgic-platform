@@ -23,3 +23,15 @@ All AI agents, chats, coding sessions, operators, automation, and deployment wor
 8. A change to this server boundary requires an explicit user instruction; it must never be inferred from repository history, another project's configuration, or available infrastructure.
 
 This boundary is an operational safety rule, not a suggestion.
+
+
+## GitHub-first source of truth
+
+GitHub is the authoritative source of APGIC code.
+
+1. All code changes MUST exist in the `mailsvb2-bot/apgic-platform` GitHub repository before they are deployed to `92.51.23.254`.
+2. Server-only code, uncommitted production/staging patches, ad-hoc binaries as the only copy of logic, and edits made directly under `/opt/apgic/current` as a source of truth are prohibited.
+3. The server may contain generated build artifacts, caches, logs, backups, temporary test files, and rollback binaries, but none of these may be the only copy of application source code.
+4. Deployment MUST identify a Git commit SHA and the runtime must be traceable back to that SHA.
+5. If code exists only on a server or in `/tmp`, it is not considered canonical APGIC code. It must first be recovered, reviewed, committed, and pushed to GitHub before deployment.
+6. Temporary worktrees used during development are disposable only after any intended changes are confirmed present in GitHub.
