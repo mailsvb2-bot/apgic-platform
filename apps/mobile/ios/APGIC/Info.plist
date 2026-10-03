@@ -24,6 +24,10 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>APGICRemoteConfigTrustedKeyID</key>
+	<string>$(APGIC_REMOTE_CONFIG_TRUSTED_KEY_ID)</string>
+	<key>APGICRemoteConfigTrustedPublicKeyBase64</key>
+	<string>$(APGIC_REMOTE_CONFIG_TRUSTED_PUBLIC_KEY_BASE64)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSAppTransportSecurity</key>
