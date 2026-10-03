@@ -4,6 +4,14 @@ APGIC is a standalone marketplace/platform product built from the **v7 FINAL exe
 
 This repository starts with **R0 — Foundation**. The implementation is intentionally provider-neutral and keeps APGIC's canonical business truth inside APGIC: identity, authorization, organization ownership, products/offers, event spine, audit, ledger/evidence, policies and contracts.
 
+## Infrastructure boundary
+
+APGIC has exactly one authorized server for runtime, deployment, diagnostics, maintenance, cleanup, database, logs, backups, and service operations: **IPv4 `92.51.23.254`**.
+
+For APGIC, Remote Desktop Commander and any other remote-management tool MUST target only that server. Other connected/reachable servers belong to other projects and MUST NOT be inspected or modified for APGIC. If `92.51.23.254` is unavailable, stop server-side APGIC work instead of falling back to another host.
+
+See `AGENTS.md` for the mandatory agent/operator rule.
+
 ## Canonical stack
 
 - Backend/API/workers/connectors: **Go**

@@ -1,5 +1,13 @@
 # APGIC staging boundary
 
+## Authorized host and Remote Desktop Commander boundary
+
+The only authorized APGIC server is **IPv4 `92.51.23.254`**.
+
+For APGIC work, Remote Desktop Commander MUST use only the connected device whose IPv4 is exactly `92.51.23.254`. It MUST NOT run diagnostics, inspection, cleanup, file operations, service commands, database commands, log reads, deployments, or any other APGIC command on another Desktop Commander device.
+
+All server-mutating staging scripts source `deploy/staging/assert-authorized-host.sh` and fail closed when the local host does not own `92.51.23.254`.
+
 This deployment profile targets a dedicated APGIC VPS. No other product is expected to share its runtime, database, or ingress configuration.
 
 - Repository/release root: /opt/apgic
@@ -64,6 +72,12 @@ A systemd watchdog verifies the live staging runtime without using public DNS:
 
 Enable apgic-staging-runtime-watchdog.timer after installing the service and timer units.
 
+
+## GitHub-first deployment rule
+
+GitHub is the source of truth for APGIC application code. Every deployed change must already exist in `mailsvb2-bot/apgic-platform` and be identified by a Git commit SHA before it reaches `92.51.23.254`.
+
+Direct server edits are not an accepted development path. Generated artifacts, logs, caches, backups, and rollback binaries may exist on the host, but server-only source code is prohibited. If a useful change is discovered in a temporary worktree or server file, commit and push it to GitHub first, then deploy through the canonical updater.
 
 ## Migration-aware updates
 

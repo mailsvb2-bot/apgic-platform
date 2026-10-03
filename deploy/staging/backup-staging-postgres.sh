@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+bash "$SCRIPT_DIR/assert-authorized-host.sh"
+
 : "${APGIC_BACKUP_DATABASE:=apgic_staging}"
 : "${APGIC_BACKUP_DIR:=/var/backups/apgic}"
 : "${APGIC_BACKUP_RETENTION_DAYS:=7}"
