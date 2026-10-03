@@ -36,6 +36,34 @@ AUDITED_NATIVE_STORAGE_ADAPTERS = {
         "APGIC_AUDITED_STORAGE_ADAPTER: INTERNAL_OFFLINE_MUTATION_QUEUE",
 }
 
+SECURE_CREDENTIAL_ADAPTER_REQUIREMENTS = {
+    "apps/mobile/android/app/src/main/java/com/apgic/ci/OfflineMutationStorageModule.kt": (
+        "APGIC_SECURE_CREDENTIAL_ADAPTER: SYSTEM_KEYSTORE_V1",
+        "AndroidKeyStore",
+        "AES/GCM/NoPadding",
+        "KeyGenParameterSpec",
+        "saveCredential",
+        "loadCredential",
+        "clearCredential",
+        "clearUserScopedState",
+        "4096",
+    ),
+    "apps/mobile/ios/APGIC/OfflineMutationStorage.m": (
+        "APGIC_SECURE_CREDENTIAL_ADAPTER: SYSTEM_KEYSTORE_V1",
+        "kSecClassGenericPassword",
+        "SecItemAdd",
+        "SecItemCopyMatching",
+        "SecItemDelete",
+        "kSecAttrAccessibleWhenUnlockedThisDeviceOnly",
+        "saveCredential",
+        "loadCredential",
+        "clearCredential",
+        "clearUserScopedState",
+        "4096",
+    ),
+}
+
+
 def scan_files(root: Path, base: str, suffixes: set[str], pattern: re.Pattern[str]) -> list[str]:
     errors: list[str] = []
     folder = root / base
@@ -66,6 +94,32 @@ def scan_files(root: Path, base: str, suffixes: set[str], pattern: re.Pattern[st
             )
     return errors
 
+
+def validate_secure_credential_adapters(root: Path) -> list[str]:
+    errors: list[str] = []
+    for rel, required in SECURE_CREDENTIAL_ADAPTER_REQUIREMENTS.items():
+        path = root / rel
+        if not path.is_file():
+            errors.append(f"{rel}: secure credential adapter missing")
+            continue
+        text = path.read_text(encoding="utf-8", errors="ignore")
+        missing = [token for token in required if token not in text]
+        if missing:
+            errors.append(
+                f"{rel}: secure credential adapter missing required system-storage proof: {missing}"
+            )
+
+        if rel.endswith(".kt"):
+            credential_section = text[text.find("fun saveCredential"):]
+            if 'putString(CREDENTIAL_KEY, value)' in credential_section:
+                errors.append(f"{rel}: credential plaintext must never be written to SharedPreferences")
+        else:
+            credential_section = text[text.find("saveCredential"):]
+            if "setObject:value forKey:APGICCredential" in credential_section:
+                errors.append(f"{rel}: credential plaintext must never be written to NSUserDefaults")
+    return errors
+
+
 def validate_native_storage(root: Path) -> list[str]:
     errors: list[str] = []
 
@@ -85,6 +139,7 @@ def validate_native_storage(root: Path) -> list[str]:
     errors.extend(scan_files(root, "apps/mobile/src", {".ts", ".tsx", ".js", ".jsx"}, JS_STORAGE))
     errors.extend(scan_files(root, "apps/mobile/android/app/src/main", {".kt", ".java"}, ANDROID_STORAGE))
     errors.extend(scan_files(root, "apps/mobile/ios/APGIC", {".swift", ".m", ".mm"}, IOS_STORAGE))
+    errors.extend(validate_secure_credential_adapters(root))
 
     manifest = root / "apps/mobile/android/app/src/main/AndroidManifest.xml"
     if not manifest.is_file():
@@ -105,7 +160,17 @@ def validate_native_storage(root: Path) -> list[str]:
         if 'target === "SECURE_STORAGE"' not in text:
             errors.append("storage policy must reserve SECURE_STORAGE for credentials")
 
+    secure_bridge = root / "apps/mobile/src/secure-local-storage.ts"
+    if not secure_bridge.is_file():
+        errors.append("apps/mobile/src/secure-local-storage.ts: secure credential bridge missing")
+    else:
+        text = secure_bridge.read_text(encoding="utf-8", errors="ignore")
+        for token in ("loadCredential", "saveCredential", "clearCredential", "clearUserScopedState"):
+            if token not in text:
+                errors.append(f"secure credential bridge missing {token}")
+
     return errors
+
 
 def main() -> int:
     errors = validate_native_storage(ROOT)
@@ -116,6 +181,7 @@ def main() -> int:
         return 1
     print("NATIVE STORAGE AUDIT: PASS")
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

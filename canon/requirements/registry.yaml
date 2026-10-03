@@ -2759,7 +2759,10 @@ requirements:
   - APGIC-MOBILE-002
   implementation_refs:
   - apps/mobile/src/storage-policy.ts
+  - apps/mobile/src/secure-local-storage.ts
   - apps/mobile/android/app/src/main/AndroidManifest.xml
+  - apps/mobile/android/app/src/main/java/com/apgic/ci/OfflineMutationStorageModule.kt
+  - apps/mobile/ios/APGIC/OfflineMutationStorage.m
   - tools/mobile_native_storage_audit.py
   contract_refs:
   - contracts/jsonschema/mobile-storage-policy-v1.schema.json
@@ -2769,6 +2772,8 @@ requirements:
   - tools/mobile_storage_contract_guard.py
   - tools/tests/test_mobile_native_storage_audit.py
   evidence_refs:
+  - docs/traceability/R0-mobile010-secure-local-storage.md
+  - canon/evidence/compatibility-exceptions.yaml
   - canon/evidence/r0-ci-evidence-map.json
   acceptance:
     given: native client обрабатывает sensitive/session data
