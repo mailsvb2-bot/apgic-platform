@@ -198,3 +198,69 @@ test("production client rejects insecure non-loopback API origins", async () => 
     /MOBILE_INSTALLATION_BASE_URL_INVALID/,
   );
 });
+
+test("current-device revoke purges local user state after successful server revoke", async () => {
+  const calls: string[] = [];
+  const storage = {
+    async saveCredential(_value: string) {},
+    async loadCredential() { return null; },
+    async clearUserScopedState() { calls.push("purge"); },
+  };
+  const request = async () =>
+    new Response(
+      JSON.stringify({
+        id: "11111111-1111-4111-8111-111111111111",
+        identity_id: "22222222-2222-4222-8222-222222222222",
+        platform: "IOS",
+        state: "REVOKED",
+        push_generation: 2,
+      }),
+      {status: 200, headers: {"content-type": "application/json"}},
+    );
+  const {revokeCurrentMobileInstallation} = await import("./mobile-installation-client.ts");
+  const result = await revokeCurrentMobileInstallation(
+    {
+      baseURL: "http://127.0.0.1:43111",
+      sessionCookie: "session=test",
+    },
+    "11111111-1111-4111-8111-111111111111",
+    storage,
+    request,
+  );
+  assert.equal(result.state, "REVOKED");
+  assert.deepEqual(calls, ["purge"]);
+});
+
+test("current-device revoke purges local user state even when server revoke fails", async () => {
+  const calls: string[] = [];
+  const storage = {
+    async saveCredential(_value: string) {},
+    async loadCredential() { return "stale"; },
+    async clearUserScopedState() { calls.push("purge"); },
+  };
+  const request = async () => new Response("unavailable", {status: 503});
+  const {revokeCurrentMobileInstallation} = await import("./mobile-installation-client.ts");
+  await assert.rejects(
+    revokeCurrentMobileInstallation(
+      {
+        baseURL: "http://127.0.0.1:43111",
+        sessionCookie: "session=test",
+      },
+      "11111111-1111-4111-8111-111111111111",
+      storage,
+      request,
+    ),
+  );
+  assert.deepEqual(calls, ["purge"]);
+});
+
+test("logout clears user-scoped local state", async () => {
+  let purged = 0;
+  const {logoutLocalSession} = await import("./mobile-installation-client.ts");
+  await logoutLocalSession({
+    async clearUserScopedState() {
+      purged += 1;
+    },
+  });
+  assert.equal(purged, 1);
+});

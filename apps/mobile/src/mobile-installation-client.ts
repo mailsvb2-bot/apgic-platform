@@ -192,6 +192,45 @@ export async function revokeMobileInstallation(
   return requireInstallation(response.payload);
 }
 
+export type UserScopedLocalStorage = {
+  saveCredential(value: string): Promise<void>;
+  loadCredential(): Promise<string | null>;
+  clearUserScopedState(): Promise<void>;
+};
+
+export async function revokeCurrentMobileInstallation(
+  config: InstallationClientConfig,
+  installationID: string,
+  storage: UserScopedLocalStorage,
+  request: InstallationFetch = defaultFetch,
+): Promise<MobileInstallation> {
+  let revoked: MobileInstallation | undefined;
+  let revokeError: unknown;
+  try {
+    revoked = await revokeMobileInstallation(config, installationID, request);
+  } catch (error: unknown) {
+    revokeError = error;
+  }
+
+  // Local session material must not survive an explicit current-device revoke,
+  // even when the network/server revoke attempt fails.
+  await storage.clearUserScopedState();
+
+  if (revokeError) {
+    throw revokeError;
+  }
+  if (!revoked) {
+    throw new Error("MOBILE_INSTALLATION_REVOKE_MISSING_RESULT");
+  }
+  return revoked;
+}
+
+export async function logoutLocalSession(
+  storage: Pick<UserScopedLocalStorage, "clearUserScopedState">,
+): Promise<void> {
+  await storage.clearUserScopedState();
+}
+
 export async function listMobileInstallations(
   config: InstallationClientConfig,
   request: InstallationFetch = defaultFetch,
@@ -216,6 +255,7 @@ export async function listMobileInstallations(
 export async function runInstallationE2ELifecycle(
   config: InstallationE2EConfig,
   request: InstallationFetch = defaultFetch,
+  userScopedStorage?: UserScopedLocalStorage,
 ): Promise<InstallationE2EResult> {
   if (typeof __DEV__ !== "undefined" && !__DEV__) {
     throw new Error("MOBILE_INSTALLATION_E2E_DISABLED");
@@ -271,11 +311,30 @@ export async function runInstallationE2ELifecycle(
     throw new Error("MOBILE_INSTALLATION_ROTATE_INVARIANT");
   }
 
-  const revoked = await revokeMobileInstallation(
-    clientConfig,
-    config.installationID,
-    request,
-  );
+  if (userScopedStorage) {
+    const credentialMarker = `secure-storage-e2e-${config.installationID}`;
+    await userScopedStorage.saveCredential(credentialMarker);
+    if ((await userScopedStorage.loadCredential()) !== credentialMarker) {
+      throw new Error("MOBILE_SECURE_STORAGE_WRITE_READ_INVARIANT");
+    }
+  }
+
+  const revoked = userScopedStorage
+    ? await revokeCurrentMobileInstallation(
+        clientConfig,
+        config.installationID,
+        userScopedStorage,
+        request,
+      )
+    : await revokeMobileInstallation(
+        clientConfig,
+        config.installationID,
+        request,
+      );
+
+  if (userScopedStorage && (await userScopedStorage.loadCredential()) !== null) {
+    throw new Error("MOBILE_SECURE_STORAGE_REVOKE_PURGE_INVARIANT");
+  }
   if (
     revoked.identity_id !== registered.identity_id ||
     revoked.state !== "REVOKED" ||
