@@ -139,6 +139,23 @@ function when(value: string) {
   }).format(new Date(value));
 }
 
+function initials(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
+}
+
+const JOURNEY_STEPS = [
+  { id: 1, label: "Запрос", hint: "Расскажите, что происходит" },
+  { id: 2, label: "Подбор", hint: "Сравните специалистов" },
+  { id: 3, label: "Время", hint: "Выберите удобный слот" },
+  { id: 4, label: "Оплата", hint: "Оплатите у провайдера" },
+  { id: 5, label: "Консультация", hint: "Подключитесь в назначенное время" },
+] as const;
+
 export function Journey() {
   const [text, setText] = useState("");
   const [intent, setIntent] = useState<Intent | null>(null);
@@ -506,88 +523,186 @@ export function Journey() {
     }
   }
 
-  return (
-    <div className="journey">
-      <form className="panel" onSubmit={interpret}>
-        <label htmlFor="request">С чем нужна помощь</label>
-        <textarea
-          id="request"
-          name="request"
-          rows={4}
-          required
-          value={text}
-          onChange={(event) => setText(event.target.value)}
-          placeholder="Например: тревожно перед выступлениями, плохо сплю"
-        />
-        <button type="submit" disabled={pending}>Разобрать запрос</button>
-      </form>
+  const currentStep = evidence ? 5 : hold ? 4 : specialist ? 3 : matches ? 2 : 1;
+  const selectedTopicLabels = TOPICS
+    .filter((topic) => topics.includes(topic.id))
+    .map((topic) => topic.label);
 
-      {error ? <p className="alert" role="alert">{error}</p> : null}
-      {pending ? <p role="status">Сохраняем шаг…</p> : null}
+  return (
+    <div className="journey journey-product">
+      <nav className="journey-progress" aria-label="Этапы записи">
+        <ol>
+          {JOURNEY_STEPS.map((step) => {
+            const done = currentStep > step.id;
+            const current = currentStep === step.id;
+            return (
+              <li
+                key={step.id}
+                className={done ? "is-done" : current ? "is-current" : "is-upcoming"}
+                aria-current={current ? "step" : undefined}
+              >
+                <span className="journey-step-number" aria-hidden="true">{done ? "✓" : step.id}</span>
+                <span>
+                  <strong>{step.label}</strong>
+                  <small>{step.hint}</small>
+                </span>
+              </li>
+            );
+          })}
+        </ol>
+      </nav>
+
+      <section className="journey-stage journey-stage-primary" aria-labelledby="request-stage-title">
+        <div className="journey-stage-heading">
+          <span className="journey-stage-kicker">Шаг 1</span>
+          <div>
+            <h2 id="request-stage-title">Начнём с того, что сейчас важно</h2>
+            <p>Опишите ситуацию обычными словами. APGIC сначала покажет своё понимание — решение всегда остаётся за вами.</p>
+          </div>
+        </div>
+        <form className="journey-request-form" onSubmit={interpret}>
+          <label htmlFor="request">С чем нужна помощь</label>
+          <textarea
+            id="request"
+            name="request"
+            rows={5}
+            required
+            value={text}
+            onChange={(event) => setText(event.target.value)}
+            placeholder="Например: тревожно перед выступлениями, плохо сплю и сложно сосредоточиться"
+          />
+          <div className="journey-form-footer">
+            <span>Регистрация для начала подбора не нужна</span>
+            <button type="submit" disabled={pending}>Разобрать запрос</button>
+          </div>
+        </form>
+      </section>
+
+      {error ? <p className="alert journey-alert" role="alert">{error}</p> : null}
+      {pending ? <p className="journey-saving" role="status">Сохраняем шаг…</p> : null}
 
       {intent ? (
-        <form className="panel" onSubmit={confirm}>
-          <h2>Проверьте, как мы поняли запрос</h2>
-          <p>{intent.notice}</p>
-          <p className="meta">
-            Диагноз не поставлен: {intent.diagnosis_asserted ? "да" : "нет"}. Каталог: {intent.catalog_mode}.
-          </p>
-          <fieldset>
-            <legend>Темы, которые можно исправить</legend>
-            {TOPICS.map((topic) => (
-              <label key={topic.id} className="check">
-                <input
-                  type="checkbox"
-                  name="topics"
-                  value={topic.id}
-                  checked={topics.includes(topic.id)}
-                  onChange={() => toggleTopic(topic.id)}
-                />
-                {topic.label}
-              </label>
-            ))}
-          </fieldset>
-          <button type="submit" disabled={pending}>Подтвердить и показать специалистов</button>
-        </form>
+        <section className="journey-stage" aria-labelledby="intent-stage-title">
+          <div className="journey-stage-heading">
+            <span className="journey-stage-kicker">Проверьте смысл</span>
+            <div>
+              <h2 id="intent-stage-title">Правильно ли мы вас поняли?</h2>
+              <p>{intent.notice}</p>
+            </div>
+          </div>
+
+          <div className="journey-trust-note">
+            <span aria-hidden="true">✓</span>
+            <div>
+              <strong>Это не диагноз</strong>
+              <p className="meta">Диагноз не поставлен: {intent.diagnosis_asserted ? "да" : "нет"}.</p>
+            </div>
+          </div>
+
+          <form onSubmit={confirm}>
+            <fieldset className="journey-topics">
+              <legend>Уточните темы запроса</legend>
+              <div className="journey-topic-grid">
+                {TOPICS.map((topic) => (
+                  <label key={topic.id} className="check journey-topic">
+                    <input
+                      type="checkbox"
+                      name="topics"
+                      value={topic.id}
+                      checked={topics.includes(topic.id)}
+                      onChange={() => toggleTopic(topic.id)}
+                    />
+                    <span>{topic.label}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+            <div className="journey-form-footer">
+              <span>{selectedTopicLabels.length ? selectedTopicLabels.join(" · ") : "Выберите хотя бы одну тему"}</span>
+              <button type="submit" disabled={pending || topics.length === 0}>Подтвердить и показать специалистов</button>
+            </div>
+          </form>
+        </section>
       ) : null}
 
       {matches ? (
-        <section className="panel" aria-labelledby="matches-title">
-          <h2 id="matches-title">Доступные специалисты</h2>
-          {matches.length === 0 ? <p>По подтверждённым темам сейчас нет подходящих специалистов.</p> : null}
-          <ul className="cards">
-            {matches.map((card) => (
-              <li key={card.specialist_id}>
-                <h3>{card.display_name}</h3>
-                <p>{PROFESSIONS[card.profession] ?? card.profession} · {card.format === "ONLINE" ? "онлайн" : card.format}</p>
-                <p>{money(card.price_minor, card.currency)} за сессию</p>
-                {card.sponsored ? <p>Спонсируемое размещение. Квалификация не обходится.</p> : null}
-                <button type="button" onClick={() => choose(card)} disabled={pending}>
-                  Выбрать время у {card.display_name}
-                </button>
-              </li>
-            ))}
-          </ul>
+        <section className="journey-stage" aria-labelledby="matches-title">
+          <div className="journey-stage-heading">
+            <span className="journey-stage-kicker">Шаг 2</span>
+            <div>
+              <h2 id="matches-title">Специалисты под ваш запрос</h2>
+              <p>
+                {matches.length
+                  ? `Нашли ${matches.length} ${matches.length === 1 ? "подходящий вариант" : "подходящих варианта"}. Сравните формат, стоимость и доступное время.`
+                  : "По подтверждённым темам сейчас нет подходящих специалистов."}
+              </p>
+            </div>
+          </div>
+
+          {matches.length ? (
+            <ul className="specialist-cards">
+              {matches.map((card) => (
+                <li key={card.specialist_id} className={specialist?.specialist_id === card.specialist_id ? "is-selected" : ""}>
+                  <div className="specialist-card-top">
+                    <div className="specialist-avatar" aria-hidden="true">{initials(card.display_name)}</div>
+                    <div className="specialist-card-name">
+                      <span className="match-badge">Подобран по подтверждённым темам</span>
+                      <h3>{card.display_name}</h3>
+                      <p>{PROFESSIONS[card.profession] ?? card.profession}</p>
+                    </div>
+                  </div>
+                  <div className="specialist-card-facts">
+                    <span>{card.format === "ONLINE" ? "Онлайн" : card.format}</span>
+                    <span>{money(card.price_minor, card.currency)} / сессия</span>
+                    {card.sponsored ? <span>Спонсируемое · без обхода квалификации</span> : null}
+                  </div>
+                  <button type="button" onClick={() => choose(card)} disabled={pending}>
+                    Выбрать время у {card.display_name}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+
           {search ? (
-            <>
-              <p>{search.notice}</p>
-              <p>{search.entries.length === 0 ? "В проекции никого нет." : `В проекции: ${search.entries.map((entry) => entry.display_name).join(", ")}.`}</p>
-              <p>Индекс владеет допуском: {search.owns_qualification ? "да" : "нет"}.</p>
-              <button type="button" onClick={staleSearch} disabled={pending}>Сбросить поисковый индекс</button>
-              <button type="button" onClick={rebuildSearch} disabled={pending}>Восстановить поиск из каталога</button>
-            </>
+            <details className="journey-proof-tools">
+              <summary>Проверка каталога и поисковой проекции</summary>
+              <div className="journey-proof-body">
+                <p>{search.notice}</p>
+                <p>{search.entries.length === 0 ? "В проекции никого нет." : `В проекции: ${search.entries.map((entry) => entry.display_name).join(", ")}.`}</p>
+                <p>Индекс владеет допуском: {search.owns_qualification ? "да" : "нет"}.</p>
+                <div className="journey-inline-actions">
+                  <button type="button" onClick={staleSearch} disabled={pending}>Сбросить поисковый индекс</button>
+                  <button type="button" onClick={rebuildSearch} disabled={pending}>Восстановить поиск из каталога</button>
+                </div>
+              </div>
+            </details>
           ) : null}
         </section>
       ) : null}
 
       {specialist ? (
-        <section className="panel" aria-labelledby="slots-title">
-          <h2 id="slots-title">Эксклюзивные слоты: {specialist.display_name}</h2>
-          <ul className="cards">
+        <section className="journey-stage" aria-labelledby="slots-title">
+          <div className="journey-stage-heading">
+            <span className="journey-stage-kicker">Шаг 3</span>
+            <div>
+              <h2 id="slots-title">Выберите время с {specialist.display_name}</h2>
+              <p>Слот резервируется эксклюзивно на короткое время, чтобы его не занял другой клиент во время оформления.</p>
+            </div>
+          </div>
+          <div className="selected-specialist-strip">
+            <div className="specialist-avatar compact" aria-hidden="true">{initials(specialist.display_name)}</div>
+            <div>
+              <strong>{specialist.display_name}</strong>
+              <span>{PROFESSIONS[specialist.profession] ?? specialist.profession} · {money(specialist.price_minor, specialist.currency)}</span>
+            </div>
+          </div>
+          <ul className="slot-grid">
             {slots.map((slot) => (
               <li key={slot.id}>
-                <p>{when(slot.starts_at)} – {when(slot.ends_at)}</p>
-                <p>{slot.exclusive ? "Слот эксклюзивный: его может удержать только один клиент." : "Слот не эксклюзивный."}</p>
+                <span className="slot-day">{when(slot.starts_at).split(",")[0]}</span>
+                <strong>{when(slot.starts_at)}</strong>
+                <small>{slot.exclusive ? "Эксклюзивный слот" : "Доступное время"}</small>
                 <button type="button" onClick={() => acquire(slot)} disabled={pending}>
                   Удержать слот {when(slot.starts_at)}
                 </button>
@@ -598,15 +713,36 @@ export function Journey() {
       ) : null}
 
       {hold ? (
-        <section className="panel result" aria-labelledby="hold-title">
-          <h2 id="hold-title">Слот удерживается</h2>
-          <p>Бронь {hold.booking_id} в состоянии {hold.booking_state}. Удержание {hold.state} до {when(hold.expires_at)}.</p>
-          <h3>Оплата у внешнего провайдера</h3>
-          <p>APGIC не принимает деньги. Получатель — специалист, исполнение — внешний провайдер.</p>
-          <ul className="cards">
+        <section className="journey-stage result booking-checkout" aria-labelledby="hold-title">
+          <div className="journey-stage-heading">
+            <span className="journey-stage-kicker">Шаг 4</span>
+            <div>
+              <h2 id="hold-title">Слот удерживается</h2>
+              <p>Время временно закреплено за вами. Завершите оплату до окончания удержания.</p>
+            </div>
+          </div>
+          <div className="booking-summary">
+            <div><span>Бронь</span><strong>{hold.booking_id}</strong></div>
+            <div><span>Статус</span><strong>{hold.booking_state}</strong></div>
+            <div><span>Удержание до</span><strong>{when(hold.expires_at)}</strong></div>
+          </div>
+          <p className="meta">Бронь {hold.booking_id} в состоянии {hold.booking_state}. Удержание {hold.state} до {when(hold.expires_at)}.</p>
+
+          <div className="payment-boundary">
+            <span aria-hidden="true">↗</span>
+            <div>
+              <strong>Оплата проходит у внешнего провайдера</strong>
+              <p>APGIC не принимает деньги. Получатель — специалист, исполнение — внешний провайдер.</p>
+            </div>
+          </div>
+
+          <div className="payment-options" aria-label="Способы оплаты">
             {options.map((option) => (
-              <li key={option.method_code}>
-                <p>{METHOD_LABELS[option.method_code] ?? option.method_code} · {money(option.amount_minor, option.currency)}</p>
+              <article key={option.method_code}>
+                <div>
+                  <strong>{METHOD_LABELS[option.method_code] ?? option.method_code}</strong>
+                  <span>{money(option.amount_minor, option.currency)}</span>
+                </div>
                 <button
                   type="button"
                   disabled={pending || option.apgic_accepts_funds || option.execution_owner !== "EXTERNAL_PROVIDER"}
@@ -614,18 +750,22 @@ export function Journey() {
                 >
                   Выбрать {METHOD_LABELS[option.method_code] ?? option.method_code}
                 </button>
-              </li>
+              </article>
             ))}
-          </ul>
+          </div>
         </section>
       ) : null}
 
       {instruction ? (
-        <section className="panel result" aria-labelledby="pay-title">
-          <h2 id="pay-title">Поручение на оплату создано</h2>
-          <p>{instruction.notice}</p>
-          <p>Заказ {instruction.order_id}, состояние брони {instruction.booking_state}. Провайдер {instruction.provider_id}, способ {instruction.method_code}, сумма {money(instruction.amount_minor, instruction.currency)}.</p>
-          <p>Получатель денег: {instruction.payment_recipient_id}. APGIC принимает деньги: {instruction.apgic_accepts_funds ? "да" : "нет"}.</p>
+        <section className="journey-stage payment-status" aria-labelledby="pay-title">
+          <div className="payment-status-icon" aria-hidden="true">…</div>
+          <div>
+            <span className="journey-stage-kicker">Ожидаем провайдера</span>
+            <h2 id="pay-title">Поручение на оплату создано</h2>
+            <p>{instruction.notice}</p>
+            <p className="meta">Заказ {instruction.order_id} · {instruction.booking_state} · {money(instruction.amount_minor, instruction.currency)}</p>
+            <p className="meta">APGIC принимает деньги: {instruction.apgic_accepts_funds ? "да" : "нет"}.</p>
+          </div>
           <button type="button" onClick={captureProviderEvent} disabled={pending}>
             Зафиксировать подтверждение внешнего провайдера
           </button>
@@ -633,62 +773,103 @@ export function Journey() {
       ) : null}
 
       {evidence ? (
-        <section className="panel result" aria-labelledby="evidence-title">
-          <h2 id="evidence-title">Бронь подтверждена провайдером</h2>
-          <p>{evidence.notice}</p>
-          <p>Состояние брони {evidence.booking_state}. Запись учёта {evidence.ledger_entry_id}. Получатель {evidence.credit_account_ref}.</p>
-          <p>APGIC принимает деньги: {evidence.apgic_accepts_funds ? "да" : "нет"}. Повтор: {evidence.idempotent ? "уже учтён" : "нет"}.</p>
+        <section className="journey-stage result consultation-stage" aria-labelledby="evidence-title">
+          <div className="consultation-success">
+            <span className="success-mark" aria-hidden="true">✓</span>
+            <div>
+              <span className="journey-stage-kicker">Шаг 5</span>
+              <h2 id="evidence-title">Бронь подтверждена провайдером</h2>
+              <p>{evidence.notice}</p>
+            </div>
+          </div>
+          <div className="booking-summary">
+            <div><span>Бронь</span><strong>{evidence.booking_state}</strong></div>
+            <div><span>Учёт</span><strong>{evidence.ledger_entry_id}</strong></div>
+            <div><span>Повтор</span><strong>{evidence.idempotent ? "уже учтён" : "нет"}</strong></div>
+          </div>
+          <p className="meta">APGIC принимает деньги: {evidence.apgic_accepts_funds ? "да" : "нет"}. Повтор: {evidence.idempotent ? "уже учтён" : "нет"}.</p>
+
           {fulfillment ? (
-            <>
-              <h3>Уведомление и вход</h3>
-              <p>{fulfillment.notice}</p>
-              <p>{fulfillment.join}</p>
-            </>
+            <div className="consultation-access">
+              <div><span>Уведомление</span><p>{fulfillment.notice}</p></div>
+              <div><span>Вход в консультацию</span><p>{fulfillment.join}</p></div>
+            </div>
           ) : null}
-          <h3>Консультация</h3>
-          <p>Статус завершена ставится только по доказательству провайдера связи. APGIC комнатой не владеет и повторно не списывает деньги.</p>
-          <button type="button" onClick={recordPresence} disabled={pending}>Зафиксировать факты входа</button>
-          <button type="button" onClick={() => reportFailure(true)} disabled={pending}>Сообщить о сбое связи</button>
-          <button type="button" onClick={succeedRecovery} disabled={pending}>Восстановление удалось</button>
-          <button type="button" onClick={() => reportFailure(false)} disabled={pending}>Сбой без восстановления</button>
-          <button type="button" onClick={completeWithoutEvidence} disabled={pending}>Завершить без доказательства</button>
-          <button type="button" onClick={completeWithEvidence} disabled={pending}>Завершить по доказательству провайдера</button>
-          <button type="button" onClick={exportToGrowth} disabled={pending}>Передать сырую запись в рост</button>
+
+          <div className="consultation-actions">
+            <div>
+              <h4>Консультация</h4>
+              <p>Статус меняется только по подтверждённым фактам провайдера связи. Повторная оплата при восстановлении не создаётся.</p>
+            </div>
+            <div className="journey-inline-actions">
+              <button type="button" onClick={recordPresence} disabled={pending}>Зафиксировать факты входа</button>
+              <button type="button" onClick={() => reportFailure(true)} disabled={pending}>Сообщить о сбое связи</button>
+              <button type="button" onClick={succeedRecovery} disabled={pending}>Восстановление удалось</button>
+              <button type="button" onClick={() => reportFailure(false)} disabled={pending}>Сбой без восстановления</button>
+              <button type="button" onClick={completeWithEvidence} disabled={pending}>Завершить по доказательству провайдера</button>
+            </div>
+          </div>
+
           {session ? (
-            <p>
-              Сессия {session.state}. {session.notice} Повторное списание: {session.charged_again ? "да" : "нет"}. Сырая запись в деле: {session.raw_content_stored ? "да" : "нет"}.
-              {session.refund_path_opened ? " Путь возврата открыт у внешнего провайдера." : ""}
-              {session.apgic_returns_funds ? " APGIC возвращает деньги: да." : ""}
-            </p>
+            <div className="session-status" role="status">
+              <strong>Сессия {session.state}.</strong>
+              <span>{session.notice}</span>
+              <span>Повторное списание: {session.charged_again ? "да" : "нет"}.</span>
+              <span>Сырая запись в деле: {session.raw_content_stored ? "да" : "нет"}.</span>
+              {session.refund_path_opened ? <span>Путь возврата открыт у внешнего провайдера.</span> : null}
+              {session.apgic_returns_funds ? <span>APGIC возвращает деньги: да.</span> : null}
+            </div>
           ) : null}
-          <button type="button" onClick={cancelBooking} disabled={pending}>Отменить бронь через внешнего провайдера</button>
+
+          <button className="secondary-danger-action" type="button" onClick={cancelBooking} disabled={pending}>
+            Отменить бронь через внешнего провайдера
+          </button>
+
+          <details className="journey-proof-tools">
+            <summary>Служебные проверки безопасности</summary>
+            <div className="journey-proof-body">
+              <p>Эти действия нужны для автоматической проверки fail-closed сценариев и не являются частью обычного пути клиента.</p>
+              <div className="journey-inline-actions">
+                <button type="button" onClick={completeWithoutEvidence} disabled={pending}>Завершить без доказательства</button>
+                <button type="button" onClick={exportToGrowth} disabled={pending}>Передать сырую запись в рост</button>
+              </div>
+            </div>
+          </details>
         </section>
       ) : null}
 
       {cancellation ? (
-        <section className="panel result" aria-labelledby="cancel-title">
+        <section className="journey-stage result cancellation-result" aria-labelledby="cancel-title">
+          <span className="journey-stage-kicker">Отмена и возврат</span>
           <h2 id="cancel-title">Бронь отменена</h2>
           <p>{cancellation.notice}</p>
-          <p>Состояние брони {cancellation.booking_state}. Возврат {cancellation.refund_state} у провайдера {cancellation.provider_id}.</p>
+          <div className="booking-summary">
+            <div><span>Бронь</span><strong>{cancellation.booking_state}</strong></div>
+            <div><span>Возврат</span><strong>{cancellation.refund_state}</strong></div>
+            <div><span>Провайдер</span><strong>{cancellation.provider_id}</strong></div>
+          </div>
           <p>Исходная запись {cancellation.original_ledger_id} сохранена. Запись возврата {cancellation.reversal_ledger_id}.</p>
           <p>APGIC принимает деньги: {cancellation.apgic_accepts_funds ? "да" : "нет"}. APGIC возвращает деньги: {cancellation.apgic_returns_funds ? "да" : "нет"}. Повтор: {cancellation.idempotent ? "уже учтён" : "нет"}.</p>
         </section>
       ) : null}
 
       {intent ? (
-        <section className="panel" aria-labelledby="deletion-title">
-          <h2 id="deletion-title">Удаление учётной записи</h2>
-          <p>Это удаление, не деактивация. Профиль стирается у внешнего провайдера. Запись учёта оплаты сохраняется.</p>
-          <button type="button" onClick={deleteAccount} disabled={pending}>Удалить учётную запись</button>
-          {deletion ? (
-            <>
-              <p>{deletion.notice}</p>
-              <p>Состояние {deletion.state}. Деактивация: {deletion.deactivation ? "да" : "нет"}.</p>
-              <p>Профиль стёрт: {deletion.profile_erased ? "да" : "нет"}. Запись учёта сохранена: {deletion.ledger_retained ? "да" : "нет"}.</p>
-              <p>APGIC уничтожает запись учёта: {deletion.apgic_deletes_ledger ? "да" : "нет"}. Повтор: {deletion.idempotent ? "уже учтён" : "нет"}.</p>
-            </>
-          ) : null}
-        </section>
+        <details className="journey-account-tools">
+          <summary>Управление учётной записью</summary>
+          <section aria-labelledby="deletion-title">
+            <h2 id="deletion-title">Удаление учётной записи</h2>
+            <p>Профиль стирается, а обязательная финансовая и audit-история сохраняется по правилам хранения.</p>
+            <button type="button" onClick={deleteAccount} disabled={pending}>Удалить учётную запись</button>
+            {deletion ? (
+              <div className="deletion-result">
+                <p>{deletion.notice}</p>
+                <p>Состояние {deletion.state}. Деактивация: {deletion.deactivation ? "да" : "нет"}.</p>
+                <p>Профиль стёрт: {deletion.profile_erased ? "да" : "нет"}. Запись учёта сохранена: {deletion.ledger_retained ? "да" : "нет"}.</p>
+                <p>APGIC уничтожает запись учёта: {deletion.apgic_deletes_ledger ? "да" : "нет"}. Повтор: {deletion.idempotent ? "уже учтён" : "нет"}.</p>
+              </div>
+            ) : null}
+          </section>
+        </details>
       ) : null}
     </div>
   );

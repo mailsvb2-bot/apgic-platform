@@ -53,6 +53,11 @@ test("help intent journey stays usable and accessible", async ({ page }) => {
   await page.goto("/");
 
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  const journeyProgress = page.getByRole("navigation", { name: "Этапы записи" });
+  await expect(journeyProgress).toBeVisible();
+  const currentJourneyStep = journeyProgress.locator('[aria-current="step"]');
+  await expect(currentJourneyStep).toBeVisible();
+  await expect(currentJourneyStep).toContainText("Запрос");
   const request = page.getByLabel("С чем нужна помощь");
   await request.fill("Мне тревожно перед выступлениями");
   await page.getByRole("button", { name: "Разобрать запрос" }).click();
@@ -68,6 +73,8 @@ test("help intent journey stays usable and accessible", async ({ page }) => {
   await expect(cards).toHaveCount(1);
   await expect(cards.first()).toHaveText("Марина Лебедева");
   await expect(page.getByText("Илья Соколов")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Сбросить поисковый индекс" })).toBeHidden();
+  await page.getByText("Проверка каталога и поисковой проекции").click();
   await expect(page.getByText("В проекции: Марина Лебедева.")).toBeVisible();
   await page.getByRole("button", { name: "Сбросить поисковый индекс" }).click();
   await expect(page.getByText("В проекции никого нет.")).toBeVisible();
@@ -104,6 +111,8 @@ test("help intent journey stays usable and accessible", async ({ page }) => {
   await expect(page.getByText("Повтор: уже учтён.")).toBeVisible();
   await expect(page.getByText("Служебное уведомление о брони отправлено без маркетингового согласия.")).toBeVisible();
   await expect(page.getByText("Вход откроется за 15 минут до начала.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Завершить без доказательства" })).toBeHidden();
+  await page.getByText("Служебные проверки безопасности").click();
   await page.getByRole("button", { name: "Завершить без доказательства" }).click();
   await expect(page.locator(".alert")).toContainText("доказательство провайдера");
   await page.getByRole("button", { name: "Зафиксировать факты входа" }).click();
@@ -126,6 +135,7 @@ test("help intent journey stays usable and accessible", async ({ page }) => {
   await expect(page.getByText("APGIC возвращает деньги: нет.")).toBeVisible();
   await page.getByRole("button", { name: "Отменить бронь через внешнего провайдера" }).click();
   await expect(page.getByText("Повтор: уже учтён.").last()).toBeVisible();
+  await page.getByText("Управление учётной записью").click();
   await page.getByRole("button", { name: "Удалить учётную запись" }).click();
   await expect(page.getByText("PARTIALLY_RETAINED_WITH_REASON")).toBeVisible();
   await expect(page.getByText("Деактивация: нет.")).toBeVisible();
