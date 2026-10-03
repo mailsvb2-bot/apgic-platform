@@ -8,6 +8,7 @@ METRO_LOG="/tmp/apgic-metro-ios.log"
 METRO_PID=""
 SERVER_PID=""
 UDID=""
+SIMULATOR_CREATED=0
 SERVER_LOG="/tmp/apgic-mobile-installation-server-ios.log"
 SESSION_COOKIE=""
 DEEP_LINK_URL=""
@@ -40,6 +41,9 @@ cleanup() {
   fi
   if [[ -n "$UDID" ]]; then
     xcrun simctl shutdown "$UDID" >/dev/null 2>&1 || true
+    if [[ "$SIMULATOR_CREATED" -eq 1 ]]; then
+      xcrun simctl delete "$UDID" >/dev/null 2>&1 || true
+    fi
   fi
   exit "$status"
 }
@@ -173,32 +177,140 @@ PY
 [[ -d "$APP" ]] || fail "simulator app missing: $APP"
 
 xcrun simctl shutdown all >/dev/null 2>&1 || true
-UDID="$(
-  python3 - <<'PY'
+
+IOS_RUNTIME="$(
+  python3 - <<'PYRUNTIME'
+import json
+import re
+import subprocess
+
+payload = json.loads(subprocess.check_output(
+    ["xcrun", "simctl", "list", "runtimes", "-j"],
+    text=True,
+))
+candidates = []
+for runtime in payload.get("runtimes", []):
+    if not runtime.get("isAvailable", False):
+        continue
+    name = str(runtime.get("name", ""))
+    identifier = str(runtime.get("identifier", ""))
+    if not name.startswith("iOS ") or not identifier:
+        continue
+    version = tuple(int(part) for part in re.findall(r"\d+", name))
+    candidates.append((version, identifier))
+if not candidates:
+    raise SystemExit("no available iOS simulator runtime")
+candidates.sort(reverse=True)
+print(candidates[0][1])
+PYRUNTIME
+)"
+[[ -n "$IOS_RUNTIME" ]] || fail "could not select iOS simulator runtime"
+
+IOS_DEVICE_TYPES=()
+while IFS= read -r device_type; do
+  if [[ -n "$device_type" ]]; then
+    IOS_DEVICE_TYPES+=("$device_type")
+  fi
+done < <(
+  python3 - <<'PYDEVICES'
 import json
 import subprocess
 
 payload = json.loads(subprocess.check_output(
-    ["xcrun", "simctl", "list", "devices", "available", "-j"],
+    ["xcrun", "simctl", "list", "devicetypes", "-j"],
     text=True,
 ))
-candidates = []
-for runtime, devices in payload.get("devices", {}).items():
-    if "iOS" not in runtime:
-        continue
-    for device in devices:
-        if device.get("isAvailable") and str(device.get("name", "")).startswith("iPhone"):
-            candidates.append((runtime, device["name"], device["udid"]))
-if not candidates:
-    raise SystemExit("no available iPhone simulator")
-candidates.sort(reverse=True)
-print(candidates[0][2])
-PY
-)"
-[[ -n "$UDID" ]] || fail "could not select iPhone simulator"
+types = {
+    str(item.get("name", "")): str(item.get("identifier", ""))
+    for item in payload.get("devicetypes", [])
+    if item.get("identifier")
+}
+preferred = (
+    "iPhone 16 Pro",
+    "iPhone 16",
+    "iPhone 15 Pro",
+    "iPhone 15",
+    "iPhone 17 Pro",
+    "iPhone 17",
+)
+emitted = set()
+for name in preferred:
+    identifier = types.get(name)
+    if identifier and identifier not in emitted:
+        print(identifier)
+        emitted.add(identifier)
 
-xcrun simctl boot "$UDID"
-xcrun simctl bootstatus "$UDID" -b
+for name in sorted(types):
+    if not name.startswith("iPhone") or "Air" in name:
+        continue
+    identifier = types[name]
+    if identifier and identifier not in emitted:
+        print(identifier)
+        emitted.add(identifier)
+PYDEVICES
+)
+
+if [[ "${#IOS_DEVICE_TYPES[@]}" -eq 0 ]]; then
+  fail "no supported non-Air iPhone simulator device type is available"
+fi
+
+for device_type in "${IOS_DEVICE_TYPES[@]}"; do
+  candidate_name="APGIC-CI-DEVICE"
+  if UDID="$(xcrun simctl create "$candidate_name" "$device_type" "$IOS_RUNTIME" 2>/tmp/apgic-ios-sim-create.log)"; then
+    if [[ -n "$UDID" ]]; then
+      SIMULATOR_CREATED=1
+      break
+    fi
+  fi
+  UDID=""
+done
+
+if [[ -z "$UDID" ]]; then
+  cat /tmp/apgic-ios-sim-create.log >&2 2>/dev/null || true
+  fail "could not create dedicated non-Air iPhone simulator"
+fi
+
+SIMULATOR_BOOT_LOG="/tmp/apgic-ios-simulator-boot.log"
+
+boot_simulator_with_recovery() {
+  local boot_attempt
+  local boot_status
+
+  for boot_attempt in 1 2; do
+    rm -f "$SIMULATOR_BOOT_LOG"
+
+    if ! xcrun simctl boot "$UDID" >/dev/null 2>&1; then
+      boot_status=1
+    else
+      if xcrun simctl bootstatus "$UDID" -b 2>&1 | tee "$SIMULATOR_BOOT_LOG"; then
+        boot_status=0
+      else
+        boot_status=$?
+      fi
+    fi
+
+    if [[ "$boot_status" -eq 0 ]] &&
+       ! grep -q "Data Migration Failed" "$SIMULATOR_BOOT_LOG" 2>/dev/null; then
+      return 0
+    fi
+
+    if [[ "$boot_attempt" -eq 1 ]]; then
+      echo "iOS simulator boot/data migration failed; erasing and retrying once" >&2
+      xcrun simctl shutdown "$UDID" >/dev/null 2>&1 || true
+      xcrun simctl erase "$UDID" >/dev/null 2>&1 ||
+        fail "iOS simulator erase failed after boot/data-migration failure"
+      continue
+    fi
+
+    [[ -f "$SIMULATOR_BOOT_LOG" ]] && cat "$SIMULATOR_BOOT_LOG" >&2 || true
+    return 1
+  done
+
+  return 1
+}
+
+boot_simulator_with_recovery ||
+  fail "iOS simulator failed clean boot after bounded migration recovery"
 xcrun simctl install "$UDID" "$APP"
 
 (
