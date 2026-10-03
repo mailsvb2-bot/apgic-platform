@@ -37,6 +37,7 @@ import {
   type OfflineCheckoutState,
 } from "./mobile-offline-checkout.ts";
 import {offlineMutationStorage} from "./offline-mutation-storage.ts";
+import {clearUserScopedLocalState, secureCredentialStorage} from "./secure-local-storage.ts";
 import {runNativeRealtimeE2E, type NativeRealtimeE2EResult} from "./r3-realtime-e2e.ts";
 
 type AppProps = {
@@ -490,12 +491,20 @@ export default function App({
     }
     let active = true;
     setInstallationE2E({status: "RUNNING"});
-    void runInstallationE2ELifecycle({
-      baseURL: installationE2EBaseURL,
-      sessionCookie: installationE2ESessionCookie,
-      installationID: installationE2EInstallationID,
-      platform: installationE2EPlatform,
-    }).then(
+    void runInstallationE2ELifecycle(
+      {
+        baseURL: installationE2EBaseURL,
+        sessionCookie: installationE2ESessionCookie,
+        installationID: installationE2EInstallationID,
+        platform: installationE2EPlatform,
+      },
+      undefined,
+      {
+        saveCredential: secureCredentialStorage.save,
+        loadCredential: secureCredentialStorage.load,
+        clearUserScopedState: clearUserScopedLocalState,
+      },
+    ).then(
       (result) => {
         if (active) {
           setInstallationE2E({status: "PASS", ...result});

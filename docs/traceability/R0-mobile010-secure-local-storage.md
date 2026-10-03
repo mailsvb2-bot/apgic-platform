@@ -22,7 +22,9 @@ The native bridge now provides a production-capable credential boundary without 
 
 ## Logout/revoke purge
 
-Both native implementations expose clearUserScopedState. It attempts to remove the user-scoped offline mutation queue and secure credential material. Remote signed configuration is deliberately not user-scoped and remains available for last-known-safe incident behavior.
+Both native implementations expose clearUserScopedState. It removes the user-scoped offline mutation queue and secure credential material. The production-capable revokeCurrentMobileInstallation boundary invokes that purge after an explicit current-device revoke and still purges if the server revoke attempt fails; logoutLocalSession uses the same purge boundary. Remote signed configuration is deliberately not user-scoped and remains available for last-known-safe incident behavior.
+
+The existing installed-app Android/iOS installation E2E now writes a synthetic credential through the real native secure adapter, reads it back, performs current-device revoke, and proves the credential is absent afterwards. This turns logout/revoke retention from a static API claim into a device-runtime proof.
 
 ## Automated security proof
 
