@@ -81,6 +81,14 @@ class MainActivity : ReactActivity() {
           putString("buildNumber", BuildConfig.VERSION_CODE.toString())
           if (!BuildConfig.DEBUG) {
             putString("remoteConfigBaseURL", "https://apgic.ru")
+            putString(
+              "remoteConfigTrustedKeyID",
+              BuildConfig.APGIC_REMOTE_CONFIG_TRUSTED_KEY_ID,
+            )
+            putString(
+              "remoteConfigTrustedPublicKeyBase64",
+              BuildConfig.APGIC_REMOTE_CONFIG_TRUSTED_PUBLIC_KEY_BASE64,
+            )
           }
           if (BuildConfig.DEBUG) {
             intent?.getStringExtra(E2E_INSTALLATION_BASE_URL)
