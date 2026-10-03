@@ -23,6 +23,15 @@ def main() -> None:
         'APGIC_MOBILE_FORCED_UPDATE_REASON',
         'APGIC_IOS_MIN_BUILD',
         'APGIC_ANDROID_MIN_BUILD',
+        'APGIC_REMOTE_CONFIG_KEY_ID',
+        'APGIC_REMOTE_CONFIG_PRIVATE_KEY_BASE64',
+        'APGIC_REMOTE_CONFIG_VERSION',
+        'APGIC_REMOTE_CONFIG_POLICY_ID',
+        'APGIC_REMOTE_CONFIG_TTL_SECONDS',
+        'target deployment requires missing environment key',
+        'git show "$TARGET_SHA:deploy/staging/staging.env.example"',
+        '=== Re-exec target updater ===',
+        'APGIC_UPDATE_REEXEC=1 exec bash "$REPO_ROOT/deploy/staging/update-staging.sh" "$TARGET_SHA"',
         'validate_semver()',
         'validate_positive_integer()',
         'validate_https_url()',
@@ -61,7 +70,10 @@ def main() -> None:
     ordered(text, 'flock -n 9', 'APGIC_MOBILE_POLICY_VERSION is required')
     ordered(text, 'APGIC_MOBILE_POLICY_VERSION is required', 'git fetch origin main')
     ordered(text, 'git fetch origin main', 'git merge-base --is-ancestor')
-    ordered(text, 'git merge-base --is-ancestor', 'git reset --hard "$TARGET_SHA"')
+    ordered(text, 'git merge-base --is-ancestor', 'target deployment requires missing environment key')
+    ordered(text, 'target deployment requires missing environment key', 'git reset --hard "$TARGET_SHA"')
+    ordered(text, 'git reset --hard "$TARGET_SHA"', '=== Re-exec target updater ===')
+    ordered(text, '=== Re-exec target updater ===', 'go build -o bin/apgic-api ./cmd/api')
     ordered(text, 'go build -o bin/apgic-api ./cmd/api', "SELECT to_regclass('public.apgic_schema_migrations') IS NOT NULL")
     ordered(text, "SELECT to_regclass('public.apgic_schema_migrations') IS NOT NULL", 'systemctl start apgic-staging-backup.service')
     ordered(text, 'systemctl start apgic-staging-backup.service', '=== Reconcile migration ledger ===')

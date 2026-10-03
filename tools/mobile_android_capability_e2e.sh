@@ -20,7 +20,9 @@ DEEP_LINK_URL=""
 OFFLINE_HOLD_ID=""
 OFFLINE_IDEMPOTENCY_KEY="mobile-offline-e2e-android"
 COMPATIBILITY_BASE_URL="http://127.0.0.1:43113"
-COMPATIBILITY_CONTRACT_VERSION="0.9.0-r0-mobile-compatibility"
+COMPATIBILITY_CONTRACT_VERSION="0.10.0-r0-remote-config"
+REMOTE_CONFIG_E2E_KEY_ID="mobile027-e2e-key"
+REMOTE_CONFIG_E2E_PUBLIC_KEY_BASE64="W2SJycf9Dc9QVF58FkiG70BJHsBsfxsSMEF5foEXU14="
 
 fail() {
   echo "ANDROID CAPABILITY NATIVE E2E: FAIL: $*" >&2
@@ -37,6 +39,8 @@ fail() {
 }
 
 cleanup() {
+  local status=$?
+  trap - EXIT
   if [[ -n "$METRO_PID" ]]; then
     kill "$METRO_PID" 2>/dev/null || true
   fi
@@ -49,6 +53,7 @@ cleanup() {
   if [[ -n "$EMULATOR_PID" ]]; then
     kill "$EMULATOR_PID" 2>/dev/null || true
   fi
+  exit "$status"
 }
 trap cleanup EXIT
 
@@ -347,6 +352,54 @@ assert_compatibility_policy() {
   fail "incompatible Android client did not expose governed update-required UX"
 }
 
+assert_remote_config_kill_switch() {
+  local network_output="$EVIDENCE_DIR/android-remote-config-network.xml"
+  local cached_output="$EVIDENCE_DIR/android-remote-config-last-known-safe.xml"
+  local consultation_id="mobile027-android-kill-switch"
+  local events="MICROPHONE_PERMISSION_GRANTED,NETWORK_TRANSPORT_CHANGED:CELLULAR,APP_FOREGROUND"
+
+  "$ADB" shell am force-stop com.apgic.ci
+  "$ADB" shell am start -W     -n com.apgic.ci/.MainActivity     --es APGIC_E2E_CAPABILITY_STATE GRANTED     --es APGIC_E2E_COMPATIBILITY_BASE_URL "$COMPATIBILITY_BASE_URL"     --es APGIC_E2E_CONTRACT_VERSION "$COMPATIBILITY_CONTRACT_VERSION"     --es APGIC_E2E_REMOTE_CONFIG_BASE_URL http://127.0.0.1:43113     --es APGIC_E2E_REMOTE_CONFIG_KEY_ID "$REMOTE_CONFIG_E2E_KEY_ID"     --es APGIC_E2E_REMOTE_CONFIG_PUBLIC_KEY_BASE64 "$REMOTE_CONFIG_E2E_PUBLIC_KEY_BASE64"     --es APGIC_E2E_REALTIME_EVENTS "$events"     --es APGIC_E2E_REALTIME_CONSULTATION_ID "$consultation_id"     >/dev/null
+
+  for _ in $(seq 1 60); do
+    if "$ADB" shell uiautomator dump /sdcard/apgic-remote-config-network.xml >/dev/null 2>&1 &&
+       "$ADB" pull /sdcard/apgic-remote-config-network.xml "$network_output" >/dev/null 2>&1 &&
+       grep -q 'remote-config-e2e:PASS' "$network_output" &&
+       grep -q 'remote-config-source:NETWORK' "$network_output" &&
+       grep -q 'remote-config-reason:REMOTE_CONFIG_APPLIED' "$network_output" &&
+       grep -q 'remote-config-capability:REALTIME_CONSULTATION:DISABLED' "$network_output" &&
+       ! grep -q 'realtime-e2e:PASS' "$network_output"; then
+      break
+    fi
+    sleep 1
+  done
+
+  grep -q 'remote-config-source:NETWORK' "$network_output" ||
+    fail "Android did not apply signed remote config from canonical backend"
+  ! grep -q 'realtime-e2e:PASS' "$network_output" ||
+    fail "Android realtime ran despite remote kill switch"
+
+  "$ADB" shell am force-stop com.apgic.ci
+  "$ADB" shell am start -W     -n com.apgic.ci/.MainActivity     --es APGIC_E2E_CAPABILITY_STATE GRANTED     --es APGIC_E2E_COMPATIBILITY_BASE_URL "$COMPATIBILITY_BASE_URL"     --es APGIC_E2E_CONTRACT_VERSION "$COMPATIBILITY_CONTRACT_VERSION"     --es APGIC_E2E_REMOTE_CONFIG_BASE_URL http://127.0.0.1:43199     --es APGIC_E2E_REMOTE_CONFIG_KEY_ID "$REMOTE_CONFIG_E2E_KEY_ID"     --es APGIC_E2E_REMOTE_CONFIG_PUBLIC_KEY_BASE64 "$REMOTE_CONFIG_E2E_PUBLIC_KEY_BASE64"     --es APGIC_E2E_REALTIME_EVENTS "$events"     --es APGIC_E2E_REALTIME_CONSULTATION_ID "$consultation_id"     >/dev/null
+
+  for _ in $(seq 1 60); do
+    if "$ADB" shell uiautomator dump /sdcard/apgic-remote-config-cache.xml >/dev/null 2>&1 &&
+       "$ADB" pull /sdcard/apgic-remote-config-cache.xml "$cached_output" >/dev/null 2>&1 &&
+       grep -q 'remote-config-e2e:PASS' "$cached_output" &&
+       grep -q 'remote-config-source:LAST_KNOWN_SAFE' "$cached_output" &&
+       grep -q 'remote-config-reason:REMOTE_CONFIG_FETCH_FAILED' "$cached_output" &&
+       grep -q 'remote-config-capability:REALTIME_CONSULTATION:DISABLED' "$cached_output" &&
+       ! grep -q 'realtime-e2e:PASS' "$cached_output"; then
+      echo "Android signed remote config kill-switch + restart last-known-safe: PASS"
+      return 0
+    fi
+    sleep 1
+  done
+
+  [[ -f "$cached_output" ]] && cat "$cached_output" >&2 || true
+  fail "Android did not preserve last-known-safe remote config across restart"
+}
+
 assert_installation_lifecycle() {
   local installation_id
   local output="$EVIDENCE_DIR/android-installation-e2e.xml"
@@ -537,7 +590,7 @@ assert_realtime_lifecycle() {
   local output="$EVIDENCE_DIR/android-realtime-e2e.xml"
   local rejoin_output="$EVIDENCE_DIR/android-realtime-rejoin.xml"
   local consultation_id="mobile009-android-rejoin"
-  local events="MICROPHONE_PERMISSION_REVOKED,NETWORK_OFFLINE,NETWORK_ONLINE,MICROPHONE_PERMISSION_GRANTED,NETWORK_TRANSPORT_CHANGED:CELLULAR,SCREEN_LOCKED,SCREEN_UNLOCKED,JOIN_AUTH_EXPIRED,APP_BACKGROUND,APP_FOREGROUND,AUDIO_ROUTE_CHANGED:BLUETOOTH,INTERRUPTION_BEGAN,NETWORK_ONLINE,INTERRUPTION_ENDED"
+  local events="MICROPHONE_PERMISSION_REVOKED,NETWORK_OFFLINE,NETWORK_ONLINE,MICROPHONE_PERMISSION_GRANTED,NETWORK_TRANSPORT_CHANGED:CELLULAR,SCREEN_LOCKED,SCREEN_UNLOCKED,JOIN_AUTH_EXPIRED,APP_BACKGROUND,APP_FOREGROUND,INTERRUPTION_BEGAN,NETWORK_ONLINE,INTERRUPTION_ENDED,AUDIO_ROUTE_CHANGED:BLUETOOTH"
 
   "$ADB" shell pm grant com.apgic.ci android.permission.RECORD_AUDIO >/dev/null ||
     fail "failed to grant Android microphone permission for realtime E2E"
@@ -596,6 +649,7 @@ assert_realtime_lifecycle() {
 }
 
 assert_compatibility_policy
+assert_remote_config_kill_switch
 assert_installation_lifecycle
 assert_deep_link_runtime
 assert_notification_runtime

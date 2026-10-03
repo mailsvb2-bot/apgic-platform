@@ -26,6 +26,8 @@ import {
   fetchClientCompatibility,
 } from "./mobile-compatibility-client.ts";
 import type {MobilePlatform} from "../../../packages/contracts/src/mobile-policy.ts";
+import {resolveRemoteConfig} from "./remote-config-client.ts";
+import {remoteConfigStorage} from "./remote-config-storage.ts";
 import { resolvePushNotification } from "./mobile-notification-client.ts";
 import {
   createOfflineCheckoutQueueItem,
@@ -60,6 +62,9 @@ type AppProps = {
   realtimeE2EReconnectFailures?: string;
   realtimeE2EConsultationID?: string;
   compatibilityBaseURL?: string;
+  remoteConfigBaseURL?: string;
+  remoteConfigTrustedKeyID?: string;
+  remoteConfigTrustedPublicKeyBase64?: string;
   compatibilityPlatform?: MobilePlatform;
   appVersion?: string;
   buildNumber?: string;
@@ -102,6 +107,9 @@ export default function App({
   realtimeE2EReconnectFailures,
   realtimeE2EConsultationID,
   compatibilityBaseURL = canonicalAPGICOrigin,
+  remoteConfigBaseURL,
+  remoteConfigTrustedKeyID,
+  remoteConfigTrustedPublicKeyBase64,
   compatibilityPlatform,
   appVersion,
   buildNumber,
@@ -115,6 +123,16 @@ export default function App({
         decision: Awaited<ReturnType<typeof fetchClientCompatibility>>;
       }
     | {status: "FAIL"; reason: string}
+  >({status: "IDLE"});
+
+  const [remoteConfig, setRemoteConfig] = useState<
+    | {status: "IDLE" | "RUNNING"}
+    | {
+        status: "PASS";
+        source: Awaited<ReturnType<typeof resolveRemoteConfig>>["source"];
+        disabledCapabilities: Awaited<ReturnType<typeof resolveRemoteConfig>>["disabledCapabilities"];
+        reasonCode: string;
+      }
   >({status: "IDLE"});
 
   const [installationE2E, setInstallationE2E] = useState<
@@ -165,6 +183,11 @@ export default function App({
     compatibility.status !== "IDLE" &&
     (compatibility.status !== "PASS" ||
       compatibility.decision.status !== "SUPPORTED");
+  const remoteConfigRequired = Boolean(remoteConfigBaseURL);
+  const remoteConfigAllowsRealtime =
+    !remoteConfigRequired ||
+    (remoteConfig.status === "PASS" &&
+      !remoteConfig.disabledCapabilities.includes("REALTIME_CONSULTATION"));
 
   const handleDeepLink = useCallback(
     async (url: string) => {
@@ -233,6 +256,39 @@ export default function App({
     appVersion,
     buildNumber,
     compatibilityContractVersion,
+  ]);
+
+  useEffect(() => {
+    if (!remoteConfigBaseURL) {
+      return;
+    }
+    let active = true;
+    setRemoteConfig({status: "RUNNING"});
+    const trustedKeys =
+      remoteConfigTrustedKeyID && remoteConfigTrustedPublicKeyBase64
+        ? {[remoteConfigTrustedKeyID]: remoteConfigTrustedPublicKeyBase64}
+        : {};
+    void resolveRemoteConfig({
+      baseURL: remoteConfigBaseURL,
+      storage: remoteConfigStorage,
+      trustedKeys,
+    }).then((result) => {
+      if (active) {
+        setRemoteConfig({
+          status: "PASS",
+          source: result.source,
+          disabledCapabilities: result.disabledCapabilities,
+          reasonCode: result.reasonCode,
+        });
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [
+    remoteConfigBaseURL,
+    remoteConfigTrustedKeyID,
+    remoteConfigTrustedPublicKeyBase64,
   ]);
 
   useEffect(() => {
@@ -384,7 +440,11 @@ export default function App({
   ]);
 
   useEffect(() => {
-    if (!compatibilityAllowsRuntime || !realtimeE2EEvents) {
+    if (
+      !compatibilityAllowsRuntime ||
+      !remoteConfigAllowsRealtime ||
+      !realtimeE2EEvents
+    ) {
       return;
     }
     let active = true;
@@ -412,6 +472,7 @@ export default function App({
     };
   }, [
     compatibilityAllowsRuntime,
+    remoteConfigAllowsRealtime,
     realtimeE2EEvents,
     realtimeE2EReconnectFailures,
     realtimeE2EConsultationID,
@@ -516,6 +577,33 @@ export default function App({
               <Text accessibilityLabel={`compatibility-error:${compatibility.reason}`}>
                 Не удалось безопасно проверить совместимость. Повторите попытку позже. Данные не изменены.
               </Text>
+            ) : null}
+          </View>
+        ) : null}
+
+        {remoteConfigRequired ? (
+          <View style={styles.capability} accessibilityRole="summary">
+            <Text accessibilityLabel={`remote-config-e2e:${remoteConfig.status}`}>
+              Remote config: {remoteConfig.status}
+            </Text>
+            {remoteConfig.status === "PASS" ? (
+              <>
+                <Text accessibilityLabel={`remote-config-source:${remoteConfig.source}`}>
+                  Source: {remoteConfig.source}
+                </Text>
+                <Text accessibilityLabel={`remote-config-reason:${remoteConfig.reasonCode}`}>
+                  {remoteConfig.reasonCode}
+                </Text>
+                <Text
+                  accessibilityLabel={`remote-config-capability:REALTIME_CONSULTATION:${
+                    remoteConfig.disabledCapabilities.includes("REALTIME_CONSULTATION")
+                      ? "DISABLED"
+                      : "ENABLED"
+                  }`}
+                >
+                  Realtime capability policy applied.
+                </Text>
+              </>
             ) : null}
           </View>
         ) : null}

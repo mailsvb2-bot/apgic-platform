@@ -59,6 +59,17 @@ react {
  */
 def enableProguardInReleaseBuilds = false
 
+def remoteConfigTrustedKeyID = (
+    project.findProperty("APGIC_REMOTE_CONFIG_TRUSTED_KEY_ID") ?:
+    System.getenv("APGIC_REMOTE_CONFIG_TRUSTED_KEY_ID") ?:
+    ""
+).toString()
+def remoteConfigTrustedPublicKeyBase64 = (
+    project.findProperty("APGIC_REMOTE_CONFIG_TRUSTED_PUBLIC_KEY_BASE64") ?:
+    System.getenv("APGIC_REMOTE_CONFIG_TRUSTED_PUBLIC_KEY_BASE64") ?:
+    ""
+).toString()
+
 /**
  * The preferred build flavor of JavaScriptCore (JSC)
  *
@@ -84,6 +95,8 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0.0"
+        buildConfigField "String", "APGIC_REMOTE_CONFIG_TRUSTED_KEY_ID", groovy.json.JsonOutput.toJson(remoteConfigTrustedKeyID)
+        buildConfigField "String", "APGIC_REMOTE_CONFIG_TRUSTED_PUBLIC_KEY_BASE64", groovy.json.JsonOutput.toJson(remoteConfigTrustedPublicKeyBase64)
     }
     buildTypes {
         debug {
@@ -93,6 +106,17 @@ android {
             // by governed external CI secrets and release evidence; no key material lives here.
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
+        }
+    }
+}
+
+tasks.matching { it.name == "preReleaseBuild" }.configureEach {
+    doFirst {
+        if (remoteConfigTrustedKeyID.trim().isEmpty() ||
+            remoteConfigTrustedPublicKeyBase64.trim().isEmpty()) {
+            throw new GradleException(
+                "Release remote-config trusted key ID/public key must be injected by governed build configuration"
+            )
         }
     }
 }

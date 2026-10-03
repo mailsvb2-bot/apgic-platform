@@ -148,6 +148,7 @@ func TestEmergencyKillSwitchDrill(t *testing.T) {
 	tampered := second
 	tampered.Payload.Version = 3
 	tampered.Payload.Disabled = nil
+	tampered.Payload.ReasonCodes = nil
 	if err := manager.Apply(tampered, publicKey, now); !errors.Is(err, ErrInvalidSignature) {
 		t.Fatalf("tampered recovery config must be rejected: %v", err)
 	}
@@ -174,5 +175,28 @@ func TestEmergencyKillSwitchDrill(t *testing.T) {
 	privileged.Disabled = []Capability{Capability("ENTITLEMENT_GRANT")}
 	if _, err := Sign(privileged, "key-1", privateKey); !errors.Is(err, ErrPrivilegedCapability) {
 		t.Fatalf("kill switch drill must not gain privileged business truth: %v", err)
+	}
+}
+
+func TestRemoteConfigRejectsUnknownCapabilityAndOrphanReason(t *testing.T) {
+	_, privateKey, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+
+	unknown := validPayload(now, 1)
+	unknown.Disabled = []Capability{Capability("UNKNOWN_RUNTIME_SWITCH")}
+	if _, err := Sign(unknown, "key-1", privateKey); !errors.Is(err, ErrInvalidEnvelope) {
+		t.Fatalf("unknown capability must not be signed: %v", err)
+	}
+
+	orphan := validPayload(now, 2)
+	orphan.Disabled = nil
+	orphan.ReasonCodes = map[Capability]string{
+		CapabilityPersonaPreview: "INCIDENT_DISABLE",
+	}
+	if _, err := Sign(orphan, "key-1", privateKey); !errors.Is(err, ErrInvalidEnvelope) {
+		t.Fatalf("reason code without disabled capability must not be signed: %v", err)
 	}
 }

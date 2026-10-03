@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: APGIC Public API
-  version: 0.9.0-r0-mobile-compatibility
+  version: 0.10.0-r0-remote-config
 servers: []
 paths:
   /healthz:
@@ -76,6 +76,23 @@ paths:
                 $ref: '#/components/schemas/ErrorEnvelope'
         '503':
           description: Compatibility policy is unavailable or invalid and the client must fail closed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /v1/mobile/remote-config:
+    get:
+      operationId: getMobileRemoteConfig
+      description: Returns a signed, versioned, expiring remote-capability snapshot. It may disable presentation/runtime capabilities but never grants payment, entitlement, qualification, authorization, legal, ledger, or refund truth.
+      responses:
+        '200':
+          description: Signed remote configuration envelope.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignedMobileRemoteConfigEnvelope'
+        '503':
+          description: Signed remote configuration is unavailable and clients must use last-known-safe or fail-safe behavior.
           content:
             application/json:
               schema:
@@ -1342,6 +1359,35 @@ components:
           type: string
           enum: [SECURITY_CRITICAL, LEGAL_CRITICAL, INCOMPATIBLE_CRITICAL]
         update_url: { type: string, format: uri }
+    RemoteConfigCapability:
+      type: string
+      enum: [REALTIME_CONSULTATION, CALENDAR_INTEGRATION, PERSONA_PREVIEW]
+    MobileRemoteConfigPayload:
+      type: object
+      additionalProperties: false
+      required: [version, issued_at, expires_at, policy_id, disabled_capabilities]
+      properties:
+        version: { type: integer, minimum: 1 }
+        issued_at: { type: string, format: date-time }
+        expires_at: { type: string, format: date-time }
+        policy_id: { type: string, minLength: 1 }
+        disabled_capabilities:
+          type: array
+          uniqueItems: true
+          items: { $ref: '#/components/schemas/RemoteConfigCapability' }
+        reason_codes:
+          type: object
+          additionalProperties: { type: string, minLength: 1 }
+    SignedMobileRemoteConfigEnvelope:
+      type: object
+      additionalProperties: false
+      required: [key_id, payload, signature]
+      properties:
+        key_id: { type: string, minLength: 1 }
+        payload: { $ref: '#/components/schemas/MobileRemoteConfigPayload' }
+        signature:
+          type: string
+          pattern: '^[A-Za-z0-9+/]{86}==$'
     ClientInstallation:
       type: object
       additionalProperties: false

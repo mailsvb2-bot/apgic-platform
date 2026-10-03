@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apgic.local/contracts/mobile-remote-config-v1.schema.json",
+  "title": "APGIC Signed Mobile Remote Config v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["key_id", "payload", "signature"],
+  "properties": {
+    "key_id": {"type": "string", "minLength": 1},
+    "signature": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9+/]{86}==$"
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "issued_at",
+        "expires_at",
+        "policy_id",
+        "disabled_capabilities"
+      ],
+      "properties": {
+        "version": {"type": "integer", "minimum": 1},
+        "issued_at": {"type": "string", "format": "date-time"},
+        "expires_at": {"type": "string", "format": "date-time"},
+        "policy_id": {"type": "string", "minLength": 1},
+        "disabled_capabilities": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": [
+              "REALTIME_CONSULTATION",
+              "CALENDAR_INTEGRATION",
+              "PERSONA_PREVIEW"
+            ]
+          }
+        },
+        "reason_codes": {
+          "type": "object",
+          "propertyNames": {
+            "enum": [
+              "REALTIME_CONSULTATION",
+              "CALENDAR_INTEGRATION",
+              "PERSONA_PREVIEW"
+            ]
+          },
+          "additionalProperties": {"type": "string", "minLength": 1}
+        }
+      }
+    }
+  }
+}

@@ -41,6 +41,26 @@ class StagingUpdateGuardTest(unittest.TestCase):
         with self.assertRaises(SystemExit):
             self.run_guard_with(broken)
 
+    def test_rejects_missing_target_environment_preflight(self) -> None:
+        text = (ROOT / "deploy/staging/update-staging.sh").read_text(encoding="utf-8")
+        broken = text.replace(
+            'echo "target deployment requires missing environment key: $target_key" >&2',
+            'echo "missing key" >&2',
+        )
+        self.assertNotEqual(text, broken)
+        with self.assertRaises(SystemExit):
+            self.run_guard_with(broken)
+
+    def test_rejects_missing_target_updater_reexec(self) -> None:
+        text = (ROOT / "deploy/staging/update-staging.sh").read_text(encoding="utf-8")
+        broken = text.replace(
+            'APGIC_UPDATE_REEXEC=1 exec bash "$REPO_ROOT/deploy/staging/update-staging.sh" "$TARGET_SHA"',
+            'echo "skip target updater"',
+        )
+        self.assertNotEqual(text, broken)
+        with self.assertRaises(SystemExit):
+            self.run_guard_with(broken)
+
     def test_rejects_backup_after_ledger_reconcile(self) -> None:
         text = (ROOT / "deploy/staging/update-staging.sh").read_text(encoding="utf-8")
         start = text.index('if [[ "$backup_required" == "true" ]]')

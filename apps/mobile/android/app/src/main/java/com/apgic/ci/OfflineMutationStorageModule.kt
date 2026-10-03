@@ -13,7 +13,9 @@ class OfflineMutationStorageModule(
     const val NAME = "APGICOfflineMutationStorage"
     private const val PREFS_NAME = "apgic_offline_mutation_queue"
     private const val QUEUE_KEY = "queue_v1"
+    private const val REMOTE_CONFIG_KEY = "remote_config_v1"
     private const val MAX_BYTES = 8192
+    private const val REMOTE_CONFIG_MAX_BYTES = 16384
   }
 
   override fun getName(): String = NAME
@@ -43,6 +45,33 @@ class OfflineMutationStorageModule(
   fun clear(promise: Promise) {
     if (!preferences().edit().remove(QUEUE_KEY).commit()) {
       promise.reject("OFFLINE_MUTATION_STORAGE_CLEAR_FAILED", "Offline mutation queue could not be cleared")
+      return
+    }
+    promise.resolve(null)
+  }
+
+  @ReactMethod
+  fun loadRemoteConfig(promise: Promise) {
+    promise.resolve(preferences().getString(REMOTE_CONFIG_KEY, null))
+  }
+
+  @ReactMethod
+  fun saveRemoteConfig(value: String, promise: Promise) {
+    if (value.toByteArray(Charsets.UTF_8).size > REMOTE_CONFIG_MAX_BYTES) {
+      promise.reject("REMOTE_CONFIG_STORAGE_TOO_LARGE", "Remote config exceeds audited size bound")
+      return
+    }
+    if (!preferences().edit().putString(REMOTE_CONFIG_KEY, value).commit()) {
+      promise.reject("REMOTE_CONFIG_STORAGE_WRITE_FAILED", "Remote config could not be persisted")
+      return
+    }
+    promise.resolve(null)
+  }
+
+  @ReactMethod
+  fun clearRemoteConfig(promise: Promise) {
+    if (!preferences().edit().remove(REMOTE_CONFIG_KEY).commit()) {
+      promise.reject("REMOTE_CONFIG_STORAGE_CLEAR_FAILED", "Remote config could not be cleared")
       return
     }
     promise.resolve(null)

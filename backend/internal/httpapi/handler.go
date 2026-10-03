@@ -13,6 +13,7 @@ import (
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/mobile"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/mutation"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/notification"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/remoteconfig"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/specialist"
 )
 
@@ -36,6 +37,7 @@ type Options struct {
 	Products                    organizationProductStore
 	ClientSessionKey            []byte
 	ClientCompatibilityPolicies map[clientcompat.Platform]clientcompat.Policy
+	RemoteConfigProvider        func(time.Time) (remoteconfig.SignedEnvelope, error)
 	Now                         func() time.Time
 }
 
@@ -109,6 +111,7 @@ func New(options Options) http.Handler {
 	registerDemand(mux, options.Demand, sessions, sessionConfigErr)
 	registerLegalAcceptance(mux, options.LegalAcceptances, sessions, sessionConfigErr, options.Now)
 	registerMobileCompatibility(mux, options.ClientCompatibilityPolicies)
+	registerMobileRemoteConfig(mux, options.RemoteConfigProvider, options.Now)
 	registerMobileInstallations(mux, options.Installations, sessions, sessionConfigErr, options.Now)
 	registerMobileNotifications(mux, options.Notifications, sessions, sessionConfigErr)
 	registerMobileCheckoutMutation(mux, options.Demand, options.ClientMutations, sessions, sessionConfigErr, options.Now)

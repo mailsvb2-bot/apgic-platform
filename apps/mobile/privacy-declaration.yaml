@@ -18,6 +18,11 @@ runtime_dependency_assertions:
     data_classes:
       - INTERNAL
     permissions: []
+  tweetnacl:
+    egress: NONE
+    data_classes:
+      - INTERNAL
+    permissions: []
 store_artifacts:
   apple_privacy_manifest:
     status: GENERATED_AND_VERIFIED

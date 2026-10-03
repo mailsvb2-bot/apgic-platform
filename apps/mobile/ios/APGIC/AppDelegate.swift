@@ -41,6 +41,23 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
       "buildNumber": Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0",
     ]
 
+#if !DEBUG
+    initialProperties["remoteConfigBaseURL"] = "https://apgic.ru"
+    if let trustedKeyID = Bundle.main.object(
+      forInfoDictionaryKey: "APGICRemoteConfigTrustedKeyID"
+    ) as? String,
+       let trustedPublicKey = Bundle.main.object(
+         forInfoDictionaryKey: "APGICRemoteConfigTrustedPublicKeyBase64"
+       ) as? String,
+       !trustedKeyID.isEmpty,
+       !trustedPublicKey.isEmpty,
+       !trustedKeyID.contains("$("),
+       !trustedPublicKey.contains("$(") {
+      initialProperties["remoteConfigTrustedKeyID"] = trustedKeyID
+      initialProperties["remoteConfigTrustedPublicKeyBase64"] = trustedPublicKey
+    }
+#endif
+
 #if DEBUG
     let environment = ProcessInfo.processInfo.environment
     let installationE2EKeys = [
@@ -64,6 +81,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
       "APGIC_E2E_REALTIME_RECONNECT_FAILURES": "realtimeE2EReconnectFailures",
       "APGIC_E2E_REALTIME_CONSULTATION_ID": "realtimeE2EConsultationID",
       "APGIC_E2E_COMPATIBILITY_BASE_URL": "compatibilityBaseURL",
+      "APGIC_E2E_REMOTE_CONFIG_BASE_URL": "remoteConfigBaseURL",
+      "APGIC_E2E_REMOTE_CONFIG_KEY_ID": "remoteConfigTrustedKeyID",
+      "APGIC_E2E_REMOTE_CONFIG_PUBLIC_KEY_BASE64": "remoteConfigTrustedPublicKeyBase64",
       "APGIC_E2E_APP_VERSION": "appVersion",
       "APGIC_E2E_BUILD_NUMBER": "buildNumber",
       "APGIC_E2E_CONTRACT_VERSION": "compatibilityContractVersion",

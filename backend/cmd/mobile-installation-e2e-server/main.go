@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/ed25519"
 	"errors"
 	"log"
 	"net/http"
@@ -18,6 +19,7 @@ import (
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/mobile"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/mutation"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/notification"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/remoteconfig"
 )
 
 type conformanceInstallationStore struct {
@@ -331,12 +333,26 @@ func main() {
 			MinimumSupported:          minimum,
 			Recommended:               recommended,
 			MinimumBuild:              1,
-			ContractVersion:           "0.9.0-r0-mobile-compatibility",
-			SupportedContractVersions: []string{"0.8.0-r2-offline-sync", "0.9.0-r0-mobile-compatibility"},
+			ContractVersion:           "0.10.0-r0-remote-config",
+			SupportedContractVersions: []string{"0.8.0-r2-offline-sync", "0.9.0-r0-mobile-compatibility", "0.10.0-r0-remote-config"},
 			PolicyVersion:             "mobile013-e2e-v1",
 			MinimumUpdateReason:       clientcompat.IncompatibleCritical,
 			UpdateURL:                 "https://apgic.ru/update",
 		}
+	}
+	remoteConfigPublisher, err := remoteconfig.NewPublisher(
+		"mobile027-e2e-key",
+		ed25519.NewKeyFromSeed([]byte(strings.Repeat("r", ed25519.SeedSize))),
+		1,
+		"mobile027-e2e-policy-v1",
+		30*time.Minute,
+		[]remoteconfig.Capability{remoteconfig.CapabilityRealtimeConsultation},
+		map[remoteconfig.Capability]string{
+			remoteconfig.CapabilityRealtimeConsultation: "INCIDENT_DISABLE_REALTIME",
+		},
+	)
+	if err != nil {
+		log.Fatal(err)
 	}
 	canonicalHandler := httpapi.New(httpapi.Options{
 		Demand:                      demand.NewConformanceService(nil),
@@ -347,6 +363,7 @@ func main() {
 		DeepLinkSigningKey:          key,
 		ClientSessionKey:            key,
 		ClientCompatibilityPolicies: compatibilityPolicies,
+		RemoteConfigProvider:        remoteConfigPublisher.Envelope,
 	})
 	handler := &loseFirstCheckoutResponse{next: canonicalHandler}
 	server := &http.Server{

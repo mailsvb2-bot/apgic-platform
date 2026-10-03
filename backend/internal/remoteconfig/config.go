@@ -25,6 +25,12 @@ const (
 	CapabilityPersonaPreview       Capability = "PERSONA_PREVIEW"
 )
 
+var allowedCapabilities = map[Capability]struct{}{
+	CapabilityRealtimeConsultation: {},
+	CapabilityCalendarIntegration:  {},
+	CapabilityPersonaPreview:       {},
+}
+
 var privilegedCapabilityNames = map[string]struct{}{
 	"PAYMENT_CAPTURE":        {},
 	"PAYOUT_ELIGIBILITY":     {},
@@ -101,12 +107,31 @@ func validatePayload(payload Payload, now time.Time) error {
 	if !now.IsZero() && !now.Before(payload.ExpiresAt) {
 		return ErrExpiredConfig
 	}
+	disabled := make(map[Capability]struct{}, len(payload.Disabled))
 	for _, capability := range payload.Disabled {
 		if strings.TrimSpace(string(capability)) == "" {
 			return ErrInvalidEnvelope
 		}
 		if _, forbidden := privilegedCapabilityNames[string(capability)]; forbidden {
 			return ErrPrivilegedCapability
+		}
+		if _, allowed := allowedCapabilities[capability]; !allowed {
+			return ErrInvalidEnvelope
+		}
+		if _, duplicate := disabled[capability]; duplicate {
+			return ErrInvalidEnvelope
+		}
+		disabled[capability] = struct{}{}
+	}
+	for capability, reason := range payload.ReasonCodes {
+		if _, forbidden := privilegedCapabilityNames[string(capability)]; forbidden {
+			return ErrPrivilegedCapability
+		}
+		if _, allowed := allowedCapabilities[capability]; !allowed {
+			return ErrInvalidEnvelope
+		}
+		if _, isDisabled := disabled[capability]; !isDisabled || strings.TrimSpace(reason) == "" {
+			return ErrInvalidEnvelope
 		}
 	}
 	return nil
@@ -145,4 +170,75 @@ func (m *Manager) IsDisabled(capability Capability) bool {
 		}
 	}
 	return false
+}
+
+type Publisher struct {
+	keyID      string
+	privateKey ed25519.PrivateKey
+	version    uint64
+	policyID   string
+	ttl        time.Duration
+	disabled   []Capability
+	reasons    map[Capability]string
+}
+
+func NewPublisher(
+	keyID string,
+	privateKey ed25519.PrivateKey,
+	version uint64,
+	policyID string,
+	ttl time.Duration,
+	disabled []Capability,
+	reasons map[Capability]string,
+) (*Publisher, error) {
+	if strings.TrimSpace(keyID) == "" || len(privateKey) != ed25519.PrivateKeySize ||
+		version == 0 || strings.TrimSpace(policyID) == "" || ttl <= 0 {
+		return nil, ErrInvalidEnvelope
+	}
+	probe := Payload{
+		Version:     version,
+		IssuedAt:    time.Unix(1, 0).UTC(),
+		ExpiresAt:   time.Unix(1, 0).UTC().Add(ttl),
+		PolicyID:    policyID,
+		Disabled:    append([]Capability(nil), disabled...),
+		ReasonCodes: cloneReasonCodes(reasons),
+	}
+	if err := validatePayload(probe, time.Time{}); err != nil {
+		return nil, err
+	}
+	return &Publisher{
+		keyID:      keyID,
+		privateKey: append(ed25519.PrivateKey(nil), privateKey...),
+		version:    version,
+		policyID:   policyID,
+		ttl:        ttl,
+		disabled:   append([]Capability(nil), disabled...),
+		reasons:    cloneReasonCodes(reasons),
+	}, nil
+}
+
+func (p *Publisher) Envelope(now time.Time) (SignedEnvelope, error) {
+	if p == nil {
+		return SignedEnvelope{}, ErrInvalidEnvelope
+	}
+	now = now.UTC()
+	return Sign(Payload{
+		Version:     p.version,
+		IssuedAt:    now,
+		ExpiresAt:   now.Add(p.ttl),
+		PolicyID:    p.policyID,
+		Disabled:    append([]Capability(nil), p.disabled...),
+		ReasonCodes: cloneReasonCodes(p.reasons),
+	}, p.keyID, p.privateKey)
+}
+
+func cloneReasonCodes(input map[Capability]string) map[Capability]string {
+	if len(input) == 0 {
+		return nil
+	}
+	out := make(map[Capability]string, len(input))
+	for capability, reason := range input {
+		out[capability] = reason
+	}
+	return out
 }

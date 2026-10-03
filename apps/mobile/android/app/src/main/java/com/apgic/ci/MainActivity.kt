@@ -31,6 +31,9 @@ class MainActivity : ReactActivity() {
     private const val E2E_REALTIME_RECONNECT_FAILURES = "APGIC_E2E_REALTIME_RECONNECT_FAILURES"
     private const val E2E_REALTIME_CONSULTATION_ID = "APGIC_E2E_REALTIME_CONSULTATION_ID"
     private const val E2E_COMPATIBILITY_BASE_URL = "APGIC_E2E_COMPATIBILITY_BASE_URL"
+    private const val E2E_REMOTE_CONFIG_BASE_URL = "APGIC_E2E_REMOTE_CONFIG_BASE_URL"
+    private const val E2E_REMOTE_CONFIG_KEY_ID = "APGIC_E2E_REMOTE_CONFIG_KEY_ID"
+    private const val E2E_REMOTE_CONFIG_PUBLIC_KEY_BASE64 = "APGIC_E2E_REMOTE_CONFIG_PUBLIC_KEY_BASE64"
     private const val E2E_APP_VERSION = "APGIC_E2E_APP_VERSION"
     private const val E2E_BUILD_NUMBER = "APGIC_E2E_BUILD_NUMBER"
     private const val E2E_CONTRACT_VERSION = "APGIC_E2E_CONTRACT_VERSION"
@@ -76,6 +79,17 @@ class MainActivity : ReactActivity() {
           putString("compatibilityPlatform", "ANDROID")
           putString("appVersion", BuildConfig.VERSION_NAME)
           putString("buildNumber", BuildConfig.VERSION_CODE.toString())
+          if (!BuildConfig.DEBUG) {
+            putString("remoteConfigBaseURL", "https://apgic.ru")
+            putString(
+              "remoteConfigTrustedKeyID",
+              BuildConfig.APGIC_REMOTE_CONFIG_TRUSTED_KEY_ID,
+            )
+            putString(
+              "remoteConfigTrustedPublicKeyBase64",
+              BuildConfig.APGIC_REMOTE_CONFIG_TRUSTED_PUBLIC_KEY_BASE64,
+            )
+          }
           if (BuildConfig.DEBUG) {
             intent?.getStringExtra(E2E_INSTALLATION_BASE_URL)
               ?.takeIf { it.isNotBlank() }
@@ -137,6 +151,15 @@ class MainActivity : ReactActivity() {
             intent?.getStringExtra(E2E_COMPATIBILITY_BASE_URL)
               ?.takeIf { it.isNotBlank() }
               ?.let { putString("compatibilityBaseURL", it) }
+            intent?.getStringExtra(E2E_REMOTE_CONFIG_BASE_URL)
+              ?.takeIf { it.isNotBlank() }
+              ?.let { putString("remoteConfigBaseURL", it) }
+            intent?.getStringExtra(E2E_REMOTE_CONFIG_KEY_ID)
+              ?.takeIf { it.isNotBlank() }
+              ?.let { putString("remoteConfigTrustedKeyID", it) }
+            intent?.getStringExtra(E2E_REMOTE_CONFIG_PUBLIC_KEY_BASE64)
+              ?.takeIf { it.isNotBlank() }
+              ?.let { putString("remoteConfigTrustedPublicKeyBase64", it) }
             intent?.getStringExtra(E2E_APP_VERSION)
               ?.takeIf { it.isNotBlank() }
               ?.let { putString("appVersion", it) }
