@@ -7,6 +7,17 @@ API = ROOT / "deploy/staging/apgic-api-staging.service"
 WEB = ROOT / "deploy/staging/apgic-web-staging.service"
 NGINX = ROOT / "deploy/staging/nginx-apgic-staging.conf"
 ENV = ROOT / "deploy/staging/staging.env.example"
+HOST_GUARD = ROOT / "deploy/staging/assert-authorized-host.sh"
+AGENTS = ROOT / "AGENTS.md"
+SERVER_SCRIPTS = [
+    ROOT / "deploy/staging/update-staging.sh",
+    ROOT / "deploy/staging/check-staging-runtime.sh",
+    ROOT / "deploy/staging/bootstrap-dedicated-host.sh",
+    ROOT / "deploy/staging/apply-staging-migrations.sh",
+    ROOT / "deploy/staging/backup-staging-postgres.sh",
+    ROOT / "deploy/staging/verify-staging-backup.sh",
+]
+AUTHORIZED_IPV4 = "92.51.23.254"
 
 def validate() -> list[str]:
     errors = []
@@ -14,6 +25,8 @@ def validate() -> list[str]:
     web = WEB.read_text(encoding="utf-8")
     nginx = NGINX.read_text(encoding="utf-8")
     env = ENV.read_text(encoding="utf-8")
+    host_guard = HOST_GUARD.read_text(encoding="utf-8")
+    agents = AGENTS.read_text(encoding="utf-8")
     for name, text in (("api", api), ("web", web)):
         for required in ("DynamicUser=yes", "NoNewPrivileges=yes", "ProtectSystem=strict", "PrivateTmp=yes"):
             if required not in text:
@@ -34,6 +47,16 @@ def validate() -> list[str]:
         errors.append("staging environment marker missing")
     if "APGIC_DATABASE_URL=REPLACED_AT_DEPLOY" not in env:
         errors.append("database secret must never be committed")
+    if AUTHORIZED_IPV4 not in host_guard:
+        errors.append(f"host guard must pin authorized APGIC IPv4 {AUTHORIZED_IPV4}")
+    if AUTHORIZED_IPV4 not in agents or "Remote Desktop Commander hard rule" not in agents:
+        errors.append("AGENTS.md must document the APGIC Remote Desktop Commander host boundary")
+    if "GitHub-first source of truth" not in agents:
+        errors.append("AGENTS.md must document GitHub-first APGIC source of truth")
+    for script in SERVER_SCRIPTS:
+        text = script.read_text(encoding="utf-8")
+        if "assert-authorized-host.sh" not in text:
+            errors.append(f"{script.relative_to(ROOT)}: missing fail-closed authorized-host guard")
     return errors
 
 def main() -> int:
