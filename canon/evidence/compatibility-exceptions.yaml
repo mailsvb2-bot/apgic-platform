@@ -37,3 +37,18 @@ exceptions:
       WEB has no native AppVersion/BuildNumber lifecycle under this requirement.
       Fabricating WEB compatibility evidence would misrepresent requirement scope.
     approved_by: mailsvb2-bot
+
+
+  - exception_id: APGIC-MOBILE-027-WEB-NOT-APPLICABLE
+    requirement_id: APGIC-MOBILE-027
+    status: APPROVED
+    surfaces:
+      - WEB
+    reason: >-
+      APGIC-MOBILE-027 implements the installed native app remote-config,
+      compatibility-window and emergency kill-switch behavior from Canon section
+      330. Web has no installed AppVersion/BuildNumber lifecycle under this
+      requirement; fabricating WEB kill-switch evidence would misrepresent the
+      acceptance scope. Web remains governed by the same server-side business
+      truth and authorization/financial/qualification policies.
+    approved_by: mailsvb2-bot
