@@ -54,6 +54,15 @@ class MobileNativeE2EHarnessTest(unittest.TestCase):
             self.assertIn("trap - EXIT", cleanup)
             self.assertIn('exit "$status"', cleanup)
 
+    def test_android_realtime_script_finishes_with_audited_audio_route(self) -> None:
+        text = self._read("mobile_android_capability_e2e.sh")
+        marker = 'local events="'
+        start = text.index(marker, text.index("assert_realtime_lifecycle() {")) + len(marker)
+        end = text.index('"', start)
+        events = text[start:end].split(",")
+        self.assertEqual(events[-1], "AUDIO_ROUTE_CHANGED:BLUETOOTH")
+        self.assertIn("INTERRUPTION_ENDED", events[:-1])
+
 
 if __name__ == "__main__":
     unittest.main()
