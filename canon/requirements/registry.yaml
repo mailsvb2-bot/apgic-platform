@@ -2754,7 +2754,7 @@ requirements:
   release_profile: R0
   risk: HIGH
   priority: P0
-  status: IN_PROGRESS
+  status: VERIFIED
   dependencies:
   - APGIC-MOBILE-002
   implementation_refs:
@@ -2775,6 +2775,11 @@ requirements:
   - docs/traceability/R0-mobile010-secure-local-storage.md
   - canon/evidence/compatibility-exceptions.yaml
   - canon/evidence/r0-ci-evidence-map.json
+  - surface://SERVER/mobile010-security-audit/run-37143761267/job-111263397516
+  - surface://SERVER/mobile010-mobile-typecheck/run-37143761267/job-111263397551
+  - surface://ANDROID/mobile010-native-e2e/run-37143761267/job-111263397504
+  - surface://IOS/mobile010-native-e2e/run-37143761267/job-111263397531
+  - surface://SERVER/mobile010-r0-bootstrap/run-37143761267/job-111267692373
   acceptance:
     given: native client обрабатывает sensitive/session data
     when: данные кешируются или logout/revoke

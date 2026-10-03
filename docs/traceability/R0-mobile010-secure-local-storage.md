@@ -40,4 +40,17 @@ tools/mobile_native_storage_audit.py fails closed when:
 
 tools/tests/test_mobile_native_storage_audit.py includes negative regressions for ordinary preferences/defaults, weak secure-storage primitives, missing purge hooks and backup enablement.
 
-Status remains IN_PROGRESS until the exact candidate commit passes repository CI and native Android/iOS builds. Only then may fresh run/job evidence advance the Requirement Registry to VERIFIED.
+## Verification result
+
+Candidate 35cc1895082be9815dc5fc14cded0e7c77dc5b82 passed CI run 37143761267 completely.
+
+Fresh evidence:
+- Canon / architecture conformance: job 111263397516 — success.
+- Native / React Native typecheck: job 111263397551 — success.
+- Android native debug build and installed-app E2E: job 111263397504 — success.
+- iOS native simulator build, signing verification, Keychain runtime proof and installed-app E2E: job 111263397531 — success.
+- R0 bootstrap gate: job 111267692373 — success.
+
+The iOS proof includes the real runtime Keychain save/load/purge path after correcting simulator signing; the earlier errSecMissingEntitlement (-34018) failure is not accepted as evidence.
+
+Status: VERIFIED.
