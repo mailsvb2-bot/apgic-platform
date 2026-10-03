@@ -52,6 +52,7 @@ SECURE_CREDENTIAL_ADAPTER_REQUIREMENTS = {
         "APGIC_SECURE_CREDENTIAL_ADAPTER: SYSTEM_KEYSTORE_V1",
         "kSecClassGenericPassword",
         "SecItemAdd",
+        "SecItemUpdate",
         "SecItemCopyMatching",
         "SecItemDelete",
         "kSecAttrAccessibleWhenUnlockedThisDeviceOnly",
@@ -95,6 +96,34 @@ def scan_files(root: Path, base: str, suffixes: set[str], pattern: re.Pattern[st
     return errors
 
 
+def braced_body(text: str, marker: str) -> str:
+    start = text.find(marker)
+    if start < 0:
+        return ""
+    brace = text.find("{", start)
+    if brace < 0:
+        return ""
+    depth = 0
+    for index in range(brace, len(text)):
+        char = text[index]
+        if char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return text[brace + 1:index]
+    return ""
+
+
+def require_body_tokens(rel: str, body_name: str, body: str, tokens: tuple[str, ...]) -> list[str]:
+    if not body:
+        return [f"{rel}: secure credential method body missing: {body_name}"]
+    missing = [token for token in tokens if token not in body]
+    if missing:
+        return [f"{rel}: {body_name} missing executable secure-storage operations: {missing}"]
+    return []
+
+
 def validate_secure_credential_adapters(root: Path) -> list[str]:
     errors: list[str] = []
     for rel, required in SECURE_CREDENTIAL_ADAPTER_REQUIREMENTS.items():
@@ -110,12 +139,44 @@ def validate_secure_credential_adapters(root: Path) -> list[str]:
             )
 
         if rel.endswith(".kt"):
-            credential_section = text[text.find("fun saveCredential"):]
-            if 'putString(CREDENTIAL_KEY, value)' in credential_section:
+            save = braced_body(text, "fun saveCredential")
+            load = braced_body(text, "fun loadCredential")
+            clear = braced_body(text, "fun clearCredential")
+            purge = braced_body(text, "fun clearUserScopedState")
+            errors.extend(require_body_tokens(
+                rel, "saveCredential", save,
+                ("Cipher.getInstance(\"AES/GCM/NoPadding\")", "Cipher.ENCRYPT_MODE", "credentialKey()", "cipher.doFinal", "putString(CREDENTIAL_KEY, \"$iv.$ciphertext\")"),
+            ))
+            errors.extend(require_body_tokens(
+                rel, "loadCredential", load,
+                ("Cipher.getInstance(\"AES/GCM/NoPadding\")", "Cipher.DECRYPT_MODE", "GCMParameterSpec", "cipher.doFinal"),
+            ))
+            errors.extend(require_body_tokens(rel, "clearCredential", clear, ("deleteCredentialMaterial()",)))
+            errors.extend(require_body_tokens(
+                rel, "clearUserScopedState", purge,
+                ("remove(QUEUE_KEY)", "deleteCredentialMaterial()"),
+            ))
+            if 'putString(CREDENTIAL_KEY, value)' in save:
                 errors.append(f"{rel}: credential plaintext must never be written to SharedPreferences")
         else:
-            credential_section = text[text.find("saveCredential"):]
-            if "setObject:value forKey:APGICCredential" in credential_section:
+            save = braced_body(text, "RCT_REMAP_METHOD(saveCredential")
+            load = braced_body(text, "RCT_REMAP_METHOD(loadCredential")
+            clear = braced_body(text, "RCT_REMAP_METHOD(clearCredential")
+            purge = braced_body(text, "RCT_REMAP_METHOD(clearUserScopedState")
+            errors.extend(require_body_tokens(
+                rel, "saveCredential", save,
+                ("SecItemUpdate", "errSecItemNotFound", "SecItemAdd", "kSecValueData", "kSecAttrAccessibleWhenUnlockedThisDeviceOnly"),
+            ))
+            errors.extend(require_body_tokens(
+                rel, "loadCredential", load,
+                ("SecItemCopyMatching", "kSecReturnData", "kSecMatchLimitOne"),
+            ))
+            errors.extend(require_body_tokens(rel, "clearCredential", clear, ("APGICDeleteCredential()",)))
+            errors.extend(require_body_tokens(
+                rel, "clearUserScopedState", purge,
+                ("removeObjectForKey:APGICOfflineMutationQueueKey", "APGICDeleteCredential()"),
+            ))
+            if "setObject:value forKey:APGICCredential" in save:
                 errors.append(f"{rel}: credential plaintext must never be written to NSUserDefaults")
     return errors
 

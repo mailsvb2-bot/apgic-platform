@@ -40,10 +40,22 @@ val prefs = getSharedPreferences("queue", 0)
 val provider = "AndroidKeyStore"
 val cipher = "AES/GCM/NoPadding"
 val spec = KeyGenParameterSpec
-fun saveCredential() {}
-fun loadCredential() {}
-fun clearCredential() {}
-fun clearUserScopedState() {}
+fun saveCredential() {
+  val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+  cipher.init(Cipher.ENCRYPT_MODE, credentialKey())
+  val ciphertext = cipher.doFinal(value)
+  prefs.edit().putString(CREDENTIAL_KEY, "$iv.$ciphertext").commit()
+}
+fun loadCredential() {
+  val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+  cipher.init(Cipher.DECRYPT_MODE, credentialKey(), GCMParameterSpec(128, iv))
+  cipher.doFinal(ciphertext)
+}
+fun clearCredential() { deleteCredentialMaterial() }
+fun clearUserScopedState() {
+  prefs.edit().remove(QUEUE_KEY).commit()
+  deleteCredentialMaterial()
+}
 ''',
     )
     write(
@@ -56,13 +68,28 @@ const int credentialMax = 4096;
 NSUserDefaults *defaults;
 kSecClassGenericPassword;
 SecItemAdd;
+SecItemUpdate;
 SecItemCopyMatching;
 SecItemDelete;
 kSecAttrAccessibleWhenUnlockedThisDeviceOnly;
-saveCredential;
-loadCredential;
-clearCredential;
-clearUserScopedState;
+RCT_REMAP_METHOD(saveCredential, x) {
+  SecItemUpdate(query, update);
+  if (status == errSecItemNotFound) {
+    query[kSecValueData] = data;
+    query[kSecAttrAccessible] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly;
+    SecItemAdd(query, NULL);
+  }
+}
+RCT_REMAP_METHOD(loadCredential, x) {
+  query[kSecReturnData] = YES;
+  query[kSecMatchLimit] = kSecMatchLimitOne;
+  SecItemCopyMatching(query, &result);
+}
+RCT_REMAP_METHOD(clearCredential, x) { APGICDeleteCredential(); }
+RCT_REMAP_METHOD(clearUserScopedState, x) {
+  [defaults removeObjectForKey:APGICOfflineMutationQueueKey];
+  APGICDeleteCredential();
+}
 ''',
     )
 
@@ -98,6 +125,28 @@ class NativeStorageAuditTests(unittest.TestCase):
             write(root, "apps/mobile/ios/APGIC/Unsafe.swift", 'UserDefaults.standard.set("token", forKey: "credential")\n')
             errors = validate_native_storage(root)
             self.assertTrue(any("direct native/local persistence" in error for error in errors))
+
+    def test_rejects_noop_android_secure_methods_even_with_crypto_tokens_present(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            valid_fixture(root)
+            path = root / "apps/mobile/android/app/src/main/java/com/apgic/ci/OfflineMutationStorageModule.kt"
+            text = path.read_text(encoding="utf-8")
+            start = text.index("fun saveCredential()")
+            end = text.index("fun loadCredential()", start)
+            path.write_text(text[:start] + "fun saveCredential() {}\n" + text[end:], encoding="utf-8")
+            errors = validate_native_storage(root)
+            self.assertTrue(any("saveCredential" in error and ("method body missing" in error or "missing executable secure-storage operations" in error) for error in errors))
+
+    def test_rejects_ios_delete_then_add_replacement_pattern(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            valid_fixture(root)
+            path = root / "apps/mobile/ios/APGIC/OfflineMutationStorage.m"
+            text = path.read_text(encoding="utf-8").replace("SecItemUpdate(query, update);", "SecItemDelete(query);")
+            path.write_text(text, encoding="utf-8")
+            errors = validate_native_storage(root)
+            self.assertTrue(any("saveCredential missing executable secure-storage operations" in error for error in errors))
 
     def test_rejects_weak_android_credential_adapter(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

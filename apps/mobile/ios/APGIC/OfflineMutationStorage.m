@@ -124,10 +124,18 @@ RCT_REMAP_METHOD(saveCredential,
   }
 
   NSMutableDictionary *query = APGICCredentialQuery();
-  SecItemDelete((__bridge CFDictionaryRef)query);
-  query[(__bridge id)kSecValueData] = data;
-  query[(__bridge id)kSecAttrAccessible] = (__bridge id)kSecAttrAccessibleWhenUnlockedThisDeviceOnly;
-  OSStatus status = SecItemAdd((__bridge CFDictionaryRef)query, NULL);
+  NSDictionary *update = @{
+    (__bridge id)kSecValueData: data,
+  };
+  OSStatus status = SecItemUpdate(
+    (__bridge CFDictionaryRef)query,
+    (__bridge CFDictionaryRef)update
+  );
+  if (status == errSecItemNotFound) {
+    query[(__bridge id)kSecValueData] = data;
+    query[(__bridge id)kSecAttrAccessible] = (__bridge id)kSecAttrAccessibleWhenUnlockedThisDeviceOnly;
+    status = SecItemAdd((__bridge CFDictionaryRef)query, NULL);
+  }
   if (status != errSecSuccess) {
     reject(@"SECURE_CREDENTIAL_WRITE_FAILED",
            [NSString stringWithFormat:@"Keychain write failed: %d", (int)status],
