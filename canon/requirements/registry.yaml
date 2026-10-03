@@ -3400,7 +3400,7 @@ requirements:
   release_profile: R0
   risk: HIGH
   priority: P0
-  status: IN_PROGRESS
+  status: VERIFIED
   dependencies:
   - APGIC-MOBILE-013
   implementation_refs:
@@ -3433,6 +3433,10 @@ requirements:
   - canon/evidence/r0-ci-evidence-map.json
   - docs/traceability/R0-mobile027-remote-config-kill-switch.md
   - canon/evidence/compatibility-exceptions.yaml
+  - surface://SERVER/mobile027-signed-remote-config/run-37114332039/job-111178107128
+  - surface://ANDROID/mobile027-native-e2e/run-37114332039/job-111178107111
+  - surface://IOS/mobile027-native-e2e/run-37114332039/job-111178107001
+  - surface://SERVER/mobile027-r0-bootstrap/run-37114332039/job-111181084063
   acceptance:
     given: installed versions span compatibility window
     when: config/backend changes or incident occurs
