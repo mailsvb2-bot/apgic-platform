@@ -25,11 +25,12 @@ const trustedKeys = {
 function envelope(
   version: number,
   disabled: RemoteCapability[] = [],
+  expiresAt = "2026-10-02T21:00:00Z",
 ): SignedRemoteConfigEnvelope {
   const payload = {
     version,
     issued_at: "2026-10-02T20:00:00Z",
-    expires_at: "2026-10-02T21:00:00Z",
+    expires_at: expiresAt,
     policy_id: "mobile027-policy-v1",
     disabled_capabilities: disabled,
     reason_codes: disabled.length
@@ -143,6 +144,62 @@ test("rejects remote rollback and keeps newer signed cached version", async () =
     assert.equal(result.source, "LAST_KNOWN_SAFE");
     assert.equal(result.reasonCode, "REMOTE_CONFIG_ROLLBACK_REJECTED");
     assert.deepEqual(result.disabledCapabilities, ["CALENDAR_INTEGRATION"]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("applies verified network kill switch even when persistence fails", async () => {
+  const originalFetch = globalThis.fetch;
+  const storage: RemoteConfigStorage = {
+    async load() { return JSON.stringify(envelope(2)); },
+    async save() { throw new Error("disk full"); },
+    async clear() {},
+  };
+  globalThis.fetch = (async () =>
+    new Response(JSON.stringify(envelope(3, ["REALTIME_CONSULTATION"])), {
+      status: 200,
+      headers: {"content-type": "application/json"},
+    })) as typeof fetch;
+  try {
+    const result = await resolveRemoteConfig({
+      baseURL: "https://apgic.ru",
+      storage,
+      trustedKeys,
+      now,
+    });
+    assert.equal(result.source, "NETWORK");
+    assert.equal(result.reasonCode, "REMOTE_CONFIG_APPLIED_PERSISTENCE_FAILED");
+    assert.deepEqual(result.disabledCapabilities, ["REALTIME_CONSULTATION"]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("expired signed cache remains an anti-rollback high-water mark", async () => {
+  const originalFetch = globalThis.fetch;
+  const expired = envelope(9, ["CALENDAR_INTEGRATION"], "2026-10-02T20:29:59Z");
+  const memory = memoryStorage(JSON.stringify(expired));
+  globalThis.fetch = (async () =>
+    new Response(JSON.stringify(envelope(8)), {
+      status: 200,
+      headers: {"content-type": "application/json"},
+    })) as typeof fetch;
+  try {
+    const result = await resolveRemoteConfig({
+      baseURL: "https://apgic.ru",
+      storage: memory.storage,
+      trustedKeys,
+      now,
+    });
+    assert.equal(result.source, "FAIL_SAFE");
+    assert.equal(result.reasonCode, "REMOTE_CONFIG_ROLLBACK_REJECTED");
+    assert.deepEqual(result.disabledCapabilities.sort(), [
+      "CALENDAR_INTEGRATION",
+      "PERSONA_PREVIEW",
+      "REALTIME_CONSULTATION",
+    ]);
+    assert.equal(memory.read(), JSON.stringify(expired));
   } finally {
     globalThis.fetch = originalFetch;
   }
