@@ -46,13 +46,15 @@ No production private key is committed. CI generates ephemeral Ed25519 seed mate
 - Android/iOS installed-app E2E: the app pins the deterministic CI public key, verifies the backend signature, applies a realtime kill switch, and after process restart against an unavailable config endpoint recovers the same disabled state from signed last-known-safe without starting realtime.
 - Compatibility tests prove previous supported contracts remain usable while the new API contract revision is introduced.
 
-## Verified evidence
+## Superseded candidate evidence
 
-CI run `37101959533` completed successfully for candidate commit `3764b59d11ce9e0c140277b570caf1875ecc0507`.
+CI run `37101959533` was green for candidate commit `3764b59d11ce9e0c140277b570caf1875ecc0507`, but subsequent review found release trust-bootstrap, persistence-failure and expired-cache rollback gaps. That evidence remains historical and is not sufficient for the corrected candidate.
 
-- Server / Go gate `111143092958`: `TestEmergencyKillSwitchDrill` PASS.
-- Android native gate `111143092945`: signed remote-config kill-switch + restart last-known-safe PASS; compatibility window PASS; native realtime restart/rejoin PASS.
-- iOS native gate `111143093086`: signed remote-config kill-switch + restart last-known-safe PASS; compatibility window PASS; native realtime restart/rejoin PASS.
-- Final R0 bootstrap gate `111144655308`: PASS.
+The corrected candidate additionally requires:
 
-Status: **VERIFIED**.
+- release builds to receive a pinned trusted remote-config public key through governed build configuration;
+- a cryptographically verified network kill-switch to apply for the current process even if last-known-safe persistence fails;
+- the highest verified signed version to remain an anti-rollback high-water mark after its capability policy expires;
+- a formal WEB compatibility exception because section 330 is an installed-native version/config capability, not a fabricated web flow.
+
+Status: **IN_PROGRESS** until fresh CI proves the corrected candidate.
