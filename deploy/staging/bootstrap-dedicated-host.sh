@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+bash "$SCRIPT_DIR/assert-authorized-host.sh"
+
 if [ "${EUID}" -ne 0 ]; then
   echo "run as root" >&2
   exit 1
