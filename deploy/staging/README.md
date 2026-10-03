@@ -1,5 +1,13 @@
 # APGIC staging boundary
 
+## Authorized host and Remote Desktop Commander boundary
+
+The only authorized APGIC server is **IPv4 `92.51.23.254`**.
+
+For APGIC work, Remote Desktop Commander MUST use only the connected device whose IPv4 is exactly `92.51.23.254`. It MUST NOT run diagnostics, inspection, cleanup, file operations, service commands, database commands, log reads, deployments, or any other APGIC command on another Desktop Commander device.
+
+All server-mutating staging scripts source `deploy/staging/assert-authorized-host.sh` and fail closed when the local host does not own `92.51.23.254`.
+
 This deployment profile targets a dedicated APGIC VPS. No other product is expected to share its runtime, database, or ingress configuration.
 
 - Repository/release root: /opt/apgic
