@@ -918,26 +918,37 @@
       "claims": {
         "REMOTE_CONFIG_TEST": {
           "gates": [
-            "backend"
+            "backend",
+            "mobile-typecheck"
           ],
           "proof_refs": [
-            "backend/internal/remoteconfig/config_test.go"
+            "backend/internal/remoteconfig/config_test.go",
+            "backend/internal/httpapi/mobile_remote_config_test.go",
+            "apps/mobile/src/remote-config-client.test.ts"
           ]
         },
         "COMPATIBILITY_TEST": {
           "gates": [
-            "backend"
+            "backend",
+            "android-native-build",
+            "ios-native-build"
           ],
           "proof_refs": [
-            "backend/internal/remoteconfig/config_test.go"
+            "backend/internal/remoteconfig/config_test.go",
+            "tools/mobile_android_capability_e2e.sh",
+            "tools/mobile_ios_capability_e2e.sh"
           ]
         },
         "KILL_SWITCH_DRILL": {
           "gates": [
-            "backend"
+            "backend",
+            "android-native-build",
+            "ios-native-build"
           ],
           "proof_refs": [
             "backend/internal/remoteconfig/config_test.go",
+            "tools/mobile_android_capability_e2e.sh",
+            "tools/mobile_ios_capability_e2e.sh",
             ".github/workflows/ci.yml"
           ]
         }

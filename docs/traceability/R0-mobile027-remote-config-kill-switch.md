@@ -46,4 +46,13 @@ No production private key is committed. CI generates ephemeral Ed25519 seed mate
 - Android/iOS installed-app E2E: the app pins the deterministic CI public key, verifies the backend signature, applies a realtime kill switch, and after process restart against an unavailable config endpoint recovers the same disabled state from signed last-known-safe without starting realtime.
 - Compatibility tests prove previous supported contracts remain usable while the new API contract revision is introduced.
 
-Status remains **IN_PROGRESS** until both native CI jobs and the full R0 gate pass for the candidate commit.
+## Verified evidence
+
+CI run `37101959533` completed successfully for candidate commit `3764b59d11ce9e0c140277b570caf1875ecc0507`.
+
+- Server / Go gate `111143092958`: `TestEmergencyKillSwitchDrill` PASS.
+- Android native gate `111143092945`: signed remote-config kill-switch + restart last-known-safe PASS; compatibility window PASS; native realtime restart/rejoin PASS.
+- iOS native gate `111143093086`: signed remote-config kill-switch + restart last-known-safe PASS; compatibility window PASS; native realtime restart/rejoin PASS.
+- Final R0 bootstrap gate `111144655308`: PASS.
+
+Status: **VERIFIED**.

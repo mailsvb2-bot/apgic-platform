@@ -3400,7 +3400,7 @@ requirements:
   release_profile: R0
   risk: HIGH
   priority: P0
-  status: IN_PROGRESS
+  status: VERIFIED
   dependencies:
   - APGIC-MOBILE-013
   implementation_refs:
@@ -3427,10 +3427,14 @@ requirements:
   - tools/mobile_android_capability_e2e.sh
   - tools/mobile_ios_capability_e2e.sh
   - tools/tests/test_staging_update_guard.py
+  - tools/tests/test_mobile_native_e2e_harness.py
   - .github/workflows/ci.yml
   evidence_refs:
   - canon/evidence/r0-ci-evidence-map.json
   - docs/traceability/R0-mobile027-remote-config-kill-switch.md
+  - surface://SERVER/mobile027-signed-remote-config/run-37101959533/job-111143092958
+  - surface://ANDROID/mobile027-native-e2e/run-37101959533/job-111143092945
+  - surface://IOS/mobile027-native-e2e/run-37101959533/job-111143093086
   acceptance:
     given: installed versions span compatibility window
     when: config/backend changes or incident occurs
