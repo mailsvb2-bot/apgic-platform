@@ -607,18 +607,53 @@ assert_realtime_lifecycle() {
       json_has_ax_label "$target" "realtime-action-auth:true"
   }
 
-  launch_realtime
+  ambient_technical_degraded() {
+    local target="$1"
+    [[ -f "$target" ]] &&
+      json_has_ax_label "$target" "realtime-e2e:PASS" &&
+      json_has_ax_label "$target" "realtime-phase:DEGRADED" &&
+      json_has_ax_label "$target" "realtime-business-transition:NONE" &&
+      json_has_ax_label "$target" "realtime-audio-route:BLUETOOTH" &&
+      json_has_ax_label "$target" "realtime-app-state:FOREGROUND" &&
+      json_has_ax_label "$target" "realtime-network-state:ONLINE" &&
+      json_has_ax_label "$target" "realtime-network-transport:CELLULAR" &&
+      json_has_ax_label "$target" "realtime-screen-state:UNLOCKED" &&
+      json_has_ax_label "$target" "realtime-join-auth-state:VALID" &&
+      json_has_ax_label "$target" "realtime-consultation-id:${consultation_id}" &&
+      json_has_ax_label "$target" "realtime-action-connect:true" &&
+      json_has_ax_label "$target" "realtime-action-reconnect:true" &&
+      json_has_ax_label "$target" "realtime-action-pause:true" &&
+      json_has_ax_label "$target" "realtime-action-route:true" &&
+      json_has_ax_label "$target" "realtime-action-auth:true"
+  }
+
+  # Hosted iOS simulators can inject a real AVAudioSession interruption after
+  # the scripted lifecycle reaches its terminal state. Do not accept DEGRADED
+  # as success: retry the exact same canonical consultation only when every
+  # other expected invariant is already proven, and keep CONNECTED mandatory.
   local first_pass=false
-  for _ in $(seq 1 60); do
-    if realtime_ready "$output"; then
-      first_pass=true
-      break
+  local initial_attempt
+  for initial_attempt in $(seq 1 3); do
+    launch_realtime
+    for _ in $(seq 1 60); do
+      if realtime_ready "$output"; then
+        first_pass=true
+        break 2
+      fi
+      sleep 1
+    done
+
+    if ambient_technical_degraded "$output"; then
+      echo "iOS initial realtime attempt $initial_attempt ended in ambient technical DEGRADED state; retrying same consultation"
+      continue
     fi
-    sleep 1
+
+    [[ -f "$output" ]] && cat "$output" >&2 || true
+    fail "installed iOS app violated initial realtime lifecycle invariants"
   done
   if [[ "$first_pass" != "true" ]]; then
     [[ -f "$output" ]] && cat "$output" >&2 || true
-    fail "installed iOS app did not complete native realtime lifecycle proof"
+    fail "installed iOS app did not complete native realtime lifecycle proof after bounded ambient-degradation retries"
   fi
 
   local rejoin_attempt
@@ -632,19 +667,7 @@ assert_realtime_lifecycle() {
       sleep 1
     done
 
-    # The iOS simulator may deliver a real AVAudioSession interruption after
-    # the scripted lifecycle has already completed. Retry only when the app
-    # still proves the same consultation and no business transition, and the
-    # sole unstable terminal condition is the technical DEGRADED phase.
-    if [[ -f "$rejoin_output" ]] &&
-       json_has_ax_label "$rejoin_output" "realtime-e2e:PASS" &&
-       json_has_ax_label "$rejoin_output" "realtime-phase:DEGRADED" &&
-       json_has_ax_label "$rejoin_output" "realtime-business-transition:NONE" &&
-       json_has_ax_label "$rejoin_output" "realtime-consultation-id:${consultation_id}" &&
-       json_has_ax_label "$rejoin_output" "realtime-app-state:FOREGROUND" &&
-       json_has_ax_label "$rejoin_output" "realtime-network-state:ONLINE" &&
-       json_has_ax_label "$rejoin_output" "realtime-screen-state:UNLOCKED" &&
-       json_has_ax_label "$rejoin_output" "realtime-join-auth-state:VALID"; then
+    if ambient_technical_degraded "$rejoin_output"; then
       echo "iOS rejoin attempt $rejoin_attempt ended in ambient technical DEGRADED state; retrying same consultation"
       continue
     fi
