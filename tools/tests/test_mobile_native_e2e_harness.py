@@ -86,6 +86,22 @@ class MobileNativeE2EHarnessTest(unittest.TestCase):
         )
         self.assertIn('cat "$supported_output" >&2', text)
 
+    def test_ios_simulator_is_adhoc_signed_with_keychain_entitlements(self) -> None:
+        workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+        entitlements = (
+            ROOT / "apps/mobile/ios/APGIC/APGICSimulatorCI.entitlements"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("Ad-hoc sign simulator app with CI Keychain entitlements", workflow)
+        self.assertIn("codesign --force --deep --sign - --timestamp=none --entitlements", workflow)
+        self.assertIn("codesign --verify --deep --strict", workflow)
+        self.assertIn("ios-simulator-entitlements.plist", workflow)
+        self.assertIn('"application-identifier"', workflow)
+        self.assertIn('"keychain-access-groups"', workflow)
+        self.assertIn("<key>application-identifier</key>", entitlements)
+        self.assertIn("<string>APGICCI000.com.apgic.ci</string>", entitlements)
+        self.assertIn("<key>keychain-access-groups</key>", entitlements)
+
     def test_ios_realtime_initial_pass_has_bounded_ambient_degradation_recovery(self) -> None:
         text = self._read("mobile_ios_capability_e2e.sh")
         realtime = text[text.index("assert_realtime_lifecycle() {"):]
