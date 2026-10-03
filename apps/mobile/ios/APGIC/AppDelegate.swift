@@ -43,6 +43,19 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
 #if !DEBUG
     initialProperties["remoteConfigBaseURL"] = "https://apgic.ru"
+    if let trustedKeyID = Bundle.main.object(
+      forInfoDictionaryKey: "APGICRemoteConfigTrustedKeyID"
+    ) as? String,
+       let trustedPublicKey = Bundle.main.object(
+         forInfoDictionaryKey: "APGICRemoteConfigTrustedPublicKeyBase64"
+       ) as? String,
+       !trustedKeyID.isEmpty,
+       !trustedPublicKey.isEmpty,
+       !trustedKeyID.contains("$("),
+       !trustedPublicKey.contains("$(") {
+      initialProperties["remoteConfigTrustedKeyID"] = trustedKeyID
+      initialProperties["remoteConfigTrustedPublicKeyBase64"] = trustedPublicKey
+    }
 #endif
 
 #if DEBUG
