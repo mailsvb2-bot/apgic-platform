@@ -13,7 +13,6 @@ SERVER_SCRIPTS = [
     ROOT / "deploy/staging/update-staging.sh",
     ROOT / "deploy/staging/check-staging-runtime.sh",
     ROOT / "deploy/staging/bootstrap-dedicated-host.sh",
-    ROOT / "deploy/staging/apply-staging-migrations.sh",
     ROOT / "deploy/staging/backup-staging-postgres.sh",
     ROOT / "deploy/staging/verify-staging-backup.sh",
 ]
