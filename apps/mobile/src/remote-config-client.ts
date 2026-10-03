@@ -22,6 +22,11 @@ export type ResolvedRemoteConfig = {
   reasonCode: string;
 };
 
+type CachedRemoteConfigState = {
+  verifiedEnvelope: SignedRemoteConfigEnvelope;
+  applicableEnvelope: SignedRemoteConfigEnvelope | null;
+};
+
 const remoteCapabilities: RemoteCapability[] = [
   "REALTIME_CONSULTATION",
   "CALENDAR_INTEGRATION",
@@ -37,36 +42,41 @@ export async function resolveRemoteConfig(input: {
   now?: Date;
 }): Promise<ResolvedRemoteConfig> {
   const now = input.now ?? new Date();
-  const cached = await loadValidCached(input.storage, input.trustedKeys, now);
-  try {
-    const fetched = await fetchRemoteConfig(input.baseURL, input.trustedKeys, now);
-    if (cached && fetched.payload.version < cached.payload.version) {
-      return fromEnvelope("LAST_KNOWN_SAFE", cached, "REMOTE_CONFIG_ROLLBACK_REJECTED");
-    }
-    if (
-      cached &&
-      fetched.payload.version === cached.payload.version &&
-      !sameSemanticConfig(fetched, cached)
-    ) {
-      return fromEnvelope(
-        "LAST_KNOWN_SAFE",
-        cached,
-        "REMOTE_CONFIG_SAME_VERSION_CHANGED",
-      );
-    }
+  const cachedState = await loadCachedState(input.storage, input.trustedKeys, now);
+  const cached = cachedState?.applicableEnvelope ?? null;
+  const highWater = cachedState?.verifiedEnvelope ?? null;
 
-    await input.storage.save(JSON.stringify(fetched));
-    return fromEnvelope("NETWORK", fetched, "REMOTE_CONFIG_APPLIED");
+  let fetched: SignedRemoteConfigEnvelope;
+  try {
+    fetched = await fetchRemoteConfig(input.baseURL, input.trustedKeys, now);
   } catch {
     if (cached) {
       return fromEnvelope("LAST_KNOWN_SAFE", cached, "REMOTE_CONFIG_FETCH_FAILED");
     }
-    return {
-      source: "FAIL_SAFE",
-      disabledCapabilities: [...remoteCapabilities],
-      reasonCode: "REMOTE_CONFIG_UNAVAILABLE_FAIL_SAFE",
-    };
+    return failSafe("REMOTE_CONFIG_UNAVAILABLE_FAIL_SAFE");
   }
+
+  if (highWater && fetched.payload.version < highWater.payload.version) {
+    return cached
+      ? fromEnvelope("LAST_KNOWN_SAFE", cached, "REMOTE_CONFIG_ROLLBACK_REJECTED")
+      : failSafe("REMOTE_CONFIG_ROLLBACK_REJECTED");
+  }
+  if (
+    highWater &&
+    fetched.payload.version === highWater.payload.version &&
+    !sameSemanticConfig(fetched, highWater)
+  ) {
+    return cached
+      ? fromEnvelope("LAST_KNOWN_SAFE", cached, "REMOTE_CONFIG_SAME_VERSION_CHANGED")
+      : failSafe("REMOTE_CONFIG_SAME_VERSION_CHANGED");
+  }
+
+  try {
+    await input.storage.save(JSON.stringify(fetched));
+  } catch {
+    return fromEnvelope("NETWORK", fetched, "REMOTE_CONFIG_APPLIED_PERSISTENCE_FAILED");
+  }
+  return fromEnvelope("NETWORK", fetched, "REMOTE_CONFIG_APPLIED");
 }
 
 export async function fetchRemoteConfig(
@@ -94,13 +104,17 @@ export function verifySignedRemoteConfigEnvelope(
   trustedKeys: TrustedRemoteConfigKeys,
   now = new Date(),
 ): value is SignedRemoteConfigEnvelope {
-  if (!isSignedRemoteConfigEnvelope(value, now)) {
-    return false;
-  }
+  return verifySignedRemoteConfigEnvelopeSignature(value, trustedKeys) &&
+    isRemoteConfigEnvelopeFresh(value, now);
+}
+
+function verifySignedRemoteConfigEnvelopeSignature(
+  value: unknown,
+  trustedKeys: TrustedRemoteConfigKeys,
+): value is SignedRemoteConfigEnvelope {
+  if (!isRemoteConfigEnvelopeShape(value)) return false;
   const publicKeyBase64 = trustedKeys[value.key_id];
-  if (!publicKeyBase64) {
-    return false;
-  }
+  if (!publicKeyBase64) return false;
   let signature: Uint8Array;
   let publicKey: Uint8Array;
   try {
@@ -112,12 +126,8 @@ export function verifySignedRemoteConfigEnvelope(
   if (
     signature.length !== nacl.sign.signatureLength ||
     publicKey.length !== nacl.sign.publicKeyLength
-  ) {
-    return false;
-  }
-  const message = new TextEncoder().encode(
-    canonicalRemoteConfigPayload(value.payload),
-  );
+  ) return false;
+  const message = new TextEncoder().encode(canonicalRemoteConfigPayload(value.payload));
   return nacl.sign.detached.verify(message, signature, publicKey);
 }
 
@@ -125,6 +135,10 @@ export function isSignedRemoteConfigEnvelope(
   value: unknown,
   now = new Date(),
 ): value is SignedRemoteConfigEnvelope {
+  return isRemoteConfigEnvelopeShape(value) && isRemoteConfigEnvelopeFresh(value, now);
+}
+
+function isRemoteConfigEnvelopeShape(value: unknown): value is SignedRemoteConfigEnvelope {
   if (!value || typeof value !== "object") return false;
   const envelope = value as Record<string, unknown>;
   if (
@@ -134,9 +148,7 @@ export function isSignedRemoteConfigEnvelope(
     !signaturePattern.test(envelope.signature) ||
     !envelope.payload ||
     typeof envelope.payload !== "object"
-  ) {
-    return false;
-  }
+  ) return false;
 
   const payload = envelope.payload as Record<string, unknown>;
   if (
@@ -147,19 +159,10 @@ export function isSignedRemoteConfigEnvelope(
     typeof payload.issued_at !== "string" ||
     typeof payload.expires_at !== "string" ||
     !Array.isArray(payload.disabled_capabilities)
-  ) {
-    return false;
-  }
+  ) return false;
   const issuedAt = Date.parse(payload.issued_at);
   const expiresAt = Date.parse(payload.expires_at);
-  if (
-    !Number.isFinite(issuedAt) ||
-    !Number.isFinite(expiresAt) ||
-    expiresAt <= issuedAt ||
-    now.getTime() >= expiresAt
-  ) {
-    return false;
-  }
+  if (!Number.isFinite(issuedAt) || !Number.isFinite(expiresAt) || expiresAt <= issuedAt) return false;
 
   const disabled = payload.disabled_capabilities;
   const seen = new Set<string>();
@@ -168,27 +171,28 @@ export function isSignedRemoteConfigEnvelope(
       typeof capability !== "string" ||
       !remoteCapabilities.includes(capability as RemoteCapability) ||
       seen.has(capability)
-    ) {
-      return false;
-    }
+    ) return false;
     seen.add(capability);
   }
   if (payload.reason_codes !== undefined) {
-    if (!payload.reason_codes || typeof payload.reason_codes !== "object") {
-      return false;
-    }
+    if (!payload.reason_codes || typeof payload.reason_codes !== "object") return false;
     for (const [capability, reason] of Object.entries(payload.reason_codes)) {
       if (
         !remoteCapabilities.includes(capability as RemoteCapability) ||
         !seen.has(capability) ||
         typeof reason !== "string" ||
         reason.trim().length === 0
-      ) {
-        return false;
-      }
+      ) return false;
     }
   }
   return true;
+}
+
+function isRemoteConfigEnvelopeFresh(
+  envelope: SignedRemoteConfigEnvelope,
+  now: Date,
+): boolean {
+  return now.getTime() < Date.parse(envelope.payload.expires_at);
 }
 
 export function canonicalRemoteConfigPayload(
@@ -211,23 +215,34 @@ export function canonicalRemoteConfigPayload(
   return JSON.stringify(ordered);
 }
 
-async function loadValidCached(
+async function loadCachedState(
   storage: RemoteConfigStorage,
   trustedKeys: TrustedRemoteConfigKeys,
   now: Date,
-): Promise<SignedRemoteConfigEnvelope | null> {
+): Promise<CachedRemoteConfigState | null> {
   try {
     const raw = await storage.load();
     if (!raw) return null;
     const parsed: unknown = JSON.parse(raw);
-    if (!verifySignedRemoteConfigEnvelope(parsed, trustedKeys, now)) {
+    if (!verifySignedRemoteConfigEnvelopeSignature(parsed, trustedKeys)) {
       await storage.clear();
       return null;
     }
-    return parsed;
+    return {
+      verifiedEnvelope: parsed,
+      applicableEnvelope: isRemoteConfigEnvelopeFresh(parsed, now) ? parsed : null,
+    };
   } catch {
     return null;
   }
+}
+
+function failSafe(reasonCode: string): ResolvedRemoteConfig {
+  return {
+    source: "FAIL_SAFE",
+    disabledCapabilities: [...remoteCapabilities],
+    reasonCode,
+  };
 }
 
 function fromEnvelope(
