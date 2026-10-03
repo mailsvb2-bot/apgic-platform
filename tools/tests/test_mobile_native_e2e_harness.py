@@ -66,6 +66,13 @@ class MobileNativeE2EHarnessTest(unittest.TestCase):
 
     def test_ios_simulator_boot_has_bounded_data_migration_recovery(self) -> None:
         text = self._read("mobile_ios_capability_e2e.sh")
+        self.assertIn('["xcrun", "simctl", "list", "runtimes", "-j"]', text)
+        self.assertIn('["xcrun", "simctl", "list", "devicetypes", "-j"]', text)
+        self.assertIn('"iPhone 16 Pro"', text)
+        self.assertIn('if not name.startswith("iPhone") or "Air" in name:', text)
+        self.assertIn('xcrun simctl create "$candidate_name" "$device_type" "$IOS_RUNTIME"', text)
+        self.assertIn('xcrun simctl delete "$UDID"', text)
+        self.assertIn("SIMULATOR_CREATED=1", text)
         self.assertIn("boot_simulator_with_recovery() {", text)
         self.assertIn("for boot_attempt in 1 2; do", text)
         self.assertIn('grep -q "Data Migration Failed" "$SIMULATOR_BOOT_LOG"', text)
