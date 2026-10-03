@@ -65,6 +65,10 @@ export interface WorkspaceResolutionV1 {
   workspace?: AuthorizedWorkspaceV1;
 }
 
+export interface WorkspaceListV1 {
+  workspaces: AuthorizedWorkspaceV1[];
+}
+
 export interface MobileSupportPolicyV1 {
   policy_version: string;
   minimum_ios_major: number;

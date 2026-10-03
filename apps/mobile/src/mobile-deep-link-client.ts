@@ -3,6 +3,8 @@ import { resolveNativeDeepLink } from "./r1-cross-surface.ts";
 
 export const canonicalAPGICOrigin = "https://apgic.ru";
 const maxDeepLinkTokenLength = 4096;
+const maxWorkspaceIDLength = 256;
+const canonicalWorkspaceIDPattern = /^(?:client|specialist|organization):[A-Za-z0-9._~-]+$/;
 const canonicalPathPattern = /^\/(?:bookings|specialists|notifications)\/[A-Za-z0-9._~-]+$/;
 
 type FetchOptions = {
@@ -105,6 +107,7 @@ export async function resolveCanonicalUniversalLink(
   options?: {
     apiOrigin?: string;
     sessionCookie?: string;
+    selectedWorkspaceID?: string;
     request?: FetchLike;
   },
 ): Promise<NativeDeepLinkAction> {
@@ -124,8 +127,19 @@ export async function resolveCanonicalUniversalLink(
   if (options?.sessionCookie) {
     headers.Cookie = options.sessionCookie;
   }
+  const selectedWorkspaceID = options?.selectedWorkspaceID?.trim();
+  if (
+    selectedWorkspaceID &&
+    (selectedWorkspaceID.length > maxWorkspaceIDLength ||
+      !canonicalWorkspaceIDPattern.test(selectedWorkspaceID))
+  ) {
+    return {action: "BLOCK"};
+  }
+  const workspaceQuery = selectedWorkspaceID
+    ? `&workspace_id=${encodeURIComponent(selectedWorkspaceID)}`
+    : "";
   const response = await request(
-    `${apiOrigin}/v1/mobile/deep-links/resolve?token=${encodeURIComponent(token)}`,
+    `${apiOrigin}/v1/mobile/deep-links/resolve?token=${encodeURIComponent(token)}${workspaceQuery}`,
     {
       method: "GET",
       headers,

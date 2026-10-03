@@ -38,6 +38,10 @@ import {
 } from "./mobile-offline-checkout.ts";
 import {offlineMutationStorage} from "./offline-mutation-storage.ts";
 import {runNativeRealtimeE2E, type NativeRealtimeE2EResult} from "./r3-realtime-e2e.ts";
+import {
+  runWorkspaceE2EFlow,
+  type WorkspaceE2EResult,
+} from "./mobile-workspace-client.ts";
 
 type AppProps = {
   deviceCapability?: DeviceCapability;
@@ -46,6 +50,8 @@ type AppProps = {
   installationE2ESessionCookie?: string;
   installationE2EInstallationID?: string;
   installationE2EPlatform?: MobileInstallationPlatform;
+  workspaceE2EBaseURL?: string;
+  workspaceE2ESessionCookie?: string;
   deepLinkAPIBaseURL?: string;
   deepLinkE2ESessionCookie?: string;
   deepLinkE2EURL?: string;
@@ -91,6 +97,8 @@ export default function App({
   installationE2ESessionCookie,
   installationE2EInstallationID,
   installationE2EPlatform,
+  workspaceE2EBaseURL,
+  workspaceE2ESessionCookie,
   deepLinkAPIBaseURL = canonicalAPGICOrigin,
   deepLinkE2ESessionCookie,
   deepLinkE2EURL,
@@ -138,6 +146,12 @@ export default function App({
   const [installationE2E, setInstallationE2E] = useState<
     | {status: "IDLE" | "RUNNING"}
     | {status: "PASS"; identityID: string; pushGeneration: number; state: "REVOKED"}
+    | {status: "FAIL"; reason: string}
+  >({status: "IDLE"});
+
+  const [workspaceE2E, setWorkspaceE2E] = useState<
+    | {status: "IDLE" | "RUNNING"}
+    | ({status: "PASS"} & WorkspaceE2EResult)
     | {status: "FAIL"; reason: string}
   >({status: "IDLE"});
 
@@ -521,6 +535,44 @@ export default function App({
     installationE2EPlatform,
   ]);
 
+  useEffect(() => {
+    if (
+      !compatibilityAllowsRuntime ||
+      !workspaceE2EBaseURL ||
+      !workspaceE2ESessionCookie
+    ) {
+      return;
+    }
+    let active = true;
+    setWorkspaceE2E({status: "RUNNING"});
+    void runWorkspaceE2EFlow({
+      baseURL: workspaceE2EBaseURL,
+      sessionCookie: workspaceE2ESessionCookie,
+    }).then(
+      (result) => {
+        if (active) {
+          setWorkspaceE2E({status: "PASS", ...result});
+        }
+      },
+      (error: unknown) => {
+        if (active) {
+          setWorkspaceE2E({
+            status: "FAIL",
+            reason:
+              error instanceof Error ? error.message : "MOBILE_WORKSPACE_E2E_FAILED",
+          });
+        }
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [
+    compatibilityAllowsRuntime,
+    workspaceE2EBaseURL,
+    workspaceE2ESessionCookie,
+  ]);
+
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.card} accessibilityRole="summary">
@@ -735,6 +787,32 @@ export default function App({
             ) : null}
             {realtimeE2E.status === "FAIL" ? (
               <Text accessibilityLabel={`realtime-e2e-error:${realtimeE2E.reason}`}>Realtime lifecycle failed safely.</Text>
+            ) : null}
+          </View>
+        ) : null}
+
+        {workspaceE2E.status !== "IDLE" ? (
+          <View style={styles.capability} accessibilityRole="summary">
+            <Text accessibilityLabel={`workspace-e2e:${workspaceE2E.status}`}>
+              Workspace E2E: {workspaceE2E.status}
+            </Text>
+            {workspaceE2E.status === "PASS" ? (
+              <>
+                <Text accessibilityLabel={`workspace-e2e-identity:${workspaceE2E.identityID}`}>
+                  Identity preserved across workspaces.
+                </Text>
+                <Text accessibilityLabel={`workspace-e2e-kinds:${workspaceE2E.workspaceKinds.join("|")}`}>
+                  CLIENT → SPECIALIST → ORGANIZATION
+                </Text>
+                <Text accessibilityLabel={`workspace-e2e-foreign-denied:${workspaceE2E.foreignWorkspaceDenied}`}>
+                  Foreign workspace denied.
+                </Text>
+              </>
+            ) : null}
+            {workspaceE2E.status === "FAIL" ? (
+              <Text accessibilityLabel={`workspace-e2e-error:${workspaceE2E.reason}`}>
+                Workspace switching failed safely.
+              </Text>
             ) : null}
           </View>
         ) : null}

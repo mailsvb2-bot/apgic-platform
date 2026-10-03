@@ -452,6 +452,30 @@ raise SystemExit(0 if walk(payload) else 1)
 PY
 }
 
+assert_workspace_switch() {
+  local output="$EVIDENCE_DIR/ios-workspace-e2e.json"
+
+  xcrun simctl terminate "$UDID" com.apgic.ci >/dev/null 2>&1 || true
+  SIMCTL_CHILD_APGIC_E2E_CAPABILITY_STATE=GRANTED \
+  SIMCTL_CHILD_APGIC_E2E_WORKSPACE_BASE_URL=http://127.0.0.1:43113 \
+  SIMCTL_CHILD_APGIC_E2E_WORKSPACE_SESSION_COOKIE="$SESSION_COOKIE" \
+    xcrun simctl launch "$UDID" com.apgic.ci >/dev/null
+
+  for _ in $(seq 1 60); do
+    if "$IDB" ui describe-all --udid "$UDID" --api axbridge --json --nested >"$output" 2>/dev/null &&
+       json_has_ax_label "$output" "workspace-e2e:PASS" &&
+       json_has_ax_label "$output" "workspace-e2e-kinds:CLIENT|SPECIALIST|ORGANIZATION" &&
+       json_has_ax_label "$output" "workspace-e2e-foreign-denied:true"; then
+      echo "iOS installed-app one-Identity multi-role workspace switching: PASS"
+      return 0
+    fi
+    sleep 1
+  done
+
+  [[ -f "$output" ]] && cat "$output" >&2 || true
+  fail "installed iOS app did not prove CLIENT/SPECIALIST/ORGANIZATION workspace switching"
+}
+
 assert_deep_link_runtime() {
   local output="$EVIDENCE_DIR/ios-deeplink-e2e.json"
   local expected_target="/specialists/e2e-specialist"
@@ -683,6 +707,7 @@ assert_realtime_lifecycle() {
 assert_compatibility_policy
 assert_remote_config_kill_switch
 assert_installation_lifecycle
+assert_workspace_switch
 assert_deep_link_runtime
 assert_notification_runtime
 assert_offline_mutation_restart
