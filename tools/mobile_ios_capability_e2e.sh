@@ -13,6 +13,10 @@ SESSION_COOKIE=""
 DEEP_LINK_URL=""
 OFFLINE_HOLD_ID=""
 OFFLINE_IDEMPOTENCY_KEY="mobile-offline-e2e-ios"
+COMPATIBILITY_BASE_URL="http://127.0.0.1:43113"
+COMPATIBILITY_CONTRACT_VERSION="0.10.0-r0-remote-config"
+REMOTE_CONFIG_E2E_KEY_ID="mobile027-e2e-key"
+REMOTE_CONFIG_E2E_PUBLIC_KEY_BASE64="W2SJycf9Dc9QVF58FkiG70BJHsBsfxsSMEF5foEXU14="
 
 fail() {
   echo "IOS CAPABILITY NATIVE E2E: FAIL: $*" >&2
@@ -26,6 +30,8 @@ fail() {
 }
 
 cleanup() {
+  local status=$?
+  trap - EXIT
   if [[ -n "$METRO_PID" ]]; then
     kill "$METRO_PID" 2>/dev/null || true
   fi
@@ -35,6 +41,7 @@ cleanup() {
   if [[ -n "$UDID" ]]; then
     xcrun simctl shutdown "$UDID" >/dev/null 2>&1 || true
   fi
+  exit "$status"
 }
 trap cleanup EXIT
 
