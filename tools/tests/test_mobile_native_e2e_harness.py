@@ -64,5 +64,36 @@ class MobileNativeE2EHarnessTest(unittest.TestCase):
         self.assertIn("INTERRUPTION_ENDED", events[:-1])
 
 
+    def test_release_remote_config_trust_bootstrap_is_wired(self) -> None:
+        gradle = (ROOT / "apps/mobile/android/app/build.gradle").read_text(encoding="utf-8")
+        android = (
+            ROOT
+            / "apps/mobile/android/app/src/main/java/com/apgic/ci/MainActivity.kt"
+        ).read_text(encoding="utf-8")
+        plist = (ROOT / "apps/mobile/ios/APGIC/Info.plist").read_text(encoding="utf-8")
+        ios = (ROOT / "apps/mobile/ios/APGIC/AppDelegate.swift").read_text(encoding="utf-8")
+
+        self.assertIn(
+            'buildConfigField "String", "APGIC_REMOTE_CONFIG_TRUSTED_KEY_ID"',
+            gradle,
+        )
+        self.assertIn('it.name == "preReleaseBuild"', gradle)
+        self.assertIn("BuildConfig.APGIC_REMOTE_CONFIG_TRUSTED_KEY_ID", android)
+        self.assertIn(
+            "BuildConfig.APGIC_REMOTE_CONFIG_TRUSTED_PUBLIC_KEY_BASE64",
+            android,
+        )
+        self.assertIn("<key>APGICRemoteConfigTrustedKeyID</key>", plist)
+        self.assertIn("<key>APGICRemoteConfigTrustedPublicKeyBase64</key>", plist)
+        self.assertIn(
+            'forInfoDictionaryKey: "APGICRemoteConfigTrustedKeyID"',
+            ios,
+        )
+        self.assertIn(
+            'forInfoDictionaryKey: "APGICRemoteConfigTrustedPublicKeyBase64"',
+            ios,
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
