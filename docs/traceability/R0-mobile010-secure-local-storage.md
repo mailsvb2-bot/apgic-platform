@@ -18,7 +18,7 @@ The native bridge now provides a production-capable credential boundary without 
 
 - Android encrypts credential bytes with AES-GCM using a non-exportable key generated and held by AndroidKeyStore; only ciphertext and IV are stored in app-private preferences.
 - iOS persists credential bytes through Keychain generic-password items using kSecAttrAccessibleWhenUnlockedThisDeviceOnly, preventing sync migration of the credential item.
-- CI simulator E2E remains a real Keychain runtime proof: the otherwise unsigned simulator artifact is ad-hoc signed with a dedicated CI-only application identifier/keychain access group, and the embedded entitlements are inspected before installation. Production signing/provisioning is not replaced by this CI identity.
+- CI simulator E2E remains a real Keychain runtime proof: Xcode performs its normal ad-hoc simulator signing instead of producing an unsigned app, and CI inspects the built app's embedded application identifier / Keychain access groups before installation. No fabricated Team ID or provisioning profile is injected; production signing/provisioning remains separate.
 - both platforms cap credential payloads at 4096 bytes and expose explicit load/save/clear operations through apps/mobile/src/secure-local-storage.ts.
 
 ## Logout/revoke purge

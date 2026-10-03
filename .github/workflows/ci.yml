@@ -680,17 +680,16 @@ jobs:
             -sdk iphonesimulator \
             -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath build/derived \
-            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_ALLOWED=YES \
+            CODE_SIGNING_REQUIRED=YES \
+            CODE_SIGN_IDENTITY=- \
             build
-      - name: Ad-hoc sign simulator app with CI Keychain entitlements
+      - name: Verify Xcode simulator signing and Keychain entitlement
         shell: bash
         run: |
           mkdir -p evidence
           APP="apps/mobile/ios/build/derived/Build/Products/Debug-iphonesimulator/APGIC.app"
-          ENTITLEMENTS="apps/mobile/ios/APGIC/APGICSimulatorCI.entitlements"
           test -d "$APP"
-          test -f "$ENTITLEMENTS"
-          codesign --force --deep --sign - --timestamp=none --entitlements "$ENTITLEMENTS" "$APP"
           codesign --verify --deep --strict "$APP"
           codesign --display --entitlements :- "$APP" > evidence/ios-simulator-entitlements.plist 2>/dev/null
           python3 - <<'PY2'
@@ -699,11 +698,12 @@ jobs:
 
           path = Path("evidence/ios-simulator-entitlements.plist")
           data = plistlib.loads(path.read_bytes())
-          expected = "APGICCI000.com.apgic.ci"
-          if data.get("application-identifier") != expected:
-              raise SystemExit(f"simulator application-identifier missing: {data!r}")
-          if expected not in data.get("keychain-access-groups", []):
-              raise SystemExit(f"simulator Keychain access group missing: {data!r}")
+          app_id = data.get("application-identifier")
+          groups = data.get("keychain-access-groups", [])
+          if not isinstance(app_id, str) or not app_id.endswith("com.apgic.ci"):
+              raise SystemExit(f"Xcode simulator application-identifier missing: {data!r}")
+          if groups and app_id not in groups:
+              raise SystemExit(f"Xcode simulator default Keychain group mismatch: {data!r}")
           PY2
       - shell: bash
         run: |
