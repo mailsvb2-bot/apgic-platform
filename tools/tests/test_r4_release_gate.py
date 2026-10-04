@@ -40,6 +40,36 @@ class R4ReleaseGateTests(unittest.TestCase):
         self.assertIn("LEDGER_RECONCILIATION:MISSING", blockers)
 
 
+    def test_native_production_dependencies_must_be_verified(self) -> None:
+        registry = {
+            "requirements": [
+                {
+                    "requirement_id": "APGIC-MOBILE-015",
+                    "dependencies": ["APGIC-MOBILE-003", "APGIC-MOBILE-012"],
+                },
+                {
+                    "requirement_id": "APGIC-MOBILE-003",
+                    "status": "VERIFIED",
+                    "dependencies": [],
+                },
+                {
+                    "requirement_id": "APGIC-MOBILE-012",
+                    "status": "IN_PROGRESS",
+                    "dependencies": [],
+                },
+            ]
+        }
+        self.assertEqual(
+            gate.canon_dependency_blockers(registry, "APGIC-MOBILE-015"),
+            ["APGIC-MOBILE-012:CANON_STATUS_IN_PROGRESS"],
+        )
+
+        registry["requirements"][2]["status"] = "VERIFIED"
+        self.assertEqual(
+            gate.canon_dependency_blockers(registry, "APGIC-MOBILE-015"),
+            [],
+        )
+
     def test_store_production_dependencies_must_be_verified(self) -> None:
         registry = {
             "requirements": [

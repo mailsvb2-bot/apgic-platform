@@ -2878,6 +2878,7 @@ requirements:
   - config/mobile/r0-ci-release-governance.yaml
   - config/mobile/release-governance.example.yaml
   - tools/mobile_release_guard.py
+  - tools/mobile_release_evidence_guard.py
   - tools/repository_secret_scan.py
   - canon/evidence/mobile-release-evidence-v1.schema.json
   contract_refs:
@@ -2885,9 +2886,11 @@ requirements:
   test_refs:
   - tools/tests/test_mobile_native_build_guard.py
   - tools/mobile_release_guard.py
+  - tools/tests/test_mobile_release_evidence_guard.py
   - .github/workflows/ci.yml
   - tools/tests/test_repository_secret_scan.py
-  evidence_refs: []
+  evidence_refs:
+  - docs/traceability/R0-mobile012-release-evidence-binding.md
   acceptance:
     given: release candidate создаётся
     when: mobile CI/release pipeline выполняется
