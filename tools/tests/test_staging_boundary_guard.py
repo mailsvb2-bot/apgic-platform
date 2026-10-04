@@ -25,5 +25,12 @@ class StagingBoundaryGuardTest(unittest.TestCase):
         )
         self.assertNotIn("assert-authorized-host.sh", helper)
 
+    def test_deploy_keeps_canonical_checkout_clean_after_web_build(self):
+        script = (ROOT / "deploy/staging/update-staging.sh").read_text(encoding="utf-8")
+        self.assertIn("npm install --ignore-scripts --no-audit --no-fund --package-lock=false", script)
+        self.assertIn("git restore -- next-env.d.ts", script)
+        self.assertIn('git status --porcelain', script)
+        self.assertIn("deployment left the canonical checkout dirty", script)
+
 if __name__ == "__main__":
     unittest.main()

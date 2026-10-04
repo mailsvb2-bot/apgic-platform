@@ -176,10 +176,19 @@ go build -o bin/apgic-api ./cmd/api
 
 echo "=== Build Web ==="
 cd "$REPO_ROOT/apps/web"
-npm install --ignore-scripts --no-audit --no-fund
+npm install --ignore-scripts --no-audit --no-fund --package-lock=false
 npm run build
 
+# Next.js may rewrite the tracked next-env.d.ts during build. Deployment
+# artifacts must never make the canonical checkout diverge from GitHub.
+git restore -- next-env.d.ts
+
 cd "$REPO_ROOT"
+if [[ -n "$(git status --porcelain)" ]]; then
+  echo "deployment left the canonical checkout dirty:" >&2
+  git status --short >&2
+  exit 1
+fi
 
 ledger_exists="$(
   psql "$APGIC_DATABASE_URL" -Atqc     "SELECT to_regclass('public.apgic_schema_migrations') IS NOT NULL"
