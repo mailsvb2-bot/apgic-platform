@@ -40,4 +40,4 @@ tools/mobile_native_storage_audit.py fails closed when:
 
 tools/tests/test_mobile_native_storage_audit.py includes negative regressions for ordinary preferences/defaults, weak secure-storage primitives, missing purge hooks and backup enablement.
 
-Status remains IN_PROGRESS until the exact candidate commit passes repository CI and native Android/iOS builds. Only then may fresh run/job evidence advance the Requirement Registry to VERIFIED.
+VERIFIED against exact-candidate CI run 37185388386. Canon/security audit passed, Android secure-storage lifecycle passed in job 111386155922, and iOS Keychain lifecycle passed in job 111386155910. The Requirement Registry binds these fresh run/job references as release evidence.
