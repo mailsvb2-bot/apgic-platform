@@ -94,3 +94,39 @@ exceptions:
       WEB evidence for this native requirement would misstate its acceptance scope.
     approved_by: mailsvb2-bot
 
+  - exception_id: APGIC-MOBILE-002-WEB-NOT-APPLICABLE
+    requirement_id: APGIC-MOBILE-002
+    status: APPROVED
+    surfaces:
+      - WEB
+    reason: >-
+      APGIC-MOBILE-002 defines the canonical native iOS/Android stack and shared-code
+      boundary. WEB is a separate client surface and does not use the native
+      React Native runtime; its shared contract consumption is covered by
+      APGIC-MOBILE-001 and the multisurface contract guard. Fabricating WEB
+      native-stack evidence would misstate this requirement's scope.
+    approved_by: mailsvb2-bot
+
+  - exception_id: APGIC-MOBILE-022-WEB-NOT-APPLICABLE
+    requirement_id: APGIC-MOBILE-022
+    status: APPROVED
+    surfaces:
+      - WEB
+    reason: >-
+      APGIC-MOBILE-022 governs the native mobile dependency registry, native SDK
+      supply chain, mobile SBOM, permissions, provenance, privacy/security review
+      and kill/removal strategy. WEB dependencies are governed by separate web
+      build/dependency controls and are not part of this native SDK registry.
+    approved_by: mailsvb2-bot
+
+  - exception_id: APGIC-MOBILE-023-WEB-NOT-APPLICABLE
+    requirement_id: APGIC-MOBILE-023
+    status: APPROVED
+    surfaces:
+      - WEB
+    reason: >-
+      APGIC-MOBILE-023 governs Apple PrivacyInfo.xcprivacy, Google Data Safety and
+      inspection of the actual installed native build. WEB has no Apple privacy
+      manifest or Android Data Safety declaration under this requirement, so WEB
+      evidence would be fabricated rather than a real acceptance proof.
+    approved_by: mailsvb2-bot
