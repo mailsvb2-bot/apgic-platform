@@ -24,6 +24,18 @@ A person keeps one canonical Identity while gaining additional profiles/roles. R
 - `apps/web/e2e/foundation.spec.ts`
 - `.github/workflows/ci.yml`
 
+## Exact verified evidence
+
+CI run `37229331751`:
+- Web surface: job `111515508581`
+- iOS native surface: job `111515508530`
+- Android native surface: job `111515508537`
+- Go domain/runtime tests: job `111515508313`
+- PostgreSQL integration proof: job `111515508586`
+- Canon / architecture conformance: job `111515508502`
+
+The canonical evidence map reports `unproven_evidence: []` for APGIC-ID-001.
+
 ## Release status
 
-This satisfies DOMAIN_OR_CONTRACT_TEST plus an HTTP/PostgreSQL integration proof for the client-to-specialist role transition. Keep the requirement IN_PROGRESS until the project release-status policy promotes the evidence set; do not infer production deployment from CI alone.
+APGIC-ID-001 is **VERIFIED**. This verifies the canonical single-Identity/multi-role contract and its cross-surface consumers; it does not claim a production deployment.
