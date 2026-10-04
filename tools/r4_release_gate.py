@@ -9,6 +9,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 REGISTRY_PATH = ROOT / "canon/requirements/registry.yaml"
+NATIVE_RELEASE_REQUIREMENT_ID = "APGIC-MOBILE-015"
 STORE_RELEASE_REQUIREMENT_ID = "APGIC-MOBILE-030"
 
 NATIVE_REQUIRED = {
@@ -173,15 +174,24 @@ def main() -> None:
 
     passed, blockers = evaluate(load_document(path), args.gate, args.mode)
 
-    if args.mode == "production" and args.gate in {"store", "all"}:
+    if args.mode == "production":
         if not REGISTRY_PATH.is_file():
             fail("Canon registry is missing")
-        blockers.extend(
-            canon_dependency_blockers(
-                load_document(REGISTRY_PATH),
-                STORE_RELEASE_REQUIREMENT_ID,
+        registry = load_document(REGISTRY_PATH)
+        if args.gate in {"native", "all"}:
+            blockers.extend(
+                canon_dependency_blockers(
+                    registry,
+                    NATIVE_RELEASE_REQUIREMENT_ID,
+                )
             )
-        )
+        if args.gate in {"store", "all"}:
+            blockers.extend(
+                canon_dependency_blockers(
+                    registry,
+                    STORE_RELEASE_REQUIREMENT_ID,
+                )
+            )
         passed = len(blockers) == 0
 
     if not passed:
