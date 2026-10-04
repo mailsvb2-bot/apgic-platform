@@ -45,6 +45,11 @@ import {
   runWorkspaceE2EFlow,
   type WorkspaceE2EResult,
 } from "./mobile-workspace-client.ts";
+import {
+  runNativeDeletionE2E,
+  type NativeDeletionE2EResult,
+  type NativeSurface,
+} from "./r1-cross-surface.ts";
 
 type AppProps = {
   deviceCapability?: DeviceCapability;
@@ -55,6 +60,11 @@ type AppProps = {
   installationE2EPlatform?: MobileInstallationPlatform;
   workspaceE2EBaseURL?: string;
   workspaceE2ESessionCookie?: string;
+  deletionE2EBaseURL?: string;
+  deletionE2ESessionCookie?: string;
+  deletionE2EIdentityID?: string;
+  deletionE2ERequestID?: string;
+  deletionE2EPlatform?: NativeSurface;
   deepLinkAPIBaseURL?: string;
   deepLinkE2ESessionCookie?: string;
   deepLinkE2EURL?: string;
@@ -103,6 +113,11 @@ export default function App({
   installationE2EPlatform,
   workspaceE2EBaseURL,
   workspaceE2ESessionCookie,
+  deletionE2EBaseURL,
+  deletionE2ESessionCookie,
+  deletionE2EIdentityID,
+  deletionE2ERequestID,
+  deletionE2EPlatform,
   deepLinkAPIBaseURL = canonicalAPGICOrigin,
   deepLinkE2ESessionCookie,
   deepLinkE2EURL,
@@ -157,6 +172,12 @@ export default function App({
   const [workspaceE2E, setWorkspaceE2E] = useState<
     | {status: "IDLE" | "RUNNING"}
     | ({status: "PASS"} & WorkspaceE2EResult)
+    | {status: "FAIL"; reason: string}
+  >({status: "IDLE"});
+
+  const [deletionE2E, setDeletionE2E] = useState<
+    | {status: "IDLE" | "RUNNING"}
+    | ({status: "PASS"} & NativeDeletionE2EResult)
     | {status: "FAIL"; reason: string}
   >({status: "IDLE"});
 
@@ -606,6 +627,51 @@ export default function App({
     workspaceE2ESessionCookie,
   ]);
 
+  useEffect(() => {
+    if (
+      !compatibilityAllowsRuntime ||
+      !deletionE2EBaseURL ||
+      !deletionE2ESessionCookie ||
+      !deletionE2EIdentityID ||
+      !deletionE2ERequestID ||
+      !deletionE2EPlatform
+    ) {
+      return;
+    }
+    let active = true;
+    setDeletionE2E({status: "RUNNING"});
+    void runNativeDeletionE2E({
+      baseURL: deletionE2EBaseURL,
+      sessionCookie: deletionE2ESessionCookie,
+      identityID: deletionE2EIdentityID,
+      requestID: deletionE2ERequestID,
+      platform: deletionE2EPlatform,
+    }).then(
+      (result) => {
+        if (active) setDeletionE2E({status: "PASS", ...result});
+      },
+      (error: unknown) => {
+        if (active) {
+          setDeletionE2E({
+            status: "FAIL",
+            reason:
+              error instanceof Error ? error.message : "MOBILE_DELETION_E2E_FAILED",
+          });
+        }
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [
+    compatibilityAllowsRuntime,
+    deletionE2EBaseURL,
+    deletionE2ESessionCookie,
+    deletionE2EIdentityID,
+    deletionE2ERequestID,
+    deletionE2EPlatform,
+  ]);
+
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.card} accessibilityRole="summary">
@@ -886,6 +952,38 @@ export default function App({
             {workspaceE2E.status === "FAIL" ? (
               <Text accessibilityLabel={`workspace-e2e-error:${workspaceE2E.reason}`}>
                 Workspace switching failed safely.
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
+
+        {deletionE2E.status !== "IDLE" ? (
+          <View style={styles.capability} accessibilityRole="summary">
+            <Text accessibilityLabel={`deletion-e2e:${deletionE2E.status}`}>
+              Account deletion E2E: {deletionE2E.status}
+            </Text>
+            {deletionE2E.status === "PASS" ? (
+              <>
+                <Text accessibilityLabel={`deletion-e2e-state:${deletionE2E.state}`}>
+                  Deletion state: {deletionE2E.state}
+                </Text>
+                <Text accessibilityLabel={`deletion-e2e-deactivation:${deletionE2E.deactivation}`}>
+                  Deactivation: {String(deletionE2E.deactivation)}
+                </Text>
+                <Text accessibilityLabel={`deletion-e2e-profile-erased:${deletionE2E.profileErased}`}>
+                  Profile erased.
+                </Text>
+                <Text accessibilityLabel={`deletion-e2e-ledger-retained:${deletionE2E.ledgerRetained}`}>
+                  Ledger retained.
+                </Text>
+                <Text accessibilityLabel={`deletion-e2e-idempotent:${deletionE2E.replayIdempotent}`}>
+                  Replay idempotent.
+                </Text>
+              </>
+            ) : null}
+            {deletionE2E.status === "FAIL" ? (
+              <Text accessibilityLabel={`deletion-e2e-error:${deletionE2E.reason}`}>
+                Account deletion failed safely.
               </Text>
             ) : null}
           </View>
