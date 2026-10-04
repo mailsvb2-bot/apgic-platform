@@ -16,3 +16,15 @@ The test is run as an explicit mandatory step in the Canon / architecture CI job
 ## Scope
 
 This evidence closes the `E2E_OR_STAGING_PROOF` class for the multi-surface completion invariant. It does not mark the requirement `RELEASED`; release status remains governed by the Requirement Registry and actual launch evidence.
+
+
+## Exact verified candidate
+
+CI run `37226468814`:
+- Web surface: job `111507038423`
+- iOS surface: job `111507038525`
+- Android surface: job `111507038498`
+- Multi-surface contract guard: job `111507038462`
+- Canon / architecture conformance: job `111507038471`
+
+The canonical evidence map reports `unproven_evidence: []`; APGIC-MOBILE-003 is now **VERIFIED**.
