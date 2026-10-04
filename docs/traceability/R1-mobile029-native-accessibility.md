@@ -1,6 +1,6 @@
 # APGIC-MOBILE-029 — Native accessibility and MobileSupportPolicy
 
-Status: **IN_PROGRESS** until exact-candidate CI evidence is green and bound to the Requirement Registry.
+Status: **VERIFIED** — exact-candidate native evidence is green and bound to the Requirement Registry.
 
 ## Canon requirement
 
@@ -62,4 +62,10 @@ Candidate CI is expected to publish:
 - `evidence/ios-accessibility-e2e.json`
 - `evidence/ios-accessibility-large-text.json`
 
-Exact run/job references will be added only after the candidate passes Android, iOS, Canon and final bootstrap gates. Until then APGIC-MOBILE-029 remains **IN_PROGRESS**.
+Exact candidate evidence from CI run `37196979155`:
+- Android native accessibility + device matrix: job `111420783059`
+- iOS native AXBridge + accessibility text scaling: job `111420783056`
+- Canon / architecture conformance: job `111420783250`
+- final R0 bootstrap gate: job `111422569772`
+
+All four gates passed. APGIC-MOBILE-029 is therefore **VERIFIED**.
