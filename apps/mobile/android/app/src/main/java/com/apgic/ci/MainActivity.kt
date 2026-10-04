@@ -39,6 +39,7 @@ class MainActivity : ReactActivity() {
     private const val E2E_APP_VERSION = "APGIC_E2E_APP_VERSION"
     private const val E2E_BUILD_NUMBER = "APGIC_E2E_BUILD_NUMBER"
     private const val E2E_CONTRACT_VERSION = "APGIC_E2E_CONTRACT_VERSION"
+    private const val E2E_ACCESSIBILITY = "APGIC_E2E_ACCESSIBILITY"
     private val CAPABILITY_STATES = setOf(
       "UNKNOWN",
       "NOT_REQUESTED",
@@ -177,6 +178,12 @@ class MainActivity : ReactActivity() {
             intent?.getStringExtra(E2E_CONTRACT_VERSION)
               ?.takeIf { it.isNotBlank() }
               ?.let { putString("compatibilityContractVersion", it) }
+            if (intent?.hasExtra(E2E_ACCESSIBILITY) == true) {
+              putBoolean(
+                "accessibilityE2EEnabled",
+                intent?.getBooleanExtra(E2E_ACCESSIBILITY, false) == true,
+              )
+            }
           }
         }
     }
