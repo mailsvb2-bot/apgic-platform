@@ -52,3 +52,14 @@ exceptions:
       acceptance scope. Web remains governed by the same server-side business
       truth and authorization/financial/qualification policies.
     approved_by: mailsvb2-bot
+  - exception_id: APGIC-MOBILE-010-WEB-NOT-APPLICABLE
+    requirement_id: APGIC-MOBILE-010
+    status: APPROVED
+    surfaces:
+      - WEB
+    reason: >-
+      APGIC-MOBILE-010 governs native device persistence, Android Keystore,
+      iOS Keychain, native backup behavior and logout/revoke cleanup. Web storage
+      is governed by separate browser/session boundaries; fabricating WEB native
+      storage evidence would misrepresent this requirement's acceptance scope.
+    approved_by: mailsvb2-bot

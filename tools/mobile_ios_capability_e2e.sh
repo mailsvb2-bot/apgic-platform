@@ -426,8 +426,10 @@ assert_compatibility_policy() {
     fi
     sleep 1
   done
-  json_has_ax_label "$supported_output" "installation-e2e:PASS" ||
+  if ! json_has_ax_label "$supported_output" "installation-e2e:PASS"; then
+    [[ -f "$supported_output" ]] && cat "$supported_output" >&2 || true
     fail "supported previous iOS contract did not remain usable under the updated backend contract"
+  fi
 
   xcrun simctl terminate "$UDID" com.apgic.ci >/dev/null 2>&1 || true
   SIMCTL_CHILD_APGIC_E2E_CAPABILITY_STATE=GRANTED \
