@@ -63,3 +63,20 @@ exceptions:
       is governed by separate browser/session boundaries; fabricating WEB native
       storage evidence would misrepresent this requirement's acceptance scope.
     approved_by: mailsvb2-bot
+
+  - exception_id: APGIC-MOBILE-028-WEB-NOT-APPLICABLE
+    requirement_id: APGIC-MOBILE-028
+    status: APPROVED
+    surfaces:
+      - WEB
+    reason: >-
+      APGIC-MOBILE-028 defines the launch topology for one installed iOS/Android
+      application with authorization-safe role/workspace switching under one
+      Identity. WEB shares the same backend Identity, authorization and tenant
+      truth, but it is not an installed native app and therefore does not have
+      the native one-app topology lifecycle covered by this requirement.
+      Fabricating WEB evidence for an iOS/Android application-topology requirement
+      would misstate the acceptance scope; web authorization remains covered by
+      the shared server contracts and tenant-isolation requirements.
+    approved_by: mailsvb2-bot
+
