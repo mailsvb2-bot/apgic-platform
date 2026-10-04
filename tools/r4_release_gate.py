@@ -8,6 +8,8 @@ from pathlib import Path
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
+REGISTRY_PATH = ROOT / "canon/requirements/registry.yaml"
+STORE_RELEASE_REQUIREMENT_ID = "APGIC-MOBILE-030"
 
 NATIVE_REQUIRED = {
     "SERVER_CRITICAL_PATH_E2E",
@@ -71,6 +73,49 @@ def load_document(path: Path) -> dict:
     return document
 
 
+def requirement_index(registry: dict) -> dict[str, dict]:
+    rows = registry.get("requirements")
+    if not isinstance(rows, list):
+        fail("Canon registry requirements must be a list")
+    index: dict[str, dict] = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        requirement_id = row.get("requirement_id")
+        if isinstance(requirement_id, str) and requirement_id:
+            index[requirement_id] = row
+    return index
+
+
+def canon_dependency_blockers(
+    registry: dict,
+    requirement_id: str,
+) -> list[str]:
+    index = requirement_index(registry)
+    requirement = index.get(requirement_id)
+    if not isinstance(requirement, dict):
+        return [f"{requirement_id}:CANON_REQUIREMENT_MISSING"]
+
+    dependencies = requirement.get("dependencies")
+    if not isinstance(dependencies, list):
+        return [f"{requirement_id}:DEPENDENCIES_INVALID"]
+
+    blockers: list[str] = []
+    for dependency_id in dependencies:
+        if not isinstance(dependency_id, str) or not dependency_id:
+            blockers.append(f"{requirement_id}:DEPENDENCY_ID_INVALID")
+            continue
+        dependency = index.get(dependency_id)
+        if not isinstance(dependency, dict):
+            blockers.append(f"{dependency_id}:CANON_DEPENDENCY_MISSING")
+            continue
+        if dependency.get("status") != "VERIFIED":
+            blockers.append(
+                f"{dependency_id}:CANON_STATUS_{dependency.get('status', 'MISSING')}"
+            )
+    return blockers
+
+
 def evaluate(document: dict, gate: str, mode: str) -> tuple[bool, list[str]]:
     if document.get("schema_version") != "r4-release-gate-v1":
         return False, ["SCHEMA_VERSION_INVALID"]
@@ -127,6 +172,18 @@ def main() -> None:
         fail("evidence manifest path missing or outside repository")
 
     passed, blockers = evaluate(load_document(path), args.gate, args.mode)
+
+    if args.mode == "production" and args.gate in {"store", "all"}:
+        if not REGISTRY_PATH.is_file():
+            fail("Canon registry is missing")
+        blockers.extend(
+            canon_dependency_blockers(
+                load_document(REGISTRY_PATH),
+                STORE_RELEASE_REQUIREMENT_ID,
+            )
+        )
+        passed = len(blockers) == 0
+
     if not passed:
         fail("; ".join(blockers))
 

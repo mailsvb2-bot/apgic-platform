@@ -39,6 +39,51 @@ class R4ReleaseGateTests(unittest.TestCase):
         self.assertFalse(passed)
         self.assertIn("LEDGER_RECONCILIATION:MISSING", blockers)
 
+
+    def test_store_production_dependencies_must_be_verified(self) -> None:
+        registry = {
+            "requirements": [
+                {
+                    "requirement_id": "APGIC-MOBILE-030",
+                    "dependencies": ["APGIC-MOBILE-016", "APGIC-MOBILE-029"],
+                },
+                {
+                    "requirement_id": "APGIC-MOBILE-016",
+                    "status": "IN_PROGRESS",
+                    "dependencies": [],
+                },
+                {
+                    "requirement_id": "APGIC-MOBILE-029",
+                    "status": "VERIFIED",
+                    "dependencies": [],
+                },
+            ]
+        }
+        self.assertEqual(
+            gate.canon_dependency_blockers(registry, "APGIC-MOBILE-030"),
+            ["APGIC-MOBILE-016:CANON_STATUS_IN_PROGRESS"],
+        )
+
+        registry["requirements"][1]["status"] = "VERIFIED"
+        self.assertEqual(
+            gate.canon_dependency_blockers(registry, "APGIC-MOBILE-030"),
+            [],
+        )
+
+    def test_missing_store_dependency_is_fail_closed(self) -> None:
+        registry = {
+            "requirements": [
+                {
+                    "requirement_id": "APGIC-MOBILE-030",
+                    "dependencies": ["APGIC-MOBILE-016"],
+                }
+            ]
+        }
+        self.assertEqual(
+            gate.canon_dependency_blockers(registry, "APGIC-MOBILE-030"),
+            ["APGIC-MOBILE-016:CANON_DEPENDENCY_MISSING"],
+        )
+
     def test_synthetic_evidence_can_never_pass_production(self) -> None:
         document = valid_ci()
         passed, blockers = gate.evaluate(document, "all", "production")

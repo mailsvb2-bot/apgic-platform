@@ -3597,7 +3597,8 @@ requirements:
   test_refs:
   - tools/tests/test_r4_release_gate.py
   - .github/workflows/ci.yml
-  evidence_refs: []
+  evidence_refs:
+  - docs/traceability/R4-mobile030-store-release-gate.md
   acceptance:
     given: native candidate готов к public rollout
     when: store production gate оценивается
