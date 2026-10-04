@@ -24,12 +24,13 @@ const (
 )
 
 const (
-	ReasonLinkAllowed           = "DEEPLINK_ALLOWED"
-	ReasonLinkInvalid           = "DEEPLINK_INVALID"
-	ReasonLinkExpired           = "DEEPLINK_EXPIRED"
-	ReasonLinkSubjectMismatch   = "DEEPLINK_SUBJECT_MISMATCH"
-	ReasonLinkAuthorizationDeny = "DEEPLINK_AUTHORIZATION_DENY"
-	ReasonLinkFallbackInvalid   = "DEEPLINK_FALLBACK_INVALID"
+	ReasonLinkAllowed            = "DEEPLINK_ALLOWED"
+	ReasonLinkInvalid            = "DEEPLINK_INVALID"
+	ReasonLinkExpired            = "DEEPLINK_EXPIRED"
+	ReasonLinkSubjectMismatch    = "DEEPLINK_SUBJECT_MISMATCH"
+	ReasonLinkAuthorizationDeny  = "DEEPLINK_AUTHORIZATION_DENY"
+	ReasonLinkWorkspaceScopeDeny = "DEEPLINK_WORKSPACE_SCOPE_DENY"
+	ReasonLinkFallbackInvalid    = "DEEPLINK_FALLBACK_INVALID"
 )
 
 type DeepLinkClaims struct {
