@@ -18,6 +18,23 @@ type deepLinkTestStore struct {
 
 type failOnDeepLinkLookupStore struct{}
 
+type deepLinkWorkspaceTestStore struct {
+	workspaces map[string][]mobile.Workspace
+}
+
+func (s deepLinkWorkspaceTestStore) MobileWorkspaces(identityID string) ([]mobile.Workspace, error) {
+	return append([]mobile.Workspace(nil), s.workspaces[identityID]...), nil
+}
+
+func (s deepLinkWorkspaceTestStore) MobileWorkspace(identityID, workspaceID string) (mobile.Workspace, bool, error) {
+	for _, workspace := range s.workspaces[identityID] {
+		if workspace.ID == workspaceID {
+			return workspace, true, nil
+		}
+	}
+	return mobile.Workspace{}, false, nil
+}
+
 func (failOnDeepLinkLookupStore) DeepLinkResource(mobile.LinkKind, string) (mobile.DeepLinkResource, bool, error) {
 	panic("protected resource lookup occurred before authentication")
 }
@@ -122,6 +139,110 @@ func TestMobileDeepLinkHTTPUsesTrustedSessionAndCurrentResourceTruth(t *testing.
 	}
 	if resolution.Decision != "DENY" || resolution.ReasonCode != mobile.ReasonLinkInvalid {
 		t.Fatalf("stale ownership token must be invalidated: %#v", resolution)
+	}
+}
+
+func TestMobileDeepLinkScopedWorkspaceCannotEscalateRoleOrTenant(t *testing.T) {
+	now := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
+	sessionKey := []byte(strings.Repeat("s", 32))
+	sessions, err := newClientSessionManager(sessionKey, func() time.Time { return now })
+	if err != nil {
+		t.Fatal(err)
+	}
+	cookie, err := sessions.issue("identity-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	targetID := "00000000-0000-0000-0000-000000000713"
+	store := deepLinkTestStore{resources: map[string]mobile.DeepLinkResource{
+		"BOOKING:" + targetID: {
+			Kind:              mobile.LinkBooking,
+			TargetID:          targetID,
+			AccessClass:       mobile.LinkProtectedResource,
+			TenantID:          "tenant-booking",
+			SubjectIdentityID: "identity-a",
+		},
+	}}
+	workspaces := deepLinkWorkspaceTestStore{workspaces: map[string][]mobile.Workspace{
+		"identity-a": {
+			{
+				ID:         "client:identity-a",
+				IdentityID: "identity-a",
+				TenantID:   "identity-a",
+				Kind:       mobile.WorkspaceClient,
+			},
+			{
+				ID:         "organization:org-a",
+				IdentityID: "identity-a",
+				TenantID:   "org-a",
+				Kind:       mobile.WorkspaceOrganization,
+			},
+		},
+	}}
+	handler := New(Options{
+		DeepLinks:          store,
+		MobileWorkspaces:   workspaces,
+		DeepLinkSigningKey: []byte(strings.Repeat("d", 32)),
+		ClientSessionKey:   sessionKey,
+		Now:                func() time.Time { return now },
+	})
+
+	body, _ := json.Marshal(issueDeepLinkRequest{Kind: mobile.LinkBooking, TargetID: targetID})
+	issue := httptest.NewRequest(http.MethodPost, "/v1/mobile/deep-links", bytes.NewReader(body))
+	issue.AddCookie(cookie)
+	issueRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(issueRecorder, issue)
+	if issueRecorder.Code != http.StatusCreated {
+		t.Fatalf("issue status=%d body=%s", issueRecorder.Code, issueRecorder.Body.String())
+	}
+	var issued issueDeepLinkResponse
+	if err := json.Unmarshal(issueRecorder.Body.Bytes(), &issued); err != nil {
+		t.Fatal(err)
+	}
+
+	allowed := httptest.NewRequest(
+		http.MethodGet,
+		"/v1/mobile/deep-links/resolve?token="+issued.Token+"&workspace_id=client%3Aidentity-a",
+		nil,
+	)
+	allowed.AddCookie(cookie)
+	allowedRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(allowedRecorder, allowed)
+	var resolution deepLinkResolutionResponse
+	if err := json.Unmarshal(allowedRecorder.Body.Bytes(), &resolution); err != nil {
+		t.Fatal(err)
+	}
+	if resolution.Decision != "ALLOW" {
+		t.Fatalf("client workspace should resolve client-owned booking: %#v", resolution)
+	}
+
+	for name, workspaceID := range map[string]string{
+		"wrong role":    "organization:org-a",
+		"foreign scope": "organization:org-b",
+	} {
+		t.Run(name, func(t *testing.T) {
+			request := httptest.NewRequest(
+				http.MethodGet,
+				"/v1/mobile/deep-links/resolve?token="+issued.Token+"&workspace_id="+workspaceID,
+				nil,
+			)
+			request.AddCookie(cookie)
+			recorder := httptest.NewRecorder()
+			handler.ServeHTTP(recorder, request)
+			if recorder.Code != http.StatusOK {
+				t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+			}
+			var deniedResolution deepLinkResolutionResponse
+			if err := json.Unmarshal(recorder.Body.Bytes(), &deniedResolution); err != nil {
+				t.Fatal(err)
+			}
+			if deniedResolution.Decision != "DENY" || deniedResolution.ReasonCode != mobile.ReasonLinkWorkspaceScopeDeny {
+				t.Fatalf("scoped link must fail closed: %#v", deniedResolution)
+			}
+			if deniedResolution.CanonicalPath != "" || deniedResolution.CanonicalWebFallback != "" {
+				t.Fatalf("denied scoped link leaked destination: %#v", deniedResolution)
+			}
+		})
 	}
 }
 

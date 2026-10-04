@@ -205,6 +205,36 @@
           "minLength": 1
         }
       }
+    },
+    "WorkspaceList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["workspaces"],
+      "properties": {
+        "workspaces": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AuthorizedWorkspace"
+          }
+        }
+      }
+    },
+    "WorkspaceResolution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allowed", "reason_code"],
+      "properties": {
+        "allowed": {
+          "type": "boolean"
+        },
+        "reason_code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "workspace": {
+          "$ref": "#/$defs/AuthorizedWorkspace"
+        }
+      }
     }
   }
 }

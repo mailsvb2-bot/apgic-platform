@@ -300,6 +300,67 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /v1/mobile/workspaces:
+    get:
+      operationId: listMobileWorkspaces
+      description: Lists server-derived workspaces available to the signed Identity. Client-supplied role or tenant identifiers are never accepted as authorization truth.
+      security:
+        - ClientSession: []
+      responses:
+        '200':
+          description: Authorized CLIENT/SPECIALIST/ORGANIZATION workspace projections for one Identity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MobileWorkspaceList'
+        '401':
+          description: Trusted client session is required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Signed Identity is not present in canonical storage.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '503':
+          description: Canonical workspace storage is temporarily unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /v1/mobile/workspaces/{workspaceID}:
+    get:
+      operationId: resolveMobileWorkspace
+      description: Re-resolves one opaque server-derived workspace for the signed Identity. Unknown or foreign workspace IDs fail closed without disclosing tenant data.
+      security:
+        - ClientSession: []
+      parameters:
+        - in: path
+          name: workspaceID
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 256 }
+      responses:
+        '200':
+          description: Deterministic ALLOW/DENY workspace resolution.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MobileWorkspaceResolution'
+        '401':
+          description: Trusted client session is required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '503':
+          description: Canonical workspace storage is temporarily unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /v1/mobile/deep-links:
     post:
       operationId: issueMobileDeepLink
@@ -356,6 +417,11 @@ paths:
           name: token
           required: true
           schema: { type: string, minLength: 1 }
+        - in: query
+          name: workspace_id
+          required: false
+          description: Optional currently selected server-derived workspace. For protected client resources a supplied scope must resolve to the signed Identity's CLIENT workspace.
+          schema: { type: string, minLength: 1, maxLength: 256 }
       responses:
         '200':
           description: Deterministic ALLOW/DENY resolution. Invalid or expired tokens fail closed without a fallback.
@@ -1429,6 +1495,42 @@ components:
       required: [push_endpoint]
       properties:
         push_endpoint: { type: string, minLength: 1 }
+    MobileWorkspaceKind:
+      type: string
+      enum: [CLIENT, SPECIALIST, ORGANIZATION]
+    AuthorizedMobileWorkspace:
+      type: object
+      additionalProperties: false
+      required: [workspace_id, identity_id, tenant_id, kind, authorization_decision, reason_code]
+      properties:
+        workspace_id: { type: string, minLength: 1, maxLength: 256 }
+        identity_id: { type: string, minLength: 1 }
+        tenant_id: { type: string, minLength: 1 }
+        kind: { $ref: '#/components/schemas/MobileWorkspaceKind' }
+        authorization_decision:
+          type: string
+          enum: [ALLOW]
+        reason_code:
+          type: string
+          enum: [WORKSPACE_ALLOWED]
+    MobileWorkspaceList:
+      type: object
+      additionalProperties: false
+      required: [workspaces]
+      properties:
+        workspaces:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuthorizedMobileWorkspace'
+    MobileWorkspaceResolution:
+      type: object
+      additionalProperties: false
+      required: [allowed, reason_code]
+      properties:
+        allowed: { type: boolean }
+        reason_code: { type: string, minLength: 1 }
+        workspace:
+          $ref: '#/components/schemas/AuthorizedMobileWorkspace'
     DeepLinkKind:
       type: string
       enum: [BOOKING, SPECIALIST, NOTIFICATION]

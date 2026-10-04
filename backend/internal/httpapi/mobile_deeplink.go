@@ -45,6 +45,7 @@ type deepLinkResolutionResponse struct {
 func registerMobileDeepLinks(
 	mux *http.ServeMux,
 	store deepLinkResourceStore,
+	workspaces mobileWorkspaceStore,
 	tokens *mobile.DeepLinkTokenManager,
 	tokenConfigErr error,
 	sessions *clientSessionManager,
@@ -155,6 +156,30 @@ func registerMobileDeepLinks(
 		case !found:
 			writeJSON(w, http.StatusOK, deepLinkResolutionResponse{Decision: "DENY", ReasonCode: mobile.ReasonLinkInvalid})
 			return
+		}
+
+		workspaceID := strings.TrimSpace(r.URL.Query().Get("workspace_id"))
+		if resource.AccessClass == mobile.LinkProtectedResource && workspaceID != "" {
+			if workspaces == nil {
+				writeDemandError(w, r, http.StatusServiceUnavailable, "WORKSPACE_STORE_UNAVAILABLE", "Рабочее пространство временно недоступно.", true, nil)
+				return
+			}
+			workspace, workspaceFound, workspaceErr := workspaces.MobileWorkspace(identityID, workspaceID)
+			if workspaceErr != nil {
+				writeMobileWorkspaceFailure(w, r, workspaceErr)
+				return
+			}
+			if !workspaceFound ||
+				workspace.Kind != mobile.WorkspaceClient ||
+				workspace.IdentityID != identityID ||
+				workspace.IdentityID != resource.SubjectIdentityID ||
+				!resolveStoredWorkspace(identityID, workspace, now().UTC()).Allowed {
+				writeJSON(w, http.StatusOK, deepLinkResolutionResponse{
+					Decision:   "DENY",
+					ReasonCode: mobile.ReasonLinkWorkspaceScopeDeny,
+				})
+				return
+			}
 		}
 
 		principal := authz.Principal{}

@@ -77,6 +77,7 @@ func main() {
 		ReadinessCheck:              readinessCheck,
 		LegalAcceptances:            storage,
 		Installations:               storage,
+		MobileWorkspaces:            storage,
 		Notifications:               storage,
 		ClientMutations:             storage,
 		DeepLinks:                   storage,

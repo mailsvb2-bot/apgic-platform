@@ -51,6 +51,49 @@ test("native client only opens canonical path after server ALLOW", async () => {
   assert.deepEqual(action, {action: "OPEN_APP_PATH", target: "/bookings/booking-1"});
 });
 
+test("native deep-link resolution carries only a validated selected workspace scope", async () => {
+  let requestedURL = "";
+  const action = await resolveCanonicalUniversalLink(
+    `https://apgic.ru/l/${token}`,
+    {
+      apiOrigin: "http://127.0.0.1:43114",
+      sessionCookie: "__Host-apgic_session=signed",
+      selectedWorkspaceID: "client:identity-1",
+      request: async (url) => {
+        requestedURL = url;
+        return {
+          status: 200,
+          async json() {
+            return {
+              decision: "ALLOW",
+              reason_code: "DEEPLINK_ALLOWED",
+              canonical_path: "/bookings/booking-1",
+              canonical_web_fallback: "https://apgic.ru/bookings/booking-1",
+              expires_at: "2026-10-01T12:15:00Z",
+            };
+          },
+        };
+      },
+    },
+  );
+  assert.match(requestedURL, /workspace_id=client%3Aidentity-1/);
+  assert.deepEqual(action, {action: "OPEN_APP_PATH", target: "/bookings/booking-1"});
+
+  let called = false;
+  assert.deepEqual(
+    await resolveCanonicalUniversalLink(`https://apgic.ru/l/${token}`, {
+      apiOrigin: "http://127.0.0.1:43114",
+      selectedWorkspaceID: "organization:../foreign",
+      request: async () => {
+        called = true;
+        throw new Error("invalid workspace must fail before network");
+      },
+    }),
+    {action: "BLOCK"},
+  );
+  assert.equal(called, false);
+});
+
 test("native client fails closed on invalid or denied server responses", async () => {
   assert.deepEqual(
     await resolveCanonicalUniversalLink("https://evil.example/l/" + token),

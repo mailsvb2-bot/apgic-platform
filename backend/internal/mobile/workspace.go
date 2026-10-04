@@ -1,6 +1,7 @@
 package mobile
 
 import (
+	"errors"
 	"strings"
 	"time"
 
@@ -22,6 +23,8 @@ const (
 	ReasonWorkspaceAuthorization    = "WORKSPACE_AUTHORIZATION_DENY"
 )
 
+var ErrWorkspaceIdentityNotFound = errors.New("workspace identity not found")
+
 type Workspace struct {
 	ID         string
 	IdentityID string
@@ -33,6 +36,18 @@ type WorkspaceResolution struct {
 	Allowed    bool
 	ReasonCode string
 	Workspace  Workspace
+}
+
+func ClientWorkspaceID(identityID string) string {
+	return "client:" + strings.TrimSpace(identityID)
+}
+
+func SpecialistWorkspaceID(specialistID string) string {
+	return "specialist:" + strings.TrimSpace(specialistID)
+}
+
+func OrganizationWorkspaceID(organizationID string) string {
+	return "organization:" + strings.TrimSpace(organizationID)
 }
 
 func ResolveWorkspace(principal authz.Principal, workspace Workspace, now time.Time) WorkspaceResolution {

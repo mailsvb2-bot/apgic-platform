@@ -3465,21 +3465,44 @@ requirements:
   release_profile: R1
   risk: HIGH
   priority: P0
-  status: IN_PROGRESS
+  status: VERIFIED
   dependencies:
   - APGIC-ID-001
   - APGIC-MOBILE-001
   implementation_refs:
   - backend/internal/mobile/workspace.go
+  - backend/internal/runtimepostgres/mobile_workspace.go
+  - backend/internal/httpapi/mobile_workspace.go
+  - backend/internal/httpapi/mobile_deeplink.go
   - apps/mobile/src/r1-cross-surface.ts
+  - apps/mobile/src/mobile-workspace-client.ts
+  - apps/mobile/src/mobile-deep-link-client.ts
+  - apps/mobile/src/App.tsx
   contract_refs:
+  - contracts/openapi/apgic-v1.yaml
+  - packages/contracts/src/generated/apgic-v1.ts
   - packages/contracts/src/r1-mobile.ts
   - contracts/jsonschema/r1-mobile-cross-surface-v1.schema.json
   test_refs:
   - backend/internal/mobile/r1_mobile_test.go
+  - backend/internal/httpapi/mobile_workspace_integration_test.go
+  - backend/internal/httpapi/mobile_deeplink_test.go
   - apps/mobile/src/r1-cross-surface.test.ts
+  - apps/mobile/src/mobile-workspace-client.test.ts
+  - apps/mobile/src/mobile-deep-link-client.test.ts
   - tools/r1_multisurface_guard.py
-  evidence_refs: []
+  - tools/mobile_android_capability_e2e.sh
+  - tools/mobile_ios_capability_e2e.sh
+  - tools/tests/test_mobile_native_e2e_harness.py
+  - .github/workflows/ci.yml
+  evidence_refs:
+  - docs/traceability/R1-mobile028-multirole-workspaces.md
+  - surface://SERVER/mobile028-role-switch/run-37136033557/job-111391596165
+  - surface://ANDROID/mobile028-role-switch/run-37136033557/job-111391578107
+  - surface://IOS/mobile028-role-switch/run-37136033557/job-111391595435
+  - surface://CI/mobile028-canon/run-37136033557/job-111391579133
+  - surface://CI/mobile028-multisurface/run-37136033557/job-111391603724
+  - surface://CI/mobile028-r0-bootstrap/run-37136033557/job-111392596279
   acceptance:
     given: user has multiple profiles/memberships
     when: user switches workspace or opens scoped link/push
