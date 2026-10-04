@@ -818,6 +818,74 @@ assert_realtime_lifecycle() {
   fail "installed iOS app did not rejoin the same canonical consultation after bounded restart retries"
 }
 
+assert_accessibility_runtime() {
+  local output="$EVIDENCE_DIR/ios-accessibility-e2e.json"
+  local large_text_output="$EVIDENCE_DIR/ios-accessibility-large-text.json"
+
+  launch_accessibility_probe() {
+    local target="$1"
+    xcrun simctl terminate "$UDID" com.apgic.ci >/dev/null 2>&1 || true
+    SIMCTL_CHILD_APGIC_E2E_CAPABILITY_STATE=GRANTED \
+    SIMCTL_CHILD_APGIC_E2E_ACCESSIBILITY=true \
+      xcrun simctl launch "$UDID" com.apgic.ci >/dev/null
+
+    for _ in $(seq 1 60); do
+      if "$IDB" ui describe-all --udid "$UDID" --api axbridge --json --nested >"$target" 2>/dev/null &&
+         json_has_ax_label "$target" "a11y-action-primary" &&
+         json_has_ax_label "$target" "a11y-action-secondary"; then
+        return 0
+      fi
+      sleep 1
+    done
+    return 1
+  }
+
+  launch_accessibility_probe "$output" ||
+    fail "iOS AXBridge did not expose critical accessibility actions"
+
+  python3 - "$output" <<'PY'
+import json
+import sys
+
+payload = json.load(open(sys.argv[1], encoding="utf-8"))
+
+flat = []
+def walk(value):
+    if isinstance(value, dict):
+        flat.append(value)
+        for child in value.values():
+            walk(child)
+    elif isinstance(value, list):
+        for child in value:
+            walk(child)
+walk(payload)
+
+def find(label):
+    for index, node in enumerate(flat):
+        if node.get("AXLabel") == label:
+            return index, node
+    raise SystemExit(f"missing AXLabel {label}")
+
+primary_i, primary = find("a11y-action-primary")
+secondary_i, secondary = find("a11y-action-secondary")
+if primary_i >= secondary_i:
+    raise SystemExit("critical iOS accessibility order is not deterministic")
+
+for label, node in (("primary", primary), ("secondary", secondary)):
+    serialized = json.dumps(node, ensure_ascii=False).lower()
+    if "button" not in serialized:
+        raise SystemExit(f"{label} action does not expose button semantics through AXBridge")
+PY
+
+  xcrun simctl ui "$UDID" content_size accessibility-extra-extra-large >/dev/null 2>&1 ||
+    fail "iOS Simulator could not enable accessibility text size"
+  launch_accessibility_probe "$large_text_output" ||
+    fail "iOS critical actions became inaccessible under accessibility text scaling"
+  xcrun simctl ui "$UDID" content_size medium >/dev/null 2>&1 || true
+
+  echo "iOS AXBridge screen-reader semantics + accessibility text scaling: PASS"
+}
+
 assert_compatibility_policy
 assert_remote_config_kill_switch
 assert_installation_lifecycle
@@ -826,5 +894,6 @@ assert_deep_link_runtime
 assert_notification_runtime
 assert_offline_mutation_restart
 assert_realtime_lifecycle
+assert_accessibility_runtime
 
-echo "IOS CAPABILITY + COMPATIBILITY + INSTALLATION + DEEP-LINK + NOTIFICATION + OFFLINE-SYNC + REALTIME NATIVE E2E: PASS"
+echo "IOS CAPABILITY + COMPATIBILITY + INSTALLATION + DEEP-LINK + NOTIFICATION + OFFLINE-SYNC + REALTIME + ACCESSIBILITY NATIVE E2E: PASS"
