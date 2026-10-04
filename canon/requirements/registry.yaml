@@ -2354,7 +2354,7 @@ requirements:
   release_profile: R0
   risk: HIGH
   priority: P0
-  status: IN_PROGRESS
+  status: VERIFIED
   dependencies: []
   implementation_refs:
   - canon/contracts/client-surface-manifest.yaml
@@ -2369,6 +2369,12 @@ requirements:
   - tools/multisurface_guard.py
   evidence_refs:
   - canon/evidence/r0-ci-evidence-map.json
+  - docs/traceability/R0-mobile001-single-business-truth.md
+  - surface://WEB/mobile001-shared-truth/run-37210047640/job-111459211142
+  - surface://IOS/mobile001-shared-truth/run-37210047640/job-111459211117
+  - surface://ANDROID/mobile001-shared-truth/run-37210047640/job-111459211183
+  - surface://CI/mobile001-multisurface/run-37210047640/job-111459211158
+  - surface://CI/mobile001-canon/run-37210047640/job-111459211159
   acceptance:
     given: существуют web и native clients
     when: они выполняют одинаковую business command
@@ -2388,7 +2394,7 @@ requirements:
   release_profile: R0
   risk: HIGH
   priority: P0
-  status: IN_PROGRESS
+  status: VERIFIED
   dependencies:
   - APGIC-MOBILE-001
   implementation_refs:
@@ -2402,6 +2408,12 @@ requirements:
   - tools/multisurface_guard.py
   evidence_refs:
   - canon/evidence/r0-ci-evidence-map.json
+  - docs/traceability/R0-mobile002-native-stack-boundary.md
+  - canon/evidence/compatibility-exceptions.yaml
+  - surface://IOS/mobile002-native-build/run-37210047640/job-111459211117
+  - surface://ANDROID/mobile002-native-build/run-37210047640/job-111459211183
+  - surface://CI/mobile002-multisurface/run-37210047640/job-111459211158
+  - surface://CI/mobile002-canon/run-37210047640/job-111459211159
   acceptance:
     given: создан native workspace
     when: проверяются imports/shared packages
@@ -3228,7 +3240,7 @@ requirements:
   release_profile: R0
   risk: HIGH
   priority: P0
-  status: IN_PROGRESS
+  status: VERIFIED
   dependencies:
   - APGIC-MOBILE-002
   implementation_refs:
@@ -3247,6 +3259,12 @@ requirements:
   - tools/tests/test_repository_secret_scan.py
   evidence_refs:
   - canon/evidence/r0-ci-evidence-map.json
+  - docs/traceability/R0-mobile022-dependency-supply-chain.md
+  - canon/evidence/compatibility-exceptions.yaml
+  - surface://CI/mobile022-sbom/run-37210047640/job-111459211162
+  - surface://CI/mobile022-supply-chain/run-37210047640/job-111459211159
+  - surface://IOS/mobile022-native-build/run-37210047640/job-111459211117
+  - surface://ANDROID/mobile022-native-build/run-37210047640/job-111459211183
   acceptance:
     given: mobile dependency is added/upgraded
     when: CI evaluates build graph
@@ -3267,7 +3285,7 @@ requirements:
   release_profile: R0
   risk: HIGH
   priority: P0
-  status: IN_PROGRESS
+  status: VERIFIED
   dependencies:
   - APGIC-MOBILE-022
   implementation_refs:
@@ -3286,6 +3304,11 @@ requirements:
   - tools/tests/test_mobile_build_privacy_inspection.py
   evidence_refs:
   - canon/evidence/r0-ci-evidence-map.json
+  - docs/traceability/R0-mobile023-build-privacy.md
+  - canon/evidence/compatibility-exceptions.yaml
+  - surface://CI/mobile023-privacy-contract/run-37210047640/job-111459211159
+  - surface://IOS/mobile023-build-inspection/run-37210047640/job-111459211117
+  - surface://ANDROID/mobile023-build-inspection/run-37210047640/job-111459211183
   acceptance:
     given: release candidate contains native SDKs/APIs
     when: privacy preflight compares declarations and build
