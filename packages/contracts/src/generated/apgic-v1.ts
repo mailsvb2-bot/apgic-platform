@@ -2,7 +2,7 @@
 // DO NOT EDIT.
 export const apiContractVersion = "0.10.0-r0-remote-config" as const;
 
-export type ApiOperationId = "acquireSlotHold" | "applyProviderEvent" | "archiveOrganizationDirection" | "cancelOrder" | "completeConsultation" | "confirmHelpIntent" | "createCheckoutInstruction" | "createHelpIntent" | "createMobileCheckoutInstruction" | "createOrganization" | "createOrganizationDirection" | "createOrganizationProduct" | "declareSpecialistCapability" | "deleteAccount" | "exportConsultationToGrowth" | "getBookingFulfillment" | "getLegalAcceptanceStatus" | "getMeta" | "getMobileCompatibility" | "getMobileNotificationDelivery" | "getMobileRemoteConfig" | "getOrganization" | "getPrivateOrganizationProfile" | "getSpecialistProfile" | "health" | "issueMobileDeepLink" | "listCheckoutOptions" | "listHelpIntentMatches" | "listMobileInstallations" | "listOrganizationProducts" | "listOrganizations" | "listSpecialistSlots" | "markSearchProjectionStale" | "publishOrganizationProduct" | "publishSpecialistCapability" | "readiness" | "rebuildSearchProjection" | "recordConsultationPresence" | "recordLegalAcceptance" | "registerMobileInstallation" | "reportConsultationFailure" | "resolveMobileDeepLink" | "revokeMobileInstallation" | "rotateMobilePushEndpoint" | "searchProjection" | "submitSpecialistEvidence" | "succeedConsultationRecovery" | "unpublishSpecialistCapability" | "updateProductCommercialOwner" | "upsertSpecialistProfile";
+export type ApiOperationId = "acquireSlotHold" | "applyProviderEvent" | "archiveOrganizationDirection" | "cancelOrder" | "completeConsultation" | "confirmHelpIntent" | "createCheckoutInstruction" | "createHelpIntent" | "createMobileCheckoutInstruction" | "createOrganization" | "createOrganizationDirection" | "createOrganizationProduct" | "declareSpecialistCapability" | "deleteAccount" | "exportConsultationToGrowth" | "getBookingFulfillment" | "getLegalAcceptanceStatus" | "getMeta" | "getMobileCompatibility" | "getMobileNotificationDelivery" | "getMobileRemoteConfig" | "getOrganization" | "getPrivateOrganizationProfile" | "getSpecialistProfile" | "health" | "issueMobileDeepLink" | "listCheckoutOptions" | "listHelpIntentMatches" | "listMobileInstallations" | "listMobileWorkspaces" | "listOrganizationProducts" | "listOrganizations" | "listSpecialistSlots" | "markSearchProjectionStale" | "publishOrganizationProduct" | "publishSpecialistCapability" | "readiness" | "rebuildSearchProjection" | "recordConsultationPresence" | "recordLegalAcceptance" | "registerMobileInstallation" | "reportConsultationFailure" | "resolveMobileDeepLink" | "resolveMobileWorkspace" | "revokeMobileInstallation" | "rotateMobilePushEndpoint" | "searchProjection" | "submitSpecialistEvidence" | "succeedConsultationRecovery" | "unpublishSpecialistCapability" | "updateProductCommercialOwner" | "upsertSpecialistProfile";
 
 export interface AccountDeletion {
   apgic_deletes_ledger: boolean;
@@ -30,6 +30,15 @@ export interface AcquireSlotHoldRequest {
   client_identity_id?: string;
   help_intent_id: string;
   slot_id: string;
+}
+
+export interface AuthorizedMobileWorkspace {
+  authorization_decision: "ALLOW";
+  identity_id: string;
+  kind: MobileWorkspaceKind;
+  reason_code: "WORKSPACE_ALLOWED";
+  tenant_id: string;
+  workspace_id: string;
 }
 
 export interface BookingFulfillment {
@@ -316,6 +325,18 @@ export interface MobileRemoteConfigPayload {
   policy_id: string;
   reason_codes?: Record<string, unknown>;
   version: number;
+}
+
+export type MobileWorkspaceKind = "CLIENT" | "SPECIALIST" | "ORGANIZATION";
+
+export interface MobileWorkspaceList {
+  workspaces: Array<AuthorizedMobileWorkspace>;
+}
+
+export interface MobileWorkspaceResolution {
+  allowed: boolean;
+  reason_code: string;
+  workspace?: AuthorizedMobileWorkspace;
 }
 
 export interface OrganizationDirectionSnapshot {
