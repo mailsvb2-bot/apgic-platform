@@ -3529,6 +3529,9 @@ requirements:
   implementation_refs:
   - apps/mobile/src/device-capability.ts
   - apps/mobile/src/accessibility-policy.ts
+  - apps/mobile/src/App.tsx
+  - apps/mobile/android/app/src/main/java/com/apgic/ci/MainActivity.kt
+  - apps/mobile/ios/APGIC/AppDelegate.swift
   - tools/mobile_support_guard.py
   - config/mobile/r1-ci-support-policy.yaml
   contract_refs:
@@ -3537,8 +3540,12 @@ requirements:
   - apps/mobile/src/device-capability.test.ts
   - apps/mobile/src/accessibility-policy.test.ts
   - tools/tests/test_mobile_support_guard.py
+  - tools/tests/test_mobile_native_e2e_harness.py
+  - tools/mobile_android_capability_e2e.sh
+  - tools/mobile_ios_capability_e2e.sh
   - .github/workflows/ci.yml
-  evidence_refs: []
+  evidence_refs:
+  - docs/traceability/R1-mobile029-native-accessibility.md
   acceptance:
     given: critical screen/journey exists
     when: tested with native accessibility and support matrix
