@@ -656,6 +656,9 @@ jobs:
             evidence/android-offline-hold.json
             evidence/android-realtime-e2e.xml
             evidence/android-realtime-rejoin.xml
+            evidence/android-accessibility-e2e.xml
+            evidence/android-a11y-*.xml
+            evidence/android-device-matrix.json
           if-no-files-found: error
           retention-days: 30
 
@@ -735,6 +738,8 @@ jobs:
             evidence/ios-offline-hold.json
             evidence/ios-realtime-e2e.json
             evidence/ios-realtime-rejoin.json
+            evidence/ios-accessibility-e2e.json
+            evidence/ios-accessibility-large-text.json
           if-no-files-found: error
           retention-days: 30
 

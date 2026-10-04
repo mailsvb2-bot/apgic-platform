@@ -80,3 +80,17 @@ exceptions:
       the shared server contracts and tenant-isolation requirements.
     approved_by: mailsvb2-bot
 
+  - exception_id: APGIC-MOBILE-029-WEB-NOT-APPLICABLE
+    requirement_id: APGIC-MOBILE-029
+    status: APPROVED
+    surfaces:
+      - WEB
+    reason: >-
+      APGIC-MOBILE-029 is the native accessibility and MobileSupportPolicy
+      requirement for the installed iOS/Android applications. VoiceOver,
+      TalkBack, native text scaling, native focus semantics and representative
+      device-window proof are not browser-runtime evidence. Web accessibility
+      remains governed by its own adaptive/accessibility contracts; fabricating
+      WEB evidence for this native requirement would misstate its acceptance scope.
+    approved_by: mailsvb2-bot
+

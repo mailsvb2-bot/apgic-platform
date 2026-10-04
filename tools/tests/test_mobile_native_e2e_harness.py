@@ -150,6 +150,49 @@ class MobileNativeE2EHarnessTest(unittest.TestCase):
         self.assertIn("/v1/mobile/workspaces", client)
         self.assertIn("WORKSPACE_E2E_FOREIGN_SCOPE_ALLOWED", client)
 
+    def test_mobile029_accessibility_runtime_is_exercised_on_both_native_surfaces(self) -> None:
+        android_script = self._read("mobile_android_capability_e2e.sh")
+        ios_script = self._read("mobile_ios_capability_e2e.sh")
+        workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+        app = (ROOT / "apps/mobile/src/App.tsx").read_text(encoding="utf-8")
+        android_activity = (
+            ROOT
+            / "apps/mobile/android/app/src/main/java/com/apgic/ci/MainActivity.kt"
+        ).read_text(encoding="utf-8")
+        ios_delegate = (
+            ROOT / "apps/mobile/ios/APGIC/AppDelegate.swift"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("accessibilityE2EEnabled", app)
+        self.assertIn('accessibilityLabel="a11y-action-primary"', app)
+        self.assertIn('accessibilityLabel="a11y-action-secondary"', app)
+        self.assertIn("minHeight: 48", app)
+        self.assertIn("AccessibilityInfo.isReduceMotionEnabled", app)
+        self.assertIn("PixelRatio.getFontScale", app)
+
+        self.assertIn("APGIC_E2E_ACCESSIBILITY", android_activity)
+        self.assertIn("APGIC_E2E_ACCESSIBILITY", ios_delegate)
+
+        self.assertIn("assert_accessibility_and_device_matrix() {", android_script)
+        self.assertIn("PHONE_COMPACT", android_script)
+        self.assertIn("PHONE_LARGE", android_script)
+        self.assertIn("TABLET", android_script)
+        self.assertIn("settings put system font_scale 1.30", android_script)
+        self.assertIn("android-device-matrix.json", android_script)
+
+        self.assertIn("assert_accessibility_runtime() {", ios_script)
+        self.assertIn("--api axbridge", ios_script)
+        self.assertIn("content_size accessibility-extra-extra-large", ios_script)
+        self.assertIn("ios-accessibility-large-text.json", ios_script)
+
+        for artifact in (
+            "evidence/android-accessibility-e2e.xml",
+            "evidence/android-device-matrix.json",
+            "evidence/ios-accessibility-e2e.json",
+            "evidence/ios-accessibility-large-text.json",
+        ):
+            self.assertIn(artifact, workflow)
+
     def test_release_remote_config_trust_bootstrap_is_wired(self) -> None:
         gradle = (ROOT / "apps/mobile/android/app/build.gradle").read_text(encoding="utf-8")
         android = (

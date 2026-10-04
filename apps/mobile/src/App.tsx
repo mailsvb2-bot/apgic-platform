@@ -1,6 +1,8 @@
 import React, {useCallback, useEffect, useState} from "react";
 import {
+  AccessibilityInfo,
   Linking,
+  PixelRatio,
   Pressable,
   SafeAreaView,
   StyleSheet,
@@ -76,6 +78,7 @@ type AppProps = {
   appVersion?: string;
   buildNumber?: string;
   compatibilityContractVersion?: string;
+  accessibilityE2EEnabled?: boolean;
 };
 
 const fallbackCopy = {
@@ -123,6 +126,7 @@ export default function App({
   appVersion,
   buildNumber,
   compatibilityContractVersion = apiContractVersion,
+  accessibilityE2EEnabled = false,
 }: AppProps) {
   const decision = decideCapability(deviceCapabilityState);
   const [compatibility, setCompatibility] = useState<
@@ -181,11 +185,31 @@ export default function App({
     | {status: "ERROR"; reason: string}
   >({status: "IDLE"});
 
+  const [reducedMotionEnabled, setReducedMotionEnabled] = useState(false);
+  const fontScale = PixelRatio.getFontScale();
+
   const [realtimeE2E, setRealtimeE2E] = useState<
     | {status: "IDLE" | "RUNNING"}
     | ({status: "PASS"} & NativeRealtimeE2EResult)
     | {status: "FAIL"; reason: string}
   >({status: "IDLE"});
+
+  useEffect(() => {
+    let active = true;
+    void AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
+      if (active) {
+        setReducedMotionEnabled(enabled);
+      }
+    });
+    const subscription = AccessibilityInfo.addEventListener(
+      "reduceMotionChanged",
+      (enabled) => setReducedMotionEnabled(enabled),
+    );
+    return () => {
+      active = false;
+      subscription.remove();
+    };
+  }, []);
 
   const compatibilityRequired = Boolean(
     compatibilityPlatform && appVersion && buildNumber,
@@ -591,6 +615,47 @@ export default function App({
           Одна Identity и одна server truth для iOS, Android, Web и PWA.
         </Text>
 
+        {accessibilityE2EEnabled ? (
+          <View
+            style={styles.accessibilityProbe}
+            accessibilityRole="summary"
+            accessibilityLabel="a11y-critical-journey"
+          >
+            <Text
+              allowFontScaling
+              accessibilityLabel={`a11y-font-scale:${fontScale.toFixed(2)}`}
+            >
+              Accessibility runtime probe
+            </Text>
+            <Text
+              allowFontScaling
+              accessibilityLabel={`a11y-reduced-motion:${reducedMotionEnabled}`}
+            >
+              Reduced motion preference: {String(reducedMotionEnabled)}
+            </Text>
+            <Pressable
+              accessible
+              accessibilityRole="button"
+              accessibilityLabel="a11y-action-primary"
+              accessibilityHint="Activates the primary critical action"
+              style={styles.accessibilityAction}
+              onPress={() => undefined}
+            >
+              <Text allowFontScaling>Основное действие</Text>
+            </Pressable>
+            <Pressable
+              accessible
+              accessibilityRole="button"
+              accessibilityLabel="a11y-action-secondary"
+              accessibilityHint="Activates the secondary critical action"
+              style={styles.accessibilityAction}
+              onPress={() => undefined}
+            >
+              <Text allowFontScaling>Дополнительное действие</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
         {showCompatibilityNotice ? (
           <View style={styles.capability} accessibilityRole="alert">
             <Text accessibilityLabel={`compatibility-e2e:${compatibility.status}`}>
@@ -861,4 +926,11 @@ const styles = StyleSheet.create({
   body: { fontSize: 18, lineHeight: 27 },
   capability: { gap: 8, marginTop: 12 },
   capabilityTitle: { fontSize: 20, fontWeight: "700" },
+  accessibilityProbe: { gap: 8, marginTop: 12 },
+  accessibilityAction: {
+    minHeight: 48,
+    minWidth: 48,
+    justifyContent: "center",
+    paddingHorizontal: 12,
+  },
 });

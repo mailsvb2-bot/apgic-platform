@@ -3523,12 +3523,15 @@ requirements:
   release_profile: R1
   risk: HIGH
   priority: P0
-  status: IN_PROGRESS
+  status: VERIFIED
   dependencies:
   - APGIC-MOBILE-004
   implementation_refs:
   - apps/mobile/src/device-capability.ts
   - apps/mobile/src/accessibility-policy.ts
+  - apps/mobile/src/App.tsx
+  - apps/mobile/android/app/src/main/java/com/apgic/ci/MainActivity.kt
+  - apps/mobile/ios/APGIC/AppDelegate.swift
   - tools/mobile_support_guard.py
   - config/mobile/r1-ci-support-policy.yaml
   contract_refs:
@@ -3537,8 +3540,17 @@ requirements:
   - apps/mobile/src/device-capability.test.ts
   - apps/mobile/src/accessibility-policy.test.ts
   - tools/tests/test_mobile_support_guard.py
+  - tools/tests/test_mobile_native_e2e_harness.py
+  - tools/mobile_android_capability_e2e.sh
+  - tools/mobile_ios_capability_e2e.sh
   - .github/workflows/ci.yml
-  evidence_refs: []
+  evidence_refs:
+  - docs/traceability/R1-mobile029-native-accessibility.md
+  - surface://ANDROID/mobile029-a11y/run-37196979155/job-111420783059
+  - surface://IOS/mobile029-a11y/run-37196979155/job-111420783056
+  - device-matrix://ANDROID/mobile029/run-37196979155/job-111420783059
+  - surface://CI/mobile029-canon/run-37196979155/job-111420783250
+  - surface://CI/mobile029-bootstrap/run-37196979155/job-111422569772
   acceptance:
     given: critical screen/journey exists
     when: tested with native accessibility and support matrix
