@@ -675,6 +675,133 @@ assert_realtime_lifecycle() {
   fail "installed Android app did not rejoin the same canonical consultation after process restart"
 }
 
+assert_accessibility_and_device_matrix() {
+  local output="$EVIDENCE_DIR/android-accessibility-e2e.xml"
+  local matrix="$EVIDENCE_DIR/android-device-matrix.json"
+  local density
+  local target_px
+
+  density="$("$ADB" shell wm density | sed -n 's/.*Physical density: //p' | tr -d '\r' | tail -n1)"
+  if [[ -z "$density" ]]; then
+    density="$("$ADB" shell wm density | grep -Eo '[0-9]+' | head -n1)"
+  fi
+  [[ -n "$density" ]] || fail "could not determine Android display density"
+  target_px="$(python3 - "$density" <<'PY'
+import math
+import sys
+print(math.ceil(44 * int(sys.argv[1]) / 160))
+PY
+)"
+
+  "$ADB" shell settings put system font_scale 1.30
+  "$ADB" shell am force-stop com.apgic.ci
+  "$ADB" shell am start -W \
+    -n com.apgic.ci/.MainActivity \
+    --es APGIC_E2E_CAPABILITY_STATE GRANTED \
+    --ez APGIC_E2E_ACCESSIBILITY true \
+    >/dev/null
+
+  for _ in $(seq 1 60); do
+    if "$ADB" shell uiautomator dump /sdcard/apgic-accessibility.xml >/dev/null 2>&1 &&
+       "$ADB" pull /sdcard/apgic-accessibility.xml "$output" >/dev/null 2>&1 &&
+       grep -q 'a11y-action-primary' "$output" &&
+       grep -q 'a11y-action-secondary' "$output" &&
+       grep -q 'a11y-font-scale:' "$output" &&
+       grep -q 'a11y-reduced-motion:' "$output"; then
+      break
+    fi
+    sleep 1
+  done
+
+  python3 - "$output" "$target_px" <<'PY'
+import re
+import sys
+import xml.etree.ElementTree as ET
+
+path = sys.argv[1]
+target_px = int(sys.argv[2])
+root = ET.parse(path).getroot()
+nodes = list(root.iter("node"))
+
+def find(label):
+    for node in nodes:
+        if node.attrib.get("content-desc") == label:
+            return node
+    raise SystemExit(f"missing accessibility node {label}")
+
+primary = find("a11y-action-primary")
+secondary = find("a11y-action-secondary")
+for label, node in (("primary", primary), ("secondary", secondary)):
+    if node.attrib.get("clickable") != "true":
+        raise SystemExit(f"{label} action is not clickable")
+    if node.attrib.get("enabled") != "true":
+        raise SystemExit(f"{label} action is not enabled")
+    bounds = node.attrib.get("bounds", "")
+    match = re.fullmatch(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]", bounds)
+    if not match:
+        raise SystemExit(f"{label} action bounds missing: {bounds!r}")
+    x1, y1, x2, y2 = map(int, match.groups())
+    if x2 - x1 < target_px or y2 - y1 < target_px:
+        raise SystemExit(
+            f"{label} action below 44dp touch target: {(x2-x1)}x{(y2-y1)} px < {target_px}px"
+        )
+
+labels = [node.attrib.get("content-desc") for node in nodes]
+if labels.index("a11y-action-primary") >= labels.index("a11y-action-secondary"):
+    raise SystemExit("critical action accessibility order is not deterministic")
+PY
+
+  python3 - "$ADB" "$EVIDENCE_DIR" "$matrix" <<'PY'
+import json
+import pathlib
+import subprocess
+import sys
+import time
+import xml.etree.ElementTree as ET
+
+adb, evidence_dir, output = sys.argv[1:]
+profiles = [
+    ("PHONE_COMPACT", "720x1280", "320"),
+    ("PHONE_LARGE", "1080x2400", "420"),
+    ("TABLET", "1600x2560", "320"),
+]
+result = []
+for name, size, density in profiles:
+    subprocess.run([adb, "shell", "wm", "size", size], check=True, stdout=subprocess.DEVNULL)
+    subprocess.run([adb, "shell", "wm", "density", density], check=True, stdout=subprocess.DEVNULL)
+    subprocess.run([adb, "shell", "am", "force-stop", "com.apgic.ci"], check=True, stdout=subprocess.DEVNULL)
+    subprocess.run(
+        [adb, "shell", "am", "start", "-W", "-n", "com.apgic.ci/.MainActivity",
+         "--es", "APGIC_E2E_CAPABILITY_STATE", "GRANTED",
+         "--ez", "APGIC_E2E_ACCESSIBILITY", "true"],
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    remote = f"/sdcard/apgic-a11y-{name.lower()}.xml"
+    local = pathlib.Path(evidence_dir) / f"android-a11y-{name.lower()}.xml"
+    ready = False
+    for _ in range(45):
+        if subprocess.run([adb, "shell", "uiautomator", "dump", remote], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
+            if subprocess.run([adb, "pull", remote, str(local)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
+                root = ET.parse(local).getroot()
+                labels = [n.attrib.get("content-desc") for n in root.iter("node")]
+                if "a11y-action-primary" in labels and "a11y-action-secondary" in labels:
+                    ready = True
+                    break
+        time.sleep(1)
+    if not ready:
+        raise SystemExit(f"{name}: accessibility controls not operable at representative size")
+    result.append({"device_class": name, "size_px": size, "density_dpi": int(density), "status": "PASS"})
+
+pathlib.Path(output).write_text(json.dumps({"version": 1, "profiles": result}, indent=2) + "\n", encoding="utf-8")
+PY
+
+  "$ADB" shell wm size reset >/dev/null
+  "$ADB" shell wm density reset >/dev/null
+  "$ADB" shell settings put system font_scale 1.0
+  echo "Android accessibility semantics + text scaling + device matrix: PASS"
+}
+
 assert_compatibility_policy
 assert_remote_config_kill_switch
 assert_installation_lifecycle
@@ -683,5 +810,6 @@ assert_deep_link_runtime
 assert_notification_runtime
 assert_offline_mutation_restart
 assert_realtime_lifecycle
+assert_accessibility_and_device_matrix
 
-echo "ANDROID CAPABILITY + COMPATIBILITY + INSTALLATION + DEEP-LINK + NOTIFICATION + OFFLINE-SYNC + REALTIME NATIVE E2E: PASS"
+echo "ANDROID CAPABILITY + COMPATIBILITY + INSTALLATION + DEEP-LINK + NOTIFICATION + OFFLINE-SYNC + REALTIME + ACCESSIBILITY NATIVE E2E: PASS"
