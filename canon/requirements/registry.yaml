@@ -186,7 +186,7 @@ requirements:
   release_profile: R0
   risk: HIGH
   priority: P0
-  status: IN_PROGRESS
+  status: VERIFIED
   dependencies: []
   implementation_refs:
   - backend/internal/identity/identity.go
@@ -217,6 +217,12 @@ requirements:
   - tools/tests/test_identity_contract_guard.py
   evidence_refs:
   - docs/traceability/R0-id001-single-durable-identity.md
+  - surface://WEB/id001-single-identity/run-37229331751/job-111515508581
+  - surface://IOS/id001-single-identity/run-37229331751/job-111515508530
+  - surface://ANDROID/id001-single-identity/run-37229331751/job-111515508537
+  - surface://SERVER/id001-single-identity/run-37229331751/job-111515508313
+  - surface://SERVER/id001-postgres-integration/run-37229331751/job-111515508586
+  - surface://CI/id001-canon/run-37229331751/job-111515508502
   acceptance:
     given: существует пользователь с ClientProfile
     when: он становится Specialist/Author/Student
