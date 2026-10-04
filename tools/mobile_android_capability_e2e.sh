@@ -802,6 +802,53 @@ PY
   echo "Android accessibility semantics + text scaling + device matrix: PASS"
 }
 
+assert_account_deletion() {
+  local output="$EVIDENCE_DIR/android-deletion-e2e.xml"
+  local identity_id
+  local request_id="android-deletion-e2e-request"
+
+  identity_id="$(
+    python3 - /tmp/apgic-installation-bootstrap-android.json <<'PY'
+import json
+import sys
+payload = json.load(open(sys.argv[1], encoding="utf-8"))
+value = payload.get("client_identity_id", "")
+if not value:
+    raise SystemExit("bootstrap identity id missing")
+print(value)
+PY
+  )"
+
+  "$ADB" shell am force-stop com.apgic.ci
+  "$ADB" shell am start -W \
+    -n com.apgic.ci/.MainActivity \
+    --es APGIC_E2E_CAPABILITY_STATE GRANTED \
+    --es APGIC_E2E_DELETION_BASE_URL http://127.0.0.1:43113 \
+    --es APGIC_E2E_DELETION_SESSION_COOKIE "$SESSION_COOKIE" \
+    --es APGIC_E2E_DELETION_IDENTITY_ID "$identity_id" \
+    --es APGIC_E2E_DELETION_REQUEST_ID "$request_id" \
+    --es APGIC_E2E_DELETION_PLATFORM ANDROID \
+    >/dev/null
+
+  for _ in $(seq 1 60); do
+    if "$ADB" shell uiautomator dump /sdcard/apgic-deletion-e2e.xml >/dev/null 2>&1 &&
+       "$ADB" pull /sdcard/apgic-deletion-e2e.xml "$output" >/dev/null 2>&1 &&
+       grep -q 'deletion-e2e:PASS' "$output" &&
+       grep -q 'deletion-e2e-state:PARTIALLY_RETAINED_WITH_REASON' "$output" &&
+       grep -q 'deletion-e2e-deactivation:false' "$output" &&
+       grep -q 'deletion-e2e-profile-erased:true' "$output" &&
+       grep -q 'deletion-e2e-ledger-retained:true' "$output" &&
+       grep -q 'deletion-e2e-idempotent:true' "$output"; then
+      echo "Android installed-app canonical account deletion + idempotent replay: PASS"
+      return 0
+    fi
+    sleep 1
+  done
+
+  [[ -f "$output" ]] && cat "$output" >&2 || true
+  fail "installed Android app did not complete canonical account deletion"
+}
+
 assert_compatibility_policy
 assert_remote_config_kill_switch
 assert_installation_lifecycle
@@ -811,5 +858,6 @@ assert_notification_runtime
 assert_offline_mutation_restart
 assert_realtime_lifecycle
 assert_accessibility_and_device_matrix
+assert_account_deletion
 
-echo "ANDROID CAPABILITY + COMPATIBILITY + INSTALLATION + DEEP-LINK + NOTIFICATION + OFFLINE-SYNC + REALTIME + ACCESSIBILITY NATIVE E2E: PASS"
+echo "ANDROID CAPABILITY + COMPATIBILITY + INSTALLATION + DELETION + DEEP-LINK + NOTIFICATION + OFFLINE-SYNC + REALTIME + ACCESSIBILITY NATIVE E2E: PASS"
