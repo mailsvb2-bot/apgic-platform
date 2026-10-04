@@ -886,6 +886,50 @@ PY
   echo "iOS AXBridge screen-reader semantics + accessibility text scaling: PASS"
 }
 
+assert_account_deletion() {
+  local output="$EVIDENCE_DIR/ios-deletion-e2e.json"
+  local identity_id
+  local request_id="ios-deletion-e2e-request"
+
+  identity_id="$(
+    python3 - /tmp/apgic-installation-bootstrap-ios.json <<'PY'
+import json
+import sys
+payload = json.load(open(sys.argv[1], encoding="utf-8"))
+value = payload.get("client_identity_id", "")
+if not value:
+    raise SystemExit("bootstrap identity id missing")
+print(value)
+PY
+  )"
+
+  xcrun simctl terminate "$UDID" com.apgic.ci >/dev/null 2>&1 || true
+  SIMCTL_CHILD_APGIC_E2E_CAPABILITY_STATE=GRANTED \
+  SIMCTL_CHILD_APGIC_E2E_DELETION_BASE_URL=http://127.0.0.1:43113 \
+  SIMCTL_CHILD_APGIC_E2E_DELETION_SESSION_COOKIE="$SESSION_COOKIE" \
+  SIMCTL_CHILD_APGIC_E2E_DELETION_IDENTITY_ID="$identity_id" \
+  SIMCTL_CHILD_APGIC_E2E_DELETION_REQUEST_ID="$request_id" \
+  SIMCTL_CHILD_APGIC_E2E_DELETION_PLATFORM=IOS \
+    xcrun simctl launch "$UDID" com.apgic.ci >/dev/null
+
+  for _ in $(seq 1 60); do
+    if "$IDB" ui describe-all --udid "$UDID" --api axbridge --json --nested >"$output" 2>/dev/null &&
+       json_has_ax_label "$output" "deletion-e2e:PASS" &&
+       json_has_ax_label "$output" "deletion-e2e-state:PARTIALLY_RETAINED_WITH_REASON" &&
+       json_has_ax_label "$output" "deletion-e2e-deactivation:false" &&
+       json_has_ax_label "$output" "deletion-e2e-profile-erased:true" &&
+       json_has_ax_label "$output" "deletion-e2e-ledger-retained:true" &&
+       json_has_ax_label "$output" "deletion-e2e-idempotent:true"; then
+      echo "iOS installed-app canonical account deletion + idempotent replay: PASS"
+      return 0
+    fi
+    sleep 1
+  done
+
+  [[ -f "$output" ]] && cat "$output" >&2 || true
+  fail "installed iOS app did not complete canonical account deletion"
+}
+
 assert_compatibility_policy
 assert_remote_config_kill_switch
 assert_installation_lifecycle
@@ -895,5 +939,6 @@ assert_notification_runtime
 assert_offline_mutation_restart
 assert_realtime_lifecycle
 assert_accessibility_runtime
+assert_account_deletion
 
-echo "IOS CAPABILITY + COMPATIBILITY + INSTALLATION + DEEP-LINK + NOTIFICATION + OFFLINE-SYNC + REALTIME + ACCESSIBILITY NATIVE E2E: PASS"
+echo "IOS CAPABILITY + COMPATIBILITY + INSTALLATION + DELETION + DEEP-LINK + NOTIFICATION + OFFLINE-SYNC + REALTIME + ACCESSIBILITY NATIVE E2E: PASS"
