@@ -806,6 +806,57 @@
         "SIGNING_AUDIT"
       ]
     },
+    "APGIC-MOBILE-020": {
+      "claims": {
+        "IOS_DELETION_E2E": {
+          "gates": [
+            "ios-native-build"
+          ],
+          "proof_refs": [
+            "apps/mobile/src/r1-cross-surface.ts",
+            "apps/mobile/src/App.tsx",
+            "tools/mobile_ios_capability_e2e.sh",
+            ".github/workflows/ci.yml"
+          ]
+        },
+        "ANDROID_DELETION_E2E": {
+          "gates": [
+            "android-native-build"
+          ],
+          "proof_refs": [
+            "apps/mobile/src/r1-cross-surface.ts",
+            "apps/mobile/src/App.tsx",
+            "tools/mobile_android_capability_e2e.sh",
+            ".github/workflows/ci.yml"
+          ]
+        },
+        "WEB_DELETION_E2E": {
+          "gates": [
+            "web-build"
+          ],
+          "proof_refs": [
+            "apps/web/app/journey.tsx",
+            "apps/web/e2e/foundation.spec.ts",
+            ".github/workflows/ci.yml"
+          ]
+        },
+        "RETENTION_TEST": {
+          "gates": [
+            "backend",
+            "canon",
+            "postgres-invariants"
+          ],
+          "proof_refs": [
+            "backend/internal/privacy/deletion_test.go",
+            "backend/internal/demand/deletion_test.go",
+            "backend/migrations/ci_r1_mobile_invariants.sql",
+            "tools/retention_contract_guard.py",
+            ".github/workflows/ci.yml"
+          ]
+        }
+      },
+      "unproven_evidence": []
+    },
     "APGIC-MOBILE-022": {
       "claims": {
         "DEPENDENCY_REGISTRY_LINT": {
