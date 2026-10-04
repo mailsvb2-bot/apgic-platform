@@ -3,7 +3,10 @@ import { defineConfig } from "@playwright/test";
 const localWebPort = 43110;
 const ciRunId = Number(process.env.GITHUB_RUN_ID ?? "0");
 const ciOffset = process.env.CI ? ciRunId % 1000 : 0;
-const defaultWebPort = process.env.CI ? 43000 + ciOffset : localWebPort;
+// Keep the CI Web listener outside Linux' usual ephemeral range (32768-60999),
+// because the sibling API intentionally asks the OS for an ephemeral port.
+const ciWebPortBase = 18000;
+const defaultWebPort = process.env.CI ? ciWebPortBase + ciOffset : localWebPort;
 const webPort = Number(process.env.APGIC_WEB_PORT ?? defaultWebPort);
 const baseURL = `http://127.0.0.1:${webPort}`;
 
