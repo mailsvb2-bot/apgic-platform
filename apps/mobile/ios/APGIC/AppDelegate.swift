@@ -95,6 +95,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         initialProperties[propertyKey] = value
       }
     }
+    if environment["APGIC_E2E_ACCESSIBILITY"] == "true" {
+      initialProperties["accessibilityE2EEnabled"] = true
+    }
 #endif
 
     factory.startReactNative(
