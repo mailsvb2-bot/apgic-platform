@@ -4,19 +4,34 @@ ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 export APGIC_WEB_PORT="${APGIC_WEB_PORT:-43110}"
 if [ -z "${APGIC_HTTP_ADDR:-}" ]; then
   if [ -n "${CI:-}" ]; then
-    API_PORT="$(node - <<'NODE'
+    API_PORT="$(APGIC_WEB_PORT="$APGIC_WEB_PORT" node - <<'NODE'
 const net = require("node:net");
-const server = net.createServer();
-server.listen(0, "127.0.0.1", () => {
-  const address = server.address();
-  if (!address || typeof address === "string") {
+const forbiddenPort = Number(process.env.APGIC_WEB_PORT || "0");
+
+function choosePort() {
+  const server = net.createServer();
+  server.listen(0, "127.0.0.1", () => {
+    const address = server.address();
+    if (!address || typeof address === "string") {
+      process.exitCode = 1;
+      server.close();
+      return;
+    }
+    const port = address.port;
+    server.close(() => {
+      if (port === forbiddenPort) {
+        choosePort();
+        return;
+      }
+      process.stdout.write(String(port));
+    });
+  });
+  server.on("error", () => {
     process.exitCode = 1;
-    server.close();
-    return;
-  }
-  process.stdout.write(String(address.port));
-  server.close();
-});
+  });
+}
+
+choosePort();
 NODE
 )"
     export APGIC_HTTP_ADDR=":${API_PORT}"
