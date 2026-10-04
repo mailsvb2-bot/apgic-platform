@@ -64,6 +64,45 @@ class MobileNativeE2EHarnessTest(unittest.TestCase):
         self.assertIn("INTERRUPTION_ENDED", events[:-1])
 
 
+    def test_ios_simulator_boot_has_bounded_data_migration_recovery(self) -> None:
+        text = self._read("mobile_ios_capability_e2e.sh")
+        self.assertIn('["xcrun", "simctl", "list", "runtimes", "-j"]', text)
+        self.assertIn('["xcrun", "simctl", "list", "devicetypes", "-j"]', text)
+        self.assertNotIn("mapfile", text)
+        self.assertIn("IOS_DEVICE_TYPES=()", text)
+        self.assertIn("while IFS= read -r device_type; do", text)
+        self.assertIn('"iPhone 16 Pro"', text)
+        self.assertIn('if not name.startswith("iPhone") or "Air" in name:', text)
+        self.assertIn('xcrun simctl create "$candidate_name" "$device_type" "$IOS_RUNTIME"', text)
+        self.assertIn('xcrun simctl delete "$UDID"', text)
+        self.assertIn("SIMULATOR_CREATED=1", text)
+        self.assertIn("boot_simulator_with_recovery() {", text)
+        self.assertIn("for boot_attempt in 1 2; do", text)
+        self.assertIn('grep -q "Data Migration Failed" "$SIMULATOR_BOOT_LOG"', text)
+        self.assertIn('xcrun simctl erase "$UDID"', text)
+        self.assertIn(
+            "failed clean boot after bounded migration recovery",
+            text,
+        )
+        self.assertIn('cat "$supported_output" >&2', text)
+
+    def test_ios_simulator_uses_xcode_adhoc_signing_for_keychain_runtime(self) -> None:
+        workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+        app = (ROOT / "apps/mobile/src/App.tsx").read_text(encoding="utf-8")
+
+        self.assertIn("CODE_SIGNING_ALLOWED=YES", workflow)
+        self.assertIn("CODE_SIGNING_REQUIRED=YES", workflow)
+        self.assertIn("CODE_SIGN_IDENTITY=-", workflow)
+        self.assertIn("Verify Xcode simulator signing before Keychain runtime proof", workflow)
+        self.assertIn("codesign --verify --deep --strict", workflow)
+        self.assertIn("ios-simulator-codesign.txt", workflow)
+        self.assertIn("Signature=adhoc", workflow)
+        self.assertNotIn("APGICCI000", workflow)
+        self.assertNotIn("APGICSimulatorCI.entitlements", workflow)
+        self.assertIn("secureCredentialStorage.save", app)
+        self.assertIn("secureCredentialStorage.load", app)
+        self.assertIn("clearUserScopedLocalState", app)
+
     def test_ios_realtime_initial_pass_has_bounded_ambient_degradation_recovery(self) -> None:
         text = self._read("mobile_ios_capability_e2e.sh")
         realtime = text[text.index("assert_realtime_lifecycle() {"):]

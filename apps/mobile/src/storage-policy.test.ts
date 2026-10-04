@@ -18,3 +18,15 @@ test("raw sensitive data is not allowed in persistent cache", () => {
     assert.equal(canPersistLocally(dataClass, "EPHEMERAL_CACHE"), true);
   }
 });
+
+
+test("sensitive classes never gain persistent cache through broad defaults", () => {
+  for (const dataClass of [
+    "RAW_CONSULTATION",
+    "RAW_PERSONA",
+    "FINANCIAL_EVIDENCE",
+    "CREDENTIAL",
+  ] as const) {
+    assert.equal(canPersistLocally(dataClass, "PERSISTENT_CACHE"), false);
+  }
+});
