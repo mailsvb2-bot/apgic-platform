@@ -96,6 +96,51 @@ jobs:
       - run: python tools/launch_config_guard.py config/launch.r4-ci.yaml --mode ci --profile R4
       - run: python tools/launch_config_guard.py config/launch.r5-ci.yaml --mode ci --profile R5
       - run: python tools/mobile_release_guard.py config/mobile/r0-ci-release-governance.yaml --mode ci
+      - name: Bind CI mobile release evidence to exact candidate SHA
+        shell: bash
+        env:
+          APGIC_CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          candidate = os.environ["APGIC_CANDIDATE_SHA"]
+          Path("evidence").mkdir(exist_ok=True)
+          Path("evidence/mobile-release-ci.json").write_text(
+              json.dumps(
+                  {
+                      "schema_version": "mobile-release-evidence-v1",
+                      "candidate_sha": candidate,
+                      "production_release": False,
+                      "organization_id": "CI_APGIC_ORG",
+                      "ios": {
+                          "bundle_id": "com.apgic.ci",
+                          "team_id": "CI_TEAM",
+                          "artifact_sha256": "a" * 64,
+                          "signed": True,
+                      },
+                      "android": {
+                          "application_id": "com.apgic.ci",
+                          "developer_account_id": "CI_PLAY_ACCOUNT",
+                          "artifact_sha256": "b" * 64,
+                          "signed": True,
+                      },
+                      "secret_scan": "PASS",
+                      "store_account_evidence": "ci://synthetic-store-account",
+                      "signing_audit": "ci://synthetic-signing-audit",
+                  },
+                  indent=2,
+              ) + "\n",
+              encoding="utf-8",
+          )
+          PY
+          python tools/mobile_release_evidence_guard.py \
+            evidence/mobile-release-ci.json \
+            config/mobile/r0-ci-release-governance.yaml \
+            --expected-sha "$APGIC_CANDIDATE_SHA" \
+            --mode ci
       - run: python tools/mobile_native_build_guard.py config/mobile/r0-ci-release-governance.yaml
       - run: python tools/mobile_observability_guard.py config/mobile/r0-ci-observability.yaml --mode ci
       - run: python tools/mobile_performance_gate.py config/mobile/r0-ci-observability.yaml config/mobile/r0-ci-performance-pass.yaml
