@@ -586,6 +586,33 @@ PY
   echo "Android installed-app offline checkout restart/retry: PASS"
 }
 
+assert_workspace_switch() {
+  local output="$EVIDENCE_DIR/android-workspace-e2e.xml"
+
+  "$ADB" shell am force-stop com.apgic.ci
+  "$ADB" shell am start -W \
+    -n com.apgic.ci/.MainActivity \
+    --es APGIC_E2E_CAPABILITY_STATE GRANTED \
+    --es APGIC_E2E_WORKSPACE_BASE_URL http://127.0.0.1:43113 \
+    --es APGIC_E2E_WORKSPACE_SESSION_COOKIE "$SESSION_COOKIE" \
+    >/dev/null
+
+  for _ in $(seq 1 60); do
+    if "$ADB" shell uiautomator dump /sdcard/apgic-workspace-e2e.xml >/dev/null 2>&1 &&
+       "$ADB" pull /sdcard/apgic-workspace-e2e.xml "$output" >/dev/null 2>&1 &&
+       grep -q 'workspace-e2e:PASS' "$output" &&
+       grep -q 'workspace-e2e-kinds:CLIENT|SPECIALIST|ORGANIZATION' "$output" &&
+       grep -q 'workspace-e2e-foreign-denied:true' "$output"; then
+      echo "Android installed-app one-Identity multi-role workspace switching: PASS"
+      return 0
+    fi
+    sleep 1
+  done
+
+  [[ -f "$output" ]] && cat "$output" >&2 || true
+  fail "installed Android app did not prove CLIENT/SPECIALIST/ORGANIZATION workspace switching"
+}
+
 assert_realtime_lifecycle() {
   local output="$EVIDENCE_DIR/android-realtime-e2e.xml"
   local rejoin_output="$EVIDENCE_DIR/android-realtime-rejoin.xml"
@@ -651,6 +678,7 @@ assert_realtime_lifecycle() {
 assert_compatibility_policy
 assert_remote_config_kill_switch
 assert_installation_lifecycle
+assert_workspace_switch
 assert_deep_link_runtime
 assert_notification_runtime
 assert_offline_mutation_restart
