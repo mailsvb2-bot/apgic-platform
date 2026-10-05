@@ -225,7 +225,22 @@ AVDMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/avdmanager"
 [[ -x "$AVDMANAGER" ]] || fail "avdmanager not found"
 
 yes | "$SDKMANAGER" --licenses >/dev/null || true
-"$SDKMANAGER" "platform-tools" "emulator" "$SYSTEM_IMAGE"
+
+install_android_sdk_packages() {
+  local attempt
+  for attempt in 1 2 3; do
+    if "$SDKMANAGER" "platform-tools" "emulator" "$SYSTEM_IMAGE"; then
+      return 0
+    fi
+    echo "Android SDK package install attempt $attempt failed; clearing transient cache before retry" >&2
+    rm -rf "$HOME/.android/cache" >/dev/null 2>&1 || true
+    sleep $((attempt * 2))
+  done
+  return 1
+}
+
+install_android_sdk_packages ||
+  fail "Android SDK package installation failed after bounded retries"
 
 ADB="$SDK_ROOT/platform-tools/adb"
 [[ -x "$ADB" ]] || ADB="$(command -v adb || true)"
