@@ -22,6 +22,10 @@ class MainActivity : ReactActivity() {
     private const val E2E_DELETION_IDENTITY_ID = "APGIC_E2E_DELETION_IDENTITY_ID"
     private const val E2E_DELETION_REQUEST_ID = "APGIC_E2E_DELETION_REQUEST_ID"
     private const val E2E_DELETION_PLATFORM = "APGIC_E2E_DELETION_PLATFORM"
+    private const val E2E_DEMAND_BASE_URL = "APGIC_E2E_DEMAND_BASE_URL"
+    private const val E2E_DEMAND_SESSION_COOKIE = "APGIC_E2E_DEMAND_SESSION_COOKIE"
+    private const val E2E_DEMAND_FREE_TEXT = "APGIC_E2E_DEMAND_FREE_TEXT"
+    private const val E2E_DEMAND_CORRECTED_TOPICS = "APGIC_E2E_DEMAND_CORRECTED_TOPICS"
     private const val E2E_DEEP_LINK_BASE_URL = "APGIC_E2E_DEEP_LINK_BASE_URL"
     private const val E2E_DEEP_LINK_SESSION_COOKIE = "APGIC_E2E_DEEP_LINK_SESSION_COOKIE"
     private const val E2E_DEEP_LINK_URL = "APGIC_E2E_DEEP_LINK_URL"
@@ -132,6 +136,18 @@ class MainActivity : ReactActivity() {
             intent?.getStringExtra(E2E_DELETION_PLATFORM)
               ?.takeIf { it == "IOS" || it == "ANDROID" }
               ?.let { putString("deletionE2EPlatform", it) }
+            intent?.getStringExtra(E2E_DEMAND_BASE_URL)
+              ?.takeIf { it.isNotBlank() }
+              ?.let { putString("demandE2EBaseURL", it) }
+            intent?.getStringExtra(E2E_DEMAND_SESSION_COOKIE)
+              ?.takeIf { it.isNotBlank() }
+              ?.let { putString("demandE2ESessionCookie", it) }
+            intent?.getStringExtra(E2E_DEMAND_FREE_TEXT)
+              ?.takeIf { it.isNotBlank() }
+              ?.let { putString("demandE2EFreeText", it) }
+            intent?.getStringExtra(E2E_DEMAND_CORRECTED_TOPICS)
+              ?.takeIf { it.isNotBlank() }
+              ?.let { putString("demandE2ECorrectedTopics", it) }
             intent?.getStringExtra(E2E_DEEP_LINK_BASE_URL)
               ?.takeIf { it.isNotBlank() }
               ?.let { putString("deepLinkAPIBaseURL", it) }
