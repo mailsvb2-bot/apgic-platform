@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import unittest
 
 from tools import r4_release_gate as gate
@@ -18,6 +19,26 @@ def valid_ci() -> dict:
         "production_candidate": False,
         "evidence": {kind: evidence_row(f"ci://{kind.lower()}") for kind in all_types},
     }
+
+
+def valid_production_index(document: dict, gate_name: str) -> dict:
+    records = {}
+    artifact_path = gate.ROOT / "canon/evidence/r4-release-gate-v1.schema.json"
+    artifact_digest = hashlib.sha256(artifact_path.read_bytes()).hexdigest()
+    for evidence_type in gate.GATE_REQUIRED[gate_name]:
+        evidence_id = evidence_type.lower()
+        document["evidence"][evidence_type] = evidence_row(f"evidence://{evidence_id}")
+        records[evidence_id] = {
+            "evidence_type": evidence_type,
+            "status": "PASS",
+            "synthetic": False,
+            "candidate_sha": document["candidate_sha"],
+            "source_ref": f"github-actions://run/{evidence_id}",
+            "artifact_path": "canon/evidence/r4-release-gate-v1.schema.json",
+            "artifact_sha256": artifact_digest,
+            "verified_at": "2026-10-05T17:42:48Z",
+        }
+    return {"schema_version": "production-evidence-index-v1", "records": records}
 
 
 class R4ReleaseGateTests(unittest.TestCase):
@@ -67,6 +88,36 @@ class R4ReleaseGateTests(unittest.TestCase):
         registry["requirements"][2]["status"] = "VERIFIED"
         self.assertEqual(
             gate.canon_dependency_blockers(registry, "APGIC-MOBILE-015"),
+            [],
+        )
+
+    def test_payment_production_dependencies_must_be_verified(self) -> None:
+        registry = {
+            "requirements": [
+                {
+                    "requirement_id": "APGIC-PAY-015",
+                    "dependencies": ["APGIC-PAY-003", "APGIC-PAY-010"],
+                },
+                {
+                    "requirement_id": "APGIC-PAY-003",
+                    "status": "VERIFIED",
+                    "dependencies": [],
+                },
+                {
+                    "requirement_id": "APGIC-PAY-010",
+                    "status": "IN_PROGRESS",
+                    "dependencies": [],
+                },
+            ]
+        }
+        self.assertEqual(
+            gate.canon_dependency_blockers(registry, "APGIC-PAY-015"),
+            ["APGIC-PAY-010:CANON_STATUS_IN_PROGRESS"],
+        )
+
+        registry["requirements"][2]["status"] = "VERIFIED"
+        self.assertEqual(
+            gate.canon_dependency_blockers(registry, "APGIC-PAY-015"),
             [],
         )
 
@@ -124,9 +175,60 @@ class R4ReleaseGateTests(unittest.TestCase):
         document = valid_ci()
         document["synthetic"] = False
         document["production_candidate"] = True
-        passed, blockers = gate.evaluate(document, "payments", "production")
+        passed, blockers = gate.evaluate(document, "payments", "production", {"schema_version": "production-evidence-index-v1", "records": {}})
         self.assertFalse(passed)
         self.assertTrue(any("PRODUCTION_EVIDENCE_REF_REQUIRED" in item for item in blockers))
+
+    def test_fabricated_production_evidence_uri_is_rejected(self) -> None:
+        document = valid_ci()
+        document["synthetic"] = False
+        document["production_candidate"] = True
+        for evidence_type in gate.GATE_REQUIRED["payments"]:
+            document["evidence"][evidence_type] = evidence_row(f"evidence://{evidence_type.lower()}")
+        passed, blockers = gate.evaluate(
+            document,
+            "payments",
+            "production",
+            {"schema_version": "production-evidence-index-v1", "records": {}},
+        )
+        self.assertFalse(passed)
+        self.assertTrue(any("PRODUCTION_EVIDENCE_NOT_FOUND" in item for item in blockers))
+
+    def test_indexed_immutable_production_evidence_can_pass_matrix(self) -> None:
+        document = valid_ci()
+        document["synthetic"] = False
+        document["production_candidate"] = True
+        production_index = valid_production_index(document, "payments")
+        passed, blockers = gate.evaluate(document, "payments", "production", production_index)
+        self.assertTrue(passed, blockers)
+
+    def test_production_evidence_digest_mismatch_is_rejected(self) -> None:
+        document = valid_ci()
+        document["synthetic"] = False
+        document["production_candidate"] = True
+        production_index = valid_production_index(document, "payments")
+        first = next(iter(production_index["records"].values()))
+        first["artifact_sha256"] = "0" * 64
+        passed, blockers = gate.evaluate(document, "payments", "production", production_index)
+        self.assertFalse(passed)
+        self.assertIn(
+            f"{first['evidence_type']}:PRODUCTION_EVIDENCE_DIGEST_MISMATCH",
+            blockers,
+        )
+
+    def test_production_evidence_is_bound_to_candidate_sha(self) -> None:
+        document = valid_ci()
+        document["synthetic"] = False
+        document["production_candidate"] = True
+        production_index = valid_production_index(document, "payments")
+        first = next(iter(production_index["records"].values()))
+        first["candidate_sha"] = "deadbeef"
+        passed, blockers = gate.evaluate(document, "payments", "production", production_index)
+        self.assertFalse(passed)
+        self.assertIn(
+            f"{first['evidence_type']}:PRODUCTION_EVIDENCE_CANDIDATE_MISMATCH",
+            blockers,
+        )
 
 
 if __name__ == "__main__":

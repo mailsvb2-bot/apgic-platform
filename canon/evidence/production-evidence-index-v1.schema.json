@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apgic.ru/evidence/production-evidence-index-v1.schema.json",
+  "title": "APGIC Production Evidence Index",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "records"],
+  "properties": {
+    "schema_version": {"const": "production-evidence-index-v1"},
+    "records": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "evidence_type",
+          "status",
+          "synthetic",
+          "candidate_sha",
+          "source_ref",
+          "artifact_path",
+          "artifact_sha256",
+          "verified_at"
+        ],
+        "properties": {
+          "evidence_type": {"type": "string", "minLength": 1},
+          "status": {"const": "PASS"},
+          "synthetic": {"const": false},
+          "candidate_sha": {"type": "string", "minLength": 7},
+          "source_ref": {"type": "string", "minLength": 1},
+          "artifact_path": {"type": "string", "minLength": 1},
+          "artifact_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "verified_at": {"type": "string", "minLength": 1}
+        }
+      }
+    }
+  }
+}
