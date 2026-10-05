@@ -439,11 +439,13 @@ assert_installation_lifecycle() {
     --es APGIC_E2E_INSTALLATION_PLATFORM ANDROID \
     >/dev/null
 
-  for _ in $(seq 1 60); do
-    if dump_until_labels_visible /sdcard/apgic-installation-e2e.xml "$output"          'installation-e2e:PASS'          'installation-e2e-state:REVOKED'          'installation-e2e-generation:2'; then
-      curl -fsS -H "Cookie: $SESSION_COOKIE" http://127.0.0.1:43113/v1/mobile/installations \
-        -o "$EVIDENCE_DIR/android-installation-server-state.json"
-      python3 - "$EVIDENCE_DIR/android-installation-server-state.json" "$installation_id" <<'PY'
+  if dump_until_labels_visible /sdcard/apgic-installation-e2e.xml "$output" \
+       'installation-e2e:PASS' \
+       'installation-e2e-state:REVOKED' \
+       'installation-e2e-generation:2'; then
+    curl -fsS -H "Cookie: $SESSION_COOKIE" http://127.0.0.1:43113/v1/mobile/installations \
+      -o "$EVIDENCE_DIR/android-installation-server-state.json"
+    python3 - "$EVIDENCE_DIR/android-installation-server-state.json" "$installation_id" <<'PY'
 import json
 import sys
 payload = json.load(open(sys.argv[1], encoding="utf-8"))
@@ -455,11 +457,9 @@ item = matches[0]
 if item.get("state") != "REVOKED" or item.get("push_generation") != 2 or item.get("push_endpoint"):
     raise SystemExit(f"unexpected canonical installation state: {item!r}")
 PY
-      echo "Android installed-app installation lifecycle: PASS"
-      return 0
-    fi
-    sleep 1
-  done
+    echo "Android installed-app installation lifecycle: PASS"
+    return 0
+  fi
 
   [[ -f "$output" ]] && cat "$output" >&2 || true
   fail "installed app did not complete register/rotate/revoke lifecycle"
@@ -615,13 +615,13 @@ assert_workspace_switch() {
     --es APGIC_E2E_WORKSPACE_SESSION_COOKIE "$SESSION_COOKIE" \
     >/dev/null
 
-  for _ in $(seq 1 60); do
-    if dump_until_labels_visible /sdcard/apgic-workspace-e2e.xml "$output"          'workspace-e2e:PASS'          'workspace-e2e-kinds:CLIENT|SPECIALIST|ORGANIZATION'          'workspace-e2e-foreign-denied:true'; then
-      echo "Android installed-app one-Identity multi-role workspace switching: PASS"
-      return 0
-    fi
-    sleep 1
-  done
+  if dump_until_labels_visible /sdcard/apgic-workspace-e2e.xml "$output" \
+       'workspace-e2e:PASS' \
+       'workspace-e2e-kinds:CLIENT|SPECIALIST|ORGANIZATION' \
+       'workspace-e2e-foreign-denied:true'; then
+    echo "Android installed-app one-Identity multi-role workspace switching: PASS"
+    return 0
+  fi
 
   [[ -f "$output" ]] && cat "$output" >&2 || true
   fail "installed Android app did not prove CLIENT/SPECIALIST/ORGANIZATION workspace switching"
@@ -842,13 +842,14 @@ assert_help_intent_confirmation() {
     --es APGIC_E2E_DEMAND_CORRECTED_TOPICS "sleep" \
     >/dev/null
 
-  for _ in $(seq 1 60); do
-    if dump_until_labels_visible /sdcard/apgic-demand-e2e.xml "$output"          'demand-e2e:PASS'          'demand-e2e-diagnosis:false'          'demand-e2e-correction:true'          'demand-e2e-topics:sleep'; then
-      echo "Android installed-app HelpIntent interpretation/correction/no-diagnosis: PASS"
-      return 0
-    fi
-    sleep 1
-  done
+  if dump_until_labels_visible /sdcard/apgic-demand-e2e.xml "$output" \
+       'demand-e2e:PASS' \
+       'demand-e2e-diagnosis:false' \
+       'demand-e2e-correction:true' \
+       'demand-e2e-topics:sleep'; then
+    echo "Android installed-app HelpIntent interpretation/correction/no-diagnosis: PASS"
+    return 0
+  fi
 
   [[ -f "$output" ]] && cat "$output" >&2 || true
   fail "installed Android app did not prove HelpIntent correction/no-diagnosis flow"
@@ -882,13 +883,16 @@ PY
     --es APGIC_E2E_DELETION_PLATFORM ANDROID \
     >/dev/null
 
-  for _ in $(seq 1 60); do
-    if dump_until_labels_visible /sdcard/apgic-deletion-e2e.xml "$output"          'deletion-e2e:PASS'          'deletion-e2e-state:PARTIALLY_RETAINED_WITH_REASON'          'deletion-e2e-deactivation:false'          'deletion-e2e-profile-erased:true'          'deletion-e2e-ledger-retained:true'          'deletion-e2e-idempotent:true'; then
-      echo "Android installed-app canonical account deletion + idempotent replay: PASS"
-      return 0
-    fi
-    sleep 1
-  done
+  if dump_until_labels_visible /sdcard/apgic-deletion-e2e.xml "$output" \
+       'deletion-e2e:PASS' \
+       'deletion-e2e-state:PARTIALLY_RETAINED_WITH_REASON' \
+       'deletion-e2e-deactivation:false' \
+       'deletion-e2e-profile-erased:true' \
+       'deletion-e2e-ledger-retained:true' \
+       'deletion-e2e-idempotent:true'; then
+    echo "Android installed-app canonical account deletion + idempotent replay: PASS"
+    return 0
+  fi
 
   [[ -f "$output" ]] && cat "$output" >&2 || true
   fail "installed Android app did not complete canonical account deletion"
