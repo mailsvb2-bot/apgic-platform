@@ -1117,7 +1117,7 @@ requirements:
   release_profile: R1
   risk: HIGH
   priority: P0
-  status: IN_PROGRESS
+  status: VERIFIED
   dependencies: []
   implementation_refs:
   - backend/internal/marketplace/discovery.go
@@ -1141,6 +1141,13 @@ requirements:
   - canon/evidence/staging-runtime-20260926T215500Z.json
   - canon/evidence/staging-runtime-20260927T072352Z.json
   - docs/traceability/R1-demand001-help-intent-confirmation.md
+  - surface://WEB/demand001-help-intent/run-37337781585/job-111857429352
+  - surface://ANDROID/demand001-help-intent/run-37337781585/job-111857429380
+  - surface://IOS/demand001-help-intent/run-37337781585/job-111857429442
+  - surface://SERVER/demand001-domain/run-37337781585/job-111857429423
+  - surface://SERVER/demand001-postgres/run-37337781585/job-111857429283
+  - surface://CI/demand001-multisurface/run-37337781585/job-111857429542
+  - surface://CI/demand001-canon/run-37337781585/job-111857429368
   acceptance:
     given: пользователь описывает запрос свободным текстом
     when: система предлагает topics/goals/context
