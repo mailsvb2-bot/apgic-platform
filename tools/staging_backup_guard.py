@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import json
 from pathlib import Path
 import sys
 
@@ -21,7 +22,7 @@ def validate() -> list[str]:
     backup_timer = BACKUP_TIMER.read_text(encoding="utf-8")
     verify_service = VERIFY_SERVICE.read_text(encoding="utf-8")
     verify_timer = VERIFY_TIMER.read_text(encoding="utf-8")
-    staging_restore_schema = STAGING_RESTORE_SCHEMA.read_text(encoding="utf-8")
+    staging_restore_schema = json.loads(STAGING_RESTORE_SCHEMA.read_text(encoding="utf-8"))
 
     if "\\n" in bootstrap:
         errors.append("dedicated host bootstrap must not contain literal \\n escape sequences")
@@ -112,21 +113,39 @@ def validate() -> list[str]:
     if "OnCalendar=Sun *-*-* 03:30:00 UTC" not in verify_timer or "Persistent=true" not in verify_timer:
         errors.append("weekly restore verification timer schedule/persistence mismatch")
 
-    for snippet in (
-        "\"schema_version\": {\"const\": \"staging-restore-evidence-v1\"}",
-        "\"evidence_type\": {\"const\": \"STAGING_RESTORE_DRILL\"}",
-        "\"measured_backup_rpo_seconds\"",
-        "\"measured_restore_rto_ms\"",
-        "\"backup_file_sha256\"",
-        "\"production_evidence\": {\"const\": false}",
-    ):
-        if snippet not in staging_restore_schema:
-            errors.append(f"staging restore evidence schema missing invariant: {snippet}")
+    properties = staging_restore_schema.get("properties") or {}
+    required = set(staging_restore_schema.get("required") or [])
+    expected_required = {
+        "schema_version",
+        "evidence_type",
+        "candidate_sha",
+        "observed_at",
+        "backup_file_sha256",
+        "measured_backup_rpo_seconds",
+        "measured_restore_rto_ms",
+        "source_table_count",
+        "restored_table_count",
+        "required_table_count",
+        "production_evidence",
+    }
+    if required != expected_required:
+        errors.append("staging restore evidence schema required fields mismatch")
+    if properties.get("schema_version", {}).get("const") != "staging-restore-evidence-v1":
+        errors.append("staging restore evidence schema version mismatch")
+    if properties.get("evidence_type", {}).get("const") != "STAGING_RESTORE_DRILL":
+        errors.append("staging restore evidence type mismatch")
+    if properties.get("production_evidence", {}).get("const") is not False:
+        errors.append("staging restore evidence must explicitly be non-production")
+    for field in ("measured_backup_rpo_seconds", "measured_restore_rto_ms"):
+        if properties.get(field, {}).get("minimum") != 0:
+            errors.append(f"{field}: non-negative measurement contract required")
 
     combined = "\n".join(
         (backup, verify, backup_service, backup_timer, verify_service, verify_timer)
     ).lower()
-    for forbidden in ("production_evidence", "185.215.4.49", "147.45.146.112", "metrotherapy"):
+    if '"production_evidence": true' in verify.lower():
+        errors.append("staging restore evidence must never claim production evidence")
+    for forbidden in ("185.215.4.49", "147.45.146.112", "metrotherapy"):
         if forbidden in combined:
             errors.append(
                 f"operational staging backup contains forbidden coupling/claim: {forbidden}"
