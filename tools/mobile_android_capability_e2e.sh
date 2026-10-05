@@ -38,6 +38,38 @@ fail() {
   exit 1
 }
 
+dump_until_labels_visible() {
+  local remote="$1"
+  local output="$2"
+  shift 2
+  local attempt
+  local label
+  local matched
+
+  for attempt in $(seq 1 12); do
+    if "$ADB" shell uiautomator dump "$remote" >/dev/null 2>&1 &&
+       "$ADB" pull "$remote" "$output" >/dev/null 2>&1; then
+      matched=true
+      for label in "$@"; do
+        if ! grep -Fq "$label" "$output"; then
+          matched=false
+          break
+        fi
+      done
+      if [[ "$matched" == "true" ]]; then
+        return 0
+      fi
+    fi
+
+    # React Native renders long journeys in a ScrollView. Follow the same
+    # vertical gesture a user would use instead of assuming all evidence is
+    # present in the first 320x640 viewport.
+    "$ADB" shell input swipe 160 540 160 180 250 >/dev/null 2>&1 || true
+    sleep 1
+  done
+  return 1
+}
+
 cleanup() {
   local status=$?
   trap - EXIT
@@ -312,11 +344,7 @@ assert_compatibility_policy() {
     >/dev/null
 
   for _ in $(seq 1 60); do
-    if "$ADB" shell uiautomator dump /sdcard/apgic-compatibility-supported.xml >/dev/null 2>&1 &&
-       "$ADB" pull /sdcard/apgic-compatibility-supported.xml "$supported_output" >/dev/null 2>&1 &&
-       grep -q 'installation-e2e:PASS' "$supported_output" &&
-       grep -q 'installation-e2e-state:REVOKED' "$supported_output" &&
-       grep -q 'installation-e2e-generation:2' "$supported_output" &&
+    if dump_until_labels_visible /sdcard/apgic-compatibility-supported.xml "$supported_output"          'installation-e2e:PASS'          'installation-e2e-state:REVOKED'          'installation-e2e-generation:2' &&
        ! grep -q 'compatibility-status:UPDATE_REQUIRED' "$supported_output"; then
       echo "Android supported previous contract remained operational: PASS"
       break
@@ -335,13 +363,7 @@ assert_compatibility_policy() {
     >/dev/null
 
   for _ in $(seq 1 60); do
-    if "$ADB" shell uiautomator dump /sdcard/apgic-compatibility-update.xml >/dev/null 2>&1 &&
-       "$ADB" pull /sdcard/apgic-compatibility-update.xml "$update_output" >/dev/null 2>&1 &&
-       grep -q 'compatibility-e2e:PASS' "$update_output" &&
-       grep -q 'compatibility-status:UPDATE_REQUIRED' "$update_output" &&
-       grep -q 'compatibility-reason:CLIENT_CONTRACT_UNSUPPORTED' "$update_output" &&
-       grep -q 'compatibility-update-reason:INCOMPATIBLE_CRITICAL' "$update_output" &&
-       grep -q 'compatibility-update-action' "$update_output"; then
+    if dump_until_labels_visible /sdcard/apgic-compatibility-update.xml "$update_output"          'compatibility-e2e:PASS'          'compatibility-status:UPDATE_REQUIRED'          'compatibility-reason:CLIENT_CONTRACT_UNSUPPORTED'          'compatibility-update-reason:INCOMPATIBLE_CRITICAL'          'compatibility-update-action'; then
       echo "Android installed-app compatibility + governed update path: PASS"
       return 0
     fi
@@ -418,11 +440,7 @@ assert_installation_lifecycle() {
     >/dev/null
 
   for _ in $(seq 1 60); do
-    if "$ADB" shell uiautomator dump /sdcard/apgic-installation-e2e.xml >/dev/null 2>&1 &&
-       "$ADB" pull /sdcard/apgic-installation-e2e.xml "$output" >/dev/null 2>&1 &&
-       grep -q 'installation-e2e:PASS' "$output" &&
-       grep -q 'installation-e2e-state:REVOKED' "$output" &&
-       grep -q 'installation-e2e-generation:2' "$output"; then
+    if dump_until_labels_visible /sdcard/apgic-installation-e2e.xml "$output"          'installation-e2e:PASS'          'installation-e2e-state:REVOKED'          'installation-e2e-generation:2'; then
       curl -fsS -H "Cookie: $SESSION_COOKIE" http://127.0.0.1:43113/v1/mobile/installations \
         -o "$EVIDENCE_DIR/android-installation-server-state.json"
       python3 - "$EVIDENCE_DIR/android-installation-server-state.json" "$installation_id" <<'PY'
@@ -598,11 +616,7 @@ assert_workspace_switch() {
     >/dev/null
 
   for _ in $(seq 1 60); do
-    if "$ADB" shell uiautomator dump /sdcard/apgic-workspace-e2e.xml >/dev/null 2>&1 &&
-       "$ADB" pull /sdcard/apgic-workspace-e2e.xml "$output" >/dev/null 2>&1 &&
-       grep -q 'workspace-e2e:PASS' "$output" &&
-       grep -q 'workspace-e2e-kinds:CLIENT|SPECIALIST|ORGANIZATION' "$output" &&
-       grep -q 'workspace-e2e-foreign-denied:true' "$output"; then
+    if dump_until_labels_visible /sdcard/apgic-workspace-e2e.xml "$output"          'workspace-e2e:PASS'          'workspace-e2e-kinds:CLIENT|SPECIALIST|ORGANIZATION'          'workspace-e2e-foreign-denied:true'; then
       echo "Android installed-app one-Identity multi-role workspace switching: PASS"
       return 0
     fi
@@ -816,12 +830,7 @@ assert_help_intent_confirmation() {
     >/dev/null
 
   for _ in $(seq 1 60); do
-    if "$ADB" shell uiautomator dump /sdcard/apgic-demand-e2e.xml >/dev/null 2>&1 &&
-       "$ADB" pull /sdcard/apgic-demand-e2e.xml "$output" >/dev/null 2>&1 &&
-       grep -q 'demand-e2e:PASS' "$output" &&
-       grep -q 'demand-e2e-diagnosis:false' "$output" &&
-       grep -q 'demand-e2e-correction:true' "$output" &&
-       grep -q 'demand-e2e-topics:sleep' "$output"; then
+    if dump_until_labels_visible /sdcard/apgic-demand-e2e.xml "$output"          'demand-e2e:PASS'          'demand-e2e-diagnosis:false'          'demand-e2e-correction:true'          'demand-e2e-topics:sleep'; then
       echo "Android installed-app HelpIntent interpretation/correction/no-diagnosis: PASS"
       return 0
     fi
@@ -861,14 +870,7 @@ PY
     >/dev/null
 
   for _ in $(seq 1 60); do
-    if "$ADB" shell uiautomator dump /sdcard/apgic-deletion-e2e.xml >/dev/null 2>&1 &&
-       "$ADB" pull /sdcard/apgic-deletion-e2e.xml "$output" >/dev/null 2>&1 &&
-       grep -q 'deletion-e2e:PASS' "$output" &&
-       grep -q 'deletion-e2e-state:PARTIALLY_RETAINED_WITH_REASON' "$output" &&
-       grep -q 'deletion-e2e-deactivation:false' "$output" &&
-       grep -q 'deletion-e2e-profile-erased:true' "$output" &&
-       grep -q 'deletion-e2e-ledger-retained:true' "$output" &&
-       grep -q 'deletion-e2e-idempotent:true' "$output"; then
+    if dump_until_labels_visible /sdcard/apgic-deletion-e2e.xml "$output"          'deletion-e2e:PASS'          'deletion-e2e-state:PARTIALLY_RETAINED_WITH_REASON'          'deletion-e2e-deactivation:false'          'deletion-e2e-profile-erased:true'          'deletion-e2e-ledger-retained:true'          'deletion-e2e-idempotent:true'; then
       echo "Android installed-app canonical account deletion + idempotent replay: PASS"
       return 0
     fi
