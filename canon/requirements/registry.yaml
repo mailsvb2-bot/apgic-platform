@@ -267,7 +267,7 @@ requirements:
   - tools/tests/test_auth_contract_guard.py
   - docs/traceability/R0-auth001-tenant-isolation.md
   evidence_refs:
-    - docs/traceability/R0-foundation-verification-batch.md
+  - docs/traceability/R0-foundation-verification-batch.md
   - docs/traceability/R0-auth001-tenant-isolation.md
   acceptance:
     given: principal Organization A знает UUID private resource Organization B
@@ -306,7 +306,7 @@ requirements:
   - tools/tests/test_auth_contract_guard.py
   - backend/internal/httpapi/product_ownership_integration_test.go
   evidence_refs:
-    - docs/traceability/R0-foundation-verification-batch.md
+  - docs/traceability/R0-foundation-verification-batch.md
   - docs/traceability/R0-auth002-step-up.md
   acceptance:
     given: авторизованный пользователь пытается изменить payout requisites/ownership/secret
@@ -341,7 +341,7 @@ requirements:
   - backend/internal/httpapi/organization_runtime_integration_test.go
   - tools/organization_contract_guard.py
   evidence_refs:
-    - docs/traceability/R0-foundation-verification-batch.md
+  - docs/traceability/R0-foundation-verification-batch.md
   - docs/traceability/R0-organization-directions.md
   acceptance:
     given: создана Organization
@@ -384,7 +384,7 @@ requirements:
   - backend/migrations/ci_invariants.sql
   - tools/organization_contract_guard.py
   evidence_refs:
-    - docs/traceability/R0-foundation-verification-batch.md
+  - docs/traceability/R0-foundation-verification-batch.md
   - docs/traceability/R0-organization-directions.md
   - docs/traceability/R0-org002-history-links.md
   acceptance:
@@ -426,7 +426,7 @@ requirements:
   - tools/connector_contract_guard.py
   - backend/internal/runtimepostgres/connector_boundary_integration_test.go
   evidence_refs:
-    - docs/traceability/R0-foundation-verification-batch.md
+  - docs/traceability/R0-foundation-verification-batch.md
   - docs/traceability/R0-conn001-provider-neutral-core.md
   acceptance:
     given: CommunicationProvider reference недоступен
@@ -467,7 +467,7 @@ requirements:
   - tools/connector_contract_guard.py
   - docs/traceability/R0-conn002-atomic-webhook-effects.md
   evidence_refs:
-    - docs/traceability/R0-foundation-verification-batch.md
+  - docs/traceability/R0-foundation-verification-batch.md
   - docs/traceability/R0-conn002-atomic-webhook-effects.md
   acceptance:
     given: provider повторяет/переставляет webhook
@@ -508,7 +508,7 @@ requirements:
   - tools/event_contract_guard.py
   - docs/traceability/R0-event001-transactional-outbox.md
   evidence_refs:
-    - docs/traceability/R0-foundation-verification-batch.md
+  - docs/traceability/R0-foundation-verification-batch.md
   - docs/traceability/R0-event001-transactional-outbox.md
   acceptance:
     given: domain transaction создаёт событие
@@ -543,7 +543,7 @@ requirements:
   - tools/audit_contract_guard.py
   - backend/internal/runtimepostgres/product_ownership_audit_integration_test.go
   evidence_refs:
-    - docs/traceability/R0-foundation-verification-batch.md
+  - docs/traceability/R0-foundation-verification-batch.md
   - canon/evidence/r0-ci-evidence-map.json
   acceptance:
     given: оператор выполняет high-risk override
@@ -586,7 +586,7 @@ requirements:
   - .github/workflows/ci.yml
   - tools/ledger_contract_guard.py
   evidence_refs:
-    - docs/traceability/R0-foundation-verification-batch.md
+  - docs/traceability/R0-foundation-verification-batch.md
   - canon/evidence/r0-ci-evidence-map.json
   acceptance:
     given: создан payment/commission/refund effect
@@ -638,7 +638,7 @@ requirements:
   - apps/web/e2e/foundation.spec.ts
   - .github/workflows/ci.yml
   evidence_refs:
-    - docs/traceability/R0-foundation-verification-batch.md
+  - docs/traceability/R0-foundation-verification-batch.md
   - docs/traceability/R0-prod001-organization-product-publication.md
   acceptance:
     given: специалист создаёт продукт внутри Organization
@@ -674,7 +674,7 @@ requirements:
   - backend/internal/httpapi/client_session_http_test.go
   - apps/web/e2e/foundation.spec.ts
   evidence_refs:
-    - docs/traceability/R0-foundation-verification-batch.md
+  - docs/traceability/R0-foundation-verification-batch.md
   - docs/traceability/R0-data001-growth-export-boundary.md
   acceptance:
     given: raw session content существует
@@ -750,7 +750,7 @@ requirements:
   - tools/launch_config_guard.py
   - .github/workflows/ci.yml
   evidence_refs:
-    - docs/traceability/R0-foundation-verification-batch.md
+  - docs/traceability/R0-foundation-verification-batch.md
   - canon/evidence/staging-runtime-20260926T215500Z.json
   - canon/evidence/staging-runtime-20260927T072352Z.json
   acceptance:
@@ -820,7 +820,7 @@ requirements:
   - tools/ui_adaptive_contract_guard.py
   - tools/tests/test_ui_adaptive_contract_guard.py
   evidence_refs:
-    - docs/traceability/R0-foundation-verification-batch.md
+  - docs/traceability/R0-foundation-verification-batch.md
   - canon/evidence/staging-runtime-20260926T215500Z.json
   - canon/evidence/staging-runtime-20260927T072352Z.json
   acceptance:
@@ -885,7 +885,7 @@ requirements:
   - tools/architecture_guard.py
   - tools/test_canon_contract_guard.py
   evidence_refs:
-    - docs/traceability/R0-foundation-verification-batch.md
+  - docs/traceability/R0-foundation-verification-batch.md
   - canon/evidence/staging-runtime-20260926T215500Z.json
   - canon/evidence/staging-runtime-20260927T072352Z.json
   acceptance:
@@ -922,7 +922,7 @@ requirements:
   - tools/release_evidence.py
   - tools/tests/test_release_evidence.py
   evidence_refs:
-    - docs/traceability/R0-foundation-verification-batch.md
+  - docs/traceability/R0-foundation-verification-batch.md
   - canon/evidence/staging-runtime-20260926T215500Z.json
   - canon/evidence/staging-runtime-20260927T072352Z.json
   acceptance:
@@ -956,7 +956,7 @@ requirements:
   - backend/internal/runtimepostgres/journey_test.go
   - tools/legal_snapshot_contract_guard.py
   evidence_refs:
-    - docs/traceability/R0-foundation-verification-batch.md
+  - docs/traceability/R0-foundation-verification-batch.md
   - canon/evidence/r0-ci-evidence-map.json
   acceptance:
     given: Order создаётся
@@ -992,7 +992,7 @@ requirements:
   - tools/legal_acceptance_contract_guard.py
   - tools/auth_contract_guard.py
   evidence_refs:
-    - docs/traceability/R0-foundation-verification-batch.md
+  - docs/traceability/R0-foundation-verification-batch.md
   - canon/evidence/r0-ci-evidence-map.json
   acceptance:
     given: пользователь принимает документ vN
@@ -1026,7 +1026,7 @@ requirements:
   - .github/workflows/ci.yml
   - backend/internal/runtimepostgres/provider_terminology_integration_test.go
   evidence_refs:
-    - docs/traceability/R0-foundation-verification-batch.md
+  - docs/traceability/R0-foundation-verification-batch.md
   - docs/traceability/R0-term001-provider-neutral-terminology.md
   acceptance:
     given: разработчик добавляет новый domain type/API
@@ -2121,7 +2121,7 @@ requirements:
   - tools/canon_freeze_contract_guard.py
   - tools/tests/test_canon_launch_freeze_e2e.py
   evidence_refs:
-    - docs/traceability/R0-foundation-verification-batch.md
+  - docs/traceability/R0-foundation-verification-batch.md
   - docs/traceability/R0-canon001-launch-freeze.md
   acceptance:
     given: R0–R4 утверждены
