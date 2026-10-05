@@ -203,6 +203,7 @@ export default function App({
   const [demandText, setDemandText] = useState("");
   const [demandIntent, setDemandIntent] = useState<HelpIntent | null>(null);
   const [demandTopics, setDemandTopics] = useState<string[]>([]);
+  const [demandCustomTopic, setDemandCustomTopic] = useState("");
   const [demandStatus, setDemandStatus] = useState<
     "IDLE" | "RUNNING" | "DRAFT" | "CONFIRMED" | "FAIL"
   >("IDLE");
@@ -299,6 +300,10 @@ export default function App({
   );
 
   const analyzeDemand = useCallback(async () => {
+    if (!compatibilityAllowsRuntime) {
+      setDemandError("Сначала завершите проверку совместимости или обновите приложение.");
+      return;
+    }
     const freeText = demandText.trim();
     if (!freeText) {
       setDemandError("Опишите, с чем нужна помощь.");
@@ -319,7 +324,7 @@ export default function App({
         error instanceof Error ? error.message : "Не удалось разобрать запрос.",
       );
     }
-  }, [demandAPIBaseURL, demandText]);
+  }, [compatibilityAllowsRuntime, demandAPIBaseURL, demandText]);
 
   const toggleDemandTopic = useCallback((topic: string) => {
     setDemandTopics((current) =>
@@ -329,7 +334,18 @@ export default function App({
     );
   }, []);
 
+  const addDemandTopic = useCallback(() => {
+    const topic = demandCustomTopic.trim();
+    if (!topic) return;
+    setDemandTopics((current) => current.includes(topic) ? current : [...current, topic]);
+    setDemandCustomTopic("");
+  }, [demandCustomTopic]);
+
   const confirmDemand = useCallback(async () => {
+    if (!compatibilityAllowsRuntime) {
+      setDemandError("Сначала завершите проверку совместимости или обновите приложение.");
+      return;
+    }
     if (!demandIntent || demandTopics.length === 0) {
       setDemandError("Оставьте хотя бы одну подходящую тему.");
       return;
@@ -355,7 +371,7 @@ export default function App({
         error instanceof Error ? error.message : "Не удалось подтвердить запрос.",
       );
     }
-  }, [demandAPIBaseURL, demandIntent, demandTopics]);
+  }, [compatibilityAllowsRuntime, demandAPIBaseURL, demandIntent, demandTopics]);
 
   const handleDeepLink = useCallback(
     async (url: string) => {
@@ -737,6 +753,7 @@ export default function App({
 
   useEffect(() => {
     if (
+      !compatibilityAllowsRuntime ||
       !demandE2EBaseURL ||
       !demandE2ESessionCookie ||
       !demandE2EFreeText ||
@@ -773,6 +790,7 @@ export default function App({
       active = false;
     };
   }, [
+    compatibilityAllowsRuntime,
     demandE2EBaseURL,
     demandE2ESessionCookie,
     demandE2EFreeText,
@@ -854,7 +872,7 @@ export default function App({
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Разобрать запрос"
-              disabled={demandStatus === "RUNNING"}
+              disabled={demandStatus === "RUNNING" || !compatibilityAllowsRuntime}
               onPress={() => void analyzeDemand()}
               style={styles.demandAction}
             >
@@ -867,7 +885,7 @@ export default function App({
                   Это не диагноз. Диагноз поставлен: {demandIntent.diagnosis_asserted ? "да" : "нет"}.
                 </Text>
                 <Text>Уточните темы запроса:</Text>
-                {demandIntent.topics.map((topic) => {
+                {Array.from(new Set([...demandIntent.topics, ...demandTopics])).map((topic) => {
                   const selected = demandTopics.includes(topic);
                   return (
                     <Pressable
@@ -882,10 +900,27 @@ export default function App({
                     </Pressable>
                   );
                 })}
+                <TextInput
+                  accessibilityLabel="Добавить свою тему запроса"
+                  value={demandCustomTopic}
+                  onChangeText={setDemandCustomTopic}
+                  onSubmitEditing={addDemandTopic}
+                  placeholder="Добавить или заменить тему"
+                  style={styles.demandInput}
+                />
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Добавить свою тему запроса"
+                  disabled={!demandCustomTopic.trim()}
+                  onPress={addDemandTopic}
+                  style={styles.demandAction}
+                >
+                  <Text>Добавить тему</Text>
+                </Pressable>
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Подтвердить темы запроса"
-                  disabled={demandStatus === "RUNNING" || demandTopics.length === 0}
+                  disabled={demandStatus === "RUNNING" || demandTopics.length === 0 || !compatibilityAllowsRuntime}
                   onPress={() => void confirmDemand()}
                   style={styles.demandAction}
                 >
