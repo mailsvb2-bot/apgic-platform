@@ -802,6 +802,36 @@ PY
   echo "Android accessibility semantics + text scaling + device matrix: PASS"
 }
 
+assert_help_intent_confirmation() {
+  local output="$EVIDENCE_DIR/android-demand-e2e.xml"
+
+  "$ADB" shell am force-stop com.apgic.ci
+  "$ADB" shell am start -W \
+    -n com.apgic.ci/.MainActivity \
+    --es APGIC_E2E_CAPABILITY_STATE GRANTED \
+    --es APGIC_E2E_DEMAND_BASE_URL http://127.0.0.1:43113 \
+    --es APGIC_E2E_DEMAND_SESSION_COOKIE "$SESSION_COOKIE" \
+    --es APGIC_E2E_DEMAND_FREE_TEXT "anxiety sleep" \
+    --es APGIC_E2E_DEMAND_CORRECTED_TOPICS "sleep" \
+    >/dev/null
+
+  for _ in $(seq 1 60); do
+    if "$ADB" shell uiautomator dump /sdcard/apgic-demand-e2e.xml >/dev/null 2>&1 &&
+       "$ADB" pull /sdcard/apgic-demand-e2e.xml "$output" >/dev/null 2>&1 &&
+       grep -q 'demand-e2e:PASS' "$output" &&
+       grep -q 'demand-e2e-diagnosis:false' "$output" &&
+       grep -q 'demand-e2e-correction:true' "$output" &&
+       grep -q 'demand-e2e-topics:sleep' "$output"; then
+      echo "Android installed-app HelpIntent interpretation/correction/no-diagnosis: PASS"
+      return 0
+    fi
+    sleep 1
+  done
+
+  [[ -f "$output" ]] && cat "$output" >&2 || true
+  fail "installed Android app did not prove HelpIntent correction/no-diagnosis flow"
+}
+
 assert_account_deletion() {
   local output="$EVIDENCE_DIR/android-deletion-e2e.xml"
   local identity_id
@@ -858,6 +888,7 @@ assert_notification_runtime
 assert_offline_mutation_restart
 assert_realtime_lifecycle
 assert_accessibility_and_device_matrix
+assert_help_intent_confirmation
 assert_account_deletion
 
-echo "ANDROID CAPABILITY + COMPATIBILITY + INSTALLATION + DELETION + DEEP-LINK + NOTIFICATION + OFFLINE-SYNC + REALTIME + ACCESSIBILITY NATIVE E2E: PASS"
+echo "ANDROID CAPABILITY + COMPATIBILITY + INSTALLATION + DEMAND + DELETION + DEEP-LINK + NOTIFICATION + OFFLINE-SYNC + REALTIME + ACCESSIBILITY NATIVE E2E: PASS"
