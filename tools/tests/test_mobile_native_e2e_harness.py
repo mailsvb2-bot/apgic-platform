@@ -54,6 +54,26 @@ class MobileNativeE2EHarnessTest(unittest.TestCase):
             self.assertIn("trap - EXIT", cleanup)
             self.assertIn('exit "$status"', cleanup)
 
+    def test_android_e2e_budget_and_new_evidence_are_bounded(self) -> None:
+        workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+        android = self._read("mobile_android_capability_e2e.sh")
+
+        android_job = workflow[
+            workflow.index("  mobile-android-build:"):
+            workflow.index("  mobile-ios-build:")
+        ]
+        self.assertIn("timeout-minutes: 45", android_job)
+        self.assertIn("evidence/android-demand-e2e.xml", android_job)
+        self.assertIn("evidence/android-deletion-e2e.xml", android_job)
+
+        for path in (
+            "/sdcard/apgic-installation-e2e.xml",
+            "/sdcard/apgic-workspace-e2e.xml",
+            "/sdcard/apgic-demand-e2e.xml",
+            "/sdcard/apgic-deletion-e2e.xml",
+        ):
+            self.assertEqual(android.count("dump_until_labels_visible " + path), 1)
+
     def test_android_realtime_script_finishes_with_audited_audio_route(self) -> None:
         text = self._read("mobile_android_capability_e2e.sh")
         marker = 'local events="'
