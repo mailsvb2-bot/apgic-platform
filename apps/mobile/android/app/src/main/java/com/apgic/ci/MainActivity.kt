@@ -138,7 +138,10 @@ class MainActivity : ReactActivity() {
               ?.let { putString("deletionE2EPlatform", it) }
             intent?.getStringExtra(E2E_DEMAND_BASE_URL)
               ?.takeIf { it.isNotBlank() }
-              ?.let { putString("demandE2EBaseURL", it) }
+              ?.let {
+                putString("demandAPIBaseURL", it)
+                putString("demandE2EBaseURL", it)
+              }
             intent?.getStringExtra(E2E_DEMAND_SESSION_COOKIE)
               ?.takeIf { it.isNotBlank() }
               ?.let { putString("demandE2ESessionCookie", it) }
