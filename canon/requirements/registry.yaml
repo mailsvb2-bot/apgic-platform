@@ -771,19 +771,25 @@ requirements:
   release_profile: R0
   risk: HIGH
   priority: P0
-  status: IN_PROGRESS
+  status: VERIFIED
   dependencies: []
   implementation_refs:
   - backend/ci/restore_drill.sh
+  - deploy/staging/verify-staging-backup.sh
+  - deploy/staging/apgic-staging-restore-verify.service
+  - deploy/staging/apgic-staging-restore-verify.timer
   - docs/operations/restore-drill.md
   - .github/workflows/ci.yml
   contract_refs:
   - contracts/jsonschema/restore-drill-evidence-v1.schema.json
+  - contracts/jsonschema/staging-restore-evidence-v1.schema.json
   test_refs:
   - backend/ci/restore_drill.sh
   - .github/workflows/ci.yml
   - tools/restore_evidence_contract_guard.py
-  evidence_refs: []
+  - tools/staging_backup_guard.py
+  evidence_refs:
+  - canon/evidence/staging-restore-20261005T200143Z.json
   acceptance:
     given: существует production backup
     when: выполняется scheduled restore drill
