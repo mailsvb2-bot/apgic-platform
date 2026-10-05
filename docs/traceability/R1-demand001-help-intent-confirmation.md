@@ -51,18 +51,18 @@ No native-owned HelpIntent state machine or parallel business truth is introduce
 
 ## Native installed-app proof
 
-Android and iOS capability suites launch the actual built applications with a signed CI client session. The app:
-1. submits `anxiety sleep`;
-2. receives an interpretation containing multiple topics;
-3. explicitly corrects the selection to `sleep`;
-4. confirms the same HelpIntent/Identity;
-5. rejects any response with `diagnosis_asserted=true`.
+Android and iOS capability suites launch the actual built applications against the isolated canonical backend.
 
-Expected accessibility evidence labels:
-- `demand-e2e:PASS`
-- `demand-e2e-diagnosis:false`
-- `demand-e2e-correction:true`
-- `demand-e2e-topics:sleep`
+Android now proves the production user journey itself rather than relying on a hidden test hook:
+1. opens the visible “С чем нужна помощь” field;
+2. enters `anxiety sleep`;
+3. runs the production interpretation action;
+4. observes both suggested topics and `diagnosis_asserted=false`;
+5. deselects `anxiety`;
+6. invokes the production confirmation action;
+7. proves the confirmed surface contains `sleep` and no longer contains `anxiety`.
+
+iOS retains the installed-app contract probe and must independently prove the same canonical HelpIntent/Identity and no-diagnosis invariants.
 
 ## Promotion rule
 
