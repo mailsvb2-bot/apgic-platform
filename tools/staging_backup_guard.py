@@ -9,6 +9,7 @@ BACKUP_SERVICE = ROOT / "deploy/staging/apgic-staging-backup.service"
 BACKUP_TIMER = ROOT / "deploy/staging/apgic-staging-backup.timer"
 VERIFY_SERVICE = ROOT / "deploy/staging/apgic-staging-restore-verify.service"
 VERIFY_TIMER = ROOT / "deploy/staging/apgic-staging-restore-verify.timer"
+STAGING_RESTORE_SCHEMA = ROOT / "contracts/jsonschema/staging-restore-evidence-v1.schema.json"
 
 
 def validate() -> list[str]:
@@ -20,6 +21,7 @@ def validate() -> list[str]:
     backup_timer = BACKUP_TIMER.read_text(encoding="utf-8")
     verify_service = VERIFY_SERVICE.read_text(encoding="utf-8")
     verify_timer = VERIFY_TIMER.read_text(encoding="utf-8")
+    staging_restore_schema = STAGING_RESTORE_SCHEMA.read_text(encoding="utf-8")
 
     if "\\n" in bootstrap:
         errors.append("dedicated host bootstrap must not contain literal \\n escape sequences")
@@ -54,6 +56,13 @@ def validate() -> list[str]:
         "audit_records",
         "ledger_entries",
         "booking_slots",
+        "measured_backup_rpo_seconds",
+        "measured_restore_rto_ms",
+        "backup_file_sha256",
+        "candidate_sha=",
+        "staging-restore-evidence-v1",
+        "STAGING_RESTORE_DRILL",
+        "production_evidence",
     )
     for item in verify_required:
         if item not in verify:
@@ -96,10 +105,23 @@ def validate() -> list[str]:
         errors.append("backup service must invoke non-executable repository script via /usr/bin/bash")
     if "ExecStart=/usr/bin/bash /opt/apgic/current/deploy/staging/verify-staging-backup.sh" not in verify_service:
         errors.append("restore verification service must invoke non-executable repository script via /usr/bin/bash")
+    if "ReadWritePaths=/var/backups/apgic" not in verify_service:
+        errors.append("restore verification service must restrict evidence writes to /var/backups/apgic")
     if "OnCalendar=*-*-* 02:15:00 UTC" not in backup_timer or "Persistent=true" not in backup_timer:
         errors.append("daily backup timer schedule/persistence mismatch")
     if "OnCalendar=Sun *-*-* 03:30:00 UTC" not in verify_timer or "Persistent=true" not in verify_timer:
         errors.append("weekly restore verification timer schedule/persistence mismatch")
+
+    for snippet in (
+        "\"schema_version\": {\"const\": \"staging-restore-evidence-v1\"}",
+        "\"evidence_type\": {\"const\": \"STAGING_RESTORE_DRILL\"}",
+        "\"measured_backup_rpo_seconds\"",
+        "\"measured_restore_rto_ms\"",
+        "\"backup_file_sha256\"",
+        "\"production_evidence\": {\"const\": false}",
+    ):
+        if snippet not in staging_restore_schema:
+            errors.append(f"staging restore evidence schema missing invariant: {snippet}")
 
     combined = "\n".join(
         (backup, verify, backup_service, backup_timer, verify_service, verify_timer)
