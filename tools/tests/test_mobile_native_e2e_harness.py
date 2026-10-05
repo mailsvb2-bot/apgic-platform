@@ -54,6 +54,17 @@ class MobileNativeE2EHarnessTest(unittest.TestCase):
             self.assertIn("trap - EXIT", cleanup)
             self.assertIn('exit "$status"', cleanup)
 
+    def test_android_sdk_install_retries_transient_corrupt_downloads(self) -> None:
+        android = self._read("mobile_android_capability_e2e.sh")
+
+        self.assertIn("install_android_sdk_packages() {", android)
+        self.assertIn("for attempt in 1 2 3; do", android)
+        self.assertIn('rm -rf "$HOME/.android/cache"', android)
+        self.assertIn(
+            'fail "Android SDK package installation failed after bounded retries"',
+            android,
+        )
+
     def test_android_e2e_budget_and_new_evidence_are_bounded(self) -> None:
         workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
         android = self._read("mobile_android_capability_e2e.sh")
