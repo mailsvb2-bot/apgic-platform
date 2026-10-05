@@ -97,11 +97,29 @@ class MobileNativeE2EHarnessTest(unittest.TestCase):
             app.index("setDemandE2E({status: \"RUNNING\"})"),
         )
         demand_effect = app[demand_effect_start:demand_effect_end]
-        self.assertNotIn("compatibilityAllowsRuntime", demand_effect)
+        self.assertIn("!compatibilityAllowsRuntime", demand_effect)
+        self.assertIn("compatibilityAllowsRuntime,", demand_effect)
         self.assertIn(
             "compatibilityBaseURL !== canonicalAPGICOrigin && !demandE2EBaseURL",
             app,
         )
+
+    def test_production_demand_mutations_fail_closed_and_allow_topic_replacement(self) -> None:
+        app = (ROOT / "apps/mobile/src/App.tsx").read_text(encoding="utf-8")
+
+        analyze_start = app.index("  const analyzeDemand = useCallback")
+        analyze_end = app.index("  const toggleDemandTopic", analyze_start)
+        analyze = app[analyze_start:analyze_end]
+        self.assertIn("if (!compatibilityAllowsRuntime)", analyze)
+
+        confirm_start = app.index("  const confirmDemand = useCallback")
+        confirm_end = app.index("  const handleDeepLink", confirm_start)
+        confirm = app[confirm_start:confirm_end]
+        self.assertIn("if (!compatibilityAllowsRuntime)", confirm)
+
+        self.assertIn('accessibilityLabel="Добавить свою тему запроса"', app)
+        self.assertIn("setDemandTopics((current) => current.includes(topic)", app)
+        self.assertIn("...demandTopics", app)
 
     def test_demand_and_deletion_e2e_use_local_compatibility_gate(self) -> None:
         android = self._read("mobile_android_capability_e2e.sh")
