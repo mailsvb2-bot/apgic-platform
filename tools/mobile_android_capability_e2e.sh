@@ -70,6 +70,48 @@ dump_until_labels_visible() {
   return 1
 }
 
+tap_accessibility_label() {
+  local label="$1"
+  local remote="$2"
+  local output="$3"
+  local coords=""
+
+  for _ in $(seq 1 20); do
+    if "$ADB" shell uiautomator dump "$remote" >/dev/null 2>&1 &&
+       "$ADB" pull "$remote" "$output" >/dev/null 2>&1; then
+      coords="$(
+        python3 - "$output" "$label" <<'PY'
+import re
+import sys
+import xml.etree.ElementTree as ET
+
+path, label = sys.argv[1:]
+root = ET.parse(path).getroot()
+for node in root.iter("node"):
+    if node.attrib.get("content-desc") != label:
+        continue
+    if node.attrib.get("enabled") != "true":
+        continue
+    match = re.fullmatch(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]", node.attrib.get("bounds", ""))
+    if not match:
+        continue
+    x1, y1, x2, y2 = map(int, match.groups())
+    print(f"{(x1+x2)//2} {(y1+y2)//2}")
+    break
+PY
+      )"
+      if [[ -n "$coords" ]]; then
+        # shellcheck disable=SC2086
+        "$ADB" shell input tap $coords >/dev/null
+        return 0
+      fi
+    fi
+    "$ADB" shell input swipe 160 480 160 140 250 >/dev/null 2>&1 || true
+    sleep 1
+  done
+  return 1
+}
+
 cleanup() {
   local status=$?
   trap - EXIT
@@ -846,6 +888,7 @@ PY
 
 assert_help_intent_confirmation() {
   local output="$EVIDENCE_DIR/android-demand-e2e.xml"
+  local remote="/sdcard/apgic-demand-e2e.xml"
 
   "$ADB" shell am force-stop com.apgic.ci
   "$ADB" shell am start -W \
@@ -854,22 +897,41 @@ assert_help_intent_confirmation() {
     --es APGIC_E2E_COMPATIBILITY_BASE_URL "$COMPATIBILITY_BASE_URL" \
     --es APGIC_E2E_CONTRACT_VERSION "$COMPATIBILITY_CONTRACT_VERSION" \
     --es APGIC_E2E_DEMAND_BASE_URL http://127.0.0.1:43113 \
-    --es APGIC_E2E_DEMAND_SESSION_COOKIE "$SESSION_COOKIE" \
-    --es APGIC_E2E_DEMAND_FREE_TEXT "anxiety sleep" \
-    --es APGIC_E2E_DEMAND_CORRECTED_TOPICS "sleep" \
     >/dev/null
 
-  if dump_until_labels_visible /sdcard/apgic-demand-e2e.xml "$output" \
-       'demand-e2e:PASS' \
-       'demand-e2e-diagnosis:false' \
-       'demand-e2e-correction:true' \
-       'demand-e2e-topics:sleep'; then
-    echo "Android installed-app HelpIntent interpretation/correction/no-diagnosis: PASS"
+  tap_accessibility_label "С чем нужна помощь" "$remote" "$output" ||
+    fail "Android production HelpIntent input was not operable"
+  "$ADB" shell input text 'anxiety%ssleep' >/dev/null
+  "$ADB" shell input keyevent 4 >/dev/null
+  sleep 1
+
+  tap_accessibility_label "Разобрать запрос" "$remote" "$output" ||
+    fail "Android production HelpIntent analyze action was not operable"
+
+  if ! dump_until_labels_visible "$remote" "$output" \
+       'native-demand-diagnosis:false' \
+       'Тема anxiety' \
+       'Тема sleep'; then
+    [[ -f "$output" ]] && cat "$output" >&2 || true
+    fail "Android production HelpIntent interpretation/no-diagnosis state was not visible"
+  fi
+
+  tap_accessibility_label "Тема anxiety" "$remote" "$output" ||
+    fail "Android production HelpIntent suggested topic could not be corrected"
+  tap_accessibility_label "Подтвердить темы запроса" "$remote" "$output" ||
+    fail "Android production HelpIntent confirmation action was not operable"
+
+  if dump_until_labels_visible "$remote" "$output" \
+       'native-demand-confirmed' \
+       'native-demand-diagnosis:false' \
+       'Тема sleep' &&
+     ! grep -Fq 'Тема anxiety' "$output"; then
+    echo "Android installed-app production HelpIntent interpretation/correction/no-diagnosis: PASS"
     return 0
   fi
 
   [[ -f "$output" ]] && cat "$output" >&2 || true
-  fail "installed Android app did not prove HelpIntent correction/no-diagnosis flow"
+  fail "installed Android production UI did not prove HelpIntent correction/no-diagnosis flow"
 }
 
 assert_account_deletion() {
