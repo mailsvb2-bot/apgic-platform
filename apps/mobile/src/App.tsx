@@ -281,6 +281,23 @@ export default function App({
     (remoteConfig.status === "PASS" &&
       !remoteConfig.disabledCapabilities.includes("REALTIME_CONSULTATION"));
 
+  // Infrastructure E2E probes deliberately exercise isolated native capabilities.
+  // Keep the production HelpIntent UI out of those debug-only layouts so an
+  // unrelated user-facing screen cannot hide evidence below a tiny emulator
+  // viewport. The real demand E2E is excluded and still renders the demand flow.
+  const infrastructureE2EActive = Boolean(
+    installationE2EBaseURL ||
+      workspaceE2EBaseURL ||
+      deletionE2EBaseURL ||
+      deepLinkE2EURL ||
+      notificationE2EBaseURL ||
+      offlineMutationE2EBaseURL ||
+      realtimeE2EEvents ||
+      accessibilityE2EEnabled ||
+      (compatibilityBaseURL !== canonicalAPGICOrigin) ||
+      (remoteConfigBaseURL && remoteConfigBaseURL !== canonicalAPGICOrigin),
+  );
+
   const analyzeDemand = useCallback(async () => {
     const freeText = demandText.trim();
     if (!freeText) {
@@ -822,72 +839,74 @@ export default function App({
           Одна Identity и одна server truth для iOS, Android, Web и PWA.
         </Text>
 
-        <View style={styles.demandCard} accessibilityRole="summary">
-          <Text style={styles.capabilityTitle}>С чем нужна помощь</Text>
-          <Text style={styles.body}>
-            Опишите ситуацию своими словами. APGIC предложит темы, а вы сможете исправить их перед подтверждением.
-          </Text>
-          <TextInput
-            accessibilityLabel="С чем нужна помощь"
-            multiline
-            value={demandText}
-            onChangeText={setDemandText}
-            placeholder="Например: тревожно перед выступлениями и плохо сплю"
-            style={styles.demandInput}
-          />
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Разобрать запрос"
-            disabled={demandStatus === "RUNNING"}
-            onPress={() => void analyzeDemand()}
-            style={styles.demandAction}
-          >
-            <Text>Разобрать запрос</Text>
-          </Pressable>
-          {demandIntent ? (
-            <View style={styles.capability}>
-              <Text accessibilityLabel="native-demand-notice">{demandIntent.notice}</Text>
-              <Text accessibilityLabel={`native-demand-diagnosis:${demandIntent.diagnosis_asserted}`}>
-                Это не диагноз. Диагноз поставлен: {demandIntent.diagnosis_asserted ? "да" : "нет"}.
-              </Text>
-              <Text>Уточните темы запроса:</Text>
-              {demandIntent.topics.map((topic) => {
-                const selected = demandTopics.includes(topic);
-                return (
-                  <Pressable
-                    key={topic}
-                    accessibilityRole="checkbox"
-                    accessibilityState={{checked: selected}}
-                    accessibilityLabel={`Тема ${topic}`}
-                    onPress={() => toggleDemandTopic(topic)}
-                    style={styles.demandTopic}
-                  >
-                    <Text>{selected ? "✓ " : ""}{topic}</Text>
-                  </Pressable>
-                );
-              })}
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Подтвердить темы запроса"
-                disabled={demandStatus === "RUNNING" || demandTopics.length === 0}
-                onPress={() => void confirmDemand()}
-                style={styles.demandAction}
-              >
-                <Text>Подтвердить темы</Text>
-              </Pressable>
-              {demandStatus === "CONFIRMED" ? (
-                <Text accessibilityLabel="native-demand-confirmed">
-                  Запрос подтверждён пользователем.
-                </Text>
-              ) : null}
-            </View>
-          ) : null}
-          {demandError ? (
-            <Text accessibilityRole="alert" accessibilityLabel="native-demand-error">
-              {demandError}
+        {!infrastructureE2EActive ? (
+          <View style={styles.demandCard} accessibilityRole="summary">
+            <Text style={styles.capabilityTitle}>С чем нужна помощь</Text>
+            <Text style={styles.body}>
+              Опишите ситуацию своими словами. APGIC предложит темы, а вы сможете исправить их перед подтверждением.
             </Text>
-          ) : null}
-        </View>
+            <TextInput
+              accessibilityLabel="С чем нужна помощь"
+              multiline
+              value={demandText}
+              onChangeText={setDemandText}
+              placeholder="Например: тревожно перед выступлениями и плохо сплю"
+              style={styles.demandInput}
+            />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Разобрать запрос"
+              disabled={demandStatus === "RUNNING"}
+              onPress={() => void analyzeDemand()}
+              style={styles.demandAction}
+            >
+              <Text>Разобрать запрос</Text>
+            </Pressable>
+            {demandIntent ? (
+              <View style={styles.capability}>
+                <Text accessibilityLabel="native-demand-notice">{demandIntent.notice}</Text>
+                <Text accessibilityLabel={`native-demand-diagnosis:${demandIntent.diagnosis_asserted}`}>
+                  Это не диагноз. Диагноз поставлен: {demandIntent.diagnosis_asserted ? "да" : "нет"}.
+                </Text>
+                <Text>Уточните темы запроса:</Text>
+                {demandIntent.topics.map((topic) => {
+                  const selected = demandTopics.includes(topic);
+                  return (
+                    <Pressable
+                      key={topic}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{checked: selected}}
+                      accessibilityLabel={`Тема ${topic}`}
+                      onPress={() => toggleDemandTopic(topic)}
+                      style={styles.demandTopic}
+                    >
+                      <Text>{selected ? "✓ " : ""}{topic}</Text>
+                    </Pressable>
+                  );
+                })}
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Подтвердить темы запроса"
+                  disabled={demandStatus === "RUNNING" || demandTopics.length === 0}
+                  onPress={() => void confirmDemand()}
+                  style={styles.demandAction}
+                >
+                  <Text>Подтвердить темы</Text>
+                </Pressable>
+                {demandStatus === "CONFIRMED" ? (
+                  <Text accessibilityLabel="native-demand-confirmed">
+                    Запрос подтверждён пользователем.
+                  </Text>
+                ) : null}
+              </View>
+            ) : null}
+            {demandError ? (
+              <Text accessibilityRole="alert" accessibilityLabel="native-demand-error">
+                {demandError}
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
 
         {demandE2E.status !== "IDLE" ? (
           <View style={styles.capability} accessibilityRole="summary">
