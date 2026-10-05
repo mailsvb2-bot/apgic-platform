@@ -1,6 +1,6 @@
 # APGIC-DEMAND-001 — HelpIntent confirmation across web and native
 
-Status: **IN_PROGRESS pending fresh native evidence**.
+Status: **VERIFIED**.
 
 ## Canon requirement
 
@@ -64,13 +64,16 @@ Android now proves the production user journey itself rather than relying on a h
 
 iOS retains the installed-app contract probe and must independently prove the same canonical HelpIntent/Identity and no-diagnosis invariants.
 
-## Promotion rule
+## Exact verification evidence
 
-Do not promote APGIC-DEMAND-001 to VERIFIED until a fresh CI run proves:
-- backend/domain tests;
-- web E2E;
-- Android installed-app E2E;
-- iOS installed-app E2E;
-- multi-surface guard.
+Fresh CI run `37337781585` proved the complete required chain on candidate `509ec0578d5b6c6cee602e713d44d82d869fe26d`:
 
-After that run, exact surface job refs must be added to the registry and the final head must be re-verified.
+- Web production build + browser E2E: job `111857429352`;
+- Android installed-app HelpIntent correction/no-diagnosis flow: job `111857429380`;
+- iOS installed-app HelpIntent/Identity/no-diagnosis proof: job `111857429442`;
+- Go/domain verification: job `111857429423`;
+- PostgreSQL migration/invariant proof: job `111857429283`;
+- multi-surface contract guard: job `111857429542`;
+- Canon/architecture conformance: job `111857429368`.
+
+These exact refs are bound in the Requirement Registry. APGIC-DEMAND-001 is therefore promoted to VERIFIED on this evidence-bearing head. Any subsequent change to the requirement implementation, contract, tests, or evidence mapping requires a fresh verification run before merge/release.
