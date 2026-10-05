@@ -112,6 +112,12 @@ export async function runMobileDemandE2E(options: {
     throw new Error("HELP_INTENT_E2E_CORRECTION_REQUIRED");
   }
   const originalTopics = [...draft.topics];
+  const sameTopics =
+    originalTopics.length === options.correctedTopics.length &&
+    originalTopics.every((topic, index) => topic === options.correctedTopics[index]);
+  if (sameTopics) {
+    throw new Error("HELP_INTENT_E2E_CORRECTION_NOT_OBSERVED");
+  }
   const confirmed = await confirmMobileHelpIntent(
     draft.id,
     {
