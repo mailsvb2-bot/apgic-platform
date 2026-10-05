@@ -897,6 +897,7 @@ assert_help_intent_confirmation() {
     --es APGIC_E2E_COMPATIBILITY_BASE_URL "$COMPATIBILITY_BASE_URL" \
     --es APGIC_E2E_CONTRACT_VERSION "$COMPATIBILITY_CONTRACT_VERSION" \
     --es APGIC_E2E_DEMAND_BASE_URL http://127.0.0.1:43113 \
+    --es APGIC_E2E_DEMAND_SESSION_COOKIE "$SESSION_COOKIE" \
     >/dev/null
 
   tap_accessibility_label "С чем нужна помощь" "$remote" "$output" ||
