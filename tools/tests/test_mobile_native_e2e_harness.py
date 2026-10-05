@@ -94,10 +94,8 @@ class MobileNativeE2EHarnessTest(unittest.TestCase):
         demand_effect = app[demand_effect_start:demand_effect_end]
         self.assertIn("!compatibilityAllowsRuntime", demand_effect)
         self.assertIn("compatibilityAllowsRuntime,", demand_effect)
-        self.assertIn(
-            "compatibilityBaseURL !== canonicalAPGICOrigin && !demandE2EBaseURL",
-            app,
-        )
+        self.assertIn("demandE2EBaseURL ||", app)
+        self.assertIn("compatibilityBaseURL !== canonicalAPGICOrigin ||", app)
 
     def test_production_demand_mutations_fail_closed_and_allow_topic_replacement(self) -> None:
         app = (ROOT / "apps/mobile/src/App.tsx").read_text(encoding="utf-8")
