@@ -15,6 +15,7 @@ EVIDENCE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]*$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 NATIVE_RELEASE_REQUIREMENT_ID = "APGIC-MOBILE-015"
 STORE_RELEASE_REQUIREMENT_ID = "APGIC-MOBILE-030"
+PAYMENT_RELEASE_REQUIREMENT_ID = "APGIC-PAY-015"
 
 NATIVE_REQUIRED = {
     "SERVER_CRITICAL_PATH_E2E",
@@ -249,6 +250,13 @@ def main() -> None:
                 canon_dependency_blockers(
                     registry,
                     STORE_RELEASE_REQUIREMENT_ID,
+                )
+            )
+        if args.gate in {"payments", "all"}:
+            blockers.extend(
+                canon_dependency_blockers(
+                    registry,
+                    PAYMENT_RELEASE_REQUIREMENT_ID,
                 )
             )
         passed = len(blockers) == 0
