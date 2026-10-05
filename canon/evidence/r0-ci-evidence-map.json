@@ -333,10 +333,23 @@
       "unproven_evidence": []
     },
     "APGIC-DR-001": {
-      "claims": {},
-      "unproven_evidence": [
-        "RESTORE_DR_PROOF"
-      ]
+      "claims": {
+        "RESTORE_DR_PROOF": {
+          "gates": [
+            "restore-drill",
+            "staging"
+          ],
+          "proof_refs": [
+            "backend/ci/restore_drill.sh",
+            "deploy/staging/verify-staging-backup.sh",
+            "contracts/jsonschema/restore-drill-evidence-v1.schema.json",
+            "contracts/jsonschema/staging-restore-evidence-v1.schema.json",
+            "canon/evidence/staging-restore-20261005T200143Z.json",
+            ".github/workflows/ci.yml"
+          ]
+        }
+      },
+      "unproven_evidence": []
     },
     "APGIC-A11Y-001": {
       "claims": {
