@@ -88,14 +88,9 @@ class MobileNativeE2EHarnessTest(unittest.TestCase):
     def test_demand_e2e_matches_user_help_intent_execution_path(self) -> None:
         app = (ROOT / "apps/mobile/src/App.tsx").read_text(encoding="utf-8")
 
-        demand_effect_start = app.index(
-            "      !demandE2EBaseURL ||",
-            app.index("setDemandE2E({status: \"RUNNING\"})") - 500,
-        )
-        demand_effect_end = app.index(
-            "  ]);",
-            app.index("setDemandE2E({status: \"RUNNING\"})"),
-        )
+        demand_effect_marker = app.index("setDemandE2E({status: \"RUNNING\"})")
+        demand_effect_start = app.rindex("  useEffect(() => {", 0, demand_effect_marker)
+        demand_effect_end = app.index("  ]);", demand_effect_marker)
         demand_effect = app[demand_effect_start:demand_effect_end]
         self.assertIn("!compatibilityAllowsRuntime", demand_effect)
         self.assertIn("compatibilityAllowsRuntime,", demand_effect)
@@ -118,7 +113,8 @@ class MobileNativeE2EHarnessTest(unittest.TestCase):
         self.assertIn("if (!compatibilityAllowsRuntime)", confirm)
 
         self.assertIn('accessibilityLabel="Добавить свою тему запроса"', app)
-        self.assertIn("setDemandTopics((current) => current.includes(topic)", app)
+        self.assertIn("const addDemandTopic = useCallback", app)
+        self.assertIn("current.includes(topic) ? current : [...current, topic]", app)
         self.assertIn("...demandTopics", app)
 
     def test_demand_and_deletion_e2e_use_local_compatibility_gate(self) -> None:
