@@ -3740,7 +3740,7 @@ requirements:
   release_profile: R0
   risk: HIGH
   priority: P0
-  status: IN_PROGRESS
+  status: VERIFIED
   dependencies: []
   implementation_refs:
   - backend/internal/payments/taxonomy.go
@@ -3753,6 +3753,12 @@ requirements:
   - tools/tests/test_payment_taxonomy_architecture_guard.py
   evidence_refs:
   - canon/evidence/r0-ci-evidence-map.json
+  - docs/traceability/R0-pay004-payment-taxonomy.md
+  - surface://WEB/pay004-payment-taxonomy/run-37358082684/job-111925489775
+  - surface://IOS/pay004-payment-taxonomy/run-37358082684/job-111925489775
+  - surface://ANDROID/pay004-payment-taxonomy/run-37358082684/job-111925489775
+  - surface://CI/pay004-backend/run-37358082684/job-111925489621
+  - surface://CI/pay004-canon/run-37358082684/job-111925490490
   acceptance:
     given: payment contracts are generated
     when: provider/method/rail values are created or processed
