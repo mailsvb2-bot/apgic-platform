@@ -84,6 +84,7 @@ class MobileNativeE2EHarnessTest(unittest.TestCase):
         ):
             self.assertEqual(android.count("dump_until_labels_visible " + path), 1)
         self.assertIn('local remote="/sdcard/apgic-demand-e2e.xml"', android)
+        self.assertIn('APGIC_E2E_DEMAND_SESSION_COOKIE "$SESSION_COOKIE"', android)
         self.assertIn('tap_accessibility_label "С чем нужна помощь"', android)
         self.assertIn('tap_accessibility_label "Тема anxiety"', android)
         self.assertIn('tap_accessibility_label "Подтвердить темы запроса"', android)
@@ -99,7 +100,7 @@ class MobileNativeE2EHarnessTest(unittest.TestCase):
         self.assertIn("compatibilityAllowsRuntime,", demand_effect)
         self.assertIn("const demandE2EActive = Boolean(", app)
         self.assertIn("demandE2EActive ||", app)
-        self.assertIn("compatibilityBaseURL !== canonicalAPGICOrigin ||", app)
+        self.assertIn("(compatibilityBaseURL !== canonicalAPGICOrigin && !demandE2EBaseURL) ||", app)
 
     def test_production_demand_mutations_fail_closed_and_allow_topic_replacement(self) -> None:
         app = (ROOT / "apps/mobile/src/App.tsx").read_text(encoding="utf-8")
