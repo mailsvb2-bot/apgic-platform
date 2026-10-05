@@ -318,19 +318,11 @@
             "backend/internal/security/service_principal_test.go",
             "tools/security_contract_guard.py"
           ]
-        },
-        "E2E_OR_STAGING_PROOF": {
-          "gates": [
-            "staging"
-          ],
-          "proof_refs": [
-            "backend/cmd/service-auth-probe/main.go",
-            "backend/cmd/service-auth-probe/main_test.go",
-            "canon/evidence/staging-sec001-service-auth-20261005T195233Z.json"
-          ]
         }
       },
-      "unproven_evidence": []
+      "unproven_evidence": [
+        "E2E_OR_STAGING_PROOF"
+      ]
     },
     "APGIC-DR-001": {
       "claims": {},
