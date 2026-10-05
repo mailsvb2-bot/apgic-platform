@@ -302,7 +302,7 @@ export default function App({
       offlineMutationE2EBaseURL ||
       realtimeE2EEvents ||
       accessibilityE2EEnabled ||
-      compatibilityBaseURL !== canonicalAPGICOrigin ||
+      (compatibilityBaseURL !== canonicalAPGICOrigin && !demandE2EBaseURL) ||
       (remoteConfigBaseURL && remoteConfigBaseURL !== canonicalAPGICOrigin),
   );
 
