@@ -16,5 +16,6 @@ PrivateTmp=yes
 PrivateDevices=yes
 ProtectHome=yes
 ProtectSystem=strict
+ReadWritePaths=/var/backups/apgic
 RestrictAddressFamilies=AF_UNIX AF_NETLINK
 UMask=0077
