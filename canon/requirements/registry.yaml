@@ -694,12 +694,13 @@ requirements:
   release_profile: R0
   risk: HIGH
   priority: P0
-  status: IN_PROGRESS
+  status: VERIFIED
   dependencies: []
   implementation_refs:
   - backend/internal/security/service_principal.go
   - backend/internal/security/service_credential.go
   - backend/internal/connector/executor.go
+  - backend/cmd/service-auth-probe/main.go
   - tools/architecture_guard.py
   - tools/client_credential_guard.py
   contract_refs:
@@ -709,6 +710,7 @@ requirements:
   - backend/internal/security/service_principal_test.go
   - backend/internal/security/service_credential_test.go
   - backend/internal/connector/executor_test.go
+  - backend/cmd/service-auth-probe/main_test.go
   - tools/security_contract_guard.py
   - tools/service_credential_contract_guard.py
   - tools/client_credential_guard.py
@@ -716,6 +718,7 @@ requirements:
   - tools/repository_secret_scan.py
   evidence_refs:
   - docs/traceability/R0-sec001-service-credential-lifecycle.md
+  - canon/evidence/staging-sec001-service-auth-20261005T195233Z.json
   acceptance:
     given: connector/service запускается в production
     when: он аутентифицируется
