@@ -593,7 +593,7 @@ jobs:
   mobile-android-build:
     name: Android native debug build
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
@@ -704,6 +704,8 @@ jobs:
             evidence/android-accessibility-e2e.xml
             evidence/android-a11y-*.xml
             evidence/android-device-matrix.json
+            evidence/android-demand-e2e.xml
+            evidence/android-deletion-e2e.xml
           if-no-files-found: error
           retention-days: 30
 
@@ -785,6 +787,8 @@ jobs:
             evidence/ios-realtime-rejoin.json
             evidence/ios-accessibility-e2e.json
             evidence/ios-accessibility-large-text.json
+            evidence/ios-demand-e2e.json
+            evidence/ios-deletion-e2e.json
           if-no-files-found: error
           retention-days: 30
 
