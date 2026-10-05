@@ -643,7 +643,7 @@ assert_realtime_lifecycle() {
 
   realtime_ready() {
     local target="$1"
-    local viewport="\${target}.viewport.xml"
+    local viewport="${target}.viewport.xml"
     local attempt
     local phase
 
@@ -661,7 +661,7 @@ assert_realtime_lifecycle() {
            grep -q 'realtime-network-transport:CELLULAR' "$target" &&
            grep -q 'realtime-screen-state:UNLOCKED' "$target" &&
            grep -q 'realtime-join-auth-state:VALID' "$target" &&
-           grep -q "realtime-consultation-id:\${consultation_id}" "$target" &&
+           grep -q "realtime-consultation-id:${consultation_id}" "$target" &&
            grep -q 'realtime-action-connect:true' "$target" &&
            grep -q 'realtime-action-reconnect:true' "$target" &&
            grep -q 'realtime-action-pause:true' "$target" &&
