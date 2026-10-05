@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apgic.ru/contracts/staging-restore-evidence-v1.schema.json",
+  "title": "APGIC Staging Restore Evidence v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "evidence_type",
+    "candidate_sha",
+    "observed_at",
+    "backup_file_sha256",
+    "measured_backup_rpo_seconds",
+    "measured_restore_rto_ms",
+    "source_table_count",
+    "restored_table_count",
+    "required_table_count",
+    "production_evidence"
+  ],
+  "properties": {
+    "schema_version": {"const": "staging-restore-evidence-v1"},
+    "evidence_type": {"const": "STAGING_RESTORE_DRILL"},
+    "candidate_sha": {"type": "string", "minLength": 7},
+    "observed_at": {"type": "string", "format": "date-time"},
+    "backup_file_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "measured_backup_rpo_seconds": {"type": "integer", "minimum": 0},
+    "measured_restore_rto_ms": {"type": "integer", "minimum": 0},
+    "source_table_count": {"type": "integer", "minimum": 1},
+    "restored_table_count": {"type": "integer", "minimum": 1},
+    "required_table_count": {"type": "integer", "minimum": 1},
+    "production_evidence": {"const": false}
+  }
+}
