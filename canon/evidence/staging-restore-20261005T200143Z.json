@@ -1,0 +1,13 @@
+{
+  "schema_version": "staging-restore-evidence-v1",
+  "evidence_type": "STAGING_RESTORE_DRILL",
+  "candidate_sha": "6f0a89581e8e893a17642811962812833863f969",
+  "observed_at": "2026-10-05T20:01:43Z",
+  "backup_file_sha256": "568af4d53ce8cdbd2fc4da1f191589541ddc63674d0b6df952f53d409883ca1a",
+  "measured_backup_rpo_seconds": 150270,
+  "measured_restore_rto_ms": 2532,
+  "source_table_count": 60,
+  "restored_table_count": 60,
+  "required_table_count": 7,
+  "production_evidence": false
+}
