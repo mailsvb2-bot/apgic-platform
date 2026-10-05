@@ -643,49 +643,62 @@ assert_realtime_lifecycle() {
 
   realtime_ready() {
     local target="$1"
-    "$ADB" shell uiautomator dump /sdcard/apgic-realtime-e2e.xml >/dev/null 2>&1 &&
-      "$ADB" pull /sdcard/apgic-realtime-e2e.xml "$target" >/dev/null 2>&1 &&
-      grep -q 'realtime-e2e:PASS' "$target" &&
-      grep -q 'realtime-phase:CONNECTED' "$target" &&
-      grep -q 'realtime-business-transition:NONE' "$target" &&
-      grep -q 'realtime-audio-route:BLUETOOTH' "$target" &&
-      grep -q 'realtime-app-state:FOREGROUND' "$target" &&
-      grep -q 'realtime-network-state:ONLINE' "$target" &&
-      grep -q 'realtime-network-transport:CELLULAR' "$target" &&
-      grep -q 'realtime-screen-state:UNLOCKED' "$target" &&
-      grep -q 'realtime-join-auth-state:VALID' "$target" &&
-      grep -q "realtime-consultation-id:${consultation_id}" "$target" &&
-      grep -q 'realtime-action-connect:true' "$target" &&
-      grep -q 'realtime-action-reconnect:true' "$target" &&
-      grep -q 'realtime-action-pause:true' "$target" &&
-      grep -q 'realtime-action-route:true' "$target" &&
-      grep -Eq 'realtime-provider-actions:[^"]*REFRESH_JOIN_AUTH' "$target"
+    local viewport="\${target}.viewport.xml"
+    local attempt
+    local phase
+
+    : >"$target"
+    for attempt in $(seq 1 60); do
+      if "$ADB" shell uiautomator dump /sdcard/apgic-realtime-e2e.xml >/dev/null 2>&1 &&
+         "$ADB" pull /sdcard/apgic-realtime-e2e.xml "$viewport" >/dev/null 2>&1; then
+        cat "$viewport" >>"$target"
+        if grep -q 'realtime-e2e:PASS' "$target" &&
+           grep -q 'realtime-phase:CONNECTED' "$target" &&
+           grep -q 'realtime-business-transition:NONE' "$target" &&
+           grep -q 'realtime-audio-route:BLUETOOTH' "$target" &&
+           grep -q 'realtime-app-state:FOREGROUND' "$target" &&
+           grep -q 'realtime-network-state:ONLINE' "$target" &&
+           grep -q 'realtime-network-transport:CELLULAR' "$target" &&
+           grep -q 'realtime-screen-state:UNLOCKED' "$target" &&
+           grep -q 'realtime-join-auth-state:VALID' "$target" &&
+           grep -q "realtime-consultation-id:\${consultation_id}" "$target" &&
+           grep -q 'realtime-action-connect:true' "$target" &&
+           grep -q 'realtime-action-reconnect:true' "$target" &&
+           grep -q 'realtime-action-pause:true' "$target" &&
+           grep -q 'realtime-action-route:true' "$target" &&
+           grep -Eq 'realtime-provider-actions:[^"]*REFRESH_JOIN_AUTH' "$target"; then
+          rm -f "$viewport"
+          return 0
+        fi
+      fi
+
+      # Sweep the ScrollView down and back up so evidence that spans more than
+      # one emulator viewport is collected without assuming a fixed screen size.
+      phase=$(( (attempt - 1) % 16 ))
+      if (( phase < 8 )); then
+        "$ADB" shell input swipe 160 540 160 180 250 >/dev/null 2>&1 || true
+      else
+        "$ADB" shell input swipe 160 180 160 540 250 >/dev/null 2>&1 || true
+      fi
+      sleep 1
+    done
+    rm -f "$viewport"
+    return 1
   }
 
   launch_realtime
-  local first_pass=false
-  for _ in $(seq 1 60); do
-    if realtime_ready "$output"; then
-      first_pass=true
-      break
-    fi
-    sleep 1
-  done
-  if [[ "$first_pass" != "true" ]]; then
-    [[ -f "$output" ]] && cat "$output" >&2 || true
+  if ! realtime_ready "$output"; then
+    [[ -f "$output" ]] && tail -n 40 "$output" >&2 || true
     fail "installed Android app did not complete native realtime lifecycle proof"
   fi
 
   launch_realtime
-  for _ in $(seq 1 60); do
-    if realtime_ready "$rejoin_output"; then
-      echo "Android installed-app native realtime lifecycle + restart/rejoin: PASS"
-      return 0
-    fi
-    sleep 1
-  done
+  if realtime_ready "$rejoin_output"; then
+    echo "Android installed-app native realtime lifecycle + restart/rejoin: PASS"
+    return 0
+  fi
 
-  [[ -f "$rejoin_output" ]] && cat "$rejoin_output" >&2 || true
+  [[ -f "$rejoin_output" ]] && tail -n 40 "$rejoin_output" >&2 || true
   fail "installed Android app did not rejoin the same canonical consultation after process restart"
 }
 
