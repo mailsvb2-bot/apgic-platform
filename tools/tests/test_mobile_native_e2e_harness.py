@@ -80,10 +80,13 @@ class MobileNativeE2EHarnessTest(unittest.TestCase):
         for path in (
             "/sdcard/apgic-installation-e2e.xml",
             "/sdcard/apgic-workspace-e2e.xml",
-            "/sdcard/apgic-demand-e2e.xml",
             "/sdcard/apgic-deletion-e2e.xml",
         ):
             self.assertEqual(android.count("dump_until_labels_visible " + path), 1)
+        self.assertIn('local remote="/sdcard/apgic-demand-e2e.xml"', android)
+        self.assertIn('tap_accessibility_label "С чем нужна помощь"', android)
+        self.assertIn('tap_accessibility_label "Тема anxiety"', android)
+        self.assertIn('tap_accessibility_label "Подтвердить темы запроса"', android)
 
     def test_demand_e2e_matches_user_help_intent_execution_path(self) -> None:
         app = (ROOT / "apps/mobile/src/App.tsx").read_text(encoding="utf-8")
@@ -94,7 +97,8 @@ class MobileNativeE2EHarnessTest(unittest.TestCase):
         demand_effect = app[demand_effect_start:demand_effect_end]
         self.assertIn("!compatibilityAllowsRuntime", demand_effect)
         self.assertIn("compatibilityAllowsRuntime,", demand_effect)
-        self.assertIn("demandE2EBaseURL ||", app)
+        self.assertIn("const demandE2EActive = Boolean(", app)
+        self.assertIn("demandE2EActive ||", app)
         self.assertIn("compatibilityBaseURL !== canonicalAPGICOrigin ||", app)
 
     def test_production_demand_mutations_fail_closed_and_allow_topic_replacement(self) -> None:
