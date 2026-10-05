@@ -39,4 +39,4 @@ Provider execution is not called for any denied credential/scope path.
 
 ## Release status
 
-Keep APGIC-SEC-001 IN_PROGRESS until a deployed staging/service authentication probe proves active credential success plus expired/revoked credential denial without exposing credential material.
+APGIC-SEC-001 is VERIFIED. On 2026-10-05 candidate `e52e3b1246940e02835184c78b53c96d4bbc35d8` was executed on the authorized APGIC staging host as an isolated systemd transient service. `canon/evidence/staging-sec001-service-auth-20261005T195233Z.json` proves active credential success, wrong-secret/revoked/expired denial, exact-scope connector execution, wrong-scope denial, one provider call, and no emitted secret material.
