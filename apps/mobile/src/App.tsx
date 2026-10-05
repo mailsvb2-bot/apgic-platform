@@ -282,20 +282,21 @@ export default function App({
     (remoteConfig.status === "PASS" &&
       !remoteConfig.disabledCapabilities.includes("REALTIME_CONSULTATION"));
 
-  // Infrastructure E2E probes deliberately exercise isolated native capabilities.
-  // Keep the production HelpIntent UI out of those debug-only layouts so an
-  // unrelated user-facing screen cannot hide evidence below a tiny emulator
-  // viewport. The real demand E2E is excluded and still renders the demand flow.
+  // Installed-app E2E probes exercise isolated native capabilities. Keep the
+  // production journey out of debug-only evidence layouts so proof labels do
+  // not depend on emulator viewport scrolling. Production HelpIntent remains a
+  // real ScrollView-backed user journey outside E2E mode.
   const infrastructureE2EActive = Boolean(
     installationE2EBaseURL ||
       workspaceE2EBaseURL ||
       deletionE2EBaseURL ||
+      demandE2EBaseURL ||
       deepLinkE2EURL ||
       notificationE2EBaseURL ||
       offlineMutationE2EBaseURL ||
       realtimeE2EEvents ||
       accessibilityE2EEnabled ||
-      (compatibilityBaseURL !== canonicalAPGICOrigin && !demandE2EBaseURL) ||
+      compatibilityBaseURL !== canonicalAPGICOrigin ||
       (remoteConfigBaseURL && remoteConfigBaseURL !== canonicalAPGICOrigin),
   );
 
