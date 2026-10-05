@@ -55,6 +55,14 @@ def main() -> None:
         '=== Reconcile migration ledger ===',
         'go build -o bin/apgic-api ./cmd/api',
         'npm run build',
+        '=== Reconcile staging maintenance units ===',
+        'apgic-staging-backup.service',
+        'apgic-staging-backup.timer',
+        'apgic-staging-restore-verify.service',
+        'apgic-staging-restore-verify.timer',
+        'install -m 0644 "$source_unit" "$target_unit"',
+        'systemctl daemon-reload',
+        'systemctl enable --now apgic-staging-backup.timer apgic-staging-restore-verify.timer',
         'systemctl restart apgic-api-staging.service',
         'systemctl restart apgic-web-staging.service',
         'wait_for_http()',
@@ -75,6 +83,8 @@ def main() -> None:
     ordered(text, 'git reset --hard "$TARGET_SHA"', '=== Re-exec target updater ===')
     ordered(text, '=== Re-exec target updater ===', 'go build -o bin/apgic-api ./cmd/api')
     ordered(text, 'go build -o bin/apgic-api ./cmd/api', "SELECT to_regclass('public.apgic_schema_migrations') IS NOT NULL")
+    ordered(text, 'npm run build', '=== Reconcile staging maintenance units ===')
+    ordered(text, '=== Reconcile staging maintenance units ===', "SELECT to_regclass('public.apgic_schema_migrations') IS NOT NULL")
     ordered(text, "SELECT to_regclass('public.apgic_schema_migrations') IS NOT NULL", 'systemctl start apgic-staging-backup.service')
     ordered(text, 'systemctl start apgic-staging-backup.service', '=== Reconcile migration ledger ===')
     ordered(text, '=== Reconcile migration ledger ===', 'APGIC_COMMIT_SHA=$TARGET_SHA')
