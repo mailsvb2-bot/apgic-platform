@@ -5,8 +5,10 @@ import {
   PixelRatio,
   Pressable,
   SafeAreaView,
+  ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 
@@ -41,6 +43,13 @@ import {
 import {offlineMutationStorage} from "./offline-mutation-storage.ts";
 import {clearUserScopedLocalState, secureCredentialStorage} from "./secure-local-storage.ts";
 import {runNativeRealtimeE2E, type NativeRealtimeE2EResult} from "./r3-realtime-e2e.ts";
+import type {HelpIntent} from "../../../packages/contracts/src/generated/apgic-v1.ts";
+import {
+  confirmMobileHelpIntent,
+  createMobileHelpIntent,
+  runMobileDemandE2E,
+  type MobileDemandE2EResult,
+} from "./mobile-demand-client.ts";
 import {
   runWorkspaceE2EFlow,
   type WorkspaceE2EResult,
@@ -65,6 +74,11 @@ type AppProps = {
   deletionE2EIdentityID?: string;
   deletionE2ERequestID?: string;
   deletionE2EPlatform?: NativeSurface;
+  demandAPIBaseURL?: string;
+  demandE2EBaseURL?: string;
+  demandE2ESessionCookie?: string;
+  demandE2EFreeText?: string;
+  demandE2ECorrectedTopics?: string;
   deepLinkAPIBaseURL?: string;
   deepLinkE2ESessionCookie?: string;
   deepLinkE2EURL?: string;
@@ -118,6 +132,11 @@ export default function App({
   deletionE2EIdentityID,
   deletionE2ERequestID,
   deletionE2EPlatform,
+  demandAPIBaseURL = canonicalAPGICOrigin,
+  demandE2EBaseURL,
+  demandE2ESessionCookie,
+  demandE2EFreeText,
+  demandE2ECorrectedTopics,
   deepLinkAPIBaseURL = canonicalAPGICOrigin,
   deepLinkE2ESessionCookie,
   deepLinkE2EURL,
@@ -178,6 +197,20 @@ export default function App({
   const [deletionE2E, setDeletionE2E] = useState<
     | {status: "IDLE" | "RUNNING"}
     | ({status: "PASS"} & NativeDeletionE2EResult)
+    | {status: "FAIL"; reason: string}
+  >({status: "IDLE"});
+
+  const [demandText, setDemandText] = useState("");
+  const [demandIntent, setDemandIntent] = useState<HelpIntent | null>(null);
+  const [demandTopics, setDemandTopics] = useState<string[]>([]);
+  const [demandCustomTopic, setDemandCustomTopic] = useState("");
+  const [demandStatus, setDemandStatus] = useState<
+    "IDLE" | "RUNNING" | "DRAFT" | "CONFIRMED" | "FAIL"
+  >("IDLE");
+  const [demandError, setDemandError] = useState("");
+  const [demandE2E, setDemandE2E] = useState<
+    | {status: "IDLE" | "RUNNING"}
+    | ({status: "PASS"} & MobileDemandE2EResult)
     | {status: "FAIL"; reason: string}
   >({status: "IDLE"});
 
@@ -248,6 +281,108 @@ export default function App({
     !remoteConfigRequired ||
     (remoteConfig.status === "PASS" &&
       !remoteConfig.disabledCapabilities.includes("REALTIME_CONSULTATION"));
+
+  // Installed-app E2E probes exercise isolated native capabilities. Keep the
+  // production journey out of debug-only evidence layouts so proof labels do
+  // not depend on emulator viewport scrolling. Production HelpIntent remains a
+  // real ScrollView-backed user journey outside E2E mode.
+  const demandE2EActive = Boolean(
+    demandE2EBaseURL &&
+      demandE2ESessionCookie &&
+      demandE2EFreeText &&
+      demandE2ECorrectedTopics,
+  );
+  const infrastructureE2EActive = Boolean(
+    installationE2EBaseURL ||
+      workspaceE2EBaseURL ||
+      deletionE2EBaseURL ||
+      demandE2EActive ||
+      deepLinkE2EURL ||
+      notificationE2EBaseURL ||
+      offlineMutationE2EBaseURL ||
+      realtimeE2EEvents ||
+      accessibilityE2EEnabled ||
+      (compatibilityBaseURL !== canonicalAPGICOrigin && !demandE2EBaseURL) ||
+      (remoteConfigBaseURL && remoteConfigBaseURL !== canonicalAPGICOrigin),
+  );
+
+  const analyzeDemand = useCallback(async () => {
+    if (!compatibilityAllowsRuntime) {
+      setDemandError("Сначала завершите проверку совместимости или обновите приложение.");
+      return;
+    }
+    const freeText = demandText.trim();
+    if (!freeText) {
+      setDemandError("Опишите, с чем нужна помощь.");
+      return;
+    }
+    setDemandError("");
+    setDemandStatus("RUNNING");
+    try {
+      const intent = await createMobileHelpIntent(freeText, {
+        baseURL: demandAPIBaseURL,
+        sessionCookie: demandE2ESessionCookie,
+      });
+      setDemandIntent(intent);
+      setDemandTopics([...intent.topics]);
+      setDemandStatus("DRAFT");
+    } catch (error: unknown) {
+      setDemandStatus("FAIL");
+      setDemandError(
+        error instanceof Error ? error.message : "Не удалось разобрать запрос.",
+      );
+    }
+  }, [compatibilityAllowsRuntime, demandAPIBaseURL, demandE2ESessionCookie, demandText]);
+
+  const toggleDemandTopic = useCallback((topic: string) => {
+    setDemandTopics((current) =>
+      current.includes(topic)
+        ? current.filter((value) => value !== topic)
+        : [...current, topic],
+    );
+  }, []);
+
+  const addDemandTopic = useCallback(() => {
+    const topic = demandCustomTopic.trim();
+    if (!topic) return;
+    setDemandTopics((current) => current.includes(topic) ? current : [...current, topic]);
+    setDemandCustomTopic("");
+  }, [demandCustomTopic]);
+
+  const confirmDemand = useCallback(async () => {
+    if (!compatibilityAllowsRuntime) {
+      setDemandError("Сначала завершите проверку совместимости или обновите приложение.");
+      return;
+    }
+    if (!demandIntent || demandTopics.length === 0) {
+      setDemandError("Оставьте хотя бы одну подходящую тему.");
+      return;
+    }
+    setDemandError("");
+    setDemandStatus("RUNNING");
+    try {
+      const confirmed = await confirmMobileHelpIntent(
+        demandIntent.id,
+        {
+          topics: demandTopics,
+          goals: demandIntent.goals,
+          context: demandIntent.context,
+        },
+        {
+          baseURL: demandAPIBaseURL,
+          sessionCookie: demandE2ESessionCookie,
+        },
+      );
+      setDemandIntent(confirmed);
+      setDemandTopics([...confirmed.topics]);
+      setDemandStatus("CONFIRMED");
+    } catch (error: unknown) {
+      setDemandStatus("FAIL");
+      setDemandError(
+        error instanceof Error ? error.message : "Не удалось подтвердить запрос.",
+      );
+    }
+  }, [compatibilityAllowsRuntime, demandAPIBaseURL, demandE2ESessionCookie, demandIntent, demandTopics]);
 
   const handleDeepLink = useCallback(
     async (url: string) => {
@@ -630,6 +765,54 @@ export default function App({
   useEffect(() => {
     if (
       !compatibilityAllowsRuntime ||
+      !demandE2EActive ||
+      !demandE2EBaseURL ||
+      !demandE2ESessionCookie ||
+      !demandE2EFreeText ||
+      !demandE2ECorrectedTopics
+    ) {
+      return;
+    }
+    let active = true;
+    setDemandE2E({status: "RUNNING"});
+    const correctedTopics = demandE2ECorrectedTopics
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean);
+    void runMobileDemandE2E({
+      baseURL: demandE2EBaseURL,
+      sessionCookie: demandE2ESessionCookie,
+      freeText: demandE2EFreeText,
+      correctedTopics,
+    }).then(
+      (result) => {
+        if (active) setDemandE2E({status: "PASS", ...result});
+      },
+      (error: unknown) => {
+        if (active) {
+          setDemandE2E({
+            status: "FAIL",
+            reason:
+              error instanceof Error ? error.message : "MOBILE_DEMAND_E2E_FAILED",
+          });
+        }
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [
+    compatibilityAllowsRuntime,
+    demandE2EActive,
+    demandE2EBaseURL,
+    demandE2ESessionCookie,
+    demandE2EFreeText,
+    demandE2ECorrectedTopics,
+  ]);
+
+  useEffect(() => {
+    if (
+      !compatibilityAllowsRuntime ||
       !deletionE2EBaseURL ||
       !deletionE2ESessionCookie ||
       !deletionE2EIdentityID ||
@@ -674,12 +857,128 @@ export default function App({
 
   return (
     <SafeAreaView style={styles.safe}>
-      <View style={styles.card} accessibilityRole="summary">
+      <ScrollView
+        contentContainerStyle={styles.card}
+        keyboardShouldPersistTaps="handled"
+        accessibilityRole="summary"
+      >
         <Text style={styles.eyebrow}>R0 · Foundation</Text>
         <Text style={styles.title}>APGIC</Text>
         <Text style={styles.body}>
           Одна Identity и одна server truth для iOS, Android, Web и PWA.
         </Text>
+
+        {!infrastructureE2EActive ? (
+          <View style={styles.demandCard} accessibilityRole="summary">
+            <Text style={styles.capabilityTitle}>С чем нужна помощь</Text>
+            <Text style={styles.body}>
+              Опишите ситуацию своими словами. APGIC предложит темы, а вы сможете исправить их перед подтверждением.
+            </Text>
+            <TextInput
+              accessibilityLabel="С чем нужна помощь"
+              multiline
+              value={demandText}
+              onChangeText={setDemandText}
+              placeholder="Например: тревожно перед выступлениями и плохо сплю"
+              style={styles.demandInput}
+            />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Разобрать запрос"
+              disabled={demandStatus === "RUNNING" || !compatibilityAllowsRuntime}
+              onPress={() => void analyzeDemand()}
+              style={styles.demandAction}
+            >
+              <Text>Разобрать запрос</Text>
+            </Pressable>
+            {demandIntent ? (
+              <View style={styles.capability}>
+                <Text accessibilityLabel="native-demand-notice">{demandIntent.notice}</Text>
+                <Text accessibilityLabel={`native-demand-diagnosis:${demandIntent.diagnosis_asserted}`}>
+                  Это не диагноз. Диагноз поставлен: {demandIntent.diagnosis_asserted ? "да" : "нет"}.
+                </Text>
+                <Text>Уточните темы запроса:</Text>
+                {Array.from(new Set([...demandIntent.topics, ...demandTopics])).map((topic) => {
+                  const selected = demandTopics.includes(topic);
+                  return (
+                    <Pressable
+                      key={topic}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{checked: selected}}
+                      accessibilityLabel={`Тема ${topic}`}
+                      onPress={() => toggleDemandTopic(topic)}
+                      style={styles.demandTopic}
+                    >
+                      <Text>{selected ? "✓ " : ""}{topic}</Text>
+                    </Pressable>
+                  );
+                })}
+                <TextInput
+                  accessibilityLabel="Добавить свою тему запроса"
+                  value={demandCustomTopic}
+                  onChangeText={setDemandCustomTopic}
+                  onSubmitEditing={addDemandTopic}
+                  placeholder="Добавить или заменить тему"
+                  style={styles.demandInput}
+                />
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Добавить свою тему запроса"
+                  disabled={!demandCustomTopic.trim()}
+                  onPress={addDemandTopic}
+                  style={styles.demandAction}
+                >
+                  <Text>Добавить тему</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Подтвердить темы запроса"
+                  disabled={demandStatus === "RUNNING" || demandTopics.length === 0 || !compatibilityAllowsRuntime}
+                  onPress={() => void confirmDemand()}
+                  style={styles.demandAction}
+                >
+                  <Text>Подтвердить темы</Text>
+                </Pressable>
+                {demandStatus === "CONFIRMED" ? (
+                  <Text accessibilityLabel="native-demand-confirmed">
+                    Запрос подтверждён пользователем.
+                  </Text>
+                ) : null}
+              </View>
+            ) : null}
+            {demandError ? (
+              <Text accessibilityRole="alert" accessibilityLabel="native-demand-error">
+                {demandError}
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
+
+        {demandE2E.status !== "IDLE" ? (
+          <View style={styles.capability} accessibilityRole="summary">
+            <Text accessibilityLabel={`demand-e2e:${demandE2E.status}`}>
+              HelpIntent E2E: {demandE2E.status}
+            </Text>
+            {demandE2E.status === "PASS" ? (
+              <>
+                <Text accessibilityLabel={`demand-e2e-diagnosis:${demandE2E.diagnosisAsserted}`}>
+                  Diagnosis asserted: {String(demandE2E.diagnosisAsserted)}
+                </Text>
+                <Text accessibilityLabel={`demand-e2e-correction:${demandE2E.userCorrectionObserved}`}>
+                  User correction preserved.
+                </Text>
+                <Text accessibilityLabel={`demand-e2e-topics:${demandE2E.confirmedTopics.join("|")}`}>
+                  Confirmed topics.
+                </Text>
+              </>
+            ) : null}
+            {demandE2E.status === "FAIL" ? (
+              <Text accessibilityLabel={`demand-e2e-error:${demandE2E.reason}`}>
+                HelpIntent E2E failed safely.
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
 
         {accessibilityE2EEnabled ? (
           <View
@@ -1011,19 +1310,23 @@ export default function App({
             ) : null}
           </View>
         ) : null}
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, justifyContent: "center", padding: 24 },
-  card: { gap: 12 },
+  safe: { flex: 1 },
+  card: { gap: 12, padding: 24, paddingBottom: 48 },
   eyebrow: { fontWeight: "700", textTransform: "uppercase", letterSpacing: 1.2 },
   title: { fontWeight: "800", fontSize: 48 },
   body: { fontSize: 18, lineHeight: 27 },
   capability: { gap: 8, marginTop: 12 },
   capabilityTitle: { fontSize: 20, fontWeight: "700" },
+  demandCard: { gap: 10, marginTop: 12 },
+  demandInput: { minHeight: 96, borderWidth: 1, borderRadius: 8, padding: 12, textAlignVertical: "top" },
+  demandAction: { minHeight: 48, justifyContent: "center", paddingHorizontal: 12, borderWidth: 1, borderRadius: 8 },
+  demandTopic: { minHeight: 44, justifyContent: "center", paddingHorizontal: 12, borderWidth: 1, borderRadius: 8 },
   accessibilityProbe: { gap: 8, marginTop: 12 },
   accessibilityAction: {
     minHeight: 48,

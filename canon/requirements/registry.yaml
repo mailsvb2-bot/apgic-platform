@@ -1117,13 +1117,15 @@ requirements:
   release_profile: R1
   risk: HIGH
   priority: P0
-  status: IN_PROGRESS
+  status: VERIFIED
   dependencies: []
   implementation_refs:
   - backend/internal/marketplace/discovery.go
   - backend/internal/demand/service.go
   - backend/internal/httpapi/demand.go
   - backend/migrations/000007_r1_marketplace_discovery.sql
+  - apps/mobile/src/mobile-demand-client.ts
+  - apps/mobile/src/App.tsx
   contract_refs:
   - contracts/jsonschema/marketplace-discovery-v1.schema.json
   - contracts/openapi/apgic-v1.yaml
@@ -1131,10 +1133,21 @@ requirements:
   - backend/internal/marketplace/marketplace_test.go
   - backend/internal/demand/service_test.go
   - apps/web/e2e/foundation.spec.ts
+  - apps/mobile/src/mobile-demand-client.test.ts
+  - tools/mobile_android_capability_e2e.sh
+  - tools/mobile_ios_capability_e2e.sh
   - backend/migrations/ci_r1_marketplace_invariants.sql
   evidence_refs:
   - canon/evidence/staging-runtime-20260926T215500Z.json
   - canon/evidence/staging-runtime-20260927T072352Z.json
+  - docs/traceability/R1-demand001-help-intent-confirmation.md
+  - surface://WEB/demand001-help-intent/run-37337781585/job-111857429352
+  - surface://ANDROID/demand001-help-intent/run-37337781585/job-111857429380
+  - surface://IOS/demand001-help-intent/run-37337781585/job-111857429442
+  - surface://SERVER/demand001-domain/run-37337781585/job-111857429423
+  - surface://SERVER/demand001-postgres/run-37337781585/job-111857429283
+  - surface://CI/demand001-multisurface/run-37337781585/job-111857429542
+  - surface://CI/demand001-canon/run-37337781585/job-111857429368
   acceptance:
     given: пользователь описывает запрос свободным текстом
     when: система предлагает topics/goals/context

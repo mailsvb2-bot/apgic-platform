@@ -54,6 +54,89 @@ class MobileNativeE2EHarnessTest(unittest.TestCase):
             self.assertIn("trap - EXIT", cleanup)
             self.assertIn('exit "$status"', cleanup)
 
+    def test_android_sdk_install_retries_transient_corrupt_downloads(self) -> None:
+        android = self._read("mobile_android_capability_e2e.sh")
+
+        self.assertIn("install_android_sdk_packages() {", android)
+        self.assertIn("for attempt in 1 2 3; do", android)
+        self.assertIn('rm -rf "$HOME/.android/cache"', android)
+        self.assertIn(
+            'fail "Android SDK package installation failed after bounded retries"',
+            android,
+        )
+
+    def test_android_e2e_budget_and_new_evidence_are_bounded(self) -> None:
+        workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+        android = self._read("mobile_android_capability_e2e.sh")
+
+        android_job = workflow[
+            workflow.index("  mobile-android-build:"):
+            workflow.index("  mobile-ios-build:")
+        ]
+        self.assertIn("timeout-minutes: 45", android_job)
+        self.assertIn("evidence/android-demand-e2e.xml", android_job)
+        self.assertIn("evidence/android-deletion-e2e.xml", android_job)
+
+        for path in (
+            "/sdcard/apgic-installation-e2e.xml",
+            "/sdcard/apgic-workspace-e2e.xml",
+            "/sdcard/apgic-deletion-e2e.xml",
+        ):
+            self.assertEqual(android.count("dump_until_labels_visible " + path), 1)
+        self.assertIn('local remote="/sdcard/apgic-demand-e2e.xml"', android)
+        self.assertIn('APGIC_E2E_DEMAND_SESSION_COOKIE "$SESSION_COOKIE"', android)
+        self.assertIn('tap_accessibility_label "С чем нужна помощь"', android)
+        self.assertIn('tap_accessibility_label "Тема anxiety"', android)
+        self.assertIn('tap_accessibility_label "Подтвердить темы запроса"', android)
+
+    def test_demand_e2e_matches_user_help_intent_execution_path(self) -> None:
+        app = (ROOT / "apps/mobile/src/App.tsx").read_text(encoding="utf-8")
+
+        demand_effect_marker = app.index("setDemandE2E({status: \"RUNNING\"})")
+        demand_effect_start = app.rindex("  useEffect(() => {", 0, demand_effect_marker)
+        demand_effect_end = app.index("  ]);", demand_effect_marker)
+        demand_effect = app[demand_effect_start:demand_effect_end]
+        self.assertIn("!compatibilityAllowsRuntime", demand_effect)
+        self.assertIn("compatibilityAllowsRuntime,", demand_effect)
+        self.assertIn("const demandE2EActive = Boolean(", app)
+        self.assertIn("demandE2EActive ||", app)
+        self.assertIn("(compatibilityBaseURL !== canonicalAPGICOrigin && !demandE2EBaseURL) ||", app)
+
+    def test_production_demand_mutations_fail_closed_and_allow_topic_replacement(self) -> None:
+        app = (ROOT / "apps/mobile/src/App.tsx").read_text(encoding="utf-8")
+
+        analyze_start = app.index("  const analyzeDemand = useCallback")
+        analyze_end = app.index("  const toggleDemandTopic", analyze_start)
+        analyze = app[analyze_start:analyze_end]
+        self.assertIn("if (!compatibilityAllowsRuntime)", analyze)
+
+        confirm_start = app.index("  const confirmDemand = useCallback")
+        confirm_end = app.index("  const handleDeepLink", confirm_start)
+        confirm = app[confirm_start:confirm_end]
+        self.assertIn("if (!compatibilityAllowsRuntime)", confirm)
+
+        self.assertIn('accessibilityLabel="Добавить свою тему запроса"', app)
+        self.assertIn("const addDemandTopic = useCallback", app)
+        self.assertIn("current.includes(topic) ? current : [...current, topic]", app)
+        self.assertIn("...demandTopics", app)
+
+    def test_demand_and_deletion_e2e_use_local_compatibility_gate(self) -> None:
+        android = self._read("mobile_android_capability_e2e.sh")
+        ios = self._read("mobile_ios_capability_e2e.sh")
+
+        for function_name in ("assert_help_intent_confirmation", "assert_account_deletion"):
+            android_start = android.index(function_name + "() {")
+            android_end = android.index("\n}\n", android_start)
+            android_block = android[android_start:android_end]
+            self.assertIn('APGIC_E2E_COMPATIBILITY_BASE_URL "$COMPATIBILITY_BASE_URL"', android_block)
+            self.assertIn('APGIC_E2E_CONTRACT_VERSION "$COMPATIBILITY_CONTRACT_VERSION"', android_block)
+
+            ios_start = ios.index(function_name + "() {")
+            ios_end = ios.index("\n}\n", ios_start)
+            ios_block = ios[ios_start:ios_end]
+            self.assertIn('SIMCTL_CHILD_APGIC_E2E_COMPATIBILITY_BASE_URL="$COMPATIBILITY_BASE_URL"', ios_block)
+            self.assertIn('SIMCTL_CHILD_APGIC_E2E_CONTRACT_VERSION="$COMPATIBILITY_CONTRACT_VERSION"', ios_block)
+
     def test_android_realtime_script_finishes_with_audited_audio_route(self) -> None:
         text = self._read("mobile_android_capability_e2e.sh")
         marker = 'local events="'

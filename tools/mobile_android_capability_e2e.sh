@@ -38,6 +38,80 @@ fail() {
   exit 1
 }
 
+dump_until_labels_visible() {
+  local remote="$1"
+  local output="$2"
+  shift 2
+  local attempt
+  local label
+  local matched
+
+  for attempt in $(seq 1 12); do
+    if "$ADB" shell uiautomator dump "$remote" >/dev/null 2>&1 &&
+       "$ADB" pull "$remote" "$output" >/dev/null 2>&1; then
+      matched=true
+      for label in "$@"; do
+        if ! grep -Fq "$label" "$output"; then
+          matched=false
+          break
+        fi
+      done
+      if [[ "$matched" == "true" ]]; then
+        return 0
+      fi
+    fi
+
+    # React Native renders long journeys in a ScrollView. Follow the same
+    # vertical gesture a user would use instead of assuming all evidence is
+    # present in the first 320x640 viewport.
+    "$ADB" shell input swipe 160 540 160 180 250 >/dev/null 2>&1 || true
+    sleep 1
+  done
+  return 1
+}
+
+tap_accessibility_label() {
+  local label="$1"
+  local remote="$2"
+  local output="$3"
+  local coords=""
+
+  for _ in $(seq 1 20); do
+    if "$ADB" shell uiautomator dump "$remote" >/dev/null 2>&1 &&
+       "$ADB" pull "$remote" "$output" >/dev/null 2>&1; then
+      coords="$(
+        python3 - "$output" "$label" <<'PY'
+import re
+import sys
+import xml.etree.ElementTree as ET
+
+path, label = sys.argv[1:]
+root = ET.parse(path).getroot()
+for node in root.iter("node"):
+    if node.attrib.get("content-desc") != label:
+        continue
+    if node.attrib.get("enabled") != "true":
+        continue
+    match = re.fullmatch(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]", node.attrib.get("bounds", ""))
+    if not match:
+        continue
+    x1, y1, x2, y2 = map(int, match.groups())
+    print(f"{(x1+x2)//2} {(y1+y2)//2}")
+    break
+PY
+      )"
+      if [[ -n "$coords" ]]; then
+        # shellcheck disable=SC2086
+        "$ADB" shell input tap $coords >/dev/null
+        return 0
+      fi
+    fi
+    "$ADB" shell input swipe 160 480 160 140 250 >/dev/null 2>&1 || true
+    sleep 1
+  done
+  return 1
+}
+
 cleanup() {
   local status=$?
   trap - EXIT
@@ -193,7 +267,22 @@ AVDMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/avdmanager"
 [[ -x "$AVDMANAGER" ]] || fail "avdmanager not found"
 
 yes | "$SDKMANAGER" --licenses >/dev/null || true
-"$SDKMANAGER" "platform-tools" "emulator" "$SYSTEM_IMAGE"
+
+install_android_sdk_packages() {
+  local attempt
+  for attempt in 1 2 3; do
+    if "$SDKMANAGER" "platform-tools" "emulator" "$SYSTEM_IMAGE"; then
+      return 0
+    fi
+    echo "Android SDK package install attempt $attempt failed; clearing transient cache before retry" >&2
+    rm -rf "$HOME/.android/cache" >/dev/null 2>&1 || true
+    sleep $((attempt * 2))
+  done
+  return 1
+}
+
+install_android_sdk_packages ||
+  fail "Android SDK package installation failed after bounded retries"
 
 ADB="$SDK_ROOT/platform-tools/adb"
 [[ -x "$ADB" ]] || ADB="$(command -v adb || true)"
@@ -312,11 +401,7 @@ assert_compatibility_policy() {
     >/dev/null
 
   for _ in $(seq 1 60); do
-    if "$ADB" shell uiautomator dump /sdcard/apgic-compatibility-supported.xml >/dev/null 2>&1 &&
-       "$ADB" pull /sdcard/apgic-compatibility-supported.xml "$supported_output" >/dev/null 2>&1 &&
-       grep -q 'installation-e2e:PASS' "$supported_output" &&
-       grep -q 'installation-e2e-state:REVOKED' "$supported_output" &&
-       grep -q 'installation-e2e-generation:2' "$supported_output" &&
+    if dump_until_labels_visible /sdcard/apgic-compatibility-supported.xml "$supported_output"          'installation-e2e:PASS'          'installation-e2e-state:REVOKED'          'installation-e2e-generation:2' &&
        ! grep -q 'compatibility-status:UPDATE_REQUIRED' "$supported_output"; then
       echo "Android supported previous contract remained operational: PASS"
       break
@@ -335,13 +420,7 @@ assert_compatibility_policy() {
     >/dev/null
 
   for _ in $(seq 1 60); do
-    if "$ADB" shell uiautomator dump /sdcard/apgic-compatibility-update.xml >/dev/null 2>&1 &&
-       "$ADB" pull /sdcard/apgic-compatibility-update.xml "$update_output" >/dev/null 2>&1 &&
-       grep -q 'compatibility-e2e:PASS' "$update_output" &&
-       grep -q 'compatibility-status:UPDATE_REQUIRED' "$update_output" &&
-       grep -q 'compatibility-reason:CLIENT_CONTRACT_UNSUPPORTED' "$update_output" &&
-       grep -q 'compatibility-update-reason:INCOMPATIBLE_CRITICAL' "$update_output" &&
-       grep -q 'compatibility-update-action' "$update_output"; then
+    if dump_until_labels_visible /sdcard/apgic-compatibility-update.xml "$update_output"          'compatibility-e2e:PASS'          'compatibility-status:UPDATE_REQUIRED'          'compatibility-reason:CLIENT_CONTRACT_UNSUPPORTED'          'compatibility-update-reason:INCOMPATIBLE_CRITICAL'          'compatibility-update-action'; then
       echo "Android installed-app compatibility + governed update path: PASS"
       return 0
     fi
@@ -417,15 +496,13 @@ assert_installation_lifecycle() {
     --es APGIC_E2E_INSTALLATION_PLATFORM ANDROID \
     >/dev/null
 
-  for _ in $(seq 1 60); do
-    if "$ADB" shell uiautomator dump /sdcard/apgic-installation-e2e.xml >/dev/null 2>&1 &&
-       "$ADB" pull /sdcard/apgic-installation-e2e.xml "$output" >/dev/null 2>&1 &&
-       grep -q 'installation-e2e:PASS' "$output" &&
-       grep -q 'installation-e2e-state:REVOKED' "$output" &&
-       grep -q 'installation-e2e-generation:2' "$output"; then
-      curl -fsS -H "Cookie: $SESSION_COOKIE" http://127.0.0.1:43113/v1/mobile/installations \
-        -o "$EVIDENCE_DIR/android-installation-server-state.json"
-      python3 - "$EVIDENCE_DIR/android-installation-server-state.json" "$installation_id" <<'PY'
+  if dump_until_labels_visible /sdcard/apgic-installation-e2e.xml "$output" \
+       'installation-e2e:PASS' \
+       'installation-e2e-state:REVOKED' \
+       'installation-e2e-generation:2'; then
+    curl -fsS -H "Cookie: $SESSION_COOKIE" http://127.0.0.1:43113/v1/mobile/installations \
+      -o "$EVIDENCE_DIR/android-installation-server-state.json"
+    python3 - "$EVIDENCE_DIR/android-installation-server-state.json" "$installation_id" <<'PY'
 import json
 import sys
 payload = json.load(open(sys.argv[1], encoding="utf-8"))
@@ -437,11 +514,9 @@ item = matches[0]
 if item.get("state") != "REVOKED" or item.get("push_generation") != 2 or item.get("push_endpoint"):
     raise SystemExit(f"unexpected canonical installation state: {item!r}")
 PY
-      echo "Android installed-app installation lifecycle: PASS"
-      return 0
-    fi
-    sleep 1
-  done
+    echo "Android installed-app installation lifecycle: PASS"
+    return 0
+  fi
 
   [[ -f "$output" ]] && cat "$output" >&2 || true
   fail "installed app did not complete register/rotate/revoke lifecycle"
@@ -597,17 +672,13 @@ assert_workspace_switch() {
     --es APGIC_E2E_WORKSPACE_SESSION_COOKIE "$SESSION_COOKIE" \
     >/dev/null
 
-  for _ in $(seq 1 60); do
-    if "$ADB" shell uiautomator dump /sdcard/apgic-workspace-e2e.xml >/dev/null 2>&1 &&
-       "$ADB" pull /sdcard/apgic-workspace-e2e.xml "$output" >/dev/null 2>&1 &&
-       grep -q 'workspace-e2e:PASS' "$output" &&
-       grep -q 'workspace-e2e-kinds:CLIENT|SPECIALIST|ORGANIZATION' "$output" &&
-       grep -q 'workspace-e2e-foreign-denied:true' "$output"; then
-      echo "Android installed-app one-Identity multi-role workspace switching: PASS"
-      return 0
-    fi
-    sleep 1
-  done
+  if dump_until_labels_visible /sdcard/apgic-workspace-e2e.xml "$output" \
+       'workspace-e2e:PASS' \
+       'workspace-e2e-kinds:CLIENT|SPECIALIST|ORGANIZATION' \
+       'workspace-e2e-foreign-denied:true'; then
+    echo "Android installed-app one-Identity multi-role workspace switching: PASS"
+    return 0
+  fi
 
   [[ -f "$output" ]] && cat "$output" >&2 || true
   fail "installed Android app did not prove CLIENT/SPECIALIST/ORGANIZATION workspace switching"
@@ -629,49 +700,62 @@ assert_realtime_lifecycle() {
 
   realtime_ready() {
     local target="$1"
-    "$ADB" shell uiautomator dump /sdcard/apgic-realtime-e2e.xml >/dev/null 2>&1 &&
-      "$ADB" pull /sdcard/apgic-realtime-e2e.xml "$target" >/dev/null 2>&1 &&
-      grep -q 'realtime-e2e:PASS' "$target" &&
-      grep -q 'realtime-phase:CONNECTED' "$target" &&
-      grep -q 'realtime-business-transition:NONE' "$target" &&
-      grep -q 'realtime-audio-route:BLUETOOTH' "$target" &&
-      grep -q 'realtime-app-state:FOREGROUND' "$target" &&
-      grep -q 'realtime-network-state:ONLINE' "$target" &&
-      grep -q 'realtime-network-transport:CELLULAR' "$target" &&
-      grep -q 'realtime-screen-state:UNLOCKED' "$target" &&
-      grep -q 'realtime-join-auth-state:VALID' "$target" &&
-      grep -q "realtime-consultation-id:${consultation_id}" "$target" &&
-      grep -q 'realtime-action-connect:true' "$target" &&
-      grep -q 'realtime-action-reconnect:true' "$target" &&
-      grep -q 'realtime-action-pause:true' "$target" &&
-      grep -q 'realtime-action-route:true' "$target" &&
-      grep -Eq 'realtime-provider-actions:[^"]*REFRESH_JOIN_AUTH' "$target"
+    local viewport="${target}.viewport.xml"
+    local attempt
+    local phase
+
+    : >"$target"
+    for attempt in $(seq 1 60); do
+      if "$ADB" shell uiautomator dump /sdcard/apgic-realtime-e2e.xml >/dev/null 2>&1 &&
+         "$ADB" pull /sdcard/apgic-realtime-e2e.xml "$viewport" >/dev/null 2>&1; then
+        cat "$viewport" >>"$target"
+        if grep -q 'realtime-e2e:PASS' "$target" &&
+           grep -q 'realtime-phase:CONNECTED' "$target" &&
+           grep -q 'realtime-business-transition:NONE' "$target" &&
+           grep -q 'realtime-audio-route:BLUETOOTH' "$target" &&
+           grep -q 'realtime-app-state:FOREGROUND' "$target" &&
+           grep -q 'realtime-network-state:ONLINE' "$target" &&
+           grep -q 'realtime-network-transport:CELLULAR' "$target" &&
+           grep -q 'realtime-screen-state:UNLOCKED' "$target" &&
+           grep -q 'realtime-join-auth-state:VALID' "$target" &&
+           grep -q "realtime-consultation-id:${consultation_id}" "$target" &&
+           grep -q 'realtime-action-connect:true' "$target" &&
+           grep -q 'realtime-action-reconnect:true' "$target" &&
+           grep -q 'realtime-action-pause:true' "$target" &&
+           grep -q 'realtime-action-route:true' "$target" &&
+           grep -Eq 'realtime-provider-actions:[^"]*REFRESH_JOIN_AUTH' "$target"; then
+          rm -f "$viewport"
+          return 0
+        fi
+      fi
+
+      # Sweep the ScrollView down and back up so evidence that spans more than
+      # one emulator viewport is collected without assuming a fixed screen size.
+      phase=$(( (attempt - 1) % 16 ))
+      if (( phase < 8 )); then
+        "$ADB" shell input swipe 160 540 160 180 250 >/dev/null 2>&1 || true
+      else
+        "$ADB" shell input swipe 160 180 160 540 250 >/dev/null 2>&1 || true
+      fi
+      sleep 1
+    done
+    rm -f "$viewport"
+    return 1
   }
 
   launch_realtime
-  local first_pass=false
-  for _ in $(seq 1 60); do
-    if realtime_ready "$output"; then
-      first_pass=true
-      break
-    fi
-    sleep 1
-  done
-  if [[ "$first_pass" != "true" ]]; then
-    [[ -f "$output" ]] && cat "$output" >&2 || true
+  if ! realtime_ready "$output"; then
+    [[ -f "$output" ]] && tail -n 40 "$output" >&2 || true
     fail "installed Android app did not complete native realtime lifecycle proof"
   fi
 
   launch_realtime
-  for _ in $(seq 1 60); do
-    if realtime_ready "$rejoin_output"; then
-      echo "Android installed-app native realtime lifecycle + restart/rejoin: PASS"
-      return 0
-    fi
-    sleep 1
-  done
+  if realtime_ready "$rejoin_output"; then
+    echo "Android installed-app native realtime lifecycle + restart/rejoin: PASS"
+    return 0
+  fi
 
-  [[ -f "$rejoin_output" ]] && cat "$rejoin_output" >&2 || true
+  [[ -f "$rejoin_output" ]] && tail -n 40 "$rejoin_output" >&2 || true
   fail "installed Android app did not rejoin the same canonical consultation after process restart"
 }
 
@@ -802,6 +886,55 @@ PY
   echo "Android accessibility semantics + text scaling + device matrix: PASS"
 }
 
+assert_help_intent_confirmation() {
+  local output="$EVIDENCE_DIR/android-demand-e2e.xml"
+  local remote="/sdcard/apgic-demand-e2e.xml"
+
+  "$ADB" shell am force-stop com.apgic.ci
+  "$ADB" shell am start -W \
+    -n com.apgic.ci/.MainActivity \
+    --es APGIC_E2E_CAPABILITY_STATE GRANTED \
+    --es APGIC_E2E_COMPATIBILITY_BASE_URL "$COMPATIBILITY_BASE_URL" \
+    --es APGIC_E2E_CONTRACT_VERSION "$COMPATIBILITY_CONTRACT_VERSION" \
+    --es APGIC_E2E_DEMAND_BASE_URL http://127.0.0.1:43113 \
+    --es APGIC_E2E_DEMAND_SESSION_COOKIE "$SESSION_COOKIE" \
+    >/dev/null
+
+  tap_accessibility_label "С чем нужна помощь" "$remote" "$output" ||
+    fail "Android production HelpIntent input was not operable"
+  "$ADB" shell input text 'anxiety%ssleep' >/dev/null
+  "$ADB" shell input keyevent 4 >/dev/null
+  sleep 1
+
+  tap_accessibility_label "Разобрать запрос" "$remote" "$output" ||
+    fail "Android production HelpIntent analyze action was not operable"
+
+  if ! dump_until_labels_visible "$remote" "$output" \
+       'native-demand-diagnosis:false' \
+       'Тема anxiety' \
+       'Тема sleep'; then
+    [[ -f "$output" ]] && cat "$output" >&2 || true
+    fail "Android production HelpIntent interpretation/no-diagnosis state was not visible"
+  fi
+
+  tap_accessibility_label "Тема anxiety" "$remote" "$output" ||
+    fail "Android production HelpIntent suggested topic could not be corrected"
+  tap_accessibility_label "Подтвердить темы запроса" "$remote" "$output" ||
+    fail "Android production HelpIntent confirmation action was not operable"
+
+  if dump_until_labels_visible "$remote" "$output" \
+       'native-demand-confirmed' \
+       'native-demand-diagnosis:false' \
+       'Тема sleep' &&
+     ! grep -Fq 'Тема anxiety' "$output"; then
+    echo "Android installed-app production HelpIntent interpretation/correction/no-diagnosis: PASS"
+    return 0
+  fi
+
+  [[ -f "$output" ]] && cat "$output" >&2 || true
+  fail "installed Android production UI did not prove HelpIntent correction/no-diagnosis flow"
+}
+
 assert_account_deletion() {
   local output="$EVIDENCE_DIR/android-deletion-e2e.xml"
   local identity_id
@@ -823,6 +956,8 @@ PY
   "$ADB" shell am start -W \
     -n com.apgic.ci/.MainActivity \
     --es APGIC_E2E_CAPABILITY_STATE GRANTED \
+    --es APGIC_E2E_COMPATIBILITY_BASE_URL "$COMPATIBILITY_BASE_URL" \
+    --es APGIC_E2E_CONTRACT_VERSION "$COMPATIBILITY_CONTRACT_VERSION" \
     --es APGIC_E2E_DELETION_BASE_URL http://127.0.0.1:43113 \
     --es APGIC_E2E_DELETION_SESSION_COOKIE "$SESSION_COOKIE" \
     --es APGIC_E2E_DELETION_IDENTITY_ID "$identity_id" \
@@ -830,20 +965,16 @@ PY
     --es APGIC_E2E_DELETION_PLATFORM ANDROID \
     >/dev/null
 
-  for _ in $(seq 1 60); do
-    if "$ADB" shell uiautomator dump /sdcard/apgic-deletion-e2e.xml >/dev/null 2>&1 &&
-       "$ADB" pull /sdcard/apgic-deletion-e2e.xml "$output" >/dev/null 2>&1 &&
-       grep -q 'deletion-e2e:PASS' "$output" &&
-       grep -q 'deletion-e2e-state:PARTIALLY_RETAINED_WITH_REASON' "$output" &&
-       grep -q 'deletion-e2e-deactivation:false' "$output" &&
-       grep -q 'deletion-e2e-profile-erased:true' "$output" &&
-       grep -q 'deletion-e2e-ledger-retained:true' "$output" &&
-       grep -q 'deletion-e2e-idempotent:true' "$output"; then
-      echo "Android installed-app canonical account deletion + idempotent replay: PASS"
-      return 0
-    fi
-    sleep 1
-  done
+  if dump_until_labels_visible /sdcard/apgic-deletion-e2e.xml "$output" \
+       'deletion-e2e:PASS' \
+       'deletion-e2e-state:PARTIALLY_RETAINED_WITH_REASON' \
+       'deletion-e2e-deactivation:false' \
+       'deletion-e2e-profile-erased:true' \
+       'deletion-e2e-ledger-retained:true' \
+       'deletion-e2e-idempotent:true'; then
+    echo "Android installed-app canonical account deletion + idempotent replay: PASS"
+    return 0
+  fi
 
   [[ -f "$output" ]] && cat "$output" >&2 || true
   fail "installed Android app did not complete canonical account deletion"
@@ -858,6 +989,7 @@ assert_notification_runtime
 assert_offline_mutation_restart
 assert_realtime_lifecycle
 assert_accessibility_and_device_matrix
+assert_help_intent_confirmation
 assert_account_deletion
 
-echo "ANDROID CAPABILITY + COMPATIBILITY + INSTALLATION + DELETION + DEEP-LINK + NOTIFICATION + OFFLINE-SYNC + REALTIME + ACCESSIBILITY NATIVE E2E: PASS"
+echo "ANDROID CAPABILITY + COMPATIBILITY + INSTALLATION + DEMAND + DELETION + DEEP-LINK + NOTIFICATION + OFFLINE-SYNC + REALTIME + ACCESSIBILITY NATIVE E2E: PASS"

@@ -886,6 +886,35 @@ PY
   echo "iOS AXBridge screen-reader semantics + accessibility text scaling: PASS"
 }
 
+assert_help_intent_confirmation() {
+  local output="$EVIDENCE_DIR/ios-demand-e2e.json"
+
+  xcrun simctl terminate "$UDID" com.apgic.ci >/dev/null 2>&1 || true
+  SIMCTL_CHILD_APGIC_E2E_CAPABILITY_STATE=GRANTED \
+  SIMCTL_CHILD_APGIC_E2E_COMPATIBILITY_BASE_URL="$COMPATIBILITY_BASE_URL" \
+  SIMCTL_CHILD_APGIC_E2E_CONTRACT_VERSION="$COMPATIBILITY_CONTRACT_VERSION" \
+  SIMCTL_CHILD_APGIC_E2E_DEMAND_BASE_URL=http://127.0.0.1:43113 \
+  SIMCTL_CHILD_APGIC_E2E_DEMAND_SESSION_COOKIE="$SESSION_COOKIE" \
+  SIMCTL_CHILD_APGIC_E2E_DEMAND_FREE_TEXT="anxiety sleep" \
+  SIMCTL_CHILD_APGIC_E2E_DEMAND_CORRECTED_TOPICS="sleep" \
+    xcrun simctl launch "$UDID" com.apgic.ci >/dev/null
+
+  for _ in $(seq 1 60); do
+    if "$IDB" ui describe-all --udid "$UDID" --api axbridge --json --nested >"$output" 2>/dev/null &&
+       json_has_ax_label "$output" "demand-e2e:PASS" &&
+       json_has_ax_label "$output" "demand-e2e-diagnosis:false" &&
+       json_has_ax_label "$output" "demand-e2e-correction:true" &&
+       json_has_ax_label "$output" "demand-e2e-topics:sleep"; then
+      echo "iOS installed-app HelpIntent interpretation/correction/no-diagnosis: PASS"
+      return 0
+    fi
+    sleep 1
+  done
+
+  [[ -f "$output" ]] && cat "$output" >&2 || true
+  fail "installed iOS app did not prove HelpIntent correction/no-diagnosis flow"
+}
+
 assert_account_deletion() {
   local output="$EVIDENCE_DIR/ios-deletion-e2e.json"
   local identity_id
@@ -905,6 +934,8 @@ PY
 
   xcrun simctl terminate "$UDID" com.apgic.ci >/dev/null 2>&1 || true
   SIMCTL_CHILD_APGIC_E2E_CAPABILITY_STATE=GRANTED \
+  SIMCTL_CHILD_APGIC_E2E_COMPATIBILITY_BASE_URL="$COMPATIBILITY_BASE_URL" \
+  SIMCTL_CHILD_APGIC_E2E_CONTRACT_VERSION="$COMPATIBILITY_CONTRACT_VERSION" \
   SIMCTL_CHILD_APGIC_E2E_DELETION_BASE_URL=http://127.0.0.1:43113 \
   SIMCTL_CHILD_APGIC_E2E_DELETION_SESSION_COOKIE="$SESSION_COOKIE" \
   SIMCTL_CHILD_APGIC_E2E_DELETION_IDENTITY_ID="$identity_id" \
@@ -939,6 +970,7 @@ assert_notification_runtime
 assert_offline_mutation_restart
 assert_realtime_lifecycle
 assert_accessibility_runtime
+assert_help_intent_confirmation
 assert_account_deletion
 
-echo "IOS CAPABILITY + COMPATIBILITY + INSTALLATION + DELETION + DEEP-LINK + NOTIFICATION + OFFLINE-SYNC + REALTIME + ACCESSIBILITY NATIVE E2E: PASS"
+echo "IOS CAPABILITY + COMPATIBILITY + INSTALLATION + DEMAND + DELETION + DEEP-LINK + NOTIFICATION + OFFLINE-SYNC + REALTIME + ACCESSIBILITY NATIVE E2E: PASS"
