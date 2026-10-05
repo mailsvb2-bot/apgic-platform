@@ -321,6 +321,7 @@ export default function App({
     try {
       const intent = await createMobileHelpIntent(freeText, {
         baseURL: demandAPIBaseURL,
+        sessionCookie: demandE2ESessionCookie,
       });
       setDemandIntent(intent);
       setDemandTopics([...intent.topics]);
@@ -331,7 +332,7 @@ export default function App({
         error instanceof Error ? error.message : "Не удалось разобрать запрос.",
       );
     }
-  }, [compatibilityAllowsRuntime, demandAPIBaseURL, demandText]);
+  }, [compatibilityAllowsRuntime, demandAPIBaseURL, demandE2ESessionCookie, demandText]);
 
   const toggleDemandTopic = useCallback((topic: string) => {
     setDemandTopics((current) =>
@@ -367,7 +368,10 @@ export default function App({
           goals: demandIntent.goals,
           context: demandIntent.context,
         },
-        {baseURL: demandAPIBaseURL},
+        {
+          baseURL: demandAPIBaseURL,
+          sessionCookie: demandE2ESessionCookie,
+        },
       );
       setDemandIntent(confirmed);
       setDemandTopics([...confirmed.topics]);
@@ -378,7 +382,7 @@ export default function App({
         error instanceof Error ? error.message : "Не удалось подтвердить запрос.",
       );
     }
-  }, [compatibilityAllowsRuntime, demandAPIBaseURL, demandIntent, demandTopics]);
+  }, [compatibilityAllowsRuntime, demandAPIBaseURL, demandE2ESessionCookie, demandIntent, demandTopics]);
 
   const handleDeepLink = useCallback(
     async (url: string) => {
