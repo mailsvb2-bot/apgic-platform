@@ -1124,6 +1124,8 @@ requirements:
   - backend/internal/demand/service.go
   - backend/internal/httpapi/demand.go
   - backend/migrations/000007_r1_marketplace_discovery.sql
+  - apps/mobile/src/mobile-demand-client.ts
+  - apps/mobile/src/App.tsx
   contract_refs:
   - contracts/jsonschema/marketplace-discovery-v1.schema.json
   - contracts/openapi/apgic-v1.yaml
@@ -1131,10 +1133,14 @@ requirements:
   - backend/internal/marketplace/marketplace_test.go
   - backend/internal/demand/service_test.go
   - apps/web/e2e/foundation.spec.ts
+  - apps/mobile/src/mobile-demand-client.test.ts
+  - tools/mobile_android_capability_e2e.sh
+  - tools/mobile_ios_capability_e2e.sh
   - backend/migrations/ci_r1_marketplace_invariants.sql
   evidence_refs:
   - canon/evidence/staging-runtime-20260926T215500Z.json
   - canon/evidence/staging-runtime-20260927T072352Z.json
+  - docs/traceability/R1-demand001-help-intent-confirmation.md
   acceptance:
     given: пользователь описывает запрос свободным текстом
     when: система предлагает topics/goals/context
