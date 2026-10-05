@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from pathlib import Path
 
@@ -9,6 +10,9 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 REGISTRY_PATH = ROOT / "canon/requirements/registry.yaml"
+PRODUCTION_EVIDENCE_INDEX_PATH = ROOT / "canon/evidence/production-evidence-index.yaml"
+EVIDENCE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]*$")
+SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 NATIVE_RELEASE_REQUIREMENT_ID = "APGIC-MOBILE-015"
 STORE_RELEASE_REQUIREMENT_ID = "APGIC-MOBILE-030"
 
@@ -117,7 +121,47 @@ def canon_dependency_blockers(
     return blockers
 
 
-def evaluate(document: dict, gate: str, mode: str) -> tuple[bool, list[str]]:
+def production_evidence_blockers(
+    document: dict,
+    evidence_type: str,
+    ref: str,
+    production_index: dict | None,
+) -> list[str]:
+    if production_index is None:
+        return [f"{evidence_type}:PRODUCTION_EVIDENCE_INDEX_MISSING"]
+    if production_index.get("schema_version") != "production-evidence-index-v1":
+        return [f"{evidence_type}:PRODUCTION_EVIDENCE_INDEX_INVALID"]
+    records = production_index.get("records")
+    if not isinstance(records, dict):
+        return [f"{evidence_type}:PRODUCTION_EVIDENCE_INDEX_INVALID"]
+    evidence_id = ref.removeprefix("evidence://")
+    if not EVIDENCE_ID_RE.fullmatch(evidence_id):
+        return [f"{evidence_type}:PRODUCTION_EVIDENCE_ID_INVALID"]
+    record = records.get(evidence_id)
+    if not isinstance(record, dict):
+        return [f"{evidence_type}:PRODUCTION_EVIDENCE_NOT_FOUND"]
+    blockers: list[str] = []
+    if record.get("evidence_type") != evidence_type:
+        blockers.append(f"{evidence_type}:PRODUCTION_EVIDENCE_TYPE_MISMATCH")
+    if record.get("status") != "PASS":
+        blockers.append(f"{evidence_type}:PRODUCTION_EVIDENCE_NOT_PASS")
+    if record.get("synthetic") is not False:
+        blockers.append(f"{evidence_type}:PRODUCTION_EVIDENCE_SYNTHETIC")
+    if record.get("candidate_sha") != document.get("candidate_sha"):
+        blockers.append(f"{evidence_type}:PRODUCTION_EVIDENCE_CANDIDATE_MISMATCH")
+    source_ref = record.get("source_ref")
+    if not isinstance(source_ref, str) or not source_ref.strip():
+        blockers.append(f"{evidence_type}:PRODUCTION_EVIDENCE_SOURCE_MISSING")
+    digest = record.get("artifact_sha256")
+    if not isinstance(digest, str) or not SHA256_RE.fullmatch(digest):
+        blockers.append(f"{evidence_type}:PRODUCTION_EVIDENCE_DIGEST_INVALID")
+    verified_at = record.get("verified_at")
+    if not isinstance(verified_at, str) or not verified_at.strip():
+        blockers.append(f"{evidence_type}:PRODUCTION_EVIDENCE_VERIFIED_AT_MISSING")
+    return blockers
+
+
+def evaluate(document: dict, gate: str, mode: str, production_index: dict | None = None) -> tuple[bool, list[str]]:
     if document.get("schema_version") != "r4-release-gate-v1":
         return False, ["SCHEMA_VERSION_INVALID"]
     if not isinstance(document.get("candidate_sha"), str) or len(document["candidate_sha"].strip()) < 7:
@@ -157,6 +201,15 @@ def evaluate(document: dict, gate: str, mode: str) -> tuple[bool, list[str]]:
                 break
             if not ref.startswith("evidence://"):
                 blockers.append(f"{evidence_type}:PRODUCTION_EVIDENCE_REF_REQUIRED")
+                continue
+            blockers.extend(
+                production_evidence_blockers(
+                    document,
+                    evidence_type,
+                    ref,
+                    production_index,
+                )
+            )
 
     return len(blockers) == 0, blockers
 
@@ -172,7 +225,13 @@ def main() -> None:
     if ROOT not in path.parents or not path.is_file():
         fail("evidence manifest path missing or outside repository")
 
-    passed, blockers = evaluate(load_document(path), args.gate, args.mode)
+    document = load_document(path)
+    production_index = None
+    if args.mode == "production":
+        if not PRODUCTION_EVIDENCE_INDEX_PATH.is_file():
+            fail("production evidence index is missing")
+        production_index = load_document(PRODUCTION_EVIDENCE_INDEX_PATH)
+    passed, blockers = evaluate(document, args.gate, args.mode, production_index)
 
     if args.mode == "production":
         if not REGISTRY_PATH.is_file():
