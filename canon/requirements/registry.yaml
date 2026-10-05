@@ -3200,6 +3200,7 @@ requirements:
   - apps/web/app/journey.tsx
   - backend/migrations/000006_r1_account_deletion.sql
   - apps/mobile/src/r1-cross-surface.ts
+  - apps/mobile/src/App.tsx
   - apps/web/src/r1-cross-surface.ts
   contract_refs:
   - contracts/openapi/apgic-v1.yaml
@@ -3211,8 +3212,12 @@ requirements:
   - apps/web/e2e/foundation.spec.ts
   - backend/migrations/ci_r1_mobile_invariants.sql
   - apps/mobile/src/r1-cross-surface.test.ts
+  - tools/mobile_android_capability_e2e.sh
+  - tools/mobile_ios_capability_e2e.sh
+  - tools/retention_contract_guard.py
   - .github/workflows/ci.yml
-  evidence_refs: []
+  evidence_refs:
+  - docs/traceability/R1-mobile020-cross-platform-account-deletion.md
   acceptance:
     given: user has APGIC account
     when: user requests deletion from native or web
