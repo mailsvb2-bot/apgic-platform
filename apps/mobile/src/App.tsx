@@ -294,7 +294,7 @@ export default function App({
       offlineMutationE2EBaseURL ||
       realtimeE2EEvents ||
       accessibilityE2EEnabled ||
-      (compatibilityBaseURL !== canonicalAPGICOrigin) ||
+      (compatibilityBaseURL !== canonicalAPGICOrigin && !demandE2EBaseURL) ||
       (remoteConfigBaseURL && remoteConfigBaseURL !== canonicalAPGICOrigin),
   );
 
@@ -737,7 +737,6 @@ export default function App({
 
   useEffect(() => {
     if (
-      !compatibilityAllowsRuntime ||
       !demandE2EBaseURL ||
       !demandE2ESessionCookie ||
       !demandE2EFreeText ||
@@ -774,7 +773,6 @@ export default function App({
       active = false;
     };
   }, [
-    compatibilityAllowsRuntime,
     demandE2EBaseURL,
     demandE2ESessionCookie,
     demandE2EFreeText,
