@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import re
 import sys
 from pathlib import Path
@@ -153,9 +154,22 @@ def production_evidence_blockers(
     source_ref = record.get("source_ref")
     if not isinstance(source_ref, str) or not source_ref.strip():
         blockers.append(f"{evidence_type}:PRODUCTION_EVIDENCE_SOURCE_MISSING")
+    artifact_path_raw = record.get("artifact_path")
+    artifact_path = None
+    if not isinstance(artifact_path_raw, str) or not artifact_path_raw.strip():
+        blockers.append(f"{evidence_type}:PRODUCTION_EVIDENCE_ARTIFACT_PATH_MISSING")
+    else:
+        artifact_path = (ROOT / artifact_path_raw).resolve()
+        if ROOT not in artifact_path.parents or not artifact_path.is_file():
+            blockers.append(f"{evidence_type}:PRODUCTION_EVIDENCE_ARTIFACT_MISSING")
+
     digest = record.get("artifact_sha256")
     if not isinstance(digest, str) or not SHA256_RE.fullmatch(digest):
         blockers.append(f"{evidence_type}:PRODUCTION_EVIDENCE_DIGEST_INVALID")
+    elif artifact_path is not None and artifact_path.is_file() and ROOT in artifact_path.parents:
+        actual_digest = hashlib.sha256(artifact_path.read_bytes()).hexdigest()
+        if actual_digest != digest:
+            blockers.append(f"{evidence_type}:PRODUCTION_EVIDENCE_DIGEST_MISMATCH")
     verified_at = record.get("verified_at")
     if not isinstance(verified_at, str) or not verified_at.strip():
         blockers.append(f"{evidence_type}:PRODUCTION_EVIDENCE_VERIFIED_AT_MISSING")
