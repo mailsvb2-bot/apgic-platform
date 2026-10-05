@@ -74,6 +74,24 @@ class MobileNativeE2EHarnessTest(unittest.TestCase):
         ):
             self.assertEqual(android.count("dump_until_labels_visible " + path), 1)
 
+    def test_demand_e2e_matches_user_help_intent_execution_path(self) -> None:
+        app = (ROOT / "apps/mobile/src/App.tsx").read_text(encoding="utf-8")
+
+        demand_effect_start = app.index(
+            "      !demandE2EBaseURL ||",
+            app.index("setDemandE2E({status: \"RUNNING\"})") - 500,
+        )
+        demand_effect_end = app.index(
+            "  ]);",
+            app.index("setDemandE2E({status: \"RUNNING\"})"),
+        )
+        demand_effect = app[demand_effect_start:demand_effect_end]
+        self.assertNotIn("compatibilityAllowsRuntime", demand_effect)
+        self.assertIn(
+            "compatibilityBaseURL !== canonicalAPGICOrigin && !demandE2EBaseURL",
+            app,
+        )
+
     def test_demand_and_deletion_e2e_use_local_compatibility_gate(self) -> None:
         android = self._read("mobile_android_capability_e2e.sh")
         ios = self._read("mobile_ios_capability_e2e.sh")
