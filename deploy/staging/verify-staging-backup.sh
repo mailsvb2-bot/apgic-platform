@@ -81,7 +81,8 @@ for table in "${required_tables[@]}"; do
   fi
 done
 
-candidate_sha="$(git -C "$SCRIPT_DIR/../.." rev-parse HEAD)"
+repo_root="$(cd "$SCRIPT_DIR/../.." && pwd)"
+candidate_sha="$(git -c safe.directory="$repo_root" -C "$repo_root" rev-parse HEAD)"
 observed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 backup_sha256="$(sha256sum "$latest" | awk '{print $1}')"
 mkdir -p "$APGIC_RESTORE_EVIDENCE_DIR"
