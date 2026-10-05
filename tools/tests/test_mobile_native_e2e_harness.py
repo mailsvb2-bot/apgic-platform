@@ -74,6 +74,23 @@ class MobileNativeE2EHarnessTest(unittest.TestCase):
         ):
             self.assertEqual(android.count("dump_until_labels_visible " + path), 1)
 
+    def test_demand_and_deletion_e2e_use_local_compatibility_gate(self) -> None:
+        android = self._read("mobile_android_capability_e2e.sh")
+        ios = self._read("mobile_ios_capability_e2e.sh")
+
+        for function_name in ("assert_help_intent_confirmation", "assert_account_deletion"):
+            android_start = android.index(function_name + "() {")
+            android_end = android.index("\n}\n", android_start)
+            android_block = android[android_start:android_end]
+            self.assertIn('APGIC_E2E_COMPATIBILITY_BASE_URL "$COMPATIBILITY_BASE_URL"', android_block)
+            self.assertIn('APGIC_E2E_CONTRACT_VERSION "$COMPATIBILITY_CONTRACT_VERSION"', android_block)
+
+            ios_start = ios.index(function_name + "() {")
+            ios_end = ios.index("\n}\n", ios_start)
+            ios_block = ios[ios_start:ios_end]
+            self.assertIn('SIMCTL_CHILD_APGIC_E2E_COMPATIBILITY_BASE_URL="$COMPATIBILITY_BASE_URL"', ios_block)
+            self.assertIn('SIMCTL_CHILD_APGIC_E2E_CONTRACT_VERSION="$COMPATIBILITY_CONTRACT_VERSION"', ios_block)
+
     def test_android_realtime_script_finishes_with_audited_audio_route(self) -> None:
         text = self._read("mobile_android_capability_e2e.sh")
         marker = 'local events="'
