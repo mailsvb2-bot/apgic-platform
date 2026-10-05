@@ -286,11 +286,17 @@ export default function App({
   // production journey out of debug-only evidence layouts so proof labels do
   // not depend on emulator viewport scrolling. Production HelpIntent remains a
   // real ScrollView-backed user journey outside E2E mode.
+  const demandE2EActive = Boolean(
+    demandE2EBaseURL &&
+      demandE2ESessionCookie &&
+      demandE2EFreeText &&
+      demandE2ECorrectedTopics,
+  );
   const infrastructureE2EActive = Boolean(
     installationE2EBaseURL ||
       workspaceE2EBaseURL ||
       deletionE2EBaseURL ||
-      demandE2EBaseURL ||
+      demandE2EActive ||
       deepLinkE2EURL ||
       notificationE2EBaseURL ||
       offlineMutationE2EBaseURL ||
@@ -755,6 +761,7 @@ export default function App({
   useEffect(() => {
     if (
       !compatibilityAllowsRuntime ||
+      !demandE2EActive ||
       !demandE2EBaseURL ||
       !demandE2ESessionCookie ||
       !demandE2EFreeText ||
@@ -792,6 +799,7 @@ export default function App({
     };
   }, [
     compatibilityAllowsRuntime,
+    demandE2EActive,
     demandE2EBaseURL,
     demandE2ESessionCookie,
     demandE2EFreeText,
