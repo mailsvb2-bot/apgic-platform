@@ -85,7 +85,7 @@ def validate() -> list[str]:
             "NoNewPrivileges=yes",
             "PrivateTmp=yes",
             "ProtectSystem=strict",
-            "RestrictAddressFamilies=AF_UNIX",
+            "RestrictAddressFamilies=AF_UNIX AF_NETLINK",
         ):
             if item not in text:
                 errors.append(f"{name} missing sandbox invariant: {item}")
