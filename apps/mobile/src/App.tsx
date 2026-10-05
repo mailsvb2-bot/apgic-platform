@@ -5,6 +5,7 @@ import {
   PixelRatio,
   Pressable,
   SafeAreaView,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -810,7 +811,11 @@ export default function App({
 
   return (
     <SafeAreaView style={styles.safe}>
-      <View style={styles.card} accessibilityRole="summary">
+      <ScrollView
+        contentContainerStyle={styles.card}
+        keyboardShouldPersistTaps="handled"
+        accessibilityRole="summary"
+      >
         <Text style={styles.eyebrow}>R0 · Foundation</Text>
         <Text style={styles.title}>APGIC</Text>
         <Text style={styles.body}>
@@ -1240,14 +1245,14 @@ export default function App({
             ) : null}
           </View>
         ) : null}
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, justifyContent: "center", padding: 24 },
-  card: { gap: 12 },
+  safe: { flex: 1 },
+  card: { gap: 12, padding: 24, paddingBottom: 48 },
   eyebrow: { fontWeight: "700", textTransform: "uppercase", letterSpacing: 1.2 },
   title: { fontWeight: "800", fontSize: 48 },
   body: { fontSize: 18, lineHeight: 27 },
