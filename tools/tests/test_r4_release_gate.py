@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import unittest
 
 from tools import r4_release_gate as gate
@@ -22,6 +23,8 @@ def valid_ci() -> dict:
 
 def valid_production_index(document: dict, gate_name: str) -> dict:
     records = {}
+    artifact_path = gate.ROOT / "canon/evidence/r4-release-gate-v1.schema.json"
+    artifact_digest = hashlib.sha256(artifact_path.read_bytes()).hexdigest()
     for evidence_type in gate.GATE_REQUIRED[gate_name]:
         evidence_id = evidence_type.lower()
         document["evidence"][evidence_type] = evidence_row(f"evidence://{evidence_id}")
@@ -31,7 +34,8 @@ def valid_production_index(document: dict, gate_name: str) -> dict:
             "synthetic": False,
             "candidate_sha": document["candidate_sha"],
             "source_ref": f"github-actions://run/{evidence_id}",
-            "artifact_sha256": "a" * 64,
+            "artifact_path": "canon/evidence/r4-release-gate-v1.schema.json",
+            "artifact_sha256": artifact_digest,
             "verified_at": "2026-10-05T17:42:48Z",
         }
     return {"schema_version": "production-evidence-index-v1", "records": records}
@@ -197,6 +201,20 @@ class R4ReleaseGateTests(unittest.TestCase):
         production_index = valid_production_index(document, "payments")
         passed, blockers = gate.evaluate(document, "payments", "production", production_index)
         self.assertTrue(passed, blockers)
+
+    def test_production_evidence_digest_mismatch_is_rejected(self) -> None:
+        document = valid_ci()
+        document["synthetic"] = False
+        document["production_candidate"] = True
+        production_index = valid_production_index(document, "payments")
+        first = next(iter(production_index["records"].values()))
+        first["artifact_sha256"] = "0" * 64
+        passed, blockers = gate.evaluate(document, "payments", "production", production_index)
+        self.assertFalse(passed)
+        self.assertIn(
+            f"{first['evidence_type']}:PRODUCTION_EVIDENCE_DIGEST_MISMATCH",
+            blockers,
+        )
 
     def test_production_evidence_is_bound_to_candidate_sha(self) -> None:
         document = valid_ci()
