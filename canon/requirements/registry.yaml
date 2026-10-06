@@ -251,6 +251,11 @@ requirements:
   - backend/internal/runtimepostgres/check.go
   - backend/internal/httpapi/client_session.go
   - backend/internal/httpapi/demand.go
+  - backend/cmd/mobile-installation-e2e-server/main.go
+  - apps/mobile/src/mobile-authz-e2e.ts
+  - apps/mobile/src/App.tsx
+  - apps/mobile/ios/APGIC/AppDelegate.swift
+  - apps/mobile/android/app/src/main/java/com/apgic/ci/MainActivity.kt
   - tools/auth_contract_guard.py
   contract_refs:
   - contracts/openapi/apgic-v1.yaml
@@ -265,6 +270,9 @@ requirements:
   - backend/internal/httpapi/client_session_test.go
   - backend/internal/httpapi/client_session_http_test.go
   - apps/web/e2e/auth001-postgres.spec.ts
+  - apps/mobile/src/mobile-authz-e2e.test.ts
+  - tools/mobile_android_capability_e2e.sh
+  - tools/mobile_ios_capability_e2e.sh
   - .github/workflows/ci.yml
   - tools/tests/test_auth_contract_guard.py
   - docs/traceability/R0-auth001-tenant-isolation.md
