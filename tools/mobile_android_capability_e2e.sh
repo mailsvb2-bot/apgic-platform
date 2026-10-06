@@ -938,7 +938,7 @@ assert_help_intent_confirmation() {
 }
 
 assert_tenant_isolation() {
-  local output="$EVIDENCE_DIR/android-auth001-e2e.xml"
+  local output="$EVIDENCE_DIR/android-capability-e2e-auth001.xml"
 
   "$ADB" shell am force-stop com.apgic.ci
   "$ADB" shell am start -W \
