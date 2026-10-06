@@ -14,6 +14,7 @@ export interface NativeRealtimeE2EResult {
   businessTransitions: string[];
   providerActions: string[];
   audioRoute: NativeRealtimeSnapshotV1["audio_route"];
+  audioRoutesObserved: NativeRealtimeSnapshotV1["audio_route"][];
   appState: NativeRealtimeSnapshotV1["app_state"];
   networkState: NativeRealtimeSnapshotV1["network_state"];
   networkTransport: NativeRealtimeSnapshotV1["network_transport"];
@@ -127,6 +128,7 @@ export async function runNativeRealtimeE2E(
   const lifecycle = new NativeRealtimeLifecycle();
   const actions: string[] = [];
   const transitions: string[] = [];
+  const audioRoutesObserved = new Set<NativeRealtimeSnapshotV1["audio_route"]>();
   const networkTransportsObserved = new Set<NativeRealtimeSnapshotV1["network_transport"]>();
   let reductions = 0;
   const controller = new NativeRealtimeController(
@@ -137,6 +139,7 @@ export async function runNativeRealtimeE2E(
     (result) => {
       reductions += 1;
       transitions.push(result.business_transition);
+      audioRoutesObserved.add(result.snapshot.audio_route);
       networkTransportsObserved.add(result.snapshot.network_transport);
     },
   );
@@ -159,6 +162,7 @@ export async function runNativeRealtimeE2E(
       businessTransitions: transitions,
       providerActions: actions,
       audioRoute: snapshot.audio_route,
+      audioRoutesObserved: [...audioRoutesObserved],
       appState: snapshot.app_state,
       networkState: snapshot.network_state,
       networkTransport: snapshot.network_transport,
