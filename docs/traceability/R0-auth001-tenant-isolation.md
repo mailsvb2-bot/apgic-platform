@@ -67,7 +67,7 @@ AUTH-001 is exercised through the installed React Native app on both native surf
 - `apps/mobile/src/mobile-authz-e2e.ts` calls the canonical `GET /v1/organizations/{organizationID}/private-profile` endpoint with the signed client session and explicit organization context.
 - `backend/cmd/mobile-installation-e2e-server/main.go` wires the production `httpapi` authorization handler and `authz.Evaluator` to an E2E-only organization store. The handler persists the same append-only audit records used by the canonical authorization path.
 - The native client proves same-tenant ALLOW, `AUTH_CROSS_TENANT_DENY`, forged-context `AUTH_TENANT_CONTEXT_DENIED`, absence of a sentinel foreign private value in denial payloads, and persisted DENY audit evidence.
-- `tools/mobile_android_capability_e2e.sh` launches the installed Android APK with the AUTH-001 inputs and requires all six proof labels.
+- `tools/mobile_android_capability_e2e.sh` launches the installed Android APK with the AUTH-001 inputs and requires all seven proof labels.
 - `tools/mobile_ios_capability_e2e.sh` launches the installed iOS simulator app with the same proof contract and requires the same labels through AXBridge.
 - The proof artifacts are emitted as `evidence/android-capability-e2e-auth001.xml` and `evidence/ios-capability-e2e-auth001.json`, so the existing native artifact upload retains them with the exact CI candidate.
 
