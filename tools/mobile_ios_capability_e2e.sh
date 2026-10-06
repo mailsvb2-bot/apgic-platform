@@ -958,7 +958,7 @@ assert_tenant_isolation() {
   SIMCTL_CHILD_APGIC_E2E_AUTHZ_SESSION_COOKIE="$SESSION_COOKIE" \
   SIMCTL_CHILD_APGIC_E2E_AUTHZ_OWN_ORGANIZATION_ID=00000000-0000-0000-0000-00000000a001 \
   SIMCTL_CHILD_APGIC_E2E_AUTHZ_FOREIGN_ORGANIZATION_ID=00000000-0000-0000-0000-00000000b001 \
-  SIMCTL_CHILD_APGIC_E2E_AUTHZ_FOREIGN_PRIVATE_MARKER="TOP SECRET AUTH001 FOREIGN" \
+  SIMCTL_CHILD_APGIC_E2E_AUTHZ_FOREIGN_PRIVATE_MARKER="AUTH001_FOREIGN_PRIVATE_SENTINEL_7F4A9C" \
   SIMCTL_CHILD_APGIC_E2E_AUTHZ_SURFACE=IOS \
     xcrun simctl launch "$UDID" com.apgic.ci >/dev/null
 
@@ -971,7 +971,7 @@ assert_tenant_isolation() {
        json_has_ax_label "$output" "authz-e2e-disclosure-blocked:true" &&
        json_has_ax_label "$output" "authz-e2e-cross-audit:true" &&
        json_has_ax_label "$output" "authz-e2e-forged-audit:true" &&
-       ! grep -Fq "TOP SECRET AUTH001 FOREIGN" "$output"; then
+       ! grep -Fq "AUTH001_FOREIGN_PRIVATE_SENTINEL_7F4A9C" "$output"; then
       echo "iOS installed-app AUTH-001 tenant isolation + audit: PASS"
       return 0
     fi
