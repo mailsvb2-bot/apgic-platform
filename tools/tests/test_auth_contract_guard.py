@@ -5,6 +5,7 @@ import unittest
 from tools.auth_contract_guard import (
     validate_authorization_contract,
     validate_client_session_contract,
+    validate_auth001_web_surface_proof,
 )
 
 
@@ -189,6 +190,55 @@ const (
         errors = validate_authorization_contract(go, ts, schema)
         self.assertEqual(len(errors), 1)
         self.assertIn("Go/JSON Schema authorization risks differ", errors[0])
+
+
+    def test_auth001_web_surface_proof_requires_proxy_denial_and_audit(self) -> None:
+        script = r'''
+APGIC_API_ORIGIN="$API_ORIGIN"
+npm run start -- --hostname 127.0.0.1
+/v1/organizations/${org_b}/private-profile
+X-Organization-Context: $org_a
+X-Organization-Context: $org_b
+AUTH_CROSS_TENANT_DENY
+AUTH_TENANT_CONTEXT_DENIED
+TOP SECRET ORGANIZATION B
+FROM audit_records
+"web_proxy_exercised": true
+"postgres_persistence_exercised": true
+"private_resource_disclosed": false
+"audit_evidence_persisted": true
+'''
+        workflow = '''
+Prove AUTH-001 tenant isolation through WEB proxy
+bash tools/auth001_web_tenant_isolation_e2e.sh
+auth001-web-tenant-isolation
+evidence/auth001-web-tenant-isolation.json
+'''
+        self.assertEqual(validate_auth001_web_surface_proof(script, workflow), [])
+
+    def test_auth001_web_surface_proof_rejects_missing_cross_tenant_reason(self) -> None:
+        script = r'''
+APGIC_API_ORIGIN="$API_ORIGIN"
+npm run start -- --hostname 127.0.0.1
+/v1/organizations/${org_b}/private-profile
+X-Organization-Context: $org_a
+X-Organization-Context: $org_b
+AUTH_TENANT_CONTEXT_DENIED
+TOP SECRET ORGANIZATION B
+FROM audit_records
+"web_proxy_exercised": true
+"postgres_persistence_exercised": true
+"private_resource_disclosed": false
+"audit_evidence_persisted": true
+'''
+        workflow = '''
+Prove AUTH-001 tenant isolation through WEB proxy
+bash tools/auth001_web_tenant_isolation_e2e.sh
+auth001-web-tenant-isolation
+evidence/auth001-web-tenant-isolation.json
+'''
+        errors = validate_auth001_web_surface_proof(script, workflow)
+        self.assertTrue(any("AUTH_CROSS_TENANT_DENY" in error for error in errors))
 
 
 if __name__ == "__main__":
