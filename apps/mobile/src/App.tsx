@@ -55,6 +55,11 @@ import {
   type WorkspaceE2EResult,
 } from "./mobile-workspace-client.ts";
 import {
+  runNativeTenantIsolationE2E,
+  type NativeAuthzSurface,
+  type NativeTenantIsolationE2EResult,
+} from "./mobile-authz-e2e.ts";
+import {
   runNativeDeletionE2E,
   type NativeDeletionE2EResult,
   type NativeSurface,
@@ -69,6 +74,12 @@ type AppProps = {
   installationE2EPlatform?: MobileInstallationPlatform;
   workspaceE2EBaseURL?: string;
   workspaceE2ESessionCookie?: string;
+  authzE2EBaseURL?: string;
+  authzE2ESessionCookie?: string;
+  authzE2EOwnOrganizationID?: string;
+  authzE2EForeignOrganizationID?: string;
+  authzE2EForeignPrivateMarker?: string;
+  authzE2ESurface?: NativeAuthzSurface;
   deletionE2EBaseURL?: string;
   deletionE2ESessionCookie?: string;
   deletionE2EIdentityID?: string;
@@ -127,6 +138,12 @@ export default function App({
   installationE2EPlatform,
   workspaceE2EBaseURL,
   workspaceE2ESessionCookie,
+  authzE2EBaseURL,
+  authzE2ESessionCookie,
+  authzE2EOwnOrganizationID,
+  authzE2EForeignOrganizationID,
+  authzE2EForeignPrivateMarker,
+  authzE2ESurface,
   deletionE2EBaseURL,
   deletionE2ESessionCookie,
   deletionE2EIdentityID,
@@ -191,6 +208,12 @@ export default function App({
   const [workspaceE2E, setWorkspaceE2E] = useState<
     | {status: "IDLE" | "RUNNING"}
     | ({status: "PASS"} & WorkspaceE2EResult)
+    | {status: "FAIL"; reason: string}
+  >({status: "IDLE"});
+
+  const [authzE2E, setAuthzE2E] = useState<
+    | {status: "IDLE" | "RUNNING"}
+    | ({status: "PASS"} & NativeTenantIsolationE2EResult)
     | {status: "FAIL"; reason: string}
   >({status: "IDLE"});
 
@@ -295,6 +318,7 @@ export default function App({
   const infrastructureE2EActive = Boolean(
     installationE2EBaseURL ||
       workspaceE2EBaseURL ||
+      authzE2EBaseURL ||
       deletionE2EBaseURL ||
       demandE2EActive ||
       deepLinkE2EURL ||
@@ -765,6 +789,56 @@ export default function App({
   useEffect(() => {
     if (
       !compatibilityAllowsRuntime ||
+      !authzE2EBaseURL ||
+      !authzE2ESessionCookie ||
+      !authzE2EOwnOrganizationID ||
+      !authzE2EForeignOrganizationID ||
+      !authzE2EForeignPrivateMarker ||
+      !authzE2ESurface
+    ) {
+      return;
+    }
+    let active = true;
+    setAuthzE2E({status: "RUNNING"});
+    void runNativeTenantIsolationE2E({
+      baseURL: authzE2EBaseURL,
+      sessionCookie: authzE2ESessionCookie,
+      ownOrganizationID: authzE2EOwnOrganizationID,
+      foreignOrganizationID: authzE2EForeignOrganizationID,
+      foreignPrivateMarker: authzE2EForeignPrivateMarker,
+      surface: authzE2ESurface,
+    }).then(
+      (result) => {
+        if (active) {
+          setAuthzE2E({status: "PASS", ...result});
+        }
+      },
+      (error: unknown) => {
+        if (active) {
+          setAuthzE2E({
+            status: "FAIL",
+            reason:
+              error instanceof Error ? error.message : "MOBILE_AUTHZ_E2E_FAILED",
+          });
+        }
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [
+    compatibilityAllowsRuntime,
+    authzE2EBaseURL,
+    authzE2ESessionCookie,
+    authzE2EOwnOrganizationID,
+    authzE2EForeignOrganizationID,
+    authzE2EForeignPrivateMarker,
+    authzE2ESurface,
+  ]);
+
+  useEffect(() => {
+    if (
+      !compatibilityAllowsRuntime ||
       !demandE2EActive ||
       !demandE2EBaseURL ||
       !demandE2ESessionCookie ||
@@ -1228,6 +1302,41 @@ export default function App({
             ) : null}
             {realtimeE2E.status === "FAIL" ? (
               <Text accessibilityLabel={`realtime-e2e-error:${realtimeE2E.reason}`}>Realtime lifecycle failed safely.</Text>
+            ) : null}
+          </View>
+        ) : null}
+
+        {authzE2E.status !== "IDLE" ? (
+          <View style={styles.capability} accessibilityRole="summary">
+            <Text accessibilityLabel={`authz-e2e:${authzE2E.status}`}>
+              Tenant isolation E2E: {authzE2E.status}
+            </Text>
+            {authzE2E.status === "PASS" ? (
+              <>
+                <Text accessibilityLabel={`authz-e2e-own-allowed:${authzE2E.sameTenantAllowed}`}>
+                  Same-tenant private access allowed.
+                </Text>
+                <Text accessibilityLabel={`authz-e2e-cross-denied:${authzE2E.crossTenantDenied}`}>
+                  Cross-tenant private access denied.
+                </Text>
+                <Text accessibilityLabel={`authz-e2e-forged-denied:${authzE2E.forgedContextDenied}`}>
+                  Forged tenant context denied.
+                </Text>
+                <Text accessibilityLabel={`authz-e2e-disclosure-blocked:${authzE2E.privateDisclosureBlocked}`}>
+                  Foreign private data not disclosed.
+                </Text>
+                <Text accessibilityLabel={`authz-e2e-cross-audit:${authzE2E.crossTenantAuditPersisted}`}>
+                  Cross-tenant denial audit persisted.
+                </Text>
+                <Text accessibilityLabel={`authz-e2e-forged-audit:${authzE2E.forgedContextAuditPersisted}`}>
+                  Forged-context denial audit persisted.
+                </Text>
+              </>
+            ) : null}
+            {authzE2E.status === "FAIL" ? (
+              <Text accessibilityLabel={`authz-e2e-error:${authzE2E.reason}`}>
+                Tenant isolation failed safely.
+              </Text>
             ) : null}
           </View>
         ) : null}
