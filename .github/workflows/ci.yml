@@ -251,6 +251,9 @@ jobs:
         with:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
       - shell: bash
         run: |
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000001_r0_foundation.sql
@@ -297,6 +300,22 @@ jobs:
           PGHOST=127.0.0.1 PGUSER=apgic PGDATABASE=apgic_ci bash backend/ci/r0_order_snapshot_baseline_repair.sh
           bash backend/ci/r2_booking_concurrency.sh
           bash backend/ci/r2_mutation_concurrency.sh
+      - name: Build WEB surface for AUTH-001 tenant isolation proof
+        working-directory: apps/web
+        run: |
+          npm install --ignore-scripts --no-audit --no-fund
+          npm run build
+      - name: Prove AUTH-001 tenant isolation through WEB proxy
+        env:
+          APGIC_AUTH001_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable
+          APGIC_CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: bash tools/auth001_web_tenant_isolation_e2e.sh
+      - uses: actions/upload-artifact@v7
+        with:
+          name: auth001-web-tenant-isolation
+          path: evidence/auth001-web-tenant-isolation.json
+          if-no-files-found: error
+          retention-days: 30
       - name: Prove runtime ledger persists and replays from PostgreSQL
         working-directory: backend
         env:
