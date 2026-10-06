@@ -353,6 +353,7 @@ jobs:
           APGIC_ENVIRONMENT: STAGING
           APGIC_RELEASE_TRACK: R0
           APGIC_HTTP_ADDR: 127.0.0.1:43141
+          APGIC_API_ORIGIN: http://127.0.0.1:43141
           APGIC_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable
           APGIC_JURISDICTION_MATRIX_VERSION: jurisdiction-ci-v1
           APGIC_RETENTION_POLICY_VERSION: retention-ci-v1
