@@ -10,6 +10,10 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 
 ANDROID_MANIFEST = ROOT / "apps/mobile/android/app/src/main/AndroidManifest.xml"
+REALTIME_E2E = ROOT / "apps/mobile/src/r3-realtime-e2e.ts"
+MOBILE_APP = ROOT / "apps/mobile/src/App.tsx"
+ANDROID_E2E = ROOT / "tools/mobile_android_capability_e2e.sh"
+IOS_E2E = ROOT / "tools/mobile_ios_capability_e2e.sh"
 REQUIRED_ANDROID_PERMISSIONS = {
     "android.permission.INTERNET",
     "android.permission.ACCESS_NETWORK_STATE",
@@ -105,6 +109,63 @@ def validate_android_manifest(text: str) -> None:
         fail(f"Android realtime permissions missing: {missing}")
 
 
+def validate_callback_order_evidence(
+    realtime_e2e: str,
+    mobile_app: str,
+    android_e2e: str,
+    ios_e2e: str,
+) -> None:
+    required_realtime = (
+        "audioRoutesObserved",
+        "networkTransportsObserved",
+        "audioRoutesObserved.add(result.snapshot.audio_route)",
+        "networkTransportsObserved.add(result.snapshot.network_transport)",
+    )
+    for marker in required_realtime:
+        if marker not in realtime_e2e:
+            fail(f"realtime E2E missing observed-state evidence marker: {marker}")
+
+    for marker in (
+        "realtime-audio-routes-observed:",
+        "realtime-network-transports-observed:",
+    ):
+        if marker not in mobile_app:
+            fail(f"mobile UI missing observed-state evidence marker: {marker}")
+
+    required_android = (
+        "realtime-audio-routes-observed:",
+        "BLUETOOTH",
+        "realtime-network-transports-observed:",
+        "CELLULAR",
+    )
+    for marker in required_android:
+        if marker not in android_e2e:
+            fail(f"Android realtime E2E missing callback-order-safe evidence: {marker}")
+    for forbidden in (
+        "grep -q 'realtime-audio-route:BLUETOOTH'",
+        "grep -q 'realtime-network-transport:CELLULAR'",
+    ):
+        if forbidden in android_e2e:
+            fail(f"Android realtime E2E must not require synthetic final OS state: {forbidden}")
+
+    required_ios = (
+        "json_has_ax_label_contains",
+        "realtime-audio-routes-observed:",
+        "BLUETOOTH",
+        "realtime-network-transports-observed:",
+        "CELLULAR",
+    )
+    for marker in required_ios:
+        if marker not in ios_e2e:
+            fail(f"iOS realtime E2E missing callback-order-safe evidence: {marker}")
+    for forbidden in (
+        'json_has_ax_label "$target" "realtime-audio-route:BLUETOOTH"',
+        'json_has_ax_label "$target" "realtime-network-transport:CELLULAR"',
+    ):
+        if forbidden in ios_e2e:
+            fail(f"iOS realtime E2E must not require synthetic final OS state: {forbidden}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("policy")
@@ -119,6 +180,12 @@ def main() -> None:
         fail("policy must be a mapping")
     validate_policy(document, args.mode)
     validate_android_manifest(ANDROID_MANIFEST.read_text(encoding="utf-8"))
+    validate_callback_order_evidence(
+        REALTIME_E2E.read_text(encoding="utf-8"),
+        MOBILE_APP.read_text(encoding="utf-8"),
+        ANDROID_E2E.read_text(encoding="utf-8"),
+        IOS_E2E.read_text(encoding="utf-8"),
+    )
     print(
         "MOBILE REALTIME PRECHECK: PASS "
         f"(mode={args.mode}, version={document['policy_version']})"
