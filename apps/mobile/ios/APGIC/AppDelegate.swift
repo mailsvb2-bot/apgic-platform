@@ -167,7 +167,12 @@ class ReactNativeDelegate: RCTDefaultReactNativeFactoryDelegate {
 
   override func bundleURL() -> URL? {
 #if DEBUG
-    RCTBundleURLProvider.sharedSettings().jsBundleURL(forBundleRoot: "index")
+    if let explicitE2EURL = ProcessInfo.processInfo.environment["APGIC_E2E_METRO_URL"],
+       !explicitE2EURL.isEmpty,
+       let url = URL(string: explicitE2EURL) {
+      return url
+    }
+    return RCTBundleURLProvider.sharedSettings().jsBundleURL(forBundleRoot: "index")
 #else
     Bundle.main.url(forResource: "main", withExtension: "jsbundle")
 #endif

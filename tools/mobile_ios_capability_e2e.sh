@@ -331,6 +331,8 @@ curl -fsS --max-time 120 "http://127.0.0.1:8081/index.bundle?platform=ios&dev=tr
   -o /tmp/apgic-ios-e2e.bundle ||
   fail "Metro iOS bundle did not become ready"
 
+export SIMCTL_CHILD_APGIC_E2E_METRO_URL="http://127.0.0.1:8081/index.bundle?platform=ios&dev=true&minify=false"
+
 start_installation_server
 bootstrap_installation_session
 prepare_offline_checkout
