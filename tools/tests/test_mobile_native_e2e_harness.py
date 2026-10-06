@@ -193,8 +193,22 @@ class MobileNativeE2EHarnessTest(unittest.TestCase):
         self.assertIn("for initial_attempt in $(seq 1 3); do", realtime)
         self.assertIn('json_has_ax_label "$target" "realtime-phase:DEGRADED"', realtime)
         self.assertIn('json_has_ax_label "$target" "realtime-business-transition:NONE"', realtime)
-        self.assertIn('json_has_ax_label "$target" "realtime-audio-route:BLUETOOTH"', realtime)
-        self.assertIn('json_has_ax_label "$target" "realtime-network-transport:CELLULAR"', realtime)
+        self.assertIn(
+            'json_has_ax_label_fragment "$target" "realtime-audio-route-observed:" "BLUETOOTH"',
+            realtime,
+        )
+        self.assertNotIn(
+            'json_has_ax_label "$target" "realtime-audio-route:BLUETOOTH"',
+            realtime,
+        )
+        self.assertIn(
+            'json_has_ax_label_fragment "$target" "realtime-network-transport-observed:" "CELLULAR"',
+            realtime,
+        )
+        self.assertNotIn(
+            'json_has_ax_label "$target" "realtime-network-transport:CELLULAR"',
+            realtime,
+        )
         self.assertIn('if realtime_ready "$output"; then', realtime)
         self.assertIn("break 2", realtime)
         self.assertIn(

@@ -14,9 +14,11 @@ export interface NativeRealtimeE2EResult {
   businessTransitions: string[];
   providerActions: string[];
   audioRoute: NativeRealtimeSnapshotV1["audio_route"];
+  audioRouteHistory: NativeRealtimeSnapshotV1["audio_route"][];
   appState: NativeRealtimeSnapshotV1["app_state"];
   networkState: NativeRealtimeSnapshotV1["network_state"];
   networkTransport: NativeRealtimeSnapshotV1["network_transport"];
+  networkTransportHistory: NativeRealtimeSnapshotV1["network_transport"][];
   screenState: NativeRealtimeSnapshotV1["screen_state"];
   joinAuthState: NativeRealtimeSnapshotV1["join_auth_state"];
   consultationId: string;
@@ -126,6 +128,8 @@ export async function runNativeRealtimeE2E(
   const lifecycle = new NativeRealtimeLifecycle();
   const actions: string[] = [];
   const transitions: string[] = [];
+  const audioRouteHistory: NativeRealtimeSnapshotV1["audio_route"][] = [];
+  const networkTransportHistory: NativeRealtimeSnapshotV1["network_transport"][] = [];
   let reductions = 0;
   const controller = new NativeRealtimeController(
     initialSnapshot(consultationId),
@@ -135,6 +139,12 @@ export async function runNativeRealtimeE2E(
     (result) => {
       reductions += 1;
       transitions.push(result.business_transition);
+      if (result.reason_code === "REALTIME_AUDIO_ROUTE_CHANGED") {
+        audioRouteHistory.push(result.snapshot.audio_route);
+      }
+      if (result.reason_code === "REALTIME_NETWORK_TRANSPORT_CHANGED") {
+        networkTransportHistory.push(result.snapshot.network_transport);
+      }
     },
   );
 
@@ -156,9 +166,11 @@ export async function runNativeRealtimeE2E(
       businessTransitions: transitions,
       providerActions: actions,
       audioRoute: snapshot.audio_route,
+      audioRouteHistory,
       appState: snapshot.app_state,
       networkState: snapshot.network_state,
       networkTransport: snapshot.network_transport,
+      networkTransportHistory,
       screenState: snapshot.screen_state,
       joinAuthState: snapshot.join_auth_state,
       consultationId: snapshot.consultation_id,

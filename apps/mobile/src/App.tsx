@@ -1210,9 +1210,11 @@ export default function App({
                 <Text accessibilityLabel={`realtime-phase:${realtimeE2E.phase}`}>Phase: {realtimeE2E.phase}</Text>
                 <Text accessibilityLabel={`realtime-business-transition:${realtimeE2E.businessTransitions.every((value) => value === "NONE") ? "NONE" : "INVALID"}`}>Business transition: NONE</Text>
                 <Text accessibilityLabel={`realtime-audio-route:${realtimeE2E.audioRoute}`}>Audio route: {realtimeE2E.audioRoute}</Text>
+                <Text accessibilityLabel={`realtime-audio-route-observed:${realtimeE2E.audioRouteHistory.join("|")}`}>Audio route changes observed.</Text>
                 <Text accessibilityLabel={`realtime-app-state:${realtimeE2E.appState}`}>App state: {realtimeE2E.appState}</Text>
                 <Text accessibilityLabel={`realtime-network-state:${realtimeE2E.networkState}`}>Network: {realtimeE2E.networkState}</Text>
                 <Text accessibilityLabel={`realtime-network-transport:${realtimeE2E.networkTransport}`}>Transport: {realtimeE2E.networkTransport}</Text>
+                <Text accessibilityLabel={`realtime-network-transport-observed:${realtimeE2E.networkTransportHistory.join("|")}`}>Transport changes observed.</Text>
                 <Text accessibilityLabel={`realtime-screen-state:${realtimeE2E.screenState}`}>Screen: {realtimeE2E.screenState}</Text>
                 <Text accessibilityLabel={`realtime-join-auth-state:${realtimeE2E.joinAuthState}`}>Join auth: {realtimeE2E.joinAuthState}</Text>
                 <Text accessibilityLabel={`realtime-consultation-id:${realtimeE2E.consultationId}`}>Consultation: {realtimeE2E.consultationId}</Text>
