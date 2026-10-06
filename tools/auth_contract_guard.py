@@ -13,6 +13,8 @@ GO_AUTH = ROOT / "backend/internal/authz/authz.go"
 TS_FOUNDATION = ROOT / "packages/contracts/src/foundation.ts"
 AUTH_SCHEMA = ROOT / "contracts/jsonschema/authorization-v1.schema.json"
 OPENAPI = ROOT / "contracts/openapi/apgic-v1.yaml"
+AUTH001_WEB_E2E = ROOT / "tools/auth001_web_tenant_isolation_e2e.sh"
+CI_WORKFLOW = ROOT / ".github/workflows/ci.yml"
 
 GO_DECISION_RE = re.compile(r'\b[A-Za-z0-9_]+\s+Decision\s*=\s*"([A-Z0-9_]+)"')
 GO_RISK_RE = re.compile(r'\b[A-Za-z0-9_]+\s+Risk\s*=\s*"([A-Z0-9_]+)"')
@@ -127,6 +129,39 @@ def validate_client_session_contract(document: dict) -> list[str]:
     return errors
 
 
+def validate_auth001_web_surface_proof(web_e2e_text: str, workflow_text: str) -> list[str]:
+    errors: list[str] = []
+    required_script = (
+        'APGIC_API_ORIGIN="$API_ORIGIN"',
+        'npm run start -- --hostname 127.0.0.1',
+        '/v1/organizations/${org_b}/private-profile',
+        'X-Organization-Context: $org_a',
+        'X-Organization-Context: $org_b',
+        'AUTH_CROSS_TENANT_DENY',
+        'AUTH_TENANT_CONTEXT_DENIED',
+        'TOP SECRET ORGANIZATION B',
+        'FROM audit_records',
+        '"web_proxy_exercised": true',
+        '"postgres_persistence_exercised": true',
+        '"private_resource_disclosed": false',
+        '"audit_evidence_persisted": true',
+    )
+    for snippet in required_script:
+        if snippet not in web_e2e_text:
+            errors.append(f"AUTH-001 WEB E2E invariant missing: {snippet}")
+
+    required_workflow = (
+        "Prove AUTH-001 tenant isolation through WEB proxy",
+        "bash tools/auth001_web_tenant_isolation_e2e.sh",
+        "auth001-web-tenant-isolation",
+        "evidence/auth001-web-tenant-isolation.json",
+    )
+    for snippet in required_workflow:
+        if snippet not in workflow_text:
+            errors.append(f"AUTH-001 WEB CI proof missing: {snippet}")
+    return errors
+
+
 def main() -> int:
     errors = validate_authorization_contract(
         GO_AUTH.read_text(encoding="utf-8"),
@@ -136,6 +171,12 @@ def main() -> int:
     errors.extend(
         validate_client_session_contract(
             yaml.safe_load(OPENAPI.read_text(encoding="utf-8"))
+        )
+    )
+    errors.extend(
+        validate_auth001_web_surface_proof(
+            AUTH001_WEB_E2E.read_text(encoding="utf-8"),
+            CI_WORKFLOW.read_text(encoding="utf-8"),
         )
     )
     if errors:
