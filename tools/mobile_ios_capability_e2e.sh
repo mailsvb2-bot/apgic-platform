@@ -566,6 +566,32 @@ raise SystemExit(0 if walk(payload) else 1)
 PY
 }
 
+json_has_ax_label_contains() {
+  local file="$1"
+  local prefix="$2"
+  local expected_substring="$3"
+  python3 - "$file" "$prefix" "$expected_substring" <<'PY'
+import json
+import sys
+
+payload = json.load(open(sys.argv[1], encoding="utf-8"))
+prefix = sys.argv[2]
+expected = sys.argv[3]
+
+def walk(value):
+    if isinstance(value, dict):
+        label = value.get("AXLabel")
+        if isinstance(label, str) and label.startswith(prefix) and expected in label:
+            return True
+        return any(walk(item) for item in value.values())
+    if isinstance(value, list):
+        return any(walk(item) for item in value)
+    return False
+
+raise SystemExit(0 if walk(payload) else 1)
+PY
+}
+
 assert_workspace_switch() {
   local output="$EVIDENCE_DIR/ios-workspace-e2e.json"
 
@@ -731,10 +757,12 @@ assert_realtime_lifecycle() {
       json_has_ax_label "$target" "realtime-e2e:PASS" &&
       json_has_ax_label "$target" "realtime-phase:CONNECTED" &&
       json_has_ax_label "$target" "realtime-business-transition:NONE" &&
-      json_has_ax_label "$target" "realtime-audio-route:BLUETOOTH" &&
+      json_has_ax_label_contains "$target" "realtime-audio-route:" "" &&
+      json_has_ax_label_contains "$target" "realtime-audio-routes-observed:" "BLUETOOTH" &&
       json_has_ax_label "$target" "realtime-app-state:FOREGROUND" &&
       json_has_ax_label "$target" "realtime-network-state:ONLINE" &&
-      json_has_ax_label "$target" "realtime-network-transport:CELLULAR" &&
+      json_has_ax_label_contains "$target" "realtime-network-transport:" "" &&
+      json_has_ax_label_contains "$target" "realtime-network-transports-observed:" "CELLULAR" &&
       json_has_ax_label "$target" "realtime-screen-state:UNLOCKED" &&
       json_has_ax_label "$target" "realtime-join-auth-state:VALID" &&
       json_has_ax_label "$target" "realtime-consultation-id:${consultation_id}" &&
@@ -751,10 +779,12 @@ assert_realtime_lifecycle() {
       json_has_ax_label "$target" "realtime-e2e:PASS" &&
       json_has_ax_label "$target" "realtime-phase:DEGRADED" &&
       json_has_ax_label "$target" "realtime-business-transition:NONE" &&
-      json_has_ax_label "$target" "realtime-audio-route:BLUETOOTH" &&
+      json_has_ax_label_contains "$target" "realtime-audio-route:" "" &&
+      json_has_ax_label_contains "$target" "realtime-audio-routes-observed:" "BLUETOOTH" &&
       json_has_ax_label "$target" "realtime-app-state:FOREGROUND" &&
       json_has_ax_label "$target" "realtime-network-state:ONLINE" &&
-      json_has_ax_label "$target" "realtime-network-transport:CELLULAR" &&
+      json_has_ax_label_contains "$target" "realtime-network-transport:" "" &&
+      json_has_ax_label_contains "$target" "realtime-network-transports-observed:" "CELLULAR" &&
       json_has_ax_label "$target" "realtime-screen-state:UNLOCKED" &&
       json_has_ax_label "$target" "realtime-join-auth-state:VALID" &&
       json_has_ax_label "$target" "realtime-consultation-id:${consultation_id}" &&
