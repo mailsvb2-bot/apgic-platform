@@ -71,4 +71,19 @@ AUTH-001 is exercised through the installed React Native app on both native surf
 - `tools/mobile_ios_capability_e2e.sh` launches the installed iOS simulator app with the same proof contract and requires the same labels through AXBridge.
 - The proof artifacts are emitted as `evidence/android-capability-e2e-auth001.xml` and `evidence/ios-capability-e2e-auth001.json`, so the existing native artifact upload retains them with the exact CI candidate.
 
-The requirement remains `IN_PROGRESS` on this implementation commit. Promotion to `VERIFIED` requires an exact-head green CI candidate that contains both native artifacts plus the existing PostgreSQL/Web proof; status must not be advanced from code presence alone.
+## Exact verification evidence
+
+Candidate `cfcfb889039f13e4c96d9657f0b3916a20a57211` passed CI run `37529803218` with the complete cross-surface proof chain:
+
+- WEB + PostgreSQL tenant-isolation proof: job `112496666549`; artifact `auth001-web-tenant-isolation-evidence` (`11444285351`, SHA-256 `a935c5f330aaae618395c7fe21f738ebd774c46b46094fe26ca28e2c0bafd6b4`).
+- Android installed-app proof: job `112496667106`; artifact `android-native-debug-build` (`11444890605`, SHA-256 `9d8ccf735195039e9e04cc246e5909f16063df685c727c7c9ac0b76fe8f1aab0`).
+- iOS installed-app proof: job `112496666841`; artifact `ios-native-simulator-build` (`11444986832`, SHA-256 `1b31a85865dfe61dcbea4cd09ff95d96e31ab8f41548bc731cdd7a397c61b982`).
+- Go domain/runtime tests: job `112496667053`.
+- Canon / architecture conformance: job `112496666852`.
+- Final R0 bootstrap gate: job `112504321488`.
+
+The Android and iOS artifacts are bound to the exact candidate SHA and contain the installed-app AUTH-001 evidence files emitted by the native harness. The status/evidence-binding commit changes governance metadata only; it does not change the proved authorization implementation.
+
+## Release status
+
+APGIC-AUTH-001 is **VERIFIED**. This verifies canonical tenant isolation and audit behavior across WEB/iOS/Android/server evidence surfaces; it does not claim a production deployment. Any subsequent implementation/contract/test change affecting AUTH-001 requires fresh verification evidence before release promotion.
