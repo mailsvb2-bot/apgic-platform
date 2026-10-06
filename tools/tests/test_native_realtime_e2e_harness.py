@@ -11,7 +11,7 @@ IOS = ROOT / "tools/mobile_ios_capability_e2e.sh"
 
 
 class NativeRealtimeE2EHarnessTests(unittest.TestCase):
-    def test_transport_handoff_is_proven_separately_from_ambient_final_transport(self) -> None:
+    def test_transport_and_audio_handoffs_are_proven_separately_from_ambient_final_state(self) -> None:
         e2e = E2E.read_text(encoding="utf-8")
         app = APP.read_text(encoding="utf-8")
         android = ANDROID.read_text(encoding="utf-8")
@@ -21,6 +21,21 @@ class NativeRealtimeE2EHarnessTests(unittest.TestCase):
         self.assertIn('result.reason_code === "REALTIME_NETWORK_TRANSPORT_CHANGED"', e2e)
         self.assertIn("networkTransportHistory.push(result.snapshot.network_transport)", e2e)
         self.assertIn("realtime-network-transport-observed:", app)
+        self.assertIn("audioRouteHistory", e2e)
+        self.assertIn('result.reason_code === "REALTIME_AUDIO_ROUTE_CHANGED"', e2e)
+        self.assertIn("audioRouteHistory.push(result.snapshot.audio_route)", e2e)
+        self.assertIn("realtime-audio-route-observed:", app)
+
+        self.assertIn("AUDIO_ROUTE_CHANGED:BLUETOOTH", android)
+        self.assertIn("realtime-audio-route-observed:", android)
+        self.assertIn(
+            "realtime-audio-route:(SPEAKER|EARPIECE|BLUETOOTH|WIRED|UNKNOWN)",
+            android,
+        )
+        self.assertNotIn(
+            "grep -q 'realtime-audio-route:BLUETOOTH'",
+            android,
+        )
 
         self.assertIn("NETWORK_TRANSPORT_CHANGED:CELLULAR", android)
         self.assertIn("realtime-network-transport-observed:", android)
@@ -32,6 +47,16 @@ class NativeRealtimeE2EHarnessTests(unittest.TestCase):
         self.assertNotIn(
             "grep -q 'realtime-network-transport:CELLULAR'",
             android,
+        )
+
+        self.assertIn("AUDIO_ROUTE_CHANGED:BLUETOOTH", ios)
+        self.assertIn(
+            'json_has_ax_label_fragment "$target" "realtime-audio-route-observed:" "BLUETOOTH"',
+            ios,
+        )
+        self.assertNotIn(
+            'json_has_ax_label "$target" "realtime-audio-route:BLUETOOTH"',
+            ios,
         )
 
         self.assertIn("NETWORK_TRANSPORT_CHANGED:CELLULAR", ios)
