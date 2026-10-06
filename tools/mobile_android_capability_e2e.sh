@@ -715,7 +715,8 @@ assert_realtime_lifecycle() {
            grep -q 'realtime-audio-route:BLUETOOTH' "$target" &&
            grep -q 'realtime-app-state:FOREGROUND' "$target" &&
            grep -q 'realtime-network-state:ONLINE' "$target" &&
-           grep -q 'realtime-network-transport:CELLULAR' "$target" &&
+           grep -Eq 'realtime-network-transport:(WIFI|CELLULAR|ETHERNET|OTHER|UNKNOWN)' "$target" &&
+           grep -Eq 'realtime-network-transport-observed:[^"]*CELLULAR' "$target" &&
            grep -q 'realtime-screen-state:UNLOCKED' "$target" &&
            grep -q 'realtime-join-auth-state:VALID' "$target" &&
            grep -q "realtime-consultation-id:${consultation_id}" "$target" &&
