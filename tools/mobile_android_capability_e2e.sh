@@ -937,6 +937,42 @@ assert_help_intent_confirmation() {
   fail "installed Android production UI did not prove HelpIntent correction/no-diagnosis flow"
 }
 
+assert_tenant_isolation() {
+  local output="$EVIDENCE_DIR/android-auth001-e2e.xml"
+
+  "$ADB" shell am force-stop com.apgic.ci
+  "$ADB" shell am start -W \
+    -n com.apgic.ci/.MainActivity \
+    --es APGIC_E2E_CAPABILITY_STATE GRANTED \
+    --es APGIC_E2E_COMPATIBILITY_BASE_URL "$COMPATIBILITY_BASE_URL" \
+    --es APGIC_E2E_CONTRACT_VERSION "$COMPATIBILITY_CONTRACT_VERSION" \
+    --es APGIC_E2E_AUTHZ_BASE_URL http://127.0.0.1:43113 \
+    --es APGIC_E2E_AUTHZ_SESSION_COOKIE "$SESSION_COOKIE" \
+    --es APGIC_E2E_AUTHZ_OWN_ORGANIZATION_ID 00000000-0000-0000-0000-00000000a001 \
+    --es APGIC_E2E_AUTHZ_FOREIGN_ORGANIZATION_ID 00000000-0000-0000-0000-00000000b001 \
+    --es APGIC_E2E_AUTHZ_FOREIGN_PRIVATE_MARKER "TOP SECRET AUTH001 FOREIGN" \
+    --es APGIC_E2E_AUTHZ_SURFACE ANDROID \
+    >/dev/null
+
+  if dump_until_labels_visible /sdcard/apgic-auth001-e2e.xml "$output" \
+       'authz-e2e:PASS' \
+       'authz-e2e-own-allowed:true' \
+       'authz-e2e-cross-denied:true' \
+       'authz-e2e-forged-denied:true' \
+       'authz-e2e-disclosure-blocked:true' \
+       'authz-e2e-cross-audit:true' \
+       'authz-e2e-forged-audit:true'; then
+    if grep -Fq 'TOP SECRET AUTH001 FOREIGN' "$output"; then
+      fail "installed Android AUTH-001 proof disclosed foreign private marker"
+    fi
+    echo "Android installed-app AUTH-001 tenant isolation + audit: PASS"
+    return 0
+  fi
+
+  [[ -f "$output" ]] && cat "$output" >&2 || true
+  fail "installed Android app did not prove AUTH-001 tenant isolation"
+}
+
 assert_account_deletion() {
   local output="$EVIDENCE_DIR/android-deletion-e2e.xml"
   local identity_id
@@ -986,6 +1022,7 @@ assert_compatibility_policy
 assert_remote_config_kill_switch
 assert_installation_lifecycle
 assert_workspace_switch
+assert_tenant_isolation
 assert_deep_link_runtime
 assert_notification_runtime
 assert_offline_mutation_restart
@@ -994,4 +1031,4 @@ assert_accessibility_and_device_matrix
 assert_help_intent_confirmation
 assert_account_deletion
 
-echo "ANDROID CAPABILITY + COMPATIBILITY + INSTALLATION + DEMAND + DELETION + DEEP-LINK + NOTIFICATION + OFFLINE-SYNC + REALTIME + ACCESSIBILITY NATIVE E2E: PASS"
+echo "ANDROID CAPABILITY + COMPATIBILITY + INSTALLATION + AUTHZ + DEMAND + DELETION + DEEP-LINK + NOTIFICATION + OFFLINE-SYNC + REALTIME + ACCESSIBILITY NATIVE E2E: PASS"
