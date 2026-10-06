@@ -757,7 +757,8 @@ assert_realtime_lifecycle() {
       json_has_ax_label "$target" "realtime-e2e:PASS" &&
       json_has_ax_label "$target" "realtime-phase:CONNECTED" &&
       json_has_ax_label "$target" "realtime-business-transition:NONE" &&
-      json_has_ax_label "$target" "realtime-audio-route:BLUETOOTH" &&
+      json_has_ax_label_fragment "$target" "realtime-audio-route:" "" &&
+      json_has_ax_label_fragment "$target" "realtime-audio-route-observed:" "BLUETOOTH" &&
       json_has_ax_label "$target" "realtime-app-state:FOREGROUND" &&
       json_has_ax_label "$target" "realtime-network-state:ONLINE" &&
       json_has_ax_label_fragment "$target" "realtime-network-transport:" "" &&
@@ -778,7 +779,8 @@ assert_realtime_lifecycle() {
       json_has_ax_label "$target" "realtime-e2e:PASS" &&
       json_has_ax_label "$target" "realtime-phase:DEGRADED" &&
       json_has_ax_label "$target" "realtime-business-transition:NONE" &&
-      json_has_ax_label "$target" "realtime-audio-route:BLUETOOTH" &&
+      json_has_ax_label_fragment "$target" "realtime-audio-route:" "" &&
+      json_has_ax_label_fragment "$target" "realtime-audio-route-observed:" "BLUETOOTH" &&
       json_has_ax_label "$target" "realtime-app-state:FOREGROUND" &&
       json_has_ax_label "$target" "realtime-network-state:ONLINE" &&
       json_has_ax_label_fragment "$target" "realtime-network-transport:" "" &&
