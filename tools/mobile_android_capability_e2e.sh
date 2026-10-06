@@ -712,7 +712,8 @@ assert_realtime_lifecycle() {
         if grep -q 'realtime-e2e:PASS' "$target" &&
            grep -q 'realtime-phase:CONNECTED' "$target" &&
            grep -q 'realtime-business-transition:NONE' "$target" &&
-           grep -q 'realtime-audio-route:BLUETOOTH' "$target" &&
+           grep -Eq 'realtime-audio-route:(SPEAKER|EARPIECE|BLUETOOTH|WIRED|UNKNOWN)' "$target" &&
+           grep -Eq 'realtime-audio-route-observed:[^"]*BLUETOOTH' "$target" &&
            grep -q 'realtime-app-state:FOREGROUND' "$target" &&
            grep -q 'realtime-network-state:ONLINE' "$target" &&
            grep -Eq 'realtime-network-transport:(WIFI|CELLULAR|ETHERNET|OTHER|UNKNOWN)' "$target" &&
