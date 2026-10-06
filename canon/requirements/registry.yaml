@@ -264,6 +264,8 @@ requirements:
   - backend/internal/httpapi/organization_authz_integration_test.go
   - backend/internal/httpapi/client_session_test.go
   - backend/internal/httpapi/client_session_http_test.go
+  - apps/web/e2e/auth001-postgres.spec.ts
+  - .github/workflows/ci.yml
   - tools/tests/test_auth_contract_guard.py
   - docs/traceability/R0-auth001-tenant-isolation.md
   evidence_refs:
