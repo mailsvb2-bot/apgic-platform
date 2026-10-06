@@ -184,6 +184,28 @@ npm run build
 git restore -- next-env.d.ts
 
 cd "$REPO_ROOT"
+
+echo "=== Reconcile staging maintenance units ==="
+maintenance_units=(
+  apgic-staging-backup.service
+  apgic-staging-backup.timer
+  apgic-staging-restore-verify.service
+  apgic-staging-restore-verify.timer
+)
+units_changed=false
+for unit in "${maintenance_units[@]}"; do
+  source_unit="$REPO_ROOT/deploy/staging/$unit"
+  target_unit="/etc/systemd/system/$unit"
+  if [[ ! -f "$target_unit" ]] || ! cmp -s "$source_unit" "$target_unit"; then
+    install -m 0644 "$source_unit" "$target_unit"
+    units_changed=true
+  fi
+done
+if [[ "$units_changed" == "true" ]]; then
+  systemctl daemon-reload
+fi
+systemctl enable --now apgic-staging-backup.timer apgic-staging-restore-verify.timer
+
 if [[ -n "$(git status --porcelain)" ]]; then
   echo "deployment left the canonical checkout dirty:" >&2
   git status --short >&2

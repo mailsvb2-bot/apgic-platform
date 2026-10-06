@@ -1,0 +1,16 @@
+{
+  "schema_version": "sec001-staging-service-auth-v1",
+  "evidence_type": "STAGING_SERVICE_AUTH_PROOF",
+  "candidate_sha": "e52e3b1246940e02835184c78b53c96d4bbc35d8",
+  "observed_at": "2026-10-05T19:52:33Z",
+  "host_ipv4": "92.51.23.254",
+  "execution_boundary": "systemd-transient-service",
+  "active_credential_accepted": true,
+  "wrong_secret_denied": true,
+  "revoked_credential_denied": true,
+  "expired_credential_denied": true,
+  "exact_scope_execution_passed": true,
+  "wrong_scope_denied": true,
+  "provider_calls": 1,
+  "secret_material_emitted": false
+}

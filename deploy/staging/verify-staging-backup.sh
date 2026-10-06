@@ -7,6 +7,7 @@ bash "$SCRIPT_DIR/assert-authorized-host.sh"
 : "${APGIC_BACKUP_DATABASE:=apgic_staging}"
 : "${APGIC_BACKUP_ROLE:=apgic_staging}"
 : "${APGIC_BACKUP_DIR:=/var/backups/apgic}"
+: "${APGIC_RESTORE_EVIDENCE_DIR:=$APGIC_BACKUP_DIR/evidence}"
 
 latest="$(
   find "$APGIC_BACKUP_DIR" -maxdepth 1 -type f     -name "${APGIC_BACKUP_DATABASE}_*.dump"     -printf '%T@ %p\n' |
@@ -28,6 +29,14 @@ fi
 
 pg_restore --list "$latest" >/dev/null
 
+observed_epoch="$(date +%s)"
+backup_epoch="$(stat -c '%Y' "$latest")"
+measured_backup_rpo_seconds="$(( observed_epoch - backup_epoch ))"
+if (( measured_backup_rpo_seconds < 0 )); then
+  echo "backup mtime is in the future" >&2
+  exit 1
+fi
+
 verify_db="apgic_restore_verify_$(date -u +%Y%m%d%H%M%S)_$$"
 cleanup() {
   dropdb --if-exists "$verify_db" >/dev/null 2>&1 || true
@@ -36,12 +45,15 @@ trap cleanup EXIT
 
 dropdb --if-exists "$verify_db"
 createdb -O "$APGIC_BACKUP_ROLE" "$verify_db"
+restore_started_ms="$(date +%s%3N)"
 pg_restore \
   --exit-on-error \
   --no-owner \
   --role="$APGIC_BACKUP_ROLE" \
   --dbname="$verify_db" \
   "$latest"
+restore_finished_ms="$(date +%s%3N)"
+measured_restore_rto_ms="$(( restore_finished_ms - restore_started_ms ))"
 
 source_tables="$(psql --dbname="$APGIC_BACKUP_DATABASE" -Atqc "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'")"
 restore_tables="$(psql --dbname="$verify_db" -Atqc "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'")"
@@ -69,4 +81,31 @@ for table in "${required_tables[@]}"; do
   fi
 done
 
-printf 'APGIC staging restore verification: PASS backup=%s tables=%s\n' "$latest" "$restore_tables"
+repo_root="$(cd "$SCRIPT_DIR/../.." && pwd)"
+candidate_sha="$(git -c safe.directory="$repo_root" -C "$repo_root" rev-parse HEAD)"
+observed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+backup_sha256="$(sha256sum "$latest" | awk '{print $1}')"
+mkdir -p "$APGIC_RESTORE_EVIDENCE_DIR"
+chmod 0700 "$APGIC_RESTORE_EVIDENCE_DIR"
+evidence_tmp="$APGIC_RESTORE_EVIDENCE_DIR/latest.json.tmp"
+evidence_file="$APGIC_RESTORE_EVIDENCE_DIR/latest.json"
+cat >"$evidence_tmp" <<JSON
+{
+  "schema_version": "staging-restore-evidence-v1",
+  "evidence_type": "STAGING_RESTORE_DRILL",
+  "candidate_sha": "$candidate_sha",
+  "observed_at": "$observed_at",
+  "backup_file_sha256": "$backup_sha256",
+  "measured_backup_rpo_seconds": $measured_backup_rpo_seconds,
+  "measured_restore_rto_ms": $measured_restore_rto_ms,
+  "source_table_count": $source_tables,
+  "restored_table_count": $restore_tables,
+  "required_table_count": ${#required_tables[@]},
+  "production_evidence": false
+}
+JSON
+chmod 0600 "$evidence_tmp"
+mv "$evidence_tmp" "$evidence_file"
+
+printf 'APGIC staging restore verification: PASS backup=%s tables=%s rpo_s=%s rto_ms=%s evidence=%s\n' \
+  "$latest" "$restore_tables" "$measured_backup_rpo_seconds" "$measured_restore_rto_ms" "$evidence_file"

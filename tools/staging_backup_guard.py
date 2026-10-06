@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import json
 from pathlib import Path
 import sys
 
@@ -9,6 +10,7 @@ BACKUP_SERVICE = ROOT / "deploy/staging/apgic-staging-backup.service"
 BACKUP_TIMER = ROOT / "deploy/staging/apgic-staging-backup.timer"
 VERIFY_SERVICE = ROOT / "deploy/staging/apgic-staging-restore-verify.service"
 VERIFY_TIMER = ROOT / "deploy/staging/apgic-staging-restore-verify.timer"
+STAGING_RESTORE_SCHEMA = ROOT / "contracts/jsonschema/staging-restore-evidence-v1.schema.json"
 
 
 def validate() -> list[str]:
@@ -20,6 +22,7 @@ def validate() -> list[str]:
     backup_timer = BACKUP_TIMER.read_text(encoding="utf-8")
     verify_service = VERIFY_SERVICE.read_text(encoding="utf-8")
     verify_timer = VERIFY_TIMER.read_text(encoding="utf-8")
+    staging_restore_schema = json.loads(STAGING_RESTORE_SCHEMA.read_text(encoding="utf-8"))
 
     if "\\n" in bootstrap:
         errors.append("dedicated host bootstrap must not contain literal \\n escape sequences")
@@ -54,6 +57,13 @@ def validate() -> list[str]:
         "audit_records",
         "ledger_entries",
         "booking_slots",
+        "measured_backup_rpo_seconds",
+        "measured_restore_rto_ms",
+        "backup_file_sha256",
+        "candidate_sha=",
+        "staging-restore-evidence-v1",
+        "STAGING_RESTORE_DRILL",
+        "production_evidence",
     )
     for item in verify_required:
         if item not in verify:
@@ -85,7 +95,7 @@ def validate() -> list[str]:
             "NoNewPrivileges=yes",
             "PrivateTmp=yes",
             "ProtectSystem=strict",
-            "RestrictAddressFamilies=AF_UNIX",
+            "RestrictAddressFamilies=AF_UNIX AF_NETLINK",
         ):
             if item not in text:
                 errors.append(f"{name} missing sandbox invariant: {item}")
@@ -96,15 +106,46 @@ def validate() -> list[str]:
         errors.append("backup service must invoke non-executable repository script via /usr/bin/bash")
     if "ExecStart=/usr/bin/bash /opt/apgic/current/deploy/staging/verify-staging-backup.sh" not in verify_service:
         errors.append("restore verification service must invoke non-executable repository script via /usr/bin/bash")
+    if "ReadWritePaths=/var/backups/apgic" not in verify_service:
+        errors.append("restore verification service must restrict evidence writes to /var/backups/apgic")
     if "OnCalendar=*-*-* 02:15:00 UTC" not in backup_timer or "Persistent=true" not in backup_timer:
         errors.append("daily backup timer schedule/persistence mismatch")
     if "OnCalendar=Sun *-*-* 03:30:00 UTC" not in verify_timer or "Persistent=true" not in verify_timer:
         errors.append("weekly restore verification timer schedule/persistence mismatch")
 
+    properties = staging_restore_schema.get("properties") or {}
+    required = set(staging_restore_schema.get("required") or [])
+    expected_required = {
+        "schema_version",
+        "evidence_type",
+        "candidate_sha",
+        "observed_at",
+        "backup_file_sha256",
+        "measured_backup_rpo_seconds",
+        "measured_restore_rto_ms",
+        "source_table_count",
+        "restored_table_count",
+        "required_table_count",
+        "production_evidence",
+    }
+    if required != expected_required:
+        errors.append("staging restore evidence schema required fields mismatch")
+    if properties.get("schema_version", {}).get("const") != "staging-restore-evidence-v1":
+        errors.append("staging restore evidence schema version mismatch")
+    if properties.get("evidence_type", {}).get("const") != "STAGING_RESTORE_DRILL":
+        errors.append("staging restore evidence type mismatch")
+    if properties.get("production_evidence", {}).get("const") is not False:
+        errors.append("staging restore evidence must explicitly be non-production")
+    for field in ("measured_backup_rpo_seconds", "measured_restore_rto_ms"):
+        if properties.get(field, {}).get("minimum") != 0:
+            errors.append(f"{field}: non-negative measurement contract required")
+
     combined = "\n".join(
         (backup, verify, backup_service, backup_timer, verify_service, verify_timer)
     ).lower()
-    for forbidden in ("production_evidence", "185.215.4.49", "147.45.146.112", "metrotherapy"):
+    if '"production_evidence": true' in verify.lower():
+        errors.append("staging restore evidence must never claim production evidence")
+    for forbidden in ("185.215.4.49", "147.45.146.112", "metrotherapy"):
         if forbidden in combined:
             errors.append(
                 f"operational staging backup contains forbidden coupling/claim: {forbidden}"

@@ -267,6 +267,7 @@ requirements:
   - tools/tests/test_auth_contract_guard.py
   - docs/traceability/R0-auth001-tenant-isolation.md
   evidence_refs:
+  - docs/traceability/R0-foundation-verification-batch.md
   - docs/traceability/R0-auth001-tenant-isolation.md
   acceptance:
     given: principal Organization A знает UUID private resource Organization B
@@ -305,6 +306,7 @@ requirements:
   - tools/tests/test_auth_contract_guard.py
   - backend/internal/httpapi/product_ownership_integration_test.go
   evidence_refs:
+  - docs/traceability/R0-foundation-verification-batch.md
   - docs/traceability/R0-auth002-step-up.md
   acceptance:
     given: авторизованный пользователь пытается изменить payout requisites/ownership/secret
@@ -339,6 +341,7 @@ requirements:
   - backend/internal/httpapi/organization_runtime_integration_test.go
   - tools/organization_contract_guard.py
   evidence_refs:
+  - docs/traceability/R0-foundation-verification-batch.md
   - docs/traceability/R0-organization-directions.md
   acceptance:
     given: создана Organization
@@ -381,6 +384,7 @@ requirements:
   - backend/migrations/ci_invariants.sql
   - tools/organization_contract_guard.py
   evidence_refs:
+  - docs/traceability/R0-foundation-verification-batch.md
   - docs/traceability/R0-organization-directions.md
   - docs/traceability/R0-org002-history-links.md
   acceptance:
@@ -422,6 +426,7 @@ requirements:
   - tools/connector_contract_guard.py
   - backend/internal/runtimepostgres/connector_boundary_integration_test.go
   evidence_refs:
+  - docs/traceability/R0-foundation-verification-batch.md
   - docs/traceability/R0-conn001-provider-neutral-core.md
   acceptance:
     given: CommunicationProvider reference недоступен
@@ -462,6 +467,7 @@ requirements:
   - tools/connector_contract_guard.py
   - docs/traceability/R0-conn002-atomic-webhook-effects.md
   evidence_refs:
+  - docs/traceability/R0-foundation-verification-batch.md
   - docs/traceability/R0-conn002-atomic-webhook-effects.md
   acceptance:
     given: provider повторяет/переставляет webhook
@@ -502,6 +508,7 @@ requirements:
   - tools/event_contract_guard.py
   - docs/traceability/R0-event001-transactional-outbox.md
   evidence_refs:
+  - docs/traceability/R0-foundation-verification-batch.md
   - docs/traceability/R0-event001-transactional-outbox.md
   acceptance:
     given: domain transaction создаёт событие
@@ -536,6 +543,7 @@ requirements:
   - tools/audit_contract_guard.py
   - backend/internal/runtimepostgres/product_ownership_audit_integration_test.go
   evidence_refs:
+  - docs/traceability/R0-foundation-verification-batch.md
   - canon/evidence/r0-ci-evidence-map.json
   acceptance:
     given: оператор выполняет high-risk override
@@ -578,6 +586,7 @@ requirements:
   - .github/workflows/ci.yml
   - tools/ledger_contract_guard.py
   evidence_refs:
+  - docs/traceability/R0-foundation-verification-batch.md
   - canon/evidence/r0-ci-evidence-map.json
   acceptance:
     given: создан payment/commission/refund effect
@@ -629,6 +638,7 @@ requirements:
   - apps/web/e2e/foundation.spec.ts
   - .github/workflows/ci.yml
   evidence_refs:
+  - docs/traceability/R0-foundation-verification-batch.md
   - docs/traceability/R0-prod001-organization-product-publication.md
   acceptance:
     given: специалист создаёт продукт внутри Organization
@@ -664,6 +674,7 @@ requirements:
   - backend/internal/httpapi/client_session_http_test.go
   - apps/web/e2e/foundation.spec.ts
   evidence_refs:
+  - docs/traceability/R0-foundation-verification-batch.md
   - docs/traceability/R0-data001-growth-export-boundary.md
   acceptance:
     given: raw session content существует
@@ -689,6 +700,7 @@ requirements:
   - backend/internal/security/service_principal.go
   - backend/internal/security/service_credential.go
   - backend/internal/connector/executor.go
+  - backend/cmd/service-auth-probe/main.go
   - tools/architecture_guard.py
   - tools/client_credential_guard.py
   contract_refs:
@@ -698,6 +710,7 @@ requirements:
   - backend/internal/security/service_principal_test.go
   - backend/internal/security/service_credential_test.go
   - backend/internal/connector/executor_test.go
+  - backend/cmd/service-auth-probe/main_test.go
   - tools/security_contract_guard.py
   - tools/service_credential_contract_guard.py
   - tools/client_credential_guard.py
@@ -705,6 +718,7 @@ requirements:
   - tools/repository_secret_scan.py
   evidence_refs:
   - docs/traceability/R0-sec001-service-credential-lifecycle.md
+  - canon/evidence/staging-sec001-service-auth-20261005T195233Z.json
   acceptance:
     given: connector/service запускается в production
     when: он аутентифицируется
@@ -736,6 +750,7 @@ requirements:
   - tools/launch_config_guard.py
   - .github/workflows/ci.yml
   evidence_refs:
+  - docs/traceability/R0-foundation-verification-batch.md
   - canon/evidence/staging-runtime-20260926T215500Z.json
   - canon/evidence/staging-runtime-20260927T072352Z.json
   acceptance:
@@ -760,15 +775,21 @@ requirements:
   dependencies: []
   implementation_refs:
   - backend/ci/restore_drill.sh
+  - deploy/staging/verify-staging-backup.sh
+  - deploy/staging/apgic-staging-restore-verify.service
+  - deploy/staging/apgic-staging-restore-verify.timer
   - docs/operations/restore-drill.md
   - .github/workflows/ci.yml
   contract_refs:
   - contracts/jsonschema/restore-drill-evidence-v1.schema.json
+  - contracts/jsonschema/staging-restore-evidence-v1.schema.json
   test_refs:
   - backend/ci/restore_drill.sh
   - .github/workflows/ci.yml
   - tools/restore_evidence_contract_guard.py
-  evidence_refs: []
+  - tools/staging_backup_guard.py
+  evidence_refs:
+  - canon/evidence/staging-restore-20261005T200143Z.json
   acceptance:
     given: существует production backup
     when: выполняется scheduled restore drill
@@ -805,6 +826,7 @@ requirements:
   - tools/ui_adaptive_contract_guard.py
   - tools/tests/test_ui_adaptive_contract_guard.py
   evidence_refs:
+  - docs/traceability/R0-foundation-verification-batch.md
   - canon/evidence/staging-runtime-20260926T215500Z.json
   - canon/evidence/staging-runtime-20260927T072352Z.json
   acceptance:
@@ -869,6 +891,7 @@ requirements:
   - tools/architecture_guard.py
   - tools/test_canon_contract_guard.py
   evidence_refs:
+  - docs/traceability/R0-foundation-verification-batch.md
   - canon/evidence/staging-runtime-20260926T215500Z.json
   - canon/evidence/staging-runtime-20260927T072352Z.json
   acceptance:
@@ -905,6 +928,7 @@ requirements:
   - tools/release_evidence.py
   - tools/tests/test_release_evidence.py
   evidence_refs:
+  - docs/traceability/R0-foundation-verification-batch.md
   - canon/evidence/staging-runtime-20260926T215500Z.json
   - canon/evidence/staging-runtime-20260927T072352Z.json
   acceptance:
@@ -938,6 +962,7 @@ requirements:
   - backend/internal/runtimepostgres/journey_test.go
   - tools/legal_snapshot_contract_guard.py
   evidence_refs:
+  - docs/traceability/R0-foundation-verification-batch.md
   - canon/evidence/r0-ci-evidence-map.json
   acceptance:
     given: Order создаётся
@@ -973,6 +998,7 @@ requirements:
   - tools/legal_acceptance_contract_guard.py
   - tools/auth_contract_guard.py
   evidence_refs:
+  - docs/traceability/R0-foundation-verification-batch.md
   - canon/evidence/r0-ci-evidence-map.json
   acceptance:
     given: пользователь принимает документ vN
@@ -1006,6 +1032,7 @@ requirements:
   - .github/workflows/ci.yml
   - backend/internal/runtimepostgres/provider_terminology_integration_test.go
   evidence_refs:
+  - docs/traceability/R0-foundation-verification-batch.md
   - docs/traceability/R0-term001-provider-neutral-terminology.md
   acceptance:
     given: разработчик добавляет новый domain type/API
@@ -2100,6 +2127,7 @@ requirements:
   - tools/canon_freeze_contract_guard.py
   - tools/tests/test_canon_launch_freeze_e2e.py
   evidence_refs:
+  - docs/traceability/R0-foundation-verification-batch.md
   - docs/traceability/R0-canon001-launch-freeze.md
   acceptance:
     given: R0–R4 утверждены
@@ -3718,7 +3746,7 @@ requirements:
   release_profile: R0
   risk: HIGH
   priority: P0
-  status: IN_PROGRESS
+  status: VERIFIED
   dependencies: []
   implementation_refs:
   - backend/internal/payments/taxonomy.go
@@ -3731,6 +3759,12 @@ requirements:
   - tools/tests/test_payment_taxonomy_architecture_guard.py
   evidence_refs:
   - canon/evidence/r0-ci-evidence-map.json
+  - docs/traceability/R0-pay004-payment-taxonomy.md
+  - surface://WEB/pay004-payment-taxonomy/run-37358082684/job-111925489775
+  - surface://IOS/pay004-payment-taxonomy/run-37358082684/job-111925489775
+  - surface://ANDROID/pay004-payment-taxonomy/run-37358082684/job-111925489775
+  - surface://CI/pay004-backend/run-37358082684/job-111925489621
+  - surface://CI/pay004-canon/run-37358082684/job-111925490490
   acceptance:
     given: payment contracts are generated
     when: provider/method/rail values are created or processed
