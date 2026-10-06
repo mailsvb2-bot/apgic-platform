@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/ed25519"
+	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/audit"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/clientcompat"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/demand"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/httpapi"
@@ -21,6 +23,82 @@ import (
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/notification"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/remoteconfig"
 )
+
+const (
+	authzOwnOrganizationID     = "00000000-0000-0000-0000-00000000a001"
+	authzForeignOrganizationID = "00000000-0000-0000-0000-00000000b001"
+	authzOwnPrivateName        = "AUTH001 OWN PRIVATE"
+	authzForeignPrivateName    = "TOP SECRET AUTH001 FOREIGN"
+)
+
+type conformanceOrganizationAuthStore struct {
+	mu      sync.Mutex
+	records map[string]audit.Record
+}
+
+func newConformanceOrganizationAuthStore() *conformanceOrganizationAuthStore {
+	return &conformanceOrganizationAuthStore{records: make(map[string]audit.Record)}
+}
+
+func (s *conformanceOrganizationAuthStore) ActiveOrganizationMembership(identityID, organizationID string) (bool, error) {
+	return strings.TrimSpace(identityID) != "" && strings.TrimSpace(organizationID) == authzOwnOrganizationID, nil
+}
+
+func (s *conformanceOrganizationAuthStore) OrganizationPrivateName(organizationID string) (string, bool, error) {
+	switch strings.TrimSpace(organizationID) {
+	case authzOwnOrganizationID:
+		return authzOwnPrivateName, true, nil
+	case authzForeignOrganizationID:
+		return authzForeignPrivateName, true, nil
+	default:
+		return "", false, nil
+	}
+}
+
+func (s *conformanceOrganizationAuthStore) Append(record audit.Record) error {
+	validated, err := audit.New(record)
+	if err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.records[validated.CorrelationID] = validated
+	return nil
+}
+
+func (s *conformanceOrganizationAuthStore) auditByCorrelation(correlationID string) (audit.Record, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	record, ok := s.records[correlationID]
+	return record, ok
+}
+
+type conformanceE2EHandler struct {
+	next  http.Handler
+	authz *conformanceOrganizationAuthStore
+}
+
+func (h *conformanceE2EHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	const prefix = "/e2e/authz-audit/"
+	if r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, prefix) {
+		correlationID := strings.TrimSpace(strings.TrimPrefix(r.URL.Path, prefix))
+		record, ok := h.authz.auditByCorrelation(correlationID)
+		if !ok || correlationID == "" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("content-type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"correlation_id": record.CorrelationID,
+			"reason":         record.Reason,
+			"decision":       "DENY",
+			"scope":          record.Scope,
+			"resource_ref":   record.ResourceRef,
+		})
+		return
+	}
+	h.next.ServeHTTP(w, r)
+}
 
 type conformanceWorkspaceStore struct{}
 
@@ -396,10 +474,12 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	authzStore := newConformanceOrganizationAuthStore()
 	canonicalHandler := httpapi.New(httpapi.Options{
 		Demand:                      demand.NewConformanceService(nil),
 		Installations:               newConformanceInstallationStore(),
 		MobileWorkspaces:            conformanceWorkspaceStore{},
+		OrganizationAuth:            authzStore,
 		Notifications:               conformanceNotificationStore{},
 		ClientMutations:             mutations,
 		DeepLinks:                   conformanceDeepLinkStore{},
@@ -408,7 +488,7 @@ func main() {
 		ClientCompatibilityPolicies: compatibilityPolicies,
 		RemoteConfigProvider:        remoteConfigPublisher.Envelope,
 	})
-	handler := &loseFirstCheckoutResponse{next: canonicalHandler}
+	handler := &loseFirstCheckoutResponse{next: &conformanceE2EHandler{next: canonicalHandler, authz: authzStore}}
 	server := &http.Server{
 		Addr:              addr,
 		Handler:           handler,
