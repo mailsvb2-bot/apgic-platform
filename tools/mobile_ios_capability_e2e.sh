@@ -948,7 +948,7 @@ assert_help_intent_confirmation() {
 }
 
 assert_tenant_isolation() {
-  local output="$EVIDENCE_DIR/ios-auth001-e2e.json"
+  local output="$EVIDENCE_DIR/ios-capability-e2e-auth001.json"
 
   xcrun simctl terminate "$UDID" com.apgic.ci >/dev/null 2>&1 || true
   SIMCTL_CHILD_APGIC_E2E_CAPABILITY_STATE=GRANTED \
