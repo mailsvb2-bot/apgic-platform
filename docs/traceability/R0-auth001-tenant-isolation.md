@@ -58,3 +58,17 @@ The proof uses two independent browser contexts:
 The browser path is `Browser -> Next /v1 proxy -> APGIC API -> PostgreSQL`; it does not mock the authorization decision or the database.
 
 AUTH-001 remains `IN_PROGRESS` until this fresh WEB proof and explicit IOS/ANDROID surface evidence are bound to an exact green candidate.
+
+
+## Native installed-app surface proof
+
+AUTH-001 is exercised through the installed React Native app on both native surfaces, not by a JavaScript-only mock:
+
+- `apps/mobile/src/mobile-authz-e2e.ts` calls the canonical `GET /v1/organizations/{organizationID}/private-profile` endpoint with the signed client session and explicit organization context.
+- `backend/cmd/mobile-installation-e2e-server/main.go` wires the production `httpapi` authorization handler and `authz.Evaluator` to an E2E-only organization store. The handler persists the same append-only audit records used by the canonical authorization path.
+- The native client proves same-tenant ALLOW, `AUTH_CROSS_TENANT_DENY`, forged-context `AUTH_TENANT_CONTEXT_DENIED`, absence of a sentinel foreign private value in denial payloads, and persisted DENY audit evidence.
+- `tools/mobile_android_capability_e2e.sh` launches the installed Android APK with the AUTH-001 inputs and requires all six proof labels.
+- `tools/mobile_ios_capability_e2e.sh` launches the installed iOS simulator app with the same proof contract and requires the same labels through AXBridge.
+- The proof artifacts are emitted as `evidence/android-capability-e2e-auth001.xml` and `evidence/ios-capability-e2e-auth001.json`, so the existing native artifact upload retains them with the exact CI candidate.
+
+The requirement remains `IN_PROGRESS` on this implementation commit. Promotion to `VERIFIED` requires an exact-head green CI candidate that contains both native artifacts plus the existing PostgreSQL/Web proof; status must not be advanced from code presence alone.
