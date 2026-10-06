@@ -337,6 +337,108 @@ jobs:
         env:
           APGIC_AUTHZ_HTTP_TEST_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable
         run: go test ./internal/httpapi -run TestCrossTenantOrganizationHTTPDeniesWithoutDisclosureAndAudits -count=1
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - name: Prepare AUTH-001 WEB browser proof
+        working-directory: apps/web
+        run: |
+          npm install --ignore-scripts --no-audit --no-fund
+          npx playwright install --with-deps chromium
+          npm run build
+      - name: Prove AUTH-001 WEB tenant isolation through Next API and PostgreSQL
+        working-directory: apps/web
+        shell: bash
+        env:
+          APGIC_ENVIRONMENT: STAGING
+          APGIC_RELEASE_TRACK: R0
+          APGIC_HTTP_ADDR: 127.0.0.1:43141
+          APGIC_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable
+          APGIC_JURISDICTION_MATRIX_VERSION: jurisdiction-ci-v1
+          APGIC_RETENTION_POLICY_VERSION: retention-ci-v1
+          APGIC_SLO_POLICY_VERSION: slo-r0-ci-v1
+          APGIC_PROVIDER_MATRIX_VERSION: providers-ci-v1
+          APGIC_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          APGIC_CLIENT_SESSION_KEY: ci-only-auth001-web-session-key-000000000000
+          APGIC_MOBILE_POLICY_VERSION: mobile013-ci-v1
+          APGIC_MOBILE_CONTRACT_VERSION: 0.10.0-r0-remote-config
+          APGIC_MOBILE_SUPPORTED_CONTRACTS: 0.8.0-r2-offline-sync,0.9.0-r0-mobile-compatibility,0.10.0-r0-remote-config
+          APGIC_REMOTE_CONFIG_KEY_ID: auth001-web-ci-v1
+          APGIC_REMOTE_CONFIG_VERSION: 1
+          APGIC_REMOTE_CONFIG_POLICY_ID: auth001-web-ci-v1
+          APGIC_REMOTE_CONFIG_TTL_SECONDS: 3600
+          APGIC_REMOTE_CONFIG_DISABLED_CAPABILITIES:
+          APGIC_MOBILE_FORCED_UPDATE_REASON: INCOMPATIBLE_CRITICAL
+          APGIC_IOS_MIN_VERSION: 1.4.0
+          APGIC_IOS_RECOMMENDED_VERSION: 1.6.0
+          APGIC_IOS_MIN_BUILD: 1
+          APGIC_IOS_UPDATE_URL: https://apgic.ru/update
+          APGIC_ANDROID_MIN_VERSION: 1.4.0
+          APGIC_ANDROID_RECOMMENDED_VERSION: 1.6.0
+          APGIC_ANDROID_MIN_BUILD: 1
+          APGIC_ANDROID_UPDATE_URL: https://apgic.ru/update
+          APGIC_AUTH001_WEB_E2E: '1'
+          APGIC_WEB_PORT: '43140'
+          APGIC_CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          export APGIC_REMOTE_CONFIG_PRIVATE_KEY_BASE64="$(python3 -c 'import base64; print(base64.b64encode(b"a"*32).decode())')"
+          npx playwright test e2e/auth001-postgres.spec.ts --project=desktop
+
+          cross_count="$(
+            psql -h 127.0.0.1 -U apgic -d apgic_ci -tA -v ON_ERROR_STOP=1 -c "
+              SELECT count(*)
+                FROM audit_records
+               WHERE correlation_id = 'auth001-web-cross-tenant-deny'
+                 AND reason = 'AUTH_CROSS_TENANT_DENY'
+                 AND resource_ref LIKE 'tenant/%/resource/private-profile'
+            "
+          )"
+          forged_count="$(
+            psql -h 127.0.0.1 -U apgic -d apgic_ci -tA -v ON_ERROR_STOP=1 -c "
+              SELECT count(*)
+                FROM audit_records
+               WHERE correlation_id = 'auth001-web-forged-context-deny'
+                 AND reason = 'AUTH_TENANT_CONTEXT_DENIED'
+                 AND resource_ref LIKE 'tenant/%/resource/private-profile'
+            "
+          )"
+          test "$cross_count" -ge 1
+          test "$forged_count" -ge 1
+
+          mkdir -p ../../evidence
+          python3 - "$APGIC_CANDIDATE_SHA" "$cross_count" "$forged_count" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          candidate_sha, cross_count, forged_count = sys.argv[1:]
+          evidence = {
+              "schema_version": "auth001-web-tenant-isolation-v1",
+              "evidence_type": "WEB_TENANT_ISOLATION_E2E",
+              "candidate_sha": candidate_sha,
+              "surface": "WEB",
+              "browser_through_next_proxy": True,
+              "postgres_backed_api": True,
+              "same_tenant_allow": True,
+              "cross_tenant_denied_without_disclosure": True,
+              "forged_tenant_context_denied_without_disclosure": True,
+              "cross_tenant_audit_rows": int(cross_count),
+              "forged_context_audit_rows": int(forged_count),
+              "production_evidence": False,
+          }
+          Path("../../evidence/auth001-web-tenant-isolation.json").write_text(
+              json.dumps(evidence, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          PY
+      - name: Upload AUTH-001 WEB tenant isolation evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: auth001-web-tenant-isolation-evidence
+          path: evidence/auth001-web-tenant-isolation.json
+          if-no-files-found: error
+          retention-days: 30
       - name: Prove organization direction history and explicit product publication
         working-directory: backend
         env:
