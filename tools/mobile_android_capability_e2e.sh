@@ -950,7 +950,7 @@ assert_tenant_isolation() {
     --es APGIC_E2E_AUTHZ_SESSION_COOKIE "$SESSION_COOKIE" \
     --es APGIC_E2E_AUTHZ_OWN_ORGANIZATION_ID 00000000-0000-0000-0000-00000000a001 \
     --es APGIC_E2E_AUTHZ_FOREIGN_ORGANIZATION_ID 00000000-0000-0000-0000-00000000b001 \
-    --es APGIC_E2E_AUTHZ_FOREIGN_PRIVATE_MARKER "TOP SECRET AUTH001 FOREIGN" \
+    --es APGIC_E2E_AUTHZ_FOREIGN_PRIVATE_MARKER "AUTH001_FOREIGN_PRIVATE_SENTINEL_7F4A9C" \
     --es APGIC_E2E_AUTHZ_SURFACE ANDROID \
     >/dev/null
 
@@ -962,7 +962,7 @@ assert_tenant_isolation() {
        'authz-e2e-disclosure-blocked:true' \
        'authz-e2e-cross-audit:true' \
        'authz-e2e-forged-audit:true'; then
-    if grep -Fq 'TOP SECRET AUTH001 FOREIGN' "$output"; then
+    if grep -Fq 'AUTH001_FOREIGN_PRIVATE_SENTINEL_7F4A9C' "$output"; then
       fail "installed Android AUTH-001 proof disclosed foreign private marker"
     fi
     echo "Android installed-app AUTH-001 tenant isolation + audit: PASS"
