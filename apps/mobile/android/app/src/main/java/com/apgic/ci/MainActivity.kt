@@ -17,6 +17,12 @@ class MainActivity : ReactActivity() {
     private const val E2E_INSTALLATION_PLATFORM = "APGIC_E2E_INSTALLATION_PLATFORM"
     private const val E2E_WORKSPACE_BASE_URL = "APGIC_E2E_WORKSPACE_BASE_URL"
     private const val E2E_WORKSPACE_SESSION_COOKIE = "APGIC_E2E_WORKSPACE_SESSION_COOKIE"
+    private const val E2E_AUTHZ_BASE_URL = "APGIC_E2E_AUTHZ_BASE_URL"
+    private const val E2E_AUTHZ_SESSION_COOKIE = "APGIC_E2E_AUTHZ_SESSION_COOKIE"
+    private const val E2E_AUTHZ_OWN_ORGANIZATION_ID = "APGIC_E2E_AUTHZ_OWN_ORGANIZATION_ID"
+    private const val E2E_AUTHZ_FOREIGN_ORGANIZATION_ID = "APGIC_E2E_AUTHZ_FOREIGN_ORGANIZATION_ID"
+    private const val E2E_AUTHZ_FOREIGN_PRIVATE_MARKER = "APGIC_E2E_AUTHZ_FOREIGN_PRIVATE_MARKER"
+    private const val E2E_AUTHZ_SURFACE = "APGIC_E2E_AUTHZ_SURFACE"
     private const val E2E_DELETION_BASE_URL = "APGIC_E2E_DELETION_BASE_URL"
     private const val E2E_DELETION_SESSION_COOKIE = "APGIC_E2E_DELETION_SESSION_COOKIE"
     private const val E2E_DELETION_IDENTITY_ID = "APGIC_E2E_DELETION_IDENTITY_ID"
@@ -121,6 +127,24 @@ class MainActivity : ReactActivity() {
             intent?.getStringExtra(E2E_WORKSPACE_SESSION_COOKIE)
               ?.takeIf { it.isNotBlank() }
               ?.let { putString("workspaceE2ESessionCookie", it) }
+            intent?.getStringExtra(E2E_AUTHZ_BASE_URL)
+              ?.takeIf { it.isNotBlank() }
+              ?.let { putString("authzE2EBaseURL", it) }
+            intent?.getStringExtra(E2E_AUTHZ_SESSION_COOKIE)
+              ?.takeIf { it.isNotBlank() }
+              ?.let { putString("authzE2ESessionCookie", it) }
+            intent?.getStringExtra(E2E_AUTHZ_OWN_ORGANIZATION_ID)
+              ?.takeIf { it.isNotBlank() }
+              ?.let { putString("authzE2EOwnOrganizationID", it) }
+            intent?.getStringExtra(E2E_AUTHZ_FOREIGN_ORGANIZATION_ID)
+              ?.takeIf { it.isNotBlank() }
+              ?.let { putString("authzE2EForeignOrganizationID", it) }
+            intent?.getStringExtra(E2E_AUTHZ_FOREIGN_PRIVATE_MARKER)
+              ?.takeIf { it.isNotBlank() }
+              ?.let { putString("authzE2EForeignPrivateMarker", it) }
+            intent?.getStringExtra(E2E_AUTHZ_SURFACE)
+              ?.takeIf { it == "IOS" || it == "ANDROID" }
+              ?.let { putString("authzE2ESurface", it) }
             intent?.getStringExtra(E2E_DELETION_BASE_URL)
               ?.takeIf { it.isNotBlank() }
               ?.let { putString("deletionE2EBaseURL", it) }
