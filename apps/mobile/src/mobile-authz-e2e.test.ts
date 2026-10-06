@@ -11,7 +11,7 @@ const config = {
   sessionCookie: "__Host-apgic_session=e2e",
   ownOrganizationID: "00000000-0000-0000-0000-00000000a001",
   foreignOrganizationID: "00000000-0000-0000-0000-00000000b001",
-  foreignPrivateMarker: "TOP SECRET AUTH001 FOREIGN",
+  foreignPrivateMarker: "AUTH001_FOREIGN_PRIVATE_SENTINEL_7F4A9C",
   surface: "ANDROID" as const,
 };
 
