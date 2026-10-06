@@ -61,6 +61,7 @@ def validate() -> list[str]:
         "measured_restore_rto_ms",
         "backup_file_sha256",
         "candidate_sha=",
+        'repo_root="$(cd "$SCRIPT_DIR/../.." && pwd -P)"',
         "staging-restore-evidence-v1",
         "STAGING_RESTORE_DRILL",
         "production_evidence",

@@ -81,7 +81,7 @@ for table in "${required_tables[@]}"; do
   fi
 done
 
-repo_root="$(cd "$SCRIPT_DIR/../.." && pwd)"
+repo_root="$(cd "$SCRIPT_DIR/../.." && pwd -P)"
 candidate_sha="$(git -c safe.directory="$repo_root" -C "$repo_root" rev-parse HEAD)"
 observed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 backup_sha256="$(sha256sum "$latest" | awk '{print $1}')"
