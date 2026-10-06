@@ -40,3 +40,21 @@ Requirement: protected actions must authorize principal/resource/scope/tenant, c
 ## CI gate
 
 `.github/workflows/ci.yml` runs `TestCrossTenantOrganizationHTTPDeniesWithoutDisclosureAndAudits` against the real PostgreSQL schema.
+
+
+## WEB surface proof
+
+`apps/web/e2e/auth001-postgres.spec.ts` is a dedicated PostgreSQL-backed browser proof. It is skipped by the ordinary conformance-only web suite and enabled only by the AUTH-001 database gate.
+
+The proof uses two independent browser contexts:
+
+1. Browser/session A creates Organization A through `POST /v1/organizations`.
+2. Browser/session B creates Organization B through the same public API.
+3. Browser A reads its own private profile with `X-Organization-Context: A` and receives ALLOW.
+4. Browser A requests Organization B while keeping tenant context A and receives `403 AUTH_CROSS_TENANT_DENY` without the private B name.
+5. Browser A forges `X-Organization-Context: B` and receives `403 AUTH_TENANT_CONTEXT_DENIED`, again without private B data.
+6. The CI job queries PostgreSQL `audit_records` for both deterministic correlation IDs and requires persisted DENY evidence.
+
+The browser path is `Browser -> Next /v1 proxy -> APGIC API -> PostgreSQL`; it does not mock the authorization decision or the database.
+
+AUTH-001 remains `IN_PROGRESS` until this fresh WEB proof and explicit IOS/ANDROID surface evidence are bound to an exact green candidate.
