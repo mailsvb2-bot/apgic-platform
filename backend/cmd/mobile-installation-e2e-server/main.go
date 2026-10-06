@@ -28,7 +28,7 @@ const (
 	authzOwnOrganizationID     = "00000000-0000-0000-0000-00000000a001"
 	authzForeignOrganizationID = "00000000-0000-0000-0000-00000000b001"
 	authzOwnPrivateName        = "AUTH001 OWN PRIVATE"
-	authzForeignPrivateName    = "TOP SECRET AUTH001 FOREIGN"
+	authzForeignPrivateName    = "AUTH001_FOREIGN_PRIVATE_SENTINEL_7F4A9C"
 )
 
 type conformanceOrganizationAuthStore struct {
