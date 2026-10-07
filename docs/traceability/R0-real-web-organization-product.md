@@ -56,6 +56,21 @@ and CI uploads it as:
 
 The artifact is bound to `APGIC_CANDIDATE_SHA` and explicitly records `production_evidence=false`.
 
+## Exact candidate evidence
+
+The first exact candidate that carries this proof is:
+
+- candidate: `bc2ac5521d818c1a4fb2b5ffd8efff41fb44611f`;
+- CI run: `37582060969` — SUCCESS;
+- PostgreSQL migration / invariant proof job: `112663755399` — SUCCESS;
+- Playwright result inside that job: `2 passed`, including `WEB organization product lifecycle persists through real API and PostgreSQL`;
+- artifact: `r0-org-product-web-e2e-evidence`;
+- artifact ID: `11465255409`;
+- artifact digest: `sha256:890718a7b1f09df2f7d3ff418faab6f671a376ca22ffc8fb2980df88ab721578`;
+- full R0 bootstrap job: `112667182228` — SUCCESS.
+
+This evidence is exact CI evidence for the candidate. It is not production deployment evidence.
+
 ## Status discipline
 
 This document does not by itself change Registry status. Exact run/job/artifact identifiers must be bound after a concrete candidate passes the gate. Requirements that explicitly demand separate staging/release evidence remain `IN_PROGRESS` until that evidence exists.
