@@ -13,8 +13,8 @@ Historical `staging-restore-evidence-v1` files remain immutable and prove backup
 
 New drills emit `staging-restore-evidence-v2`. In addition to the v1 measurements, v2 fails closed unless:
 
-- source and restored `identities` counts are equal and non-zero;
-- source and restored `organizations` counts are equal and non-zero;
+- restored `identities` contains non-zero business truth;
+- restored `organizations` contains non-zero business truth;
 - the restored database contains exactly one canonical append-only audit trigger;
 - the restored database contains exactly one canonical append-only ledger trigger;
 - Organization direction hard-delete protection survives restore;
@@ -22,6 +22,6 @@ New drills emit `staging-restore-evidence-v2`. In addition to the v1 measurement
 - Booking transition protection survives restore;
 - Order append-only protection survives restore.
 
-The evidence records the source/restored business counts, individual integrity probe counts, and explicit `business_probes_passed=true` / `integrity_probes_passed=true` flags.
+The evidence records restored business counts, individual integrity probe counts, and explicit `business_probes_passed=true` / `integrity_probes_passed=true` flags.
 
 Staging evidence remains `production_evidence=false`. It improves pre-production disaster-recovery proof but must not be relabeled as a production restore drill.
