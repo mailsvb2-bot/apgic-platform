@@ -41,4 +41,4 @@ The database migration remains compatible with pre-existing legacy Order rows by
 - direct hard delete is rejected;
 - the entitlement remains ACTIVE and resolves through Verification → Order → Product → archived Direction.
 
-At the code/test level this closes the remaining entitlement-history gap in the APGIC-ORG-002 acceptance path. The registry remains IN_PROGRESS until fresh release/staging evidence is attached; code completion alone is not represented as production verification.
+At the code/test level this closes the entitlement-history gap in the APGIC-ORG-002 acceptance path. Fresh deployed staging evidence is recorded in `canon/evidence/staging-org-product-20261007T125100Z.json`, and installed iOS/Android app evidence is bound from CI run `37628404273`. With those external/runtime proofs attached, APGIC-ORG-002 is `VERIFIED`.
