@@ -91,4 +91,17 @@ The readback showed the direction as `ARCHIVED` while the Product remained `PUBL
 
 Evidence: `canon/evidence/staging-org-product-20261007T125100Z.json`.
 
-This closes the previously documented missing staging/runtime proof. Registry status is not promoted in this change because the repository-wide multisurface verification guard separately requires WEB/IOS/ANDROID coverage or an approved applicability exception for every launch `VERIFIED` requirement; that governance question must not be bypassed by fabricated native evidence.
+This closes the previously documented missing staging/runtime proof.
+
+## Native installed-app surface proof
+
+Candidate `bc5f9b0e657a2d64c5090d4d89cb1a6ac5522c60` adds the same canonical Organization/Product journey to the installed native app and runs it against the deployed `https://apgic.ru` runtime:
+
+- iOS Simulator job `112816037630` in run `37628404273` — SUCCESS;
+- Android emulator job `112816038097` in run `37628404273` — SUCCESS;
+- iOS artifact `ios-native-simulator-build` digest `sha256:ddb456a354c7d45becf039aa703f7f29993c9af1e562e0b1b3b2e06777996094`;
+- Android artifact `android-native-debug-build` digest `sha256:63ffb145e81bf25d5acce46bafcb9e564b163e146f555344ecccde81a77d4530`.
+
+The native client owns no parallel Organization/Product business truth. It calls the canonical HTTP owners, and the installed-app proof requires create -> publish -> archive -> readback with explicit ownership/revenue fields preserved.
+
+With WEB, deployed staging, IOS and ANDROID evidence now attached, APGIC-ORG-001, APGIC-ORG-002 and APGIC-PROD-001 are promoted to `VERIFIED`.
