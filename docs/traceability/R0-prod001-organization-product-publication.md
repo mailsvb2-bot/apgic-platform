@@ -70,3 +70,12 @@ APGIC-PROD-001 requires a specialist to create a Product inside an Organization 
   - runs the APGIC-PROD-001 publication, archived-direction, legacy-read and draft-checkout negative proofs.
 
 The requirement remains IN_PROGRESS until fresh staging/release evidence proves the path outside CI. Code and contract completion alone are not represented as production verification.
+
+
+## Deployed staging proof
+
+Candidate `0df3a19bbcc67208b5f67ab07c57b40fa28c4470` is deployed on staging and the public canonical HTTP path was exercised outside CI. A Product was created under a generic Organization direction with explicit owner/commercial-owner/author/revenue-beneficiary refs, published, then re-read after the direction was archived. The Product remained `PUBLISHED` and all explicit ownership/revenue refs were preserved.
+
+Evidence: `canon/evidence/staging-org-product-20261007T125100Z.json`.
+
+The earlier “fresh staging/release evidence” gap is therefore closed. Registry promotion is deliberately separate because the global multisurface guard currently requires WEB/IOS/ANDROID evidence or approved applicability exceptions for launch requirements.
