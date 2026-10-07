@@ -16,10 +16,6 @@
     "restored_table_count",
     "required_table_count",
     "production_evidence",
-    "business_probe_identity_source_count",
-    "business_probe_identity_restored_count",
-    "business_probe_organization_source_count",
-    "business_probe_organization_restored_count",
     "integrity_probe_audit_trigger_count",
     "integrity_probe_ledger_trigger_count",
     "integrity_probe_direction_trigger_count",
@@ -27,7 +23,9 @@
     "integrity_probe_booking_transition_trigger_count",
     "integrity_probe_orders_append_only_trigger_count",
     "business_probes_passed",
-    "integrity_probes_passed"
+    "integrity_probes_passed",
+    "business_probe_identity_count",
+    "business_probe_organization_count"
   ],
   "properties": {
     "schema_version": {
@@ -71,22 +69,6 @@
     "production_evidence": {
       "const": false
     },
-    "business_probe_identity_source_count": {
-      "type": "integer",
-      "minimum": 1
-    },
-    "business_probe_identity_restored_count": {
-      "type": "integer",
-      "minimum": 1
-    },
-    "business_probe_organization_source_count": {
-      "type": "integer",
-      "minimum": 1
-    },
-    "business_probe_organization_restored_count": {
-      "type": "integer",
-      "minimum": 1
-    },
     "integrity_probe_audit_trigger_count": {
       "type": "integer",
       "const": 1
@@ -116,6 +98,14 @@
     },
     "integrity_probes_passed": {
       "const": true
+    },
+    "business_probe_identity_count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "business_probe_organization_count": {
+      "type": "integer",
+      "minimum": 1
     }
   }
 }
