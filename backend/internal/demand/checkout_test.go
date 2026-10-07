@@ -174,3 +174,79 @@ func TestCheckoutReplayAllowedOnlyWhilePaymentPending(t *testing.T) {
 		})
 	}
 }
+
+func TestCheckoutReplayUsesDurableInstructionAfterCatalogSlotRollsOut(t *testing.T) {
+	now := time.Date(2026, 10, 7, 9, 0, 0, 0, time.UTC)
+	holdExpiresAt := now.Add(10 * time.Minute)
+	const (
+		holdID    = "hold-persisted"
+		bookingID = "booking-persisted"
+		clientID  = "client-persisted"
+		slotID    = "slot-no-longer-in-live-catalog"
+	)
+
+	store := &fakeJourneyStore{
+		snapshot: JourneySnapshot{
+			Holds: []*Hold{{
+				ID:               holdID,
+				BookingID:        bookingID,
+				SlotID:           slotID,
+				ClientIdentityID: clientID,
+				State:            "CONSUMED",
+				BookingState:     booking.StatePendingPayment,
+				ExpiresAt:        holdExpiresAt,
+				ReasonCode:       "BOOK_HOLD_ACQUIRED",
+			}},
+			Bookings: []*booking.Booking{{
+				ID:               bookingID,
+				SlotID:           slotID,
+				HoldID:           holdID,
+				ClientIdentityID: clientID,
+				State:            booking.StatePendingPayment,
+				HoldExpiresAt:    holdExpiresAt,
+				StartsAt:         now.Add(time.Hour),
+				EndsAt:           now.Add(2 * time.Hour),
+				UpdatedAt:        now,
+			}},
+			Instructions: []*CheckoutInstruction{{
+				ID:                 "checkout-persisted",
+				HoldID:             holdID,
+				BookingID:          bookingID,
+				BookingState:       booking.StatePendingPayment,
+				OrderID:            "order-persisted",
+				ProviderID:         "external-bank",
+				MethodCode:         "SBP",
+				RailCode:           "BANK_TRANSFER",
+				AmountMinor:        450000,
+				Currency:           "RUB",
+				ExecutionOwner:     "EXTERNAL_PROVIDER",
+				PaymentRecipientID: "identity-spec-lebedeva",
+				PlatformRole:       platformRole,
+				APGICAcceptsFunds:  false,
+				ReasonCode:         "PAY_ROUTE_SELECTED",
+			}},
+		},
+	}
+
+	service, err := NewConformanceServiceWithStores(func() time.Time { return now }, nil, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := service.slot(slotID); ok {
+		t.Fatalf("regression setup invalid: retired slot %q unexpectedly exists in live catalog", slotID)
+	}
+
+	replayed, err := service.CreateCheckout(holdID, clientID, "SBP")
+	if err != nil {
+		t.Fatalf("durable checkout replay must not depend on live catalog slot: %v", err)
+	}
+	if replayed.ID != "checkout-persisted" || replayed.OrderID != "order-persisted" {
+		t.Fatalf("replayed instruction=%#v", replayed)
+	}
+	if _, err := service.CreateCheckout(holdID, clientID, "BANK_CARD"); !errors.Is(err, ErrCheckoutLocked) {
+		t.Fatalf("method change after durable replay err=%v", err)
+	}
+	if _, err := service.CreateCheckout(holdID, "foreign-client", "SBP"); !errors.Is(err, ErrIdentityMismatch) {
+		t.Fatalf("foreign durable replay err=%v", err)
+	}
+}
