@@ -861,6 +861,7 @@ requirements:
   - tools/staging_backup_guard.py
   evidence_refs:
   - canon/evidence/staging-restore-20261005T200143Z.json
+  - canon/evidence/staging-restore-20261007T181635Z.json
   acceptance:
     given: существует production backup
     when: выполняется scheduled restore drill
