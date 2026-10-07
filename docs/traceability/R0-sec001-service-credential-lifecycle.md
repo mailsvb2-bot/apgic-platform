@@ -39,7 +39,7 @@ Provider execution is not called for any denied credential/scope path.
 
 ## Release status
 
-APGIC-SEC-001 is VERIFIED. On 2026-10-05 candidate `e52e3b1246940e02835184c78b53c96d4bbc35d8` was executed on the authorized APGIC staging host as an isolated systemd transient service. `canon/evidence/staging-sec001-service-auth-20261005T195233Z.json` proves active credential success, wrong-secret/revoked/expired denial, exact-scope connector execution, wrong-scope denial, one provider call, and no emitted secret material.
+On 2026-10-05 candidate `e52e3b1246940e02835184c78b53c96d4bbc35d8` was executed on the authorized APGIC staging host as an isolated systemd transient service. `canon/evidence/staging-sec001-service-auth-20261005T195233Z.json` proves active credential success, wrong-secret/revoked/expired denial, exact-scope connector execution, wrong-scope denial, one provider call, and no emitted secret material. The Registry remains `IN_PROGRESS` until the corrected client-surface credential isolation guard passes on WEB, IOS and ANDROID and exact surface job evidence is attached.
 
 ## Current-main evidence binding
 
@@ -62,5 +62,5 @@ Current main CI run `37587880450` is green, including:
 - Canon / architecture conformance — job `112682148163` — SUCCESS;
 - R0 bootstrap gate — job `112689768024` — SUCCESS.
 
-This promotes the Registry implementation status to `VERIFIED` against the required `DOMAIN_OR_CONTRACT_TEST` plus `E2E_OR_STAGING_PROOF`. It does not claim a production rollout or `RELEASED` status.
+This establishes that the server-side staging proof still applies to current main. It does not by itself satisfy the multisurface verification gate: WEB, IOS and ANDROID must also prove that service credentials are absent from their real client source trees before the Registry can move to `VERIFIED`.
 
