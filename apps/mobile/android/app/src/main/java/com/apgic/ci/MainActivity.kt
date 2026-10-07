@@ -23,6 +23,9 @@ class MainActivity : ReactActivity() {
     private const val E2E_AUTHZ_FOREIGN_ORGANIZATION_ID = "APGIC_E2E_AUTHZ_FOREIGN_ORGANIZATION_ID"
     private const val E2E_AUTHZ_FOREIGN_PRIVATE_MARKER = "APGIC_E2E_AUTHZ_FOREIGN_PRIVATE_MARKER"
     private const val E2E_AUTHZ_SURFACE = "APGIC_E2E_AUTHZ_SURFACE"
+    private const val E2E_ORG_PRODUCT_BASE_URL = "APGIC_E2E_ORG_PRODUCT_BASE_URL"
+    private const val E2E_ORG_PRODUCT_SESSION_COOKIE = "APGIC_E2E_ORG_PRODUCT_SESSION_COOKIE"
+    private const val E2E_ORG_PRODUCT_SURFACE = "APGIC_E2E_ORG_PRODUCT_SURFACE"
     private const val E2E_DELETION_BASE_URL = "APGIC_E2E_DELETION_BASE_URL"
     private const val E2E_DELETION_SESSION_COOKIE = "APGIC_E2E_DELETION_SESSION_COOKIE"
     private const val E2E_DELETION_IDENTITY_ID = "APGIC_E2E_DELETION_IDENTITY_ID"
@@ -145,6 +148,15 @@ class MainActivity : ReactActivity() {
             intent?.getStringExtra(E2E_AUTHZ_SURFACE)
               ?.takeIf { it == "IOS" || it == "ANDROID" }
               ?.let { putString("authzE2ESurface", it) }
+            intent?.getStringExtra(E2E_ORG_PRODUCT_BASE_URL)
+              ?.takeIf { it.isNotBlank() }
+              ?.let { putString("orgProductE2EBaseURL", it) }
+            intent?.getStringExtra(E2E_ORG_PRODUCT_SESSION_COOKIE)
+              ?.takeIf { it.isNotBlank() }
+              ?.let { putString("orgProductE2ESessionCookie", it) }
+            intent?.getStringExtra(E2E_ORG_PRODUCT_SURFACE)
+              ?.takeIf { it == "IOS" || it == "ANDROID" }
+              ?.let { putString("orgProductE2ESurface", it) }
             intent?.getStringExtra(E2E_DELETION_BASE_URL)
               ?.takeIf { it.isNotBlank() }
               ?.let { putString("deletionE2EBaseURL", it) }

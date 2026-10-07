@@ -69,7 +69,7 @@ APGIC-PROD-001 requires a specialist to create a Product inside an Organization 
   - applies migrations 000023 and 000024 in the migration proof and isolated restore drill;
   - runs the APGIC-PROD-001 publication, archived-direction, legacy-read and draft-checkout negative proofs.
 
-The requirement remains IN_PROGRESS until fresh staging/release evidence proves the path outside CI. Code and contract completion alone are not represented as production verification.
+Code and contract evidence are not sufficient by themselves; verification additionally requires deployed/runtime and client-surface proof.
 
 
 ## Deployed staging proof
@@ -78,4 +78,13 @@ Candidate `0df3a19bbcc67208b5f67ab07c57b40fa28c4470` is deployed on staging and 
 
 Evidence: `canon/evidence/staging-org-product-20261007T125100Z.json`.
 
-The earlier “fresh staging/release evidence” gap is therefore closed. Registry promotion is deliberately separate because the global multisurface guard currently requires WEB/IOS/ANDROID evidence or approved applicability exceptions for launch requirements.
+The earlier “fresh staging/release evidence” gap is therefore closed.
+
+## Native installed-app proof
+
+Candidate `bc5f9b0e657a2d64c5090d4d89cb1a6ac5522c60` runs the same Product lifecycle from installed debug apps against the deployed `https://apgic.ru` canonical API:
+
+- iOS Simulator: run `37628404273`, job `112816037630` — SUCCESS;
+- Android emulator: run `37628404273`, job `112816038097` — SUCCESS.
+
+Both native surfaces require the Product to remain `PUBLISHED` after direction archival and require explicit owner/commercial-owner/author/revenue-beneficiary refs to survive canonical readback. Together with the existing WEB and staging evidence, APGIC-PROD-001 is `VERIFIED`.

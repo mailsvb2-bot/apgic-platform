@@ -29,4 +29,10 @@
   - direct SQL DELETE fails;
   - the archived canonical row remains readable after the failed delete.
 
-This slice does not claim historical booking/product linkage that is not present in the current schema. ORG-002 remains IN_PROGRESS until every downstream commercial/booking relation that refers to a direction is itself represented and proven to survive archival.
+Historical linkage is now represented and proven beyond the Organization row itself:
+
+- `docs/traceability/R0-org002-history-links.md` proves Product, Order, Booking, Ledger, Audit and store entitlement history survive archival and hard delete remains blocked;
+- `canon/evidence/staging-org-product-20261007T125100Z.json` proves the deployed staging archive/readback path;
+- installed iOS and Android app jobs in run `37628404273` prove the same canonical Organization/Product archive path on both native surfaces.
+
+APGIC-ORG-002 is therefore `VERIFIED`.

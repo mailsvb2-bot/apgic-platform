@@ -60,6 +60,11 @@ import {
   type NativeTenantIsolationE2EResult,
 } from "./mobile-authz-e2e.ts";
 import {
+  runNativeOrgProductE2E,
+  type NativeOrgProductE2EResult,
+  type NativeOrgProductSurface,
+} from "./mobile-org-product-e2e.ts";
+import {
   runNativeDeletionE2E,
   type NativeDeletionE2EResult,
   type NativeSurface,
@@ -80,6 +85,9 @@ type AppProps = {
   authzE2EForeignOrganizationID?: string;
   authzE2EForeignPrivateMarker?: string;
   authzE2ESurface?: NativeAuthzSurface;
+  orgProductE2EBaseURL?: string;
+  orgProductE2ESessionCookie?: string;
+  orgProductE2ESurface?: NativeOrgProductSurface;
   deletionE2EBaseURL?: string;
   deletionE2ESessionCookie?: string;
   deletionE2EIdentityID?: string;
@@ -144,6 +152,9 @@ export default function App({
   authzE2EForeignOrganizationID,
   authzE2EForeignPrivateMarker,
   authzE2ESurface,
+  orgProductE2EBaseURL,
+  orgProductE2ESessionCookie,
+  orgProductE2ESurface,
   deletionE2EBaseURL,
   deletionE2ESessionCookie,
   deletionE2EIdentityID,
@@ -214,6 +225,12 @@ export default function App({
   const [authzE2E, setAuthzE2E] = useState<
     | {status: "IDLE" | "RUNNING"}
     | ({status: "PASS"} & NativeTenantIsolationE2EResult)
+    | {status: "FAIL"; reason: string}
+  >({status: "IDLE"});
+
+  const [orgProductE2E, setOrgProductE2E] = useState<
+    | {status: "IDLE" | "RUNNING"}
+    | ({status: "PASS"} & NativeOrgProductE2EResult)
     | {status: "FAIL"; reason: string}
   >({status: "IDLE"});
 
@@ -319,6 +336,7 @@ export default function App({
     installationE2EBaseURL ||
       workspaceE2EBaseURL ||
       authzE2EBaseURL ||
+      orgProductE2EBaseURL ||
       deletionE2EBaseURL ||
       demandE2EActive ||
       deepLinkE2EURL ||
@@ -839,6 +857,47 @@ export default function App({
   useEffect(() => {
     if (
       !compatibilityAllowsRuntime ||
+      !orgProductE2EBaseURL ||
+      !orgProductE2ESessionCookie ||
+      !orgProductE2ESurface
+    ) {
+      return;
+    }
+    let active = true;
+    setOrgProductE2E({status: "RUNNING"});
+    void runNativeOrgProductE2E({
+      baseURL: orgProductE2EBaseURL,
+      sessionCookie: orgProductE2ESessionCookie,
+      surface: orgProductE2ESurface,
+    }).then(
+      (result) => {
+        if (active) {
+          setOrgProductE2E({status: "PASS", ...result});
+        }
+      },
+      (error: unknown) => {
+        if (active) {
+          setOrgProductE2E({
+            status: "FAIL",
+            reason:
+              error instanceof Error ? error.message : "MOBILE_ORG_PRODUCT_E2E_FAILED",
+          });
+        }
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [
+    compatibilityAllowsRuntime,
+    orgProductE2EBaseURL,
+    orgProductE2ESessionCookie,
+    orgProductE2ESurface,
+  ]);
+
+  useEffect(() => {
+    if (
+      !compatibilityAllowsRuntime ||
       !demandE2EActive ||
       !demandE2EBaseURL ||
       !demandE2ESessionCookie ||
@@ -1336,6 +1395,41 @@ export default function App({
             {authzE2E.status === "FAIL" ? (
               <Text accessibilityLabel={`authz-e2e-error:${authzE2E.reason}`}>
                 Tenant isolation failed safely.
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
+
+        {orgProductE2E.status !== "IDLE" ? (
+          <View style={styles.capability} accessibilityRole="summary">
+            <Text accessibilityLabel={`org-product-e2e:${orgProductE2E.status}`}>
+              Organization/Product E2E: {orgProductE2E.status}
+            </Text>
+            {orgProductE2E.status === "PASS" ? (
+              <>
+                <Text accessibilityLabel={`org-product-e2e-created:${orgProductE2E.organizationCreated}`}>
+                  Organization created.
+                </Text>
+                <Text accessibilityLabel={`org-product-e2e-direction-created:${orgProductE2E.genericDirectionCreated}`}>
+                  Generic direction created.
+                </Text>
+                <Text accessibilityLabel={`org-product-e2e-product-published:${orgProductE2E.productPublished}`}>
+                  Product published.
+                </Text>
+                <Text accessibilityLabel={`org-product-e2e-direction-archived:${orgProductE2E.directionArchived}`}>
+                  Direction archived.
+                </Text>
+                <Text accessibilityLabel={`org-product-e2e-product-preserved:${orgProductE2E.productPreservedAfterArchive}`}>
+                  Published product preserved after archive.
+                </Text>
+                <Text accessibilityLabel={`org-product-e2e-explicit-roles:${orgProductE2E.explicitOwnershipRolesPersisted}`}>
+                  Explicit ownership roles persisted.
+                </Text>
+              </>
+            ) : null}
+            {orgProductE2E.status === "FAIL" ? (
+              <Text accessibilityLabel={`org-product-e2e-error:${orgProductE2E.reason}`}>
+                Organization/Product lifecycle failed safely.
               </Text>
             ) : null}
           </View>
