@@ -10,7 +10,7 @@ BACKUP_SERVICE = ROOT / "deploy/staging/apgic-staging-backup.service"
 BACKUP_TIMER = ROOT / "deploy/staging/apgic-staging-backup.timer"
 VERIFY_SERVICE = ROOT / "deploy/staging/apgic-staging-restore-verify.service"
 VERIFY_TIMER = ROOT / "deploy/staging/apgic-staging-restore-verify.timer"
-STAGING_RESTORE_SCHEMA = ROOT / "contracts/jsonschema/staging-restore-evidence-v1.schema.json"
+STAGING_RESTORE_SCHEMA = ROOT / "contracts/jsonschema/staging-restore-evidence-v2.schema.json"
 
 
 def validate() -> list[str]:
@@ -62,8 +62,18 @@ def validate() -> list[str]:
         "backup_file_sha256",
         "candidate_sha=",
         'repo_root="$(cd "$SCRIPT_DIR/../.." && pwd -P)"',
-        "staging-restore-evidence-v1",
+        "staging-restore-evidence-v2",
         "STAGING_RESTORE_DRILL",
+        "business_probe_identity_count",
+        "business_probe_organization_count",
+        "integrity_probe_audit_trigger_count",
+        "integrity_probe_ledger_trigger_count",
+        "integrity_probe_direction_trigger_count",
+        "integrity_probe_product_owner_trigger_count",
+        "integrity_probe_booking_transition_trigger_count",
+        "integrity_probe_orders_append_only_trigger_count",
+        "business_probes_passed",
+        "integrity_probes_passed",
         "production_evidence",
     )
     for item in verify_required:
@@ -127,16 +137,40 @@ def validate() -> list[str]:
         "source_table_count",
         "restored_table_count",
         "required_table_count",
+        "business_probe_identity_count",
+        "business_probe_organization_count",
+        "integrity_probe_audit_trigger_count",
+        "integrity_probe_ledger_trigger_count",
+        "integrity_probe_direction_trigger_count",
+        "integrity_probe_product_owner_trigger_count",
+        "integrity_probe_booking_transition_trigger_count",
+        "integrity_probe_orders_append_only_trigger_count",
+        "business_probes_passed",
+        "integrity_probes_passed",
         "production_evidence",
     }
     if required != expected_required:
         errors.append("staging restore evidence schema required fields mismatch")
-    if properties.get("schema_version", {}).get("const") != "staging-restore-evidence-v1":
+    if properties.get("schema_version", {}).get("const") != "staging-restore-evidence-v2":
         errors.append("staging restore evidence schema version mismatch")
     if properties.get("evidence_type", {}).get("const") != "STAGING_RESTORE_DRILL":
         errors.append("staging restore evidence type mismatch")
     if properties.get("production_evidence", {}).get("const") is not False:
         errors.append("staging restore evidence must explicitly be non-production")
+    if properties.get("business_probes_passed", {}).get("const") is not True:
+        errors.append("staging restore evidence must require passing business probes")
+    if properties.get("integrity_probes_passed", {}).get("const") is not True:
+        errors.append("staging restore evidence must require passing integrity probes")
+    for field in (
+        "integrity_probe_audit_trigger_count",
+        "integrity_probe_ledger_trigger_count",
+        "integrity_probe_direction_trigger_count",
+        "integrity_probe_product_owner_trigger_count",
+        "integrity_probe_booking_transition_trigger_count",
+        "integrity_probe_orders_append_only_trigger_count",
+    ):
+        if properties.get(field, {}).get("const") != 1:
+            errors.append(f"{field}: exact restored invariant proof required")
     for field in ("measured_backup_rpo_seconds", "measured_restore_rto_ms"):
         if properties.get(field, {}).get("minimum") != 0:
             errors.append(f"{field}: non-negative measurement contract required")

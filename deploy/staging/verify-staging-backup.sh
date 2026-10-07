@@ -63,6 +63,32 @@ if [[ "$source_tables" != "$restore_tables" ]]; then
   exit 1
 fi
 
+business_probe_identity_count="$(psql --dbname="$verify_db" -Atqc "SELECT count(*) FROM identities")"
+business_probe_organization_count="$(psql --dbname="$verify_db" -Atqc "SELECT count(*) FROM organizations")"
+
+if [[ "$business_probe_identity_count" -lt 1 ||
+      "$business_probe_organization_count" -lt 1 ]]; then
+  echo "restore verification failed: restored business truth missing identities=${business_probe_identity_count} organizations=${business_probe_organization_count}" >&2
+  exit 1
+fi
+
+integrity_probe_audit_trigger_count="$(psql --dbname="$verify_db" -Atqc "SELECT count(*) FROM pg_trigger WHERE tgname='audit_records_append_only' AND NOT tgisinternal")"
+integrity_probe_ledger_trigger_count="$(psql --dbname="$verify_db" -Atqc "SELECT count(*) FROM pg_trigger WHERE tgname='ledger_entries_append_only' AND NOT tgisinternal")"
+integrity_probe_direction_trigger_count="$(psql --dbname="$verify_db" -Atqc "SELECT count(*) FROM pg_trigger WHERE tgname='organization_directions_no_delete' AND NOT tgisinternal")"
+integrity_probe_product_owner_trigger_count="$(psql --dbname="$verify_db" -Atqc "SELECT count(*) FROM pg_trigger WHERE tgname='products_owner_exists' AND NOT tgisinternal")"
+integrity_probe_booking_transition_trigger_count="$(psql --dbname="$verify_db" -Atqc "SELECT count(*) FROM pg_trigger WHERE tgname='bookings_transition_guard' AND NOT tgisinternal")"
+integrity_probe_orders_append_only_trigger_count="$(psql --dbname="$verify_db" -Atqc "SELECT count(*) FROM pg_trigger WHERE tgname='orders_append_only' AND NOT tgisinternal")"
+
+if [[ "$integrity_probe_audit_trigger_count" != "1" ||
+      "$integrity_probe_ledger_trigger_count" != "1" ||
+      "$integrity_probe_direction_trigger_count" != "1" ||
+      "$integrity_probe_product_owner_trigger_count" != "1" ||
+      "$integrity_probe_booking_transition_trigger_count" != "1" ||
+      "$integrity_probe_orders_append_only_trigger_count" != "1" ]]; then
+  echo "restore verification failed: integrity probe missing from restored database" >&2
+  exit 1
+fi
+
 required_tables=(
   identities
   outbox_events
@@ -91,7 +117,7 @@ evidence_tmp="$APGIC_RESTORE_EVIDENCE_DIR/latest.json.tmp"
 evidence_file="$APGIC_RESTORE_EVIDENCE_DIR/latest.json"
 cat >"$evidence_tmp" <<JSON
 {
-  "schema_version": "staging-restore-evidence-v1",
+  "schema_version": "staging-restore-evidence-v2",
   "evidence_type": "STAGING_RESTORE_DRILL",
   "candidate_sha": "$candidate_sha",
   "observed_at": "$observed_at",
@@ -101,6 +127,16 @@ cat >"$evidence_tmp" <<JSON
   "source_table_count": $source_tables,
   "restored_table_count": $restore_tables,
   "required_table_count": ${#required_tables[@]},
+  "business_probe_identity_count": $business_probe_identity_count,
+  "business_probe_organization_count": $business_probe_organization_count,
+  "integrity_probe_audit_trigger_count": $integrity_probe_audit_trigger_count,
+  "integrity_probe_ledger_trigger_count": $integrity_probe_ledger_trigger_count,
+  "integrity_probe_direction_trigger_count": $integrity_probe_direction_trigger_count,
+  "integrity_probe_product_owner_trigger_count": $integrity_probe_product_owner_trigger_count,
+  "integrity_probe_booking_transition_trigger_count": $integrity_probe_booking_transition_trigger_count,
+  "integrity_probe_orders_append_only_trigger_count": $integrity_probe_orders_append_only_trigger_count,
+  "business_probes_passed": true,
+  "integrity_probes_passed": true,
   "production_evidence": false
 }
 JSON
