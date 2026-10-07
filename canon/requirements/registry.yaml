@@ -342,7 +342,7 @@ requirements:
   release_profile: R0
   risk: HIGH
   priority: P0
-  status: IN_PROGRESS
+  status: VERIFIED
   dependencies: []
   implementation_refs:
   - backend/internal/organization/organization.go
@@ -350,6 +350,10 @@ requirements:
   - backend/internal/httpapi/organization_runtime.go
   - backend/migrations/000020_r0_organization_direction_runtime.sql
   - backend/migrations/000001_r0_foundation.sql
+  - apps/mobile/src/mobile-org-product-e2e.ts
+  - apps/mobile/src/App.tsx
+  - apps/mobile/android/app/src/main/java/com/apgic/ci/MainActivity.kt
+  - apps/mobile/ios/APGIC/AppDelegate.swift
   contract_refs:
   - contracts/openapi/apgic-v1.yaml
   - contracts/jsonschema/organization-v1.schema.json
@@ -359,6 +363,9 @@ requirements:
   - tools/organization_contract_guard.py
   - apps/web/e2e/r0-org-product-postgres.spec.ts
   - .github/workflows/ci.yml
+  - apps/mobile/src/mobile-org-product-e2e.test.ts
+  - tools/mobile_android_capability_e2e.sh
+  - tools/mobile_ios_capability_e2e.sh
   evidence_refs:
   - docs/traceability/R0-foundation-verification-batch.md
   - docs/traceability/R0-organization-directions.md
@@ -366,6 +373,8 @@ requirements:
   - canon/evidence/staging-org-product-20261007T125100Z.json
   - surface://STAGING/r0-org-product/candidate-0df3a19bbcc67208b5f67ab07c57b40fa28c4470
   - surface://WEB/org001-organization-direction/run-37582060969/job-112663755399
+  - surface://IOS/org001-native-org-product/run-37628404273/job-112816037630
+  - surface://ANDROID/org001-native-org-product/run-37628404273/job-112816038097
   acceptance:
     given: создана Organization
     when: владелец создаёт направление деятельности любого поддерживаемого типа
@@ -382,7 +391,7 @@ requirements:
   release_profile: R0
   risk: HIGH
   priority: P0
-  status: IN_PROGRESS
+  status: VERIFIED
   dependencies:
   - APGIC-ORG-001
   implementation_refs:
@@ -395,6 +404,10 @@ requirements:
   - backend/internal/httpapi/organization_runtime.go
   - backend/migrations/000020_r0_organization_direction_runtime.sql
   - backend/migrations/000003_r0_semantic_invariants.sql
+  - apps/mobile/src/mobile-org-product-e2e.ts
+  - apps/mobile/src/App.tsx
+  - apps/mobile/android/app/src/main/java/com/apgic/ci/MainActivity.kt
+  - apps/mobile/ios/APGIC/AppDelegate.swift
   contract_refs:
   - contracts/openapi/apgic-v1.yaml
   - contracts/jsonschema/organization-v1.schema.json
@@ -408,6 +421,9 @@ requirements:
   - tools/organization_contract_guard.py
   - apps/web/e2e/r0-org-product-postgres.spec.ts
   - .github/workflows/ci.yml
+  - apps/mobile/src/mobile-org-product-e2e.test.ts
+  - tools/mobile_android_capability_e2e.sh
+  - tools/mobile_ios_capability_e2e.sh
   evidence_refs:
   - docs/traceability/R0-foundation-verification-batch.md
   - docs/traceability/R0-organization-directions.md
@@ -416,6 +432,8 @@ requirements:
   - canon/evidence/staging-org-product-20261007T125100Z.json
   - surface://STAGING/r0-org-product/candidate-0df3a19bbcc67208b5f67ab07c57b40fa28c4470
   - surface://WEB/org002-archive-product-preservation/run-37582060969/job-112663755399
+  - surface://IOS/org002-native-org-product/run-37628404273/job-112816037630
+  - surface://ANDROID/org002-native-org-product/run-37628404273/job-112816038097
   acceptance:
     given: direction имеет продажи/booking
     when: администратор пытается удалить direction
@@ -637,7 +655,7 @@ requirements:
   release_profile: R0
   risk: HIGH
   priority: P0
-  status: IN_PROGRESS
+  status: VERIFIED
   dependencies: []
   implementation_refs:
   - backend/internal/commerce/product.go
@@ -652,6 +670,10 @@ requirements:
   - backend/migrations/000001_r0_foundation.sql
   - backend/migrations/000003_r0_semantic_invariants.sql
   - backend/migrations/000018_r0_order_product_ownership_snapshot.sql
+  - apps/mobile/src/mobile-org-product-e2e.ts
+  - apps/mobile/src/App.tsx
+  - apps/mobile/android/app/src/main/java/com/apgic/ci/MainActivity.kt
+  - apps/mobile/ios/APGIC/AppDelegate.swift
   contract_refs:
   - contracts/jsonschema/product-ownership-v1.schema.json
   - contracts/openapi/apgic-v1.yaml
@@ -667,6 +689,9 @@ requirements:
   - apps/web/e2e/foundation.spec.ts
   - apps/web/e2e/r0-org-product-postgres.spec.ts
   - .github/workflows/ci.yml
+  - apps/mobile/src/mobile-org-product-e2e.test.ts
+  - tools/mobile_android_capability_e2e.sh
+  - tools/mobile_ios_capability_e2e.sh
   evidence_refs:
   - docs/traceability/R0-foundation-verification-batch.md
   - docs/traceability/R0-prod001-organization-product-publication.md
@@ -674,6 +699,8 @@ requirements:
   - canon/evidence/staging-org-product-20261007T125100Z.json
   - surface://STAGING/r0-org-product/candidate-0df3a19bbcc67208b5f67ab07c57b40fa28c4470
   - surface://WEB/prod001-product-publication/run-37582060969/job-112663755399
+  - surface://IOS/prod001-native-org-product/run-37628404273/job-112816037630
+  - surface://ANDROID/prod001-native-org-product/run-37628404273/job-112816038097
   acceptance:
     given: специалист создаёт продукт внутри Organization
     when: продукт публикуется
