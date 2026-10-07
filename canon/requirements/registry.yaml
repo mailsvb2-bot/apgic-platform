@@ -363,6 +363,7 @@ requirements:
   - docs/traceability/R0-foundation-verification-batch.md
   - docs/traceability/R0-organization-directions.md
   - docs/traceability/R0-real-web-organization-product.md
+  - surface://WEB/org001-organization-direction/run-37582060969/job-112663755399
   acceptance:
     given: создана Organization
     when: владелец создаёт направление деятельности любого поддерживаемого типа
@@ -410,6 +411,7 @@ requirements:
   - docs/traceability/R0-organization-directions.md
   - docs/traceability/R0-org002-history-links.md
   - docs/traceability/R0-real-web-organization-product.md
+  - surface://WEB/org002-archive-product-preservation/run-37582060969/job-112663755399
   acceptance:
     given: direction имеет продажи/booking
     when: администратор пытается удалить direction
@@ -665,6 +667,7 @@ requirements:
   - docs/traceability/R0-foundation-verification-batch.md
   - docs/traceability/R0-prod001-organization-product-publication.md
   - docs/traceability/R0-real-web-organization-product.md
+  - surface://WEB/prod001-product-publication/run-37582060969/job-112663755399
   acceptance:
     given: специалист создаёт продукт внутри Organization
     when: продукт публикуется
