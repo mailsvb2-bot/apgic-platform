@@ -357,9 +357,13 @@ requirements:
   - backend/internal/organization/organization_test.go
   - backend/internal/httpapi/organization_runtime_integration_test.go
   - tools/organization_contract_guard.py
+  - apps/web/e2e/r0-org-product-postgres.spec.ts
+  - .github/workflows/ci.yml
   evidence_refs:
   - docs/traceability/R0-foundation-verification-batch.md
   - docs/traceability/R0-organization-directions.md
+  - docs/traceability/R0-real-web-organization-product.md
+  - surface://WEB/org001-organization-direction/run-37582060969/job-112663755399
   acceptance:
     given: создана Organization
     when: владелец создаёт направление деятельности любого поддерживаемого типа
@@ -400,10 +404,14 @@ requirements:
   - backend/internal/httpapi/organization_runtime_integration_test.go
   - backend/migrations/ci_invariants.sql
   - tools/organization_contract_guard.py
+  - apps/web/e2e/r0-org-product-postgres.spec.ts
+  - .github/workflows/ci.yml
   evidence_refs:
   - docs/traceability/R0-foundation-verification-batch.md
   - docs/traceability/R0-organization-directions.md
   - docs/traceability/R0-org002-history-links.md
+  - docs/traceability/R0-real-web-organization-product.md
+  - surface://WEB/org002-archive-product-preservation/run-37582060969/job-112663755399
   acceptance:
     given: direction имеет продажи/booking
     when: администратор пытается удалить direction
@@ -653,10 +661,13 @@ requirements:
   - tools/product_contract_guard.py
   - backend/internal/httpapi/organization_product_integration_test.go
   - apps/web/e2e/foundation.spec.ts
+  - apps/web/e2e/r0-org-product-postgres.spec.ts
   - .github/workflows/ci.yml
   evidence_refs:
   - docs/traceability/R0-foundation-verification-batch.md
   - docs/traceability/R0-prod001-organization-product-publication.md
+  - docs/traceability/R0-real-web-organization-product.md
+  - surface://WEB/prod001-product-publication/run-37582060969/job-112663755399
   acceptance:
     given: специалист создаёт продукт внутри Organization
     when: продукт публикуется

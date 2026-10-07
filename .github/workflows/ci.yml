@@ -379,12 +379,13 @@ jobs:
           APGIC_ANDROID_MIN_BUILD: 1
           APGIC_ANDROID_UPDATE_URL: https://apgic.ru/update
           APGIC_AUTH001_WEB_E2E: '1'
+          APGIC_ORG_PROD_WEB_E2E: '1'
           APGIC_WEB_PORT: '43140'
           APGIC_CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           export APGIC_REMOTE_CONFIG_PRIVATE_KEY_BASE64="$(python3 -c 'import base64; print(base64.b64encode(b"a"*32).decode())')"
-          npx playwright test e2e/auth001-postgres.spec.ts --project=desktop
+          npx playwright test e2e/auth001-postgres.spec.ts e2e/r0-org-product-postgres.spec.ts --project=desktop
 
           cross_count="$(
             psql -h 127.0.0.1 -U apgic -d apgic_ci -tA -v ON_ERROR_STOP=1 -c "
@@ -438,6 +439,13 @@ jobs:
         with:
           name: auth001-web-tenant-isolation-evidence
           path: evidence/auth001-web-tenant-isolation.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload real Organization/Product WEB lifecycle evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: r0-org-product-web-e2e-evidence
+          path: evidence/r0-org-product-web-e2e.json
           if-no-files-found: error
           retention-days: 30
       - name: Prove organization direction history and explicit product publication
