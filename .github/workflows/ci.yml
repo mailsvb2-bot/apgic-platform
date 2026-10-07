@@ -790,7 +790,7 @@ jobs:
           test -n "$MERGED_MANIFEST"
           python tools/mobile_build_privacy_inspection.py             --android-manifest "$MERGED_MANIFEST"             --android-data-safety apps/mobile/android/data-safety.yaml             --output evidence/android-build-privacy-inspection.json
           sha256sum apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk > evidence/android-debug.sha256
-      - name: Prove native capability and installation lifecycle on Android emulator
+      - name: Prove native capability, lifecycle and Organization/Product journey on Android emulator
         shell: bash
         run: bash tools/mobile_android_capability_e2e.sh
       - uses: actions/upload-artifact@v7
@@ -821,6 +821,8 @@ jobs:
             evidence/android-device-matrix.json
             evidence/android-demand-e2e.xml
             evidence/android-deletion-e2e.xml
+            evidence/android-org-product-bootstrap.json
+            evidence/android-org-product-e2e.xml
           if-no-files-found: error
           retention-days: 30
 
@@ -874,7 +876,7 @@ jobs:
           python tools/mobile_build_privacy_inspection.py             --ios-app "$APP"             --canonical-ios-manifest apps/mobile/ios/APGIC/PrivacyInfo.xcprivacy             --output evidence/ios-build-privacy-inspection.json
           ditto -c -k --keepParent "$APP" evidence/APGIC-ios-simulator.zip
           shasum -a 256 evidence/APGIC-ios-simulator.zip > evidence/ios-simulator.sha256
-      - name: Prove native capability and installation lifecycle on iOS Simulator
+      - name: Prove native capability, lifecycle and Organization/Product journey on iOS Simulator
         shell: bash
         run: bash tools/mobile_ios_capability_e2e.sh
       - uses: actions/upload-artifact@v7
@@ -906,6 +908,8 @@ jobs:
             evidence/ios-accessibility-large-text.json
             evidence/ios-demand-e2e.json
             evidence/ios-deletion-e2e.json
+            evidence/ios-org-product-bootstrap.json
+            evidence/ios-org-product-e2e.json
           if-no-files-found: error
           retention-days: 30
 
