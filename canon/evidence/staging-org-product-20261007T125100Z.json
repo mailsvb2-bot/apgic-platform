@@ -1,0 +1,43 @@
+{
+  "schema_version": "r0-staging-org-product-v1",
+  "evidence_type": "STAGING_ORGANIZATION_PRODUCT_LIFECYCLE",
+  "candidate_sha": "0df3a19bbcc67208b5f67ab07c57b40fa28c4470",
+  "observed_at": "2026-10-07T12:51:00Z",
+  "deployment": {
+    "host": "https://apgic.ru",
+    "public_https": true,
+    "runtime_watchdog_passed": true,
+    "runtime_sha_verified": true,
+    "production_evidence": false
+  },
+  "journey": {
+    "organization_created": true,
+    "generic_service_direction_created": true,
+    "explicit_product_ownership_roles_persisted": true,
+    "product_published": true,
+    "direction_archived": true,
+    "published_product_preserved_after_direction_archive": true,
+    "canonical_state_read_back_after_archive": true
+  },
+  "organization": {
+    "id": "5672881f-9739-44c6-9eab-9736653bcad0",
+    "status": "ACTIVE"
+  },
+  "direction": {
+    "id": "5189c7ac-b2a2-4749-89f8-d864c7c37335",
+    "direction_type": "SERVICE",
+    "status_after_archive": "ARCHIVED"
+  },
+  "product": {
+    "id": "81910646-d91b-4dff-8f4c-bc145dead422",
+    "status": "PUBLISHED",
+    "owner_type": "ORGANIZATION",
+    "owner_id": "5672881f-9739-44c6-9eab-9736653bcad0",
+    "commercial_owner_ref": "organization/5672881f-9739-44c6-9eab-9736653bcad0",
+    "author_refs": [
+      "identity/staging-author-0df3a19b"
+    ],
+    "revenue_beneficiary_ref": "identity/staging-beneficiary-0df3a19b",
+    "organization_direction_id": "5189c7ac-b2a2-4749-89f8-d864c7c37335"
+  }
+}

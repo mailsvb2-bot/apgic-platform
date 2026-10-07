@@ -74,3 +74,21 @@ This evidence is exact CI evidence for the candidate. It is not production deplo
 ## Status discipline
 
 This document does not by itself change Registry status. Exact run/job/artifact identifiers must be bound after a concrete candidate passes the gate. Requirements that explicitly demand separate staging/release evidence remain `IN_PROGRESS` until that evidence exists.
+
+
+## Deployed staging proof
+
+On candidate `0df3a19bbcc67208b5f67ab07c57b40fa28c4470`, the public staging deployment at `https://apgic.ru` was exercised outside CI through the canonical HTTP runtime:
+
+1. create Organization;
+2. create a generic `SERVICE` direction;
+3. create a Product draft with explicit commercial owner, author and revenue beneficiary;
+4. publish the Product;
+5. archive the direction;
+6. read Organization and Product state back after the archive.
+
+The readback showed the direction as `ARCHIVED` while the Product remained `PUBLISHED` with the same explicit ownership/revenue refs.
+
+Evidence: `canon/evidence/staging-org-product-20261007T125100Z.json`.
+
+This closes the previously documented missing staging/runtime proof. Registry status is not promoted in this change because the repository-wide multisurface verification guard separately requires WEB/IOS/ANDROID coverage or an approved applicability exception for every launch `VERIFIED` requirement; that governance question must not be bypassed by fabricated native evidence.
