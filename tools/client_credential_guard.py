@@ -1,12 +1,20 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import argparse
 import re
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-CLIENT_ROOTS = (ROOT / "apps/web", ROOT / "apps/native")
+SURFACE_ROOTS = {
+    "WEB": (ROOT / "apps/web",),
+    "IOS": (ROOT / "apps/mobile",),
+    "ANDROID": (ROOT / "apps/mobile",),
+    "MOBILE": (ROOT / "apps/mobile",),
+    "ALL": (ROOT / "apps/web", ROOT / "apps/mobile"),
+}
+CLIENT_ROOTS = SURFACE_ROOTS["ALL"]
 TEXT_SUFFIXES = {".ts", ".tsx", ".js", ".jsx", ".json", ".yaml", ".yml", ".plist", ".xml", ".gradle", ".properties"}
 
 PATTERNS = (
@@ -36,14 +44,39 @@ def scan_client_roots(roots: tuple[Path, ...] = CLIENT_ROOTS) -> list[str]:
     return errors
 
 
-def main() -> int:
-    errors = scan_client_roots()
+def roots_for_surface(surface: str) -> tuple[Path, ...]:
+    normalized = surface.strip().upper()
+    try:
+        return SURFACE_ROOTS[normalized]
+    except KeyError as exc:
+        raise ValueError(f"unsupported client surface: {surface}") from exc
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Reject service/server credential references from client source trees.")
+    parser.add_argument(
+        "--surface",
+        choices=tuple(SURFACE_ROOTS),
+        default="ALL",
+        help="limit the scan to one client surface; IOS/ANDROID both scan the shared apps/mobile source tree",
+    )
+    args = parser.parse_args(argv)
+
+    roots = roots_for_surface(args.surface)
+    missing = [root for root in roots if not root.is_dir()]
+    if missing:
+        print("CLIENT CREDENTIAL GUARD: FAIL")
+        for root in missing:
+            print(f"ERROR: expected client root is missing: {root.as_posix()}")
+        return 1
+
+    errors = scan_client_roots(roots)
     if errors:
         print("CLIENT CREDENTIAL GUARD: FAIL")
         for error in errors:
             print(f"ERROR: {error}")
         return 1
-    print("CLIENT CREDENTIAL GUARD: PASS")
+    print(f"CLIENT CREDENTIAL GUARD: PASS surface={args.surface}")
     return 0
 
 
