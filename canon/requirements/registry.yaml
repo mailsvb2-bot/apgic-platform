@@ -722,7 +722,7 @@ requirements:
   release_profile: R0
   risk: HIGH
   priority: P0
-  status: IN_PROGRESS
+  status: VERIFIED
   dependencies: []
   implementation_refs:
   - backend/internal/security/service_principal.go
@@ -747,6 +747,15 @@ requirements:
   evidence_refs:
   - docs/traceability/R0-sec001-service-credential-lifecycle.md
   - canon/evidence/staging-sec001-service-auth-20261005T195233Z.json
+  - surface://CI/sec001-r0-bootstrap/run-37597836294/job-112721255180
+  - surface://CI/sec001-canon/run-37597836294/job-112715165480
+  - surface://CI/sec001-backend/run-37597836294/job-112715165350
+  - surface://ANDROID/sec001-client-credential-isolation/run-37597836294/job-112715165798
+  - surface://IOS/sec001-client-credential-isolation/run-37597836294/job-112715165478
+  - surface://WEB/sec001-client-credential-isolation/run-37597836294/job-112715165272
+  - surface://STAGING/sec001-service-auth/candidate-e52e3b1246940e02835184c78b53c96d4bbc35d8
+  - surface://CI/sec001-current-main/run-37587880450/job-112682148207
+  - surface://CI/sec001-canon/run-37587880450/job-112682148163
   acceptance:
     given: connector/service запускается в production
     when: он аутентифицируется

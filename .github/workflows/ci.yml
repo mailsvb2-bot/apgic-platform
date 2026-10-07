@@ -654,6 +654,8 @@ jobs:
           node-version: '24'
       - working-directory: apps/web
         run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Reject service credentials from WEB client source
+        run: python3 tools/client_credential_guard.py --surface WEB
       - working-directory: apps/web
         run: npm test
       - name: Prove Web/iOS/Android analytics semantic parity
@@ -752,6 +754,8 @@ jobs:
           exit 1
       - working-directory: apps/mobile
         run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Reject service credentials from Android client source
+        run: python3 tools/client_credential_guard.py --surface ANDROID
       - name: Build Android debug artifact
         working-directory: apps/mobile/android
         shell: bash
@@ -835,6 +839,8 @@ jobs:
           node-version: '24'
       - working-directory: apps/mobile
         run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Reject service credentials from iOS client source
+        run: python3 tools/client_credential_guard.py --surface IOS
       - working-directory: apps/mobile/ios
         run: pod install
       - working-directory: apps/mobile/ios

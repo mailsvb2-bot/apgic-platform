@@ -16,6 +16,18 @@ SPEC.loader.exec_module(guard)
 
 
 class ClientCredentialGuardTest(unittest.TestCase):
+    def test_default_roots_cover_real_web_and_mobile_trees(self) -> None:
+        relative = {path.relative_to(ROOT).as_posix() for path in guard.CLIENT_ROOTS}
+        self.assertEqual(relative, {"apps/web", "apps/mobile"})
+        self.assertTrue(all(path.is_dir() for path in guard.CLIENT_ROOTS))
+
+    def test_surface_roots_use_shared_mobile_tree_for_ios_and_android(self) -> None:
+        self.assertEqual(guard.roots_for_surface("WEB"), (ROOT / "apps/web",))
+        self.assertEqual(guard.roots_for_surface("IOS"), (ROOT / "apps/mobile",))
+        self.assertEqual(guard.roots_for_surface("ANDROID"), (ROOT / "apps/mobile",))
+        with self.assertRaises(ValueError):
+            guard.roots_for_surface("DESKTOP")
+
     def test_rejects_public_and_server_secret_refs(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
