@@ -146,7 +146,7 @@ func productContextForSpecialist(specialistID, specialistIdentityID string) (spe
 func (s *Service) CreateCheckout(holdID, clientIdentityID, methodCode string) (*CheckoutInstruction, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	hold, slot, err := s.ownedHoldLocked(holdID, clientIdentityID)
+	hold, err := s.ownedHoldForReplayLocked(holdID, clientIdentityID)
 	if err != nil {
 		return nil, err
 	}
@@ -163,6 +163,10 @@ func (s *Service) CreateCheckout(holdID, clientIdentityID, methodCode string) (*
 	}
 	if hold.State != "ACTIVE" {
 		return nil, ErrHoldNotActive
+	}
+	slot, ok := s.slot(hold.SlotID)
+	if !ok {
+		return nil, ErrSlotNotFound
 	}
 	if s.slotBookedLocked(slot.ID) {
 		return nil, ErrSlotBooked
@@ -333,16 +337,24 @@ func (s *Service) CreateCheckout(holdID, clientIdentityID, methodCode string) (*
 	return &copyInstruction, nil
 }
 
-func (s *Service) ownedHoldLocked(holdID, clientIdentityID string) (*Hold, Slot, error) {
+func (s *Service) ownedHoldForReplayLocked(holdID, clientIdentityID string) (*Hold, error) {
 	if err := s.expireHoldsLocked(); err != nil {
-		return nil, Slot{}, err
+		return nil, err
 	}
 	hold, ok := s.holds[holdID]
 	if !ok {
-		return nil, Slot{}, ErrHoldNotFound
+		return nil, ErrHoldNotFound
 	}
 	if hold.ClientIdentityID != clientIdentityID {
-		return nil, Slot{}, ErrIdentityMismatch
+		return nil, ErrIdentityMismatch
+	}
+	return hold, nil
+}
+
+func (s *Service) ownedHoldLocked(holdID, clientIdentityID string) (*Hold, Slot, error) {
+	hold, err := s.ownedHoldForReplayLocked(holdID, clientIdentityID)
+	if err != nil {
+		return nil, Slot{}, err
 	}
 	slot, ok := s.slot(hold.SlotID)
 	if !ok {
