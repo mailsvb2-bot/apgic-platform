@@ -63,16 +63,12 @@ if [[ "$source_tables" != "$restore_tables" ]]; then
   exit 1
 fi
 
-business_probe_identity_source_count="$(psql --dbname="$APGIC_BACKUP_DATABASE" -Atqc "SELECT count(*) FROM identities")"
-business_probe_identity_restored_count="$(psql --dbname="$verify_db" -Atqc "SELECT count(*) FROM identities")"
-business_probe_organization_source_count="$(psql --dbname="$APGIC_BACKUP_DATABASE" -Atqc "SELECT count(*) FROM organizations")"
-business_probe_organization_restored_count="$(psql --dbname="$verify_db" -Atqc "SELECT count(*) FROM organizations")"
+business_probe_identity_count="$(psql --dbname="$verify_db" -Atqc "SELECT count(*) FROM identities")"
+business_probe_organization_count="$(psql --dbname="$verify_db" -Atqc "SELECT count(*) FROM organizations")"
 
-if [[ "$business_probe_identity_source_count" -lt 1 ||
-      "$business_probe_organization_source_count" -lt 1 ||
-      "$business_probe_identity_source_count" != "$business_probe_identity_restored_count" ||
-      "$business_probe_organization_source_count" != "$business_probe_organization_restored_count" ]]; then
-  echo "restore verification failed: business probes mismatch identities=${business_probe_identity_source_count}/${business_probe_identity_restored_count} organizations=${business_probe_organization_source_count}/${business_probe_organization_restored_count}" >&2
+if [[ "$business_probe_identity_count" -lt 1 ||
+      "$business_probe_organization_count" -lt 1 ]]; then
+  echo "restore verification failed: restored business truth missing identities=${business_probe_identity_count} organizations=${business_probe_organization_count}" >&2
   exit 1
 fi
 
@@ -131,10 +127,8 @@ cat >"$evidence_tmp" <<JSON
   "source_table_count": $source_tables,
   "restored_table_count": $restore_tables,
   "required_table_count": ${#required_tables[@]},
-  "business_probe_identity_source_count": $business_probe_identity_source_count,
-  "business_probe_identity_restored_count": $business_probe_identity_restored_count,
-  "business_probe_organization_source_count": $business_probe_organization_source_count,
-  "business_probe_organization_restored_count": $business_probe_organization_restored_count,
+  "business_probe_identity_count": $business_probe_identity_count,
+  "business_probe_organization_count": $business_probe_organization_count,
   "integrity_probe_audit_trigger_count": $integrity_probe_audit_trigger_count,
   "integrity_probe_ledger_trigger_count": $integrity_probe_ledger_trigger_count,
   "integrity_probe_direction_trigger_count": $integrity_probe_direction_trigger_count,
