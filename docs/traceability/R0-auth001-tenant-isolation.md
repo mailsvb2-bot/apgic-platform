@@ -58,3 +58,32 @@ The proof uses two independent browser contexts:
 The browser path is `Browser -> Next /v1 proxy -> APGIC API -> PostgreSQL`; it does not mock the authorization decision or the database.
 
 AUTH-001 remains `IN_PROGRESS` until this fresh WEB proof and explicit IOS/ANDROID surface evidence are bound to an exact green candidate.
+
+
+## Native installed-app surface proof
+
+AUTH-001 is exercised through the installed React Native app on both native surfaces, not by a JavaScript-only mock:
+
+- `apps/mobile/src/mobile-authz-e2e.ts` calls the canonical `GET /v1/organizations/{organizationID}/private-profile` endpoint with the signed client session and explicit organization context.
+- `backend/cmd/mobile-installation-e2e-server/main.go` wires the production `httpapi` authorization handler and `authz.Evaluator` to an E2E-only organization store. The handler persists the same append-only audit records used by the canonical authorization path.
+- The native client proves same-tenant ALLOW, `AUTH_CROSS_TENANT_DENY`, forged-context `AUTH_TENANT_CONTEXT_DENIED`, absence of a sentinel foreign private value in denial payloads, and persisted DENY audit evidence.
+- `tools/mobile_android_capability_e2e.sh` launches the installed Android APK with the AUTH-001 inputs and requires all seven proof labels.
+- `tools/mobile_ios_capability_e2e.sh` launches the installed iOS simulator app with the same proof contract and requires the same labels through AXBridge.
+- The proof artifacts are emitted as `evidence/android-capability-e2e-auth001.xml` and `evidence/ios-capability-e2e-auth001.json`, so the existing native artifact upload retains them with the exact CI candidate.
+
+## Exact verification evidence
+
+Candidate `cfcfb889039f13e4c96d9657f0b3916a20a57211` passed CI run `37529803218` with the complete cross-surface proof chain:
+
+- WEB + PostgreSQL tenant-isolation proof: job `112496666549`; artifact `auth001-web-tenant-isolation-evidence` (`11444285351`, SHA-256 `a935c5f330aaae618395c7fe21f738ebd774c46b46094fe26ca28e2c0bafd6b4`).
+- Android installed-app proof: job `112496667106`; artifact `android-native-debug-build` (`11444890605`, SHA-256 `9d8ccf735195039e9e04cc246e5909f16063df685c727c7c9ac0b76fe8f1aab0`).
+- iOS installed-app proof: job `112496666841`; artifact `ios-native-simulator-build` (`11444986832`, SHA-256 `1b31a85865dfe61dcbea4cd09ff95d96e31ab8f41548bc731cdd7a397c61b982`).
+- Go domain/runtime tests: job `112496667053`.
+- Canon / architecture conformance: job `112496666852`.
+- Final R0 bootstrap gate: job `112504321488`.
+
+The Android and iOS artifacts are bound to the exact candidate SHA and contain the installed-app AUTH-001 evidence files emitted by the native harness. The status/evidence-binding commit changes governance metadata only; it does not change the proved authorization implementation.
+
+## Release status
+
+APGIC-AUTH-001 is **VERIFIED**. This verifies canonical tenant isolation and audit behavior across WEB/iOS/Android/server evidence surfaces; it does not claim a production deployment. Any subsequent implementation/contract/test change affecting AUTH-001 requires fresh verification evidence before release promotion.

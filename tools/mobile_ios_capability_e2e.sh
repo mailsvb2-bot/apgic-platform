@@ -947,6 +947,41 @@ assert_help_intent_confirmation() {
   fail "installed iOS app did not prove HelpIntent correction/no-diagnosis flow"
 }
 
+assert_tenant_isolation() {
+  local output="$EVIDENCE_DIR/ios-capability-e2e-auth001.json"
+
+  xcrun simctl terminate "$UDID" com.apgic.ci >/dev/null 2>&1 || true
+  SIMCTL_CHILD_APGIC_E2E_CAPABILITY_STATE=GRANTED \
+  SIMCTL_CHILD_APGIC_E2E_COMPATIBILITY_BASE_URL="$COMPATIBILITY_BASE_URL" \
+  SIMCTL_CHILD_APGIC_E2E_CONTRACT_VERSION="$COMPATIBILITY_CONTRACT_VERSION" \
+  SIMCTL_CHILD_APGIC_E2E_AUTHZ_BASE_URL=http://127.0.0.1:43113 \
+  SIMCTL_CHILD_APGIC_E2E_AUTHZ_SESSION_COOKIE="$SESSION_COOKIE" \
+  SIMCTL_CHILD_APGIC_E2E_AUTHZ_OWN_ORGANIZATION_ID=00000000-0000-0000-0000-00000000a001 \
+  SIMCTL_CHILD_APGIC_E2E_AUTHZ_FOREIGN_ORGANIZATION_ID=00000000-0000-0000-0000-00000000b001 \
+  SIMCTL_CHILD_APGIC_E2E_AUTHZ_FOREIGN_PRIVATE_MARKER="AUTH001_FOREIGN_PRIVATE_SENTINEL_7F4A9C" \
+  SIMCTL_CHILD_APGIC_E2E_AUTHZ_SURFACE=IOS \
+    xcrun simctl launch "$UDID" com.apgic.ci >/dev/null
+
+  for _ in $(seq 1 60); do
+    if "$IDB" ui describe-all --udid "$UDID" --api axbridge --json --nested >"$output" 2>/dev/null &&
+       json_has_ax_label "$output" "authz-e2e:PASS" &&
+       json_has_ax_label "$output" "authz-e2e-own-allowed:true" &&
+       json_has_ax_label "$output" "authz-e2e-cross-denied:true" &&
+       json_has_ax_label "$output" "authz-e2e-forged-denied:true" &&
+       json_has_ax_label "$output" "authz-e2e-disclosure-blocked:true" &&
+       json_has_ax_label "$output" "authz-e2e-cross-audit:true" &&
+       json_has_ax_label "$output" "authz-e2e-forged-audit:true" &&
+       ! grep -Fq "AUTH001_FOREIGN_PRIVATE_SENTINEL_7F4A9C" "$output"; then
+      echo "iOS installed-app AUTH-001 tenant isolation + audit: PASS"
+      return 0
+    fi
+    sleep 1
+  done
+
+  [[ -f "$output" ]] && cat "$output" >&2 || true
+  fail "installed iOS app did not prove AUTH-001 tenant isolation"
+}
+
 assert_account_deletion() {
   local output="$EVIDENCE_DIR/ios-deletion-e2e.json"
   local identity_id
@@ -997,6 +1032,7 @@ assert_compatibility_policy
 assert_remote_config_kill_switch
 assert_installation_lifecycle
 assert_workspace_switch
+assert_tenant_isolation
 assert_deep_link_runtime
 assert_notification_runtime
 assert_offline_mutation_restart
@@ -1005,4 +1041,4 @@ assert_accessibility_runtime
 assert_help_intent_confirmation
 assert_account_deletion
 
-echo "IOS CAPABILITY + COMPATIBILITY + INSTALLATION + DEMAND + DELETION + DEEP-LINK + NOTIFICATION + OFFLINE-SYNC + REALTIME + ACCESSIBILITY NATIVE E2E: PASS"
+echo "IOS CAPABILITY + COMPATIBILITY + INSTALLATION + AUTHZ + DEMAND + DELETION + DEEP-LINK + NOTIFICATION + OFFLINE-SYNC + REALTIME + ACCESSIBILITY NATIVE E2E: PASS"

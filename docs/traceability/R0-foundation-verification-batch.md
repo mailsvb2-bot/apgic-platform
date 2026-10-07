@@ -3,7 +3,7 @@
 Candidate basis: `a267ed77647f0d751d1366155ac7e6cbfe464dff`  
 Fresh green CI: run **37358082684 / #2105**.
 
-This record promotes only R0 requirements whose canonical R0 CI evidence map reports `unproven_evidence: []`. It does not promote requirements that still require production configuration, manual/store evidence, restore production proof, or other missing evidence.
+This record captures the R0 requirements whose canonical R0 CI evidence map reported `unproven_evidence: []` for candidate `a267ed77647f0d751d1366155ac7e6cbfe464dff`. It is an evidence-batch record, not an independent status authority. Requirement status is owned by `canon/requirements/registry.yaml`; this document must never be read as promoting a requirement that the Registry still marks `IN_PROGRESS`.
 
 ## Requirements
 
@@ -42,17 +42,17 @@ This record promotes only R0 requirements whose canonical R0 CI evidence map rep
 
 ## Verification rule
 
-For every requirement above, `canon/evidence/r0-ci-evidence-map.json` maps every required evidence class to concrete proof refs and reports no unproven evidence. The Registry already contains implementation, contract and test refs. This batch changes status/evidence traceability only; it does not invent policy values or claim production rollout.
+For every requirement above, `canon/evidence/r0-ci-evidence-map.json` maps the requirement's declared evidence classes to concrete proof refs and reported no unproven evidence for the recorded candidate. That fact is necessary evidence, but it is not sufficient by itself to override additional cross-surface, staging, production, store, configuration, or external proof requirements documented elsewhere.
 
-Any future implementation change affecting a promoted requirement requires fresh evidence before its VERIFIED status can be relied upon for release promotion.
+A requirement becomes `VERIFIED` only when the Registry itself is updated with the required exact-candidate evidence. Any future implementation change affecting a verified requirement requires fresh evidence before that status can be relied upon for release promotion.
 
 
-## Additional verified R0 requirements in this tranche
+## Additional R0 evidence recorded in this tranche
 
-The same R0 completion tranche also verifies:
+The same tranche also records evidence for:
 
-- `APGIC-PAY-004` — separate PaymentProvider / PaymentMethod / PaymentRail taxonomy, with shared generated contract across WEB/PWA/IOS/ANDROID.
-- `APGIC-SEC-001` — scoped service-principal credential lifecycle and connector enforcement, proven on the authorized staging host by `canon/evidence/staging-sec001-service-auth-20261005T195233Z.json`.
-- `APGIC-DR-001` — isolated restore with machine-readable staging evidence, backup SHA-256, measured backup RPO observation and restore RTO, recorded in `canon/evidence/staging-restore-20261005T200143Z.json`.
+- `APGIC-PAY-004` — separate PaymentProvider / PaymentMethod / PaymentRail taxonomy, with shared generated contract across WEB/PWA/IOS/ANDROID. The Registry currently carries its verified status.
+- `APGIC-SEC-001` — scoped service-principal credential lifecycle and connector enforcement, with staging evidence in `canon/evidence/staging-sec001-service-auth-20261005T195233Z.json`.
+- `APGIC-DR-001` — isolated restore with machine-readable staging evidence in `canon/evidence/staging-restore-20261005T200143Z.json`.
 
-After these promotions the R0 registry contains 35 VERIFIED requirements and 9 intentionally unresolved external/production-evidence gates. Those nine are not promoted by this tranche.
+No aggregate VERIFIED count is asserted here. The live count must be derived from `canon/requirements/registry.yaml`, because later cross-surface or production evidence can legitimately leave an evidence-rich requirement `IN_PROGRESS`.

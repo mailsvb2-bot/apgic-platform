@@ -240,7 +240,7 @@ requirements:
   release_profile: R0
   risk: HIGH
   priority: P0
-  status: IN_PROGRESS
+  status: VERIFIED
   dependencies: []
   implementation_refs:
   - apps/web/app/journey.tsx
@@ -251,6 +251,11 @@ requirements:
   - backend/internal/runtimepostgres/check.go
   - backend/internal/httpapi/client_session.go
   - backend/internal/httpapi/demand.go
+  - backend/cmd/mobile-installation-e2e-server/main.go
+  - apps/mobile/src/mobile-authz-e2e.ts
+  - apps/mobile/src/App.tsx
+  - apps/mobile/ios/APGIC/AppDelegate.swift
+  - apps/mobile/android/app/src/main/java/com/apgic/ci/MainActivity.kt
   - tools/auth_contract_guard.py
   contract_refs:
   - contracts/openapi/apgic-v1.yaml
@@ -265,12 +270,22 @@ requirements:
   - backend/internal/httpapi/client_session_test.go
   - backend/internal/httpapi/client_session_http_test.go
   - apps/web/e2e/auth001-postgres.spec.ts
+  - apps/mobile/src/mobile-authz-e2e.test.ts
+  - tools/mobile_android_capability_e2e.sh
+  - tools/mobile_ios_capability_e2e.sh
   - .github/workflows/ci.yml
   - tools/tests/test_auth_contract_guard.py
   - docs/traceability/R0-auth001-tenant-isolation.md
   evidence_refs:
   - docs/traceability/R0-foundation-verification-batch.md
   - docs/traceability/R0-auth001-tenant-isolation.md
+  - surface://WEB/auth001-tenant-isolation/run-37529803218/job-112496666549
+  - surface://IOS/auth001-tenant-isolation/run-37529803218/job-112496666841
+  - surface://ANDROID/auth001-tenant-isolation/run-37529803218/job-112496667106
+  - surface://SERVER/auth001-domain/run-37529803218/job-112496667053
+  - surface://SERVER/auth001-postgres/run-37529803218/job-112496666549
+  - surface://CI/auth001-canon/run-37529803218/job-112496666852
+  - surface://CI/auth001-bootstrap/run-37529803218/job-112504321488
   acceptance:
     given: principal Organization A знает UUID private resource Organization B
     when: он вызывает protected endpoint
