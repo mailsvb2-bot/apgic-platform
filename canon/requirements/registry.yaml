@@ -853,6 +853,7 @@ requirements:
   contract_refs:
   - contracts/jsonschema/restore-drill-evidence-v1.schema.json
   - contracts/jsonschema/staging-restore-evidence-v1.schema.json
+  - contracts/jsonschema/staging-restore-evidence-v2.schema.json
   test_refs:
   - backend/ci/restore_drill.sh
   - .github/workflows/ci.yml
