@@ -1,0 +1,23 @@
+{
+  "schema_version": "staging-restore-evidence-v2",
+  "evidence_type": "STAGING_RESTORE_DRILL",
+  "candidate_sha": "3ebce6a86142bf051e6d22163177142e925ae797",
+  "observed_at": "2026-10-07T18:16:35Z",
+  "backup_file_sha256": "a2862536bc94f6dfb761766567338edd521b5ed4a2b5eb4a86ff8a73a5355aff",
+  "measured_backup_rpo_seconds": 11,
+  "measured_restore_rto_ms": 1449,
+  "source_table_count": 60,
+  "restored_table_count": 60,
+  "required_table_count": 7,
+  "business_probe_identity_count": 36,
+  "business_probe_organization_count": 28,
+  "integrity_probe_audit_trigger_count": 1,
+  "integrity_probe_ledger_trigger_count": 1,
+  "integrity_probe_direction_trigger_count": 1,
+  "integrity_probe_product_owner_trigger_count": 1,
+  "integrity_probe_booking_transition_trigger_count": 1,
+  "integrity_probe_orders_append_only_trigger_count": 1,
+  "business_probes_passed": true,
+  "integrity_probes_passed": true,
+  "production_evidence": false
+}
