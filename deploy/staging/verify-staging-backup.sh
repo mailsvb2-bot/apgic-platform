@@ -121,7 +121,7 @@ evidence_tmp="$APGIC_RESTORE_EVIDENCE_DIR/latest.json.tmp"
 evidence_file="$APGIC_RESTORE_EVIDENCE_DIR/latest.json"
 cat >"$evidence_tmp" <<JSON
 {
-  "schema_version": "staging-restore-evidence-v1",
+  "schema_version": "staging-restore-evidence-v2",
   "evidence_type": "STAGING_RESTORE_DRILL",
   "candidate_sha": "$candidate_sha",
   "observed_at": "$observed_at",
