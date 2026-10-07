@@ -63,6 +63,36 @@ if [[ "$source_tables" != "$restore_tables" ]]; then
   exit 1
 fi
 
+business_probe_identity_source_count="$(psql --dbname="$APGIC_BACKUP_DATABASE" -Atqc "SELECT count(*) FROM identities")"
+business_probe_identity_restored_count="$(psql --dbname="$verify_db" -Atqc "SELECT count(*) FROM identities")"
+business_probe_organization_source_count="$(psql --dbname="$APGIC_BACKUP_DATABASE" -Atqc "SELECT count(*) FROM organizations")"
+business_probe_organization_restored_count="$(psql --dbname="$verify_db" -Atqc "SELECT count(*) FROM organizations")"
+
+if [[ "$business_probe_identity_source_count" -lt 1 ||
+      "$business_probe_organization_source_count" -lt 1 ||
+      "$business_probe_identity_source_count" != "$business_probe_identity_restored_count" ||
+      "$business_probe_organization_source_count" != "$business_probe_organization_restored_count" ]]; then
+  echo "restore verification failed: business probes mismatch identities=${business_probe_identity_source_count}/${business_probe_identity_restored_count} organizations=${business_probe_organization_source_count}/${business_probe_organization_restored_count}" >&2
+  exit 1
+fi
+
+integrity_probe_audit_trigger_count="$(psql --dbname="$verify_db" -Atqc "SELECT count(*) FROM pg_trigger WHERE tgname='audit_records_append_only' AND NOT tgisinternal")"
+integrity_probe_ledger_trigger_count="$(psql --dbname="$verify_db" -Atqc "SELECT count(*) FROM pg_trigger WHERE tgname='ledger_entries_append_only' AND NOT tgisinternal")"
+integrity_probe_direction_trigger_count="$(psql --dbname="$verify_db" -Atqc "SELECT count(*) FROM pg_trigger WHERE tgname='organization_directions_no_delete' AND NOT tgisinternal")"
+integrity_probe_product_owner_trigger_count="$(psql --dbname="$verify_db" -Atqc "SELECT count(*) FROM pg_trigger WHERE tgname='products_owner_exists' AND NOT tgisinternal")"
+integrity_probe_booking_transition_trigger_count="$(psql --dbname="$verify_db" -Atqc "SELECT count(*) FROM pg_trigger WHERE tgname='bookings_transition_guard' AND NOT tgisinternal")"
+integrity_probe_orders_append_only_trigger_count="$(psql --dbname="$verify_db" -Atqc "SELECT count(*) FROM pg_trigger WHERE tgname='orders_append_only' AND NOT tgisinternal")"
+
+if [[ "$integrity_probe_audit_trigger_count" != "1" ||
+      "$integrity_probe_ledger_trigger_count" != "1" ||
+      "$integrity_probe_direction_trigger_count" != "1" ||
+      "$integrity_probe_product_owner_trigger_count" != "1" ||
+      "$integrity_probe_booking_transition_trigger_count" != "1" ||
+      "$integrity_probe_orders_append_only_trigger_count" != "1" ]]; then
+  echo "restore verification failed: integrity probe missing from restored database" >&2
+  exit 1
+fi
+
 required_tables=(
   identities
   outbox_events
@@ -101,6 +131,18 @@ cat >"$evidence_tmp" <<JSON
   "source_table_count": $source_tables,
   "restored_table_count": $restore_tables,
   "required_table_count": ${#required_tables[@]},
+  "business_probe_identity_source_count": $business_probe_identity_source_count,
+  "business_probe_identity_restored_count": $business_probe_identity_restored_count,
+  "business_probe_organization_source_count": $business_probe_organization_source_count,
+  "business_probe_organization_restored_count": $business_probe_organization_restored_count,
+  "integrity_probe_audit_trigger_count": $integrity_probe_audit_trigger_count,
+  "integrity_probe_ledger_trigger_count": $integrity_probe_ledger_trigger_count,
+  "integrity_probe_direction_trigger_count": $integrity_probe_direction_trigger_count,
+  "integrity_probe_product_owner_trigger_count": $integrity_probe_product_owner_trigger_count,
+  "integrity_probe_booking_transition_trigger_count": $integrity_probe_booking_transition_trigger_count,
+  "integrity_probe_orders_append_only_trigger_count": $integrity_probe_orders_append_only_trigger_count,
+  "business_probes_passed": true,
+  "integrity_probes_passed": true,
   "production_evidence": false
 }
 JSON
