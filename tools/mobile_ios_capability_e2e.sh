@@ -982,6 +982,56 @@ assert_tenant_isolation() {
   fail "installed iOS app did not prove AUTH-001 tenant isolation"
 }
 
+
+assert_organization_product_lifecycle() {
+  local headers
+  local staging_session_cookie
+  local output="$EVIDENCE_DIR/ios-org-product-e2e.json"
+  headers="$(mktemp)"
+  curl -fsS -D "$headers" -o "$EVIDENCE_DIR/ios-org-product-bootstrap.json" \
+    -H 'content-type: application/json' \
+    --data '{"free_text":"ios native organization product staging proof"}' \
+    https://apgic.ru/v1/help-intents >/dev/null
+  staging_session_cookie="$(
+    python3 - "$headers" <<'PY'
+import sys
+for raw in open(sys.argv[1], encoding="utf-8", errors="ignore"):
+    if raw.lower().startswith("set-cookie:"):
+        cookie = raw.split(":", 1)[1].strip().split(";", 1)[0]
+        if cookie.startswith("__Host-apgic_session="):
+            print(cookie)
+            break
+PY
+  )"
+  rm -f "$headers"
+  [[ -n "$staging_session_cookie" ]] || fail "staging client session cookie was not issued for native Organization/Product proof"
+
+  xcrun simctl terminate "$UDID" com.apgic.ci >/dev/null 2>&1 || true
+  SIMCTL_CHILD_APGIC_E2E_CAPABILITY_STATE=GRANTED \
+  SIMCTL_CHILD_APGIC_E2E_ORG_PRODUCT_BASE_URL=https://apgic.ru \
+  SIMCTL_CHILD_APGIC_E2E_ORG_PRODUCT_SESSION_COOKIE="$staging_session_cookie" \
+  SIMCTL_CHILD_APGIC_E2E_ORG_PRODUCT_SURFACE=IOS \
+    xcrun simctl launch "$UDID" com.apgic.ci >/dev/null
+
+  for _ in $(seq 1 60); do
+    if "$IDB" ui describe-all --udid "$UDID" --api axbridge --json --nested >"$output" 2>/dev/null &&
+       json_has_ax_label "$output" "org-product-e2e:PASS" &&
+       json_has_ax_label "$output" "org-product-e2e-created:true" &&
+       json_has_ax_label "$output" "org-product-e2e-direction-created:true" &&
+       json_has_ax_label "$output" "org-product-e2e-product-published:true" &&
+       json_has_ax_label "$output" "org-product-e2e-direction-archived:true" &&
+       json_has_ax_label "$output" "org-product-e2e-product-preserved:true" &&
+       json_has_ax_label "$output" "org-product-e2e-explicit-roles:true"; then
+      echo "iOS installed-app staging Organization/Product lifecycle: PASS"
+      return 0
+    fi
+    sleep 1
+  done
+
+  [[ -f "$output" ]] && cat "$output" >&2 || true
+  fail "installed iOS app did not complete staging Organization/Product lifecycle"
+}
+
 assert_account_deletion() {
   local output="$EVIDENCE_DIR/ios-deletion-e2e.json"
   local identity_id
@@ -1040,5 +1090,6 @@ assert_realtime_lifecycle
 assert_accessibility_runtime
 assert_help_intent_confirmation
 assert_account_deletion
+assert_organization_product_lifecycle
 
-echo "IOS CAPABILITY + COMPATIBILITY + INSTALLATION + AUTHZ + DEMAND + DELETION + DEEP-LINK + NOTIFICATION + OFFLINE-SYNC + REALTIME + ACCESSIBILITY NATIVE E2E: PASS"
+echo "IOS CAPABILITY + COMPATIBILITY + INSTALLATION + AUTHZ + DEMAND + DELETION + ORG-PRODUCT + DEEP-LINK + NOTIFICATION + OFFLINE-SYNC + REALTIME + ACCESSIBILITY NATIVE E2E: PASS"
