@@ -363,6 +363,8 @@ requirements:
   - docs/traceability/R0-foundation-verification-batch.md
   - docs/traceability/R0-organization-directions.md
   - docs/traceability/R0-real-web-organization-product.md
+  - canon/evidence/staging-org-product-20261007T125100Z.json
+  - surface://STAGING/r0-org-product/candidate-0df3a19bbcc67208b5f67ab07c57b40fa28c4470
   - surface://WEB/org001-organization-direction/run-37582060969/job-112663755399
   acceptance:
     given: создана Organization
@@ -411,6 +413,8 @@ requirements:
   - docs/traceability/R0-organization-directions.md
   - docs/traceability/R0-org002-history-links.md
   - docs/traceability/R0-real-web-organization-product.md
+  - canon/evidence/staging-org-product-20261007T125100Z.json
+  - surface://STAGING/r0-org-product/candidate-0df3a19bbcc67208b5f67ab07c57b40fa28c4470
   - surface://WEB/org002-archive-product-preservation/run-37582060969/job-112663755399
   acceptance:
     given: direction имеет продажи/booking
@@ -667,6 +671,8 @@ requirements:
   - docs/traceability/R0-foundation-verification-batch.md
   - docs/traceability/R0-prod001-organization-product-publication.md
   - docs/traceability/R0-real-web-organization-product.md
+  - canon/evidence/staging-org-product-20261007T125100Z.json
+  - surface://STAGING/r0-org-product/candidate-0df3a19bbcc67208b5f67ab07c57b40fa28c4470
   - surface://WEB/prod001-product-publication/run-37582060969/job-112663755399
   acceptance:
     given: специалист создаёт продукт внутри Organization
