@@ -39,7 +39,7 @@ Provider execution is not called for any denied credential/scope path.
 
 ## Release status
 
-On 2026-10-05 candidate `e52e3b1246940e02835184c78b53c96d4bbc35d8` was executed on the authorized APGIC staging host as an isolated systemd transient service. `canon/evidence/staging-sec001-service-auth-20261005T195233Z.json` proves active credential success, wrong-secret/revoked/expired denial, exact-scope connector execution, wrong-scope denial, one provider call, and no emitted secret material. The Registry remains `IN_PROGRESS` until the corrected client-surface credential isolation guard passes on WEB, IOS and ANDROID and exact surface job evidence is attached.
+On 2026-10-05 candidate `e52e3b1246940e02835184c78b53c96d4bbc35d8` was executed on the authorized APGIC staging host as an isolated systemd transient service. `canon/evidence/staging-sec001-service-auth-20261005T195233Z.json` proves active credential success, wrong-secret/revoked/expired denial, exact-scope connector execution, wrong-scope denial, one provider call, and no emitted secret material. The corrected client-surface credential isolation guard now passes on WEB, IOS and ANDROID on candidate `f64b402087ae96c22d2fdf45b8a7929c0b8ea49c`, and exact surface job evidence is attached below.
 
 ## Current-main evidence binding
 
@@ -62,5 +62,24 @@ Current main CI run `37587880450` is green, including:
 - Canon / architecture conformance — job `112682148163` — SUCCESS;
 - R0 bootstrap gate — job `112689768024` — SUCCESS.
 
-This establishes that the server-side staging proof still applies to current main. It does not by itself satisfy the multisurface verification gate: WEB, IOS and ANDROID must also prove that service credentials are absent from their real client source trees before the Registry can move to `VERIFIED`.
+This establishes that the server-side staging proof still applies to current main.
+
+## Corrected client-surface isolation proof
+
+The red CI on the first SEC-001 promotion attempt exposed a real guard defect: `tools/client_credential_guard.py` scanned `apps/native`, which does not exist, instead of the canonical `apps/mobile` tree. The fix replaces that dead path with the real Web/mobile source roots, adds explicit surface modes, and runs the guard directly in the Web, iOS and Android jobs.
+
+Exact green candidate:
+
+- candidate: `f64b402087ae96c22d2fdf45b8a7929c0b8ea49c`;
+- CI run: `37597836294` — SUCCESS;
+- WEB job `112715165272` — SUCCESS, including `Reject service credentials from WEB client source`;
+- IOS job `112715165478` — SUCCESS, including `Reject service credentials from iOS client source` and the installed-app capability lifecycle;
+- ANDROID job `112715165798` — SUCCESS, including `Reject service credentials from Android client source` and the installed-app capability lifecycle;
+- Go/backend job `112715165350` — SUCCESS;
+- Canon/architecture job `112715165480` — SUCCESS;
+- R0 bootstrap job `112721255180` — SUCCESS;
+- iOS build artifact `11472515532`, digest `sha256:8ef187084859f85cc5d3c37e4926e0a1f972cac241234d75dfb5fd13f3e73358`;
+- Android build artifact `11471998028`, digest `sha256:9a9868f8be45717d2a717e95181e3c0d21f7da211195b929ad0dad6dab937d12`.
+
+With the unchanged staging-proven server credential runtime plus real WEB/IOS/ANDROID client credential-isolation proof, APGIC-SEC-001 is now `VERIFIED`. This does not claim production rollout or `RELEASED` status.
 
