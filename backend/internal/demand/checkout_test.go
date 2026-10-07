@@ -175,7 +175,6 @@ func TestCheckoutReplayAllowedOnlyWhilePaymentPending(t *testing.T) {
 	}
 }
 
-
 func TestCheckoutReplayUsesDurableInstructionAfterCatalogSlotRollsOut(t *testing.T) {
 	now := time.Date(2026, 10, 7, 9, 0, 0, 0, time.UTC)
 	holdExpiresAt := now.Add(10 * time.Minute)
