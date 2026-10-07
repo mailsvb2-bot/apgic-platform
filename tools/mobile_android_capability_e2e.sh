@@ -973,6 +973,55 @@ assert_tenant_isolation() {
   fail "installed Android app did not prove AUTH-001 tenant isolation"
 }
 
+
+assert_organization_product_lifecycle() {
+  local headers
+  local staging_session_cookie
+  local output="$EVIDENCE_DIR/android-org-product-e2e.xml"
+  headers="$(mktemp)"
+  curl -fsS -D "$headers" -o "$EVIDENCE_DIR/android-org-product-bootstrap.json" \
+    -H 'content-type: application/json' \
+    --data '{"free_text":"android native organization product staging proof"}' \
+    https://apgic.ru/v1/help-intents >/dev/null
+  staging_session_cookie="$(
+    python3 - "$headers" <<'PY'
+import sys
+for raw in open(sys.argv[1], encoding="utf-8", errors="ignore"):
+    if raw.lower().startswith("set-cookie:"):
+        cookie = raw.split(":", 1)[1].strip().split(";", 1)[0]
+        if cookie.startswith("__Host-apgic_session="):
+            print(cookie)
+            break
+PY
+  )"
+  rm -f "$headers"
+  [[ -n "$staging_session_cookie" ]] || fail "staging client session cookie was not issued for native Organization/Product proof"
+
+  "$ADB" shell am force-stop com.apgic.ci
+  "$ADB" shell am start -W \
+    -n com.apgic.ci/.MainActivity \
+    --es APGIC_E2E_CAPABILITY_STATE GRANTED \
+    --es APGIC_E2E_ORG_PRODUCT_BASE_URL https://apgic.ru \
+    --es APGIC_E2E_ORG_PRODUCT_SESSION_COOKIE "$staging_session_cookie" \
+    --es APGIC_E2E_ORG_PRODUCT_SURFACE ANDROID \
+    >/dev/null
+
+  if dump_until_labels_visible /sdcard/apgic-org-product-e2e.xml "$output" \
+       'org-product-e2e:PASS' \
+       'org-product-e2e-created:true' \
+       'org-product-e2e-direction-created:true' \
+       'org-product-e2e-product-published:true' \
+       'org-product-e2e-direction-archived:true' \
+       'org-product-e2e-product-preserved:true' \
+       'org-product-e2e-explicit-roles:true'; then
+    echo "Android installed-app staging Organization/Product lifecycle: PASS"
+    return 0
+  fi
+
+  [[ -f "$output" ]] && cat "$output" >&2 || true
+  fail "installed Android app did not complete staging Organization/Product lifecycle"
+}
+
 assert_account_deletion() {
   local output="$EVIDENCE_DIR/android-deletion-e2e.xml"
   local identity_id
@@ -1030,5 +1079,6 @@ assert_realtime_lifecycle
 assert_accessibility_and_device_matrix
 assert_help_intent_confirmation
 assert_account_deletion
+assert_organization_product_lifecycle
 
-echo "ANDROID CAPABILITY + COMPATIBILITY + INSTALLATION + AUTHZ + DEMAND + DELETION + DEEP-LINK + NOTIFICATION + OFFLINE-SYNC + REALTIME + ACCESSIBILITY NATIVE E2E: PASS"
+echo "ANDROID CAPABILITY + COMPATIBILITY + INSTALLATION + AUTHZ + DEMAND + DELETION + ORG-PRODUCT + DEEP-LINK + NOTIFICATION + OFFLINE-SYNC + REALTIME + ACCESSIBILITY NATIVE E2E: PASS"
