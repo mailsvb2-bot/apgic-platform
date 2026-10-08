@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -17,6 +18,23 @@ func readyConfig() launchconfig.Config {
 		RetentionPolicyVersion:    "retention-ci-v1",
 		SLOPolicyVersion:          "slo-ci-v1",
 		ProviderMatrixVersion:     "providers-ci-v1",
+	}
+}
+
+func TestPublicProviderEventCannotSelfAttestPayment(t *testing.T) {
+	handler := New(Options{})
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, "/v1/provider-events", strings.NewReader(`{"outcome":"CAPTURED","provider_id":"external-bank","provider_event_id":"forged","order_id":"forged","amount_minor":100,"currency":"RUB"}`)))
+	if recorder.Code != http.StatusForbidden {
+		t.Fatalf("browser payment attestation status = %d, body=%s", recorder.Code, recorder.Body.String())
+	}
+	if !contains(recorder.Body.String(), "PROVIDER_EVIDENCE_UNVERIFIED") {
+		t.Fatalf("expected fail-closed provider boundary: %s", recorder.Body.String())
+	}
+	meta := httptest.NewRecorder()
+	handler.ServeHTTP(meta, httptest.NewRequest(http.MethodGet, "/v1/meta", nil))
+	if contains(meta.Body.String(), "\"conformance_provider_events\":true") {
+		t.Fatalf("default runtime must not advertise synthetic captures: %s", meta.Body.String())
 	}
 }
 
