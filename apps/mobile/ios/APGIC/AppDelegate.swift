@@ -176,7 +176,11 @@ class ReactNativeDelegate: RCTDefaultReactNativeFactoryDelegate {
 
   override func bundleURL() -> URL? {
 #if DEBUG
-    if let explicitE2EURL = ProcessInfo.processInfo.environment["APGIC_E2E_METRO_URL"],
+    let environment = ProcessInfo.processInfo.environment
+    if environment["APGIC_E2E_USE_EMBEDDED_BUNDLE"] == "true" {
+      return Bundle.main.url(forResource: "main", withExtension: "jsbundle")
+    }
+    if let explicitE2EURL = environment["APGIC_E2E_METRO_URL"],
        !explicitE2EURL.isEmpty,
        let url = URL(string: explicitE2EURL) {
       return url
