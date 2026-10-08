@@ -33,20 +33,13 @@ The accessibility proof asserts:
 
 This closes both the `NATIVE_E2E` and `REALTIME_E2E` evidence classes on Android and iOS.
 
-## Staging business-truth proof
+## Staging payment-boundary proof (current)
 
-The staging proof runs the real API against an isolated PostgreSQL database initialized only from production migrations. It creates and pays a booking, enters consultation presence, records a recoverable network loss, and recovers the same consultation.
+In the current APGIC release, **staging does not receive money and does not accept synthetic payment confirmations from clients**. A live-looking `CAPTURED` payload created in a browser or by an HTTP test is **not** trusted external-provider evidence.
 
-It proves that:
+The migrated-PostgreSQL staging proof now creates an intent, holds a slot, and creates an instruction. It asserts that `/v1/meta` reports `conformance_provider_events=false`; a client-side `POST /v1/provider-events` returns HTTP 403 / `PROVIDER_EVIDENCE_UNVERIFIED`; the booking stays `PENDING_PAYMENT`; and an unpaid booking cannot enter consultation. The new artifact explicitly records `positive_realtime_path_proven=false`.
 
-- presence is `IN_PROGRESS`;
-- a technical network failure moves the consultation to `RECOVERING`;
-- recovery returns it to `IN_PROGRESS`;
-- none of those lifecycle operations charges again or claims APGIC room ownership;
-- an empty completion evidence reference is rejected with HTTP 409 / `CONSULT_EVIDENCE_REQUIRED`;
-- only an explicit provider completion carrying evidence can move the consultation to `COMPLETED`.
-
-The isolated staging database prevents earlier invariant tests from mutating the catalog fixture used by this proof, so the `STAGING_PROOF` is independent of test execution order.
+The older staging realtime proof described below is a *historical isolated conformance fixture*, not validation of a real payment or of a live provider-confirmed consultation. Synthetic completed-payment and recovery cases remain eligible for isolated local conformance tests only. They must not count as production financial or realtime proof. Real end-to-end completion requires trusted evidence from an external execution owner; APGIC must never accept or custody funds.
 
 ## Automated proof
 
