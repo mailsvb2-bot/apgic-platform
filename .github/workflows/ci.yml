@@ -848,6 +848,8 @@ jobs:
       - working-directory: apps/mobile/ios
         run: pod install
       - working-directory: apps/mobile/ios
+        env:
+          FORCE_BUNDLING: "1"
         run: |
           xcodebuild \
             -workspace APGIC.xcworkspace \
@@ -866,6 +868,7 @@ jobs:
           mkdir -p evidence
           APP="apps/mobile/ios/build/derived/Build/Products/Debug-iphonesimulator/APGIC.app"
           test -d "$APP"
+          test -s "$APP/main.jsbundle"
           codesign --verify --deep --strict "$APP"
           codesign --display --verbose=4 "$APP" > evidence/ios-simulator-codesign.txt 2>&1
           codesign --display --entitlements :- "$APP" > evidence/ios-simulator-entitlements.plist 2>/dev/null
