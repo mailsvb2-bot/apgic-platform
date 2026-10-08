@@ -36,9 +36,9 @@ func TestConfirmedBookingNotifiesWithoutMarketingOptInAndGatesJoin(t *testing.T)
 	if join.Decision != "DENY" || join.ReasonCode != "COMM_OUTSIDE_JOIN_WINDOW" {
 		t.Fatalf("join = %#v", join)
 	}
-	_, stranger, err := service.Fulfillment(evidence.BookingID, "idn-stranger")
-	if err != nil || stranger.ReasonCode != "COMM_ROLE_MISMATCH" {
-		t.Fatalf("stranger = %#v err=%v", stranger, err)
+	strangerNotice, stranger, err := service.Fulfillment(evidence.BookingID, "idn-stranger")
+	if err != nil || stranger == nil || stranger.ReasonCode != "COMM_ROLE_MISMATCH" || strangerNotice != nil {
+		t.Fatalf("foreign identity must not receive the booking notice: notice=%#v stranger=%#v err=%v", strangerNotice, stranger, err)
 	}
 	if _, err := service.CancelOrder(instruction.OrderID, "CLIENT_CANCEL"); err != nil {
 		t.Fatal(err)
