@@ -147,19 +147,27 @@ class MobileNativeE2EHarnessTest(unittest.TestCase):
         self.assertIn("INTERRUPTION_ENDED", events[:-1])
 
 
-    def test_ios_e2e_pins_verified_metro_bundle_url(self) -> None:
+    def test_ios_installed_e2e_uses_embedded_bundle_not_metro(self) -> None:
         script = self._read("mobile_ios_capability_e2e.sh")
         delegate = (
             ROOT / "apps/mobile/ios/APGIC/AppDelegate.swift"
         ).read_text(encoding="utf-8")
 
-        readiness = 'curl -fsS --max-time 120 "http://127.0.0.1:8081/index.bundle?platform=ios&dev=true&minify=false"'
-        explicit = 'export SIMCTL_CHILD_APGIC_E2E_METRO_URL="http://127.0.0.1:8081/index.bundle?platform=ios&dev=true&minify=false"'
-        self.assertIn(readiness, script)
-        self.assertIn(explicit, script)
-        self.assertLess(script.index(readiness), script.index(explicit))
-        self.assertIn('ProcessInfo.processInfo.environment["APGIC_E2E_METRO_URL"]', delegate)
-        self.assertIn("return url", delegate)
+        self.assertIn('EMBEDDED_BUNDLE="$APP/main.jsbundle"', script)
+        self.assertIn('[[ -s "$EMBEDDED_BUNDLE" ]]', script)
+        self.assertIn("export SIMCTL_CHILD_APGIC_E2E_USE_EMBEDDED_BUNDLE=true", script)
+        self.assertNotIn("127.0.0.1:8081", script)
+        self.assertNotIn("APGIC_E2E_METRO_URL", script)
+
+        self.assertIn(
+            'environment["APGIC_E2E_USE_EMBEDDED_BUNDLE"] == "true"',
+            delegate,
+        )
+        self.assertIn(
+            'Bundle.main.url(forResource: "main", withExtension: "jsbundle")',
+            delegate,
+        )
+        self.assertIn('environment["APGIC_E2E_METRO_URL"]', delegate)
         self.assertIn('RCTBundleURLProvider.sharedSettings().jsBundleURL(forBundleRoot: "index")', delegate)
 
     def test_ios_simulator_boot_has_bounded_data_migration_recovery(self) -> None:
