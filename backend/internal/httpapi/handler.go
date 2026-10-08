@@ -36,7 +36,7 @@ type Options struct {
 	Organizations               organizationRuntimeStore
 	ProductOwnership            productOwnershipStore
 	Products                    organizationProductStore
-	ConformanceProviderEvents bool
+	ConformanceProviderEvents   bool
 	ClientSessionKey            []byte
 	ClientCompatibilityPolicies map[clientcompat.Platform]clientcompat.Policy
 	RemoteConfigProvider        func(time.Time) (remoteconfig.SignedEnvelope, error)
@@ -44,12 +44,12 @@ type Options struct {
 }
 
 type metaResponse struct {
-	Service      string   `json:"service"`
-	ReleaseTrack string   `json:"release_track"`
-	Surfaces     []string `json:"surfaces"`
-	CommitSHA    string   `json:"commit_sha,omitempty"`
-	ConformanceProviderEvents bool `json:"conformance_provider_events"`
-	Time         string   `json:"time"`
+	Service                   string   `json:"service"`
+	ReleaseTrack              string   `json:"release_track"`
+	Surfaces                  []string `json:"surfaces"`
+	CommitSHA                 string   `json:"commit_sha,omitempty"`
+	ConformanceProviderEvents bool     `json:"conformance_provider_events"`
+	Time                      string   `json:"time"`
 }
 
 type statusResponse struct {
@@ -94,12 +94,12 @@ func New(options Options) http.Handler {
 
 	mux.HandleFunc("GET /v1/meta", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, metaResponse{
-			Service:      "apgic-api",
-			ReleaseTrack: options.ReleaseTrack,
-			Surfaces:     options.Surfaces,
-			CommitSHA:    options.CommitSHA,
+			Service:                   "apgic-api",
+			ReleaseTrack:              options.ReleaseTrack,
+			Surfaces:                  options.Surfaces,
+			CommitSHA:                 options.CommitSHA,
 			ConformanceProviderEvents: options.ConformanceProviderEvents,
-			Time:         options.Now().UTC().Format(time.RFC3339),
+			Time:                      options.Now().UTC().Format(time.RFC3339),
 		})
 	})
 
