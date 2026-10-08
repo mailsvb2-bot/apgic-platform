@@ -154,8 +154,14 @@ func (s *Service) CreateCheckout(holdID, clientIdentityID, methodCode string) (*
 		if existing.MethodCode != methodCode {
 			return nil, ErrCheckoutLocked
 		}
+		// A replay may return only the instruction bound to this exact hold
+		// and booking. Never expose a mismatched persisted payment route.
+		if existing.HoldID != hold.ID || existing.BookingID != hold.BookingID {
+			return nil, ErrHoldNotActive
+		}
 		booked := s.bookings[existing.BookingID]
-		if booked == nil || booked.State != booking.StatePendingPayment {
+		if booked == nil || booked.HoldID != hold.ID ||
+			booked.ID != hold.BookingID || booked.State != booking.StatePendingPayment {
 			return nil, ErrHoldNotActive
 		}
 		copyInstruction := *existing
