@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 
 type Intent = {
   id: string;
@@ -179,6 +179,19 @@ export function Journey() {
     refund_path_opened?: boolean;
     apgic_returns_funds?: boolean;
   } | null>(null);
+  const [conformanceProviderEvents, setConformanceProviderEvents] = useState(false);
+  useEffect(() => {
+    let active = true;
+    fetch("/v1/meta", { cache: "no-store" })
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error("meta unavailable")))
+      .then((meta: { conformance_provider_events?: boolean }) => {
+        if (active) setConformanceProviderEvents(meta.conformance_provider_events === true);
+      })
+      .catch(() => {
+        if (active) setConformanceProviderEvents(false);
+      });
+    return () => { active = false; };
+  }, []);
   const [providerEventID] = useState(() => clientUUID());
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
@@ -809,9 +822,13 @@ export function Journey() {
             <p className="meta">Заказ {instruction.order_id} · {instruction.booking_state} · {money(instruction.amount_minor, instruction.currency)}</p>
             <p className="meta">APGIC принимает деньги: {instruction.apgic_accepts_funds ? "да" : "нет"}.</p>
           </div>
-          <button type="button" onClick={captureProviderEvent} disabled={pending}>
-            Зафиксировать подтверждение внешнего провайдера
-          </button>
+          {conformanceProviderEvents ? (
+            <button type="button" onClick={captureProviderEvent} disabled={pending}>
+              Зафиксировать подтверждение внешнего провайдера (только тест)
+            </button>
+          ) : (
+            <p role="status">Оплата и её подтверждение выполняются только внешним исполнителем. APGIC не принимает деньги и не может самостоятельно подтвердить оплату. Пока подтверждение не получено, запись не считается оплаченной.</p>
+          )}
         </section>
       ) : null}
 

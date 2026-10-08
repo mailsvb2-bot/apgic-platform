@@ -45,6 +45,8 @@ else
   export APGIC_API_ORIGIN="${APGIC_API_ORIGIN:-http://127.0.0.1:${api_port}}"
 fi
 export APGIC_CLIENT_SESSION_KEY="${APGIC_CLIENT_SESSION_KEY:-local-only-client-session-key-000000000000}"
+# Browser conformance tests use synthetic provider events only in an isolated local API.
+export APGIC_CONFORMANCE_PROVIDER_EVENTS=1
 if ! command -v go >/dev/null 2>&1; then
   case "$(uname -m)" in
     x86_64) goarch=amd64 ;;
