@@ -127,9 +127,22 @@ func runProbe(ctx context.Context, databaseURL, candidateSHA string, now time.Ti
 	if err != nil || len(slots) == 0 {
 		return evidence{}, fmt.Errorf("discover slots with communication provider disabled: slots=%d err=%w", len(slots), err)
 	}
-	hold, err := service.AcquireHold(intent.ID, slots[0].ID, intent.ClientIdentityID)
-	if err != nil {
-		return evidence{}, fmt.Errorf("acquire booking hold with communication provider disabled: %w", err)
+	var hold *demand.Hold
+	for _, slot := range slots {
+		candidate, acquireErr := service.AcquireHold(intent.ID, slot.ID, intent.ClientIdentityID)
+		if acquireErr == nil {
+			hold = candidate
+			break
+		}
+		if errors.Is(acquireErr, demand.ErrSlotHeld) ||
+			errors.Is(acquireErr, demand.ErrSlotBooked) ||
+			errors.Is(acquireErr, demand.ErrSlotUnavailable) {
+			continue
+		}
+		return evidence{}, fmt.Errorf("acquire booking hold with communication provider disabled: %w", acquireErr)
+	}
+	if hold == nil {
+		return evidence{}, errors.New("no available staging slot for provider-neutral continuity probe")
 	}
 	defer func() {
 		cleanupCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
