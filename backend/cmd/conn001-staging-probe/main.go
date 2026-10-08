@@ -215,7 +215,7 @@ func runProbe(ctx context.Context, databaseURL, candidateSHA string, now time.Ti
 		ConnectorStatus:             connectorStatus,
 		IdentityPersisted:           identityCount == 1,
 		BookingHoldPersisted:        holdState == "ACTIVE",
-		BookingState:                hold.BookingState,
+		BookingState:                string(hold.BookingState),
 		LedgerEffectCount:           ledgerCount,
 		ProviderExecutionClaimed:    false,
 		CanonicalTruthProviderOwned: false,
