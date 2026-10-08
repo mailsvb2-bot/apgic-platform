@@ -182,7 +182,7 @@ test("replacing a help request invalidates stale matches even on API failure", a
 
   await request.fill("Новый запрос о карьере");
   await page.getByRole("button", { name: "Разобрать запрос" }).click();
-  await expect(page.getByRole("alert")).toContainText("Временно недоступно");
+  await expect(page.locator(".journey-alert")).toContainText("Временно недоступно");
   await expect(page.getByRole("heading", { level: 3, name: "Марина Лебедева" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Подтвердить и показать специалистов" })).toHaveCount(0);
   await expect(page.getByRole("navigation", { name: "Этапы записи" }).locator('[aria-current="step"]')).toContainText("Запрос");
