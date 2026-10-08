@@ -159,6 +159,35 @@ test("help intent journey stays usable and accessible", async ({ page }) => {
   expect(accessibility.violations).toEqual([]);
 });
 
+test("replacing a help request invalidates stale matches even on API failure", async ({ page }) => {
+  await page.goto("/");
+  const request = page.getByLabel("С чем нужна помощь");
+  await request.fill("Мне сложно уснуть, бессонница");
+  await page.getByRole("button", { name: "Разобрать запрос" }).click();
+  await expect(page.getByRole("checkbox", { name: "Сон" })).toBeChecked();
+  await page.getByRole("button", { name: "Подтвердить и показать специалистов" }).click();
+  await expect(page.getByRole("heading", { level: 3, name: "Марина Лебедева" })).toBeVisible();
+
+  await page.route("**/v1/help-intents", async (route) => {
+    if (route.request().method() === "POST") {
+      await route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({ message_safe: "Временно недоступно" }),
+      });
+      return;
+    }
+    await route.continue();
+  });
+
+  await request.fill("Новый запрос о карьере");
+  await page.getByRole("button", { name: "Разобрать запрос" }).click();
+  await expect(page.getByRole("alert")).toContainText("Временно недоступно");
+  await expect(page.getByRole("heading", { level: 3, name: "Марина Лебедева" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Подтвердить и показать специалистов" })).toHaveCount(0);
+  await expect(page.getByRole("navigation", { name: "Этапы записи" }).locator('[aria-current="step"]')).toContainText("Запрос");
+});
+
 test("critical journey can be completed from the keyboard", async ({ page }) => {
   await page.goto("/");
   const request = page.getByLabel("С чем нужна помощь");
