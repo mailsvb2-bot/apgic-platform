@@ -98,92 +98,62 @@ def main() -> None:
         "/v1/checkout-instructions",
         {"hold_id": hold["id"], "method_code": method_code},
     )
-    _, capture = client.call(
-        "POST",
-        "/v1/provider-events",
-        {
-            "provider_id": checkout["provider_id"],
-            "provider_event_id": f"mobile009-capture-{proof_id}",
-            "order_id": checkout["order_id"],
-            "amount_minor": checkout["amount_minor"],
-            "currency": checkout["currency"],
-            "outcome": "CAPTURED",
-        },
-    )
-    booking_id = capture["booking_id"]
-
-    _, presence = client.call("POST", f"/v1/consultations/{booking_id}/presence", {})
-    _, failure = client.call(
-        "POST",
-        f"/v1/consultations/{booking_id}/failures",
-        {
-            "kind": "NETWORK_LOSS",
-            "evidence_ref": f"mobile009/network-loss/{proof_id}",
-            "recoverable": True,
-        },
-    )
-    _, recovery = client.call(
-        "POST",
-        f"/v1/consultations/{booking_id}/recovery",
-        {"evidence_ref": f"mobile009/recovered/{proof_id}"},
-    )
-
-    empty_completion_status = None
-    empty_completion_code = None
+    # Staging is a real boundary check, NOT a fake payment provider.
+    # No customer-supplied CAPTURED message may confirm a booking.
+    denied_status = None
+    denied_code = None
     try:
         client.call(
             "POST",
-            f"/v1/consultations/{booking_id}/complete",
-            {"evidence_ref": ""},
+            "/v1/provider-events",
+            {
+                "provider_id": checkout["provider_id"],
+                "provider_event_id": f"mobile009-untrusted-{proof_id}",
+                "order_id": checkout["order_id"],
+                "amount_minor": checkout["amount_minor"],
+                "currency": checkout["currency"],
+                "outcome": "CAPTURED",
+            },
         )
     except APIError as error:
-        empty_completion_status = error.status
+        denied_status = error.status
         if isinstance(error.payload, dict):
-            empty_completion_code = error.payload.get("code")
+            denied_code = error.payload.get("code")
 
-    require(presence.get("state") == "IN_PROGRESS", f"unexpected presence state: {presence!r}")
-    require(failure.get("state") == "RECOVERING", f"unexpected failure state: {failure!r}")
-    require(recovery.get("state") == "IN_PROGRESS", f"unexpected recovery state: {recovery!r}")
-    for label, view in (("presence", presence), ("failure", failure), ("recovery", recovery)):
-        require(view.get("charged_again") is False, f"{label} charged again: {view!r}")
-        require(view.get("apgic_owns_room") is False, f"{label} claimed room ownership: {view!r}")
-    require(empty_completion_status == 409, f"empty completion evidence was not rejected: {empty_completion_status}")
-    require(empty_completion_code == "CONSULT_EVIDENCE_REQUIRED", f"unexpected completion rejection: {empty_completion_code}")
+    require(meta.get("conformance_provider_events") is False, "staging exposed synthetic payment confirmation")
+    require(denied_status == 403, f"client-forged provider capture was accepted: {denied_status}")
+    require(denied_code == "PROVIDER_EVIDENCE_UNVERIFIED", f"unexpected provider boundary: {denied_code}")
+    require(checkout.get("booking_state") == "PENDING_PAYMENT", f"unexpected booking state: {checkout!r}")
 
-    explicit_evidence = f"mobile009/provider-end/{proof_id}"
-    _, completed = client.call(
-        "POST",
-        f"/v1/consultations/{booking_id}/complete",
-        {"evidence_ref": explicit_evidence},
-    )
-    require(completed.get("state") == "COMPLETED", f"explicit provider completion failed: {completed!r}")
-    require(completed.get("evidence_ref") == explicit_evidence, f"completion evidence drift: {completed!r}")
-    require(completed.get("charged_again") is False, f"completion charged again: {completed!r}")
+    # No communication room is available without trusted external confirmation.
+    no_access_status = None
+    try:
+        client.call("POST", f"/v1/consultations/{hold['booking_id']}/presence", {})
+    except APIError as error:
+        no_access_status = error.status
+    require(no_access_status is not None and no_access_status >= 400, "unpaid booking entered consultation")
 
     proof = {
         "requirement_id": "APGIC-MOBILE-009",
-        "evidence_kind": "STAGING_PROOF",
+        "evidence_kind": "STAGING_UNTRUSTED_PAYMENT_NEGATIVE_PROOF",
         "commit_sha": meta.get("commit_sha"),
         "release_track": meta.get("release_track"),
         "proof_id": proof_id,
-        "booking_id": booking_id,
-        "presence_state": presence.get("state"),
-        "failure_state": failure.get("state"),
-        "failure_action": failure.get("recovery_action"),
-        "recovery_state": recovery.get("state"),
-        "empty_completion_status": empty_completion_status,
-        "empty_completion_code": empty_completion_code,
-        "explicit_completion_state": completed.get("state"),
-        "explicit_completion_evidence_ref": completed.get("evidence_ref"),
-        "charged_again": False,
-        "apgic_owns_room": False,
+        "booking_id": hold["booking_id"],
+        "booking_state": checkout.get("booking_state"),
+        "client_capture_http_status": denied_status,
+        "client_capture_error_code": denied_code,
+        "unpaid_consultation_http_status": no_access_status,
+        "apgic_accepts_funds": False,
+        "positive_realtime_path_proven": False,
+        "positive_path_test_boundary": "ISOLATED_CONFORMANCE_ONLY",
         "proved_at_unix": int(time.time()),
     }
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(proof, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(proof, ensure_ascii=False, indent=2))
-    print("APGIC MOBILE-009 staging realtime proof: PASS")
+    print("APGIC MOBILE-009 staging untrusted-payment boundary proof: PASS")
 
 
 if __name__ == "__main__":
