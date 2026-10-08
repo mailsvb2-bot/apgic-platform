@@ -46,6 +46,22 @@ func TestProviderCaptureConfirmsOnceAndDoesNotPayAPGIC(t *testing.T) {
 	if !second.Idempotent || second.LedgerEntryID != first.LedgerEntryID || second.ID != first.ID {
 		t.Fatalf("replay = %#v", second)
 	}
+	for _, mismatch := range []struct {
+		name string
+		edit func(*ProviderEvent)
+	}{
+		{"foreign_order", func(e *ProviderEvent) { e.OrderID = "other-order" }},
+		{"changed_amount", func(e *ProviderEvent) { e.AmountMinor++ }},
+		{"changed_currency", func(e *ProviderEvent) { e.Currency = "USD" }},
+	} {
+		t.Run(mismatch.name, func(t *testing.T) {
+			conflicting := event
+			mismatch.edit(&conflicting)
+			if replay, err := service.ApplyProviderEvent(conflicting); !errors.Is(err, ErrEvidenceMismatch) || replay != nil {
+				t.Fatalf("conflicting provider replay=%#v err=%v", replay, err)
+			}
+		})
+	}
 	reconciliation, err := service.LedgerReconciliation()
 	if err != nil {
 		t.Fatal(err)
