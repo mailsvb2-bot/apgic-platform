@@ -43,4 +43,10 @@ func TestConsultationCompletesOnlyWithProviderEvidenceAndDoesNotChargeAgain(t *t
 	if err != nil || !again.Idempotent || again.ID != done.ID {
 		t.Fatalf("replay = %#v err=%v", again, err)
 	}
+	if conflicting, err := service.CompleteSession(evidence.BookingID, "other-provider-end"); !errors.Is(err, ErrConsultEvidence) || conflicting != nil {
+		t.Fatalf("conflicting completion evidence must fail closed: view=%#v err=%v", conflicting, err)
+	}
+	if again, err := service.CompleteSession(evidence.BookingID, "provider-room-end"); err != nil || !again.Idempotent || again.EvidenceRef != "provider-room-end" {
+		t.Fatalf("original evidence must remain replayable: view=%#v err=%v", again, err)
+	}
 }
