@@ -154,18 +154,7 @@ func (s *Service) CreateCheckout(holdID, clientIdentityID, methodCode string) (*
 		if existing.MethodCode != methodCode {
 			return nil, ErrCheckoutLocked
 		}
-		// A replay may return only the instruction bound to this exact hold
-		// and booking. Never expose a mismatched persisted payment route.
-		if existing.HoldID != hold.ID || existing.BookingID != hold.BookingID {
-			return nil, ErrHoldNotActive
-		}
-		booked := s.bookings[existing.BookingID]
-		if booked == nil || booked.HoldID != hold.ID ||
-			booked.ID != hold.BookingID || booked.State != booking.StatePendingPayment {
-			return nil, ErrHoldNotActive
-		}
-		copyInstruction := *existing
-		return &copyInstruction, nil
+		return s.replayCheckoutLocked(hold, existing)
 	}
 	if hold.State != "ACTIVE" {
 		return nil, ErrHoldNotActive
@@ -323,12 +312,7 @@ func (s *Service) CreateCheckout(holdID, clientIdentityID, methodCode string) (*
 					if existing.MethodCode != methodCode {
 						return nil, ErrCheckoutLocked
 					}
-					booked := s.bookings[existing.BookingID]
-					if booked == nil || booked.State != booking.StatePendingPayment {
-						return nil, ErrHoldNotActive
-					}
-					copyInstruction := *existing
-					return &copyInstruction, nil
+					return s.replayCheckoutLocked(s.holds[hold.ID], existing)
 				}
 			}
 			return nil, err
@@ -340,6 +324,22 @@ func (s *Service) CreateCheckout(holdID, clientIdentityID, methodCode string) (*
 	delete(s.slotHolds, slot.ID)
 	s.instructions[hold.ID] = created
 	copyInstruction := *created
+	return &copyInstruction, nil
+}
+
+// replayCheckoutLocked applies one invariant to both direct retries and
+// PostgreSQL conflict refreshes. A stale/mismatched instruction is never returned.
+func (s *Service) replayCheckoutLocked(hold *Hold, existing *CheckoutInstruction) (*CheckoutInstruction, error) {
+	if hold == nil || existing == nil || existing.HoldID != hold.ID || existing.BookingID != hold.BookingID {
+		return nil, ErrHoldNotActive
+	}
+	booked := s.bookings[existing.BookingID]
+	if booked == nil || booked.HoldID != hold.ID || booked.ID != hold.BookingID ||
+		booked.ClientIdentityID != hold.ClientIdentityID ||
+		booked.State != booking.StatePendingPayment {
+		return nil, ErrHoldNotActive
+	}
+	copyInstruction := *existing
 	return &copyInstruction, nil
 }
 
