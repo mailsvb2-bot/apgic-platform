@@ -4,8 +4,6 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP="$ROOT/apps/mobile/ios/build/derived/Build/Products/Debug-iphonesimulator/APGIC.app"
 EVIDENCE_DIR="$ROOT/evidence"
-METRO_LOG="/tmp/apgic-metro-ios.log"
-METRO_PID=""
 SERVER_PID=""
 UDID=""
 SIMULATOR_CREATED=0
@@ -21,9 +19,6 @@ REMOTE_CONFIG_E2E_PUBLIC_KEY_BASE64="W2SJycf9Dc9QVF58FkiG70BJHsBsfxsSMEF5foEXU14
 
 fail() {
   echo "IOS CAPABILITY NATIVE E2E: FAIL: $*" >&2
-  if [[ -f "$METRO_LOG" ]]; then
-    tail -n 120 "$METRO_LOG" >&2 || true
-  fi
   if [[ -f "$SERVER_LOG" ]]; then
     tail -n 120 "$SERVER_LOG" >&2 || true
   fi
@@ -33,9 +28,6 @@ fail() {
 cleanup() {
   local status=$?
   trap - EXIT
-  if [[ -n "$METRO_PID" ]]; then
-    kill "$METRO_PID" 2>/dev/null || true
-  fi
   if [[ -n "$SERVER_PID" ]]; then
     kill "$SERVER_PID" 2>/dev/null || true
   fi
@@ -313,25 +305,10 @@ boot_simulator_with_recovery ||
   fail "iOS simulator failed clean boot after bounded migration recovery"
 xcrun simctl install "$UDID" "$APP"
 
-(
-  cd "$ROOT/apps/mobile"
-  npx react-native start --port 8081 >"$METRO_LOG" 2>&1
-) &
-METRO_PID=$!
-
-for _ in $(seq 1 60); do
-  if curl -fsS http://127.0.0.1:8081/status 2>/dev/null | grep -q "packager-status:running"; then
-    break
-  fi
-  sleep 1
-done
-curl -fsS http://127.0.0.1:8081/status | grep -q "packager-status:running" ||
-  fail "Metro did not become ready"
-curl -fsS --max-time 120 "http://127.0.0.1:8081/index.bundle?platform=ios&dev=true&minify=false" \
-  -o /tmp/apgic-ios-e2e.bundle ||
-  fail "Metro iOS bundle did not become ready"
-
-export SIMCTL_CHILD_APGIC_E2E_METRO_URL="http://127.0.0.1:8081/index.bundle?platform=ios&dev=true&minify=false"
+EMBEDDED_BUNDLE="$APP/main.jsbundle"
+[[ -s "$EMBEDDED_BUNDLE" ]] ||
+  fail "installed iOS E2E artifact is missing embedded main.jsbundle"
+export SIMCTL_CHILD_APGIC_E2E_USE_EMBEDDED_BUNDLE=true
 
 start_installation_server
 bootstrap_installation_session
