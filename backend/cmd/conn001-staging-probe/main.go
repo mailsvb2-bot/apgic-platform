@@ -18,21 +18,21 @@ import (
 )
 
 type evidence struct {
-	SchemaVersion              string `json:"schema_version"`
-	EvidenceType               string `json:"evidence_type"`
-	CandidateSHA               string `json:"candidate_sha"`
-	ObservedAt                 string `json:"observed_at"`
-	Environment                string `json:"environment"`
-	ConnectorCapability        string `json:"connector_capability"`
-	ConnectorStatus            string `json:"connector_status"`
-	IdentityPersisted          bool   `json:"identity_persisted"`
-	BookingHoldPersisted       bool   `json:"booking_hold_persisted"`
-	BookingState               string `json:"booking_state"`
-	LedgerEffectCount          int    `json:"ledger_effect_count"`
-	ProviderExecutionClaimed   bool   `json:"provider_execution_claimed"`
-	CanonicalTruthProviderOwned bool  `json:"canonical_truth_provider_owned"`
-	BusinessTruthSurvived      bool   `json:"business_truth_survived"`
-	ProductionEvidence         bool   `json:"production_evidence"`
+	SchemaVersion               string `json:"schema_version"`
+	EvidenceType                string `json:"evidence_type"`
+	CandidateSHA                string `json:"candidate_sha"`
+	ObservedAt                  string `json:"observed_at"`
+	Environment                 string `json:"environment"`
+	ConnectorCapability         string `json:"connector_capability"`
+	ConnectorStatus             string `json:"connector_status"`
+	IdentityPersisted           bool   `json:"identity_persisted"`
+	BookingHoldPersisted        bool   `json:"booking_hold_persisted"`
+	BookingState                string `json:"booking_state"`
+	LedgerEffectCount           int    `json:"ledger_effect_count"`
+	ProviderExecutionClaimed    bool   `json:"provider_execution_claimed"`
+	CanonicalTruthProviderOwned bool   `json:"canonical_truth_provider_owned"`
+	BusinessTruthSurvived       bool   `json:"business_truth_survived"`
+	ProductionEvidence          bool   `json:"production_evidence"`
 }
 
 func (e evidence) validate() error {
