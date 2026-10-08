@@ -330,7 +330,9 @@ func (s *Service) CreateCheckout(holdID, clientIdentityID, methodCode string) (*
 // replayCheckoutLocked applies one invariant to both direct retries and
 // PostgreSQL conflict refreshes. A stale/mismatched instruction is never returned.
 func (s *Service) replayCheckoutLocked(hold *Hold, existing *CheckoutInstruction) (*CheckoutInstruction, error) {
-	if hold == nil || existing == nil || existing.HoldID != hold.ID || existing.BookingID != hold.BookingID {
+	if hold == nil || existing == nil || hold.State != "CONSUMED" ||
+		hold.BookingState != booking.StatePendingPayment ||
+		existing.HoldID != hold.ID || existing.BookingID != hold.BookingID {
 		return nil, ErrHoldNotActive
 	}
 	booked := s.bookings[existing.BookingID]
