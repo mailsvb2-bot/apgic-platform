@@ -74,7 +74,15 @@ func (s *Service) CompleteSession(bookingID, evidenceRef string) (*ConsultationV
 		return nil, err
 	}
 	if session.State == consultation.StateCompleted {
-		return sessionView(session, evidenceRef, true), nil
+		for _, fact := range session.Facts() {
+			if fact.Type == consultation.FactEnded {
+				if fact.EvidenceRef != evidenceRef {
+					return nil, ErrConsultEvidence
+				}
+				return sessionView(session, fact.EvidenceRef, true), nil
+			}
+		}
+		return nil, ErrConsultEvidence
 	}
 	if session.State != consultation.StateInProgress && session.State != consultation.StateRecovering {
 		return nil, ErrConsultNotReady
