@@ -290,3 +290,61 @@ func TestCheckoutReplayRejectsMismatchedBookingOwnership(t *testing.T) {
 		})
 	}
 }
+
+type checkoutConflictStore struct {
+	*fakeJourneyStore
+	mismatch bool
+}
+
+func (s *checkoutConflictStore) CreateCheckout(p CheckoutPersistence) (string, error) {
+	// Another process committed the checkout before this write won the race.
+	bookingCopy := *p.Booking
+	instructionCopy := *p.Instruction
+	if s.mismatch {
+		bookingCopy.ClientIdentityID = "other-client"
+	}
+	s.snapshot.Bookings = append(s.snapshot.Bookings, &bookingCopy)
+	s.snapshot.Instructions = append(s.snapshot.Instructions, &instructionCopy)
+	for _, hold := range s.snapshot.Holds {
+		if hold != nil && hold.ID == instructionCopy.HoldID {
+			hold.State = "CONSUMED"
+			hold.BookingState = booking.StatePendingPayment
+		}
+	}
+	return "BOOK_CHECKOUT_ALREADY_EXISTS", nil
+}
+
+func TestCheckoutConflictRefreshRejectsForeignBookingClient(t *testing.T) {
+	for _, mismatch := range []bool{false, true} {
+		t.Run(map[bool]string{false: "valid_replay", true: "foreign_client"}[mismatch], func(t *testing.T) {
+			store := &checkoutConflictStore{fakeJourneyStore: &fakeJourneyStore{}, mismatch: mismatch}
+			service, err := NewConformanceServiceWithStores(nil, nil, store)
+			if err != nil {
+				t.Fatal(err)
+			}
+			intent, err := service.CreateIntent("нужна помощь со сном")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := service.ConfirmIntent(intent.ID, []string{"sleep"}, nil, nil); err != nil {
+				t.Fatal(err)
+			}
+			slots, err := service.Slots("spec-lebedeva")
+			if err != nil || len(slots) == 0 {
+				t.Fatalf("slots=%#v err=%v", slots, err)
+			}
+			hold, err := service.AcquireHold(intent.ID, slots[0].ID, intent.ClientIdentityID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			replay, err := service.CreateCheckout(hold.ID, intent.ClientIdentityID, "SBP")
+			if mismatch {
+				if !errors.Is(err, ErrHoldNotActive) || replay != nil {
+					t.Fatalf("foreign client checkout replay must fail closed: replay=%#v err=%v", replay, err)
+				}
+			} else if err != nil || replay == nil || replay.BookingID != hold.BookingID {
+				t.Fatalf("valid concurrent replay failed: replay=%#v err=%v", replay, err)
+			}
+		})
+	}
+}
