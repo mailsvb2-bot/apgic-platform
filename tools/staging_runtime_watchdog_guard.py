@@ -38,7 +38,7 @@ def validate() -> list[str]:
         "NoNewPrivileges=yes",
         "ProtectSystem=strict",
         "PrivateTmp=yes",
-        "RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6",
+        "RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK",
     ):
         if item not in service:
             errors.append(f"watchdog service missing sandbox invariant: {item}")

@@ -56,6 +56,7 @@ def main() -> None:
         'go build -o bin/apgic-api ./cmd/api',
         'npm run build',
         '=== Reconcile staging maintenance units ===',
+        'apgic-staging-runtime-watchdog.service',
         'apgic-staging-backup.service',
         'apgic-staging-backup.timer',
         'apgic-staging-restore-verify.service',

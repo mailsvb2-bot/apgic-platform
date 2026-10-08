@@ -187,6 +187,7 @@ cd "$REPO_ROOT"
 
 echo "=== Reconcile staging maintenance units ==="
 maintenance_units=(
+  apgic-staging-runtime-watchdog.service
   apgic-staging-backup.service
   apgic-staging-backup.timer
   apgic-staging-restore-verify.service
