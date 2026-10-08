@@ -4,21 +4,21 @@ import "testing"
 
 func validEvidence() evidence {
 	return evidence{
-		SchemaVersion:                "conn001-staging-core-continuity-v1",
-		EvidenceType:                 "STAGING_PROVIDER_NEUTRAL_CORE_PROOF",
-		CandidateSHA:                 "candidate",
-		ObservedAt:                   "2026-10-08T00:00:00Z",
-		Environment:                  "STAGING",
-		ConnectorCapability:          "COMMUNICATION_PROVIDER",
-		ConnectorStatus:              "DISABLED",
-		IdentityPersisted:            true,
-		BookingHoldPersisted:         true,
-		BookingState:                 "HELD",
-		LedgerEffectCount:            1,
-		ProviderExecutionClaimed:     false,
-		CanonicalTruthProviderOwned:  false,
-		BusinessTruthSurvived:        true,
-		ProductionEvidence:           false,
+		SchemaVersion:               "conn001-staging-core-continuity-v1",
+		EvidenceType:                "STAGING_PROVIDER_NEUTRAL_CORE_PROOF",
+		CandidateSHA:                "candidate",
+		ObservedAt:                  "2026-10-08T00:00:00Z",
+		Environment:                 "STAGING",
+		ConnectorCapability:         "COMMUNICATION_PROVIDER",
+		ConnectorStatus:             "DISABLED",
+		IdentityPersisted:           true,
+		BookingHoldPersisted:        true,
+		BookingState:                "HELD",
+		LedgerEffectCount:           1,
+		ProviderExecutionClaimed:    false,
+		CanonicalTruthProviderOwned: false,
+		BusinessTruthSurvived:       true,
+		ProductionEvidence:          false,
 	}
 }
 
