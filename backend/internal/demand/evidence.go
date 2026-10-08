@@ -46,6 +46,13 @@ func (s *Service) ApplyProviderEvent(event ProviderEvent) (*PaymentEvidence, err
 	}
 	key := event.ProviderID + "/" + event.ProviderEventID
 	if existing := s.evidence[key]; existing != nil {
+		// An idempotency key identifies exactly one economic event payload.
+		// Do not disclose the prior capture or accept conflicting provider data.
+		if existing.OrderID != event.OrderID ||
+			existing.AmountMinor != event.AmountMinor ||
+			existing.Currency != strings.ToUpper(strings.TrimSpace(event.Currency)) {
+			return nil, ErrEvidenceMismatch
+		}
 		copyEvidence := *existing
 		copyEvidence.Idempotent = true
 		return &copyEvidence, nil
