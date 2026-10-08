@@ -1,6 +1,10 @@
 package demand
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/booking"
+)
 
 func TestConfirmedBookingNotifiesWithoutMarketingOptInAndGatesJoin(t *testing.T) {
 	service := NewConformanceService(nil)
@@ -42,5 +46,50 @@ func TestConfirmedBookingNotifiesWithoutMarketingOptInAndGatesJoin(t *testing.T)
 	_, closed, err := service.Fulfillment(evidence.BookingID, intent.ClientIdentityID)
 	if err != nil || closed.ReasonCode != "COMM_BOOKING_NOT_JOINABLE" {
 		t.Fatalf("cancelled join = %#v err=%v", closed, err)
+	}
+}
+
+func TestFulfillmentRefreshesBookingChangedByAnotherInstance(t *testing.T) {
+	store := &fakeJourneyStore{}
+	service, err := NewConformanceServiceWithStores(nil, nil, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	intent, err := service.CreateIntent("бессонница")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.ConfirmIntent(intent.ID, []string{"sleep"}, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	slots, err := service.Slots("spec-lebedeva")
+	if err != nil || len(slots) == 0 {
+		t.Fatalf("slots=%#v err=%v", slots, err)
+	}
+	hold, err := service.AcquireHold(intent.ID, slots[0].ID, intent.ClientIdentityID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.CreateCheckout(hold.ID, intent.ClientIdentityID, "SBP"); err != nil {
+		t.Fatal(err)
+	}
+	// Another process commits payment capture, then cancellation. This
+	// instance must not authorize joins from its old PENDING_PAYMENT cache.
+	for _, state := range []booking.State{booking.StateConfirmed, booking.StateCancelled} {
+		for _, booked := range store.snapshot.Bookings {
+			if booked != nil && booked.ID == hold.BookingID {
+				booked.State = state
+			}
+		}
+		_, join, err := service.Fulfillment(hold.BookingID, intent.ClientIdentityID)
+		if err != nil || join == nil {
+			t.Fatalf("refresh state %s: join=%#v err=%v", state, join, err)
+		}
+		if got := service.bookings[hold.BookingID].State; got != state {
+			t.Fatalf("stale booking after refresh got=%s want=%s", got, state)
+		}
+		if state == booking.StateCancelled && join.ReasonCode != "COMM_BOOKING_NOT_JOINABLE" {
+			t.Fatalf("cancelled remote booking must deny join: %#v", join)
+		}
 	}
 }
