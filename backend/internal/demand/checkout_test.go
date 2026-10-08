@@ -252,7 +252,7 @@ func TestCheckoutReplayUsesDurableInstructionAfterCatalogSlotRollsOut(t *testing
 }
 
 func TestCheckoutReplayRejectsMismatchedBookingOwnership(t *testing.T) {
-	for _, mismatch := range []string{"instruction_hold", "instruction_booking", "booking_hold"} {
+	for _, mismatch := range []string{"instruction_hold", "instruction_booking", "booking_hold", "booking_client"} {
 		t.Run(mismatch, func(t *testing.T) {
 			service := NewConformanceService(nil)
 			intent, err := service.CreateIntent("нужна помощь со сном")
@@ -281,6 +281,8 @@ func TestCheckoutReplayRejectsMismatchedBookingOwnership(t *testing.T) {
 				service.instructions[hold.ID].BookingID = "another-booking"
 			case "booking_hold":
 				service.bookings[instruction.BookingID].HoldID = "another-hold"
+			case "booking_client":
+				service.bookings[instruction.BookingID].ClientIdentityID = "another-client"
 			}
 			if replay, err := service.CreateCheckout(hold.ID, intent.ClientIdentityID, "SBP"); !errors.Is(err, ErrHoldNotActive) || replay != nil {
 				t.Fatalf("mismatched %s must fail closed, replay=%#v err=%v", mismatch, replay, err)
