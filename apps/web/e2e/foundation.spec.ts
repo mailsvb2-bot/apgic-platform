@@ -195,10 +195,20 @@ test("failed replacement slot hold hides previous checkout instead of mixing boo
   await expect(page.getByRole("checkbox", { name: "Сон" })).toBeChecked();
   await page.getByRole("button", { name: "Подтвердить и показать специалистов" }).click();
   await page.getByRole("button", { name: "Выбрать время у Марина Лебедева" }).click();
-  const slotButton = page.getByRole("button", { name: /Удержать слот/ }).first();
-  await expect(slotButton).toBeVisible();
-  await slotButton.click();
-  await expect(page.getByRole("heading", { name: "Слот удерживается" })).toBeVisible();
+  const slotButtons = page.getByRole("button", { name: /Удержать слот/ });
+  await expect(slotButtons.first()).toBeVisible();
+  let chosenSlot = -1;
+  const count = await slotButtons.count();
+  for (let index = 0; index < count; index += 1) {
+    await slotButtons.nth(index).click();
+    const success = page.getByRole("heading", { name: "Слот удерживается" });
+    await expect(success.or(page.locator(".journey-alert"))).toBeVisible();
+    if (await success.isVisible()) {
+      chosenSlot = index;
+      break;
+    }
+  }
+  expect(chosenSlot).toBeGreaterThanOrEqual(0);
   await expect(page.getByRole("button", { name: "Выбрать Карта через внешнего провайдера" })).toBeVisible();
 
   await page.route("**/v1/slot-holds", async (route) => {
@@ -208,7 +218,7 @@ test("failed replacement slot hold hides previous checkout instead of mixing boo
     }
     await route.continue();
   });
-  await slotButton.click();
+  await slotButtons.nth(chosenSlot).click();
   await expect(page.locator(".journey-alert")).toContainText("Слот недоступен");
   await expect(page.getByRole("heading", { name: "Слот удерживается" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Выбрать Карта через внешнего провайдера" })).toHaveCount(0);
