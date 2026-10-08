@@ -250,3 +250,41 @@ func TestCheckoutReplayUsesDurableInstructionAfterCatalogSlotRollsOut(t *testing
 		t.Fatalf("foreign durable replay err=%v", err)
 	}
 }
+
+func TestCheckoutReplayRejectsMismatchedBookingOwnership(t *testing.T) {
+	for _, mismatch := range []string{"instruction_hold", "instruction_booking", "booking_hold"} {
+		t.Run(mismatch, func(t *testing.T) {
+			service := NewConformanceService(nil)
+			intent, err := service.CreateIntent("нужна помощь со сном")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := service.ConfirmIntent(intent.ID, []string{"sleep"}, nil, nil); err != nil {
+				t.Fatal(err)
+			}
+			slots, err := service.Slots("spec-lebedeva")
+			if err != nil || len(slots) == 0 {
+				t.Fatalf("slots=%#v err=%v", slots, err)
+			}
+			hold, err := service.AcquireHold(intent.ID, slots[0].ID, intent.ClientIdentityID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			instruction, err := service.CreateCheckout(hold.ID, intent.ClientIdentityID, "SBP")
+			if err != nil {
+				t.Fatal(err)
+			}
+			switch mismatch {
+			case "instruction_hold":
+				service.instructions[hold.ID].HoldID = "another-hold"
+			case "instruction_booking":
+				service.instructions[hold.ID].BookingID = "another-booking"
+			case "booking_hold":
+				service.bookings[instruction.BookingID].HoldID = "another-hold"
+			}
+			if replay, err := service.CreateCheckout(hold.ID, intent.ClientIdentityID, "SBP"); !errors.Is(err, ErrHoldNotActive) || replay != nil {
+				t.Fatalf("mismatched %s must fail closed, replay=%#v err=%v", mismatch, replay, err)
+			}
+		})
+	}
+}
