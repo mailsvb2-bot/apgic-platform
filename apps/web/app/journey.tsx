@@ -196,9 +196,22 @@ export function Journey() {
     event.preventDefault();
     setError("");
     setPending(true);
+    // A new request invalidates the whole previous booking journey, even if
+    // interpreting the replacement request fails.
+    setIntent(null);
+    setTopics([]);
     setMatches(null);
+    setSearch(null);
     setSpecialist(null);
+    setSlots([]);
     setHold(null);
+    setOptions([]);
+    setInstruction(null);
+    setEvidence(null);
+    setCancellation(null);
+    setFulfillment(null);
+    setSession(null);
+    setDeletion(null);
     try {
       const created = await postJSON<Intent>("/v1/help-intents", { free_text: text });
       setIntent(created);
@@ -219,8 +232,19 @@ export function Journey() {
     if (!intent) return;
     setError("");
     setPending(true);
-    setHold(null);
+    // Never leave matches from the previous confirmation actionable while
+    // the changed topics are being confirmed, or after a failed confirmation.
+    setMatches(null);
+    setSearch(null);
     setSpecialist(null);
+    setSlots([]);
+    setHold(null);
+    setOptions([]);
+    setInstruction(null);
+    setEvidence(null);
+    setCancellation(null);
+    setFulfillment(null);
+    setSession(null);
     try {
       const confirmed = await postJSON<Intent>(`/v1/help-intents/${intent.id}/confirm`, { topics });
       setIntent(confirmed);
