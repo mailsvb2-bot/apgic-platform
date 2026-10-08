@@ -188,6 +188,32 @@ test("replacing a help request invalidates stale matches even on API failure", a
   await expect(page.getByRole("navigation", { name: "Этапы записи" }).locator('[aria-current="step"]')).toContainText("Запрос");
 });
 
+test("failed replacement slot hold hides previous checkout instead of mixing bookings", async ({ page }) => {
+  await page.goto("/");
+  await page.getByLabel("С чем нужна помощь").fill("Проблемы со сном, бессонница");
+  await page.getByRole("button", { name: "Разобрать запрос" }).click();
+  await expect(page.getByRole("checkbox", { name: "Сон" })).toBeChecked();
+  await page.getByRole("button", { name: "Подтвердить и показать специалистов" }).click();
+  await page.getByRole("button", { name: "Выбрать время у Марина Лебедева" }).click();
+  const slotButton = page.getByRole("button", { name: /Удержать слот/ }).first();
+  await expect(slotButton).toBeVisible();
+  await slotButton.click();
+  await expect(page.getByRole("heading", { name: "Слот удерживается" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Выбрать Карта через внешнего провайдера" })).toBeVisible();
+
+  await page.route("**/v1/slot-holds", async (route) => {
+    if (route.request().method() === "POST") {
+      await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ message_safe: "Слот недоступен" }) });
+      return;
+    }
+    await route.continue();
+  });
+  await slotButton.click();
+  await expect(page.locator(".journey-alert")).toContainText("Слот недоступен");
+  await expect(page.getByRole("heading", { name: "Слот удерживается" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Выбрать Карта через внешнего провайдера" })).toHaveCount(0);
+});
+
 test("critical journey can be completed from the keyboard", async ({ page }) => {
   await page.goto("/");
   const request = page.getByLabel("С чем нужна помощь");
