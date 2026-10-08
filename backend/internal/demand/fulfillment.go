@@ -66,7 +66,9 @@ func (s *Service) Fulfillment(bookingID, identityID string) (*BookingNotice, *Jo
 	}
 	notice := s.notices[bookingID]
 	var noticeCopy *BookingNotice
-	if notice != nil {
+	// Transactional booking notices belong to the booking's client.
+	// A rejected join must not disclose their details to another identity.
+	if notice != nil && identityID == booked.ClientIdentityID {
 		copied := *notice
 		noticeCopy = &copied
 	}
