@@ -53,7 +53,7 @@ type cancellationRequest struct {
 	ReasonCode string `json:"reason_code"`
 }
 
-func registerDemand(mux *http.ServeMux, service *demand.Service, sessions *clientSessionManager, sessionConfigErr error) {
+func registerDemand(mux *http.ServeMux, service *demand.Service, sessions *clientSessionManager, sessionConfigErr error, allowConformanceProviderEvents bool) {
 	mux.HandleFunc("POST /v1/help-intents", func(w http.ResponseWriter, r *http.Request) {
 		if service == nil {
 			writeDemandError(w, r, http.StatusServiceUnavailable, "DEMAND_CATALOG_UNAVAILABLE", "Каталог спроса не подключён.", false, nil)
@@ -281,6 +281,12 @@ func registerDemand(mux *http.ServeMux, service *demand.Service, sessions *clien
 	})
 
 	mux.HandleFunc("POST /v1/provider-events", func(w http.ResponseWriter, r *http.Request) {
+		// This endpoint exists only for isolated R0 conformance runs.
+		// Browser-originated evidence is never a trusted PSP payment confirmation.
+		if !allowConformanceProviderEvents {
+			writeDemandError(w, r, http.StatusForbidden, "PROVIDER_EVIDENCE_UNVERIFIED", "Подтверждение оплаты принимается только от проверенного внешнего исполнителя.", false, nil)
+			return
+		}
 		if service == nil {
 			writeDemandError(w, r, http.StatusServiceUnavailable, "DEMAND_CATALOG_UNAVAILABLE", "Каталог спроса не подключён.", false, nil)
 			return
