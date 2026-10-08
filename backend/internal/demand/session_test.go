@@ -49,4 +49,8 @@ func TestConsultationCompletesOnlyWithProviderEvidenceAndDoesNotChargeAgain(t *t
 	if again, err := service.CompleteSession(evidence.BookingID, "provider-room-end"); err != nil || !again.Idempotent || again.EvidenceRef != "provider-room-end" {
 		t.Fatalf("original evidence must remain replayable: view=%#v err=%v", again, err)
 	}
+	presenceAgain, err := service.RecordSessionPresence(evidence.BookingID)
+	if err != nil || presenceAgain.State != "COMPLETED" || !presenceAgain.Idempotent || presenceAgain.EvidenceRef != "provider-room-end" {
+		t.Fatalf("completed presence replay lost original provider evidence: view=%#v err=%v", presenceAgain, err)
+	}
 }

@@ -39,7 +39,12 @@ func (s *Service) RecordSessionPresence(bookingID string) (*ConsultationView, er
 		return nil, err
 	}
 	if session.State == consultation.StateCompleted {
-		return sessionView(session, "", true), nil
+		for _, fact := range session.Facts() {
+			if fact.Type == consultation.FactEnded {
+				return sessionView(session, fact.EvidenceRef, true), nil
+			}
+		}
+		return nil, ErrConsultEvidence
 	}
 	now := s.now().UTC()
 	steps := []consultation.Fact{
