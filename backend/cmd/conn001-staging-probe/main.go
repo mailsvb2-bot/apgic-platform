@@ -124,8 +124,11 @@ func runProbe(ctx context.Context, databaseURL, candidateSHA string, now time.Ti
 		return evidence{}, fmt.Errorf("confirm intent with communication provider disabled: %w", err)
 	}
 	slots, err := service.Slots("spec-lebedeva")
-	if err != nil || len(slots) == 0 {
-		return evidence{}, fmt.Errorf("discover slots with communication provider disabled: slots=%d err=%w", len(slots), err)
+	if err != nil {
+		return evidence{}, fmt.Errorf("discover slots with communication provider disabled: %w", err)
+	}
+	if len(slots) == 0 {
+		return evidence{}, errors.New("no staging slots discovered with communication provider disabled")
 	}
 	var hold *demand.Hold
 	for _, slot := range slots {
