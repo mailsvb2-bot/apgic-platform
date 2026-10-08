@@ -307,7 +307,17 @@ export function Journey() {
   async function choose(card: MatchCard) {
     setError("");
     setPending(true);
+    // Changing the specialist invalidates all downstream booking and payment UI.
+    // Even a failed slots lookup must not expose the prior specialist's checkout.
+    setSpecialist(null);
+    setSlots([]);
     setHold(null);
+    setOptions([]);
+    setInstruction(null);
+    setEvidence(null);
+    setCancellation(null);
+    setFulfillment(null);
+    setSession(null);
     try {
       const response = await fetch(`/v1/specialists/${card.specialist_id}/slots`);
       const payload = await response.json();
@@ -325,6 +335,15 @@ export function Journey() {
     if (!intent) return;
     setError("");
     setPending(true);
+    // A new slot attempt must not leave the previous payment instruction
+    // or confirmed booking visible after an unsuccessful hold.
+    setHold(null);
+    setOptions([]);
+    setInstruction(null);
+    setEvidence(null);
+    setCancellation(null);
+    setFulfillment(null);
+    setSession(null);
     try {
       const created = await postJSON<Hold>("/v1/slot-holds", {
         help_intent_id: intent.id,
