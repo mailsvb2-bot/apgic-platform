@@ -55,6 +55,11 @@ func (s *Service) recordBookingNoticeLocked(bookingID string, now time.Time) {
 func (s *Service) Fulfillment(bookingID, identityID string) (*BookingNotice, *JoinResult, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	// Payment capture/cancellation can be committed by a different API instance.
+	// Authorization must consult the durable booking state, not an old cache.
+	if err := s.refreshJourneyLocked(); err != nil {
+		return nil, nil, err
+	}
 	booked := s.bookings[bookingID]
 	if booked == nil {
 		return nil, nil, ErrOrderNotFound
