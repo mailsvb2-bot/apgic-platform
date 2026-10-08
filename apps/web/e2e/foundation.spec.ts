@@ -224,6 +224,35 @@ test("failed replacement slot hold hides previous checkout instead of mixing boo
   await expect(page.getByRole("button", { name: "Выбрать Карта через внешнего провайдера" })).toHaveCount(0);
 });
 
+test("real site never advertises unconfigured payment methods", async ({ page }) => {
+  await page.route("**/v1/meta", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ conformance_provider_events: false }),
+    });
+  });
+  await page.goto("/");
+  await page.getByLabel("С чем нужна помощь").fill("Бессонница и проблемы со сном");
+  await page.getByRole("button", { name: "Разобрать запрос" }).click();
+  await expect(page.getByRole("checkbox", { name: "Сон" })).toBeChecked();
+  await page.getByRole("button", { name: "Подтвердить и показать специалистов" }).click();
+  await page.getByRole("button", { name: "Выбрать время у Марина Лебедева" }).click();
+  const slots = page.getByRole("button", { name: /Удержать слот/ });
+  let held = false;
+  for (let index = 0, count = await slots.count(); index < count; index += 1) {
+    await slots.nth(index).click();
+    const success = page.getByRole("heading", { name: "Слот удерживается" });
+    await expect(success.or(page.locator(".journey-alert"))).toBeVisible();
+    if (await success.isVisible()) { held = true; break; }
+  }
+  expect(held).toBeTruthy();
+  await expect(page.getByText("Онлайн-оплата через внешнего исполнителя пока недоступна.", { exact: false })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Выбрать Карта через внешнего провайдера/ })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Выбрать СБП через внешнего провайдера/ })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Поручение на оплату создано" })).toHaveCount(0);
+});
+
 test("critical journey can be completed from the keyboard", async ({ page }) => {
   await page.goto("/");
   const request = page.getByLabel("С чем нужна помощь");
