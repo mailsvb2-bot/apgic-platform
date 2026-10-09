@@ -56,8 +56,14 @@ func NewHTTPDeliverer(endpoint, principalID, credential string, client *http.Cli
 	if client == nil {
 		client = &http.Client{Timeout: 10 * time.Second}
 	}
+	// Service credentials must never be forwarded to a redirect destination.
+	// A redirect is not an acknowledgement of an outbox event; retain it for retry.
+	isolatedClient := *client
+	isolatedClient.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
 	return &HTTPDeliverer{
-		endpoint: endpoint, principalID: principalID, credential: credential, client: client,
+		endpoint: endpoint, principalID: principalID, credential: credential, client: &isolatedClient,
 	}, nil
 }
 
