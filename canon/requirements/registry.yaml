@@ -739,7 +739,9 @@ requirements:
   - backend/internal/httpapi/consent.go
   - backend/internal/httpapi/demand.go
   - backend/internal/runtimepostgres/consent.go
+  - backend/cmd/api/main.go
   - backend/migrations/000028_r0_consent_ledger.sql
+  - deploy/staging/staging.env.example
   - apps/web/app/journey.tsx
   contract_refs:
   - contracts/openapi/apgic-v1.yaml
@@ -751,6 +753,7 @@ requirements:
   - backend/internal/httpapi/consent_test.go
   - backend/internal/runtimepostgres/consent_test.go
   - apps/web/e2e/foundation.spec.ts
+  - tools/data_consent_contract_guard.py
   - .github/workflows/ci.yml
   evidence_refs:
   - docs/traceability/R0-foundation-verification-batch.md
