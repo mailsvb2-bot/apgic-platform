@@ -98,6 +98,26 @@ case ",$APGIC_MOBILE_SUPPORTED_CONTRACTS," in
     ;;
 esac
 
+outbox_enabled="${APGIC_OUTBOX_WORKER_ENABLED:-0}"
+case "$outbox_enabled" in
+  0)
+    ;;
+  1)
+    : "${APGIC_EVENT_GATEWAY_URL:?APGIC_EVENT_GATEWAY_URL is required when APGIC_OUTBOX_WORKER_ENABLED=1}"
+    : "${APGIC_EVENT_GATEWAY_PRINCIPAL_ID:?APGIC_EVENT_GATEWAY_PRINCIPAL_ID is required when APGIC_OUTBOX_WORKER_ENABLED=1}"
+    : "${APGIC_EVENT_GATEWAY_CREDENTIAL:?APGIC_EVENT_GATEWAY_CREDENTIAL is required when APGIC_OUTBOX_WORKER_ENABLED=1}"
+    validate_https_url "$APGIC_EVENT_GATEWAY_URL" || { echo "invalid APGIC_EVENT_GATEWAY_URL" >&2; exit 1; }
+    if (( ${#APGIC_EVENT_GATEWAY_CREDENTIAL} < 32 )); then
+      echo "APGIC_EVENT_GATEWAY_CREDENTIAL must be at least 32 bytes" >&2
+      exit 1
+    fi
+    ;;
+  *)
+    echo "APGIC_OUTBOX_WORKER_ENABLED must be 0 or 1" >&2
+    exit 1
+    ;;
+esac
+
 CURRENT_SHA="$APGIC_COMMIT_SHA"
 
 git fetch origin main
@@ -275,27 +295,14 @@ echo "=== Restart runtime ==="
 systemctl restart apgic-api-staging.service
 systemctl restart apgic-web-staging.service
 
-outbox_enabled="${APGIC_OUTBOX_WORKER_ENABLED:-0}"
 case "$outbox_enabled" in
   0)
     systemctl disable --now apgic-outbox-worker-staging.service >/dev/null 2>&1 || true
     echo "APGIC outbox worker: disabled (EVENT-001 remains without staging delivery evidence)"
     ;;
   1)
-    : "${APGIC_EVENT_GATEWAY_URL:?APGIC_EVENT_GATEWAY_URL is required when APGIC_OUTBOX_WORKER_ENABLED=1}"
-    : "${APGIC_EVENT_GATEWAY_PRINCIPAL_ID:?APGIC_EVENT_GATEWAY_PRINCIPAL_ID is required when APGIC_OUTBOX_WORKER_ENABLED=1}"
-    : "${APGIC_EVENT_GATEWAY_CREDENTIAL:?APGIC_EVENT_GATEWAY_CREDENTIAL is required when APGIC_OUTBOX_WORKER_ENABLED=1}"
-    validate_https_url "$APGIC_EVENT_GATEWAY_URL" || { echo "invalid APGIC_EVENT_GATEWAY_URL" >&2; exit 1; }
-    if (( ${#APGIC_EVENT_GATEWAY_CREDENTIAL} < 32 )); then
-      echo "APGIC_EVENT_GATEWAY_CREDENTIAL must be at least 32 bytes" >&2
-      exit 1
-    fi
     systemctl enable apgic-outbox-worker-staging.service >/dev/null
     systemctl restart apgic-outbox-worker-staging.service
-    ;;
-  *)
-    echo "APGIC_OUTBOX_WORKER_ENABLED must be 0 or 1" >&2
-    exit 1
     ;;
 esac
 
