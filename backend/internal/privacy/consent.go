@@ -16,6 +16,31 @@ var (
 	ErrConsentRevoked  = errors.New("consent record is revoked")
 )
 
+type ConsentPolicy struct {
+	Purpose           string
+	PolicyVersion     string
+	TextHashOrVersion string
+}
+
+func NewConsentPolicy(purpose, policyVersion, textHashOrVersion string) (ConsentPolicy, error) {
+	policy := ConsentPolicy{
+		Purpose:           strings.TrimSpace(purpose),
+		PolicyVersion:     strings.TrimSpace(policyVersion),
+		TextHashOrVersion: strings.TrimSpace(textHashOrVersion),
+	}
+	if policy.Purpose == "" || policy.PolicyVersion == "" || policy.TextHashOrVersion == "" {
+		return ConsentPolicy{}, ErrInvalidConsent
+	}
+	return policy, nil
+}
+
+func (p ConsentPolicy) Matches(record ConsentRecord) bool {
+	return p.Purpose != "" &&
+		record.Purpose == p.Purpose &&
+		record.PolicyVersion == p.PolicyVersion &&
+		record.TextHashOrVersion == p.TextHashOrVersion
+}
+
 type ConsentRecord struct {
 	ID                string          `json:"consent_id"`
 	SubjectID         string          `json:"subject_id"`
