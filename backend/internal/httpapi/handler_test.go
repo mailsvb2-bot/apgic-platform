@@ -2,6 +2,9 @@ package httpapi
 
 import (
 	"context"
+	"crypto/ed25519"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -9,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/connector"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/demand"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/launchconfig"
 )
 
@@ -35,6 +40,135 @@ func TestPublicProviderEventCannotSelfAttestPayment(t *testing.T) {
 	handler.ServeHTTP(meta, httptest.NewRequest(http.MethodGet, "/v1/meta", nil))
 	if contains(meta.Body.String(), "\"conformance_provider_events\":true") {
 		t.Fatalf("default runtime must not advertise synthetic captures: %s", meta.Body.String())
+	}
+}
+
+type providerWebhookKeyMap map[string]ed25519.PublicKey
+
+func (m providerWebhookKeyMap) ResolveWebhookPublicKey(connectorInstanceID, keyID string) (ed25519.PublicKey, bool) {
+	key, ok := m[connectorInstanceID+"/"+keyID]
+	return key, ok
+}
+
+func signProviderWebhook(t *testing.T, envelope connector.WebhookEnvelope, privateKey ed25519.PrivateKey) connector.WebhookEnvelope {
+	t.Helper()
+	message, err := json.Marshal(struct {
+		ConnectorInstanceID string          `json:"connector_instance_id"`
+		ExternalEventID     string          `json:"external_event_id"`
+		StreamID            string          `json:"stream_id"`
+		Sequence            uint64          `json:"sequence"`
+		KeyID               string          `json:"key_id"`
+		OccurredAt          time.Time       `json:"occurred_at"`
+		Payload             json.RawMessage `json:"payload"`
+	}{
+		ConnectorInstanceID: envelope.ConnectorInstanceID,
+		ExternalEventID:     envelope.ExternalEventID,
+		StreamID:            envelope.StreamID,
+		Sequence:            envelope.Sequence,
+		KeyID:               envelope.KeyID,
+		OccurredAt:          envelope.OccurredAt,
+		Payload:             envelope.Payload,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	envelope.Signature = base64.StdEncoding.EncodeToString(ed25519.Sign(privateKey, message))
+	return envelope
+}
+
+func TestTrustedProviderWebhookRequiresSignatureAndConfirmsExactlyOnce(t *testing.T) {
+	service := demand.NewConformanceService(nil)
+	intent, err := service.CreateIntent("бессонница")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.ConfirmIntent(intent.ID, []string{"sleep"}, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	slots, err := service.Slots("spec-lebedeva")
+	if err != nil || len(slots) == 0 {
+		t.Fatalf("slots=%#v err=%v", slots, err)
+	}
+	hold, err := service.AcquireHold(intent.ID, slots[0].ID, intent.ClientIdentityID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	instruction, err := service.CreateCheckout(hold.ID, intent.ClientIdentityID, "BANK_CARD")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	publicKey, privateKey, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const connectorID = "payment-connector-sandbox"
+	const keyID = "provider-key-v1"
+	eventID := "provider-event-signed"
+	payload, err := json.Marshal(providerEventRequest{
+		ProviderID:      instruction.ProviderID,
+		ProviderEventID: eventID,
+		OrderID:         instruction.OrderID,
+		AmountMinor:     instruction.AmountMinor,
+		Currency:        instruction.Currency,
+		Outcome:         "CAPTURED",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	envelope := signProviderWebhook(t, connector.WebhookEnvelope{
+		ConnectorInstanceID: connectorID,
+		ExternalEventID:     eventID,
+		StreamID:            "payment/" + instruction.OrderID,
+		Sequence:            1,
+		KeyID:               keyID,
+		OccurredAt:          time.Date(2026, 10, 9, 7, 0, 0, 0, time.UTC),
+		Payload:             payload,
+	}, privateKey)
+
+	handler := New(Options{
+		Demand:              service,
+		ProviderWebhookKeys: providerWebhookKeyMap{connectorID + "/" + keyID: publicKey},
+	})
+	encoded, err := json.Marshal(envelope)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	first := httptest.NewRecorder()
+	handler.ServeHTTP(first, httptest.NewRequest(http.MethodPost, "/v1/provider-webhooks", strings.NewReader(string(encoded))))
+	if first.Code != http.StatusCreated || !contains(first.Body.String(), "\"booking_state\":\"CONFIRMED\"") {
+		t.Fatalf("signed provider webhook status=%d body=%s", first.Code, first.Body.String())
+	}
+
+	replay := httptest.NewRecorder()
+	handler.ServeHTTP(replay, httptest.NewRequest(http.MethodPost, "/v1/provider-webhooks", strings.NewReader(string(encoded))))
+	if replay.Code != http.StatusOK || !contains(replay.Body.String(), "\"idempotent\":true") {
+		t.Fatalf("signed provider webhook replay status=%d body=%s", replay.Code, replay.Body.String())
+	}
+
+	forgedEnvelope := envelope
+	forgedEnvelope.Payload = append(json.RawMessage(nil), envelope.Payload...)
+	var forged providerEventRequest
+	if err := json.Unmarshal(forgedEnvelope.Payload, &forged); err != nil {
+		t.Fatal(err)
+	}
+	forged.AmountMinor++
+	forgedEnvelope.Payload, _ = json.Marshal(forged)
+	forgedEncoded, _ := json.Marshal(forgedEnvelope)
+	forgedResponse := httptest.NewRecorder()
+	handler.ServeHTTP(forgedResponse, httptest.NewRequest(http.MethodPost, "/v1/provider-webhooks", strings.NewReader(string(forgedEncoded))))
+	if forgedResponse.Code != http.StatusUnauthorized || !contains(forgedResponse.Body.String(), "PROVIDER_WEBHOOK_UNVERIFIED") {
+		t.Fatalf("tampered signed webhook status=%d body=%s", forgedResponse.Code, forgedResponse.Body.String())
+	}
+}
+
+func TestTrustedProviderWebhookFailsClosedWithoutConfiguredProviderKey(t *testing.T) {
+	handler := New(Options{Demand: demand.NewConformanceService(nil)})
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, "/v1/provider-webhooks", strings.NewReader(`{"connector_instance_id":"payment","external_event_id":"evt","stream_id":"payment/order","sequence":1,"key_id":"k","occurred_at":"2026-10-09T07:00:00Z","payload":{"provider_id":"external-bank"},"signature":"ZmFrZQ=="}`)))
+	if recorder.Code != http.StatusUnauthorized || !contains(recorder.Body.String(), "PROVIDER_WEBHOOK_UNVERIFIED") {
+		t.Fatalf("unconfigured provider webhook status=%d body=%s", recorder.Code, recorder.Body.String())
 	}
 }
 
