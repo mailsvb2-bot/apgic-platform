@@ -14,7 +14,7 @@ const (
 
 var (
 	ErrPurposeConsentRequired = errors.New("purpose-specific consent required")
-	ErrClassificationUnknown = errors.New("data classification is unknown")
+	ErrClassificationUnknown  = errors.New("data classification is unknown")
 )
 
 func CanExportToGrowth(classification Classification, purposeConsent bool) error {
