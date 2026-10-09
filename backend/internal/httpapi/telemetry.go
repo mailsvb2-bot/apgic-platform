@@ -190,6 +190,21 @@ func (w *statusCapturingWriter) Write(body []byte) (int, error) {
 	return w.ResponseWriter.Write(body)
 }
 
+func canonicalRoutePattern(method, pattern string) string {
+	pattern = strings.TrimSpace(pattern)
+	if pattern == "" {
+		return "UNMATCHED"
+	}
+	prefix := strings.TrimSpace(method) + " "
+	if strings.HasPrefix(pattern, prefix) {
+		pattern = strings.TrimSpace(strings.TrimPrefix(pattern, prefix))
+	}
+	if pattern == "" {
+		return "UNMATCHED"
+	}
+	return pattern
+}
+
 func observeRuntimeSLI(next http.Handler, sli *runtimeSLI) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		started := time.Now()
@@ -199,6 +214,6 @@ func observeRuntimeSLI(next http.Handler, sli *runtimeSLI) http.Handler {
 		if status == 0 {
 			status = http.StatusOK
 		}
-		sli.observeHTTP(r.Method, r.Pattern, status, time.Since(started))
+		sli.observeHTTP(r.Method, canonicalRoutePattern(r.Method, r.Pattern), status, time.Since(started))
 	})
 }
