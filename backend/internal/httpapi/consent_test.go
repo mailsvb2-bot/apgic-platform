@@ -117,15 +117,15 @@ func TestGrowthExportIgnoresClientAssertedConsentWithoutLedgerEvidence(t *testin
 	// processing after the active policy rotates.
 	store.records = map[string]privacy.ConsentRecord{
 		"old-consent": {
-			ID: "old-consent",
-			SubjectID: ownerID,
-			Purpose: privacy.PurposeGrowthSessionProjection,
-			Scope: privacy.GrowthConsentScope(hold.BookingID),
-			PolicyVersion: "growth-old",
+			ID:                "old-consent",
+			SubjectID:         ownerID,
+			Purpose:           privacy.PurposeGrowthSessionProjection,
+			Scope:             privacy.GrowthConsentScope(hold.BookingID),
+			PolicyVersion:     "growth-old",
 			TextHashOrVersion: "sha256:old",
-			GrantedAt: time.Now().UTC().Add(-time.Minute),
-			Source: "TEST",
-			ProofMetadata: []byte(`{"proof":"old"}`),
+			GrantedAt:         time.Now().UTC().Add(-time.Minute),
+			Source:            "TEST",
+			ProofMetadata:     []byte(`{"proof":"old"}`),
 		},
 	}
 	rotated := httptest.NewRequest(http.MethodPost, "/v1/consultations/"+hold.BookingID+"/growth-export", nil)
@@ -205,10 +205,10 @@ func TestConsentEndpointRejectsStalePolicyVersion(t *testing.T) {
 	now := time.Date(2030, 2, 3, 4, 5, 6, 0, time.UTC)
 	store := &memoryConsentStore{}
 	handler := New(Options{
-		Consents: store,
-		ConsentPolicies: testGrowthConsentPolicies(t),
+		Consents:         store,
+		ConsentPolicies:  testGrowthConsentPolicies(t),
 		ClientSessionKey: key,
-		Now: func() time.Time { return now },
+		Now:              func() time.Time { return now },
 	})
 	manager, err := newClientSessionManager(key, func() time.Time { return now })
 	if err != nil {
