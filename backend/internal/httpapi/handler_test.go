@@ -232,6 +232,49 @@ func TestReadinessFailsClosedWhenStorageIsUnavailable(t *testing.T) {
 	}
 }
 
+func TestRuntimeSLIExposesLatencyStatusAndReadinessReasonWithoutRawPathIDs(t *testing.T) {
+	handler := New(Options{
+		LaunchConfig: readyConfig(),
+		ReadinessCheck: func(context.Context) error {
+			return errors.New("database unavailable")
+		},
+	})
+
+	ready := httptest.NewRecorder()
+	handler.ServeHTTP(ready, httptest.NewRequest(http.MethodGet, "/readyz", nil))
+	if ready.Code != http.StatusServiceUnavailable {
+		t.Fatalf("readiness status = %d", ready.Code)
+	}
+
+	unmatched := httptest.NewRecorder()
+	handler.ServeHTTP(unmatched, httptest.NewRequest(http.MethodGet, "/v1/private-object/secret-identifier", nil))
+	if unmatched.Code != http.StatusNotFound {
+		t.Fatalf("unmatched status = %d", unmatched.Code)
+	}
+
+	metrics := httptest.NewRecorder()
+	handler.ServeHTTP(metrics, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	if metrics.Code != http.StatusOK {
+		t.Fatalf("metrics status = %d body=%s", metrics.Code, metrics.Body.String())
+	}
+	body := metrics.Body.String()
+	for _, expected := range []string{
+		"apgic_http_requests_total",
+		"apgic_http_request_duration_milliseconds_bucket",
+		"route=\"/readyz\"",
+		"status=\"503\"",
+		"apgic_readiness_checks_total{result=\"not_ready\",reason=\"STORAGE_UNAVAILABLE\"} 1",
+		"route=\"UNMATCHED\"",
+	} {
+		if !contains(body, expected) {
+			t.Fatalf("metrics missing %q:\n%s", expected, body)
+		}
+	}
+	if contains(body, "secret-identifier") {
+		t.Fatalf("metrics leaked raw request path identifier: %s", body)
+	}
+}
+
 func TestMetaIsStableAndEvidenceBearing(t *testing.T) {
 	now := time.Date(2026, 9, 23, 17, 0, 0, 0, time.UTC)
 	handler := New(Options{
