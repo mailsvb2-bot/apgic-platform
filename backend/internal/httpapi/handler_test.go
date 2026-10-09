@@ -38,6 +38,41 @@ func TestPublicProviderEventCannotSelfAttestPayment(t *testing.T) {
 	}
 }
 
+
+func TestPublicCheckoutDoesNotExposeConformancePaymentByDefault(t *testing.T) {
+	handler := New(Options{})
+
+	options := httptest.NewRecorder()
+	handler.ServeHTTP(options, httptest.NewRequest(http.MethodGet, "/v1/slot-holds/forged/checkout-options", nil))
+	if options.Code != http.StatusOK {
+		t.Fatalf("checkout options status = %d, body=%s", options.Code, options.Body.String())
+	}
+	if !contains(options.Body.String(), "EXTERNAL_PAYMENT_UNAVAILABLE") {
+		t.Fatalf("expected unavailable payment reason: %s", options.Body.String())
+	}
+	if contains(options.Body.String(), "external-bank") || contains(options.Body.String(), "BANK_CARD") || contains(options.Body.String(), "SBP") {
+		t.Fatalf("public runtime exposed conformance payment methods: %s", options.Body.String())
+	}
+
+	checkout := httptest.NewRecorder()
+	handler.ServeHTTP(checkout, httptest.NewRequest(http.MethodPost, "/v1/checkout-instructions", strings.NewReader(`{"hold_id":"forged","client_identity_id":"forged","method_code":"BANK_CARD"}`)))
+	if checkout.Code != http.StatusServiceUnavailable {
+		t.Fatalf("checkout status = %d, body=%s", checkout.Code, checkout.Body.String())
+	}
+	if !contains(checkout.Body.String(), "EXTERNAL_PAYMENT_UNAVAILABLE") {
+		t.Fatalf("expected fail-closed checkout boundary: %s", checkout.Body.String())
+	}
+
+	mobile := httptest.NewRecorder()
+	handler.ServeHTTP(mobile, httptest.NewRequest(http.MethodPost, "/v1/mobile/checkout-instructions", strings.NewReader(`{"hold_id":"forged","method_code":"BANK_CARD"}`)))
+	if mobile.Code != http.StatusServiceUnavailable {
+		t.Fatalf("mobile checkout status = %d, body=%s", mobile.Code, mobile.Body.String())
+	}
+	if !contains(mobile.Body.String(), "EXTERNAL_PAYMENT_UNAVAILABLE") {
+		t.Fatalf("expected fail-closed mobile checkout boundary: %s", mobile.Body.String())
+	}
+}
+
 func TestHealthDoesNotPretendToBeReadiness(t *testing.T) {
 	handler := New(Options{})
 
