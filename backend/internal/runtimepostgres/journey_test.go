@@ -92,7 +92,11 @@ func TestJourneyCheckoutRejectsDraftProductWithoutSideEffects(t *testing.T) {
 	store := &Checker{db: db}
 	defer store.Close()
 
-	now := time.Now().UTC().Truncate(time.Second)
+	// Put the first catalog just before the hold-TTL boundary. One minute later
+	// a freshly constructed catalog rolls its first visible slot to the next day,
+	// while the already-acquired durable hold is still active. This makes the
+	// restart/replay regression deterministic instead of wall-clock dependent.
+	now := time.Date(2030, 1, 2, 9, 44, 30, 0, time.UTC)
 	service, err := demand.NewConformanceServiceWithStores(func() time.Time { return now }, store, store)
 	if err != nil {
 		t.Fatal(err)

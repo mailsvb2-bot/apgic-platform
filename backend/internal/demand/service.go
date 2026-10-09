@@ -545,6 +545,17 @@ func (s *Service) AcquireHold(intentID, slotID, clientIdentityID string) (*Hold,
 	if intent.ClientIdentityID != clientIdentityID {
 		return nil, ErrIdentityMismatch
 	}
+	// An idempotent replay of an already-durable active hold must not depend on
+	// whether the current catalog projection still advertises the slot. The
+	// projection can legitimately roll forward while the hold remains active.
+	if existingID, held := s.slotHolds[slotID]; held {
+		existing := s.holds[existingID]
+		if existing != nil && existing.ClientIdentityID == clientIdentityID && existing.State == "ACTIVE" {
+			copyHold := *existing
+			return &copyHold, nil
+		}
+		return nil, ErrSlotHeld
+	}
 	slot, ok := s.slot(slotID)
 	if !ok {
 		return nil, ErrSlotNotFound
@@ -558,14 +569,6 @@ func (s *Service) AcquireHold(intentID, slotID, clientIdentityID string) (*Hold,
 	}
 	if s.slotBookedLocked(slot.ID) {
 		return nil, ErrSlotBooked
-	}
-	if existingID, held := s.slotHolds[slot.ID]; held {
-		existing := s.holds[existingID]
-		if existing != nil && existing.ClientIdentityID == clientIdentityID && existing.State == "ACTIVE" {
-			copyHold := *existing
-			return &copyHold, nil
-		}
-		return nil, ErrSlotHeld
 	}
 	expires := now.Add(holdTTL)
 	if !slot.StartsAt.After(expires) {

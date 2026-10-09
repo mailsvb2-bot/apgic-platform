@@ -1,0 +1,71 @@
+name: Production launch preflight
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: Launch profile to validate
+        required: true
+        type: choice
+        options:
+          - R0
+          - R1
+          - R2
+          - R3
+          - R4
+      launch_config:
+        description: Repository path to an approved PRODUCTION launch config
+        required: true
+        default: config/launch.production.yaml
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-launch-preflight
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    name: Exact-main production config preflight
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - name: Require exact current main candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/main"
+          git fetch origin main --no-tags
+          test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
+      - name: Install preflight dependencies
+        run: python -m pip install -r requirements-dev.txt
+      - name: Fail closed on missing or non-production policy
+        env:
+          APGIC_PROFILE: ${{ inputs.profile }}
+          APGIC_LAUNCH_CONFIG: ${{ inputs.launch_config }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/launch_config_guard.py             "$APGIC_LAUNCH_CONFIG"             --mode production             --profile "$APGIC_PROFILE"
+      - name: Bind preflight evidence to exact candidate and policy bytes
+        env:
+          APGIC_PROFILE: ${{ inputs.profile }}
+          APGIC_LAUNCH_CONFIG: ${{ inputs.launch_config }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/production_preflight_evidence.py             --candidate-sha "$GITHUB_SHA"             --profile "$APGIC_PROFILE"             --config "$APGIC_LAUNCH_CONFIG"             --output evidence/production-preflight.json
+      - uses: actions/upload-artifact@v7
+        with:
+          name: production-preflight-${{ inputs.profile }}-${{ github.sha }}
+          path: evidence/production-preflight.json
+          if-no-files-found: error
+          retention-days: 90
