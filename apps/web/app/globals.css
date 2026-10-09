@@ -1313,3 +1313,14 @@ fieldset {
     font-size: min(9vw, 3rem);
   }
 }
+
+/* Guided entry points remain part of the real, editable booking journey. */
+.quick-start-block { display: grid; gap: 10px; padding: 16px; border: 1px solid #d9e6db; border-radius: 18px; background: #f2f7f0; }
+.quick-start-caption { margin: 0; font-weight: 800; color: #234636; }
+.quick-start-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+.quick-start-options .quick-start-option { width: 100%; border: 1px solid #aec9b5; border-radius: 14px; padding: 12px 14px; text-align: left; background: #fff; color: #1a4633; font-weight: 700; cursor: pointer; }
+.quick-start-options .quick-start-option:hover { background: #e4f1e6; border-color: #397956; }
+.quick-start-options .quick-start-option[aria-pressed="true"] { background: #d7ecdd; border-color: #397956; box-shadow: inset 0 0 0 1px #397956; }
+.quick-start-options .quick-start-option:disabled { opacity: .6; cursor: not-allowed; }
+.quick-start-help { margin: 0; font-size: .86rem; line-height: 1.5; color: #526a5a; }
+@media (max-width: 560px) { .quick-start-options { grid-template-columns: 1fr; } }
