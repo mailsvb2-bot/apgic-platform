@@ -114,12 +114,24 @@ func (c *Checker) PendingOutbox(limit int) ([]eventspine.OutboxRecord, error) {
 	defer cancel()
 
 	rows, err := c.db.QueryContext(ctx,
-		`SELECT event_id::text, idempotency_key, event_type, schema_version, aggregate_ref,
+		`WITH aggregate_heads AS (
+		   SELECT event_id, idempotency_key, event_type, schema_version, aggregate_ref,
+		          aggregate_version, tenant_scope, correlation_id, causation_id,
+		          occurred_at, produced_at, producer, payload, delivery_status, attempts,
+		          delivered_at,
+		          ROW_NUMBER() OVER (
+		            PARTITION BY aggregate_ref
+		            ORDER BY aggregate_version, produced_at, event_id
+		          ) AS aggregate_position
+		     FROM outbox_events
+		    WHERE delivery_status = 'PENDING'
+		 )
+		 SELECT event_id::text, idempotency_key, event_type, schema_version, aggregate_ref,
 		        aggregate_version, tenant_scope, correlation_id, causation_id,
 		        occurred_at, produced_at, producer, payload::text,
 		        delivery_status, attempts, delivered_at
-		   FROM outbox_events
-		  WHERE delivery_status = 'PENDING'
+		   FROM aggregate_heads
+		  WHERE aggregate_position = 1
 		  ORDER BY produced_at, event_id
 		  LIMIT $1`,
 		limit,
@@ -155,16 +167,24 @@ func (c *Checker) DeliverPendingOutbox(ctx context.Context, limit int, deliver O
 		return 0, err
 	}
 	delivered := 0
+	blockedAggregates := make(map[string]struct{})
+	var deliveryErrors []error
 	for _, candidate := range pending {
+		aggregateRef := strings.TrimSpace(candidate.Event.AggregateRef)
+		if _, blocked := blockedAggregates[aggregateRef]; blocked {
+			continue
+		}
 		ok, err := c.deliverOneOutbox(ctx, candidate.Event.EventID, deliver)
 		if err != nil {
-			return delivered, err
+			blockedAggregates[aggregateRef] = struct{}{}
+			deliveryErrors = append(deliveryErrors, err)
+			continue
 		}
 		if ok {
 			delivered++
 		}
 	}
-	return delivered, nil
+	return delivered, errors.Join(deliveryErrors...)
 }
 
 func (c *Checker) deliverOneOutbox(parent context.Context, eventID string, deliver OutboxDeliverer) (bool, error) {

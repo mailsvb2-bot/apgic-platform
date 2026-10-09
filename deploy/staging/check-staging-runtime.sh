@@ -19,6 +19,32 @@ fi
 curl -fsS --max-time 5 "http://${APGIC_HTTP_ADDR}/healthz" | grep -q '"status":"ok"'
 curl -fsS --max-time 5 "http://${APGIC_HTTP_ADDR}/readyz" | grep -q '"status":"ready"'
 
+outbox_enabled="${APGIC_OUTBOX_WORKER_ENABLED:-0}"
+if [[ "$outbox_enabled" == "1" ]]; then
+    : "${APGIC_DATABASE_URL:?APGIC_DATABASE_URL is required when outbox worker is enabled}"
+    if ! systemctl is-active --quiet apgic-outbox-worker-staging.service; then
+        echo "APGIC staging runtime watchdog: outbox worker is not active" >&2
+        exit 1
+    fi
+    max_pending_age="${APGIC_OUTBOX_MAX_PENDING_AGE_SECONDS:-300}"
+    if [[ ! "$max_pending_age" =~ ^[1-9][0-9]*$ ]]; then
+        echo "APGIC_OUTBOX_MAX_PENDING_AGE_SECONDS must be a positive integer" >&2
+        exit 1
+    fi
+    stale_pending="$(psql "$APGIC_DATABASE_URL" -Atqc "SELECT count(*) FROM outbox_events WHERE delivery_status = 'PENDING' AND produced_at < now() - make_interval(secs => $max_pending_age::double precision)")"
+    if [[ ! "$stale_pending" =~ ^[0-9]+$ ]]; then
+        echo "APGIC staging runtime watchdog: could not read outbox backlog" >&2
+        exit 1
+    fi
+    if (( stale_pending > 0 )); then
+        echo "APGIC staging runtime watchdog: stale outbox backlog=$stale_pending max_age_seconds=$max_pending_age" >&2
+        exit 1
+    fi
+elif [[ "$outbox_enabled" != "0" ]]; then
+    echo "APGIC_OUTBOX_WORKER_ENABLED must be 0 or 1" >&2
+    exit 1
+fi
+
 meta="$(curl -fsS --max-time 5 "http://${APGIC_HTTP_ADDR}/v1/meta")"
 python3 - "$APGIC_COMMIT_SHA" "$meta" <<'PY'
 import json

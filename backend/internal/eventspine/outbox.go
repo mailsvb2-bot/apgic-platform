@@ -49,7 +49,8 @@ func NewRecord(event EventEnvelope) (OutboxRecord, error) {
 		strings.TrimSpace(event.Producer) == "" ||
 		strings.TrimSpace(event.CorrelationID) == "" ||
 		len(event.PayloadJSON) == 0 ||
-		!json.Valid(event.PayloadJSON) {
+		!json.Valid(event.PayloadJSON) ||
+		!isJSONObject(event.PayloadJSON) {
 		return OutboxRecord{}, ErrInvalidEvent
 	}
 	if event.ProducedAt.IsZero() {
@@ -66,4 +67,12 @@ func (o *OutboxRecord) MarkDelivered(at time.Time) bool {
 	o.Status = Delivered
 	o.DeliveredAt = &at
 	return true
+}
+
+func isJSONObject(raw []byte) bool {
+	var value map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return false
+	}
+	return value != nil
 }

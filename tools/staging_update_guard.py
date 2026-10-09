@@ -54,8 +54,10 @@ def main() -> None:
         'deploy/staging/apply-staging-migrations.sh',
         '=== Reconcile migration ledger ===',
         'go build -o bin/apgic-api ./cmd/api',
+        'go build -o bin/apgic-outbox-worker ./cmd/outbox-worker',
         'npm run build',
         '=== Reconcile staging maintenance units ===',
+        'apgic-outbox-worker-staging.service',
         'apgic-staging-runtime-watchdog.service',
         'apgic-staging-backup.service',
         'apgic-staging-backup.timer',
@@ -66,6 +68,12 @@ def main() -> None:
         'systemctl enable --now apgic-staging-backup.timer apgic-staging-restore-verify.timer',
         'systemctl restart apgic-api-staging.service',
         'systemctl restart apgic-web-staging.service',
+        'APGIC_OUTBOX_WORKER_ENABLED',
+        'APGIC_EVENT_GATEWAY_URL',
+        'APGIC_EVENT_GATEWAY_PRINCIPAL_ID',
+        'APGIC_EVENT_GATEWAY_CREDENTIAL',
+        'systemctl restart apgic-outbox-worker-staging.service',
+        'systemctl disable --now apgic-outbox-worker-staging.service',
         'wait_for_http()',
         'wait_for_http "API" "http://127.0.0.1:43111/readyz" 30 1',
         'wait_for_http "Web" "http://127.0.0.1:43112/" 30 1',
@@ -77,13 +85,15 @@ def main() -> None:
         require(text, needle)
 
     ordered(text, 'flock -n 9', 'APGIC_MOBILE_POLICY_VERSION is required')
-    ordered(text, 'APGIC_MOBILE_POLICY_VERSION is required', 'git fetch origin main')
+    ordered(text, 'APGIC_MOBILE_POLICY_VERSION is required', 'APGIC_OUTBOX_WORKER_ENABLED')
+    ordered(text, 'APGIC_OUTBOX_WORKER_ENABLED', 'git fetch origin main')
     ordered(text, 'git fetch origin main', 'git merge-base --is-ancestor')
     ordered(text, 'git merge-base --is-ancestor', 'target deployment requires missing environment key')
     ordered(text, 'target deployment requires missing environment key', 'git reset --hard "$TARGET_SHA"')
     ordered(text, 'git reset --hard "$TARGET_SHA"', '=== Re-exec target updater ===')
     ordered(text, '=== Re-exec target updater ===', 'go build -o bin/apgic-api ./cmd/api')
-    ordered(text, 'go build -o bin/apgic-api ./cmd/api', "SELECT to_regclass('public.apgic_schema_migrations') IS NOT NULL")
+    ordered(text, 'go build -o bin/apgic-api ./cmd/api', 'go build -o bin/apgic-outbox-worker ./cmd/outbox-worker')
+    ordered(text, 'go build -o bin/apgic-outbox-worker ./cmd/outbox-worker', "SELECT to_regclass('public.apgic_schema_migrations') IS NOT NULL")
     ordered(text, 'npm run build', '=== Reconcile staging maintenance units ===')
     ordered(text, '=== Reconcile staging maintenance units ===', "SELECT to_regclass('public.apgic_schema_migrations') IS NOT NULL")
     ordered(text, "SELECT to_regclass('public.apgic_schema_migrations') IS NOT NULL", 'systemctl start apgic-staging-backup.service')
