@@ -60,6 +60,12 @@ Install the four systemd units/timers from deploy/staging, run systemctl daemon-
 Timeweb VM snapshots complement this logical backup path; they do not replace logical restore verification.
 
 
+## Transactional outbox worker
+
+EVENT-001 uses a separate worker process rather than delivering external side effects inside API request handling. It is deliberately disabled unless a real compatible Event Gateway has been configured.
+
+Set `APGIC_OUTBOX_WORKER_ENABLED=1` in `/etc/apgic/staging.env` only together with an HTTPS `APGIC_EVENT_GATEWAY_URL`, `APGIC_EVENT_GATEWAY_PRINCIPAL_ID`, and a minimum 32-byte `APGIC_EVENT_GATEWAY_CREDENTIAL`. Optional `APGIC_OUTBOX_BATCH_SIZE`, `APGIC_OUTBOX_POLL_INTERVAL_MS`, and `APGIC_OUTBOX_MAX_PENDING_AGE_SECONDS` tune delivery and watchdog thresholds. When disabled, staging must not be cited as EVENT-001 external-delivery evidence.
+
 ## Runtime watchdog
 
 A systemd watchdog verifies the live staging runtime without using public DNS:
@@ -68,6 +74,7 @@ A systemd watchdog verifies the live staging runtime without using public DNS:
 - checks /v1/meta and requires commit_sha to equal APGIC_COMMIT_SHA from /etc/apgic/staging.env;
 - checks the APGIC Nginx Host route over 127.0.0.1; after TLS cutover, an HTTP redirect is followed by a loopback HTTPS probe using the canonical hostname and certificate;
 - starts two minutes after boot and repeats every five minutes with a small randomized delay;
+- when the outbox worker is enabled, requires its systemd service to be active and rejects a stale `PENDING` outbox backlog;
 - failures are fail-closed oneshot failures recorded in the system journal.
 
 Enable apgic-staging-runtime-watchdog.timer after installing the service and timer units.
@@ -91,7 +98,7 @@ The updater:
 - refuses non-forward deployments;
 - inspects numbered migration files added between the deployed and target commits;
 - refuses modifications/deletions/renames of existing numbered migrations;
-- builds API and Web before database changes;
+- builds API, the outbox worker, and Web before database changes;
 - creates a PostgreSQL backup before applying newly added migrations;
 - applies every newly added numbered migration in lexical order;
 - updates `APGIC_COMMIT_SHA` only after builds and migrations succeed;
