@@ -792,7 +792,8 @@ export function Journey() {
             </div>
           </div>
 
-          <div className="payment-options" aria-label="Способы оплаты">
+          {conformanceProviderEvents ? (
+          <div className="payment-options" aria-label="Тестовые способы оплаты">
             {options.map((option) => (
               <article key={option.method_code}>
                 <div>
@@ -809,6 +810,13 @@ export function Journey() {
               </article>
             ))}
           </div>
+          ) : (
+            <p className="journey-payment-unavailable" role="status">
+              Онлайн-оплата через внешнего исполнителя пока недоступна.
+              Карта и СБП не подключены для реальных платежей. APGIC не принимает деньги.
+              Удержание времени не является оплаченной или подтверждённой записью.
+            </p>
+          )}
         </section>
       ) : null}
 
