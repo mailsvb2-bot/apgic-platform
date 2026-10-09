@@ -27,6 +27,11 @@ def validate() -> list[str]:
         '--resolve "${APGIC_PUBLIC_HOST}:443:127.0.0.1"',
         '"https://${APGIC_PUBLIC_HOST}/"',
         'case "$http_status" in',
+        'APGIC_OUTBOX_WORKER_ENABLED',
+        'apgic-outbox-worker-staging.service',
+        'APGIC_OUTBOX_MAX_PENDING_AGE_SECONDS',
+        "delivery_status = 'PENDING'",
+        'stale outbox backlog',
     ):
         if item not in script:
             errors.append(f"watchdog script missing invariant: {item}")
