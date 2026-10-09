@@ -14,6 +14,7 @@ import (
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/mobile"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/mutation"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/notification"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/privacy"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/remoteconfig"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/specialist"
 )
@@ -26,6 +27,7 @@ type Options struct {
 	ReadinessCheck              func(context.Context) error
 	Demand                      *demand.Service
 	LegalAcceptances            legal.AcceptanceStore
+	Consents                    privacy.ConsentStore
 	Installations               mobile.InstallationStore
 	MobileWorkspaces            mobileWorkspaceStore
 	Notifications               notification.MobileProjectionStore
@@ -114,8 +116,9 @@ func New(options Options) http.Handler {
 			stepUp, sessionConfigErr = newStepUpManager(options.ClientSessionKey, options.Now)
 		}
 	}
-	registerDemand(mux, options.Demand, sessions, sessionConfigErr, options.ConformanceProviderEvents, options.ProviderWebhookKeys)
+	registerDemand(mux, options.Demand, options.Consents, sessions, sessionConfigErr, options.ConformanceProviderEvents, options.ProviderWebhookKeys, options.Now)
 	registerLegalAcceptance(mux, options.LegalAcceptances, sessions, sessionConfigErr, options.Now)
+	registerConsents(mux, options.Consents, sessions, sessionConfigErr, options.Now)
 	registerMobileCompatibility(mux, options.ClientCompatibilityPolicies)
 	registerMobileRemoteConfig(mux, options.RemoteConfigProvider, options.Now)
 	registerMobileInstallations(mux, options.Installations, sessions, sessionConfigErr, options.Now)
