@@ -250,7 +250,6 @@ func registerDemand(mux *http.ServeMux, service *demand.Service, sessions *clien
 			writeJSON(w, http.StatusOK, map[string]any{
 				"hold_id":                      r.PathValue("id"),
 				"apgic_accepts_funds":          false,
-				"external_execution_available": false,
 				"options":                      []demand.CheckoutOption{},
 			})
 			return
