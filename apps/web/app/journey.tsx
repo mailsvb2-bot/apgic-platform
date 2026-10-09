@@ -97,6 +97,13 @@ const TOPICS = [
   { id: "relationships", label: "Отношения" },
 ] as const;
 
+const QUICK_STARTS = [
+  { label: "Тревога и стресс", example: "Последнее время часто тревожусь и хочу разобраться, как справляться со стрессом." },
+  { label: "Проблемы со сном", example: "Мне сложно засыпать и восстанавливаться после рабочего дня. Хочу улучшить сон." },
+  { label: "Отношения", example: "Мне непросто выстраивать отношения и договариваться с близкими. Хочу обсудить ситуацию." },
+  { label: "Работа и карьера", example: "Не понимаю, куда двигаться в работе. Хочу разобраться в карьерных целях." },
+] as const;
+
 const PROFESSIONS: Record<string, string> = {
   PSYCHOLOGIST: "Психолог",
   CAREER_COACH: "Карьерный консультант",
@@ -621,6 +628,27 @@ export function Journey() {
           </div>
         </div>
         <form className="journey-request-form" onSubmit={interpret}>
+          <div className="quick-start-block" aria-label="Быстрый выбор темы">
+            <p className="quick-start-caption">Не знаете, с чего начать? Выберите близкую тему:</p>
+            <div className="quick-start-options">
+              {QUICK_STARTS.map((suggestion) => (
+                <button
+                  className="quick-start-option"
+                  key={suggestion.label}
+                  type="button"
+                  disabled={pending}
+                  aria-pressed={text === suggestion.example}
+                  onClick={() => {
+                    setText(suggestion.example);
+                    document.getElementById("request")?.focus();
+                  }}
+                >
+                  {suggestion.label}
+                </button>
+              ))}
+            </div>
+            <p className="quick-start-help">Мы подставим пример. Вы сможете изменить его перед отправкой — ничего не отправляется автоматически.</p>
+          </div>
           <label htmlFor="request">С чем нужна помощь</label>
           <textarea
             id="request"
