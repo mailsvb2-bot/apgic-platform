@@ -133,6 +133,19 @@ class ProductionPreflightEvidenceTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             module.build_evidence("c" * 40, "R0", "config/launch.production.yaml")
 
+    def test_nested_contract_changes_are_bound_to_release_revision(self) -> None:
+        self.seed_canonical_binding()
+        nested = "contracts/jsonschema/payments/v2/settlement.schema.json"
+        self.write_bytes(nested, b'{"type":"object"}\n')
+        first = module.build_canonical_binding()
+        self.assertIn(nested, first["contract_schema_artifacts"])
+        self.write_bytes(nested, b'{"type":"array"}\n')
+        second = module.build_canonical_binding()
+        self.assertNotEqual(
+            first["contract_schema_registry_revision"],
+            second["contract_schema_registry_revision"],
+        )
+
     def test_contract_revision_changes_when_contract_bytes_change(self) -> None:
         self.seed_canonical_binding()
         first = module.build_canonical_binding()["contract_schema_registry_revision"]
