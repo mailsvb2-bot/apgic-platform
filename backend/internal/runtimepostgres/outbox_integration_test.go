@@ -262,7 +262,10 @@ func TestOutboxFailureBlocksOnlyItsAggregate(t *testing.T) {
 	}
 
 	var deliveredIDs []string
-	delivered, err := store.DeliverPendingOutbox(context.Background(), 100, func(_ context.Context, event eventspine.EventEnvelope) error {
+	// The batch is intentionally smaller than the total pending count. A global
+	// LIMIT would otherwise let two older events from aggregate/a fill the batch
+	// and starve aggregate/b when aggregate/a's head fails.
+	delivered, err := store.DeliverPendingOutbox(context.Background(), 2, func(_ context.Context, event eventspine.EventEnvelope) error {
 		deliveredIDs = append(deliveredIDs, event.EventID)
 		if event.EventID == first.EventID {
 			return errors.New("aggregate a provider outage")
