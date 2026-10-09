@@ -84,6 +84,7 @@ func main() {
 		RemoteConfigProvider:        remoteConfigProvider,
 		ReadinessCheck:              readinessCheck,
 		LegalAcceptances:            storage,
+		Consents:                    storage,
 		Installations:               storage,
 		MobileWorkspaces:            storage,
 		Notifications:               storage,
