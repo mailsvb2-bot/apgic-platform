@@ -248,9 +248,9 @@ func registerDemand(mux *http.ServeMux, service *demand.Service, sessions *clien
 		}
 		if !allowConformanceProviderEvents {
 			writeJSON(w, http.StatusOK, map[string]any{
-				"hold_id":                      r.PathValue("id"),
-				"apgic_accepts_funds":          false,
-				"options":                      []demand.CheckoutOption{},
+				"hold_id":             r.PathValue("id"),
+				"apgic_accepts_funds": false,
+				"options":             []demand.CheckoutOption{},
 			})
 			return
 		}
