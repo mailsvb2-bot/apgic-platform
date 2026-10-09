@@ -364,6 +364,10 @@ export function Journey() {
       });
       setHold(created);
       setInstruction(null);
+      if (!conformanceProviderEvents) {
+        setOptions([]);
+        return;
+      }
       const listed = await fetch(`/v1/slot-holds/${created.id}/checkout-options`);
       const payload = await listed.json();
       if (!listed.ok) throw new Error(payload.message_safe || "Способы оплаты недоступны.");
