@@ -5,13 +5,13 @@ import "errors"
 type Classification string
 
 const (
-	Public           Classification = "PUBLIC"
-	Internal         Classification = "INTERNAL"
-	Confidential     Classification = "CONFIDENTIAL"
-	Sensitive        Classification = "SENSITIVE"
-	HighlySensitive  Classification = "HIGHLY_SENSITIVE"
-	RawConsultation  Classification = "RAW_CONSULTATION"
-	RawPersona       Classification = "RAW_PERSONA"
+	Public          Classification = "PUBLIC"
+	Internal        Classification = "INTERNAL"
+	Confidential    Classification = "CONFIDENTIAL"
+	Sensitive       Classification = "SENSITIVE"
+	HighlySensitive Classification = "HIGHLY_SENSITIVE"
+	RawConsultation Classification = "RAW_CONSULTATION"
+	RawPersona      Classification = "RAW_PERSONA"
 )
 
 var (
