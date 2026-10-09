@@ -162,30 +162,108 @@ def validate_providers(policy: dict) -> None:
         fail("provider matrix requires capabilities")
     if not isinstance(providers, dict) or not providers:
         fail("provider matrix requires providers")
+
+    scope = policy.get("scope")
+    expected_environment = "PRODUCTION" if scope == "PRODUCTION" else "CI"
+    operational_fields = (
+        "environment",
+        "jurisdictions",
+        "regions",
+        "credential_owner",
+        "credential_ref_contract",
+        "scopes",
+        "webhook_event_contract_version",
+        "data_classes_transmitted",
+        "retention_subprocessor_terms_ref",
+        "timeout_seconds",
+        "retry_policy",
+        "idempotency_contract",
+        "reconciliation_method",
+        "health_policy",
+        "kill_switch",
+        "degraded_behavior",
+        "certification_status",
+        "exit_semantics",
+        "provider_neutral_contract",
+    )
+
+    def selected_provider(capability: str, provider_id: str) -> None:
+        provider = providers.get(provider_id)
+        if not isinstance(provider, dict):
+            fail(f"{capability}: provider {provider_id} must be a registry mapping")
+        if provider.get("certified") is not True:
+            fail(f"{capability}: provider {provider_id} is not certified")
+        declared = provider.get("capabilities")
+        if not isinstance(declared, list) or capability not in declared:
+            fail(f"{capability}: provider {provider_id} does not declare the capability")
+        if scope == "PRODUCTION" and provider.get("kind") == "SYNTHETIC":
+            fail(f"{capability}: synthetic provider {provider_id} cannot be production-selected")
+
     for capability, row in capabilities.items():
         if not isinstance(row, dict):
             fail(f"{capability}: capability row must be mapping")
         if row.get("enabled") is not True:
             continue
-        primary = row.get("primary_provider")
-        fallback = row.get("fallback_providers")
-        if not primary or primary not in providers:
-            fail(f"{capability}: primary provider missing from provider registry")
-        if not isinstance(fallback, list):
-            fail(f"{capability}: fallback_providers must be a list")
-        for provider in fallback:
-            if provider not in providers:
-                fail(f"{capability}: fallback provider {provider} is unknown")
+
+        for field in operational_fields:
+            if field not in row:
+                fail(f"{capability}: missing {field}")
+
+        if row.get("environment") != expected_environment:
+            fail(f"{capability}: environment must be {expected_environment}")
+        for field in ("jurisdictions", "regions", "scopes"):
+            value = row.get(field)
+            if not isinstance(value, list) or not value or any(not isinstance(item, str) or not item.strip() for item in value):
+                fail(f"{capability}: {field} must be a non-empty string list")
+        data_classes = row.get("data_classes_transmitted")
+        if not isinstance(data_classes, list) or any(not isinstance(item, str) or not item.strip() for item in data_classes):
+            fail(f"{capability}: data_classes_transmitted must be an explicit string list")
         for field in (
+            "credential_owner",
+            "credential_ref_contract",
+            "webhook_event_contract_version",
+            "retention_subprocessor_terms_ref",
+            "retry_policy",
+            "idempotency_contract",
+            "reconciliation_method",
+            "health_policy",
+            "kill_switch",
             "degraded_behavior",
             "certification_status",
             "exit_semantics",
-            "provider_neutral_contract",
         ):
-            if field not in row:
-                fail(f"{capability}: missing {field}")
+            value = row.get(field)
+            if not isinstance(value, str) or not value.strip() or value == "CONFIG_REQUIRED":
+                fail(f"{capability}: explicit {field} is required")
+        credential_ref = row.get("credential_ref_contract", "")
+        if not credential_ref.startswith(("secretref://", "managed-secret://")):
+            fail(f"{capability}: credential_ref_contract must be a secret reference contract")
+        if not positive_number(row.get("timeout_seconds")):
+            fail(f"{capability}: timeout_seconds must be positive")
         if row.get("provider_neutral_contract") is not True:
             fail(f"{capability}: canonical contract must remain provider-neutral")
+
+        primary = row.get("primary_provider")
+        fallback = row.get("fallback_providers")
+        if not isinstance(primary, str) or not primary.strip() or primary not in providers:
+            fail(f"{capability}: primary provider missing from provider registry")
+        if not isinstance(fallback, list):
+            fail(f"{capability}: fallback_providers must be a list")
+        if primary in fallback:
+            fail(f"{capability}: primary provider cannot also be fallback")
+        if len(fallback) != len(set(fallback)):
+            fail(f"{capability}: duplicate fallback providers")
+        for provider_id in [primary, *fallback]:
+            if provider_id not in providers:
+                fail(f"{capability}: fallback provider {provider_id} is unknown")
+            selected_provider(capability, provider_id)
+
+        if scope == "PRODUCTION":
+            certification = row.get("certification_status", "").upper()
+            if "CI" in certification or "SYNTHETIC" in certification:
+                fail(f"{capability}: CI/synthetic certification cannot approve production")
+
+
 
 def validate_market_cell(policy: dict) -> None:
     if policy.get("policy_kind") != "MARKET_CELL_THRESHOLDS":
