@@ -29,14 +29,14 @@ type decisionSnapshot struct {
 }
 
 type securityEvidenceSnapshot struct {
-	PrincipalID string     `json:"principal_id"`
-	SessionRef  string     `json:"session_ref"`
-	Method      string     `json:"method,omitempty"`
-	StepUpAt    *time.Time `json:"step_up_at,omitempty"`
-	EvaluatedAt time.Time  `json:"evaluated_at"`
-	Decision    Decision   `json:"decision"`
-	ReasonCode  string     `json:"reason_code"`
-	PolicyVersion string   `json:"policy_version"`
+	PrincipalID   string     `json:"principal_id"`
+	SessionRef    string     `json:"session_ref"`
+	Method        string     `json:"method,omitempty"`
+	StepUpAt      *time.Time `json:"step_up_at,omitempty"`
+	EvaluatedAt   time.Time  `json:"evaluated_at"`
+	Decision      Decision   `json:"decision"`
+	ReasonCode    string     `json:"reason_code"`
+	PolicyVersion string     `json:"policy_version"`
 }
 
 func (e Evaluator) Authorize(in Input) (Result, error) {
@@ -66,13 +66,13 @@ func (e Evaluator) Authorize(in Input) (Result, error) {
 	var securityEvidence *securityEvidenceSnapshot
 	if in.Risk == RiskHigh {
 		securityEvidence = &securityEvidenceSnapshot{
-			PrincipalID: strings.TrimSpace(in.Principal.ID),
-			SessionRef: strings.TrimSpace(in.Principal.SessionRef),
-			Method: strings.TrimSpace(in.Principal.StepUpMethod),
-			StepUpAt: in.Principal.StepUpAt,
-			EvaluatedAt: in.Now.UTC(),
-			Decision: result.Decision,
-			ReasonCode: result.ReasonCode,
+			PrincipalID:   strings.TrimSpace(in.Principal.ID),
+			SessionRef:    strings.TrimSpace(in.Principal.SessionRef),
+			Method:        strings.TrimSpace(in.Principal.StepUpMethod),
+			StepUpAt:      in.Principal.StepUpAt,
+			EvaluatedAt:   in.Now.UTC(),
+			Decision:      result.Decision,
+			ReasonCode:    result.ReasonCode,
 			PolicyVersion: e.PolicyVersion,
 		}
 	}
