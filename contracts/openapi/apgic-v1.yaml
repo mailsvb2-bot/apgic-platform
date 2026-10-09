@@ -486,7 +486,7 @@ paths:
   /v1/products/{productID}/commercial-owner:
     patch:
       operationId: updateProductCommercialOwner
-      description: HIGH_RISK product ownership mutation. Requires a fresh signed step-up assertion bound to the signed Identity.
+      description: HIGH_RISK product ownership mutation. Requires a fresh signed step-up assertion bound to the signed Identity and the exact current signed client session; the assertion carries the stronger-authentication method.
       security:
         - ClientSession: []
       parameters:
