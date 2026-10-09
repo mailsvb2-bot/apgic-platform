@@ -33,6 +33,25 @@ class ProviderMatrixContractGuardTest(unittest.TestCase):
         errors = validate_provider_matrix_contract(broken, self.launch, self.schema)
         self.assertTrue(any("unknown fallback providers" in error for error in errors))
 
+
+    def test_operational_contract_fields_are_required(self):
+        broken = copy.deepcopy(self.matrix)
+        del broken["capabilities"]["PAYMENT_PROVIDER"]["idempotency_contract"]
+        errors = validate_provider_matrix_contract(broken, self.launch, self.schema)
+        self.assertTrue(any("missing capability fields" in error for error in errors))
+
+    def test_selected_provider_must_be_certified_for_capability(self):
+        broken = copy.deepcopy(self.matrix)
+        broken["providers"]["CI_PAYMENT_A"]["certified"] = False
+        errors = validate_provider_matrix_contract(broken, self.launch, self.schema)
+        self.assertTrue(any("must be certified" in error for error in errors))
+
+    def test_selected_provider_must_declare_capability(self):
+        broken = copy.deepcopy(self.matrix)
+        broken["providers"]["CI_PAYMENT_A"]["capabilities"] = ["NOTIFICATION_PROVIDER"]
+        errors = validate_provider_matrix_contract(broken, self.launch, self.schema)
+        self.assertTrue(any("must declare capability" in error for error in errors))
+
     def test_launch_version_must_match_matrix(self):
         broken = copy.deepcopy(self.launch)
         broken["provider_matrix_version"] = "other"
