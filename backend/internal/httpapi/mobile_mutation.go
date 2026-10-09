@@ -39,6 +39,7 @@ func registerMobileCheckoutMutation(
 	store mutation.Store,
 	sessions *clientSessionManager,
 	sessionConfigErr error,
+	allowConformancePayments bool,
 	now func() time.Time,
 ) {
 	mux.HandleFunc("POST /v1/mobile/checkout-instructions", func(w http.ResponseWriter, r *http.Request) {
@@ -48,6 +49,10 @@ func registerMobileCheckoutMutation(
 		}
 		identityID, ok := requiredClientSessionIdentity(w, r, sessions, sessionConfigErr)
 		if !ok {
+			return
+		}
+		if !allowConformancePayments {
+			writeDemandError(w, r, http.StatusServiceUnavailable, "PAYMENT_PROVIDER_UNAVAILABLE", "Внешний исполнитель оплаты пока не подключён.", false, []string{"PAYMENT_PROVIDER_UNAVAILABLE"})
 			return
 		}
 		idempotencyKey := strings.TrimSpace(r.Header.Get("Idempotency-Key"))
