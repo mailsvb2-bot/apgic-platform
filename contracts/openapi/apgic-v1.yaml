@@ -2272,16 +2272,12 @@ components:
     RecordConsentRequest:
       type: object
       additionalProperties: false
-      required: [purpose, scope, policy_version, text_hash_or_version, source, proof_metadata]
+      required: [purpose, scope, policy_version, text_hash_or_version]
       properties:
         purpose: { type: string, minLength: 1 }
         scope: { type: string, minLength: 1 }
         policy_version: { type: string, minLength: 1 }
         text_hash_or_version: { type: string, minLength: 1 }
-        source: { type: string, minLength: 1 }
-        proof_metadata:
-          type: object
-          additionalProperties: true
     ConsentRecord:
       type: object
       additionalProperties: false
