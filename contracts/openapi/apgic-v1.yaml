@@ -1168,6 +1168,53 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /v1/consents:
+    post:
+      operationId: recordConsent
+      security:
+        - ClientSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordConsentRequest'
+      responses:
+        '201':
+          description: New versioned consent evidence recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsentRecord'
+        '200':
+          description: Idempotent replay of an already-active consent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsentRecord'
+  /v1/consents/{consentID}/revoke:
+    post:
+      operationId: revokeConsent
+      security:
+        - ClientSession: []
+      parameters:
+        - name: consentID
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Consent revoked or idempotent replay of an existing revocation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsentRecord'
+        '404':
+          description: Consent record not found for the trusted subject
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /v1/legal-acceptances:
     post:
       operationId: recordLegalAcceptance
@@ -1343,12 +1390,6 @@ paths:
           in: path
           required: true
           schema: { type: string }
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/GrowthExportRequest'
       responses:
         '200':
           description: Minimal facts only. Raw consultation content is not included.
@@ -2228,12 +2269,36 @@ components:
       required: [evidence_ref]
       properties:
         evidence_ref: { type: string }
-    GrowthExportRequest:
+    RecordConsentRequest:
       type: object
       additionalProperties: false
-      required: [purpose_consent]
+      required: [purpose, scope, policy_version, text_hash_or_version, source, proof_metadata]
       properties:
-        purpose_consent: { type: boolean }
+        purpose: { type: string, minLength: 1 }
+        scope: { type: string, minLength: 1 }
+        policy_version: { type: string, minLength: 1 }
+        text_hash_or_version: { type: string, minLength: 1 }
+        source: { type: string, minLength: 1 }
+        proof_metadata:
+          type: object
+          additionalProperties: true
+    ConsentRecord:
+      type: object
+      additionalProperties: false
+      required: [consent_id, subject_id, purpose, scope, policy_version, text_hash_or_version, granted_at, source, proof_metadata]
+      properties:
+        consent_id: { type: string }
+        subject_id: { type: string }
+        purpose: { type: string }
+        scope: { type: string }
+        policy_version: { type: string }
+        text_hash_or_version: { type: string }
+        granted_at: { type: string, format: date-time }
+        revoked_at: { type: string, format: date-time, nullable: true }
+        source: { type: string }
+        proof_metadata:
+          type: object
+          additionalProperties: true
     GrowthExport:
       type: object
       additionalProperties: false
