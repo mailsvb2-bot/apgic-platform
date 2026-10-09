@@ -3,7 +3,7 @@ package privacy
 import "testing"
 
 func TestSensitiveAndRawContentCannotFlowToGrowthWithoutPurposeConsent(t *testing.T) {
-	for _, classification := range []Classification{Sensitive, RawConsultation, RawPersona} {
+	for _, classification := range []Classification{Confidential, Sensitive, HighlySensitive, RawConsultation, RawPersona} {
 		if err := CanExportToGrowth(classification, false); err != ErrPurposeConsentRequired {
 			t.Fatalf("%s: unexpected result: %v", classification, err)
 		}
