@@ -109,6 +109,26 @@ func TestHTTPDelivererDoesNotFollowGatewayRedirectWithCredentials(t *testing.T) 
 	}
 }
 
+func TestHTTPDelivererDoesNotTreat202AsDurableAcknowledgement(t *testing.T) {
+ server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+  w.WriteHeader(http.StatusAccepted)
+ }))
+ defer server.Close()
+ deliverer, err := NewHTTPDeliverer(server.URL, "worker", strings.Repeat("s", 32), server.Client())
+ if err != nil {
+  t.Fatal(err)
+ }
+ now := time.Now().UTC()
+ err = deliverer.Deliver(context.Background(), EventEnvelope{
+  EventID:"event-1", IdempotencyKey:"idem-1", EventType:"test.event",
+  SchemaVersion:"1", AggregateRef:"test/1", OccurredAt:now, ProducedAt:now,
+  Producer:"test", CorrelationID:"corr", PayloadJSON:[]byte(`{"ok":true}`),
+ })
+ if !errors.Is(err, ErrDeliveryRejected) {
+  t.Fatalf("HTTP 202 must not acknowledge durable completion: %v", err)
+ }
+}
+
 func TestOutboxPayloadMustMatchObjectContract(t *testing.T) {
 	now := time.Now().UTC()
 	base := EventEnvelope{
