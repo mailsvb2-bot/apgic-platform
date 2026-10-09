@@ -12,12 +12,10 @@ import (
 )
 
 type recordConsentRequest struct {
-	Purpose           string          `json:"purpose"`
-	Scope             string          `json:"scope"`
-	PolicyVersion     string          `json:"policy_version"`
-	TextHashOrVersion string          `json:"text_hash_or_version"`
-	Source            string          `json:"source"`
-	ProofMetadata     json.RawMessage `json:"proof_metadata"`
+	Purpose           string `json:"purpose"`
+	Scope             string `json:"scope"`
+	PolicyVersion     string `json:"policy_version"`
+	TextHashOrVersion string `json:"text_hash_or_version"`
 }
 
 func registerConsents(
@@ -36,11 +34,24 @@ func registerConsents(
 		if !ok {
 			return
 		}
+		sessionIdentityID, sessionRef, err := sessions.identityAndReferenceFromRequest(r)
+		if err != nil || sessionIdentityID != identityID || strings.TrimSpace(sessionRef) == "" {
+			writeDemandError(w, r, http.StatusUnauthorized, "CLIENT_SESSION_INVALID", "Сессия клиента недействительна.", false, nil)
+			return
+		}
 		var body recordConsentRequest
 		decoder := json.NewDecoder(r.Body)
 		decoder.DisallowUnknownFields()
 		if err := decoder.Decode(&body); err != nil {
 			writeDemandError(w, r, http.StatusBadRequest, "CONSENT_INVALID", "Согласие не удалось прочитать.", false, nil)
+			return
+		}
+		proofMetadata, err := json.Marshal(map[string]string{
+			"session_ref": sessionRef,
+			"action":      "explicit_consent_grant",
+		})
+		if err != nil {
+			writeDemandError(w, r, http.StatusInternalServerError, "CONSENT_PROOF_FAILED", "Не удалось подготовить доказательство согласия.", true, nil)
 			return
 		}
 		id, err := persistentid.New()
@@ -56,8 +67,8 @@ func registerConsents(
 			PolicyVersion: strings.TrimSpace(body.PolicyVersion),
 			TextHashOrVersion: strings.TrimSpace(body.TextHashOrVersion),
 			GrantedAt: now().UTC(),
-			Source: strings.TrimSpace(body.Source),
-			ProofMetadata: body.ProofMetadata,
+			Source:        "CLIENT_SESSION_HTTP",
+			ProofMetadata: proofMetadata,
 		})
 		if err != nil {
 			writeDemandError(w, r, http.StatusBadRequest, "CONSENT_INVALID", "Согласие некорректно.", false, nil)
