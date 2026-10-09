@@ -734,16 +734,24 @@ requirements:
   dependencies: []
   implementation_refs:
   - backend/internal/privacy/classification.go
+  - backend/internal/privacy/consent.go
   - backend/internal/demand/growth.go
+  - backend/internal/httpapi/consent.go
   - backend/internal/httpapi/demand.go
+  - backend/internal/runtimepostgres/consent.go
+  - backend/migrations/000028_r0_consent_ledger.sql
   - apps/web/app/journey.tsx
   contract_refs:
   - contracts/openapi/apgic-v1.yaml
   test_refs:
   - backend/internal/privacy/classification_test.go
+  - backend/internal/privacy/consent_test.go
   - backend/internal/demand/growth_test.go
   - backend/internal/httpapi/client_session_http_test.go
+  - backend/internal/httpapi/consent_test.go
+  - backend/internal/runtimepostgres/consent_test.go
   - apps/web/e2e/foundation.spec.ts
+  - .github/workflows/ci.yml
   evidence_refs:
   - docs/traceability/R0-foundation-verification-batch.md
   - docs/traceability/R0-data001-growth-export-boundary.md
