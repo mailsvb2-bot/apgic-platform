@@ -155,16 +155,24 @@ func (c *Checker) DeliverPendingOutbox(ctx context.Context, limit int, deliver O
 		return 0, err
 	}
 	delivered := 0
+	blockedAggregates := make(map[string]struct{})
+	var deliveryErrors []error
 	for _, candidate := range pending {
+		aggregateRef := strings.TrimSpace(candidate.Event.AggregateRef)
+		if _, blocked := blockedAggregates[aggregateRef]; blocked {
+			continue
+		}
 		ok, err := c.deliverOneOutbox(ctx, candidate.Event.EventID, deliver)
 		if err != nil {
-			return delivered, err
+			blockedAggregates[aggregateRef] = struct{}{}
+			deliveryErrors = append(deliveryErrors, err)
+			continue
 		}
 		if ok {
 			delivered++
 		}
 	}
-	return delivered, nil
+	return delivered, errors.Join(deliveryErrors...)
 }
 
 func (c *Checker) deliverOneOutbox(parent context.Context, eventID string, deliver OutboxDeliverer) (bool, error) {
