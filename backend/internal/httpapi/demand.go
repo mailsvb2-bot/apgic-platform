@@ -238,6 +238,15 @@ func registerDemand(mux *http.ServeMux, service *demand.Service, sessions *clien
 	})
 
 	mux.HandleFunc("GET /v1/slot-holds/{id}/checkout-options", func(w http.ResponseWriter, r *http.Request) {
+		if !allowConformanceProviderEvents {
+			writeJSON(w, http.StatusOK, map[string]any{
+				"hold_id":             r.PathValue("id"),
+				"apgic_accepts_funds": false,
+				"reason_code":         "EXTERNAL_PAYMENT_UNAVAILABLE",
+				"options":             []demand.CheckoutOption{},
+			})
+			return
+		}
 		if service == nil {
 			writeDemandError(w, r, http.StatusServiceUnavailable, "DEMAND_CATALOG_UNAVAILABLE", "Каталог спроса не подключён.", false, nil)
 			return
@@ -259,6 +268,10 @@ func registerDemand(mux *http.ServeMux, service *demand.Service, sessions *clien
 	})
 
 	mux.HandleFunc("POST /v1/checkout-instructions", func(w http.ResponseWriter, r *http.Request) {
+		if !allowConformanceProviderEvents {
+			writeDemandError(w, r, http.StatusServiceUnavailable, "EXTERNAL_PAYMENT_UNAVAILABLE", "Реальный внешний способ оплаты пока не подключён. APGIC не принимает деньги.", false, []string{"EXTERNAL_PAYMENT_UNAVAILABLE"})
+			return
+		}
 		if service == nil {
 			writeDemandError(w, r, http.StatusServiceUnavailable, "DEMAND_CATALOG_UNAVAILABLE", "Каталог спроса не подключён.", false, nil)
 			return
