@@ -44,8 +44,8 @@ func governanceAuth(t0 time.Time, auditID string, stepUp *time.Time) authz.Input
 	}
 	return authz.Input{
 		Principal: principal,
-		Resource: authz.ResourceRef{ID: "payments", TenantID: "platform"},
-		Now:      t0, MaxStepUpAge: 10 * time.Minute,
+		Resource:  authz.ResourceRef{ID: "payments", TenantID: "platform"},
+		Now:       t0, MaxStepUpAge: 10 * time.Minute,
 		CorrelationID: "corr-governance-1", AuditRecordID: auditID,
 	}
 }
