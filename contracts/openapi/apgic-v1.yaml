@@ -1133,6 +1133,10 @@ paths:
   /v1/provider-events:
     post:
       operationId: applyProviderEvent
+      description: |
+        Isolated conformance-only provider event injection. Disabled in normal/staging/production
+        runtime and never accepted as trusted browser payment evidence. Real provider evidence must
+        use /v1/provider-webhooks with a verified connector signature.
       requestBody:
         required: true
         content:
@@ -1152,6 +1156,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PaymentEvidence'
+        '403':
+          description: Conformance event injection is disabled in this runtime
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
         '409':
           description: Evidence does not match the instruction or would create a second effect
           content:
