@@ -477,6 +477,7 @@ func main() {
 	authzStore := newConformanceOrganizationAuthStore()
 	canonicalHandler := httpapi.New(httpapi.Options{
 		Demand:                      demand.NewConformanceService(nil),
+		ConformanceProviderEvents:   true,
 		Installations:               newConformanceInstallationStore(),
 		MobileWorkspaces:            conformanceWorkspaceStore{},
 		OrganizationAuth:            authzStore,
