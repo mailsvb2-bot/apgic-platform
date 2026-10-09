@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/connector"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/demand"
 )
 
@@ -53,7 +54,14 @@ type cancellationRequest struct {
 	ReasonCode string `json:"reason_code"`
 }
 
-func registerDemand(mux *http.ServeMux, service *demand.Service, sessions *clientSessionManager, sessionConfigErr error, allowConformanceProviderEvents bool) {
+func registerDemand(
+	mux *http.ServeMux,
+	service *demand.Service,
+	sessions *clientSessionManager,
+	sessionConfigErr error,
+	allowConformanceProviderEvents bool,
+	providerWebhookKeys connector.WebhookPublicKeyResolver,
+) {
 	mux.HandleFunc("POST /v1/help-intents", func(w http.ResponseWriter, r *http.Request) {
 		if service == nil {
 			writeDemandError(w, r, http.StatusServiceUnavailable, "DEMAND_CATALOG_UNAVAILABLE", "Каталог спроса не подключён.", false, nil)
@@ -278,6 +286,52 @@ func registerDemand(mux *http.ServeMux, service *demand.Service, sessions *clien
 			return
 		}
 		writeJSON(w, http.StatusCreated, instruction)
+	})
+
+	mux.HandleFunc("POST /v1/provider-webhooks", func(w http.ResponseWriter, r *http.Request) {
+		// Production payment evidence is accepted only through the signed connector
+		// webhook boundary. A browser/client cannot manufacture this signature.
+		if service == nil {
+			writeDemandError(w, r, http.StatusServiceUnavailable, "DEMAND_CATALOG_UNAVAILABLE", "Каталог спроса не подключён.", false, nil)
+			return
+		}
+		var envelope connector.WebhookEnvelope
+		if err := json.NewDecoder(r.Body).Decode(&envelope); err != nil {
+			writeDemandError(w, r, http.StatusUnauthorized, "PROVIDER_WEBHOOK_UNVERIFIED", "Сообщение внешнего исполнителя не подтверждено.", false, nil)
+			return
+		}
+		if err := connector.VerifyWebhook(envelope, providerWebhookKeys); err != nil {
+			writeDemandError(w, r, http.StatusUnauthorized, "PROVIDER_WEBHOOK_UNVERIFIED", "Сообщение внешнего исполнителя не подтверждено.", false, nil)
+			return
+		}
+		var body providerEventRequest
+		if err := json.Unmarshal(envelope.Payload, &body); err != nil {
+			writeDemandError(w, r, http.StatusBadRequest, "EVIDENCE_INVALID", "Сообщение провайдера не удалось прочитать.", false, nil)
+			return
+		}
+		if strings.TrimSpace(body.ProviderEventID) == "" ||
+			body.ProviderEventID != envelope.ExternalEventID ||
+			envelope.StreamID != "payment/"+body.OrderID {
+			writeDemandError(w, r, http.StatusBadRequest, "EVIDENCE_TRANSPORT_MISMATCH", "Идентификаторы платёжного доказательства не совпадают.", false, nil)
+			return
+		}
+		evidence, err := service.ApplyProviderEvent(demand.ProviderEvent{
+			ProviderID:      body.ProviderID,
+			ProviderEventID: body.ProviderEventID,
+			OrderID:         body.OrderID,
+			AmountMinor:     body.AmountMinor,
+			Currency:        body.Currency,
+			Outcome:         body.Outcome,
+		})
+		if err != nil {
+			writeDemandFailure(w, r, err)
+			return
+		}
+		status := http.StatusCreated
+		if evidence.Idempotent {
+			status = http.StatusOK
+		}
+		writeJSON(w, status, evidence)
 	})
 
 	mux.HandleFunc("POST /v1/provider-events", func(w http.ResponseWriter, r *http.Request) {
