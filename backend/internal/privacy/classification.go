@@ -12,14 +12,21 @@ const (
 	RawPersona      Classification = "RAW_PERSONA"
 )
 
-var ErrPurposeConsentRequired = errors.New("purpose-specific consent required")
+var (
+	ErrPurposeConsentRequired = errors.New("purpose-specific consent required")
+	ErrClassificationUnknown = errors.New("data classification is unknown")
+)
 
 func CanExportToGrowth(classification Classification, purposeConsent bool) error {
 	switch classification {
+	case Public, Internal:
+		return nil
 	case Sensitive, RawConsultation, RawPersona:
 		if !purposeConsent {
 			return ErrPurposeConsentRequired
 		}
+		return nil
+	default:
+		return ErrClassificationUnknown
 	}
-	return nil
 }
