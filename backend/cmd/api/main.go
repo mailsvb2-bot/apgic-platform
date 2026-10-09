@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ed25519"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/clientcompat"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/connector"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/demand"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/httpapi"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/launchconfig"
@@ -37,6 +39,10 @@ func main() {
 	remoteConfigProvider, err := remoteConfigProviderFromEnvironment(environment)
 	if err != nil {
 		log.Fatalf("APGIC remote config configuration failed: %v", err)
+	}
+	providerWebhookKeys, err := providerWebhookKeysFromEnvironment()
+	if err != nil {
+		log.Fatalf("APGIC provider webhook public-key configuration failed: %v", err)
 	}
 	if releaseTrack != "R0" {
 		if _, err := mobile.NewDeepLinkTokenManager(deepLinkSigningKey); err != nil {
@@ -70,6 +76,7 @@ func main() {
 	handler := httpapi.New(httpapi.Options{
 		CommitSHA:                   os.Getenv("APGIC_COMMIT_SHA"),
 		ConformanceProviderEvents:   !runtimepostgres.RequiresDatabase(environment) && os.Getenv("APGIC_CONFORMANCE_PROVIDER_EVENTS") == "1",
+		ProviderWebhookKeys:         providerWebhookKeys,
 		ReleaseTrack:                releaseTrack,
 		Demand:                      demandService,
 		ClientSessionKey:            clientSessionKey,
@@ -107,6 +114,46 @@ func main() {
 	}
 	log.Printf("APGIC API listening on %s", addr)
 	log.Fatal(server.ListenAndServe())
+}
+
+type providerWebhookKeyResolver map[string]ed25519.PublicKey
+
+func (r providerWebhookKeyResolver) ResolveWebhookPublicKey(connectorInstanceID, keyID string) (ed25519.PublicKey, bool) {
+	key, ok := r[strings.TrimSpace(connectorInstanceID)+"/"+strings.TrimSpace(keyID)]
+	return key, ok
+}
+
+func providerWebhookKeysFromEnvironment() (connector.WebhookPublicKeyResolver, error) {
+	raw := strings.TrimSpace(os.Getenv("APGIC_PROVIDER_WEBHOOK_PUBLIC_KEYS_JSON"))
+	if raw == "" {
+		return nil, nil
+	}
+	var configured map[string]map[string]string
+	if err := json.Unmarshal([]byte(raw), &configured); err != nil {
+		return nil, fmt.Errorf("decode APGIC_PROVIDER_WEBHOOK_PUBLIC_KEYS_JSON: %w", err)
+	}
+	resolver := providerWebhookKeyResolver{}
+	for connectorID, keys := range configured {
+		connectorID = strings.TrimSpace(connectorID)
+		if connectorID == "" || len(keys) == 0 {
+			return nil, fmt.Errorf("provider webhook connector id/key set must not be empty")
+		}
+		for keyID, encoded := range keys {
+			keyID = strings.TrimSpace(keyID)
+			if keyID == "" {
+				return nil, fmt.Errorf("provider webhook key id must not be empty")
+			}
+			decoded, err := base64.StdEncoding.DecodeString(strings.TrimSpace(encoded))
+			if err != nil || len(decoded) != ed25519.PublicKeySize {
+				return nil, fmt.Errorf("provider webhook public key %s/%s must be base64 Ed25519 public key", connectorID, keyID)
+			}
+			resolver[connectorID+"/"+keyID] = append(ed25519.PublicKey(nil), decoded...)
+		}
+	}
+	if len(resolver) == 0 {
+		return nil, fmt.Errorf("provider webhook public-key set must not be empty")
+	}
+	return resolver, nil
 }
 
 func envOr(key, fallback string) string {
