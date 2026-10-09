@@ -751,6 +751,7 @@ requirements:
   - backend/internal/demand/growth_test.go
   - backend/internal/httpapi/client_session_http_test.go
   - backend/internal/httpapi/consent_test.go
+  - backend/cmd/api/consent_policy_test.go
   - backend/internal/runtimepostgres/consent_test.go
   - apps/web/e2e/foundation.spec.ts
   - tools/data_consent_contract_guard.py
