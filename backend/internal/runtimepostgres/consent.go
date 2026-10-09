@@ -35,6 +35,7 @@ func (c *Checker) RecordConsent(input privacy.ConsentRecord) (privacy.ConsentRec
 	if err != nil {
 		return privacy.ConsentRecord{}, false, err
 	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	tx, err := c.db.BeginTx(ctx, nil)
@@ -42,32 +43,68 @@ func (c *Checker) RecordConsent(input privacy.ConsentRecord) (privacy.ConsentRec
 		return privacy.ConsentRecord{}, false, fmt.Errorf("begin consent grant: %w", err)
 	}
 	defer tx.Rollback()
+
 	if _, err := tx.ExecContext(ctx, "INSERT INTO identities (id) VALUES ($1::uuid) ON CONFLICT (id) DO NOTHING", canonical.SubjectID); err != nil {
 		return privacy.ConsentRecord{}, false, fmt.Errorf("ensure consent subject: %w", err)
 	}
-	var existing privacy.ConsentRecord
-	var proof string
-	var revoked sql.NullTime
-	err = tx.QueryRowContext(ctx, consentSelect+" WHERE subject_id=$1::uuid AND purpose=$2 AND scope=$3 AND revoked_at IS NULL", canonical.SubjectID, canonical.Purpose, canonical.Scope).
-		Scan(&existing.ID, &existing.SubjectID, &existing.Purpose, &existing.Scope, &existing.PolicyVersion, &existing.TextHashOrVersion, &existing.GrantedAt, &revoked, &existing.Source, &proof)
+
+	var insertedID string
+	err = tx.QueryRowContext(
+		ctx,
+		"INSERT INTO consent_records (consent_id,subject_id,purpose,scope,policy_version,text_hash_or_version,granted_at,source,proof_metadata) VALUES ($1::uuid,$2::uuid,$3,$4,$5,$6,$7,$8,$9::jsonb) ON CONFLICT (subject_id,purpose,scope) WHERE revoked_at IS NULL DO NOTHING RETURNING consent_id::text",
+		canonical.ID,
+		canonical.SubjectID,
+		canonical.Purpose,
+		canonical.Scope,
+		canonical.PolicyVersion,
+		canonical.TextHashOrVersion,
+		canonical.GrantedAt,
+		canonical.Source,
+		string(canonical.ProofMetadata),
+	).Scan(&insertedID)
 	if err == nil {
-		existing.ProofMetadata = []byte(proof)
+		canonical.ID = insertedID
 		if err := tx.Commit(); err != nil {
 			return privacy.ConsentRecord{}, false, err
 		}
-		return existing, true, nil
+		return canonical, false, nil
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
-		return privacy.ConsentRecord{}, false, fmt.Errorf("read active consent: %w", err)
-	}
-	_, err = tx.ExecContext(ctx, "INSERT INTO consent_records (consent_id,subject_id,purpose,scope,policy_version,text_hash_or_version,granted_at,source,proof_metadata) VALUES ($1::uuid,$2::uuid,$3,$4,$5,$6,$7,$8,$9::jsonb)", canonical.ID, canonical.SubjectID, canonical.Purpose, canonical.Scope, canonical.PolicyVersion, canonical.TextHashOrVersion, canonical.GrantedAt, canonical.Source, string(canonical.ProofMetadata))
-	if err != nil {
 		return privacy.ConsentRecord{}, false, fmt.Errorf("persist consent: %w", err)
+	}
+
+	var existing privacy.ConsentRecord
+	var proof string
+	var revoked sql.NullTime
+	if err := tx.QueryRowContext(
+		ctx,
+		consentSelect+" WHERE subject_id=$1::uuid AND purpose=$2 AND scope=$3 AND revoked_at IS NULL",
+		canonical.SubjectID,
+		canonical.Purpose,
+		canonical.Scope,
+	).Scan(
+		&existing.ID,
+		&existing.SubjectID,
+		&existing.Purpose,
+		&existing.Scope,
+		&existing.PolicyVersion,
+		&existing.TextHashOrVersion,
+		&existing.GrantedAt,
+		&revoked,
+		&existing.Source,
+		&proof,
+	); err != nil {
+		return privacy.ConsentRecord{}, false, fmt.Errorf("read concurrent active consent: %w", err)
+	}
+	existing.ProofMetadata = []byte(proof)
+	if existing.PolicyVersion != canonical.PolicyVersion ||
+		existing.TextHashOrVersion != canonical.TextHashOrVersion {
+		return privacy.ConsentRecord{}, false, privacy.ErrConsentConflict
 	}
 	if err := tx.Commit(); err != nil {
 		return privacy.ConsentRecord{}, false, err
 	}
-	return canonical, false, nil
+	return existing, true, nil
 }
 
 func (c *Checker) ActiveConsent(subjectID, purpose, scope string, at time.Time) (privacy.ConsentRecord, bool, error) {
