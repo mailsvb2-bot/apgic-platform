@@ -834,15 +834,19 @@ requirements:
   implementation_refs:
   - config/slo/r0-ci-policy.yaml
   - backend/internal/httpapi/handler.go
+  - backend/internal/httpapi/telemetry.go
+  - deploy/staging/check-staging-runtime.sh
   - tools/launch_config_guard.py
   contract_refs:
   - contracts/openapi/apgic-v1.yaml
   test_refs:
   - backend/internal/httpapi/handler_test.go
+  - deploy/staging/check-staging-runtime.sh
   - tools/launch_config_guard.py
   - .github/workflows/ci.yml
   evidence_refs:
   - docs/traceability/R0-foundation-verification-batch.md
+  - docs/traceability/R0-nfr001-runtime-sli.md
   - canon/evidence/staging-runtime-20260926T215500Z.json
   - canon/evidence/staging-runtime-20260927T072352Z.json
   acceptance:
