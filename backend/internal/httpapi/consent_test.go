@@ -116,7 +116,7 @@ func TestConsentEndpointBindsSubjectAndRevocationToTrustedSession(t *testing.T) 
 		t.Fatal(err)
 	}
 	grant := httptest.NewRequest(http.MethodPost, "/v1/consents", strings.NewReader(
-		`{"purpose":"GROWTH_SESSION_PROJECTION","scope":"booking/b1","policy_version":"growth-v1","text_hash_or_version":"sha256:text","source":"WEB","proof_metadata":{"action":"explicit_grant"}}`,
+		`{"purpose":"GROWTH_SESSION_PROJECTION","scope":"booking/b1","policy_version":"growth-v1","text_hash_or_version":"sha256:text"}`,
 	))
 	grant.AddCookie(cookie)
 	grant.Header.Set("content-type", "application/json")
