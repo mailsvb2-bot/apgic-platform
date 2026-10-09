@@ -1,5 +1,3 @@
-BEGIN;
-
 CREATE TABLE consent_records (
   consent_id uuid PRIMARY KEY,
   subject_id uuid NOT NULL REFERENCES identities(id),
@@ -90,4 +88,3 @@ CREATE TRIGGER consent_records_delete_guard
 BEFORE DELETE ON consent_records
 FOR EACH ROW EXECUTE FUNCTION apgic_forbid_consent_delete();
 
-COMMIT;
