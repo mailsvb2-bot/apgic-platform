@@ -59,7 +59,14 @@ func TestHighRiskRequiresFreshNonFutureStepUp(t *testing.T) {
 	fresh := now.Add(-time.Minute)
 	in.Principal.StepUpAt = &fresh
 	got = Authorize(in)
+	if got.Decision != StepUpRequired || got.ReasonCode != "AUTH_STEP_UP_EVIDENCE_INCOMPLETE" {
+		t.Fatalf("fresh timestamp without session/method evidence must fail closed, got %#v", got)
+	}
+
+	in.Principal.SessionRef = "session:test"
+	in.Principal.StepUpMethod = "WEBAUTHN"
+	got = Authorize(in)
 	if got.Decision != Allow {
-		t.Fatalf("expected allow after fresh step-up, got %#v", got)
+		t.Fatalf("expected allow after complete fresh step-up evidence, got %#v", got)
 	}
 }
