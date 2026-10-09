@@ -129,7 +129,14 @@ def build_canonical_binding() -> dict:
 
     contract_paths: list[Path] = []
     for pattern in CONTRACT_BINDING_GLOBS:
+        # Contract registries may contain nested schemas and versioned subdirectories.
+        # A shallow glob silently omits them from the production revision hash.
         contract_paths.extend(path for path in ROOT.glob(pattern) if path.is_file())
+        directory_pattern = pattern.removesuffix("/*")
+        contract_paths.extend(
+            path for path in (ROOT / directory_pattern).rglob("*") if path.is_file()
+        )
+    contract_paths = sorted(set(contract_paths))
     if not contract_paths:
         fail("contract/schema registry binding is empty")
     contract_artifacts = bind_artifacts(contract_paths)
