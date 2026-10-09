@@ -40,8 +40,13 @@ func registerMobileCheckoutMutation(
 	sessions *clientSessionManager,
 	sessionConfigErr error,
 	now func() time.Time,
+	allowConformanceCheckout bool,
 ) {
 	mux.HandleFunc("POST /v1/mobile/checkout-instructions", func(w http.ResponseWriter, r *http.Request) {
+		if !allowConformanceCheckout {
+			writeDemandError(w, r, http.StatusServiceUnavailable, "EXTERNAL_PAYMENT_UNAVAILABLE", "Реальный внешний способ оплаты пока не подключён. APGIC не принимает деньги.", false, []string{"EXTERNAL_PAYMENT_UNAVAILABLE"})
+			return
+		}
 		if service == nil || store == nil {
 			writeDemandError(w, r, http.StatusServiceUnavailable, "MUTATION_RUNTIME_UNAVAILABLE", "Синхронизация действия временно недоступна.", true, nil)
 			return
