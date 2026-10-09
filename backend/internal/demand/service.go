@@ -524,6 +524,9 @@ func (s *Service) Slots(specialistID string) ([]Slot, error) {
 		if slot.SpecialistID != specialistID || !slot.StartsAt.After(now) {
 			continue
 		}
+		if _, held := s.slotHolds[slot.ID]; held || s.slotBookedLocked(slot.ID) {
+			continue
+		}
 		out = append(out, slot)
 	}
 	return out, nil
