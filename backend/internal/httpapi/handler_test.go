@@ -69,7 +69,7 @@ func TestUnconfiguredExternalCheckoutFailsClosedAcrossWebAndNative(t *testing.T)
 			t.Fatalf("unconfigured checkout exposed %q: %s", forbidden, optionsBody)
 		}
 	}
-	if !strings.Contains(optionsBody, "\"external_execution_available\":false") || !strings.Contains(optionsBody, "\"options\":[]") {
+	if !strings.Contains(optionsBody, "\"apgic_accepts_funds\":false") || !strings.Contains(optionsBody, "\"options\":[]") {
 		t.Fatalf("checkout options did not fail closed honestly: %s", optionsBody)
 	}
 
