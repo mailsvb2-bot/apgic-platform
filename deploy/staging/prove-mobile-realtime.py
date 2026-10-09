@@ -90,16 +90,27 @@ def main() -> None:
         f"/v1/slot-holds/{hold['id']}/checkout-options",
     )
     options = checkout_options.get("options", [])
-    require(bool(options), f"checkout options are empty: {checkout_options!r}")
-    method_code = options[0].get("method_code")
-    require(isinstance(method_code, str) and bool(method_code), f"checkout method missing: {options!r}")
-    _, checkout = client.call(
-        "POST",
-        "/v1/checkout-instructions",
-        {"hold_id": hold["id"], "method_code": method_code},
-    )
+    require(checkout_options.get("apgic_accepts_funds") is False, f"staging advertised APGIC custody: {checkout_options!r}")
+    require(options == [], f"staging advertised unconfigured payment methods: {checkout_options!r}")
+
     # Staging is a real boundary check, NOT a fake payment provider.
-    # No customer-supplied CAPTURED message may confirm a booking.
+    # With no certified external execution configured, even a direct API caller
+    # must not be able to create a synthetic checkout instruction.
+    checkout_denied_status = None
+    checkout_denied_code = None
+    try:
+        client.call(
+            "POST",
+            "/v1/checkout-instructions",
+            {"hold_id": hold["id"], "method_code": "BANK_CARD"},
+        )
+    except APIError as error:
+        checkout_denied_status = error.status
+        if isinstance(error.payload, dict):
+            checkout_denied_code = error.payload.get("code")
+
+    # A customer-supplied CAPTURED message must also remain untrusted,
+    # independently of the checkout-availability gate.
     denied_status = None
     denied_code = None
     try:
@@ -107,11 +118,11 @@ def main() -> None:
             "POST",
             "/v1/provider-events",
             {
-                "provider_id": checkout["provider_id"],
+                "provider_id": "external-bank",
                 "provider_event_id": f"mobile009-untrusted-{proof_id}",
-                "order_id": checkout["order_id"],
-                "amount_minor": checkout["amount_minor"],
-                "currency": checkout["currency"],
+                "order_id": f"untrusted-{proof_id}",
+                "amount_minor": 1,
+                "currency": "RUB",
                 "outcome": "CAPTURED",
             },
         )
@@ -121,9 +132,14 @@ def main() -> None:
             denied_code = error.payload.get("code")
 
     require(meta.get("conformance_provider_events") is False, "staging exposed synthetic payment confirmation")
+    require(checkout_denied_status == 503, f"unconfigured checkout was accepted: {checkout_denied_status}")
+    require(
+        checkout_denied_code == "PAY_EXTERNAL_PROVIDER_UNAVAILABLE",
+        f"unexpected checkout boundary: {checkout_denied_code}",
+    )
     require(denied_status == 403, f"client-forged provider capture was accepted: {denied_status}")
     require(denied_code == "PROVIDER_EVIDENCE_UNVERIFIED", f"unexpected provider boundary: {denied_code}")
-    require(checkout.get("booking_state") == "PENDING_PAYMENT", f"unexpected booking state: {checkout!r}")
+    require(hold.get("booking_state") == "HELD", f"unexpected booking state: {hold!r}")
 
     # No communication room is available without trusted external confirmation.
     no_access_status = None
@@ -135,12 +151,15 @@ def main() -> None:
 
     proof = {
         "requirement_id": "APGIC-MOBILE-009",
-        "evidence_kind": "STAGING_UNTRUSTED_PAYMENT_NEGATIVE_PROOF",
+        "evidence_kind": "STAGING_UNCONFIGURED_PAYMENT_AND_UNTRUSTED_CAPTURE_NEGATIVE_PROOF",
         "commit_sha": meta.get("commit_sha"),
         "release_track": meta.get("release_track"),
         "proof_id": proof_id,
         "booking_id": hold["booking_id"],
-        "booking_state": checkout.get("booking_state"),
+        "booking_state": hold.get("booking_state"),
+        "checkout_options_count": len(options),
+        "checkout_create_http_status": checkout_denied_status,
+        "checkout_create_error_code": checkout_denied_code,
         "client_capture_http_status": denied_status,
         "client_capture_error_code": denied_code,
         "unpaid_consultation_http_status": no_access_status,
@@ -153,7 +172,7 @@ def main() -> None:
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(proof, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(proof, ensure_ascii=False, indent=2))
-    print("APGIC MOBILE-009 staging untrusted-payment boundary proof: PASS")
+    print("APGIC MOBILE-009 staging fail-closed payment boundary proof: PASS")
 
 
 if __name__ == "__main__":
