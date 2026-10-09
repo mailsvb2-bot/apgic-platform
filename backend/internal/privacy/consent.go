@@ -12,6 +12,7 @@ const PurposeGrowthSessionProjection = "GROWTH_SESSION_PROJECTION"
 var (
 	ErrInvalidConsent  = errors.New("invalid consent record")
 	ErrConsentNotFound = errors.New("consent record not found")
+	ErrConsentConflict = errors.New("active consent has a different policy or text version")
 	ErrConsentRevoked  = errors.New("consent record is revoked")
 )
 
