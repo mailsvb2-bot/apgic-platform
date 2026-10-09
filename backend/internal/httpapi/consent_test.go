@@ -12,6 +12,19 @@ import (
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/privacy"
 )
 
+func testGrowthConsentPolicies(t *testing.T) map[string]privacy.ConsentPolicy {
+	t.Helper()
+	policy, err := privacy.NewConsentPolicy(
+		privacy.PurposeGrowthSessionProjection,
+		"growth-v1",
+		"sha256:text",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return map[string]privacy.ConsentPolicy{policy.Purpose: policy}
+}
+
 type memoryConsentStore struct {
 	records map[string]privacy.ConsentRecord
 }
@@ -75,7 +88,7 @@ func TestGrowthExportIgnoresClientAssertedConsentWithoutLedgerEvidence(t *testin
 	}
 
 	store := &memoryConsentStore{}
-	handler := New(Options{Demand: service, Consents: store, ClientSessionKey: key})
+	handler := New(Options{Demand: service, Consents: store, ConsentPolicies: testGrowthConsentPolicies(t), ClientSessionKey: key})
 	manager, err := newClientSessionManager(key, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -106,7 +119,7 @@ func TestConsentEndpointBindsSubjectAndRevocationToTrustedSession(t *testing.T) 
 	subjectID := "33333333-3333-4333-8333-333333333333"
 	now := time.Date(2030, 2, 3, 4, 5, 6, 0, time.UTC)
 	store := &memoryConsentStore{}
-	handler := New(Options{Consents: store, ClientSessionKey: key, Now: func() time.Time { return now }})
+	handler := New(Options{Consents: store, ConsentPolicies: testGrowthConsentPolicies(t), ClientSessionKey: key, Now: func() time.Time { return now }})
 	manager, err := newClientSessionManager(key, func() time.Time { return now })
 	if err != nil {
 		t.Fatal(err)
@@ -160,5 +173,41 @@ func TestConsentEndpointBindsSubjectAndRevocationToTrustedSession(t *testing.T) 
 	}
 	if foreignRecorder.Code == http.StatusOK {
 		t.Fatal(errors.New("foreign subject unexpectedly revoked consent"))
+	}
+}
+
+func TestConsentEndpointRejectsStalePolicyVersion(t *testing.T) {
+	key := []byte(strings.Repeat("s", 32))
+	now := time.Date(2030, 2, 3, 4, 5, 6, 0, time.UTC)
+	store := &memoryConsentStore{}
+	handler := New(Options{
+		Consents: store,
+		ConsentPolicies: testGrowthConsentPolicies(t),
+		ClientSessionKey: key,
+		Now: func() time.Time { return now },
+	})
+	manager, err := newClientSessionManager(key, func() time.Time { return now })
+	if err != nil {
+		t.Fatal(err)
+	}
+	cookie, err := manager.issue("55555555-5555-4555-8555-555555555555")
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest(http.MethodPost, "/v1/consents", strings.NewReader(
+		`{"purpose":"GROWTH_SESSION_PROJECTION","scope":"booking/b1","policy_version":"growth-old","text_hash_or_version":"sha256:old"}`,
+	))
+	request.AddCookie(cookie)
+	request.Header.Set("content-type", "application/json")
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusConflict {
+		t.Fatalf("stale consent status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if !strings.Contains(recorder.Body.String(), "CONSENT_POLICY_VERSION_MISMATCH") {
+		t.Fatalf("stale consent reason missing: %s", recorder.Body.String())
+	}
+	if len(store.records) != 0 {
+		t.Fatalf("stale policy consent was persisted: %#v", store.records)
 	}
 }
