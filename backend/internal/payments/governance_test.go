@@ -33,12 +33,17 @@ func governanceConfig(t0 time.Time) ProviderConfigSnapshot {
 }
 
 func governanceAuth(t0 time.Time, auditID string, stepUp *time.Time) authz.Input {
+	principal := authz.Principal{
+		ID: "admin-1", TenantID: "platform",
+		Permissions: map[string]struct{}{"payment.provider.manage": {}},
+		StepUpAt:    stepUp,
+	}
+	if stepUp != nil {
+		principal.SessionRef = "session:payment-admin"
+		principal.StepUpMethod = "WEBAUTHN"
+	}
 	return authz.Input{
-		Principal: authz.Principal{
-			ID: "admin-1", TenantID: "platform",
-			Permissions: map[string]struct{}{"payment.provider.manage": {}},
-			StepUpAt:    stepUp,
-		},
+		Principal: principal,
 		Resource: authz.ResourceRef{ID: "payments", TenantID: "platform"},
 		Now:      t0, MaxStepUpAge: 10 * time.Minute,
 		CorrelationID: "corr-governance-1", AuditRecordID: auditID,
