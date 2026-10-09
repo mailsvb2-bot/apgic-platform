@@ -1086,9 +1086,57 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /v1/provider-webhooks:
+    post:
+      operationId: applyTrustedProviderWebhook
+      description: |
+        Production/provider payment evidence ingress. The complete connector envelope is
+        Ed25519-signed by a configured external provider key before its payload can affect
+        booking or ledger truth. Browser/client self-attestation is not accepted here.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProviderWebhookEnvelope'
+      responses:
+        '201':
+          description: First verified captured provider evidence. APGIC does not accept funds.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentEvidence'
+        '200':
+          description: Idempotent replay of the same verified provider event
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentEvidence'
+        '400':
+          description: Signed transport identifiers do not bind to the payment payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Provider webhook signature/key is missing, unknown, or invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Verified evidence conflicts with the canonical checkout or existing economic effect
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /v1/provider-events:
     post:
       operationId: applyProviderEvent
+      description: |
+        Isolated conformance-only provider event injection. Disabled in normal/staging/production
+        runtime and never accepted as trusted browser payment evidence. Real provider evidence must
+        use /v1/provider-webhooks with a verified connector signature.
       requestBody:
         required: true
         content:
@@ -1108,6 +1156,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PaymentEvidence'
+        '403':
+          description: Conformance event injection is disabled in this runtime
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
         '409':
           description: Evidence does not match the instruction or would create a second effect
           content:
@@ -1998,6 +2052,27 @@ components:
         apgic_accepts_funds: { type: boolean }
         notice: { type: string }
         reason_code: { type: string }
+    ProviderWebhookEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+        [connector_instance_id, external_event_id, stream_id, sequence, key_id, occurred_at, payload, signature]
+      properties:
+        connector_instance_id: { type: string, minLength: 1 }
+        external_event_id: { type: string, minLength: 1 }
+        stream_id:
+          type: string
+          minLength: 1
+          description: Must equal payment/{order_id} for payment evidence.
+        sequence: { type: integer, minimum: 1 }
+        key_id: { type: string, minLength: 1 }
+        occurred_at: { type: string, format: date-time }
+        payload:
+          $ref: '#/components/schemas/ProviderEvent'
+        signature:
+          type: string
+          minLength: 1
+          description: Base64 Ed25519 signature over the canonical connector signing payload.
     ProviderEvent:
       type: object
       additionalProperties: false

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/clientcompat"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/connector"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/demand"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/launchconfig"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/legal"
@@ -37,6 +38,7 @@ type Options struct {
 	ProductOwnership            productOwnershipStore
 	Products                    organizationProductStore
 	ConformanceProviderEvents   bool
+	ProviderWebhookKeys         connector.WebhookPublicKeyResolver
 	ClientSessionKey            []byte
 	ClientCompatibilityPolicies map[clientcompat.Platform]clientcompat.Policy
 	RemoteConfigProvider        func(time.Time) (remoteconfig.SignedEnvelope, error)
@@ -112,14 +114,14 @@ func New(options Options) http.Handler {
 			stepUp, sessionConfigErr = newStepUpManager(options.ClientSessionKey, options.Now)
 		}
 	}
-	registerDemand(mux, options.Demand, sessions, sessionConfigErr, options.ConformanceProviderEvents)
+	registerDemand(mux, options.Demand, sessions, sessionConfigErr, options.ConformanceProviderEvents, options.ProviderWebhookKeys)
 	registerLegalAcceptance(mux, options.LegalAcceptances, sessions, sessionConfigErr, options.Now)
 	registerMobileCompatibility(mux, options.ClientCompatibilityPolicies)
 	registerMobileRemoteConfig(mux, options.RemoteConfigProvider, options.Now)
 	registerMobileInstallations(mux, options.Installations, sessions, sessionConfigErr, options.Now)
 	registerMobileWorkspaces(mux, options.MobileWorkspaces, sessions, sessionConfigErr, options.Now)
 	registerMobileNotifications(mux, options.Notifications, sessions, sessionConfigErr)
-	registerMobileCheckoutMutation(mux, options.Demand, options.ClientMutations, sessions, sessionConfigErr, options.Now)
+	registerMobileCheckoutMutation(mux, options.Demand, options.ClientMutations, sessions, sessionConfigErr, options.ConformanceProviderEvents, options.Now)
 	var deepLinkTokens *mobile.DeepLinkTokenManager
 	var deepLinkTokenConfigErr error
 	if len(options.DeepLinkSigningKey) > 0 {
