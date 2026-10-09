@@ -23,14 +23,25 @@ func TestClientSessionRoundTripAndCookieHardening(t *testing.T) {
 		t.Fatalf("cookie hardening = %#v", cookie)
 	}
 
+	secondCookie, err := manager.issue("11111111-1111-4111-8111-111111111111")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if secondCookie.Value == cookie.Value {
+		t.Fatal("separate client sessions must have unique signed values")
+	}
+
 	request := httptest.NewRequest(http.MethodPost, "/v1/help-intents", nil)
 	request.AddCookie(cookie)
-	identityID, err := manager.identityFromRequest(request)
+	identityID, sessionRef, err := manager.identityAndReferenceFromRequest(request)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if identityID != "11111111-1111-4111-8111-111111111111" {
 		t.Fatalf("identity = %q", identityID)
+	}
+	if !strings.HasPrefix(sessionRef, "session:") {
+		t.Fatalf("session reference = %q", sessionRef)
 	}
 }
 

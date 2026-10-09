@@ -16,7 +16,8 @@ import (
 
 const (
 	clientSessionCookieName = "__Host-apgic_session"
-	clientSessionVersion    = "v1"
+	clientSessionVersion    = "v2"
+	legacySessionVersion    = "v1"
 	clientSessionTTL        = 30 * 24 * time.Hour
 	minSessionKeyBytes      = 32
 )
@@ -55,8 +56,12 @@ func (m *clientSessionManager) issue(identityID string) (*http.Cookie, error) {
 	if strings.TrimSpace(identityID) == "" {
 		return nil, ErrClientSessionInvalid
 	}
+	sessionID, err := persistentid.New()
+	if err != nil {
+		return nil, fmt.Errorf("create client session id: %w", err)
+	}
 	expiresAt := m.now().UTC().Add(clientSessionTTL)
-	payload := identityID + "|" + strconv.FormatInt(expiresAt.Unix(), 10)
+	payload := identityID + "|" + sessionID + "|" + strconv.FormatInt(expiresAt.Unix(), 10)
 	payloadEncoded := base64.RawURLEncoding.EncodeToString([]byte(payload))
 	signature := m.sign(clientSessionVersion + "." + payloadEncoded)
 	value := clientSessionVersion + "." + payloadEncoded + "." + base64.RawURLEncoding.EncodeToString(signature)
@@ -74,14 +79,24 @@ func (m *clientSessionManager) issue(identityID string) (*http.Cookie, error) {
 }
 
 func (m *clientSessionManager) identityFromRequest(r *http.Request) (string, error) {
+	identityID, _, err := m.identityAndReferenceFromRequest(r)
+	return identityID, err
+}
+
+func (m *clientSessionManager) identityAndReferenceFromRequest(r *http.Request) (string, string, error) {
 	cookie, err := r.Cookie(clientSessionCookieName)
 	if errors.Is(err, http.ErrNoCookie) {
-		return "", ErrClientSessionMissing
+		return "", "", ErrClientSessionMissing
 	}
 	if err != nil {
-		return "", ErrClientSessionInvalid
+		return "", "", ErrClientSessionInvalid
 	}
-	return m.parse(cookie.Value)
+	identityID, err := m.parse(cookie.Value)
+	if err != nil {
+		return "", "", err
+	}
+	digest := sha256.Sum256([]byte(cookie.Value))
+	return identityID, "session:" + base64.RawURLEncoding.EncodeToString(digest[:]), nil
 }
 
 func (m *clientSessionManager) identityForCreate(r *http.Request) (string, *http.Cookie, error) {
@@ -106,7 +121,7 @@ func (m *clientSessionManager) identityForCreate(r *http.Request) (string, *http
 
 func (m *clientSessionManager) parse(value string) (string, error) {
 	parts := strings.Split(value, ".")
-	if len(parts) != 3 || parts[0] != clientSessionVersion {
+	if len(parts) != 3 || (parts[0] != clientSessionVersion && parts[0] != legacySessionVersion) {
 		return "", ErrClientSessionInvalid
 	}
 	signed := parts[0] + "." + parts[1]
@@ -119,10 +134,25 @@ func (m *clientSessionManager) parse(value string) (string, error) {
 		return "", ErrClientSessionInvalid
 	}
 	payloadParts := strings.Split(string(rawPayload), "|")
-	if len(payloadParts) != 2 || strings.TrimSpace(payloadParts[0]) == "" {
+	if strings.TrimSpace(payloadParts[0]) == "" {
 		return "", ErrClientSessionInvalid
 	}
-	expiresUnix, err := strconv.ParseInt(payloadParts[1], 10, 64)
+	var expiresField string
+	switch parts[0] {
+	case clientSessionVersion:
+		if len(payloadParts) != 3 || strings.TrimSpace(payloadParts[1]) == "" {
+			return "", ErrClientSessionInvalid
+		}
+		expiresField = payloadParts[2]
+	case legacySessionVersion:
+		if len(payloadParts) != 2 {
+			return "", ErrClientSessionInvalid
+		}
+		expiresField = payloadParts[1]
+	default:
+		return "", ErrClientSessionInvalid
+	}
+	expiresUnix, err := strconv.ParseInt(expiresField, 10, 64)
 	if err != nil {
 		return "", ErrClientSessionInvalid
 	}

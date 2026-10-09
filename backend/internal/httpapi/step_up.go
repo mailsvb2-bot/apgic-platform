@@ -13,11 +13,17 @@ import (
 
 const (
 	stepUpCookieName = "__Host-apgic_step_up"
-	stepUpVersion    = "su1"
+	stepUpVersion    = "su2"
 	stepUpTTL        = 10 * time.Minute
 )
 
 var ErrStepUpAssertionInvalid = errors.New("step-up assertion is invalid")
+
+type stepUpEvidence struct {
+	IssuedAt   time.Time
+	Method     string
+	SessionRef string
+}
 
 type stepUpManager struct {
 	key []byte
@@ -34,13 +40,22 @@ func newStepUpManager(key []byte, now func() time.Time) (*stepUpManager, error) 
 	return &stepUpManager{key: append([]byte(nil), key...), now: now}, nil
 }
 
-func (m *stepUpManager) issue(identityID string, issuedAt time.Time) (*http.Cookie, error) {
+func (m *stepUpManager) issue(identityID, sessionRef, method string, issuedAt time.Time) (*http.Cookie, error) {
 	identityID = strings.TrimSpace(identityID)
-	if identityID == "" || issuedAt.IsZero() {
+	sessionRef = strings.TrimSpace(sessionRef)
+	method = strings.TrimSpace(method)
+	if identityID == "" || sessionRef == "" || method == "" || issuedAt.IsZero() ||
+		strings.ContainsAny(identityID, "|") || strings.ContainsAny(sessionRef, "|") || strings.ContainsAny(method, "|") {
 		return nil, ErrStepUpAssertionInvalid
 	}
 	expiresAt := issuedAt.UTC().Add(stepUpTTL)
-	raw := identityID + "|" + strconv.FormatInt(issuedAt.UTC().Unix(), 10) + "|" + strconv.FormatInt(expiresAt.Unix(), 10)
+	raw := strings.Join([]string{
+		identityID,
+		sessionRef,
+		method,
+		strconv.FormatInt(issuedAt.UTC().Unix(), 10),
+		strconv.FormatInt(expiresAt.Unix(), 10),
+	}, "|")
 	payload := base64.RawURLEncoding.EncodeToString([]byte(raw))
 	signed := stepUpVersion + "." + payload
 	value := signed + "." + base64.RawURLEncoding.EncodeToString(m.sign(signed))
@@ -56,7 +71,7 @@ func (m *stepUpManager) issue(identityID string, issuedAt time.Time) (*http.Cook
 	}, nil
 }
 
-func (m *stepUpManager) issuedAtFromRequest(r *http.Request, identityID string) *time.Time {
+func (m *stepUpManager) evidenceFromRequest(r *http.Request, identityID, sessionRef string) *stepUpEvidence {
 	cookie, err := r.Cookie(stepUpCookieName)
 	if err != nil {
 		return nil
@@ -75,19 +90,25 @@ func (m *stepUpManager) issuedAtFromRequest(r *http.Request, identityID string) 
 		return nil
 	}
 	fields := strings.Split(string(raw), "|")
-	if len(fields) != 3 || fields[0] != identityID {
+	if len(fields) != 5 ||
+		fields[0] != strings.TrimSpace(identityID) ||
+		fields[1] != strings.TrimSpace(sessionRef) ||
+		strings.TrimSpace(fields[2]) == "" {
 		return nil
 	}
-	issuedUnix, err := strconv.ParseInt(fields[1], 10, 64)
+	issuedUnix, err := strconv.ParseInt(fields[3], 10, 64)
 	if err != nil {
 		return nil
 	}
-	expiresUnix, err := strconv.ParseInt(fields[2], 10, 64)
+	expiresUnix, err := strconv.ParseInt(fields[4], 10, 64)
 	if err != nil || !time.Unix(expiresUnix, 0).After(m.now().UTC()) {
 		return nil
 	}
-	issuedAt := time.Unix(issuedUnix, 0).UTC()
-	return &issuedAt
+	return &stepUpEvidence{
+		IssuedAt:   time.Unix(issuedUnix, 0).UTC(),
+		Method:     fields[2],
+		SessionRef: fields[1],
+	}
 }
 
 func (m *stepUpManager) sign(value string) []byte {

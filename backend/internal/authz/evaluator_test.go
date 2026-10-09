@@ -1,6 +1,7 @@
 package authz
 
 import (
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -71,6 +72,7 @@ func TestStepUpDecisionIsAudited(t *testing.T) {
 	in.Principal.Permissions = map[string]struct{}{"organization.transfer_ownership": {}}
 	in.Action = "organization.transfer_ownership"
 	in.Risk = RiskHigh
+	in.Principal.SessionRef = "session:test"
 
 	appender := &memoryAuditAppender{}
 	evaluator := Evaluator{PolicyVersion: "authz-policy-v1", Appender: appender}
@@ -84,6 +86,18 @@ func TestStepUpDecisionIsAudited(t *testing.T) {
 	}
 	if len(appender.records) != 1 || appender.records[0].Reason != "AUTH_STEP_UP_REQUIRED" {
 		t.Fatalf("step-up evidence missing: %#v", appender.records)
+	}
+	var snapshot decisionSnapshot
+	if err := json.Unmarshal(appender.records[0].NewState, &snapshot); err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.SecurityEvidence == nil ||
+		snapshot.SecurityEvidence.PrincipalID != "alice" ||
+		snapshot.SecurityEvidence.SessionRef != "session:test" ||
+		snapshot.SecurityEvidence.Decision != StepUpRequired ||
+		snapshot.SecurityEvidence.ReasonCode != "AUTH_STEP_UP_REQUIRED" ||
+		snapshot.SecurityEvidence.PolicyVersion != "authz-policy-v1" {
+		t.Fatalf("high-risk security evidence missing: %#v", snapshot.SecurityEvidence)
 	}
 }
 
@@ -134,5 +148,35 @@ func TestTenantContextDenialIsAudited(t *testing.T) {
 	}
 	if len(appender.records) != 1 || appender.records[0].Reason != "AUTH_TENANT_CONTEXT_DENIED" {
 		t.Fatalf("tenant-context denial evidence missing: %#v", appender.records)
+	}
+}
+
+func TestAllowedHighRiskAuditCarriesStepUpMethodAndTimestamp(t *testing.T) {
+	now := time.Now().UTC()
+	stepUpAt := now.Add(-time.Minute)
+	in := auditableInput(now)
+	in.Principal.Permissions = map[string]struct{}{"organization.transfer_ownership": {}}
+	in.Principal.SessionRef = "session:bound"
+	in.Principal.StepUpAt = &stepUpAt
+	in.Principal.StepUpMethod = "WEBAUTHN"
+	in.Action = "organization.transfer_ownership"
+	in.Risk = RiskHigh
+
+	appender := &memoryAuditAppender{}
+	result, err := (Evaluator{PolicyVersion: "authz-policy-v1", Appender: appender}).Authorize(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Decision != Allow || len(appender.records) != 1 {
+		t.Fatalf("unexpected allowed high-risk result=%#v records=%#v", result, appender.records)
+	}
+	var snapshot decisionSnapshot
+	if err := json.Unmarshal(appender.records[0].NewState, &snapshot); err != nil {
+		t.Fatal(err)
+	}
+	evidence := snapshot.SecurityEvidence
+	if evidence == nil || evidence.Method != "WEBAUTHN" || evidence.StepUpAt == nil ||
+		!evidence.StepUpAt.Equal(stepUpAt) || !evidence.EvaluatedAt.Equal(now) {
+		t.Fatalf("step-up method/timestamps not preserved: %#v", evidence)
 	}
 }

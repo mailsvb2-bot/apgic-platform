@@ -43,6 +43,11 @@ func registerHighRiskProductOwnership(
 		if !ok {
 			return
 		}
+		sessionIdentityID, sessionRef, err := sessions.identityAndReferenceFromRequest(r)
+		if err != nil || sessionIdentityID != identityID {
+			writeDemandError(w, r, http.StatusUnauthorized, "AUTH_SESSION_INVALID", "Сессия недействительна.", false, nil)
+			return
+		}
 		productID := strings.TrimSpace(r.PathValue("productID"))
 		_, found, err := store.IdentityOwnedProductCommercialOwner(productID, identityID)
 		if err != nil {
@@ -66,13 +71,23 @@ func registerHighRiskProductOwnership(
 		if correlation == "" {
 			correlation = "authz:" + auditID
 		}
+		stepUpEvidence := stepUp.evidenceFromRequest(r, identityID, sessionRef)
+		var stepUpAt *time.Time
+		var stepUpMethod string
+		if stepUpEvidence != nil {
+			stepUpAt = &stepUpEvidence.IssuedAt
+			stepUpMethod = stepUpEvidence.Method
+		}
 		result, err := (authz.Evaluator{
 			PolicyVersion: "authz-policy-v1",
 			Appender:      store,
 		}).Authorize(authz.Input{
 			Principal: authz.Principal{
-				ID:       identityID,
-				TenantID: identityID,
+				ID:           identityID,
+				TenantID:     identityID,
+				SessionRef:   sessionRef,
+				StepUpAt:     stepUpAt,
+				StepUpMethod: stepUpMethod,
 				Permissions: func() map[string]struct{} {
 					permissions := map[string]struct{}{}
 					if found {
@@ -80,7 +95,6 @@ func registerHighRiskProductOwnership(
 					}
 					return permissions
 				}(),
-				StepUpAt: stepUp.issuedAtFromRequest(r, identityID),
 			},
 			Resource:      authz.ResourceRef{ID: productID, TenantID: identityID},
 			Action:        "product.change_commercial_owner",
