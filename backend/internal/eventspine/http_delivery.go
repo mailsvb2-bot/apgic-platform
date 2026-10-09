@@ -110,7 +110,9 @@ func (d *HTTPDeliverer) Deliver(ctx context.Context, event EventEnvelope) error 
 	}
 	defer response.Body.Close()
 	_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 64<<10))
-	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+	// HTTP 202 only acknowledges queueing for later processing, not completion.
+	// Keep the event pending until the gateway gives a synchronous success.
+	if response.StatusCode == http.StatusAccepted || response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
 		return fmt.Errorf("%w: status=%d", ErrDeliveryRejected, response.StatusCode)
 	}
 	return nil
