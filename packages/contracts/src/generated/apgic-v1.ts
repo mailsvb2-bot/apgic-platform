@@ -435,10 +435,8 @@ export interface ProviderWebhookEnvelope {
 
 export interface RecordConsentRequest {
   policy_version: string;
-  proof_metadata: Record<string, unknown>;
   purpose: string;
   scope: string;
-  source: string;
   text_hash_or_version: string;
 }
 
