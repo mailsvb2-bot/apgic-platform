@@ -316,6 +316,11 @@ jobs:
         env:
           APGIC_OUTBOX_TEST_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable
         run: go test ./internal/runtimepostgres -run TestTransactionalOutboxSurvivesRollbackRestartAndRetry -count=1
+      - name: Prove HTTPS 503 retry and durable acknowledgement
+        working-directory: backend
+        env:
+          APGIC_OUTBOX_TEST_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable
+        run: go test ./internal/runtimepostgres -run TestEvent001HTTPSGatewayRetryAndDurableAck -count=1
       - name: Prove core business truth survives unavailable communication provider
         working-directory: backend
         env:
