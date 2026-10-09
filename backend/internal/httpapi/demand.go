@@ -485,7 +485,7 @@ func registerDemand(
 		scope := privacy.GrowthConsentScope(r.PathValue("bookingID"))
 		_, allowed, err := consents.ActiveConsent(clientIdentityID, privacy.PurposeGrowthSessionProjection, scope, now().UTC())
 		if err != nil {
-			writeDemandError(w, r, http.StatusServiceUnavailable, "CONSENT_STORAGE_FAILED", "Не удалось проверить согласие.", true, nil)
+			writeDemandError(w, r, http.StatusServiceUnavailable, "CONSENT_STORAGE_FAILED", "Не удалось проверить наличие согласия.", true, nil)
 			return
 		}
 		if !allowed {
