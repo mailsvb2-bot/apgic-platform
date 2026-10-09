@@ -71,19 +71,19 @@ func (d *HTTPDeliverer) Deliver(ctx context.Context, event EventEnvelope) error 
 	}
 	event = record.Event
 	payload, err := json.Marshal(wireEventEnvelope{
-		EventID: event.EventID,
-		IdempotencyKey: event.IdempotencyKey,
-		EventType: event.EventType,
-		SchemaVersion: event.SchemaVersion,
-		AggregateRef: event.AggregateRef,
+		EventID:          event.EventID,
+		IdempotencyKey:   event.IdempotencyKey,
+		EventType:        event.EventType,
+		SchemaVersion:    event.SchemaVersion,
+		AggregateRef:     event.AggregateRef,
 		AggregateVersion: event.AggregateVersion,
-		OccurredAt: event.OccurredAt.UTC(),
-		ProducedAt: event.ProducedAt.UTC(),
-		Producer: event.Producer,
-		TenantScope: event.TenantScope,
-		CorrelationID: event.CorrelationID,
-		CausationID: event.CausationID,
-		Payload: json.RawMessage(event.PayloadJSON),
+		OccurredAt:       event.OccurredAt.UTC(),
+		ProducedAt:       event.ProducedAt.UTC(),
+		Producer:         event.Producer,
+		TenantScope:      event.TenantScope,
+		CorrelationID:    event.CorrelationID,
+		CausationID:      event.CausationID,
+		Payload:          json.RawMessage(event.PayloadJSON),
 	})
 	if err != nil {
 		return fmt.Errorf("encode outbox delivery: %w", err)
