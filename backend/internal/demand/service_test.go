@@ -143,6 +143,37 @@ func TestExclusiveHoldAllowsOnlyOneActiveClient(t *testing.T) {
 	}
 }
 
+func TestSlotsHideActiveHoldsFromAvailability(t *testing.T) {
+	service := NewConformanceService(nil)
+	intent, err := service.CreateIntent("нужна помощь со сном")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.ConfirmIntent(intent.ID, []string{"sleep"}, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	before, err := service.Slots("spec-lebedeva")
+	if err != nil || len(before) < 2 {
+		t.Fatalf("slots before hold=%#v err=%v", before, err)
+	}
+	hold, err := service.AcquireHold(intent.ID, before[0].ID, intent.ClientIdentityID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	after, err := service.Slots("spec-lebedeva")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, slot := range after {
+		if slot.ID == hold.SlotID {
+			t.Fatalf("active held slot %s remained advertised", hold.SlotID)
+		}
+	}
+	if len(after) != len(before)-1 {
+		t.Fatalf("available slots=%d want %d", len(after), len(before)-1)
+	}
+}
+
 func TestUnconfirmedIntentCannotMatch(t *testing.T) {
 	service := NewConformanceService(nil)
 	intent, err := service.CreateIntent("тревога")

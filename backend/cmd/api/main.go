@@ -19,6 +19,7 @@ import (
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/httpapi"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/launchconfig"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/mobile"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/privacy"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/remoteconfig"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/runtimepostgres"
 )
@@ -43,6 +44,10 @@ func main() {
 	providerWebhookKeys, err := providerWebhookKeysFromEnvironment()
 	if err != nil {
 		log.Fatalf("APGIC provider webhook public-key configuration failed: %v", err)
+	}
+	consentPolicies, err := consentPoliciesFromEnvironment(environment)
+	if err != nil {
+		log.Fatalf("APGIC consent policy configuration failed: %v", err)
 	}
 	if releaseTrack != "R0" {
 		if _, err := mobile.NewDeepLinkTokenManager(deepLinkSigningKey); err != nil {
@@ -84,6 +89,8 @@ func main() {
 		RemoteConfigProvider:        remoteConfigProvider,
 		ReadinessCheck:              readinessCheck,
 		LegalAcceptances:            storage,
+		Consents:                    storage,
+		ConsentPolicies:             consentPolicies,
 		Installations:               storage,
 		MobileWorkspaces:            storage,
 		Notifications:               storage,
@@ -121,6 +128,25 @@ type providerWebhookKeyResolver map[string]ed25519.PublicKey
 func (r providerWebhookKeyResolver) ResolveWebhookPublicKey(connectorInstanceID, keyID string) (ed25519.PublicKey, bool) {
 	key, ok := r[strings.TrimSpace(connectorInstanceID)+"/"+strings.TrimSpace(keyID)]
 	return key, ok
+}
+
+func consentPoliciesFromEnvironment(environment string) (map[string]privacy.ConsentPolicy, error) {
+	version := strings.TrimSpace(os.Getenv("APGIC_GROWTH_CONSENT_POLICY_VERSION"))
+	textVersion := strings.TrimSpace(os.Getenv("APGIC_GROWTH_CONSENT_TEXT_HASH_OR_VERSION"))
+	if version == "" && textVersion == "" {
+		if runtimepostgres.RequiresDatabase(environment) {
+			return nil, fmt.Errorf("growth consent policy is required in %s", environment)
+		}
+		return nil, nil
+	}
+	if version == "" || textVersion == "" || version == "CONFIG_REQUIRED" || textVersion == "CONFIG_REQUIRED" {
+		return nil, fmt.Errorf("growth consent policy configuration is incomplete")
+	}
+	policy, err := privacy.NewConsentPolicy(privacy.PurposeGrowthSessionProjection, version, textVersion)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]privacy.ConsentPolicy{policy.Purpose: policy}, nil
 }
 
 func providerWebhookKeysFromEnvironment() (connector.WebhookPublicKeyResolver, error) {

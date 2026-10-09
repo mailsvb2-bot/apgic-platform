@@ -72,6 +72,7 @@ jobs:
           grep -q 'POST /v1/mobile/installations' backend/internal/httpapi/mobile_installation.go
       - run: python tools/event_contract_guard.py
       - run: python tools/audit_contract_guard.py
+      - run: python tools/data_consent_contract_guard.py
       - run: python tools/ledger_contract_guard.py
       - run: python tools/product_contract_guard.py
       - run: python tools/payment_custody_guard.py
@@ -282,6 +283,7 @@ jobs:
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000025_r2_notification_policy_runtime.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000026_r2_offline_mutation_failure.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000027_r0_order_snapshot_baseline_repair.sql
+          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000028_r0_consent_ledger.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r0_connector_delivery_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r1_mobile_invariants.sql
@@ -299,6 +301,11 @@ jobs:
           PGHOST=127.0.0.1 PGUSER=apgic PGDATABASE=apgic_ci bash backend/ci/r0_order_snapshot_baseline_repair.sh
           bash backend/ci/r2_booking_concurrency.sh
           bash backend/ci/r2_mutation_concurrency.sh
+      - name: Prove DATA-001 consent grant revoke and active lookup in PostgreSQL
+        working-directory: backend
+        env:
+          APGIC_CONSENT_TEST_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable
+        run: go test ./internal/runtimepostgres -run TestConsentLedgerGrantRevokeAndHistory -count=1
       - name: Prove runtime ledger persists and replays from PostgreSQL
         working-directory: backend
         env:
@@ -361,6 +368,8 @@ jobs:
           APGIC_RETENTION_POLICY_VERSION: retention-ci-v1
           APGIC_SLO_POLICY_VERSION: slo-r0-ci-v1
           APGIC_PROVIDER_MATRIX_VERSION: providers-ci-v1
+          APGIC_GROWTH_CONSENT_POLICY_VERSION: growth-consent-ci-v1
+          APGIC_GROWTH_CONSENT_TEXT_HASH_OR_VERSION: ci-only:sha256:growth-consent-v1
           APGIC_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           APGIC_CLIENT_SESSION_KEY: ci-only-auth001-web-session-key-000000000000
           APGIC_MOBILE_POLICY_VERSION: mobile013-ci-v1
@@ -524,6 +533,8 @@ jobs:
           APGIC_RETENTION_POLICY_VERSION: retention-ci-v1
           APGIC_SLO_POLICY_VERSION: slo-r0-ci-v1
           APGIC_PROVIDER_MATRIX_VERSION: providers-ci-v1
+          APGIC_GROWTH_CONSENT_POLICY_VERSION: growth-consent-ci-v1
+          APGIC_GROWTH_CONSENT_TEXT_HASH_OR_VERSION: ci-only:sha256:growth-consent-v1
           APGIC_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           APGIC_CLIENT_SESSION_KEY: ci-only-client-session-key-000000000000
           APGIC_MOBILE_POLICY_VERSION: mobile013-ci-v1

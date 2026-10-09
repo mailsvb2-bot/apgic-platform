@@ -2,7 +2,7 @@
 // DO NOT EDIT.
 export const apiContractVersion = "0.10.0-r0-remote-config" as const;
 
-export type ApiOperationId = "acquireSlotHold" | "applyProviderEvent" | "applyTrustedProviderWebhook" | "archiveOrganizationDirection" | "cancelOrder" | "completeConsultation" | "confirmHelpIntent" | "createCheckoutInstruction" | "createHelpIntent" | "createMobileCheckoutInstruction" | "createOrganization" | "createOrganizationDirection" | "createOrganizationProduct" | "declareSpecialistCapability" | "deleteAccount" | "exportConsultationToGrowth" | "getBookingFulfillment" | "getLegalAcceptanceStatus" | "getMeta" | "getMobileCompatibility" | "getMobileNotificationDelivery" | "getMobileRemoteConfig" | "getOrganization" | "getPrivateOrganizationProfile" | "getSpecialistProfile" | "health" | "issueMobileDeepLink" | "listCheckoutOptions" | "listHelpIntentMatches" | "listMobileInstallations" | "listMobileWorkspaces" | "listOrganizationProducts" | "listOrganizations" | "listSpecialistSlots" | "markSearchProjectionStale" | "publishOrganizationProduct" | "publishSpecialistCapability" | "readiness" | "rebuildSearchProjection" | "recordConsultationPresence" | "recordLegalAcceptance" | "registerMobileInstallation" | "reportConsultationFailure" | "resolveMobileDeepLink" | "resolveMobileWorkspace" | "revokeMobileInstallation" | "rotateMobilePushEndpoint" | "searchProjection" | "submitSpecialistEvidence" | "succeedConsultationRecovery" | "unpublishSpecialistCapability" | "updateProductCommercialOwner" | "upsertSpecialistProfile";
+export type ApiOperationId = "acquireSlotHold" | "applyProviderEvent" | "applyTrustedProviderWebhook" | "archiveOrganizationDirection" | "cancelOrder" | "completeConsultation" | "confirmHelpIntent" | "createCheckoutInstruction" | "createHelpIntent" | "createMobileCheckoutInstruction" | "createOrganization" | "createOrganizationDirection" | "createOrganizationProduct" | "declareSpecialistCapability" | "deleteAccount" | "exportConsultationToGrowth" | "getBookingFulfillment" | "getLegalAcceptanceStatus" | "getMeta" | "getMobileCompatibility" | "getMobileNotificationDelivery" | "getMobileRemoteConfig" | "getOrganization" | "getPrivateOrganizationProfile" | "getSpecialistProfile" | "health" | "issueMobileDeepLink" | "listCheckoutOptions" | "listHelpIntentMatches" | "listMobileInstallations" | "listMobileWorkspaces" | "listOrganizationProducts" | "listOrganizations" | "listSpecialistSlots" | "markSearchProjectionStale" | "publishOrganizationProduct" | "publishSpecialistCapability" | "readiness" | "rebuildSearchProjection" | "recordConsent" | "recordConsultationPresence" | "recordLegalAcceptance" | "registerMobileInstallation" | "reportConsultationFailure" | "resolveMobileDeepLink" | "resolveMobileWorkspace" | "revokeConsent" | "revokeMobileInstallation" | "rotateMobilePushEndpoint" | "searchProjection" | "submitSpecialistEvidence" | "succeedConsultationRecovery" | "unpublishSpecialistCapability" | "updateProductCommercialOwner" | "upsertSpecialistProfile";
 
 export interface AccountDeletion {
   apgic_deletes_ledger: boolean;
@@ -140,6 +140,19 @@ export interface ConfirmHelpIntentRequest {
   topics: Array<string>;
 }
 
+export interface ConsentRecord {
+  consent_id: string;
+  granted_at: string;
+  policy_version: string;
+  proof_metadata: Record<string, unknown>;
+  purpose: string;
+  revoked_at?: string;
+  scope: string;
+  source: string;
+  subject_id: string;
+  text_hash_or_version: string;
+}
+
 export interface ConsultationFailureRequest {
   evidence_ref: string;
   kind: string;
@@ -221,10 +234,6 @@ export interface GrowthExport {
   purpose_consent: boolean;
   raw_content_included: boolean;
   state: string;
-}
-
-export interface GrowthExportRequest {
-  purpose_consent: boolean;
 }
 
 export interface HelpIntent {
@@ -422,6 +431,13 @@ export interface ProviderWebhookEnvelope {
   sequence: number;
   signature: string;
   stream_id: string;
+}
+
+export interface RecordConsentRequest {
+  policy_version: string;
+  purpose: string;
+  scope: string;
+  text_hash_or_version: string;
 }
 
 export interface RecordLegalAcceptanceRequest {

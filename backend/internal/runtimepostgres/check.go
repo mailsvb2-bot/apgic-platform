@@ -26,6 +26,7 @@ var requiredTables = []string{
 	"help_intents",
 	"outbox_events",
 	"audit_records",
+	"consent_records",
 	"ledger_entries",
 	"booking_slots",
 	"booking_holds",
