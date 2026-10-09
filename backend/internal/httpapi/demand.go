@@ -60,6 +60,7 @@ func registerDemand(
 	mux *http.ServeMux,
 	service *demand.Service,
 	consents privacy.ConsentStore,
+	consentPolicies map[string]privacy.ConsentPolicy,
 	sessions *clientSessionManager,
 	sessionConfigErr error,
 	allowConformanceProviderEvents bool,
@@ -482,14 +483,19 @@ func registerDemand(
 			writeDemandError(w, r, http.StatusServiceUnavailable, "CONSENT_STORE_UNAVAILABLE", "Хранилище согласий недоступно.", true, nil)
 			return
 		}
+		policy, configured := consentPolicies[privacy.PurposeGrowthSessionProjection]
+		if !configured {
+			writeDemandError(w, r, http.StatusServiceUnavailable, "CONSENT_POLICY_UNAVAILABLE", "Активная политика согласия не настроена.", true, nil)
+			return
+		}
 		scope := privacy.GrowthConsentScope(r.PathValue("bookingID"))
-		_, allowed, err := consents.ActiveConsent(clientIdentityID, privacy.PurposeGrowthSessionProjection, scope, now().UTC())
+		record, allowed, err := consents.ActiveConsent(clientIdentityID, privacy.PurposeGrowthSessionProjection, scope, now().UTC())
 		if err != nil {
 			writeDemandError(w, r, http.StatusServiceUnavailable, "CONSENT_STORAGE_FAILED", "Не удалось проверить наличие согласия.", true, nil)
 			return
 		}
-		if !allowed {
-			writeDemandError(w, r, http.StatusConflict, "DATA_PURPOSE_CONSENT_REQUIRED", "Для передачи данных в growth требуется отдельное действующее согласие.", false, []string{"DATA_PURPOSE_CONSENT_REQUIRED"})
+		if !allowed || !policy.Matches(record) {
+			writeDemandError(w, r, http.StatusConflict, "DATA_PURPOSE_CONSENT_REQUIRED", "Для передачи данных в growth требуется отдельное действующее согласие на текущую редакцию политики.", false, []string{"DATA_PURPOSE_CONSENT_REQUIRED"})
 			return
 		}
 		exported, err := service.ExportSessionToGrowth(r.PathValue("bookingID"), true)
