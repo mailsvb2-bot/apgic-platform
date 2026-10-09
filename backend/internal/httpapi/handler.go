@@ -28,6 +28,7 @@ type Options struct {
 	Demand                      *demand.Service
 	LegalAcceptances            legal.AcceptanceStore
 	Consents                    privacy.ConsentStore
+	ConsentPolicies             map[string]privacy.ConsentPolicy
 	Installations               mobile.InstallationStore
 	MobileWorkspaces            mobileWorkspaceStore
 	Notifications               notification.MobileProjectionStore
@@ -116,9 +117,9 @@ func New(options Options) http.Handler {
 			stepUp, sessionConfigErr = newStepUpManager(options.ClientSessionKey, options.Now)
 		}
 	}
-	registerDemand(mux, options.Demand, options.Consents, sessions, sessionConfigErr, options.ConformanceProviderEvents, options.ProviderWebhookKeys, options.Now)
+	registerDemand(mux, options.Demand, options.Consents, options.ConsentPolicies, sessions, sessionConfigErr, options.ConformanceProviderEvents, options.ProviderWebhookKeys, options.Now)
 	registerLegalAcceptance(mux, options.LegalAcceptances, sessions, sessionConfigErr, options.Now)
-	registerConsents(mux, options.Consents, sessions, sessionConfigErr, options.Now)
+	registerConsents(mux, options.Consents, options.ConsentPolicies, sessions, sessionConfigErr, options.Now)
 	registerMobileCompatibility(mux, options.ClientCompatibilityPolicies)
 	registerMobileRemoteConfig(mux, options.RemoteConfigProvider, options.Now)
 	registerMobileInstallations(mux, options.Installations, sessions, sessionConfigErr, options.Now)
