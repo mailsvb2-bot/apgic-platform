@@ -65,9 +65,11 @@ func (d *HTTPDeliverer) Deliver(ctx context.Context, event EventEnvelope) error 
 	if d == nil {
 		return ErrDeliveryConfigInvalid
 	}
-	if _, err := NewRecord(event); err != nil {
+	record, err := NewRecord(event)
+	if err != nil {
 		return err
 	}
+	event = record.Event
 	payload, err := json.Marshal(wireEventEnvelope{
 		EventID: event.EventID,
 		IdempotencyKey: event.IdempotencyKey,
