@@ -496,7 +496,7 @@ export function Journey() {
     setError("");
     setPending(true);
     try {
-      const created = await postJSON<{ raw_content_included: boolean }>("/v1/consultations/" + evidence.booking_id + "/growth-export", { purpose_consent: false });
+      const created = await postJSON<{ raw_content_included: boolean }>("/v1/consultations/" + evidence.booking_id + "/growth-export", {});
       if (!created.raw_content_included) throw new Error("Сырая запись не должна была уйти в рост.");
       setError("Сырая запись не должна была уйти в рост.");
     } catch (cause) {
