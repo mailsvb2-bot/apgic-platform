@@ -6,6 +6,27 @@ import (
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/privacy"
 )
 
+func TestConsentPoliciesFromEnvironmentStagingDisabledFailClosed(t *testing.T) {
+	t.Setenv("APGIC_GROWTH_CONSENT_POLICY_VERSION", "DISABLED")
+	t.Setenv("APGIC_GROWTH_CONSENT_TEXT_HASH_OR_VERSION", "DISABLED")
+	policies, err := consentPoliciesFromEnvironment("STAGING")
+	if err != nil || policies != nil {
+		t.Fatalf("disabled staging must have no consent policy: policies=%#v err=%v", policies, err)
+	}
+	for _, environment := range []string{"PRODUCTION", "TEST"} {
+		if _, err := consentPoliciesFromEnvironment(environment); err == nil {
+			t.Fatalf("%s must reject staging-only disabled consent", environment)
+		}
+	}
+	for _, values := range [][2]string{{"DISABLED", ""}, {"", "DISABLED"}, {"DISABLED", "growth-v1"}} {
+		t.Setenv("APGIC_GROWTH_CONSENT_POLICY_VERSION", values[0])
+		t.Setenv("APGIC_GROWTH_CONSENT_TEXT_HASH_OR_VERSION", values[1])
+		if _, err := consentPoliciesFromEnvironment("STAGING"); err == nil {
+			t.Fatalf("partial staging disable must be rejected: %#v", values)
+		}
+	}
+}
+
 func TestConsentPoliciesFromEnvironmentFailClosedForDurableRuntime(t *testing.T) {
 	t.Setenv("APGIC_GROWTH_CONSENT_POLICY_VERSION", "")
 	t.Setenv("APGIC_GROWTH_CONSENT_TEXT_HASH_OR_VERSION", "")

@@ -133,6 +133,14 @@ func (r providerWebhookKeyResolver) ResolveWebhookPublicKey(connectorInstanceID,
 func consentPoliciesFromEnvironment(environment string) (map[string]privacy.ConsentPolicy, error) {
 	version := strings.TrimSpace(os.Getenv("APGIC_GROWTH_CONSENT_POLICY_VERSION"))
 	textVersion := strings.TrimSpace(os.Getenv("APGIC_GROWTH_CONSENT_TEXT_HASH_OR_VERSION"))
+	// Explicit staging-only opt-out: keep growth consent unavailable until
+	// an approved, versioned user-facing policy is deployed.
+	if environment == "STAGING" && version == "DISABLED" && textVersion == "DISABLED" {
+		return nil, nil
+	}
+	if version == "DISABLED" || textVersion == "DISABLED" {
+		return nil, fmt.Errorf("growth consent DISABLED is permitted only as a complete staging-only configuration")
+	}
 	if version == "" && textVersion == "" {
 		if runtimepostgres.RequiresDatabase(environment) {
 			return nil, fmt.Errorf("growth consent policy is required in %s", environment)
