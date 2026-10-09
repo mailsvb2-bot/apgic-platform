@@ -85,7 +85,8 @@ def main() -> None:
         require(text, needle)
 
     ordered(text, 'flock -n 9', 'APGIC_MOBILE_POLICY_VERSION is required')
-    ordered(text, 'APGIC_MOBILE_POLICY_VERSION is required', 'git fetch origin main')
+    ordered(text, 'APGIC_MOBILE_POLICY_VERSION is required', 'APGIC_OUTBOX_WORKER_ENABLED')
+    ordered(text, 'APGIC_OUTBOX_WORKER_ENABLED', 'git fetch origin main')
     ordered(text, 'git fetch origin main', 'git merge-base --is-ancestor')
     ordered(text, 'git merge-base --is-ancestor', 'target deployment requires missing environment key')
     ordered(text, 'target deployment requires missing environment key', 'git reset --hard "$TARGET_SHA"')
