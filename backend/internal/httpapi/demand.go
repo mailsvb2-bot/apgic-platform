@@ -5,9 +5,11 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/connector"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/demand"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/privacy"
 )
 
 type errorEnvelope struct {
@@ -57,10 +59,12 @@ type cancellationRequest struct {
 func registerDemand(
 	mux *http.ServeMux,
 	service *demand.Service,
+	consents privacy.ConsentStore,
 	sessions *clientSessionManager,
 	sessionConfigErr error,
 	allowConformanceProviderEvents bool,
 	providerWebhookKeys connector.WebhookPublicKeyResolver,
+	now func() time.Time,
 ) {
 	mux.HandleFunc("POST /v1/help-intents", func(w http.ResponseWriter, r *http.Request) {
 		if service == nil {
@@ -474,14 +478,21 @@ func registerDemand(
 			writeDemandFailure(w, r, err)
 			return
 		}
-		var body struct {
-			PurposeConsent bool `json:"purpose_consent"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			writeDemandError(w, r, http.StatusBadRequest, "GROWTH_EXPORT_INVALID", "Запрос выгрузки не удалось прочитать.", false, nil)
+		if consents == nil {
+			writeDemandError(w, r, http.StatusServiceUnavailable, "CONSENT_STORE_UNAVAILABLE", "Хранилище согласий недоступно.", true, nil)
 			return
 		}
-		exported, err := service.ExportSessionToGrowth(r.PathValue("bookingID"), body.PurposeConsent)
+		scope := privacy.GrowthConsentScope(r.PathValue("bookingID"))
+		_, allowed, err := consents.ActiveConsent(clientIdentityID, privacy.PurposeGrowthSessionProjection, scope, now().UTC())
+		if err != nil {
+			writeDemandError(w, r, http.StatusServiceUnavailable, "CONSENT_STORAGE_FAILED", "Не удалось проверить согласие.", true, nil)
+			return
+		}
+		if !allowed {
+			writeDemandError(w, r, http.StatusConflict, "DATA_PURPOSE_CONSENT_REQUIRED", "Для передачи данных в growth требуется отдельное действующее согласие.", false, []string{"DATA_PURPOSE_CONSENT_REQUIRED"})
+			return
+		}
+		exported, err := service.ExportSessionToGrowth(r.PathValue("bookingID"), true)
 		if err != nil {
 			writeDemandFailure(w, r, err)
 			return
