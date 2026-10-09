@@ -43,16 +43,16 @@ func registerMobileCheckoutMutation(
 	now func() time.Time,
 ) {
 	mux.HandleFunc("POST /v1/mobile/checkout-instructions", func(w http.ResponseWriter, r *http.Request) {
-		if !allowConformancePayments {
-			writeDemandError(w, r, http.StatusServiceUnavailable, "PAY_EXTERNAL_PROVIDER_UNAVAILABLE", "Онлайн-оплата через внешнего исполнителя пока недоступна.", true, []string{"PAY_EXTERNAL_EXECUTION_REQUIRED"})
-			return
-		}
 		if service == nil || store == nil {
 			writeDemandError(w, r, http.StatusServiceUnavailable, "MUTATION_RUNTIME_UNAVAILABLE", "Синхронизация действия временно недоступна.", true, nil)
 			return
 		}
 		identityID, ok := requiredClientSessionIdentity(w, r, sessions, sessionConfigErr)
 		if !ok {
+			return
+		}
+		if !allowConformancePayments {
+			writeDemandError(w, r, http.StatusServiceUnavailable, "PAY_EXTERNAL_PROVIDER_UNAVAILABLE", "Онлайн-оплата через внешнего исполнителя пока недоступна.", true, []string{"PAY_EXTERNAL_EXECUTION_REQUIRED"})
 			return
 		}
 		idempotencyKey := strings.TrimSpace(r.Header.Get("Idempotency-Key"))
