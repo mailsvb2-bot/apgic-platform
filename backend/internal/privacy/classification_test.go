@@ -20,3 +20,9 @@ func TestNonSensitiveGrowthProjectionDoesNotRequirePurposeConsent(t *testing.T) 
 		}
 	}
 }
+
+func TestUnknownGrowthClassificationFailsClosed(t *testing.T) {
+	if err := CanExportToGrowth(Classification("UNRECOGNIZED"), true); err != ErrClassificationUnknown {
+		t.Fatalf("unknown classification err=%v", err)
+	}
+}
