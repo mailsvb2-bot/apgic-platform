@@ -72,6 +72,7 @@ jobs:
           grep -q 'POST /v1/mobile/installations' backend/internal/httpapi/mobile_installation.go
       - run: python tools/event_contract_guard.py
       - run: python tools/audit_contract_guard.py
+      - run: python tools/data_consent_contract_guard.py
       - run: python tools/ledger_contract_guard.py
       - run: python tools/product_contract_guard.py
       - run: python tools/payment_custody_guard.py
