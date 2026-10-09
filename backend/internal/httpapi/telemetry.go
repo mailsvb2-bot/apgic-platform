@@ -171,6 +171,10 @@ type statusCapturingWriter struct {
 	status int
 }
 
+func (w *statusCapturingWriter) Unwrap() http.ResponseWriter {
+	return w.ResponseWriter
+}
+
 func (w *statusCapturingWriter) WriteHeader(status int) {
 	if w.status != 0 {
 		return
