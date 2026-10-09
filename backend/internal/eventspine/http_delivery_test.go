@@ -89,16 +89,24 @@ func TestHTTPDelivererDoesNotFollowGatewayRedirectWithCredentials(t *testing.T) 
 	// Redirects must also stay disabled if caller supplies a permissive client.
 	client.CheckRedirect = func(_ *http.Request, _ []*http.Request) error { return nil }
 	deliverer, err := NewHTTPDeliverer(gateway.URL, "worker", strings.Repeat("s", 32), client)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	now := time.Now().UTC()
 	err = deliverer.Deliver(context.Background(), EventEnvelope{
 		EventID: "event-1", IdempotencyKey: "idem-1", EventType: "test.event",
 		SchemaVersion: "1", AggregateRef: "test/1", OccurredAt: now, ProducedAt: now,
 		Producer: "test", CorrelationID: "corr", PayloadJSON: []byte(`{"ok":true}`),
 	})
-	if !errors.Is(err, ErrDeliveryRejected) { t.Fatalf("redirect err=%v", err) }
-	if redirectCalls != 0 { t.Fatalf("redirect target received %d requests", redirectCalls) }
-	if client.CheckRedirect == nil { t.Fatal("supplied HTTP client was mutated") }
+	if !errors.Is(err, ErrDeliveryRejected) {
+		t.Fatalf("redirect err=%v", err)
+	}
+	if redirectCalls != 0 {
+		t.Fatalf("redirect target received %d requests", redirectCalls)
+	}
+	if client.CheckRedirect == nil {
+		t.Fatal("supplied HTTP client was mutated")
+	}
 }
 
 func TestOutboxPayloadMustMatchObjectContract(t *testing.T) {
