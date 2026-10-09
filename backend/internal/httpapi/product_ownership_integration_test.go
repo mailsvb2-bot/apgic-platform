@@ -69,6 +69,12 @@ func TestHighRiskProductOwnershipRequiresFreshStepUpAndAudits(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	sessionProbe := httptest.NewRequest(http.MethodGet, "/", nil)
+	sessionProbe.AddCookie(sessionCookie)
+	_, sessionRef, err := sessions.identityAndReferenceFromRequest(sessionProbe)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	handler := New(Options{
 		ClientSessionKey: key,
@@ -98,7 +104,7 @@ func TestHighRiskProductOwnershipRequiresFreshStepUpAndAudits(t *testing.T) {
 	assertCommercialOwner(t, db, productID, "commercial:old")
 	assertAuditReason(t, db, "auth002-missing", "AUTH_STEP_UP_REQUIRED")
 
-	staleCookie, err := stepUps.issue(identityID, now.Add(-11*time.Minute))
+	staleCookie, err := stepUps.issue(identityID, sessionRef, "WEBAUTHN", now.Add(-11*time.Minute))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,7 +132,19 @@ func TestHighRiskProductOwnershipRequiresFreshStepUpAndAudits(t *testing.T) {
 	}
 	assertAuditReason(t, db, "auth002-foreign", "AUTH_PERMISSION_DENIED")
 
-	freshCookie, err := stepUps.issue(identityID, now.Add(-time.Minute))
+	wrongSessionCookie, err := stepUps.issue(identityID, "session:other", "WEBAUTHN", now.Add(-time.Minute))
+	if err != nil {
+		t.Fatal(err)
+	}
+	wrongSession := request("auth002-wrong-session", "commercial:wrong-session", wrongSessionCookie)
+	if wrongSession.Code != http.StatusPreconditionRequired {
+		t.Fatalf("wrong-session step-up status=%d body=%s", wrongSession.Code, wrongSession.Body.String())
+	}
+	assertStepUpEnvelope(t, wrongSession, "AUTH_STEP_UP_REQUIRED")
+	assertCommercialOwner(t, db, productID, "commercial:old")
+	assertAuditReason(t, db, "auth002-wrong-session", "AUTH_STEP_UP_REQUIRED")
+
+	freshCookie, err := stepUps.issue(identityID, sessionRef, "WEBAUTHN", now.Add(-time.Minute))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,6 +154,7 @@ func TestHighRiskProductOwnershipRequiresFreshStepUpAndAudits(t *testing.T) {
 	}
 	assertCommercialOwner(t, db, productID, "commercial:new")
 	assertAuditReason(t, db, "auth002-fresh", "AUTH_ALLOWED")
+	assertHighRiskSecurityEvidence(t, db, "auth002-fresh", identityID, sessionRef, "WEBAUTHN")
 }
 
 func assertStepUpEnvelope(t *testing.T, recorder *httptest.ResponseRecorder, expected string) {
@@ -179,5 +198,42 @@ func assertAuditReason(t *testing.T, db *sql.DB, correlationID, expected string)
 	}
 	if reason != expected {
 		t.Fatalf("audit reason=%q want %q", reason, expected)
+	}
+}
+
+func assertHighRiskSecurityEvidence(t *testing.T, db *sql.DB, correlationID, principalID, sessionRef, method string) {
+	t.Helper()
+	var raw []byte
+	if err := db.QueryRow(`
+		SELECT new_state
+		  FROM audit_records
+		 WHERE correlation_id = $1
+		   AND action = 'authorization.decision'
+		 ORDER BY occurred_at DESC
+		 LIMIT 1
+	`, correlationID).Scan(&raw); err != nil {
+		t.Fatal(err)
+	}
+	var snapshot struct {
+		SecurityEvidence struct {
+			PrincipalID   string     `json:"principal_id"`
+			SessionRef    string     `json:"session_ref"`
+			Method        string     `json:"method"`
+			StepUpAt      *time.Time `json:"step_up_at"`
+			PolicyVersion string     `json:"policy_version"`
+			Decision      string     `json:"decision"`
+		} `json:"security_evidence"`
+	}
+	if err := json.Unmarshal(raw, &snapshot); err != nil {
+		t.Fatal(err)
+	}
+	evidence := snapshot.SecurityEvidence
+	if evidence.PrincipalID != principalID ||
+		evidence.SessionRef != sessionRef ||
+		evidence.Method != method ||
+		evidence.StepUpAt == nil ||
+		evidence.PolicyVersion != "authz-policy-v1" ||
+		evidence.Decision != "ALLOW" {
+		t.Fatalf("security evidence=%#v", evidence)
 	}
 }
