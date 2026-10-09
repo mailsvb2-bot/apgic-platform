@@ -1016,15 +1016,20 @@ requirements:
   - APGIC-TEST-001
   implementation_refs:
   - .github/workflows/ci.yml
+  - .github/workflows/production-preflight.yml
   - tools/release_evidence.py
+  - tools/production_preflight_evidence.py
   - canon/evidence/r0-ci-evidence-map.json
   - canon/evidence/release-evidence-v2.schema.json
   contract_refs:
   - canon/evidence/release-evidence-v2.schema.json
   test_refs:
   - .github/workflows/ci.yml
+  - .github/workflows/production-preflight.yml
   - tools/release_evidence.py
+  - tools/production_preflight_evidence.py
   - tools/tests/test_release_evidence.py
+  - tools/tests/test_production_preflight_evidence.py
   evidence_refs:
   - docs/traceability/R0-foundation-verification-batch.md
   - canon/evidence/staging-runtime-20260926T215500Z.json
