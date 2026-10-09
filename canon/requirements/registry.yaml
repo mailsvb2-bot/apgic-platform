@@ -846,6 +846,7 @@ requirements:
   - .github/workflows/ci.yml
   evidence_refs:
   - docs/traceability/R0-foundation-verification-batch.md
+  - docs/traceability/R0-nfr001-runtime-sli.md
   - canon/evidence/staging-runtime-20260926T215500Z.json
   - canon/evidence/staging-runtime-20260927T072352Z.json
   acceptance:
