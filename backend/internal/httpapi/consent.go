@@ -21,6 +21,7 @@ type recordConsentRequest struct {
 func registerConsents(
 	mux *http.ServeMux,
 	store privacy.ConsentStore,
+	policies map[string]privacy.ConsentPolicy,
 	sessions *clientSessionManager,
 	sessionConfigErr error,
 	now func() time.Time,
@@ -46,6 +47,17 @@ func registerConsents(
 			writeDemandError(w, r, http.StatusBadRequest, "CONSENT_INVALID", "Согласие не удалось прочитать.", false, nil)
 			return
 		}
+		purpose := strings.TrimSpace(body.Purpose)
+		policy, configured := policies[purpose]
+		if !configured {
+			writeDemandError(w, r, http.StatusServiceUnavailable, "CONSENT_POLICY_UNAVAILABLE", "Активная политика согласия не настроена.", true, nil)
+			return
+		}
+		if strings.TrimSpace(body.PolicyVersion) != policy.PolicyVersion ||
+			strings.TrimSpace(body.TextHashOrVersion) != policy.TextHashOrVersion {
+			writeDemandError(w, r, http.StatusConflict, "CONSENT_POLICY_VERSION_MISMATCH", "Редакция согласия устарела. Обновите текст и подтвердите его заново.", false, []string{"CONSENT_POLICY_VERSION_MISMATCH"})
+			return
+		}
 		proofMetadata, err := json.Marshal(map[string]string{
 			"session_ref": sessionRef,
 			"action":      "explicit_consent_grant",
@@ -62,10 +74,10 @@ func registerConsents(
 		record, err := privacy.NewConsentRecord(privacy.ConsentRecord{
 			ID:                id,
 			SubjectID:         identityID,
-			Purpose:           strings.TrimSpace(body.Purpose),
+			Purpose:           policy.Purpose,
 			Scope:             strings.TrimSpace(body.Scope),
-			PolicyVersion:     strings.TrimSpace(body.PolicyVersion),
-			TextHashOrVersion: strings.TrimSpace(body.TextHashOrVersion),
+			PolicyVersion:     policy.PolicyVersion,
+			TextHashOrVersion: policy.TextHashOrVersion,
 			GrantedAt:         now().UTC(),
 			Source:            "CLIENT_SESSION_HTTP",
 			ProofMetadata:     proofMetadata,
