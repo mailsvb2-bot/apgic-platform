@@ -19,6 +19,12 @@ fi
 curl -fsS --max-time 5 "http://${APGIC_HTTP_ADDR}/healthz" | grep -q '"status":"ok"'
 curl -fsS --max-time 5 "http://${APGIC_HTTP_ADDR}/readyz" | grep -q '"status":"ready"'
 
+metrics="$(curl -fsS --max-time 5 "http://${APGIC_HTTP_ADDR}/metrics")"
+grep -q 'apgic_http_requests_total' <<<"$metrics"
+grep -q 'apgic_http_request_duration_milliseconds_bucket' <<<"$metrics"
+grep -q 'apgic_readiness_checks_total{result="ready",reason="NONE"}' <<<"$metrics"
+grep -q 'route="/readyz"' <<<"$metrics"
+
 outbox_enabled="${APGIC_OUTBOX_WORKER_ENABLED:-0}"
 if [[ "$outbox_enabled" == "1" ]]; then
     : "${APGIC_DATABASE_URL:?APGIC_DATABASE_URL is required when outbox worker is enabled}"
