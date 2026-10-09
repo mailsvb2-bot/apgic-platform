@@ -138,6 +138,9 @@ func consentPoliciesFromEnvironment(environment string) (map[string]privacy.Cons
 	if environment == "STAGING" && version == "DISABLED" && textVersion == "DISABLED" {
 		return nil, nil
 	}
+	if version == "DISABLED" || textVersion == "DISABLED" {
+		return nil, fmt.Errorf("growth consent DISABLED is permitted only as a complete staging-only configuration")
+	}
 	if version == "" && textVersion == "" {
 		if runtimepostgres.RequiresDatabase(environment) {
 			return nil, fmt.Errorf("growth consent policy is required in %s", environment)
