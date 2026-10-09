@@ -43,6 +43,22 @@ func TestPublicProviderEventCannotSelfAttestPayment(t *testing.T) {
 	}
 }
 
+func TestPublicCheckoutFailsClosedWithoutConfiguredExternalProvider(t *testing.T) {
+	handler := New(Options{Demand: demand.NewConformanceService(nil)})
+
+	options := httptest.NewRecorder()
+	handler.ServeHTTP(options, httptest.NewRequest(http.MethodGet, "/v1/slot-holds/forged/checkout-options", nil))
+	if options.Code != http.StatusServiceUnavailable || !contains(options.Body.String(), "PAYMENT_PROVIDER_UNAVAILABLE") {
+		t.Fatalf("checkout options must fail closed without provider: status=%d body=%s", options.Code, options.Body.String())
+	}
+
+	instruction := httptest.NewRecorder()
+	handler.ServeHTTP(instruction, httptest.NewRequest(http.MethodPost, "/v1/checkout-instructions", strings.NewReader(`{"hold_id":"forged","method_code":"BANK_CARD"}`)))
+	if instruction.Code != http.StatusServiceUnavailable || !contains(instruction.Body.String(), "PAYMENT_PROVIDER_UNAVAILABLE") {
+		t.Fatalf("checkout instruction must fail closed without provider: status=%d body=%s", instruction.Code, instruction.Body.String())
+	}
+}
+
 type providerWebhookKeyMap map[string]ed25519.PublicKey
 
 func (m providerWebhookKeyMap) ResolveWebhookPublicKey(connectorInstanceID, keyID string) (ed25519.PublicKey, bool) {
