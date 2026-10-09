@@ -119,7 +119,7 @@ func New(options Options) http.Handler {
 	registerMobileInstallations(mux, options.Installations, sessions, sessionConfigErr, options.Now)
 	registerMobileWorkspaces(mux, options.MobileWorkspaces, sessions, sessionConfigErr, options.Now)
 	registerMobileNotifications(mux, options.Notifications, sessions, sessionConfigErr)
-	registerMobileCheckoutMutation(mux, options.Demand, options.ClientMutations, sessions, sessionConfigErr, options.Now)
+	registerMobileCheckoutMutation(mux, options.Demand, options.ClientMutations, sessions, sessionConfigErr, options.ConformanceProviderEvents, options.Now)
 	var deepLinkTokens *mobile.DeepLinkTokenManager
 	var deepLinkTokenConfigErr error
 	if len(options.DeepLinkSigningKey) > 0 {
