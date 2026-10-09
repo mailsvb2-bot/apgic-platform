@@ -18,10 +18,12 @@ const (
 )
 
 type Principal struct {
-	ID          string
-	TenantID    string
-	Permissions map[string]struct{}
-	StepUpAt    *time.Time
+	ID           string
+	TenantID     string
+	Permissions  map[string]struct{}
+	SessionRef   string
+	StepUpAt     *time.Time
+	StepUpMethod string
 }
 
 type ResourceRef struct {
@@ -72,6 +74,9 @@ func Authorize(in Input) Result {
 		}
 		if in.Principal.StepUpAt == nil {
 			return Result{Decision: StepUpRequired, ReasonCode: "AUTH_STEP_UP_REQUIRED"}
+		}
+		if in.Principal.SessionRef == "" || in.Principal.StepUpMethod == "" {
+			return Result{Decision: StepUpRequired, ReasonCode: "AUTH_STEP_UP_EVIDENCE_INCOMPLETE"}
 		}
 		if in.Principal.StepUpAt.After(in.Now) {
 			return Result{Decision: StepUpRequired, ReasonCode: "AUTH_STEP_UP_INVALID_TIME"}
