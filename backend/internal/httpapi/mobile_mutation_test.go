@@ -125,8 +125,8 @@ func TestMobileCheckoutMutationReplaysOneCanonicalCheckout(t *testing.T) {
 	service := demand.NewConformanceService(nil)
 	store := newMemoryMutationStore()
 	handler := New(Options{
-		Demand:           service,
-		ClientMutations:  store,
+		Demand:                    service,
+		ClientMutations:           store,
 		ClientSessionKey:          key,
 		ConformanceProviderEvents: true,
 	})
@@ -250,8 +250,8 @@ func TestMobileCheckoutMutationPersistsTerminalFailure(t *testing.T) {
 	service := demand.NewConformanceService(nil)
 	store := newMemoryMutationStore()
 	handler := New(Options{
-		Demand:           service,
-		ClientMutations:  store,
+		Demand:                    service,
+		ClientMutations:           store,
 		ClientSessionKey:          key,
 		ConformanceProviderEvents: true,
 	})
