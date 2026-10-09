@@ -75,14 +75,14 @@ func Authorize(in Input) Result {
 		if in.Principal.StepUpAt == nil {
 			return Result{Decision: StepUpRequired, ReasonCode: "AUTH_STEP_UP_REQUIRED"}
 		}
-		if in.Principal.SessionRef == "" || in.Principal.StepUpMethod == "" {
-			return Result{Decision: StepUpRequired, ReasonCode: "AUTH_STEP_UP_EVIDENCE_INCOMPLETE"}
-		}
 		if in.Principal.StepUpAt.After(in.Now) {
 			return Result{Decision: StepUpRequired, ReasonCode: "AUTH_STEP_UP_INVALID_TIME"}
 		}
 		if in.Now.Sub(*in.Principal.StepUpAt) > maxAge {
 			return Result{Decision: StepUpRequired, ReasonCode: "AUTH_STEP_UP_REQUIRED"}
+		}
+		if in.Principal.SessionRef == "" || in.Principal.StepUpMethod == "" {
+			return Result{Decision: StepUpRequired, ReasonCode: "AUTH_STEP_UP_EVIDENCE_INCOMPLETE"}
 		}
 	}
 	return Result{Decision: Allow, ReasonCode: "AUTH_ALLOWED"}
