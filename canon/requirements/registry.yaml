@@ -310,6 +310,7 @@ requirements:
   - backend/internal/authz/authz.go
   - backend/internal/runtimepostgres/check.go
   - tools/auth_contract_guard.py
+  - backend/internal/httpapi/client_session.go
   - backend/internal/httpapi/step_up.go
   - backend/internal/httpapi/product_ownership.go
   - backend/internal/runtimepostgres/product_ownership.go
@@ -321,6 +322,8 @@ requirements:
   - backend/internal/authz/authz_test.go
   - backend/internal/runtimepostgres/check_test.go
   - tools/tests/test_auth_contract_guard.py
+  - backend/internal/httpapi/client_session_test.go
+  - backend/internal/httpapi/step_up_test.go
   - backend/internal/httpapi/product_ownership_integration_test.go
   evidence_refs:
   - docs/traceability/R0-foundation-verification-batch.md
