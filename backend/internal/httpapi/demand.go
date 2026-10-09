@@ -246,6 +246,10 @@ func registerDemand(
 	})
 
 	mux.HandleFunc("GET /v1/slot-holds/{id}/checkout-options", func(w http.ResponseWriter, r *http.Request) {
+		if !allowConformanceProviderEvents {
+			writeDemandError(w, r, http.StatusServiceUnavailable, "PAYMENT_PROVIDER_UNAVAILABLE", "Внешний исполнитель оплаты пока не подключён.", false, nil)
+			return
+		}
 		if service == nil {
 			writeDemandError(w, r, http.StatusServiceUnavailable, "DEMAND_CATALOG_UNAVAILABLE", "Каталог спроса не подключён.", false, nil)
 			return
@@ -267,6 +271,10 @@ func registerDemand(
 	})
 
 	mux.HandleFunc("POST /v1/checkout-instructions", func(w http.ResponseWriter, r *http.Request) {
+		if !allowConformanceProviderEvents {
+			writeDemandError(w, r, http.StatusServiceUnavailable, "PAYMENT_PROVIDER_UNAVAILABLE", "Внешний исполнитель оплаты пока не подключён.", false, nil)
+			return
+		}
 		if service == nil {
 			writeDemandError(w, r, http.StatusServiceUnavailable, "DEMAND_CATALOG_UNAVAILABLE", "Каталог спроса не подключён.", false, nil)
 			return
