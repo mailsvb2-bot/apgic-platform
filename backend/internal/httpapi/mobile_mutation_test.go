@@ -127,7 +127,8 @@ func TestMobileCheckoutMutationReplaysOneCanonicalCheckout(t *testing.T) {
 	handler := New(Options{
 		Demand:           service,
 		ClientMutations:  store,
-		ClientSessionKey: key,
+		ClientSessionKey:          key,
+		ConformanceProviderEvents: true,
 	})
 
 	call := func(cookie *http.Cookie, method, path, body string, headers map[string]string) *httptest.ResponseRecorder {
@@ -251,7 +252,8 @@ func TestMobileCheckoutMutationPersistsTerminalFailure(t *testing.T) {
 	handler := New(Options{
 		Demand:           service,
 		ClientMutations:  store,
-		ClientSessionKey: key,
+		ClientSessionKey:          key,
+		ConformanceProviderEvents: true,
 	})
 
 	request := httptest.NewRequest(http.MethodPost, "/v1/help-intents", strings.NewReader(`{"free_text":"sleep"}`))
