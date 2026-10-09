@@ -130,7 +130,6 @@ func (r providerWebhookKeyResolver) ResolveWebhookPublicKey(connectorInstanceID,
 	return key, ok
 }
 
-
 func consentPoliciesFromEnvironment(environment string) (map[string]privacy.ConsentPolicy, error) {
 	version := strings.TrimSpace(os.Getenv("APGIC_GROWTH_CONSENT_POLICY_VERSION"))
 	textVersion := strings.TrimSpace(os.Getenv("APGIC_GROWTH_CONSENT_TEXT_HASH_OR_VERSION"))
