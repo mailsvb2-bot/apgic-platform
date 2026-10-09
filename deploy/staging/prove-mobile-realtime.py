@@ -85,21 +85,32 @@ def main() -> None:
             hold_errors.append(str(error))
     require(hold is not None, f"no staging slot could be held: {hold_errors}")
 
-    _, checkout_options = client.call(
-        "GET",
-        f"/v1/slot-holds/{hold['id']}/checkout-options",
+    # Staging must not manufacture a checkout path when no verified external
+    # payment provider is configured. Holding time is not payment confirmation.
+    checkout_unavailable_status = None
+    checkout_unavailable_code = None
+    try:
+        client.call(
+            "GET",
+            f"/v1/slot-holds/{hold['id']}/checkout-options",
+        )
+    except APIError as error:
+        checkout_unavailable_status = error.status
+        if isinstance(error.payload, dict):
+            checkout_unavailable_code = error.payload.get("code")
+
+    require(meta.get("conformance_provider_events") is False, "staging exposed synthetic payment confirmation")
+    require(
+        checkout_unavailable_status == 503,
+        f"staging exposed synthetic checkout options: {checkout_unavailable_status}",
     )
-    options = checkout_options.get("options", [])
-    require(bool(options), f"checkout options are empty: {checkout_options!r}")
-    method_code = options[0].get("method_code")
-    require(isinstance(method_code, str) and bool(method_code), f"checkout method missing: {options!r}")
-    _, checkout = client.call(
-        "POST",
-        "/v1/checkout-instructions",
-        {"hold_id": hold["id"], "method_code": method_code},
+    require(
+        checkout_unavailable_code == "PAYMENT_PROVIDER_UNAVAILABLE",
+        f"unexpected checkout availability boundary: {checkout_unavailable_code}",
     )
-    # Staging is a real boundary check, NOT a fake payment provider.
-    # No customer-supplied CAPTURED message may confirm a booking.
+
+    # Customer-originated CAPTURED assertions stay forbidden independently of
+    # whether a checkout instruction exists.
     denied_status = None
     denied_code = None
     try:
@@ -107,11 +118,11 @@ def main() -> None:
             "POST",
             "/v1/provider-events",
             {
-                "provider_id": checkout["provider_id"],
+                "provider_id": "untrusted-browser",
                 "provider_event_id": f"mobile009-untrusted-{proof_id}",
-                "order_id": checkout["order_id"],
-                "amount_minor": checkout["amount_minor"],
-                "currency": checkout["currency"],
+                "order_id": f"untrusted-{proof_id}",
+                "amount_minor": 1,
+                "currency": "RUB",
                 "outcome": "CAPTURED",
             },
         )
@@ -120,12 +131,11 @@ def main() -> None:
         if isinstance(error.payload, dict):
             denied_code = error.payload.get("code")
 
-    require(meta.get("conformance_provider_events") is False, "staging exposed synthetic payment confirmation")
     require(denied_status == 403, f"client-forged provider capture was accepted: {denied_status}")
     require(denied_code == "PROVIDER_EVIDENCE_UNVERIFIED", f"unexpected provider boundary: {denied_code}")
-    require(checkout.get("booking_state") == "PENDING_PAYMENT", f"unexpected booking state: {checkout!r}")
+    require(hold.get("booking_state") == "HELD", f"unexpected held booking state: {hold!r}")
 
-    # No communication room is available without trusted external confirmation.
+    # No communication room is available from a mere hold.
     no_access_status = None
     try:
         client.call("POST", f"/v1/consultations/{hold['booking_id']}/presence", {})
@@ -140,7 +150,9 @@ def main() -> None:
         "release_track": meta.get("release_track"),
         "proof_id": proof_id,
         "booking_id": hold["booking_id"],
-        "booking_state": checkout.get("booking_state"),
+        "booking_state": hold.get("booking_state"),
+        "checkout_http_status": checkout_unavailable_status,
+        "checkout_error_code": checkout_unavailable_code,
         "client_capture_http_status": denied_status,
         "client_capture_error_code": denied_code,
         "unpaid_consultation_http_status": no_access_status,
