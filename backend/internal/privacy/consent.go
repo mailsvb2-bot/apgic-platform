@@ -10,9 +10,9 @@ import (
 const PurposeGrowthSessionProjection = "GROWTH_SESSION_PROJECTION"
 
 var (
-	ErrInvalidConsent = errors.New("invalid consent record")
+	ErrInvalidConsent  = errors.New("invalid consent record")
 	ErrConsentNotFound = errors.New("consent record not found")
-	ErrConsentRevoked = errors.New("consent record is revoked")
+	ErrConsentRevoked  = errors.New("consent record is revoked")
 )
 
 type ConsentRecord struct {
