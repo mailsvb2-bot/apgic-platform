@@ -13,8 +13,13 @@ LAUNCH = ROOT / "config/launch.ci.yaml"
 SCHEMA = ROOT / "contracts/jsonschema/provider-matrix-v1.schema.json"
 
 REQUIRED_CAPABILITY_FIELDS = {
-    "enabled","primary_provider","fallback_providers","degraded_behavior",
-    "certification_status","exit_semantics","provider_neutral_contract",
+    "enabled", "primary_provider", "fallback_providers", "environment",
+    "jurisdictions", "regions", "credential_owner", "credential_ref_contract",
+    "scopes", "webhook_event_contract_version", "data_classes_transmitted",
+    "retention_subprocessor_terms_ref", "timeout_seconds", "retry_policy",
+    "idempotency_contract", "reconciliation_method", "health_policy",
+    "kill_switch", "degraded_behavior", "certification_status",
+    "exit_semantics", "provider_neutral_contract",
 }
 
 
@@ -57,6 +62,27 @@ def validate_provider_matrix_contract(matrix: dict, launch: dict, schema: dict) 
                 errors.append(f"{name}: unknown fallback providers {unknown}")
         if row.get("provider_neutral_contract") is not True:
             errors.append(f"{name}: provider-neutral contract invariant drifted")
+        if row.get("environment") != "CI":
+            errors.append(f"{name}: canonical R0 CI provider row must use environment=CI")
+        for field in ("jurisdictions", "regions", "scopes"):
+            value = row.get(field)
+            if not isinstance(value, list) or not value:
+                errors.append(f"{name}: {field} must be an explicit non-empty list")
+        credential_ref = row.get("credential_ref_contract")
+        if not isinstance(credential_ref, str) or not credential_ref.startswith(("secretref://", "managed-secret://")):
+            errors.append(f"{name}: credential reference contract is invalid")
+        timeout = row.get("timeout_seconds")
+        if not isinstance(timeout, int) or isinstance(timeout, bool) or timeout <= 0:
+            errors.append(f"{name}: timeout_seconds must be a positive integer")
+        for provider_id in [primary, *(fallback if isinstance(fallback, list) else [])]:
+            provider = providers.get(provider_id)
+            if not isinstance(provider, dict):
+                continue
+            if provider.get("certified") is not True:
+                errors.append(f"{name}: selected provider {provider_id} must be certified")
+            declared = provider.get("capabilities")
+            if not isinstance(declared, list) or name not in declared:
+                errors.append(f"{name}: selected provider {provider_id} must declare capability")
 
     if launch.get("provider_matrix_version") != matrix.get("version"):
         errors.append("launch provider version differs from matrix version")
