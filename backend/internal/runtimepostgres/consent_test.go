@@ -56,6 +56,16 @@ func TestConsentLedgerGrantRevokeAndHistory(t *testing.T) {
 		t.Fatalf("replay=%#v idempotent=%v err=%v", replayed, idempotent, err)
 	}
 
+	conflicting := input
+	conflicting.ID, err = persistentid.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	conflicting.PolicyVersion = "growth-policy-v2"
+	if _, _, err := store.RecordConsent(conflicting); err != privacy.ErrConsentConflict {
+		t.Fatalf("active version replacement err=%v", err)
+	}
+
 	revokedAt := now.Add(2 * time.Second)
 	revoked, idempotent, err := store.RevokeConsent(consentID, subjectID, revokedAt)
 	if err != nil || idempotent || revoked.RevokedAt == nil {
