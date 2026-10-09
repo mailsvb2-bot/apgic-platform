@@ -218,3 +218,69 @@ func assertOutboxState(t *testing.T, db *sql.DB, eventID, wantStatus string, wan
 		t.Fatalf("outbox status/attempts=%s/%d want %s/%d", status, attempts, wantStatus, wantAttempts)
 	}
 }
+
+func TestOutboxFailureBlocksOnlyItsAggregate(t *testing.T) {
+	databaseURL := os.Getenv("APGIC_OUTBOX_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("outbox integration database not configured")
+	}
+	store, err := Open(context.Background(), databaseURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	makeEvent := func(prefix, aggregate string, produced time.Time) eventspine.EventEnvelope {
+		id, err := persistentid.New()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return eventspine.EventEnvelope{
+			EventID: id, IdempotencyKey: prefix + ":" + id, EventType: "test.delivery",
+			SchemaVersion: "1", AggregateRef: aggregate, AggregateVersion: 1,
+			OccurredAt: produced, ProducedAt: produced, Producer: "event001-integration",
+			CorrelationID: "event001-isolation", PayloadJSON: []byte(`{"proof":"aggregate-isolation"}`),
+		}
+	}
+	first := makeEvent("event001-first", "aggregate/a", now)
+	sameAggregate := makeEvent("event001-same", "aggregate/a", now.Add(time.Microsecond))
+	unrelated := makeEvent("event001-other", "aggregate/b", now.Add(2*time.Microsecond))
+
+	tx, err := store.db.BeginTx(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, event := range []eventspine.EventEnvelope{first, sameAggregate, unrelated} {
+		if err := ensureOutboxEventTx(context.Background(), tx, event); err != nil {
+			tx.Rollback()
+			t.Fatal(err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+
+	var deliveredIDs []string
+	delivered, err := store.DeliverPendingOutbox(context.Background(), 100, func(_ context.Context, event eventspine.EventEnvelope) error {
+		deliveredIDs = append(deliveredIDs, event.EventID)
+		if event.EventID == first.EventID {
+			return errors.New("aggregate a provider outage")
+		}
+		return nil
+	})
+	if err == nil {
+		t.Fatal("failed aggregate must return delivery error")
+	}
+	if delivered != 1 {
+		t.Fatalf("delivered=%d want unrelated aggregate only", delivered)
+	}
+	for _, id := range deliveredIDs {
+		if id == sameAggregate.EventID {
+			t.Fatal("later event from failed aggregate must not overtake predecessor")
+		}
+	}
+	assertOutboxState(t, store.db, first.EventID, "PENDING", 1)
+	assertOutboxState(t, store.db, sameAggregate.EventID, "PENDING", 0)
+	assertOutboxState(t, store.db, unrelated.EventID, "DELIVERED", 1)
+}
