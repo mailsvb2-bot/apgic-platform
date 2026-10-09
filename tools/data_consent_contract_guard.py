@@ -40,6 +40,8 @@ def main() -> int:
         "consents.ActiveConsent",
         "privacy.PurposeGrowthSessionProjection",
         "privacy.GrowthConsentScope",
+        "policy.Matches(record)",
+        "CONSENT_POLICY_UNAVAILABLE",
         "DATA_PURPOSE_CONSENT_REQUIRED",
     ):
         if needle not in http:
@@ -52,6 +54,9 @@ def main() -> int:
         '"session_ref"',
         '"explicit_consent_grant"',
         '"CLIENT_SESSION_HTTP"',
+        "CONSENT_POLICY_VERSION_MISMATCH",
+        "policy.PolicyVersion",
+        "policy.TextHashOrVersion",
     ):
         if needle not in consent_http:
             fail(f"consent grant proof is not server/session bound: {needle}")
