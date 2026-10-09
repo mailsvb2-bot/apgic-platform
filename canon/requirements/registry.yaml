@@ -543,7 +543,12 @@ requirements:
   - backend/migrations/000004_r0_outbox_terminality.sql
   - backend/migrations/000003_r0_semantic_invariants.sql
   - backend/internal/eventspine/outbox.go
+  - backend/internal/eventspine/http_delivery.go
   - backend/internal/runtimepostgres/outbox.go
+  - backend/cmd/outbox-worker/main.go
+  - deploy/staging/apgic-outbox-worker-staging.service
+  - deploy/staging/update-staging.sh
+  - deploy/staging/check-staging-runtime.sh
   - backend/internal/runtimepostgres/check.go
   - backend/migrations/000001_r0_foundation.sql
   - .github/workflows/ci.yml
@@ -551,6 +556,8 @@ requirements:
   - contracts/jsonschema/event-envelope-v1.schema.json
   test_refs:
   - backend/internal/eventspine/outbox_test.go
+  - backend/internal/eventspine/http_delivery_test.go
+  - backend/cmd/outbox-worker/main_test.go
   - backend/internal/runtimepostgres/outbox_test.go
   - backend/internal/runtimepostgres/outbox_integration_test.go
   - backend/internal/runtimepostgres/journey_test.go
