@@ -80,6 +80,10 @@ func registerConsents(
 				writeDemandError(w, r, http.StatusBadRequest, "CONSENT_INVALID", "Согласие некорректно.", false, nil)
 				return
 			}
+			if errors.Is(err, privacy.ErrConsentConflict) {
+				writeDemandError(w, r, http.StatusConflict, "CONSENT_ACTIVE_VERSION_CONFLICT", "Сначала отзовите действующее согласие перед принятием другой версии.", false, []string{"CONSENT_ACTIVE_VERSION_CONFLICT"})
+				return
+			}
 			writeDemandError(w, r, http.StatusServiceUnavailable, "CONSENT_STORAGE_FAILED", "Не удалось сохранить согласие.", true, nil)
 			return
 		}
