@@ -114,12 +114,24 @@ func (c *Checker) PendingOutbox(limit int) ([]eventspine.OutboxRecord, error) {
 	defer cancel()
 
 	rows, err := c.db.QueryContext(ctx,
-		`SELECT event_id::text, idempotency_key, event_type, schema_version, aggregate_ref,
+		`WITH aggregate_heads AS (
+		   SELECT event_id, idempotency_key, event_type, schema_version, aggregate_ref,
+		          aggregate_version, tenant_scope, correlation_id, causation_id,
+		          occurred_at, produced_at, producer, payload, delivery_status, attempts,
+		          delivered_at,
+		          ROW_NUMBER() OVER (
+		            PARTITION BY aggregate_ref
+		            ORDER BY aggregate_version, produced_at, event_id
+		          ) AS aggregate_position
+		     FROM outbox_events
+		    WHERE delivery_status = 'PENDING'
+		 )
+		 SELECT event_id::text, idempotency_key, event_type, schema_version, aggregate_ref,
 		        aggregate_version, tenant_scope, correlation_id, causation_id,
 		        occurred_at, produced_at, producer, payload::text,
 		        delivery_status, attempts, delivered_at
-		   FROM outbox_events
-		  WHERE delivery_status = 'PENDING'
+		   FROM aggregate_heads
+		  WHERE aggregate_position = 1
 		  ORDER BY produced_at, event_id
 		  LIMIT $1`,
 		limit,
