@@ -246,16 +246,16 @@ func registerDemand(
 	})
 
 	mux.HandleFunc("GET /v1/slot-holds/{id}/checkout-options", func(w http.ResponseWriter, r *http.Request) {
-		if !allowConformanceProviderEvents {
-			writeDemandError(w, r, http.StatusServiceUnavailable, "PAYMENT_PROVIDER_UNAVAILABLE", "Внешний исполнитель оплаты пока не подключён.", false, nil)
-			return
-		}
 		if service == nil {
 			writeDemandError(w, r, http.StatusServiceUnavailable, "DEMAND_CATALOG_UNAVAILABLE", "Каталог спроса не подключён.", false, nil)
 			return
 		}
 		clientIdentityID, ok := trustedClientIdentity(w, r, sessions, sessionConfigErr, r.URL.Query().Get("client_identity_id"))
 		if !ok {
+			return
+		}
+		if !allowConformanceProviderEvents {
+			writeDemandError(w, r, http.StatusServiceUnavailable, "PAYMENT_PROVIDER_UNAVAILABLE", "Внешний исполнитель оплаты пока не подключён.", false, nil)
 			return
 		}
 		options, err := service.CheckoutOptions(r.PathValue("id"), clientIdentityID)
@@ -271,10 +271,6 @@ func registerDemand(
 	})
 
 	mux.HandleFunc("POST /v1/checkout-instructions", func(w http.ResponseWriter, r *http.Request) {
-		if !allowConformanceProviderEvents {
-			writeDemandError(w, r, http.StatusServiceUnavailable, "PAYMENT_PROVIDER_UNAVAILABLE", "Внешний исполнитель оплаты пока не подключён.", false, nil)
-			return
-		}
 		if service == nil {
 			writeDemandError(w, r, http.StatusServiceUnavailable, "DEMAND_CATALOG_UNAVAILABLE", "Каталог спроса не подключён.", false, nil)
 			return
@@ -286,6 +282,10 @@ func registerDemand(
 		}
 		clientIdentityID, ok := trustedClientIdentity(w, r, sessions, sessionConfigErr, body.ClientIdentityID)
 		if !ok {
+			return
+		}
+		if !allowConformanceProviderEvents {
+			writeDemandError(w, r, http.StatusServiceUnavailable, "PAYMENT_PROVIDER_UNAVAILABLE", "Внешний исполнитель оплаты пока не подключён.", false, nil)
 			return
 		}
 		instruction, err := service.CreateCheckout(body.HoldID, clientIdentityID, body.MethodCode)
