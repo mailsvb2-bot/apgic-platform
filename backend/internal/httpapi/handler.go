@@ -74,6 +74,7 @@ func New(options Options) http.Handler {
 	}
 
 	mux := http.NewServeMux()
+	sli := newRuntimeSLI()
 
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, statusResponse{Status: "ok"})
@@ -81,6 +82,7 @@ func New(options Options) http.Handler {
 
 	mux.HandleFunc("GET /readyz", func(w http.ResponseWriter, r *http.Request) {
 		if !launchconfig.Ready(options.LaunchConfig) {
+			sli.observeReadiness("not_ready", launchconfig.ReasonConfigRequired)
 			writeJSON(w, http.StatusServiceUnavailable, statusResponse{
 				Status:     "not_ready",
 				ReasonCode: launchconfig.ReasonConfigRequired,
@@ -88,13 +90,21 @@ func New(options Options) http.Handler {
 			return
 		}
 		if options.ReadinessCheck != nil && options.ReadinessCheck(r.Context()) != nil {
+			sli.observeReadiness("not_ready", "STORAGE_UNAVAILABLE")
 			writeJSON(w, http.StatusServiceUnavailable, statusResponse{
 				Status:     "not_ready",
 				ReasonCode: "STORAGE_UNAVAILABLE",
 			})
 			return
 		}
+		sli.observeReadiness("ready", "")
 		writeJSON(w, http.StatusOK, statusResponse{Status: "ready"})
+	})
+
+	mux.HandleFunc("GET /metrics", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("content-type", "text/plain; version=0.0.4; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(sli.render()))
 	})
 
 	mux.HandleFunc("GET /v1/meta", func(w http.ResponseWriter, _ *http.Request) {
@@ -137,7 +147,7 @@ func New(options Options) http.Handler {
 	registerOrganizationRuntime(mux, options.Organizations, sessions, sessionConfigErr)
 	registerOrganizationProducts(mux, options.Products, sessions, sessionConfigErr, options.Now)
 	registerHighRiskProductOwnership(mux, options.ProductOwnership, sessions, stepUp, sessionConfigErr, options.Now)
-	return mux
+	return observeRuntimeSLI(mux, sli)
 }
 
 func writeJSON(w http.ResponseWriter, status int, value any) {
