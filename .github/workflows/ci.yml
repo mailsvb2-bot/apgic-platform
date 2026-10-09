@@ -368,6 +368,8 @@ jobs:
           APGIC_RETENTION_POLICY_VERSION: retention-ci-v1
           APGIC_SLO_POLICY_VERSION: slo-r0-ci-v1
           APGIC_PROVIDER_MATRIX_VERSION: providers-ci-v1
+          APGIC_GROWTH_CONSENT_POLICY_VERSION: growth-consent-ci-v1
+          APGIC_GROWTH_CONSENT_TEXT_HASH_OR_VERSION: ci-only:sha256:growth-consent-v1
           APGIC_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           APGIC_CLIENT_SESSION_KEY: ci-only-auth001-web-session-key-000000000000
           APGIC_MOBILE_POLICY_VERSION: mobile013-ci-v1
@@ -531,6 +533,8 @@ jobs:
           APGIC_RETENTION_POLICY_VERSION: retention-ci-v1
           APGIC_SLO_POLICY_VERSION: slo-r0-ci-v1
           APGIC_PROVIDER_MATRIX_VERSION: providers-ci-v1
+          APGIC_GROWTH_CONSENT_POLICY_VERSION: growth-consent-ci-v1
+          APGIC_GROWTH_CONSENT_TEXT_HASH_OR_VERSION: ci-only:sha256:growth-consent-v1
           APGIC_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           APGIC_CLIENT_SESSION_KEY: ci-only-client-session-key-000000000000
           APGIC_MOBILE_POLICY_VERSION: mobile013-ci-v1
