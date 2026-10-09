@@ -112,6 +112,30 @@ func TestGrowthExportIgnoresClientAssertedConsentWithoutLedgerEvidence(t *testin
 	if !strings.Contains(recorder.Body.String(), "DATA_PURPOSE_CONSENT_REQUIRED") {
 		t.Fatalf("consent ledger denial reason missing: %s", recorder.Body.String())
 	}
+
+	// A durable consent for an older policy version must not silently authorize
+	// processing after the active policy rotates.
+	store.records = map[string]privacy.ConsentRecord{
+		"old-consent": {
+			ID: "old-consent",
+			SubjectID: ownerID,
+			Purpose: privacy.PurposeGrowthSessionProjection,
+			Scope: privacy.GrowthConsentScope(hold.BookingID),
+			PolicyVersion: "growth-old",
+			TextHashOrVersion: "sha256:old",
+			GrantedAt: time.Now().UTC().Add(-time.Minute),
+			Source: "TEST",
+			ProofMetadata: []byte(`{"proof":"old"}`),
+		},
+	}
+	rotated := httptest.NewRequest(http.MethodPost, "/v1/consultations/"+hold.BookingID+"/growth-export", nil)
+	rotated.AddCookie(cookie)
+	rotatedRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(rotatedRecorder, rotated)
+	if rotatedRecorder.Code != http.StatusConflict ||
+		!strings.Contains(rotatedRecorder.Body.String(), "DATA_PURPOSE_CONSENT_REQUIRED") {
+		t.Fatalf("stale durable consent authorized growth: status=%d body=%s", rotatedRecorder.Code, rotatedRecorder.Body.String())
+	}
 }
 
 func TestConsentEndpointBindsSubjectAndRevocationToTrustedSession(t *testing.T) {
