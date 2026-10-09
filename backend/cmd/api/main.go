@@ -45,7 +45,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("APGIC provider webhook public-key configuration failed: %v", err)
 	}
-	consentPolicies, err := consentPoliciesFromEnvironment()
+	consentPolicies, err := consentPoliciesFromEnvironment(environment)
 	if err != nil {
 		log.Fatalf("APGIC consent policy configuration failed: %v", err)
 	}
@@ -131,13 +131,16 @@ func (r providerWebhookKeyResolver) ResolveWebhookPublicKey(connectorInstanceID,
 }
 
 
-func consentPoliciesFromEnvironment() (map[string]privacy.ConsentPolicy, error) {
+func consentPoliciesFromEnvironment(environment string) (map[string]privacy.ConsentPolicy, error) {
 	version := strings.TrimSpace(os.Getenv("APGIC_GROWTH_CONSENT_POLICY_VERSION"))
 	textVersion := strings.TrimSpace(os.Getenv("APGIC_GROWTH_CONSENT_TEXT_HASH_OR_VERSION"))
 	if version == "" && textVersion == "" {
+		if runtimepostgres.RequiresDatabase(environment) {
+			return nil, fmt.Errorf("growth consent policy is required in %s", environment)
+		}
 		return nil, nil
 	}
-	if version == "" || textVersion == "" {
+	if version == "" || textVersion == "" || version == "CONFIG_REQUIRED" || textVersion == "CONFIG_REQUIRED" {
 		return nil, fmt.Errorf("growth consent policy configuration is incomplete")
 	}
 	policy, err := privacy.NewConsentPolicy(privacy.PurposeGrowthSessionProjection, version, textVersion)
