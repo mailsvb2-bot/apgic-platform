@@ -2458,6 +2458,8 @@ requirements:
   - backend/internal/launchconfig/config.go
   - backend/internal/httpapi/handler.go
   - tools/launch_config_guard.py
+  - tools/production_preflight_evidence.py
+  - .github/workflows/production-preflight.yml
   - .github/workflows/ci.yml
   contract_refs:
   - contracts/openapi/apgic-v1.yaml
@@ -2465,6 +2467,8 @@ requirements:
   - backend/internal/launchconfig/config_test.go
   - backend/internal/httpapi/handler_test.go
   - tools/launch_config_guard.py
+  - tools/tests/test_production_preflight_evidence.py
+  - .github/workflows/production-preflight.yml
   - .github/workflows/ci.yml
   evidence_refs: []
   acceptance:

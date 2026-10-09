@@ -4,6 +4,21 @@ production_approved: false
 capabilities:
   NOTIFICATION_PROVIDER:
     enabled: true
+    environment: CI
+    jurisdictions: [CI_TEST]
+    regions: [CI]
+    credential_owner: CI_PLATFORM_SECURITY
+    credential_ref_contract: secretref://notification/provider-instance
+    scopes: [notification:send]
+    webhook_event_contract_version: notification-provider-events-v1
+    data_classes_transmitted: [INTERNAL]
+    retention_subprocessor_terms_ref: ci://notification-retention-v1
+    timeout_seconds: 5
+    retry_policy: BOUNDED_EXPONENTIAL_V1
+    idempotency_contract: IDEMPOTENCY_KEY_REQUIRED
+    reconciliation_method: DELIVERY_RECEIPT_RECONCILIATION
+    health_policy: ACTIVE_HEALTHCHECK_WITH_DEGRADED_MODE
+    kill_switch: DISABLE_NEW_SENDS
     primary_provider: CI_NOTIFICATION_A
     fallback_providers:
       - CI_NOTIFICATION_B
@@ -13,6 +28,21 @@ capabilities:
     provider_neutral_contract: true
   PAYMENT_PROVIDER:
     enabled: true
+    environment: CI
+    jurisdictions: [CI_TEST]
+    regions: [CI]
+    credential_owner: CI_PLATFORM_SECURITY
+    credential_ref_contract: secretref://payment/provider-instance
+    scopes: [payment:evidence:read]
+    webhook_event_contract_version: payment-provider-webhook-v1
+    data_classes_transmitted: [FINANCIAL_EVIDENCE]
+    retention_subprocessor_terms_ref: ci://payment-retention-v1
+    timeout_seconds: 10
+    retry_policy: BOUNDED_EXPONENTIAL_V1
+    idempotency_contract: PROVIDER_EVENT_ID_EXACTLY_ONCE_EFFECT
+    reconciliation_method: ORDER_LEDGER_PROVIDER_EVIDENCE
+    health_policy: BLOCK_NEW_ATTEMPTS_WHEN_UNAVAILABLE
+    kill_switch: DISABLE_NEW_PAYMENT_ATTEMPTS
     primary_provider: CI_PAYMENT_A
     fallback_providers:
       - CI_PAYMENT_B
@@ -23,6 +53,21 @@ capabilities:
     provider_neutral_contract: true
   COMMUNICATION_PROVIDER:
     enabled: true
+    environment: CI
+    jurisdictions: [CI_TEST]
+    regions: [CI]
+    credential_owner: CI_PLATFORM_SECURITY
+    credential_ref_contract: secretref://communication/provider-instance
+    scopes: [communication:session]
+    webhook_event_contract_version: communication-provider-events-v1
+    data_classes_transmitted: [SENSITIVE]
+    retention_subprocessor_terms_ref: ci://communication-retention-v1
+    timeout_seconds: 10
+    retry_policy: BOUNDED_RECONNECT_V1
+    idempotency_contract: SESSION_COMMAND_ID_REQUIRED
+    reconciliation_method: SESSION_LIFECYCLE_RECONCILIATION
+    health_policy: P2P_FIRST_WITH_PROVIDER_DEGRADED_MODE
+    kill_switch: DISABLE_NEW_JOINS
     primary_provider: CI_COMMUNICATION_A
     fallback_providers:
       - CI_COMMUNICATION_B
