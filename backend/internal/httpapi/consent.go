@@ -60,15 +60,15 @@ func registerConsents(
 			return
 		}
 		record, err := privacy.NewConsentRecord(privacy.ConsentRecord{
-			ID: id,
-			SubjectID: identityID,
-			Purpose: strings.TrimSpace(body.Purpose),
-			Scope: strings.TrimSpace(body.Scope),
-			PolicyVersion: strings.TrimSpace(body.PolicyVersion),
+			ID:                id,
+			SubjectID:         identityID,
+			Purpose:           strings.TrimSpace(body.Purpose),
+			Scope:             strings.TrimSpace(body.Scope),
+			PolicyVersion:     strings.TrimSpace(body.PolicyVersion),
 			TextHashOrVersion: strings.TrimSpace(body.TextHashOrVersion),
-			GrantedAt: now().UTC(),
-			Source:        "CLIENT_SESSION_HTTP",
-			ProofMetadata: proofMetadata,
+			GrantedAt:         now().UTC(),
+			Source:            "CLIENT_SESSION_HTTP",
+			ProofMetadata:     proofMetadata,
 		})
 		if err != nil {
 			writeDemandError(w, r, http.StatusBadRequest, "CONSENT_INVALID", "Согласие некорректно.", false, nil)
