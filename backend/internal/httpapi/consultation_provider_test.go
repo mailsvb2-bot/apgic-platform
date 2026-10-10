@@ -32,7 +32,7 @@ func TestConsultationWebhookRequiresVerifiedProviderSignatureAndReadRequiresSess
     if err!=nil {t.Fatal(err)}
     keys:=providerWebhookKeyMap{"provider-1/key-1":public}
     fake:=&testConsultationProvider{}
-    handler:=New(Options{ConsultationProvider:fake,ProviderWebhookKeys:keys})
+    handler:=New(Options{ConsultationProvider:fake,ProviderWebhookKeys:keys,ClientSessionKey:[]byte("test-only-session-key-that-is-long-enough")})
     payload:=json.RawMessage(`{"booking_id":"00000000-0000-4000-8000-000000000001","fact_type":"ENDED","role":"SYSTEM","provider_reference":"room-1","evidence_ref":"provider/end-1"}`)
     event:=connector.WebhookEnvelope{
         ConnectorInstanceID:"provider-1",ExternalEventID:"event-1",
