@@ -250,6 +250,24 @@ func registerDemand(
 		writeJSON(w, http.StatusCreated, hold)
 	})
 
+	mux.HandleFunc("GET /v1/slot-holds/{id}", func(w http.ResponseWriter, r *http.Request) {
+		if service == nil {
+			writeDemandError(w, r, http.StatusServiceUnavailable, "DEMAND_CATALOG_UNAVAILABLE", "Каталог спроса не подключён.", false, nil)
+			return
+		}
+		clientIdentityID, ok := trustedClientIdentity(w, r, sessions, sessionConfigErr, "")
+		if !ok {
+			return
+		}
+		hold, err := service.HoldStatus(r.PathValue("id"), clientIdentityID)
+		if err != nil {
+			writeDemandFailure(w, r, err)
+			return
+		}
+		w.Header().Set("Cache-Control", "no-store")
+		writeJSON(w, http.StatusOK, hold)
+	})
+
 	mux.HandleFunc("GET /v1/slot-holds/{id}/checkout-options", func(w http.ResponseWriter, r *http.Request) {
 		if service == nil {
 			writeDemandError(w, r, http.StatusServiceUnavailable, "DEMAND_CATALOG_UNAVAILABLE", "Каталог спроса не подключён.", false, nil)
