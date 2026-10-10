@@ -610,6 +610,28 @@ func (s *Service) AcquireHold(intentID, slotID, clientIdentityID string) (*Hold,
 	return &copyHold, nil
 }
 
+// HoldStatus refreshes expiry and returns a copy only to the owning client.
+// A hold identifier alone never grants access to booking information.
+func (s *Service) HoldStatus(holdID, clientIdentityID string) (*Hold, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.expireHoldsLocked(); err != nil {
+		return nil, err
+	}
+	hold, ok := s.holds[holdID]
+	if !ok || hold == nil {
+		return nil, ErrHoldNotFound
+	}
+	if hold.ClientIdentityID != clientIdentityID {
+		return nil, ErrBookingIdentityMismatch
+	}
+	copyHold := *hold
+	if booked := s.bookings[hold.BookingID]; booked != nil {
+		copyHold.BookingState = booked.State
+	}
+	return &copyHold, nil
+}
+
 func (s *Service) knownTopic(topic string) bool {
 	for _, rule := range s.catalog.policy.Rules {
 		if rule.Topic == topic {

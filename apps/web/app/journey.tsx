@@ -172,6 +172,62 @@ export function Journey() {
   const [specialist, setSpecialist] = useState<MatchCard | null>(null);
   const [slots, setSlots] = useState<Slot[]>([]);
   const [hold, setHold] = useState<Hold | null>(null);
+  const [restoredHold, setRestoredHold] = useState<Hold | null>(null);
+  const [restoration, setRestoration] = useState<"CHECKING" | "READY" | "DENIED" | "UNAVAILABLE">("CHECKING");
+  useEffect(() => {
+    let active = true;
+    const id = sessionStorage.getItem("apgic:current-hold-id");
+    if (!id) {
+      setRestoration("READY");
+      return () => { active = false; };
+    }
+    void fetch(`/v1/slot-holds/${encodeURIComponent(id)}`, { cache: "no-store", credentials: "include" })
+      .then(async (response) => {
+        if (response.status === 401 || response.status === 403 || response.status === 404) {
+          sessionStorage.removeItem("apgic:current-hold-id");
+          if (active) setRestoration("DENIED");
+          return;
+        }
+        if (!response.ok) throw new Error("Booking status unavailable");
+        const value = await response.json() as Hold;
+        if (value.id !== id || !value.booking_id || !value.booking_state || !value.expires_at) {
+          throw new Error("Invalid booking status");
+        }
+        if (active) {
+          setRestoredHold(value);
+          setRestoration("READY");
+        }
+      })
+      .catch(() => { if (active) setRestoration("UNAVAILABLE"); });
+    return () => { active = false; };
+  }, []);
+  async function refreshPreviousHold() {
+    const id = sessionStorage.getItem("apgic:current-hold-id");
+    if (!id) {
+      setRestoredHold(null);
+      setRestoration("DENIED");
+      return;
+    }
+    setRestoredHold(null);
+    setRestoration("CHECKING");
+    try {
+      const response = await fetch(`/v1/slot-holds/${encodeURIComponent(id)}`, { cache: "no-store", credentials: "include" });
+      if (response.status === 401 || response.status === 403 || response.status === 404) {
+        sessionStorage.removeItem("apgic:current-hold-id");
+        setRestoration("DENIED");
+        return;
+      }
+      if (!response.ok) throw new Error("Hold status unavailable");
+      const value = await response.json() as Hold;
+      if (value.id !== id || !value.booking_id || !value.booking_state || !value.expires_at) {
+        throw new Error("Invalid hold status");
+      }
+      setRestoredHold(value);
+      setRestoration("READY");
+    } catch {
+      setRestoration("UNAVAILABLE");
+    }
+  }
   const [holdTimeExpired, setHoldTimeExpired] = useState(false);
   useEffect(() => {
     if (!hold) {
@@ -227,6 +283,8 @@ export function Journey() {
     event.preventDefault();
     setError("");
     setPending(true);
+    sessionStorage.removeItem("apgic:current-hold-id");
+    setRestoredHold(null);
     // A new request invalidates the whole previous booking journey, even if
     // interpreting the replacement request fails.
     setIntent(null);
@@ -366,6 +424,8 @@ export function Journey() {
     if (!intent) return;
     setError("");
     setPending(true);
+    sessionStorage.removeItem("apgic:current-hold-id");
+    setRestoredHold(null);
     // A new slot attempt must not leave the previous payment instruction
     // or confirmed booking visible after an unsuccessful hold.
     setHold(null);
@@ -380,6 +440,8 @@ export function Journey() {
         help_intent_id: intent.id,
         slot_id: slot.id,
       });
+      sessionStorage.setItem("apgic:current-hold-id", created.id);
+      setRestoredHold(null);
       setHold(created);
       setInstruction(null);
       if (!conformanceProviderEvents) {
@@ -808,6 +870,22 @@ export function Journey() {
               </li>
             ))}
           </ul>
+        </section>
+      ) : null}
+
+      {restoration === "CHECKING" && !hold ? <p role="status">Проверяем предыдущую запись на сервере…</p> : null}
+      {restoration === "DENIED" && !hold ? <p role="alert">Предыдущая запись недоступна для этой сессии. Её состояние не восстановлено.</p> : null}
+      {restoration === "UNAVAILABLE" && !hold ? <p role="alert">Сейчас не удалось проверить предыдущую запись. Не считайте её подтверждённой; повторите проверку позже.</p> : null}
+      {restoredHold && !hold && !intent ? (
+        <section className="journey-stage" aria-label="Восстановленная запись">
+          <h2>Состояние предыдущей записи</h2>
+          <p>Состояние получено с сервера после перезагрузки страницы.</p>
+          <p>Бронь {restoredHold.booking_id} · статус {restoredHold.booking_state}.</p>
+          <p>Удержание до {when(restoredHold.expires_at)}.</p>
+          <button type="button" onClick={refreshPreviousHold}>Проверить актуальный статус</button>
+          {restoredHold.booking_state === "HELD" || restoredHold.booking_state === "PENDING_PAYMENT"
+            ? <p role="status">Это не подтверждённая запись. {Date.now() >= Date.parse(restoredHold.expires_at) ? "Показанный срок удержания прошёл; обновите страницу для повторной проверки." : "Оплата выполняется только внешним провайдером."}</p>
+            : <p role="status">Состояние брони: {restoredHold.booking_state}. Для дальнейших действий требуется действующий доступ к записи.</p>}
         </section>
       ) : null}
 

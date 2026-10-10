@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("quick start leads to canonical specialist availability and a persisted hold", async ({ page }) => {
+test("quick start leads to canonical specialist availability and a persisted hold", async ({ page, browser }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Проблемы со сном", exact: true }).click();
   await expect(page.getByLabel("С чем нужна помощь")).toHaveValue(/засыпать/);
@@ -27,4 +27,37 @@ test("quick start leads to canonical specialist availability and a persisted hol
   expect(held, "a canonical slot hold must succeed").toBeTruthy();
   await expect(page.getByText(/^Бронь \S+ в состоянии HELD\./)).toBeVisible();
   await expect(page.getByText("APGIC не принимает деньги.")).toBeVisible();
+  const holdID = await page.evaluate(() => sessionStorage.getItem("apgic:current-hold-id"));
+  expect(holdID).toBeTruthy();
+  const endpoint = new URL(`/v1/slot-holds/${holdID}`, page.url()).toString();
+  const outsider = await browser.newContext();
+  try {
+    const unauthorized = await outsider.request.get(endpoint);
+    expect(unauthorized.status()).toBe(401);
+  } finally {
+    await outsider.close();
+  }
+
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Состояние предыдущей записи" })).toBeVisible();
+  await expect(page.getByText(/статус HELD/)).toBeVisible();
+  await expect(page.getByText("Это не подтверждённая запись.", { exact: false })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Выбрать Карта через внешнего провайдера" })).toHaveCount(0);
+  const saved = await page.evaluate(async (url) => {
+    const current = await fetch(url, { credentials: "include", cache: "no-store" });
+    if (!current.ok) throw new Error(`Owner read failed: ${current.status}`);
+    return current.json();
+  }, endpoint);
+  await page.route(endpoint, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ...saved, state: "EXPIRED", booking_state: "EXPIRED" }),
+    });
+  });
+  await page.getByRole("button", { name: "Проверить актуальный статус" }).click();
+  await expect(page.getByText(/статус EXPIRED/)).toBeVisible();
+  await expect(page.getByText(/статус HELD/)).toHaveCount(0);
+
+
 });
