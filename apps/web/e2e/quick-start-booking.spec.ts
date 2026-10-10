@@ -25,6 +25,6 @@ test("quick start leads to canonical specialist availability and a persisted hol
     }
   }
   expect(held, "a canonical slot hold must succeed").toBeTruthy();
-  await expect(page.getByText(/^Бронь \\S+ в состоянии HELD\\./)).toBeVisible();
+  await expect(page.getByText(/^Бронь \S+ в состоянии HELD\./)).toBeVisible();
   await expect(page.getByText("APGIC не принимает деньги.")).toBeVisible();
 });
