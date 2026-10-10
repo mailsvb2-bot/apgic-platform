@@ -228,6 +228,28 @@ export function Journey() {
       setRestoration("UNAVAILABLE");
     }
   }
+  const [checkingActiveHold, setCheckingActiveHold] = useState(false);
+  async function refreshActiveHold() {
+    if (!hold || checkingActiveHold) return;
+    setCheckingActiveHold(true);
+    setError("");
+    try {
+      const response = await fetch(`/v1/slot-holds/${encodeURIComponent(hold.id)}`, { credentials: "include", cache: "no-store" });
+      if (!response.ok) throw new Error("Не удалось проверить статус брони. Повторите попытку.");
+      const fresh = await response.json() as Hold;
+      if (fresh.id !== hold.id || fresh.booking_id !== hold.booking_id ||
+          !fresh.booking_state || !fresh.expires_at) throw new Error("Сервер вернул несогласованное состояние брони.");
+      setHold(fresh);
+      if (fresh.booking_state !== "HELD" && fresh.booking_state !== "PENDING_PAYMENT") {
+        setInstruction(null);
+        setOptions([]);
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Статус брони недоступен.");
+    } finally {
+      setCheckingActiveHold(false);
+    }
+  }
   const [holdTimeExpired, setHoldTimeExpired] = useState(false);
   useEffect(() => {
     if (!hold) {
@@ -906,6 +928,7 @@ export function Journey() {
             <div><span>Удержание до</span><strong>{when(hold.expires_at)}</strong></div>
           </div>
           <p className="meta">Бронь {hold.booking_id} в состоянии {hold.booking_state}. Удержание {hold.state} до {when(hold.expires_at)}.</p>
+          <button type="button" onClick={refreshActiveHold} disabled={pending || checkingActiveHold}>{checkingActiveHold ? "Проверяем статус…" : "Проверить статус брони"}</button>
           {holdTimeExpired ? (
             <p className="alert" role="alert">Указанное время удержания прошло. Статус брони на сервере необходимо проверить заново; не считайте запись подтверждённой.</p>
           ) : null}
