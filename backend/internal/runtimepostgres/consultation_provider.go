@@ -7,7 +7,6 @@ import (
     "errors"
     "fmt"
     "strings"
-    "time"
 
     "github.com/mailsvb2-bot/apgic-platform/backend/internal/connector"
 )
@@ -20,13 +19,6 @@ type ConsultationProviderEvent struct {
     Role string `json:"role"`
     ProviderReference string `json:"provider_reference"`
     EvidenceRef string `json:"evidence_ref"`
-}
-
-type ConsultationResult struct {
-    BookingID string `json:"booking_id"`
-    State string `json:"state"`
-    ProviderInstanceID string `json:"provider_instance_id"`
-    CompletionEvidenceRef string `json:"completion_evidence_ref,omitempty"`
 }
 
 func (c *Checker) ApplyConsultationProviderWebhook(ctx context.Context, envelope connector.WebhookEnvelope, keys connector.WebhookPublicKeyResolver) (connector.DeliveryDecision, error) {
@@ -89,9 +81,9 @@ func (c *Checker) ApplyConsultationProviderWebhook(ctx context.Context, envelope
     })
 }
 
-func (c *Checker) ReadConsultationResult(ctx context.Context, bookingID, clientIdentityID string) (*ConsultationResult, error) {
+func (c *Checker) ReadConsultationResult(ctx context.Context, bookingID, clientIdentityID string) (*connector.ConsultationResult, error) {
     if c == nil || c.db == nil { return nil, errors.New("consultation storage is unavailable") }
-    var result ConsultationResult
+    var result connector.ConsultationResult
     var evidence sql.NullString
     err := c.db.QueryRowContext(ctx, `SELECT s.booking_id, s.state, s.provider_instance_id,
         (SELECT f.evidence_ref FROM consultation_lifecycle_facts f
@@ -106,6 +98,3 @@ func (c *Checker) ReadConsultationResult(ctx context.Context, bookingID, clientI
     return &result,nil
 }
 
-// Keep a compile-time reference to the immutable provider timestamp used for
-// the fact transition; no wall-clock substitution is permitted.
-var _ time.Time
