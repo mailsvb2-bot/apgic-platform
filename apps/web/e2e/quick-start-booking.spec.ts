@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 test("quick start leads to canonical specialist availability and a persisted hold", async ({ page, browser }) => {
+  test.setTimeout(90_000);
   await page.goto("/");
   await page.getByRole("button", { name: "Проблемы со сном", exact: true }).click();
   await expect(page.getByLabel("С чем нужна помощь")).toHaveValue(/засыпать/);
@@ -105,4 +106,58 @@ test("quick start leads to canonical specialist availability and a persisted hol
   await page.unroute(endpoint);
   await resumeCard.getByRole("button", { name: "Повторить проверку" }).click();
   await expect(resumeCard.getByRole("link", { name: "Посмотреть мою запись" })).toBeVisible();
+
+  // A server-confirmed booking exposes the existing owner-authenticated
+  // consultation read route without needing a separate deep-link token.
+  // Status/result responses below are deliberately mocked UI contracts;
+  // signed-provider/restarted-PostgreSQL proof is covered by Go integration.
+  await page.route(endpoint, async (route) => {
+    await route.fulfill({
+      status: 200, contentType: "application/json",
+      body: JSON.stringify({ ...saved, state: "CONFIRMED", booking_state: "CONFIRMED" }),
+    });
+  });
+  await page.getByRole("button", { name: "Проверить актуальный статус" }).click();
+  const consultation = page.getByRole("region", { name: "Результат консультации" });
+  await expect(consultation).toBeVisible();
+  await expect(consultation.getByText(/Состояние консультации: Завершена/)).toHaveCount(0);
+
+  const resultEndpoint = new URL(`/v1/consultations/${saved.booking_id}/result`, page.url()).toString();
+  let mode: "outage" | "foreign" | "denied" | "completed" = "outage";
+  const trustedResult = {
+    booking_id: saved.booking_id, state: "COMPLETED",
+    provider_instance_id: "00000000-0000-4000-8000-000000000001",
+    completion_evidence_ref: "provider-evidence/ENDED/SYSTEM",
+  };
+  await page.route(resultEndpoint, async (route) => {
+    if (mode === "outage") return route.fulfill({ status: 503, body: "{}" });
+    if (mode === "denied") return route.fulfill({ status: 403, body: "{}" });
+    const data = mode === "foreign" ? { ...trustedResult, booking_id: "someone-else" } : trustedResult;
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(data) });
+  });
+
+  await consultation.getByRole("button", { name: "Проверить результат консультации" }).click();
+  await expect(consultation.getByRole("alert")).toContainText("Не удалось подтвердить результат");
+  mode = "foreign";
+  await consultation.getByRole("button", { name: "Проверить результат консультации" }).click();
+  await expect(consultation.getByRole("alert")).toContainText("Не удалось подтвердить результат");
+  mode = "denied";
+  await consultation.getByRole("button", { name: "Проверить результат консультации" }).click();
+  await expect(consultation.getByRole("alert")).toContainText("Нет подтверждённого доступа");
+  mode = "completed";
+  await consultation.getByRole("button", { name: "Проверить результат консультации" }).click();
+  await expect(consultation.getByText("Состояние консультации: Завершена.")).toBeVisible();
+  await expect(consultation.getByText("Подтверждение провайдера: provider-evidence/ENDED/SYSTEM.")).toBeVisible();
+
+  await page.reload();
+  await expect(consultation).toBeVisible();
+  await expect(consultation.getByText("Состояние консультации: Завершена.")).toHaveCount(0);
+  await consultation.getByRole("button", { name: "Проверить результат консультации" }).click();
+  await expect(consultation.getByText("Состояние консультации: Завершена.")).toBeVisible();
+
+  // When the authoritative booking is only HELD, previous "completed"
+  // browser state must never unlock or replay consultation result UI.
+  await page.unroute(endpoint);
+  await page.reload();
+  await expect(consultation).toHaveCount(0);
 });
