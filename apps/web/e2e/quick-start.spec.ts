@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 const scenarios = [
-  { name: "Тревога и стресс", phrase: "тревожусь" },
+  { name: "Тревога и стресс", phrase: "тревожно" },
   { name: "Проблемы со сном", phrase: "засыпать" },
   { name: "Отношения", phrase: "отношения" },
   { name: "Работа и карьера", phrase: "карьерных" },
@@ -24,7 +24,7 @@ for (const scenario of scenarios) {
     await expect(request).toHaveValue(new RegExp(scenario.phrase));
     expect(created).toBe(0);
 
-    await request.fill("Мне тревожно перед выступлениями");
+    await request.fill("Мне тревожно перед выступлениями, хочу обсудить это.");
     await expect(button).toHaveAttribute("aria-pressed", "false");
     expect(created).toBe(0);
 
