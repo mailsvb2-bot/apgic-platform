@@ -5,6 +5,9 @@ import (
 	"crypto/ed25519"
 	"encoding/base64"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"os"
 	"testing"
 	"time"
@@ -12,6 +15,7 @@ import (
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/booking"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/connector"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/demand"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/httpapi"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/persistentid"
 )
 
@@ -32,9 +36,27 @@ func TestSignedConsultationPersistsAcrossAPIStoreRestart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	intent, err := service.CreateIntent("бессонница")
-	if err != nil {
+	// The browser obtains a real signed session cookie from the first API handler.
+	sessionKey := []byte("isolated-integration-client-session-key-123")
+	firstAPI := httpapi.New(httpapi.Options{Demand: service, ClientSessionKey: sessionKey})
+	entry := httptest.NewRecorder()
+	firstAPI.ServeHTTP(entry, httptest.NewRequest(http.MethodPost, "/v1/help-intents",
+		strings.NewReader(`{"free_text":"бессонница"}`)))
+	if entry.Code != http.StatusCreated {
+		t.Fatalf("entry status=%d body=%s", entry.Code, entry.Body.String())
+	}
+	var intent demand.Intent
+	if err := json.Unmarshal(entry.Body.Bytes(), &intent); err != nil {
 		t.Fatal(err)
+	}
+	var sessionCookie *http.Cookie
+	for _, cookie := range entry.Result().Cookies() {
+		if cookie.Name == "__Host-apgic_session" {
+			sessionCookie = cookie
+		}
+	}
+	if sessionCookie == nil {
+		t.Fatal("trusted browser session was not issued")
 	}
 	if _, err = service.ConfirmIntent(intent.ID, []string{"sleep"}, nil, nil); err != nil {
 		t.Fatal(err)
@@ -70,6 +92,18 @@ func TestSignedConsultationPersistsAcrossAPIStoreRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 	keys := connectorWebhookKeyMap{connectorID + "/test-key": public}
+	providerAPI := httpapi.New(httpapi.Options{ConsultationProvider: store, ProviderWebhookKeys: keys, ClientSessionKey: sessionKey})
+	postSigned := func(event connector.WebhookEnvelope) (int, connector.DeliveryDecision) {
+		body, marshalErr := json.Marshal(event)
+		if marshalErr != nil { t.Fatal(marshalErr) }
+		response := httptest.NewRecorder()
+		providerAPI.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/v1/consultation-provider-webhooks", strings.NewReader(string(body))))
+		var parsed struct { DeliveryDecision string `json:"delivery_decision"` }
+		if response.Code == http.StatusOK {
+			if err := json.Unmarshal(response.Body.Bytes(), &parsed); err != nil { t.Fatal(err) }
+		}
+		return response.Code, connector.DeliveryDecision(parsed.DeliveryDecision)
+	}
 	now := time.Now().UTC().Truncate(time.Microsecond).Add(time.Minute)
 	signed := func(seq uint64, factType, role string) connector.WebhookEnvelope {
 		payload, e := json.Marshal(ConsultationProviderEvent{
@@ -103,18 +137,18 @@ func TestSignedConsultationPersistsAcrossAPIStoreRestart(t *testing.T) {
 		if event.Sequence == 1 {
 			forged := event
 			forged.Signature = base64.StdEncoding.EncodeToString(make([]byte, ed25519.SignatureSize))
-			if _, err = store.ApplyConsultationProviderWebhook(ctx, forged, keys); err == nil {
-				t.Fatal("unsigned/forged consultation event accepted")
+			if status, _ := postSigned(forged); status != http.StatusUnauthorized {
+				t.Fatalf("forged provider signature accepted: HTTP %d", status)
 			}
 		}
-		decision, e := store.ApplyConsultationProviderWebhook(ctx, event, keys)
-		if e != nil || decision != connector.DeliveryApply {
-			t.Fatalf("event %d decision=%s err=%v", event.Sequence, decision, e)
+		status, decision := postSigned(event)
+		if status != http.StatusOK || decision != connector.DeliveryApply {
+			t.Fatalf("event %d HTTP=%d decision=%s", event.Sequence, status, decision)
 		}
 		if event.Sequence == 4 {
-			decision, e = store.ApplyConsultationProviderWebhook(ctx, event, keys)
-			if e != nil || decision != connector.DeliveryDuplicate {
-				t.Fatalf("replay decision=%s err=%v", decision, e)
+			status, decision = postSigned(event)
+			if status != http.StatusOK || decision != connector.DeliveryDuplicate {
+				t.Fatalf("replay HTTP=%d decision=%s", status, decision)
 			}
 		}
 	}
@@ -144,5 +178,26 @@ func TestSignedConsultationPersistsAcrossAPIStoreRestart(t *testing.T) {
 	}
 	if count != 1 {
 		t.Fatalf("duplicated completion facts: %d", count)
+	}
+
+	// Reconstruct HTTP API against a separate PostgreSQL connection. Nothing
+	// about the consultation outcome comes from the original API process memory.
+	secondAPI := httpapi.New(httpapi.Options{ConsultationProvider: restarted, ClientSessionKey: sessionKey})
+	request := httptest.NewRequest(http.MethodGet, "/v1/consultations/"+hold.BookingID+"/result", nil)
+	request.AddCookie(sessionCookie)
+	readback := httptest.NewRecorder()
+	secondAPI.ServeHTTP(readback, request)
+	if readback.Code != http.StatusOK {
+		t.Fatalf("new HTTP API cannot read persisted result: HTTP=%d body=%s", readback.Code, readback.Body.String())
+	}
+	var apiResult connector.ConsultationResult
+	if err := json.Unmarshal(readback.Body.Bytes(), &apiResult); err != nil { t.Fatal(err) }
+	if apiResult.State != "COMPLETED" || apiResult.CompletionEvidenceRef != "provider-evidence/ENDED/SYSTEM" {
+		t.Fatalf("wrong HTTP restart result: %#v", apiResult)
+	}
+	outsiderRead := httptest.NewRecorder()
+	secondAPI.ServeHTTP(outsiderRead, httptest.NewRequest(http.MethodGet, "/v1/consultations/"+hold.BookingID+"/result", nil))
+	if outsiderRead.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated read HTTP=%d body=%s", outsiderRead.Code, outsiderRead.Body.String())
 	}
 }
