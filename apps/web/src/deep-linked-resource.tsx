@@ -5,6 +5,13 @@ import type { DeepLinkResolution } from "../../../packages/contracts/src/generat
 
 type ResourceKind = "SPECIALIST" | "BOOKING" | "NOTIFICATION";
 
+type ConsultationResult = {
+  booking_id: string;
+  state: string;
+  provider_instance_id: string;
+  completion_evidence_ref?: string;
+};
+
 const titles: Record<ResourceKind, string> = {
   SPECIALIST: "Специалист",
   BOOKING: "Бронирование",
@@ -61,6 +68,37 @@ export default function DeepLinkedResource({
     "CHECKING",
   );
 
+  const [consultation, setConsultation] = useState<ConsultationResult | null>(null);
+  const [resultState, setResultState] = useState<"IDLE" | "LOADING" | "NOT_FOUND" | "ERROR" | "READY">("IDLE");
+
+  async function readConsultationResult() {
+    setResultState("LOADING");
+    setConsultation(null);
+    try {
+      const response = await fetch(`/v1/consultations/${encodeURIComponent(id)}/result`, {
+        credentials: "include",
+        cache: "no-store",
+      });
+      if (response.status === 404) {
+        setResultState("NOT_FOUND");
+        return;
+      }
+      if (!response.ok) {
+        setResultState("ERROR");
+        return;
+      }
+      const payload = await response.json() as Partial<ConsultationResult>;
+      if (payload.booking_id !== id || typeof payload.state !== "string" || typeof payload.provider_instance_id !== "string") {
+        setResultState("ERROR");
+        return;
+      }
+      setConsultation(payload as ConsultationResult);
+      setResultState("READY");
+    } catch {
+      setResultState("ERROR");
+    }
+  }
+
   useEffect(() => {
     let active = true;
     const storageKey = `apgic:deeplink:${expectedPath}`;
@@ -114,6 +152,22 @@ export default function DeepLinkedResource({
         <>
           <p role="status">Ресурс подтверждён сервером.</p>
           <p>Идентификатор: {id}</p>
+          {kind === "BOOKING" ? (
+            <section aria-label="Результат консультации">
+              <h2>Результат консультации</h2>
+              <button type="button" disabled={resultState === "LOADING"} onClick={() => void readConsultationResult()}>
+                {resultState === "LOADING" ? "Проверяем результат…" : "Проверить результат консультации"}
+              </button>
+              {resultState === "NOT_FOUND" ? <p role="status">Подтверждённый результат консультации пока не найден.</p> : null}
+              {resultState === "ERROR" ? <p role="alert">Не удалось подтвердить результат на сервере. Повторите попытку.</p> : null}
+              {resultState === "READY" && consultation ? (
+                <div role="status">
+                  <p>Состояние: {consultation.state === "COMPLETED" ? "Завершена" : "Не завершена"}</p>
+                  {consultation.state === "COMPLETED" && consultation.completion_evidence_ref ? <p>Доказательство завершения: {consultation.completion_evidence_ref}</p> : null}
+                </div>
+              ) : null}
+            </section>
+          ) : null}
         </>
       ) : null}
       {state === "DENIED" ? (
