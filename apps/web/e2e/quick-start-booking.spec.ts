@@ -53,6 +53,19 @@ test("quick start leads to canonical specialist availability and a persisted hol
   await expect(page.getByRole("heading", { name: "Слот удерживается" })).toBeVisible();
   await expect(page.getByText("Последний известный статус")).toHaveCount(0);
 
+  // A confirmed booking cannot present another checkout instruction.
+  await page.route(activeHoldEndpoint, async (route) => {
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
+      ...before, state: "CONFIRMED", booking_state: "CONFIRMED",
+    }) });
+  });
+  await page.getByRole("button", { name: "Проверить статус брони" }).click();
+  await expect(page.getByText("Запись подтверждена. Повторное оформление оплаты для неё недоступно.")).toBeVisible();
+  await expect(page.locator(".payment-options button")).toHaveCount(0);
+  await page.unroute(activeHoldEndpoint);
+  await page.getByRole("button", { name: "Проверить статус брони" }).click();
+  await expect(page.getByRole("heading", { name: "Слот удерживается" })).toBeVisible();
+
   const holdID = await page.evaluate(() => sessionStorage.getItem("apgic:current-hold-id"));
   expect(holdID).toBeTruthy();
   const endpoint = new URL(`/v1/slot-holds/${holdID}`, page.url()).toString();
