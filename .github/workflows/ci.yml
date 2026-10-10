@@ -340,7 +340,8 @@ jobs:
         working-directory: backend
         env:
           APGIC_CONNECTOR_DELIVERY_TEST_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable
-        run: go test ./internal/runtimepostgres -run '^TestSignedConsultationPersistsAcrossAPIStoreRestart      - name: Prove authorization audit evidence persists in PostgreSQL
+        run: go test ./internal/runtimepostgres -run TestSignedConsultationPersistsAcrossAPIStoreRestart -count=1 -v
+      - name: Prove authorization audit evidence persists in PostgreSQL
         working-directory: backend
         env:
           APGIC_AUDIT_STORE_TEST_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable
