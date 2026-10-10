@@ -84,5 +84,25 @@ test("quick start leads to canonical specialist availability and a persisted hol
   await expect(page.getByText(/статус EXPIRED/)).toBeVisible();
   await expect(page.getByText(/статус HELD/)).toHaveCount(0);
 
+  // Resume card must land on the actual restored booking, not restart discovery.
+  await page.unroute(endpoint);
+  await page.reload();
+  const resumeCard = page.getByRole("region", { name: "Продолжить предыдущую запись" });
+  await expect(resumeCard).toBeVisible();
+  await expect(resumeCard.getByText("Это не подтверждённая запись", { exact: false })).toBeVisible();
+  await resumeCard.getByRole("link", { name: "Посмотреть мою запись" }).click();
+  await expect(page).toHaveURL(/#previous-booking$/);
+  await expect(page.locator("#previous-booking")).toBeInViewport();
 
+  // An outage is not an active booking; one click retries the canonical owner read
+  // without reloading or pretending that the external payment was confirmed.
+  await page.route(endpoint, async (route) => {
+    await route.fulfill({ status: 503, contentType: "application/json", body: "{}" });
+  });
+  await page.reload();
+  await expect(resumeCard.getByRole("button", { name: "Повторить проверку" })).toBeVisible();
+  await expect(resumeCard.getByRole("link", { name: "Посмотреть мою запись" })).toHaveCount(0);
+  await page.unroute(endpoint);
+  await resumeCard.getByRole("button", { name: "Повторить проверку" }).click();
+  await expect(resumeCard.getByRole("link", { name: "Посмотреть мою запись" })).toBeVisible();
 });
