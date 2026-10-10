@@ -229,6 +229,7 @@ export function Journey() {
     }
   }
   const [checkingActiveHold, setCheckingActiveHold] = useState(false);
+  const [activeHoldUnverified, setActiveHoldUnverified] = useState(false);
   async function refreshActiveHold() {
     if (!hold || checkingActiveHold) return;
     setCheckingActiveHold(true);
@@ -240,11 +241,14 @@ export function Journey() {
       if (fresh.id !== hold.id || fresh.booking_id !== hold.booking_id ||
           !fresh.booking_state || !fresh.expires_at) throw new Error("Сервер вернул несогласованное состояние брони.");
       setHold(fresh);
+      setActiveHoldUnverified(false);
       if (fresh.booking_state !== "HELD" && fresh.booking_state !== "PENDING_PAYMENT") {
         setInstruction(null);
         setOptions([]);
       }
     } catch (cause) {
+      setActiveHoldUnverified(true);
+      setOptions([]);
       setError(cause instanceof Error ? cause.message : "Статус брони недоступен.");
     } finally {
       setCheckingActiveHold(false);
@@ -465,6 +469,7 @@ export function Journey() {
       sessionStorage.setItem("apgic:current-hold-id", created.id);
       setRestoredHold(null);
       setHold(created);
+      setActiveHoldUnverified(false);
       setInstruction(null);
       if (!conformanceProviderEvents) {
         setOptions([]);
@@ -916,7 +921,7 @@ export function Journey() {
           <div className="journey-stage-heading">
             <span className="journey-stage-kicker">Шаг 4</span>
             <div>
-              <h2 id="hold-title">{hold.booking_state === "HELD" ? "Слот удерживается" : "Актуальное состояние брони"}</h2>
+              <h2 id="hold-title">{activeHoldUnverified ? "Статус брони не проверен" : hold.booking_state === "HELD" ? "Слот удерживается" : "Актуальное состояние брони"}</h2>
               <p>{conformanceProviderEvents
                 ? "Время временно закреплено за вами. Дальнейшие шаги доступны только в тестовом окружении."
                 : "Время временно удерживается, но запись ещё не подтверждена. Оплата через внешнего провайдера сейчас недоступна; удержание может истечь без подтверждения."}</p>
@@ -924,10 +929,11 @@ export function Journey() {
           </div>
           <div className="booking-summary">
             <div><span>Бронь</span><strong>{hold.booking_id}</strong></div>
-            <div><span>Статус</span><strong>{hold.booking_state}</strong></div>
+            <div><span>{activeHoldUnverified ? "Последний известный статус" : "Статус"}</span><strong>{hold.booking_state}</strong></div>
             <div><span>Удержание до</span><strong>{when(hold.expires_at)}</strong></div>
           </div>
           <p className="meta">Бронь {hold.booking_id} в состоянии {hold.booking_state}. Удержание {hold.state} до {when(hold.expires_at)}.</p>
+          {activeHoldUnverified ? <p role="alert">Актуальный статус на сервере не подтверждён. Показано последнее известное состояние; оно могло измениться. Повторите проверку.</p> : null}
           <button type="button" onClick={refreshActiveHold} disabled={pending || checkingActiveHold}>{checkingActiveHold ? "Проверяем статус…" : "Проверить статус брони"}</button>
           {holdTimeExpired ? (
             <p className="alert" role="alert">Указанное время удержания прошло. Статус брони на сервере необходимо проверить заново; не считайте запись подтверждённой.</p>

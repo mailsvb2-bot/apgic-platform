@@ -40,6 +40,18 @@ test("quick start leads to canonical specialist availability and a persisted hol
   await expect(page.getByRole("heading", { name: "Актуальное состояние брони" })).toBeVisible();
   await expect(page.getByText(/в состоянии EXPIRED/)).toBeVisible();
   await page.unroute(activeHoldEndpoint);
+  await page.route(activeHoldEndpoint, async (route) => {
+    await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ message_safe: "API unavailable" }) });
+  });
+  await page.getByRole("button", { name: "Проверить статус брони" }).click();
+  await expect(page.getByRole("heading", { name: "Статус брони не проверен" })).toBeVisible();
+  await expect(page.getByText("Последний известный статус")).toBeVisible();
+  await expect(page.getByText("Актуальный статус на сервере не подтверждён.", { exact: false })).toBeVisible();
+  await page.unroute(activeHoldEndpoint);
+  await page.getByRole("button", { name: "Проверить статус брони" }).click();
+  await expect(page.getByRole("heading", { name: "Слот удерживается" })).toBeVisible();
+  await expect(page.getByText("Последний известный статус")).toHaveCount(0);
+
   const holdID = await page.evaluate(() => sessionStorage.getItem("apgic:current-hold-id"));
   expect(holdID).toBeTruthy();
   const endpoint = new URL(`/v1/slot-holds/${holdID}`, page.url()).toString();
