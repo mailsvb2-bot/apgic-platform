@@ -1,16 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { ConsultationResult } from "../../../packages/contracts/src/generated/apgic-v1";
 
 // Read-only projection of the canonical PostgreSQL consultation. This component
 // never creates provider facts, payment capture, or a local completion state.
-type ConsultationResult = {
-  booking_id: string;
-  state: "SCHEDULED" | "READY" | "IN_PROGRESS" | "RECOVERING" | "TECHNICAL_FAILURE" | "COMPLETED";
-  provider_instance_id: string;
-  completion_evidence_ref?: string;
-};
-
 const KNOWN_STATES = new Set<ConsultationResult["state"]>([
   "SCHEDULED", "READY", "IN_PROGRESS", "RECOVERING", "TECHNICAL_FAILURE", "COMPLETED",
 ]);
