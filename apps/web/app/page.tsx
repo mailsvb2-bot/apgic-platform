@@ -1,4 +1,5 @@
 import { Journey } from "./journey";
+import ResumeBooking from "../src/resume-booking";
 
 // Public HTML must not be served with Next's immutable static-page cache.
 export const dynamic = "force-dynamic";
@@ -73,6 +74,8 @@ export default function Home() {
             </div>
           </aside>
         </section>
+
+        <ResumeBooking />
 
         <section className="how-section" id="how" aria-labelledby="how-title">
           <div>
