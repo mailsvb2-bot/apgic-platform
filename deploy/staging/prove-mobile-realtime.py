@@ -184,6 +184,29 @@ def main() -> None:
         no_access_status = error.status
     require(no_access_status is not None and no_access_status >= 400, "unpaid booking entered consultation")
 
+    # A browser cannot claim communication-provider facts. Assert each real
+    # deployed endpoint rejects the request before any lifecycle mutation.
+    consultation_denials: dict[str, dict[str, Any]] = {}
+    for action in ("presence", "failures", "recovery", "complete"):
+        denied_http = None
+        denied_reason = None
+        try:
+            client.call("POST", f"/v1/consultations/{hold['booking_id']}/{action}", {})
+        except APIError as error:
+            denied_http = error.status
+            if isinstance(error.payload, dict):
+                denied_reason = error.payload.get("code")
+        require(
+            denied_http == 403 and denied_reason == "CONSULT_PROVIDER_EVIDENCE_UNVERIFIED",
+            f"unverified consultation {action} was not rejected by provider boundary: {denied_http}, {denied_reason}",
+        )
+        consultation_denials[action] = {"http_status": denied_http, "reason_code": denied_reason}
+    _, unchanged_hold = client.call("GET", f"/v1/slot-holds/{hold['id']}")
+    require(
+        unchanged_hold.get("booking_state") == "HELD",
+        f"forged communication facts changed booking state: {unchanged_hold!r}",
+    )
+
     proof = {
         "requirement_id": "APGIC-MOBILE-009",
         "evidence_kind": "STAGING_UNTRUSTED_PAYMENT_NEGATIVE_PROOF",
@@ -201,6 +224,7 @@ def main() -> None:
         "unauthenticated_hold_error_code": outsider_code,
         "unsigned_webhook_http_status": unsigned_webhook_status,
         "unsigned_webhook_error_code": unsigned_webhook_code,
+        "untrusted_consultation_lifecycle_denials": consultation_denials,
         "unpaid_consultation_http_status": no_access_status,
         "apgic_accepts_funds": False,
         "positive_realtime_path_proven": False,
