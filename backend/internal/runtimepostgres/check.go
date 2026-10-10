@@ -31,6 +31,8 @@ var requiredTables = []string{
 	"booking_slots",
 	"booking_holds",
 	"bookings",
+	"consultation_sessions",
+	"consultation_lifecycle_facts",
 	"specialist_profiles",
 	"specialist_capabilities",
 	"specialist_evidence",
