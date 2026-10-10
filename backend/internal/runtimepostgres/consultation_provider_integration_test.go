@@ -7,8 +7,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -95,12 +95,18 @@ func TestSignedConsultationPersistsAcrossAPIStoreRestart(t *testing.T) {
 	providerAPI := httpapi.New(httpapi.Options{ConsultationProvider: store, ProviderWebhookKeys: keys, ClientSessionKey: sessionKey})
 	postSigned := func(event connector.WebhookEnvelope) (int, connector.DeliveryDecision) {
 		body, marshalErr := json.Marshal(event)
-		if marshalErr != nil { t.Fatal(marshalErr) }
+		if marshalErr != nil {
+			t.Fatal(marshalErr)
+		}
 		response := httptest.NewRecorder()
 		providerAPI.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/v1/consultation-provider-webhooks", strings.NewReader(string(body))))
-		var parsed struct { DeliveryDecision string `json:"delivery_decision"` }
+		var parsed struct {
+			DeliveryDecision string `json:"delivery_decision"`
+		}
 		if response.Code == http.StatusOK {
-			if err := json.Unmarshal(response.Body.Bytes(), &parsed); err != nil { t.Fatal(err) }
+			if err := json.Unmarshal(response.Body.Bytes(), &parsed); err != nil {
+				t.Fatal(err)
+			}
 		}
 		return response.Code, connector.DeliveryDecision(parsed.DeliveryDecision)
 	}
@@ -191,7 +197,9 @@ func TestSignedConsultationPersistsAcrossAPIStoreRestart(t *testing.T) {
 		t.Fatalf("new HTTP API cannot read persisted result: HTTP=%d body=%s", readback.Code, readback.Body.String())
 	}
 	var apiResult connector.ConsultationResult
-	if err := json.Unmarshal(readback.Body.Bytes(), &apiResult); err != nil { t.Fatal(err) }
+	if err := json.Unmarshal(readback.Body.Bytes(), &apiResult); err != nil {
+		t.Fatal(err)
+	}
 	if apiResult.State != "COMPLETED" || apiResult.CompletionEvidenceRef != "provider-evidence/ENDED/SYSTEM" {
 		t.Fatalf("wrong HTTP restart result: %#v", apiResult)
 	}
