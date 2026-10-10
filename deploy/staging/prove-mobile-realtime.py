@@ -135,6 +135,47 @@ def main() -> None:
     require(denied_code == "PROVIDER_EVIDENCE_UNVERIFIED", f"unexpected provider boundary: {denied_code}")
     require(hold.get("booking_state") == "HELD", f"unexpected held booking state: {hold!r}")
 
+    # The authoritative booking read must stay HELD after a forged capture,
+    # rather than relying on the stale result of POST /v1/slot-holds.
+    status, current_hold = client.call("GET", f"/v1/slot-holds/{hold['id']}")
+    require(status == 200, f"owner could not read current hold: {status}")
+    require(current_hold.get("booking_id") == hold["booking_id"], "hold identity changed")
+    require(current_hold.get("booking_state") == "HELD", f"forged capture changed server booking: {current_hold!r}")
+
+    # An unrelated browser session has no right to read even a valid hold ID.
+    outsider = Client(args.base_url)
+    outsider_status = None
+    outsider_code = None
+    try:
+        outsider.call("GET", f"/v1/slot-holds/{hold['id']}")
+    except APIError as error:
+        outsider_status = error.status
+        if isinstance(error.payload, dict):
+            outsider_code = error.payload.get("code")
+    require(outsider_status == 401 and outsider_code == "CLIENT_SESSION_REQUIRED",
+            f"unauthenticated client accessed hold: {outsider_status} {outsider_code}")
+
+    # A forged unsigned webhook must not cross the provider trust boundary.
+    unsigned_webhook_status = None
+    unsigned_webhook_code = None
+    try:
+        client.call("POST", "/v1/provider-webhooks", {
+            "connector_id": "untrusted-browser",
+            "external_event_id": f"forged-{proof_id}",
+            "stream_id": f"payment/forged-{proof_id}",
+            "payload": {"outcome": "CAPTURED"},
+        })
+    except APIError as error:
+        unsigned_webhook_status = error.status
+        if isinstance(error.payload, dict):
+            unsigned_webhook_code = error.payload.get("code")
+    require(unsigned_webhook_status == 401 and unsigned_webhook_code == "PROVIDER_WEBHOOK_UNVERIFIED",
+            f"unsigned payment webhook accepted: {unsigned_webhook_status} {unsigned_webhook_code}")
+    _, final_hold = client.call("GET", f"/v1/slot-holds/{hold['id']}")
+    require(final_hold.get("booking_state") == "HELD",
+            f"untrusted webhook changed authoritative booking: {final_hold!r}")
+
+
     # No communication room is available from a mere hold.
     no_access_status = None
     try:
@@ -155,6 +196,11 @@ def main() -> None:
         "checkout_error_code": checkout_unavailable_code,
         "client_capture_http_status": denied_status,
         "client_capture_error_code": denied_code,
+        "authoritative_booking_state": final_hold.get("booking_state"),
+        "unauthenticated_hold_http_status": outsider_status,
+        "unauthenticated_hold_error_code": outsider_code,
+        "unsigned_webhook_http_status": unsigned_webhook_status,
+        "unsigned_webhook_error_code": unsigned_webhook_code,
         "unpaid_consultation_http_status": no_access_status,
         "apgic_accepts_funds": False,
         "positive_realtime_path_proven": False,
