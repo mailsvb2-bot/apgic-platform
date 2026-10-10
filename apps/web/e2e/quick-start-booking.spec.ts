@@ -27,6 +27,19 @@ test("quick start leads to canonical specialist availability and a persisted hol
   expect(held, "a canonical slot hold must succeed").toBeTruthy();
   await expect(page.getByText(/^Бронь \S+ в состоянии HELD\./)).toBeVisible();
   await expect(page.getByText("APGIC не принимает деньги.")).toBeVisible();
+  const activeHoldEndpoint = new URL(`/v1/slot-holds/${await page.evaluate(() => sessionStorage.getItem("apgic:current-hold-id"))}`, page.url()).toString();
+  const before = await page.evaluate(async (url) => {
+    const response = await fetch(url, { credentials: "include", cache: "no-store" });
+    if (!response.ok) throw new Error(`Status fetch ${response.status}`);
+    return response.json();
+  }, activeHoldEndpoint);
+  await page.route(activeHoldEndpoint, async (route) => {
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ...before, state: "EXPIRED", booking_state: "EXPIRED" }) });
+  });
+  await page.getByRole("button", { name: "Проверить статус брони" }).click();
+  await expect(page.getByRole("heading", { name: "Актуальное состояние брони" })).toBeVisible();
+  await expect(page.getByText(/в состоянии EXPIRED/)).toBeVisible();
+  await page.unroute(activeHoldEndpoint);
   const holdID = await page.evaluate(() => sessionStorage.getItem("apgic:current-hold-id"));
   expect(holdID).toBeTruthy();
   const endpoint = new URL(`/v1/slot-holds/${holdID}`, page.url()).toString();
