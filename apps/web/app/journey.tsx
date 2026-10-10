@@ -172,6 +172,17 @@ export function Journey() {
   const [specialist, setSpecialist] = useState<MatchCard | null>(null);
   const [slots, setSlots] = useState<Slot[]>([]);
   const [hold, setHold] = useState<Hold | null>(null);
+  const [holdTimeExpired, setHoldTimeExpired] = useState(false);
+  useEffect(() => {
+    if (!hold) {
+      setHoldTimeExpired(false);
+      return;
+    }
+    const updateExpiry = () => setHoldTimeExpired(Date.now() >= Date.parse(hold.expires_at));
+    updateExpiry();
+    const interval = setInterval(updateExpiry, 1000);
+    return () => clearInterval(interval);
+  }, [hold]);
   const [options, setOptions] = useState<CheckoutOption[]>([]);
   const [instruction, setInstruction] = useState<CheckoutInstruction | null>(null);
   const [evidence, setEvidence] = useState<PaymentEvidence | null>(null);
@@ -817,6 +828,9 @@ export function Journey() {
             <div><span>Удержание до</span><strong>{when(hold.expires_at)}</strong></div>
           </div>
           <p className="meta">Бронь {hold.booking_id} в состоянии {hold.booking_state}. Удержание {hold.state} до {when(hold.expires_at)}.</p>
+          {holdTimeExpired ? (
+            <p className="alert" role="alert">Указанное время удержания прошло. Статус брони на сервере необходимо проверить заново; не считайте запись подтверждённой.</p>
+          ) : null}
 
           <div className="payment-boundary">
             <span aria-hidden="true">↗</span>
