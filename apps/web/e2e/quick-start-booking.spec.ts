@@ -43,5 +43,19 @@ test("quick start leads to canonical specialist availability and a persisted hol
   await expect(page.getByText(/статус HELD/)).toBeVisible();
   await expect(page.getByText("Это не подтверждённая запись.", { exact: false })).toBeVisible();
   await expect(page.getByRole("button", { name: "Выбрать Карта через внешнего провайдера" })).toHaveCount(0);
+  const current = await page.request.get(endpoint);
+  expect(current.ok()).toBeTruthy();
+  const saved = await current.json();
+  await page.route(endpoint, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ...saved, state: "EXPIRED", booking_state: "EXPIRED" }),
+    });
+  });
+  await page.getByRole("button", { name: "Проверить актуальный статус" }).click();
+  await expect(page.getByText(/статус EXPIRED/)).toBeVisible();
+  await expect(page.getByText(/статус HELD/)).toHaveCount(0);
+
 
 });
