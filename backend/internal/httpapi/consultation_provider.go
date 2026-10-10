@@ -39,6 +39,10 @@ func registerConsultationProvider(mux *http.ServeMux, store ConsultationProvider
 		writeJSON(w, http.StatusOK, map[string]string{"delivery_decision": string(decision)})
 	})
 	mux.HandleFunc("GET /v1/consultations/{bookingID}/result", func(w http.ResponseWriter, r *http.Request) {
+		if sessions == nil || sessionConfigErr != nil {
+			writeDemandError(w, r, http.StatusServiceUnavailable, "CLIENT_SESSION_UNAVAILABLE", "Сессия клиента недоступна.", false, nil)
+			return
+		}
 		if store == nil {
 			writeDemandError(w, r, http.StatusServiceUnavailable, "CONSULT_PROVIDER_NOT_CONFIGURED", "Результат консультации недоступен.", false, nil)
 			return
