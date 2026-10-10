@@ -1,6 +1,8 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
+import ResumeBooking from "../src/resume-booking";
 
 type Intent = {
   id: string;
@@ -174,9 +176,13 @@ export function Journey() {
   const [hold, setHold] = useState<Hold | null>(null);
   const [restoredHold, setRestoredHold] = useState<Hold | null>(null);
   const [restoration, setRestoration] = useState<"CHECKING" | "READY" | "DENIED" | "UNAVAILABLE">("CHECKING");
+  const [resumeTarget, setResumeTarget] = useState<HTMLElement | null>(null);
+  const [resumeRequested, setResumeRequested] = useState(false);
+  useEffect(() => { setResumeTarget(document.getElementById("resume-booking-slot")); }, []);
   useEffect(() => {
     let active = true;
     const id = sessionStorage.getItem("apgic:current-hold-id");
+    setResumeRequested(Boolean(id));
     if (!id) {
       setRestoration("READY");
       return () => { active = false; };
@@ -697,6 +703,10 @@ export function Journey() {
 
   return (
     <div className="journey journey-product">
+      {resumeTarget && resumeRequested && !hold ? createPortal(
+        <ResumeBooking restoration={restoration} booking={restoredHold} onRetry={refreshPreviousHold} />,
+        resumeTarget,
+      ) : null}
       <nav className="journey-progress" aria-label="Этапы записи">
         <ol>
           {JOURNEY_STEPS.map((step) => {
@@ -904,7 +914,7 @@ export function Journey() {
       {restoration === "DENIED" && !hold ? <p role="alert">Предыдущая запись недоступна для этой сессии. Её состояние не восстановлено.</p> : null}
       {restoration === "UNAVAILABLE" && !hold ? <p role="alert">Сейчас не удалось проверить предыдущую запись. Не считайте её подтверждённой; повторите проверку позже.</p> : null}
       {restoredHold && !hold && !intent ? (
-        <section className="journey-stage" aria-label="Восстановленная запись">
+        <section id="previous-booking" className="journey-stage" aria-label="Восстановленная запись">
           <h2>Состояние предыдущей записи</h2>
           <p>Состояние получено с сервера после перезагрузки страницы.</p>
           <p>Бронь {restoredHold.booking_id} · статус {restoredHold.booking_state}.</p>

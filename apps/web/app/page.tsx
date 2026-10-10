@@ -74,6 +74,8 @@ export default function Home() {
           </aside>
         </section>
 
+        <div id="resume-booking-slot" />
+
         <section className="how-section" id="how" aria-labelledby="how-title">
           <div>
             <p className="section-kicker">Как это работает</p>
