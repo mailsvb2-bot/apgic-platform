@@ -494,7 +494,9 @@ export function Journey() {
   }
 
   async function chooseMethod(methodCode: string) {
-    if (!intent || !hold) return;
+    // The browser must not offer a second checkout once the authoritative
+    // booking state is no longer a fresh, verified, unexpired HELD.
+    if (!intent || !hold || hold.booking_state !== "HELD" || activeHoldUnverified || checkingActiveHold || holdTimeExpired) return;
     setError("");
     setPending(true);
     try {
@@ -968,7 +970,13 @@ export function Journey() {
             </div>
           </div>
 
-          {conformanceProviderEvents ? (
+          {activeHoldUnverified || checkingActiveHold ? (
+            <p role="status">Статус записи не подтверждён. Новые способы оплаты недоступны до повторной проверки.</p>
+          ) : hold.booking_state === "CONFIRMED" ? (
+            <p role="status">Запись подтверждена. Повторное оформление оплаты для неё недоступно.</p>
+          ) : hold.booking_state !== "HELD" || holdTimeExpired ? (
+            <p role="status">Срок удержания истёк или состояние записи изменилось. Повторное оформление оплаты недоступно.</p>
+          ) : conformanceProviderEvents ? (
           <div className="payment-options" aria-label="Тестовые способы оплаты">
             {options.map((option) => (
               <article key={option.method_code}>
@@ -978,7 +986,7 @@ export function Journey() {
                 </div>
                 <button
                   type="button"
-                  disabled={pending || option.apgic_accepts_funds || option.execution_owner !== "EXTERNAL_PROVIDER"}
+                  disabled={pending || activeHoldUnverified || checkingActiveHold || holdTimeExpired || hold.booking_state !== "HELD" || option.apgic_accepts_funds || option.execution_owner !== "EXTERNAL_PROVIDER"}
                   onClick={() => chooseMethod(option.method_code)}
                 >
                   Выбрать {METHOD_LABELS[option.method_code] ?? option.method_code}
