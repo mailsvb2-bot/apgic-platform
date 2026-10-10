@@ -305,7 +305,6 @@ func contains(value, part string) bool {
 	return false
 }
 
-
 func TestUntrustedConsultationLifecycleWritesFailClosed(t *testing.T) {
 	handler := New(Options{Demand: demand.NewConformanceService(nil)})
 	for _, route := range []string{
