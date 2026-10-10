@@ -6,12 +6,11 @@ import (
     "net/http"
 
     "github.com/mailsvb2-bot/apgic-platform/backend/internal/connector"
-    "github.com/mailsvb2-bot/apgic-platform/backend/internal/runtimepostgres"
 )
 
 type ConsultationProviderStore interface {
     ApplyConsultationProviderWebhook(context.Context, connector.WebhookEnvelope, connector.WebhookPublicKeyResolver) (connector.DeliveryDecision, error)
-    ReadConsultationResult(context.Context, string, string) (*runtimepostgres.ConsultationResult, error)
+    ReadConsultationResult(context.Context, string, string) (*connector.ConsultationResult, error)
 }
 
 func registerConsultationProvider(mux *http.ServeMux, store ConsultationProviderStore, keys connector.WebhookPublicKeyResolver, sessions *clientSessionManager, sessionConfigErr error) {
