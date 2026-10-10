@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import ResumeBooking from "../src/resume-booking";
+import ConsultationResultView from "../src/consultation-result";
 
 type Intent = {
   id: string;
@@ -923,6 +924,9 @@ export function Journey() {
           {restoredHold.booking_state === "HELD" || restoredHold.booking_state === "PENDING_PAYMENT"
             ? <p role="status">Это не подтверждённая запись. {Date.now() >= Date.parse(restoredHold.expires_at) ? "Показанный срок удержания прошёл; обновите страницу для повторной проверки." : "Оплата выполняется только внешним провайдером."}</p>
             : <p role="status">Состояние брони: {restoredHold.booking_state}. Для дальнейших действий требуется действующий доступ к записи.</p>}
+          {restoration === "READY" && restoredHold.booking_state === "CONFIRMED" ? (
+            <ConsultationResultView key={restoredHold.booking_id} bookingID={restoredHold.booking_id} />
+          ) : null}
         </section>
       ) : null}
 
@@ -932,9 +936,13 @@ export function Journey() {
             <span className="journey-stage-kicker">Шаг 4</span>
             <div>
               <h2 id="hold-title">{activeHoldUnverified ? "Статус брони не проверен" : hold.booking_state === "HELD" ? "Слот удерживается" : "Актуальное состояние брони"}</h2>
-              <p>{conformanceProviderEvents
-                ? "Время временно закреплено за вами. Дальнейшие шаги доступны только в тестовом окружении."
-                : "Время временно удерживается, но запись ещё не подтверждена. Оплата через внешнего провайдера сейчас недоступна; удержание может истечь без подтверждения."}</p>
+              <p>{activeHoldUnverified
+                ? "Показан последний известный статус. Серверное состояние необходимо проверить повторно."
+                : hold.booking_state === "CONFIRMED"
+                  ? "Запись подтверждена сервером. Результат консультации можно проверить ниже."
+                  : conformanceProviderEvents
+                    ? "Время временно закреплено за вами. Дальнейшие шаги доступны только в тестовом окружении."
+                    : "Время временно удерживается, но запись ещё не подтверждена. Оплата через внешнего провайдера сейчас недоступна; удержание может истечь без подтверждения."}</p>
             </div>
           </div>
           <div className="booking-summary">
@@ -945,8 +953,11 @@ export function Journey() {
           <p className="meta">Бронь {hold.booking_id} в состоянии {hold.booking_state}. Удержание {hold.state} до {when(hold.expires_at)}.</p>
           {activeHoldUnverified ? <p role="alert">Актуальный статус на сервере не подтверждён. Показано последнее известное состояние; оно могло измениться. Повторите проверку.</p> : null}
           <button type="button" onClick={refreshActiveHold} disabled={pending || checkingActiveHold}>{checkingActiveHold ? "Проверяем статус…" : "Проверить статус брони"}</button>
-          {holdTimeExpired ? (
+          {holdTimeExpired && (hold.booking_state !== "CONFIRMED" || activeHoldUnverified) ? (
             <p className="alert" role="alert">Указанное время удержания прошло. Статус брони на сервере необходимо проверить заново; не считайте запись подтверждённой.</p>
+          ) : null}
+          {!activeHoldUnverified && hold.booking_state === "CONFIRMED" ? (
+            <ConsultationResultView key={hold.booking_id} bookingID={hold.booking_id} />
           ) : null}
 
           <div className="payment-boundary">
