@@ -111,6 +111,11 @@ func (s *Service) CompleteSession(bookingID, evidenceRef string) (*ConsultationV
 }
 
 func (s *Service) sessionLocked(bookingID string) (*consultation.Session, error) {
+	// Booking truth may have changed in PostgreSQL through another API instance.
+	// Consultations must not start from an obsolete cached confirmation.
+	if err := s.refreshJourneyLocked(); err != nil {
+		return nil, err
+	}
 	booked := s.bookings[bookingID]
 	if booked == nil {
 		return nil, ErrOrderNotFound
