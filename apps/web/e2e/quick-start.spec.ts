@@ -24,7 +24,7 @@ for (const scenario of scenarios) {
     await expect(request).toHaveValue(new RegExp(scenario.phrase));
     expect(created).toBe(0);
 
-    await request.fill("Мне нужна помощь со сном и стрессом");
+    await request.fill("Мне тревожно перед выступлениями");
     await expect(button).toHaveAttribute("aria-pressed", "false");
     expect(created).toBe(0);
 
