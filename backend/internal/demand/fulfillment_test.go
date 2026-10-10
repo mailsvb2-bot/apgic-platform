@@ -1,6 +1,7 @@
 package demand
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/booking"
@@ -91,5 +92,45 @@ func TestFulfillmentRefreshesBookingChangedByAnotherInstance(t *testing.T) {
 		if state == booking.StateCancelled && join.ReasonCode != "COMM_BOOKING_NOT_JOINABLE" {
 			t.Fatalf("cancelled remote booking must deny join: %#v", join)
 		}
+	}
+}
+
+func TestConsultationRefusesStaleConfirmedBookingAfterRemoteCancellation(t *testing.T) {
+	store := &fakeJourneyStore{}
+	service, err := NewConformanceServiceWithStores(nil, nil, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	intent, err := service.CreateIntent("бессонница")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.ConfirmIntent(intent.ID, []string{"sleep"}, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	slots, err := service.Slots("spec-lebedeva")
+	if err != nil || len(slots) == 0 {
+		t.Fatalf("slots=%#v err=%v", slots, err)
+	}
+	hold, err := service.AcquireHold(intent.ID, slots[0].ID, intent.ClientIdentityID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.CreateCheckout(hold.ID, intent.ClientIdentityID, "SBP"); err != nil {
+		t.Fatal(err)
+	}
+	// The current API instance last saw a confirmed booking, but another
+	// instance has already cancelled it in PostgreSQL.
+	service.bookings[hold.BookingID].State = booking.StateConfirmed
+	for _, booked := range store.snapshot.Bookings {
+		if booked != nil && booked.ID == hold.BookingID {
+			booked.State = booking.StateCancelled
+		}
+	}
+	if view, err := service.RecordSessionPresence(hold.BookingID); !errors.Is(err, ErrConsultNotReady) || view != nil {
+		t.Fatalf("stale confirmed booking started consultation: view=%#v err=%v", view, err)
+	}
+	if _, ok := service.sessions[hold.BookingID]; ok {
+		t.Fatal("stale confirmation created a consultation session")
 	}
 }
