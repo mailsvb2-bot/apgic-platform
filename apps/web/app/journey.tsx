@@ -916,7 +916,7 @@ export function Journey() {
           <div className="journey-stage-heading">
             <span className="journey-stage-kicker">Шаг 4</span>
             <div>
-              <h2 id="hold-title">Слот удерживается</h2>
+              <h2 id="hold-title">{hold.booking_state === "HELD" ? "Слот удерживается" : "Актуальное состояние брони"}</h2>
               <p>{conformanceProviderEvents
                 ? "Время временно закреплено за вами. Дальнейшие шаги доступны только в тестовом окружении."
                 : "Время временно удерживается, но запись ещё не подтверждена. Оплата через внешнего провайдера сейчас недоступна; удержание может истечь без подтверждения."}</p>
