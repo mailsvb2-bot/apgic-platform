@@ -269,6 +269,8 @@ test("real site never advertises unconfigured payment methods", async ({ page })
   await slot.click();
   await expect(page.getByRole("heading", { name: "Слот удерживается" })).toBeVisible();
   await expect(page.getByText("Онлайн-оплата через внешнего исполнителя пока недоступна.", { exact: false })).toBeVisible();
+  await expect(page.getByText("Время временно удерживается, но запись ещё не подтверждена.", { exact: false })).toBeVisible();
+  await expect(page.getByText("Завершите оплату до окончания удержания.")).toHaveCount(0);
   await expect(page.getByRole("button", { name: /Выбрать Карта через внешнего провайдера/ })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /Выбрать СБП через внешнего провайдера/ })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Поручение на оплату создано" })).toHaveCount(0);
