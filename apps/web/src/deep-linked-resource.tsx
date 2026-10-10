@@ -116,8 +116,6 @@ export default function DeepLinkedResource({
           <p role="status">Ресурс подтверждён сервером.</p>
           <p>Идентификатор: {id}</p>
           {kind === "BOOKING" ? <ConsultationResultView key={id} bookingID={id} /> : null}
-            </section>
-          ) : null}
         </>
       ) : null}
       {state === "DENIED" ? (
