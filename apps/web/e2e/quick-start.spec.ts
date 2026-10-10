@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 const scenarios = [
-  { name: "Тревога и стресс", phrase: "тревожусь" },
+  { name: "Тревога и стресс", phrase: "тревожно" },
   { name: "Проблемы со сном", phrase: "засыпать" },
   { name: "Отношения", phrase: "отношения" },
   { name: "Работа и карьера", phrase: "карьерных" },
