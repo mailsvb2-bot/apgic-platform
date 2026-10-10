@@ -201,6 +201,33 @@ export function Journey() {
       .catch(() => { if (active) setRestoration("UNAVAILABLE"); });
     return () => { active = false; };
   }, []);
+  async function refreshPreviousHold() {
+    const id = sessionStorage.getItem("apgic:current-hold-id");
+    if (!id) {
+      setRestoredHold(null);
+      setRestoration("DENIED");
+      return;
+    }
+    setRestoredHold(null);
+    setRestoration("CHECKING");
+    try {
+      const response = await fetch(`/v1/slot-holds/${encodeURIComponent(id)}`, { cache: "no-store", credentials: "include" });
+      if (response.status === 401 || response.status === 403 || response.status === 404) {
+        sessionStorage.removeItem("apgic:current-hold-id");
+        setRestoration("DENIED");
+        return;
+      }
+      if (!response.ok) throw new Error("Hold status unavailable");
+      const value = await response.json() as Hold;
+      if (value.id !== id || !value.booking_id || !value.booking_state || !value.expires_at) {
+        throw new Error("Invalid hold status");
+      }
+      setRestoredHold(value);
+      setRestoration("READY");
+    } catch {
+      setRestoration("UNAVAILABLE");
+    }
+  }
   const [holdTimeExpired, setHoldTimeExpired] = useState(false);
   useEffect(() => {
     if (!hold) {
@@ -855,6 +882,7 @@ export function Journey() {
           <p>Состояние получено с сервера после перезагрузки страницы.</p>
           <p>Бронь {restoredHold.booking_id} · статус {restoredHold.booking_state}.</p>
           <p>Удержание до {when(restoredHold.expires_at)}.</p>
+          <button type="button" onClick={refreshPreviousHold}>Проверить актуальный статус</button>
           {restoredHold.booking_state === "HELD" || restoredHold.booking_state === "PENDING_PAYMENT"
             ? <p role="status">Это не подтверждённая запись. {Date.now() >= Date.parse(restoredHold.expires_at) ? "Показанный срок удержания прошёл; обновите страницу для повторной проверки." : "Оплата выполняется только внешним провайдером."}</p>
             : <p role="status">Состояние брони: {restoredHold.booking_state}. Для дальнейших действий требуется действующий доступ к записи.</p>}
