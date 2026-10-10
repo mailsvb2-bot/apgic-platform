@@ -1,55 +1,39 @@
 "use client";
 
-import { useEffect, useState } from "react";
-
 type SavedBooking = { id: string; booking_id: string; booking_state: string; expires_at: string };
 
-export default function ResumeBooking() {
-  const [state, setState] = useState<"NONE" | "CHECKING" | "FOUND" | "UNAVAILABLE">("NONE");
-  const [booking, setBooking] = useState<SavedBooking | null>(null);
+type Props = {
+  restoration: "CHECKING" | "READY" | "DENIED" | "UNAVAILABLE";
+  booking: SavedBooking | null;
+  onRetry: () => void;
+};
 
-  useEffect(() => {
-    const id = sessionStorage.getItem("apgic:current-hold-id");
-    if (!id) return;
-    let active = true;
-    setState("CHECKING");
-    void fetch(`/v1/slot-holds/${encodeURIComponent(id)}`, { cache: "no-store", credentials: "include" })
-      .then(async (response) => {
-        if ([401, 403, 404].includes(response.status)) {
-          sessionStorage.removeItem("apgic:current-hold-id");
-          if (active) setState("NONE");
-          return;
-        }
-        if (!response.ok) throw new Error("Booking status unavailable");
-        const data = await response.json() as Partial<SavedBooking>;
-        if (data.id !== id || typeof data.booking_id !== "string" || typeof data.booking_state !== "string" || typeof data.expires_at !== "string") {
-          throw new Error("Invalid booking response");
-        }
-        if (active) {
-          setBooking(data as SavedBooking);
-          setState("FOUND");
-        }
-      }).catch(() => { if (active) setState("UNAVAILABLE"); });
-    return () => { active = false; };
-  }, []);
+export default function ResumeBooking({ restoration, booking, onRetry }: Props) {
+  if (restoration === "DENIED" || (restoration === "READY" && !booking)) return null;
 
-  if (state === "NONE") return null;
   return (
     <section className="resume-booking" aria-label="Продолжить предыдущую запись">
       <div>
-        <p className="section-kicker">Вы уже начали запись</p>
-        <h2>Продолжить запись</h2>
-        {state === "CHECKING" ? <p role="status">Проверяем сохранённую запись на сервере…</p> : null}
-        {state === "UNAVAILABLE" ? <p role="alert">Не удалось проверить предыдущую запись. Откройте подбор, чтобы повторить проверку.</p> : null}
-        {state === "FOUND" && booking ? (
+        <p className="section-kicker">Предыдущая запись</p>
+        <h2>{restoration === "UNAVAILABLE" ? "Проверить запись" : "Продолжить запись"}</h2>
+        {restoration === "CHECKING" ? <p role="status">Проверяем сохранённую запись на сервере…</p> : null}
+        {restoration === "UNAVAILABLE" ? (
+          <p role="alert">Сервер не подтвердил состояние записи. Повторите проверку, прежде чем продолжать.</p>
+        ) : null}
+        {restoration === "READY" && booking ? (
           <p role="status">
             {booking.booking_state === "CONFIRMED" ? "Запись подтверждена сервером." :
-              booking.booking_state === "HELD" ? "Время было временно удержано. Проверьте актуальность перед продолжением." :
-              "Состояние записи изменилось. Посмотрите актуальные варианты."}
+              booking.booking_state === "HELD" || booking.booking_state === "PENDING_PAYMENT" ?
+                "Время удерживалось временно. Это не подтверждённая запись — проверьте актуальный статус." :
+                `Сервер сообщает о состоянии ${booking.booking_state}. Проверьте подробности перед дальнейшими действиями.`}
           </p>
         ) : null}
       </div>
-      <a className="button-link primary-action" href="#start">Открыть мою запись</a>
+      {restoration === "UNAVAILABLE" ? (
+        <button type="button" className="button-link primary-action" onClick={onRetry}>Повторить проверку</button>
+      ) : restoration === "READY" && booking ? (
+        <a className="button-link primary-action" href="#previous-booking">Посмотреть мою запись</a>
+      ) : null}
     </section>
   );
 }
