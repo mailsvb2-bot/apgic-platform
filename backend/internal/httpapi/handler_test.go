@@ -304,3 +304,19 @@ func contains(value, part string) bool {
 	}
 	return false
 }
+
+func TestUntrustedConsultationLifecycleWritesFailClosed(t *testing.T) {
+	handler := New(Options{Demand: demand.NewConformanceService(nil)})
+	for _, route := range []string{
+		"/v1/consultations/forged/presence",
+		"/v1/consultations/forged/failures",
+		"/v1/consultations/forged/recovery",
+		"/v1/consultations/forged/complete",
+	} {
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, httptest.NewRequest(http.MethodPost, route, strings.NewReader("{}")))
+		if response.Code != http.StatusForbidden || !contains(response.Body.String(), "CONSULT_PROVIDER_EVIDENCE_UNVERIFIED") {
+			t.Fatalf("%s accepted untrusted provider lifecycle data: status=%d body=%s", route, response.Code, response.Body.String())
+		}
+	}
+}

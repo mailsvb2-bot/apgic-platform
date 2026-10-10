@@ -418,6 +418,12 @@ func registerDemand(
 	})
 
 	mux.HandleFunc("POST /v1/consultations/{bookingID}/presence", func(w http.ResponseWriter, r *http.Request) {
+		// Provider lifecycle evidence is synthetic only in isolated conformance mode.
+		// A browser must not forge participant presence, recovery, or completion.
+		if !allowConformanceProviderEvents {
+			writeDemandError(w, r, http.StatusForbidden, "CONSULT_PROVIDER_EVIDENCE_UNVERIFIED", "Действие требует подтверждения доверенного провайдера связи.", false, []string{"CONSULT_PROVIDER_EVIDENCE_UNVERIFIED"})
+			return
+		}
 		if service == nil {
 			writeDemandError(w, r, http.StatusServiceUnavailable, "DEMAND_CATALOG_UNAVAILABLE", "Каталог спроса не подключён.", false, nil)
 			return
@@ -435,6 +441,12 @@ func registerDemand(
 	})
 
 	mux.HandleFunc("POST /v1/consultations/{bookingID}/failures", func(w http.ResponseWriter, r *http.Request) {
+		// Provider lifecycle evidence is synthetic only in isolated conformance mode.
+		// A browser must not forge participant presence, recovery, or completion.
+		if !allowConformanceProviderEvents {
+			writeDemandError(w, r, http.StatusForbidden, "CONSULT_PROVIDER_EVIDENCE_UNVERIFIED", "Действие требует подтверждения доверенного провайдера связи.", false, []string{"CONSULT_PROVIDER_EVIDENCE_UNVERIFIED"})
+			return
+		}
 		if service == nil {
 			writeDemandError(w, r, http.StatusServiceUnavailable, "DEMAND_CATALOG_UNAVAILABLE", "Каталог спроса не подключён.", false, nil)
 			return
@@ -461,6 +473,12 @@ func registerDemand(
 	})
 
 	mux.HandleFunc("POST /v1/consultations/{bookingID}/recovery", func(w http.ResponseWriter, r *http.Request) {
+		// Provider lifecycle evidence is synthetic only in isolated conformance mode.
+		// A browser must not forge participant presence, recovery, or completion.
+		if !allowConformanceProviderEvents {
+			writeDemandError(w, r, http.StatusForbidden, "CONSULT_PROVIDER_EVIDENCE_UNVERIFIED", "Действие требует подтверждения доверенного провайдера связи.", false, []string{"CONSULT_PROVIDER_EVIDENCE_UNVERIFIED"})
+			return
+		}
 		if service == nil {
 			writeDemandError(w, r, http.StatusServiceUnavailable, "DEMAND_CATALOG_UNAVAILABLE", "Каталог спроса не подключён.", false, nil)
 			return
@@ -525,6 +543,12 @@ func registerDemand(
 	})
 
 	mux.HandleFunc("POST /v1/consultations/{bookingID}/complete", func(w http.ResponseWriter, r *http.Request) {
+		// Provider lifecycle evidence is synthetic only in isolated conformance mode.
+		// A browser must not forge participant presence, recovery, or completion.
+		if !allowConformanceProviderEvents {
+			writeDemandError(w, r, http.StatusForbidden, "CONSULT_PROVIDER_EVIDENCE_UNVERIFIED", "Действие требует подтверждения доверенного провайдера связи.", false, []string{"CONSULT_PROVIDER_EVIDENCE_UNVERIFIED"})
+			return
+		}
 		if service == nil {
 			writeDemandError(w, r, http.StatusServiceUnavailable, "DEMAND_CATALOG_UNAVAILABLE", "Каталог спроса не подключён.", false, nil)
 			return
