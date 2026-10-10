@@ -1,6 +1,7 @@
 package demand
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/booking"
@@ -93,7 +94,6 @@ func TestFulfillmentRefreshesBookingChangedByAnotherInstance(t *testing.T) {
 		}
 	}
 }
-
 
 func TestConsultationRefusesStaleConfirmedBookingAfterRemoteCancellation(t *testing.T) {
 	store := &fakeJourneyStore{}
