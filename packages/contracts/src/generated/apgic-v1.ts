@@ -293,10 +293,10 @@ export interface LegalAcceptanceStatus {
 }
 
 export interface MatchCard {
-  offer_id?: string;
   currency: string;
   display_name: string;
   format: string;
+  offer_id?: string;
   price_minor: number;
   profession: string;
   reason_codes?: Array<string>;
