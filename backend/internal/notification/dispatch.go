@@ -9,15 +9,15 @@ import (
 // A dispatch reservation is not a send receipt. After a provider timeout its
 // outcome is UNKNOWN until authoritative reconciliation; do not replay it.
 var (
-	ErrPushDispatchUnavailable = errors.New("push dispatch store is unavailable")
+	ErrPushDispatchUnavailable     = errors.New("push dispatch store is unavailable")
 	ErrPushDispatchAlreadyReserved = errors.New("push dispatch already reserved; reconcile provider outcome before retry")
-	ErrPushDispatchNotAllowed = errors.New("push dispatch denied by canonical delivery policy")
+	ErrPushDispatchNotAllowed      = errors.New("push dispatch denied by canonical delivery policy")
 )
 
 const (
-	ReasonPushDispatchReserved = "NOTIFICATION_PUSH_DISPATCH_RESERVED"
+	ReasonPushDispatchReserved  = "NOTIFICATION_PUSH_DISPATCH_RESERVED"
 	ReasonPushDispatchDuplicate = "NOTIFICATION_PUSH_DISPATCH_DUPLICATE"
-	ReasonPushDispatchDenied = "NOTIFICATION_PUSH_DISPATCH_DENIED"
+	ReasonPushDispatchDenied    = "NOTIFICATION_PUSH_DISPATCH_DENIED"
 )
 
 // PushDispatchStore is the only authority permitted to produce an outbound
