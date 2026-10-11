@@ -1540,21 +1540,33 @@ requirements:
   - backend/internal/demand/service.go
   - backend/internal/demand/checkout.go
   - backend/internal/demand/journey_store.go
+  - backend/internal/demand/booking_status.go
+  - backend/internal/httpapi/demand.go
+  - apps/web/src/booking-detail.tsx
+  - apps/web/app/bookings/[id]/page.tsx
+  - apps/mobile/src/mobile-booking-client.ts
   - backend/internal/runtimepostgres/journey.go
   - backend/migrations/000008_r2_booking_order.sql
   contract_refs:
   - contracts/jsonschema/booking-order-v1.schema.json
+  - contracts/openapi/apgic-v1.yaml
+  - packages/contracts/src/generated/apgic-v1.ts
   test_refs:
   - backend/internal/booking/booking_test.go
   - backend/internal/demand/checkout_test.go
   - backend/internal/demand/service_test.go
   - backend/internal/demand/cancel_test.go
   - backend/internal/demand/journey_store_test.go
+  - backend/internal/demand/booking_status_test.go
+  - backend/internal/httpapi/booking_status_test.go
+  - apps/web/e2e/booking-owner-resume.spec.ts
+  - apps/mobile/src/mobile-booking-client.test.ts
   - backend/internal/runtimepostgres/journey_test.go
   - backend/migrations/ci_r2_booking_order_invariants.sql
   evidence_refs:
   - canon/evidence/staging-runtime-20260926T215500Z.json
   - canon/evidence/staging-runtime-20260927T072352Z.json
+  - docs/traceability/R2-booking-owner-resume.md
   acceptance:
     given: Booking находится в текущем state
     when: команда пытается разрешённый/запрещённый transition
