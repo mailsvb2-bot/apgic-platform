@@ -44,6 +44,6 @@ test("direct booking page recovers from canonical owner API without sessionStora
 
   mode = "denied";
   await page.reload();
-  await expect(page.getByRole("alert")).toContainText("необходимо войти");
+  await expect(page.getByRole("alert").filter({ hasText: "необходимо войти" })).toContainText("необходимо войти");
   await expect(page.getByRole("heading", { name: "Запись отменена" })).toHaveCount(0);
 });
