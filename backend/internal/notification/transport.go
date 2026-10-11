@@ -191,7 +191,7 @@ func PlanDelivery(intent Intent, request DeliveryRequest, policy DeliveryPolicy)
 }
 
 func PushEnvelope(plan DeliveryPlan) (PushTransportEnvelope, error) {
-	if plan.Channel != ChannelPush || strings.TrimSpace(plan.DeliveryID) == "" || strings.TrimSpace(plan.IntentID) == "" || plan.State == DeliverySuppressed {
+	if plan.Channel != ChannelPush || strings.TrimSpace(plan.DeliveryID) == "" || strings.TrimSpace(plan.IntentID) == "" || plan.State != DeliveryPending {
 		return PushTransportEnvelope{}, ErrInvalidDelivery
 	}
 	return PushTransportEnvelope{
