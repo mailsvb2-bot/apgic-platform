@@ -382,13 +382,29 @@ export function Journey() {
         return payload as { matches: MatchCard[] };
       });
       setMatches(listed.matches);
-      const topic = topics[0];
-      if (topic) {
-        const projected = await fetch(`/v1/search?topic=${encodeURIComponent(topic)}`);
-        const projection = await projected.json();
-        if (!projected.ok) throw new Error(projection.message_safe || "Поиск недоступен.");
+      // Live discovery follows *all* topics confirmed by the backend.
+      // Qualification remains owned by the canonical specialist store;
+      // this projection never makes an unpriced profile bookable.
+      // Keep isolated conformance proof tools scoped to their first topic.
+      const searchTopics = confirmed.catalog_mode === "LIVE"
+        ? [...new Set(confirmed.topics)]
+        : confirmed.topics.slice(0, 1);
+      const projections = await Promise.all(searchTopics.map(async (topic) => {
+        const response = await fetch(`/v1/search?topic=${encodeURIComponent(topic)}`);
+        const projection = await response.json() as NonNullable<typeof search> & { message_safe?: string };
+        if (!response.ok) throw new Error(projection.message_safe || "Поиск недоступен.");
         if (projection.owns_qualification) throw new Error("Поиск не должен владеть допуском.");
-        setSearch(projection);
+        return projection;
+      }));
+      if (projections.length > 0) {
+        const first = projections[0];
+        const unique = new Map<string, typeof first.entries[number]>();
+        for (const projection of projections) {
+          for (const entry of projection.entries) {
+            unique.set(entry.specialist_id, entry);
+          }
+        }
+        setSearch({ ...first, entries: [...unique.values()] });
       }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Не удалось подтвердить запрос.");
