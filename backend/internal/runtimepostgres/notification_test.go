@@ -2,6 +2,7 @@ package runtimepostgres
 
 import (
 	"context"
+	"errors"
 	"os"
 	"testing"
 	"time"
@@ -122,5 +123,109 @@ func TestNotificationTransportClaimIsIdempotentAuditedAndOwned(t *testing.T) {
 	}
 	if auditCount != 2 {
 		t.Fatalf("delivery attempts must both be auditable, got %d records", auditCount)
+	}
+	// Every run of the existing PostgreSQL notification proof also exercises
+	// scheduling, expiration and replay, rather than merely a unit mock.
+	proveCanonicalNotificationDeliveryWindow(t, store, bookingID, providerID)
+}
+
+func proveCanonicalNotificationDeliveryWindow(t *testing.T, store *Checker, bookingID, providerID string) {
+	t.Helper()
+	ctx := context.Background()
+	now := time.Now().UTC()
+	policy, err := notification.NewDeliveryPolicy("channel-policy-window-v1", []notification.Channel{notification.ChannelPush}, false, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service, err := notification.NewTransportService(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	insertIntent := func(notBefore, expiresAt, createdAt time.Time) notification.Intent {
+		t.Helper()
+		id, err := persistentid.New()
+		if err != nil {
+			t.Fatal(err)
+		}
+		key := "booking:" + bookingID + ":window:" + id
+		if _, err := store.db.ExecContext(ctx, `
+			INSERT INTO notification_intents
+			 (id,booking_id,purpose,idempotency_key,transactional,data_class,
+			  channel_policy_version,created_at,not_before,expires_at)
+			VALUES ($1::uuid,$2::uuid,'BOOKING_CONFIRMATION',$3,true,'SENSITIVE',
+			        'channel-policy-window-v1',$4,$5,$6)
+		`, id, bookingID, key, createdAt, notBefore, expiresAt); err != nil {
+			t.Fatal(err)
+		}
+		return notification.Intent{
+			ID: id, BookingID: bookingID, Purpose: "BOOKING_CONFIRMATION",
+			IdempotencyKey: key, Transactional: true,
+			DataClass: "SENSITIVE", CreatedAt: createdAt,
+		}
+	}
+	createRequest := func(endpoint string) notification.DeliveryRequest {
+		t.Helper()
+		deliveryID, err := persistentid.New()
+		if err != nil {
+			t.Fatal(err)
+		}
+		auditID, err := persistentid.New()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return notification.DeliveryRequest{
+			DeliveryID: deliveryID, AuditID: auditID, ActorID: "system:notification",
+			Channel: notification.ChannelPush, EndpointRef: endpoint,
+			ProviderInstanceID: providerID, OccurredAt: now,
+		}
+	}
+	future := insertIntent(now.Add(time.Hour), now.Add(2*time.Hour), now)
+	expired := insertIntent(now.Add(-2*time.Hour), now.Add(-time.Hour), now.Add(-3*time.Hour))
+	futureRequest := createRequest("device/future-"+future.ID)
+	expiredRequest := createRequest("device/expired-"+expired.ID)
+	for _, tc := range []struct {
+		intent notification.Intent
+		request notification.DeliveryRequest
+		want error
+	}{
+		{future, futureRequest, notification.ErrDeliveryNotBefore},
+		{expired, expiredRequest, notification.ErrDeliveryExpired},
+	} {
+		if plan, duplicate, err := service.Claim(ctx, tc.intent, tc.request, policy); plan.DeliveryID != "" || duplicate || !errors.Is(err, tc.want) {
+			t.Fatalf("timed notification accepted: plan=%#v duplicate=%v err=%v want=%v", plan, duplicate, err, tc.want)
+		}
+		var count int
+		if err := store.db.QueryRowContext(ctx,
+			"SELECT count(*) FROM notification_deliveries WHERE intent_id=$1::uuid",
+			tc.intent.ID).Scan(&count); err != nil || count != 0 {
+			t.Fatalf("out-of-window intent generated delivery: count=%d err=%v", count, err)
+		}
+	}
+	// An already persisted delivery is safe to replay after the intent expires.
+	// It is not a new send, and the canonical idempotency owner must return it.
+	key, err := notification.DeliveryIdempotencyKey(expired, expiredRequest.Channel, expiredRequest.EndpointRef)
+	if err != nil {
+		t.Fatal(err)
+	}
+	claimedAt := now.Add(-90 * time.Minute)
+	if _, err := store.db.ExecContext(ctx, `
+		INSERT INTO notification_deliveries
+		 (id,intent_id,channel,endpoint_ref,provider_instance_id,
+		  delivery_idempotency_key,state,created_at,updated_at)
+		VALUES ($1::uuid,$2::uuid,'PUSH',$3,$4::uuid,$5,'PENDING',$6,$6)
+	`, expiredRequest.DeliveryID, expired.ID, expiredRequest.EndpointRef,
+		providerID, key, claimedAt); err != nil {
+		t.Fatal(err)
+	}
+	replay := createRequest(expiredRequest.EndpointRef)
+	result, duplicate, err := service.Claim(ctx, expired, replay, policy)
+	if err != nil || !duplicate || result.DeliveryID != expiredRequest.DeliveryID {
+		t.Fatalf("expired idempotent replay must recover existing row: %#v duplicate=%v err=%v", result, duplicate, err)
+	}
+	var count int
+	if err := store.db.QueryRowContext(ctx,
+		"SELECT count(*) FROM notification_deliveries WHERE intent_id=$1::uuid",
+		expired.ID).Scan(&count); err != nil || count != 1 {
+		t.Fatalf("expired replay duplicated delivery: count=%d err=%v", count, err)
 	}
 }
