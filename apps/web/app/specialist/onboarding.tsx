@@ -275,6 +275,28 @@ export function SpecialistOnboarding() {
     }
   }
 
+  async function pausePricedOffer() {
+    if (!selectedOfferID) return;
+    setBusy(true);
+    try {
+      const response = await fetch(`/v1/specialist/offers/${encodeURIComponent(selectedOfferID)}/pause`, {
+        method: "POST",
+      });
+      const body = await response.json() as BookableOffer & { message_safe?: string };
+      if (!response.ok) {
+        setNotice(body.message_safe || "Не удалось остановить предложение.");
+        return;
+      }
+      setBookableOffers((current) => current.map((offer) => (
+        offer.id === body.id ? body : offer
+      )));
+      setSelectedOfferID("");
+      setNotice("Старая цена снята с публикации без удаления записей. Теперь можно создать новое предложение с другой ценой.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function createBookableSlot(event: FormEvent) {
     event.preventDefault();
     const start = new Date(slotStart);
@@ -445,6 +467,10 @@ export function SpecialistOnboarding() {
                   </option>
                 ))}
               </select>
+              <button type="button" className="secondary-panel-action" onClick={pausePricedOffer}
+                disabled={busy || !selectedOfferID}>
+                Остановить предложение и изменить цену
+              </button>
               <form onSubmit={createBookableSlot}>
                 <label htmlFor="specialist-slot-start">Начало (местное время)</label>
                 <input id="specialist-slot-start" type="datetime-local" value={slotStart}
