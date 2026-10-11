@@ -221,6 +221,7 @@ func (s *Service) applyJourneySnapshotLocked(snapshot JourneySnapshot) error {
 			continue
 		}
 		copyIntent := cloneIntent(intent)
+		copyIntent.CatalogMode = s.catalogMode()
 		copyIntent.Notice = InterpretationNotice
 		copyIntent.DiagnosisAsserted = false
 		if copyIntent.Status == marketplace.HelpIntentConfirmed {
