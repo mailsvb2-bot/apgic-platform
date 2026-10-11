@@ -111,3 +111,35 @@ func TestChannelPreferenceSuppressesBeforeProviderEnvelope(t *testing.T) {
 		t.Fatal("suppressed delivery must not produce provider push envelope")
 	}
 }
+
+func TestPushEnvelopeRejectsNonPendingDeliveryStates(t *testing.T) {
+	for _, state := range []DeliveryState{
+		DeliverySent,
+		DeliveryDelivered,
+		DeliveryRetryable,
+		DeliverySuppressed,
+		DeliveryState("UNKNOWN"),
+		"",
+	} {
+		t.Run(string(state), func(t *testing.T) {
+			plan := DeliveryPlan{
+				DeliveryID: "delivery-1",
+				IntentID:   "intent-1",
+				Channel:    ChannelPush,
+				State:      state,
+			}
+			if _, err := PushEnvelope(plan); err == nil {
+				t.Fatalf("state %q must not create a fresh provider push envelope", state)
+			}
+		})
+	}
+	for _, tc := range []DeliveryPlan{
+		{DeliveryID: "", IntentID: "intent-1", Channel: ChannelPush, State: DeliveryPending},
+		{DeliveryID: "delivery-1", IntentID: "", Channel: ChannelPush, State: DeliveryPending},
+		{DeliveryID: "delivery-1", IntentID: "intent-1", Channel: ChannelEmail, State: DeliveryPending},
+	} {
+		if _, err := PushEnvelope(tc); err == nil {
+			t.Fatalf("invalid pending push scope must be rejected: %#v", tc)
+		}
+	}
+}
