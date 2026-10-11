@@ -149,6 +149,7 @@ func NewLiveServiceWithStoresAndSpecialists(
 	}
 	service.journeyStore = journeyStore
 	service.liveSupplyMode = true
+	service.catalog = liveCatalog()
 	// Intents continue to use canonical durable persistence. Historical
 	// conformance holds/bookings remain in PostgreSQL but are not rehydrated
 	// as live offers, avoiding loss or false monetization of existing records.
