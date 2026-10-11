@@ -1,8 +1,6 @@
 -- R3: provider evidence must never make a completed/failed consultation
 -- bookable again, or rewind an active call to READY after a late JOINED fact.
 -- The state is still owned by the existing canonical PostgreSQL lifecycle.
-BEGIN;
-
 CREATE OR REPLACE FUNCTION apgic_consultation_terminal_fact_guard()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -86,4 +84,3 @@ BEGIN
 END;
 $$;
 
-COMMIT;
