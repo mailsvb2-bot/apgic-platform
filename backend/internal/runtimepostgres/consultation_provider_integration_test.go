@@ -344,7 +344,7 @@ func TestSignedConsultationPersistsAcrossAPIStoreRestart(t *testing.T) {
 	}
 	defer restarted.Close()
 	result, err := restarted.ReadConsultationResult(ctx, hold.BookingID, intent.ClientIdentityID)
-	if err != nil || result == nil || result.State != "COMPLETED" || result.CompletionEvidenceRef != "provider-evidence/ENDED/SYSTEM" {
+	if err != nil || result == nil || result.State != "COMPLETED" || result.ProviderInstanceID != fallbackID || result.CompletionEvidenceRef != "provider-evidence/ENDED/SYSTEM" {
 		t.Fatalf("restart result=%#v err=%v", result, err)
 	}
 	stranger, err := persistentid.New()
@@ -378,7 +378,7 @@ func TestSignedConsultationPersistsAcrossAPIStoreRestart(t *testing.T) {
 	if err := json.Unmarshal(readback.Body.Bytes(), &apiResult); err != nil {
 		t.Fatal(err)
 	}
-	if apiResult.State != "COMPLETED" || apiResult.CompletionEvidenceRef != "provider-evidence/ENDED/SYSTEM" {
+	if apiResult.State != "COMPLETED" || apiResult.ProviderInstanceID != fallbackID || apiResult.CompletionEvidenceRef != "provider-evidence/ENDED/SYSTEM" {
 		t.Fatalf("wrong HTTP restart result: %#v", apiResult)
 	}
 	outsiderRead := httptest.NewRecorder()
