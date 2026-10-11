@@ -52,6 +52,10 @@ func registerMobileCheckoutMutation(
 			return
 		}
 		if !allowConformancePayments {
+			if service.CatalogMode() == demand.CatalogModeLive {
+				writeDemandFailure(w, r, demand.ErrLivePaymentUnavailable)
+				return
+			}
 			writeDemandError(w, r, http.StatusServiceUnavailable, "PAYMENT_PROVIDER_UNAVAILABLE", "Внешний исполнитель оплаты пока не подключён.", false, []string{"PAYMENT_PROVIDER_UNAVAILABLE"})
 			return
 		}
