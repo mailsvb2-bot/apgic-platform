@@ -70,6 +70,10 @@ class CanonGapInventoryTests(unittest.TestCase):
         with self.assertRaises(inventory_tool.CanonInventoryError):
             inventory_tool.build_inventory(coverage, registry, production)
         coverage, registry, production = self.fixtures()
+        registry["requirements"][1]["dependencies"] = ["APGIC-MISSING-001"]
+        with self.assertRaisesRegex(inventory_tool.CanonInventoryError, "missing dependency"):
+            inventory_tool.build_inventory(coverage, registry, production)
+        coverage, registry, production = self.fixtures()
         registry["requirements"][1]["dependencies"] = ["APGIC-PAY-001"]
         with self.assertRaisesRegex(inventory_tool.CanonInventoryError, "cycle"):
             inventory_tool.build_inventory(coverage, registry, production)
