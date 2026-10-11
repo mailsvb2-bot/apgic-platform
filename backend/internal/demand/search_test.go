@@ -3,6 +3,7 @@ package demand
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/marketplace"
 )
@@ -146,5 +147,61 @@ func TestPublicSearchDoesNotServeRevokedOrFailedDurableSupply(t *testing.T) {
 	store.err = errors.New("PostgreSQL specialist supply unavailable")
 	if view, err := service.Search("sleep"); err == nil || view != nil {
 		t.Fatalf("failed supply read returned public results: view=%#v err=%v", view, err)
+	}
+}
+
+type blockingPublishedSpecialistStore struct {
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (s blockingPublishedSpecialistStore) PublishedProfiles() ([]marketplace.SpecialistProfile, error) {
+	close(s.entered)
+	<-s.release
+	return nil, nil
+}
+
+func TestPublicSearchStorageIOCannotBlockBookingsAndIntents(t *testing.T) {
+	store := blockingPublishedSpecialistStore{
+		entered: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+	service, err := NewConformanceServiceWithStoresAndSpecialists(nil, nil, nil, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	searchDone := make(chan error, 1)
+	go func() {
+		_, searchErr := service.Search("sleep")
+		searchDone <- searchErr
+	}()
+	select {
+	case <-store.entered:
+	case <-time.After(2 * time.Second):
+		t.Fatal("public search never entered canonical specialist store")
+	}
+
+	intentDone := make(chan error, 1)
+	go func() {
+		_, intentErr := service.CreateIntent("Мне нужна помощь со сном")
+		intentDone <- intentErr
+	}()
+	select {
+	case err := <-intentDone:
+		if err != nil {
+			t.Fatalf("unrelated intent failed during search I/O: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		close(store.release)
+		t.Fatal("public search held the global demand mutex across storage I/O")
+	}
+	close(store.release)
+	select {
+	case err := <-searchDone:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("search did not finish after storage response")
 	}
 }
