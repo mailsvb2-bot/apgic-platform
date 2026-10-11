@@ -366,7 +366,33 @@ func TestSignedConsultationPersistsAcrossAPIStoreRestart(t *testing.T) {
 
 	// Reconstruct HTTP API against a separate PostgreSQL connection. Nothing
 	// about the consultation outcome comes from the original API process memory.
-	secondAPI := httpapi.New(httpapi.Options{ConsultationProvider: restarted, ClientSessionKey: sessionKey})
+	restartedDemand, err := demand.NewConformanceServiceWithStores(nil, restarted, restarted)
+	if err != nil {
+		t.Fatalf("reopened canonical journey after API restart: %v", err)
+	}
+	secondAPI := httpapi.New(httpapi.Options{Demand: restartedDemand, ConsultationProvider: restarted, ClientSessionKey: sessionKey})
+	// Full paid user journey remains available by direct booking ID after
+	// PostgreSQL connection/API restart; no browser sessionStorage token needed.
+	bookingRead := httptest.NewRequest(http.MethodGet, "/v1/bookings/"+hold.BookingID, nil)
+	bookingRead.AddCookie(sessionCookie)
+	bookingResponse := httptest.NewRecorder()
+	secondAPI.ServeHTTP(bookingResponse, bookingRead)
+	if bookingResponse.Code != http.StatusOK || bookingResponse.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("restarted API cannot read canonical booking: HTTP=%d body=%s", bookingResponse.Code, bookingResponse.Body.String())
+	}
+	var persistedBooking demand.BookingStatus
+	if err := json.Unmarshal(bookingResponse.Body.Bytes(), &persistedBooking); err != nil {
+		t.Fatal(err)
+	}
+	if persistedBooking.BookingID != hold.BookingID || persistedBooking.State != booking.StateConfirmed ||
+		persistedBooking.StartsAt == nil || persistedBooking.EndsAt == nil {
+		t.Fatalf("restarted booking projection lost confirmed economic journey: %#v", persistedBooking)
+	}
+	foreignBooking := httptest.NewRecorder()
+	secondAPI.ServeHTTP(foreignBooking, httptest.NewRequest(http.MethodGet, "/v1/bookings/"+hold.BookingID, nil))
+	if foreignBooking.Code != http.StatusUnauthorized {
+		t.Fatalf("anonymous restarted booking leaked: HTTP %d", foreignBooking.Code)
+	}
 	request := httptest.NewRequest(http.MethodGet, "/v1/consultations/"+hold.BookingID+"/result", nil)
 	request.AddCookie(sessionCookie)
 	readback := httptest.NewRecorder()
