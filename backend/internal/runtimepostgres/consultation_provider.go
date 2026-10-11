@@ -69,7 +69,27 @@ func (c *Checker) ApplyConsultationProviderWebhook(ctx context.Context, envelope
 			return fmt.Errorf("confirmed consultation unavailable: %w", err)
 		}
 		if activeProviderID != envelope.ConnectorInstanceID {
-			return ErrConsultationProviderPayload
+			// The original provider remains immutable on the session. A
+			// replacement may speak only after a persisted, policy-guarded
+			// FALLBACK_PROVIDER decision whose effective time precedes this
+			// signed event. The DB trigger independently enforces the same
+			// canonical evidence boundary inside this transaction.
+			var fallbackAuthorized bool
+			if err := tx.QueryRowContext(ctx,
+				`SELECT EXISTS (
+					SELECT 1 FROM consultation_recovery_decisions
+					 WHERE session_id = $1::uuid
+					   AND action = 'FALLBACK_PROVIDER'
+					   AND target_provider_instance_id = $2::uuid
+					   AND decided_at <= $3
+				)`,
+				sessionID, envelope.ConnectorInstanceID, envelope.OccurredAt.UTC(),
+			).Scan(&fallbackAuthorized); err != nil {
+				return fmt.Errorf("check durable consultation fallback decision: %w", err)
+			}
+			if !fallbackAuthorized {
+				return ErrConsultationProviderPayload
+			}
 		}
 		var participant any
 		if body.Role == "CLIENT" {
