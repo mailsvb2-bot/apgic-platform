@@ -11,6 +11,23 @@ test("public HTML is not served with an immutable one-year cache", async ({ requ
   }
 });
 
+test("search proof tools are not exposed when deployed API disallows conformance", async ({ page }) => {
+  await page.route("**/v1/meta", async (route) => {
+    const response = await route.fetch();
+    const data = (await response.json()) as Record<string, unknown>;
+    await route.fulfill({ response, json: { ...data, conformance_provider_events: false } });
+  });
+  await page.goto("/");
+  await page.getByLabel("С чем нужна помощь").fill("Плохо сплю");
+  await page.getByRole("button", { name: "Разобрать запрос" }).click();
+  await page.getByRole("checkbox", { name: "Сон" }).check();
+  await page.getByRole("button", { name: "Подтвердить и показать специалистов" }).click();
+  await expect(page.getByRole("heading", { level: 3, name: "Марина Лебедева" })).toBeVisible();
+  await expect(page.getByText("Проверка каталога и поисковой проекции")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Сбросить поисковый индекс" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Восстановить поиск из каталога" })).toHaveCount(0);
+});
+
 test("browser session reuses one canonical Identity across HelpIntents", async ({ page, context }) => {
   await page.goto("/");
 
