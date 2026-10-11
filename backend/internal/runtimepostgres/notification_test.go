@@ -78,8 +78,66 @@ func TestNotificationTransportClaimIsIdempotentAuditedAndOwned(t *testing.T) {
 	if first.State != notification.DeliveryPending || first.PreviewMode != notification.PreviewGeneric {
 		t.Fatalf("unsafe first push plan: %#v", first)
 	}
-	if _, err := notification.PushEnvelope(first); err != nil {
+	// Eight concurrent workers must not obtain eight provider-ready envelopes,
+	// even if all retain the exact same stale PENDING delivery plan.
+	dispatcher, err := notification.NewPushDispatchService(store)
+	if err != nil {
 		t.Fatal(err)
+	}
+	const workers = 8
+	auditIDs := make([]string, workers)
+	for i := range auditIDs {
+		auditIDs[i], err = persistentid.New()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	type reservationResult struct {
+		envelope notification.PushTransportEnvelope
+		err error
+	}
+	results := make(chan reservationResult, workers)
+	for _, id := range auditIDs {
+		go func(auditID string) {
+			envelope, dispatchErr := dispatcher.Reserve(context.Background(), first, auditID, "system:notification")
+			results <- reservationResult{envelope: envelope, err: dispatchErr}
+		}(id)
+	}
+	var granted, blocked int
+	for i := 0; i < workers; i++ {
+		result := <-results
+		switch {
+		case result.err == nil:
+			granted++
+			if result.envelope.DeliveryID != first.DeliveryID || result.envelope.IntentID != intentID {
+				t.Fatalf("dispatch returned incorrect provider scope: %#v", result.envelope)
+			}
+		case errors.Is(result.err, notification.ErrPushDispatchAlreadyReserved):
+			blocked++
+			if result.envelope.DeliveryID != "" {
+				t.Fatal("duplicate reservation leaked a provider-ready envelope")
+			}
+		default:
+			t.Fatalf("concurrent reservation failed unexpectedly: %v", result.err)
+		}
+	}
+	if granted != 1 || blocked != workers-1 {
+		t.Fatalf("concurrent push dispatch: granted=%d blocked=%d", granted, blocked)
+	}
+	var reservationCount, dispatchAuditCount int
+	if err := store.db.QueryRow(`SELECT count(*) FROM notification_push_dispatches WHERE delivery_id=$1::uuid`, first.DeliveryID).Scan(&reservationCount); err != nil || reservationCount != 1 {
+		t.Fatalf("expected exactly one durable reservation: count=%d err=%v", reservationCount, err)
+	}
+	if err := store.db.QueryRow(`SELECT count(*) FROM audit_records WHERE correlation_id=$1 AND action='NOTIFICATION_PUSH_DISPATCH_DECISION'`, first.IdempotencyKey).Scan(&dispatchAuditCount); err != nil || dispatchAuditCount != workers {
+		t.Fatalf("all dispatch decisions must be audited: count=%d err=%v", dispatchAuditCount, err)
+	}
+	// A stale duplicate plan, despite still saying PENDING, cannot re-dispatch.
+	staleAuditID, err := persistentid.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if envelope, err := dispatcher.Reserve(context.Background(), first, staleAuditID, "system:notification"); !errors.Is(err, notification.ErrPushDispatchAlreadyReserved) || envelope.DeliveryID != "" {
+		t.Fatalf("stale plan re-dispatched: %#v err=%v", envelope, err)
 	}
 
 	retryDeliveryID, err := persistentid.New()
