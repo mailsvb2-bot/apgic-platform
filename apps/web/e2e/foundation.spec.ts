@@ -736,30 +736,27 @@ test("canonical web deep-link fallback revalidates before opening resource route
   await expect(page.getByRole("status")).toHaveText("Ресурс подтверждён сервером.");
 });
 
-test("canonical resource route fails closed when revalidation does not match path", async ({ page }) => {
+test("canonical booking route refuses misleading tab token when server denies ownership", async ({ page }) => {
   const token = "v1.c2VhbGVkLWFlYWQtYmxvYg";
-  await page.route("**/v1/mobile/deep-links/resolve?token=*", async (route) => {
+  let ownerReads = 0;
+  await page.route("**/v1/bookings/booking-1", async (route) => {
+    ownerReads += 1;
     await route.fulfill({
-      status: 200,
+      status: 404,
       contentType: "application/json",
-      body: JSON.stringify({
-        decision: "ALLOW",
-        reason_code: "DEEPLINK_ALLOWED",
-        canonical_path: "/bookings/other-booking",
-        canonical_web_fallback: "https://apgic.ru/bookings/other-booking",
-        expires_at: "2026-10-01T12:15:00Z",
-      }),
+      body: JSON.stringify({ code: "NOT_FOUND", message_safe: "Запись не найдена." }),
     });
   });
-
   await page.goto("/bookings/booking-1");
   await page.evaluate((value) => {
+    // A stale or forged tab token cannot override authoritative ownership.
     sessionStorage.setItem("apgic:deeplink:/bookings/booking-1", value);
   }, token);
   await page.reload();
-  await expect(page.locator("main").getByRole("alert")).toContainText("доступ к ресурсу не подтверждён");
+  await expect(page.getByRole("alert").filter({ hasText: "не принадлежит вашему аккаунту" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Результат консультации" })).toHaveCount(0);
+  expect(ownerReads).toBeGreaterThan(0);
 });
-
 
 test("mobile forced-update destination is safe and does not invent store availability", async ({ page }) => {
   await page.goto("/update");
