@@ -35,7 +35,7 @@ CREATE UNIQUE INDEX booking_slots_live_identity_start_unique
 -- and the already published Organization/Product owner; a profile alone does
 -- not manufacture a paid offer or permitted sales channel.
 CREATE FUNCTION apgic_live_offer_valid(p_offer_id uuid)
-RETURNS boolean LANGUAGE sql VOLATILE AS $
+RETURNS boolean LANGUAGE sql VOLATILE AS $$
   SELECT EXISTS (
     SELECT 1
       FROM specialist_bookable_offers offer
@@ -75,14 +75,14 @@ RETURNS boolean LANGUAGE sql VOLATILE AS $
 $$;
 
 CREATE FUNCTION apgic_live_offer_insert_guard()
-RETURNS trigger LANGUAGE plpgsql AS $
+RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
   IF NOT apgic_live_offer_valid(NEW.id) THEN
     RAISE EXCEPTION 'live offer requires reviewed publication and authorized Product';
   END IF;
   RETURN NEW;
 END;
-$;
+$$;
 CREATE TRIGGER specialist_live_offer_qualification_guard
 AFTER INSERT ON specialist_bookable_offers
 FOR EACH ROW EXECUTE FUNCTION apgic_live_offer_insert_guard();
