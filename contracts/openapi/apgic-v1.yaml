@@ -769,6 +769,79 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /v1/specialist/offers:
+    get:
+      operationId: listMySpecialistBookableOffers
+      security:
+        - ClientSession: []
+      responses:
+        '200':
+          description: Owner-only immutable price versions (including paused history)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SpecialistBookableOfferList' }
+    post:
+      operationId: createSpecialistBookableOffer
+      security:
+        - ClientSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SpecialistBookableOfferCreateRequest' }
+      responses:
+        '201':
+          description: Approved publication and Organization/Product-backed priced offer
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SpecialistBookableOffer' }
+        '409':
+          description: Qualification or publication not eligible
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+  /v1/specialist/offers/{id}/slots:
+    post:
+      operationId: createSpecialistBookableSlot
+      security:
+        - ClientSession: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SpecialistBookableSlotCreateRequest' }
+      responses:
+        '201':
+          description: Exclusive future canonical PostgreSQL booking slot
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SpecialistBookableSlot' }
+        '409':
+          description: Overlap or stale qualification
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+  /v1/specialist/offers/{id}/pause:
+    post:
+      operationId: pauseSpecialistBookableOffer
+      security:
+        - ClientSession: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Owner-paused immutable offer; historical bookings retained
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SpecialistBookableOffer' }
   /v1/specialist/profile:
     get:
       operationId: getSpecialistProfile
@@ -1025,6 +1098,11 @@ paths:
         - name: id
           in: path
           required: true
+          schema: { type: string }
+        - name: offer_id
+          in: query
+          required: false
+          description: Canonical priced-offer filter, required to disambiguate multiple topics.
           schema: { type: string }
       responses:
         '200':
@@ -1929,6 +2007,50 @@ components:
         topic_id: { type: string }
         kind: { type: string }
         reference: { type: string }
+    SpecialistBookableOffer:
+      type: object
+      additionalProperties: false
+      required: [id, product_id, topic_id, price_minor, currency, state]
+      properties:
+        id: { type: string }
+        product_id: { type: string }
+        topic_id: { type: string }
+        price_minor: { type: integer }
+        currency: { type: string }
+        state: { type: string, enum: [ACTIVE, PAUSED] }
+    SpecialistBookableOfferList:
+      type: object
+      additionalProperties: false
+      required: [offers]
+      properties:
+        offers:
+          type: array
+          items: { $ref: '#/components/schemas/SpecialistBookableOffer' }
+    SpecialistBookableOfferCreateRequest:
+      type: object
+      additionalProperties: false
+      required: [product_id, topic_id, price_minor]
+      properties:
+        product_id: { type: string }
+        topic_id: { type: string }
+        price_minor: { type: integer, minimum: 1 }
+    SpecialistBookableSlot:
+      type: object
+      additionalProperties: false
+      required: [id, offer_id, starts_at, ends_at, exclusive]
+      properties:
+        id: { type: string }
+        offer_id: { type: string }
+        starts_at: { type: string, format: date-time }
+        ends_at: { type: string, format: date-time }
+        exclusive: { type: boolean }
+    SpecialistBookableSlotCreateRequest:
+      type: object
+      additionalProperties: false
+      required: [starts_at, ends_at]
+      properties:
+        starts_at: { type: string, format: date-time }
+        ends_at: { type: string, format: date-time }
     SpecialistProfile:
       type: object
       additionalProperties: false
@@ -2093,6 +2215,8 @@ components:
         starts_at: { type: string, format: date-time }
         ends_at: { type: string, format: date-time }
         exclusive: { type: boolean }
+        offer_id: { type: string }
+        topic: { type: string }
     SlotList:
       type: object
       additionalProperties: false
