@@ -116,7 +116,7 @@ def canon_dependency_blockers(
         if not isinstance(dependency, dict):
             blockers.append(f"{dependency_id}:CANON_DEPENDENCY_MISSING")
             continue
-        if dependency.get("status") != "VERIFIED":
+        if dependency.get("status") not in {"VERIFIED", "RELEASED"}:
             blockers.append(
                 f"{dependency_id}:CANON_STATUS_{dependency.get('status', 'MISSING')}"
             )

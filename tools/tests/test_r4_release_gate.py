@@ -151,6 +151,12 @@ class R4ReleaseGateTests(unittest.TestCase):
             [],
         )
 
+        registry["requirements"][1]["status"] = "RELEASED"
+        self.assertEqual(
+            gate.canon_dependency_blockers(registry, "APGIC-MOBILE-030"),
+            [],
+        )
+
     def test_missing_store_dependency_is_fail_closed(self) -> None:
         registry = {
             "requirements": [
