@@ -139,6 +139,7 @@ func blockPublication(profile *SpecialistProfile) {
 }
 
 type Candidate struct {
+	OfferID                  string
 	Profile                  SpecialistProfile
 	Formats                  []string
 	Languages                []string
@@ -163,6 +164,7 @@ type MatchRequest struct {
 }
 
 type Match struct {
+	OfferID                  string
 	SpecialistID             string
 	DisplayName              string
 	RelevanceTier            int
@@ -210,6 +212,7 @@ func MatchEligible(policy QualificationPolicy, request MatchRequest, candidates 
 			continue
 		}
 		matches = append(matches, Match{
+			OfferID:                  candidate.OfferID,
 			SpecialistID:             candidate.Profile.ID,
 			DisplayName:              candidate.Profile.DisplayName,
 			RelevanceTier:            3,
