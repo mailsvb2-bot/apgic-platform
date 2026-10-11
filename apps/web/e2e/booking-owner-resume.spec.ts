@@ -28,13 +28,13 @@ test("direct booking page recovers from canonical owner API without sessionStora
   // An upstream outage cannot silently replay the previously confirmed state.
   mode = "outage";
   await page.getByRole("button", { name: "Проверить актуальный статус" }).click();
-  await expect(page.getByRole("alert")).toContainText("Состояние не подтверждено");
+  await expect(page.getByRole("alert").filter({ hasText: "Состояние не подтверждено" })).toContainText("Состояние не подтверждено");
   await expect(page.getByRole("heading", { name: "Запись подтверждена" })).toHaveCount(0);
   await expect(page.getByRole("region", { name: "Результат консультации" })).toHaveCount(0);
 
   mode = "foreign";
   await page.getByRole("button", { name: "Проверить актуальный статус" }).click();
-  await expect(page.getByRole("alert")).toContainText("Состояние не подтверждено");
+  await expect(page.getByRole("alert").filter({ hasText: "Состояние не подтверждено" })).toContainText("Состояние не подтверждено");
   await expect(page.getByRole("heading", { name: "Запись подтверждена" })).toHaveCount(0);
 
   mode = "cancelled";
