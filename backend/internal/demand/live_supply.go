@@ -33,7 +33,7 @@ func liveCatalogFromOffers(offers []BookableOffer) catalog {
 		// One versioned price per published offer/topic; no inferred score or
 		// sponsored placement until a policy-controlled score exists.
 		result.candidates = append(result.candidates, marketplace.Candidate{
-			Profile: offer.Profile, Formats: []string{FormatOnline},
+			OfferID: offer.ID, Profile: offer.Profile, Formats: []string{FormatOnline},
 			Languages: []string{LanguageRU}, PriceMinor: offer.PriceMinor,
 			Available: true,
 		})
