@@ -601,11 +601,11 @@ func (s *Service) SlotsForOffer(specialistID, offerID string) ([]Slot, error) {
 			return nil, err
 		}
 	}
-	if _, ok := s.catalog.names[specialistID]; !ok || specialistID == "spec-draft" {
-		return nil, ErrSpecialistNotFound
-	}
 	if err := s.expireHoldsLocked(); err != nil {
 		return nil, err
+	}
+	if _, ok := s.catalog.names[specialistID]; !ok || specialistID == "spec-draft" {
+		return nil, ErrSpecialistNotFound
 	}
 	now := s.now().UTC()
 	out := make([]Slot, 0, 2)
