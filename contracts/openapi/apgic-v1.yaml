@@ -1323,6 +1323,42 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/BookingFulfillment'
+  /v1/consultations/{bookingID}/result:
+    get:
+      operationId: getConsultationResult
+      summary: Read provider-signed consultation outcome owned by APGIC PostgreSQL
+      security:
+        - ClientSession: []
+      parameters:
+        - name: bookingID
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Server-authorized, no-store consultation state and completion evidence
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsultationResult'
+        '401':
+          description: Trusted client session is required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: No owned consultation result exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '503':
+          description: Canonical consultation storage or session validation is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /v1/consultations/{bookingID}/presence:
     post:
       operationId: recordConsultationPresence
@@ -2312,6 +2348,17 @@ components:
       required: [evidence_ref]
       properties:
         evidence_ref: { type: string }
+    ConsultationResult:
+      type: object
+      additionalProperties: false
+      required: [booking_id, state, provider_instance_id]
+      properties:
+        booking_id: { type: string }
+        state:
+          type: string
+          enum: [SCHEDULED, READY, IN_PROGRESS, RECOVERING, TECHNICAL_FAILURE, COMPLETED]
+        provider_instance_id: { type: string }
+        completion_evidence_ref: { type: string }
     ConsultationView:
       type: object
       additionalProperties: false

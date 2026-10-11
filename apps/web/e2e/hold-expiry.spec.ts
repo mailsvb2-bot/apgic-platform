@@ -44,7 +44,7 @@ test("expired displayed hold warns without claiming server cancellation", async 
   await expect(slot).toBeVisible();
   await slot.click();
   await expect(page.getByRole("heading", { name: "Слот удерживается" })).toBeVisible();
-  await expect(page.getByText("Онлайн-оплата через внешнего исполнителя пока недоступна.", { exact: false })).toBeVisible();
+  await expect(page.getByText("Срок удержания истёк или состояние записи изменилось. Повторное оформление оплаты недоступно.")).toBeVisible();
   await expect(page.getByText("Время временно удерживается, но запись ещё не подтверждена.", { exact: false })).toBeVisible();
   await expect(page.getByText("Завершите оплату до окончания удержания.")).toHaveCount(0);
   await expect(page.getByText("Указанное время удержания прошло.", { exact: false })).toBeVisible();
