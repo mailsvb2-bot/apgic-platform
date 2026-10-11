@@ -15,6 +15,7 @@ import (
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/connector"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/demand"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/launchconfig"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/marketplace"
 )
 
 func readyConfig() launchconfig.Config {
@@ -94,6 +95,65 @@ func TestPublicCheckoutFailsClosedWithoutConfiguredExternalProvider(t *testing.T
 	handler.ServeHTTP(instruction, httptest.NewRequest(http.MethodPost, "/v1/checkout-instructions", strings.NewReader(`{"hold_id":"forged","method_code":"BANK_CARD"}`)))
 	if instruction.Code != http.StatusServiceUnavailable || !contains(instruction.Body.String(), "PAYMENT_PROVIDER_UNAVAILABLE") {
 		t.Fatalf("checkout instruction must fail closed without provider: status=%d body=%s", instruction.Code, instruction.Body.String())
+	}
+}
+
+// The store is deliberately production-empty: no trusted price/slot or
+// certified external PSP is available. It must never fall back to CI fixtures.
+type livePaymentJourneyStub struct{ demand.JourneyStore }
+
+func (livePaymentJourneyStub) LoadJourney([]demand.Slot) (demand.JourneySnapshot, error) {
+	return demand.JourneySnapshot{}, nil
+}
+
+type livePaymentSupplyStub struct{}
+
+func (livePaymentSupplyStub) PublishedProfiles() ([]marketplace.SpecialistProfile, error) {
+	return nil, nil
+}
+
+func TestProductionPaymentBoundaryThroughRealWebAndMobileHandlers(t *testing.T) {
+	live, err := demand.NewLiveServiceWithStoresAndSpecialists(
+		nil, nil, livePaymentJourneyStub{}, livePaymentSupplyStub{},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := []byte(strings.Repeat("a", 32))
+	manager, err := newClientSessionManager(key, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cookie, err := manager.issue("live-client")
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := New(Options{
+		Demand:           live,
+		ClientSessionKey: key,
+		ClientMutations:  newMemoryMutationStore(),
+		// ConformanceProviderEvents is false in any actual DB production.
+	})
+	for _, tc := range []struct {
+		method string
+		path   string
+		body   string
+	}{
+		{http.MethodGet, "/v1/slot-holds/historical/checkout-options", ""},
+		{http.MethodPost, "/v1/checkout-instructions", `{"hold_id":"historical","method_code":"BANK_CARD"}`},
+		{http.MethodPost, "/v1/mobile/checkout-instructions", `{"hold_id":"historical","method_code":"SBP"}`},
+	} {
+		t.Run(tc.path, func(t *testing.T) {
+			request := httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body))
+			request.AddCookie(cookie)
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, request)
+			if response.Code != http.StatusServiceUnavailable ||
+				!contains(response.Body.String(), "PAY_REAL_PROVIDER_REQUIRED") ||
+				contains(response.Body.String(), "external-bank") {
+				t.Fatalf("production path=%s status=%d body=%s", tc.path, response.Code, response.Body.String())
+			}
+		})
 	}
 }
 

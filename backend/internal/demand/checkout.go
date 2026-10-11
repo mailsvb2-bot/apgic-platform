@@ -69,6 +69,12 @@ func externalProviders() []payments.ProviderInstance {
 func (s *Service) CheckoutOptions(holdID, clientIdentityID string) ([]CheckoutOption, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	// The bundled provider manifest is explicitly conformance-only. Never
+	// advertise fabricated bank/card/SBP payment capability in production,
+	// including when a historical fixture hold still exists in PostgreSQL.
+	if s.liveSupplyMode {
+		return nil, ErrLivePaymentUnavailable
+	}
 	hold, slot, err := s.activeHoldLocked(holdID, clientIdentityID)
 	if err != nil {
 		return nil, err
@@ -146,6 +152,12 @@ func productContextForSpecialist(specialistID, specialistIdentityID string) (spe
 func (s *Service) CreateCheckout(holdID, clientIdentityID, methodCode string) (*CheckoutInstruction, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	// In production the real provider must be certified and routed by the
+	// canonical Payment control plane before checkout can be enabled.
+	// Block even replaying an old conformance instruction: no invented PSP.
+	if s.liveSupplyMode {
+		return nil, ErrLivePaymentUnavailable
+	}
 	hold, err := s.ownedHoldForReplayLocked(holdID, clientIdentityID)
 	if err != nil {
 		return nil, err

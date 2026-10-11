@@ -33,6 +33,7 @@ var (
 	ErrHoldNotFound            = errors.New("slot hold not found")
 	ErrHoldNotActive           = errors.New("slot hold is not active")
 	ErrMethodNotEligible       = errors.New("payment method is not eligible")
+	ErrLivePaymentUnavailable  = errors.New("real payment provider is not configured for live checkout")
 	ErrCheckoutLocked          = errors.New("checkout method is already locked")
 	ErrCustodyForbidden        = errors.New("APGIC must not accept funds")
 	ErrOrderNotFound           = errors.New("checkout order not found")

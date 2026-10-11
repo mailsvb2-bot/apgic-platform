@@ -352,3 +352,47 @@ func TestCheckoutConflictRefreshRejectsForeignBookingClient(t *testing.T) {
 		})
 	}
 }
+
+func TestLiveCheckoutFailsClosedEvenWithHistoricalFixtureHold(t *testing.T) {
+	// Reproduce a process which encounters a historical conformance hold.
+	// Merely having a persisted, previously bookable slot must never make the
+	// built-in fake bank a certified production provider.
+	service := NewConformanceService(nil)
+	intent, err := service.CreateIntent("нужна помощь со сном")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.ConfirmIntent(intent.ID, []string{"sleep"}, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	slots, err := service.Slots("spec-lebedeva")
+	if err != nil || len(slots) == 0 {
+		t.Fatalf("seed fixture slot: %v, %#v", err, slots)
+	}
+	hold, err := service.AcquireHold(intent.ID, slots[0].ID, intent.ClientIdentityID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(service.instructions) != 0 {
+		t.Fatal("fixture checkout must not exist yet")
+	}
+
+	// The live constructor intentionally has no fixture catalog at all.
+	// Defend the monetary boundary independently of that assumption.
+	service.liveSupplyMode = true
+	if options, err := service.CheckoutOptions(hold.ID, intent.ClientIdentityID); options != nil || !errors.Is(err, ErrLivePaymentUnavailable) {
+		t.Fatalf("live exposed conformance bank/SBP options: %#v, %v", options, err)
+	}
+	for _, method := range []string{"BANK_CARD", "SBP"} {
+		if instruction, err := service.CreateCheckout(hold.ID, intent.ClientIdentityID, method); instruction != nil || !errors.Is(err, ErrLivePaymentUnavailable) {
+			t.Fatalf("live created fixture checkout for %s: %#v, %v", method, instruction, err)
+		}
+	}
+	if len(service.instructions) != 0 || len(service.orderEvidence) != 0 {
+		t.Fatalf("live checkout wrote synthetic economic state: instructions=%d order_evidence=%d", len(service.instructions), len(service.orderEvidence))
+	}
+	// The hold is not silently consumed or booked by a rejected payment route.
+	if hold.State != "ACTIVE" || len(service.bookings) != 0 {
+		t.Fatalf("live payment rejection mutated hold/booking: hold=%s bookings=%d", hold.State, len(service.bookings))
+	}
+}
