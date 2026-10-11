@@ -876,7 +876,7 @@ export function Journey() {
           ) : null}
 
           {matches.length === 0 && livePreview.length > 0 ? (
-            <div aria-label="Опубликованные профили без доступной записи">
+            <section aria-label="Опубликованные профили без доступной записи">
               <p>Публикация профиля подтверждена. Это не предложение консультации: цена и расписание пока не опубликованы.</p>
               <ul className="specialist-cards">
                 {livePreview.map((entry) => (
@@ -892,7 +892,7 @@ export function Journey() {
                   </li>
                 ))}
               </ul>
-            </div>
+            </section>
           ) : null}
 
           {search && conformanceProviderEvents ? (
