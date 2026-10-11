@@ -3,15 +3,9 @@
 import { useEffect, useState } from "react";
 import ConsultationResultView from "./consultation-result";
 
-type BookingState = "HELD" | "PENDING_PAYMENT" | "CONFIRMED" | "CANCELLED" | "EXPIRED" | "COMPLETED" | "NO_SHOW";
-type BookingStatus = {
-  booking_id: string;
-  state: BookingState;
-  hold_id: string;
-  hold_expires_at: string;
-  starts_at?: string;
-  ends_at?: string;
-};
+import type { BookingStatus } from "../../../packages/contracts/src/generated/apgic-v1";
+
+type BookingState = BookingStatus["state"];
 
 const labels: Record<BookingState, string> = {
   HELD: "Время временно удерживается",
