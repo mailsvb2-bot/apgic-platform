@@ -29,6 +29,8 @@ DECLARE
 BEGIN
   SELECT created, reason_code, intent_id
   INTO created_1, reason_1, intent_1
+  -- The booking confirmation is deliverable now. Future not_before behavior
+  -- is asserted independently by the real PostgreSQL runtime window test.
   FROM apgic_create_notification_intent(
     '00000000-0000-0000-0000-00000000f101',
     '00000000-0000-0000-0000-00000000b301',
@@ -36,7 +38,7 @@ BEGIN
     'booking-b301:confirmation',
     'SENSITIVE',
     'channel-policy-ci-v1',
-    now() + interval '8 minutes'
+    now()
   );
 
   SELECT created, reason_code, intent_id
@@ -48,7 +50,7 @@ BEGIN
     'booking-b301:confirmation',
     'SENSITIVE',
     'channel-policy-ci-v1',
-    now() + interval '9 minutes'
+    now() + interval '1 minute'
   );
 
   IF NOT created_1 OR reason_1 <> 'NOTIF_INTENT_CREATED' OR intent_1 <> '00000000-0000-0000-0000-00000000f101' THEN
