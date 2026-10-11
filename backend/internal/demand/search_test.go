@@ -1,6 +1,7 @@
 package demand
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/marketplace"
@@ -84,5 +85,66 @@ func TestSearchProjectionIncludesDurablePublishedSpecialists(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("durable published specialist missing from search projection: %#v", view.Entries)
+	}
+}
+
+type changingPublishedSpecialistStore struct {
+	profiles []marketplace.SpecialistProfile
+	err      error
+}
+
+func (s *changingPublishedSpecialistStore) PublishedProfiles() ([]marketplace.SpecialistProfile, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	return append([]marketplace.SpecialistProfile(nil), s.profiles...), nil
+}
+
+func TestPublicSearchDoesNotServeRevokedOrFailedDurableSupply(t *testing.T) {
+	profile, err := marketplace.NewSpecialistProfile("durable-revoked", "identity-revoked", "Проверенный специалист")
+	if err != nil {
+		t.Fatal(err)
+	}
+	capability, err := marketplace.NewCapability("sleep", marketplace.EvidenceAPGICVerified, "evidence:reviewed")
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile.AddCapability(capability)
+	profile.Profession = "PSYCHOLOGIST"
+	profile.Complete = true
+	profile.Review = marketplace.ReviewApproved
+	profile.PublishState = marketplace.PublishPublished
+	profile.PublishedTopics = []string{"sleep"}
+	store := &changingPublishedSpecialistStore{profiles: []marketplace.SpecialistProfile{*profile}}
+	service, err := NewConformanceServiceWithStoresAndSpecialists(nil, nil, nil, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	contains := func(entries []SearchHit, id string) bool {
+		for _, entry := range entries {
+			if entry.SpecialistID == id {
+				return true
+			}
+		}
+		return false
+	}
+	initial, err := service.Search("sleep")
+	if err != nil || !contains(initial.Entries, profile.ID) {
+		t.Fatalf("reviewed specialist not visible: view=%#v err=%v", initial, err)
+	}
+
+	// Simulate an immediate PostgreSQL publication revoke between client reads.
+	// RebuildSearch is NOT invoked by the client.
+	store.profiles = nil
+	afterRevocation, err := service.Search("sleep")
+	if err != nil || contains(afterRevocation.Entries, profile.ID) {
+		t.Fatalf("revoked specialist remained visible: view=%#v err=%v", afterRevocation, err)
+	}
+
+	// Failure to read canonical store must not return previously cached
+	// potentially revoked names as though qualification were current.
+	store.err = errors.New("PostgreSQL specialist supply unavailable")
+	if view, err := service.Search("sleep"); err == nil || view != nil {
+		t.Fatalf("failed supply read returned public results: view=%#v err=%v", view, err)
 	}
 }
