@@ -76,6 +76,19 @@ func registerSpecialistBookableOffers(
 		w.Header().Set("Cache-Control", "no-store")
 		writeJSON(w, http.StatusCreated, slot)
 	})
+	mux.HandleFunc("POST /v1/specialist/offers/{id}/pause", func(w http.ResponseWriter, r *http.Request) {
+		identityID, valid := trustedClientIdentity(w, r, sessions, sessionConfigErr, "")
+		if !valid {
+			return
+		}
+		offer, err := supply.PauseBookableOffer(identityID, r.PathValue("id"))
+		if err != nil {
+			writeBookableSupplyFailure(w, r, err)
+			return
+		}
+		w.Header().Set("Cache-Control", "no-store")
+		writeJSON(w, http.StatusOK, offer)
+	})
 }
 
 func writeBookableSupplyFailure(w http.ResponseWriter, r *http.Request, err error) {
