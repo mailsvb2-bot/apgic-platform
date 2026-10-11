@@ -1318,6 +1318,42 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Cancellation'
+  /v1/bookings/{id}:
+    get:
+      operationId: getBookingStatus
+      summary: Resume an existing booking from canonical APGIC ownership after browser/API restart
+      security:
+        - ClientSession: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: No-store booking status for the authenticated booking owner
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingStatus'
+        '401':
+          description: Trusted client session is required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found or not owned by the authenticated client
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '503':
+          description: Canonical journey state could not be read
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /v1/bookings/{id}/fulfillment:
     get:
       operationId: getBookingFulfillment
@@ -2282,6 +2318,19 @@ components:
         apgic_returns_funds: { type: boolean }
         idempotent: { type: boolean }
         notice: { type: string }
+    BookingStatus:
+      type: object
+      additionalProperties: false
+      required: [booking_id, state, hold_id, hold_expires_at]
+      properties:
+        booking_id: { type: string }
+        state:
+          type: string
+          enum: [HELD, PENDING_PAYMENT, CONFIRMED, CANCELLED, EXPIRED, COMPLETED, NO_SHOW]
+        hold_id: { type: string }
+        hold_expires_at: { type: string, format: date-time }
+        starts_at: { type: string, format: date-time }
+        ends_at: { type: string, format: date-time }
     BookingFulfillment:
       type: object
       additionalProperties: false
