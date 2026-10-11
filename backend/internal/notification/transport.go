@@ -32,6 +32,8 @@ const (
 var (
 	ErrInvalidDelivery             = errors.New("invalid notification delivery")
 	ErrDeliveryIdempotencyConflict = errors.New("notification delivery idempotency conflict")
+	ErrDeliveryNotBefore           = errors.New("notification delivery is not yet permitted")
+	ErrDeliveryExpired             = errors.New("notification delivery intent has expired")
 )
 
 type DeliveryPolicy struct {
