@@ -947,6 +947,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SearchView'
+        '503':
+          description: Canonical specialist store unavailable; retryable and fail-closed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /v1/search/rebuild:
     post:
       operationId: rebuildSearchProjection
@@ -958,11 +964,17 @@ paths:
               $ref: '#/components/schemas/SearchTopicRequest'
       responses:
         '200':
-          description: Projection rebuilt from canonical specialist profiles
+          description: Projection rebuilt from canonical specialist profiles in isolated conformance mode.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SearchView'
+        '403':
+          description: Search projection mutation forbidden outside isolated conformance mode.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /v1/search/stale:
     post:
       operationId: markSearchProjectionStale
@@ -974,11 +986,17 @@ paths:
               $ref: '#/components/schemas/SearchStaleRequest'
       responses:
         '200':
-          description: Index lost an entry. Qualification truth is unchanged.
+          description: Conformance index lost an entry. Qualification truth is unchanged.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SearchView'
+        '403':
+          description: Search projection mutation forbidden outside isolated conformance mode.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /v1/help-intents/{id}/matches:
     get:
       operationId: listHelpIntentMatches
