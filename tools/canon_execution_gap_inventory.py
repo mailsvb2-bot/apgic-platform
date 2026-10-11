@@ -59,9 +59,11 @@ def _dependency_order(requirements: dict[str, dict[str, Any]]) -> list[str]:
         if state == 2:
             return
         visited[rid] = 1
-        for dependency in sorted(requirements[rid].get("dependencies") or [], key=sort_key):
+        dependencies = requirements[rid].get("dependencies") or []
+        for dependency in dependencies:
             if dependency not in requirements:
                 raise CanonInventoryError(f"{rid}: missing dependency {dependency}")
+        for dependency in sorted(dependencies, key=sort_key):
             visit(dependency)
         visited[rid] = 2
         ordered.append(rid)
