@@ -27,13 +27,19 @@ export function requireOwnedBookingStatus(payload: unknown, bookingID: string): 
   return view as BookingStatus;
 }
 
+export type BookingClientConfig = {
+  baseURL: string;
+  sessionCookie?: string;
+};
+
 // Native and web use one APGIC owner-scoped projection. Never infer confirmed
 // booking, entitlement or payment outcome from cached device state.
 export async function readOwnedBookingStatus(
-  baseURL: string,
+  config: BookingClientConfig,
   bookingID: string,
   request: BookingFetch = (url, init) => fetch(url, init),
 ): Promise<BookingStatus> {
+  const {baseURL, sessionCookie} = config;
   if (!bookingID.trim() || bookingID.includes("/") || bookingID.includes("?") || bookingID.includes("#")) {
     throw new Error("BOOKING_ID_INVALID");
   }
@@ -47,7 +53,10 @@ export async function readOwnedBookingStatus(
   const response = await request(origin.origin + "/v1/bookings/" + encodeURIComponent(bookingID), {
     credentials: "include",
     cache: "no-store",
-    headers: { Accept: "application/json" },
+    headers: {
+      Accept: "application/json",
+      ...(sessionCookie ? {Cookie: sessionCookie} : {}),
+    },
   });
   if (response.status === 401 || response.status === 403) throw new Error("BOOKING_SESSION_REQUIRED");
   if (response.status === 404) throw new Error("BOOKING_NOT_FOUND");
