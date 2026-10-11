@@ -443,7 +443,14 @@ func registerDemand(
 		}
 		status, err := service.ReadBookingStatus(r.PathValue("id"), identityID)
 		if err != nil {
-			writeDemandFailure(w, r, err)
+			if errors.Is(err, demand.ErrBookingNotFound) {
+				writeDemandFailure(w, r, err)
+			} else {
+				// A PostgreSQL outage cannot masquerade as a missing/invalid
+				// booking, and must not reuse stale browser confirmation.
+				writeDemandError(w, r, http.StatusServiceUnavailable, "BOOKING_STATUS_UNAVAILABLE",
+					"Не удалось проверить актуальное состояние записи.", true, nil)
+			}
 			return
 		}
 		w.Header().Set("Cache-Control", "no-store")
