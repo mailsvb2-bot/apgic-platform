@@ -223,12 +223,12 @@ func TestSignedConsultationPersistsAcrossAPIStoreRestart(t *testing.T) {
 		event.Sequence = sequence
 		raw := connectorWebhookSigningPayload{
 			ConnectorInstanceID: event.ConnectorInstanceID,
-			ExternalEventID: event.ExternalEventID,
-			StreamID: event.StreamID,
-			Sequence: event.Sequence,
-			KeyID: event.KeyID,
-			OccurredAt: event.OccurredAt,
-			Payload: event.Payload,
+			ExternalEventID:     event.ExternalEventID,
+			StreamID:            event.StreamID,
+			Sequence:            event.Sequence,
+			KeyID:               event.KeyID,
+			OccurredAt:          event.OccurredAt,
+			Payload:             event.Payload,
 		}
 		message, marshalErr := json.Marshal(raw)
 		if marshalErr != nil {
