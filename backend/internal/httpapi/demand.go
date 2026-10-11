@@ -707,6 +707,8 @@ func writeDemandFailure(w http.ResponseWriter, r *http.Request, err error) {
 		writeDemandError(w, r, http.StatusNotFound, "NOT_FOUND", "Удержание не найдено.", false, nil)
 	case errors.Is(err, demand.ErrHoldNotActive):
 		writeDemandError(w, r, http.StatusConflict, "BOOK_HOLD_NOT_ACTIVE", "Удержание слота уже не активно.", false, nil)
+	case errors.Is(err, demand.ErrLivePaymentUnavailable):
+		writeDemandError(w, r, http.StatusServiceUnavailable, "PAY_REAL_PROVIDER_REQUIRED", "Реальная оплата пока не подключена. Платёж не создан.", false, []string{"PAY_REAL_PROVIDER_REQUIRED"})
 	case errors.Is(err, demand.ErrMethodNotEligible):
 		writeDemandError(w, r, http.StatusConflict, "PAY_METHOD_UNSUPPORTED", "Этот способ оплаты недоступен у внешнего провайдера.", false, []string{"PAY_METHOD_UNSUPPORTED"})
 	case errors.Is(err, demand.ErrCheckoutLocked):
