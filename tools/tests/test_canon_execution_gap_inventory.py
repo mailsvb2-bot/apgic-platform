@@ -51,6 +51,7 @@ class CanonGapInventoryTests(unittest.TestCase):
         self.assertEqual(result["totals"]["owner_only_sections_needing_analysis"], 1)
         self.assertEqual(result["totals"]["requirements"], 2)
         self.assertEqual(result["totals"]["non_released_requirements"], 2)
+        self.assertEqual(len(result["all_requirements_dependency_order"]), 2)
         self.assertEqual(result["owner_only_sections"][0]["tracking_class"], "OWNER_ONLY_REQUIRES_ANALYSIS")
         self.assertEqual(result["requirements_backlog_dependency_order"][0]["requirement_id"], "APGIC-BOOK-001")
         self.assertEqual(result["requirements_backlog_dependency_order"][1]["unverified_dependencies"], ["APGIC-BOOK-001"])
@@ -63,6 +64,36 @@ class CanonGapInventoryTests(unittest.TestCase):
         self.assertEqual(result["totals"]["traceability_mismatches"], 1)
         self.assertEqual(result["traceability_mismatches"][0]["registry_requirement_ids"], ["APGIC-BOOK-001"])
         self.assertEqual(registry["requirements"][1]["source_sections"], [2])
+
+    def test_released_requirements_stay_in_full_index(self):
+        coverage, registry, production = self.fixtures()
+        registry["requirements"][0]["status"] = "RELEASED"
+        result = inventory_tool.build_inventory(coverage, registry, production)
+        self.assertEqual(len(result["all_requirements_dependency_order"]), 2)
+        self.assertEqual(len(result["requirements_backlog_dependency_order"]), 1)
+        released = result["all_requirements_dependency_order"][-1]
+        self.assertEqual(released["requirement_id"], "APGIC-PAY-001")
+        self.assertEqual(released["status"], "RELEASED")
+        self.assertEqual(released["implementation_refs"], ["backend/payment.go"])
+
+    def test_strict_final_refuses_forged_production_evidence_even_if_canon_is_released(self):
+        coverage, registry, production = self.fixtures()
+        coverage["sections"][0]["linked_requirement_ids"] = ["APGIC-BOOK-001"]
+        registry["requirements"][1]["source_sections"] = [1, 2]
+        for row in registry["requirements"]:
+            row["status"] = "RELEASED"
+        production = {"schema_version": "production-evidence-index-v1", "records": {"junk": {}}}
+        result = inventory_tool.build_inventory(coverage, registry, production)
+        self.assertEqual(result["totals"]["non_released_requirements"], 0)
+        self.assertEqual(result["totals"]["owner_only_sections_needing_analysis"], 0)
+        self.assertEqual(result["totals"]["traceability_mismatches"], 0)
+        self.assertEqual(result["totals"]["production_evidence_records"], 1)
+        manifest = ROOT / "config/release/r4-ci-gate-evidence.yaml"
+        blockers = inventory_tool.strict_production_release_blockers(
+            result, manifest, "ci-candidate-sha", production, registry,
+        )
+        self.assertTrue(any(reason.startswith("RELEASE_") for reason in blockers), blockers)
+        self.assertTrue(any("SYNTHETIC_EVIDENCE_FORBIDDEN" in reason for reason in blockers), blockers)
 
     def test_refuses_missing_requirements_and_dependency_cycles(self):
         coverage, registry, production = self.fixtures()
