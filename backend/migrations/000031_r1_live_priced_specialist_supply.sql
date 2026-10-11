@@ -1,6 +1,5 @@
 -- R1/R2: real specialist-priced consultation supply owned by existing APGIC
 -- specialist, Product, and booking_slots rows (not the conformance fixture).
-BEGIN;
 
 CREATE TABLE specialist_bookable_offers (
   id uuid PRIMARY KEY,
@@ -170,4 +169,3 @@ CREATE TRIGGER specialist_live_offer_immutability_guard
 BEFORE UPDATE ON specialist_bookable_offers
 FOR EACH ROW EXECUTE FUNCTION apgic_live_offer_immutability_guard();
 
-COMMIT;
