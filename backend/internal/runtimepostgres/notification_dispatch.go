@@ -84,8 +84,8 @@ func (c *Checker) ReserveNotificationPushDispatch(ctx context.Context, plan noti
 	}
 
 	state, err := json.Marshal(map[string]any{
-		"delivery_id": plan.DeliveryID,
-		"intent_id": plan.IntentID,
+		"delivery_id":        plan.DeliveryID,
+		"intent_id":          plan.IntentID,
 		"reservation_reason": reason,
 	})
 	if err != nil {
@@ -112,7 +112,7 @@ func (c *Checker) ReserveNotificationPushDispatch(ctx context.Context, plan noti
 	}
 	return notification.PushTransportEnvelope{
 		ContractVersion: "notification-transport-v1",
-		DeliveryID: reservedDelivery,
-		IntentID: plan.IntentID,
+		DeliveryID:      reservedDelivery,
+		IntentID:        plan.IntentID,
 	}, nil
 }
