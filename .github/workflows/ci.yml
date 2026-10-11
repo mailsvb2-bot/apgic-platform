@@ -285,6 +285,7 @@ jobs:
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000027_r0_order_snapshot_baseline_repair.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000028_r0_consent_ledger.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000029_r3_consultation_lifecycle_monotonicity.sql
+          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000030_r2_notification_push_dispatch_reservations.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r0_connector_delivery_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r1_mobile_invariants.sql
@@ -660,6 +661,7 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f backend/migrations/000027_r0_order_snapshot_baseline_repair.sql
           psql -v ON_ERROR_STOP=1 -f backend/migrations/000028_r0_consent_ledger.sql
           psql -v ON_ERROR_STOP=1 -f backend/migrations/000029_r3_consultation_lifecycle_monotonicity.sql
+          psql -v ON_ERROR_STOP=1 -f backend/migrations/000030_r2_notification_push_dispatch_reservations.sql
           bash backend/ci/restore_drill.sh
       - uses: actions/upload-artifact@v7
         with:
