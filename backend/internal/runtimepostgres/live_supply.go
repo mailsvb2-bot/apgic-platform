@@ -117,6 +117,47 @@ func (c *Checker) ListBookableOffers(identityID string) ([]specialist.BookableOf
 	return offers, rows.Err()
 }
 
+// PauseBookableOffer is the only way to withdraw an immutable price version.
+// Historical holds/bookings are preserved for owner readback and reconciliation.
+func (c *Checker) PauseBookableOffer(identityID, offerID string) (specialist.BookableOffer, error) {
+	var empty specialist.BookableOffer
+	if c == nil || c.db == nil {
+		return empty, errors.New("PostgreSQL unavailable")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), specialistWriteTimeout)
+	defer cancel()
+	tx, err := c.db.BeginTx(ctx, nil)
+	if err != nil {
+		return empty, err
+	}
+	defer tx.Rollback()
+	var item specialist.BookableOffer
+	var ownerID string
+	err = tx.QueryRowContext(ctx, `SELECT id::text, specialist_identity_id::text, product_id::text,
+		topic_id, price_minor, currency, state
+		FROM specialist_bookable_offers WHERE id = $1::uuid FOR UPDATE`, offerID).
+		Scan(&item.ID, &ownerID, &item.ProductID, &item.TopicID, &item.PriceMinor, &item.Currency, &item.State)
+	if errors.Is(err, sql.ErrNoRows) || (err == nil && ownerID != identityID) {
+		return empty, specialist.ErrOfferNotAuthorized
+	}
+	if err != nil {
+		return empty, err
+	}
+	if item.State == "ACTIVE" {
+		_, err = tx.ExecContext(ctx, `UPDATE specialist_bookable_offers
+			SET state='PAUSED', paused_at=now()
+			WHERE id=$1::uuid AND specialist_identity_id=$2::uuid AND state='ACTIVE'`, offerID, identityID)
+		if err != nil {
+			return empty, fmt.Errorf("pause specialist priced offer: %w", err)
+		}
+		item.State = "PAUSED"
+	}
+	if err := tx.Commit(); err != nil {
+		return empty, err
+	}
+	return item, nil
+}
+
 func (c *Checker) AddBookableSlot(identityID, offerID string, start, end time.Time) (specialist.BookableSlot, error) {
 	var empty specialist.BookableSlot
 	if c == nil || c.db == nil {
