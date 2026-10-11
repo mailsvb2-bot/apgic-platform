@@ -346,6 +346,14 @@ func registerDemand(
 			writeDemandError(w, r, http.StatusBadRequest, "EVIDENCE_TRANSPORT_MISMATCH", "Идентификаторы платёжного доказательства не совпадают.", false, nil)
 			return
 		}
+		// A valid signature from one configured connector must never authorize
+		// capture on behalf of another payment provider. In this payment
+		// boundary the signed connector identity is the canonical provider ID.
+		// Do not fall back to a caller-supplied alias or unsigned lookup.
+		if strings.TrimSpace(body.ProviderID) == "" || body.ProviderID != envelope.ConnectorInstanceID {
+			writeDemandError(w, r, http.StatusUnauthorized, "PROVIDER_WEBHOOK_PROVIDER_MISMATCH", "Провайдер платёжного доказательства не подтверждён.", false, nil)
+			return
+		}
 		evidence, err := service.ApplyProviderEvent(demand.ProviderEvent{
 			ProviderID:      body.ProviderID,
 			ProviderEventID: body.ProviderEventID,
