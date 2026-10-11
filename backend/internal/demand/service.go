@@ -99,7 +99,7 @@ type Service struct {
 	ledgerStore     LedgerStore
 	journeyStore    JourneyStore
 	journeyRefSlots []Slot
-	liveSupplyMode bool
+	liveSupplyMode  bool
 	notices         map[string]*BookingNotice
 	sessions        map[string]*consultation.Session
 	projection      marketplace.SearchProjection
