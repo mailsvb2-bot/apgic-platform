@@ -18,12 +18,17 @@ Run:
 
 ```bash
 python tools/canon_execution_gap_inventory.py --output /tmp/apgic-v7-gaps.json
-python tools/canon_execution_gap_inventory.py --strict-complete --output /tmp/apgic-v7-final-check.json
+python tools/canon_execution_gap_inventory.py --strict-complete \
+  --candidate-sha "<exact-audited-main-SHA>" \
+  --production-manifest config/release/r4-approved-production-evidence.yaml \
+  --output /tmp/apgic-v7-final-check.json
 ```
 
 The first command always inventories every section and requirement,
 records statuses and implementation/test/evidence references, and orders
-remaining requirements with dependencies first. It does **not** claim that
+remaining requirements with dependencies first. The artifact also retains a
+**complete** dependency-ordered index of all requirements, including RELEASED
+ones, with their implementation, test and evidence references. It does **not** claim that
 an unmapped section has no code. The second command is the **final whole-TZ**
 gate, which intentionally fails while any section has only owner-level
 coverage, any requirement is not RELEASED, traceability inputs disagree, or
