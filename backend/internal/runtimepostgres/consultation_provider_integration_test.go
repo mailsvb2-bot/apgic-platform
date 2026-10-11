@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -203,7 +204,7 @@ func TestSignedConsultationPersistsAcrossAPIStoreRestart(t *testing.T) {
 		}
 		raw := connectorWebhookSigningPayload{
 			ConnectorInstanceID: connectorID,
-			ExternalEventID:     "consultation-event-" + hold.BookingID + "-" + factType + "-" + role,
+			ExternalEventID:     "consultation-event-" + hold.BookingID + "-" + factType + "-" + role + "-" + strconv.FormatUint(seq, 10),
 			StreamID:            "consultation/" + hold.BookingID,
 			Sequence:            seq, KeyID: "test-key", OccurredAt: now.Add(time.Duration(seq) * time.Second), Payload: payload,
 		}
@@ -219,10 +220,12 @@ func TestSignedConsultationPersistsAcrossAPIStoreRestart(t *testing.T) {
 	}
 	for _, event := range []connector.WebhookEnvelope{
 		signed(1, "JOINED", "CLIENT"), signed(2, "JOINED", "SPECIALIST"),
-		signed(3, "STARTED", "SYSTEM"), signed(4, "LEFT", "CLIENT"),
-		signed(5, "RECOVERY_STARTED", "SYSTEM"),
-		signed(6, "RECOVERY_SUCCEEDED", "SYSTEM"),
-		signed(7, "ENDED", "SYSTEM"),
+		signed(3, "STARTED", "SYSTEM"),
+		signed(4, "JOINED", "CLIENT"), // delayed rejoin must not rewind the call to READY
+		signed(5, "LEFT", "CLIENT"),
+		signed(6, "RECOVERY_STARTED", "SYSTEM"),
+		signed(7, "RECOVERY_SUCCEEDED", "SYSTEM"),
+		signed(8, "ENDED", "SYSTEM"),
 	} {
 		if event.Sequence == 1 {
 			forged := event
@@ -235,28 +238,31 @@ func TestSignedConsultationPersistsAcrossAPIStoreRestart(t *testing.T) {
 		if status != http.StatusOK || decision != connector.DeliveryApply {
 			t.Fatalf("event %d HTTP=%d decision=%s", event.Sequence, status, decision)
 		}
-		if event.Sequence == 5 || event.Sequence == 6 {
-			// This exercises the actual signed provider -> PostgreSQL state
-			// transition used when a real client loses and recovers a call.
+		if event.Sequence == 4 || event.Sequence == 6 || event.Sequence == 7 {
+			// A delayed JOINED fact must not rewind an active consultation,
+			// while provider recovery must follow the canonical state machine.
 			intermediate, readErr := store.ReadConsultationResult(ctx, hold.BookingID, intent.ClientIdentityID)
-			want := "RECOVERING"
+			want := "IN_PROGRESS"
 			if event.Sequence == 6 {
-				want = "IN_PROGRESS"
+				want = "RECOVERING"
 			}
 			if readErr != nil || intermediate == nil || intermediate.State != want {
 				t.Fatalf("provider recovery event %d: state=%#v err=%v (want %s)", event.Sequence, intermediate, readErr, want)
 			}
 		}
-		if event.Sequence == 7 {
+		if event.Sequence == 8 {
 			status, decision = postSigned(event)
 			if status != http.StatusOK || decision != connector.DeliveryDuplicate {
 				t.Fatalf("completion replay HTTP=%d decision=%s", status, decision)
 			}
 		}
 	}
-	// Delayed provider failures must not overwrite an already completed
-	// consultation after the durable END evidence was accepted.
-	if status, _ := postSigned(signed(8, "TECHNICAL_FAILURE", "SYSTEM")); status != http.StatusConflict {
+	// Delayed signed provider events must not resurrect a terminal session.
+	// A JOINED event used to downgrade COMPLETED back to READY in PostgreSQL.
+	if status, _ := postSigned(signed(9, "JOINED", "CLIENT")); status != http.StatusConflict {
+		t.Fatalf("late rejoin resurrected completed consultation: HTTP %d", status)
+	}
+	if status, _ := postSigned(signed(9, "TECHNICAL_FAILURE", "SYSTEM")); status != http.StatusConflict {
 		t.Fatalf("late technical failure changed terminal consultation: HTTP %d", status)
 	}
 	// The next Checker is a separate connection, equivalent to restarting API
