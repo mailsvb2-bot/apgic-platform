@@ -43,6 +43,13 @@ type JourneyStore interface {
 	Expire(now time.Time) error
 }
 
+// LiveJourneyStore loads only the specialist/live tenant scope, including
+// holds of offers that have since become unavailable, without rehydrating
+// old conformance checkout or payment fixtures.
+type LiveJourneyStore interface {
+    LoadLiveJourney() (JourneySnapshot, error)
+}
+
 func journeyReasonError(reason string) error {
 	switch reason {
 	case "", "BOOK_HOLD_ACQUIRED", "BOOK_CREATED":
