@@ -219,7 +219,10 @@ func TestSignedConsultationPersistsAcrossAPIStoreRestart(t *testing.T) {
 	}
 	for _, event := range []connector.WebhookEnvelope{
 		signed(1, "JOINED", "CLIENT"), signed(2, "JOINED", "SPECIALIST"),
-		signed(3, "STARTED", "SYSTEM"), signed(4, "ENDED", "SYSTEM"),
+		signed(3, "STARTED", "SYSTEM"), signed(4, "LEFT", "CLIENT"),
+		signed(5, "RECOVERY_STARTED", "SYSTEM"),
+		signed(6, "RECOVERY_SUCCEEDED", "SYSTEM"),
+		signed(7, "ENDED", "SYSTEM"),
 	} {
 		if event.Sequence == 1 {
 			forged := event
@@ -232,12 +235,29 @@ func TestSignedConsultationPersistsAcrossAPIStoreRestart(t *testing.T) {
 		if status != http.StatusOK || decision != connector.DeliveryApply {
 			t.Fatalf("event %d HTTP=%d decision=%s", event.Sequence, status, decision)
 		}
-		if event.Sequence == 4 {
-			status, decision = postSigned(event)
-			if status != http.StatusOK || decision != connector.DeliveryDuplicate {
-				t.Fatalf("replay HTTP=%d decision=%s", status, decision)
+		if event.Sequence == 5 || event.Sequence == 6 {
+			// This exercises the actual signed provider -> PostgreSQL state
+			// transition used when a real client loses and recovers a call.
+			intermediate, readErr := store.ReadConsultationResult(ctx, hold.BookingID, intent.ClientIdentityID)
+			want := "RECOVERING"
+			if event.Sequence == 6 {
+				want = "IN_PROGRESS"
+			}
+			if readErr != nil || intermediate == nil || intermediate.State != want {
+				t.Fatalf("provider recovery event %d: state=%#v err=%v (want %s)", event.Sequence, intermediate, readErr, want)
 			}
 		}
+		if event.Sequence == 7 {
+			status, decision = postSigned(event)
+			if status != http.StatusOK || decision != connector.DeliveryDuplicate {
+				t.Fatalf("completion replay HTTP=%d decision=%s", status, decision)
+			}
+		}
+	}
+	// Delayed provider failures must not overwrite an already completed
+	// consultation after the durable END evidence was accepted.
+	if status, _ := postSigned(signed(8, "TECHNICAL_FAILURE", "SYSTEM")); status != http.StatusConflict {
+		t.Fatalf("late technical failure changed terminal consultation: HTTP %d", status)
 	}
 	// The next Checker is a separate connection, equivalent to restarting API
 	// without any in-process consultation sessions.
