@@ -30,21 +30,26 @@ func liveCatalogFromOffers(offers []BookableOffer) catalog {
 			!offer.Profile.IsPublishedFor(offer.Topic) || len(offer.Slots) == 0 {
 			continue
 		}
-		// One versioned price per published offer/topic; no inferred score or
-		// sponsored placement until a policy-controlled score exists.
+		validSlots := make([]Slot, 0, len(offer.Slots))
+		for _, slot := range offer.Slots {
+			if !slot.Exclusive || slot.ID == "" || slot.OfferID != offer.ID ||
+				slot.SpecialistID != offer.Profile.ID || slot.Topic != offer.Topic {
+				continue
+			}
+			validSlots = append(validSlots, slot)
+		}
+		if len(validSlots) == 0 {
+			continue
+		}
+		// One canonical priced offer per topic; zero-score never implies
+		// sponsored ranking or unverifiable specialist experience.
 		result.candidates = append(result.candidates, marketplace.Candidate{
 			OfferID: offer.ID, Profile: offer.Profile, Formats: []string{FormatOnline},
 			Languages: []string{LanguageRU}, PriceMinor: offer.PriceMinor,
 			Available: true,
 		})
 		result.names[offer.Profile.ID] = offer.Profile.DisplayName
-		for _, slot := range offer.Slots {
-			if !slot.Exclusive || slot.ID == "" || slot.OfferID != offer.ID ||
-				slot.SpecialistID != offer.Profile.ID || slot.Topic != offer.Topic {
-				continue
-			}
-			result.slots = append(result.slots, slot)
-		}
+		result.slots = append(result.slots, validSlots...)
 	}
 	return result
 }
