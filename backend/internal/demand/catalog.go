@@ -9,6 +9,7 @@ import (
 
 const (
 	CatalogModeConformance = "CONFORMANCE"
+	CatalogModeLive        = "LIVE"
 	PolicyVersion          = "qualification-v1"
 	RankingVersion         = "ranking-v1"
 	JurisdictionRU         = "RU"
@@ -32,8 +33,8 @@ type catalog struct {
 	names      map[string]string
 }
 
-func conformanceCatalog(now time.Time) catalog {
-	policy := marketplace.QualificationPolicy{
+func qualificationPolicy() marketplace.QualificationPolicy {
+	return marketplace.QualificationPolicy{
 		Version: PolicyVersion,
 		Rules: []marketplace.QualificationRule{
 			rule("PSYCHOLOGIST", "anxiety"),
@@ -42,6 +43,16 @@ func conformanceCatalog(now time.Time) catalog {
 			rule("CAREER_COACH", "career"),
 		},
 	}
+}
+
+func liveCatalog() catalog {
+	// The live catalog contains policy only. Qualification, offers, prices and
+	// available times must originate in APGIC durable owners, never test seeds.
+	return catalog{policy: qualificationPolicy(), names: map[string]string{}}
+}
+
+func conformanceCatalog(now time.Time) catalog {
+	policy := qualificationPolicy()
 	context := marketplace.PublishContext{
 		Jurisdiction: JurisdictionRU,
 		Format:       FormatOnline,

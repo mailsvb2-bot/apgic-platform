@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/privacy"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/runtimepostgres"
 )
 
 func TestConsentPoliciesFromEnvironmentStagingDisabledFailClosed(t *testing.T) {
@@ -75,5 +76,20 @@ func TestConsentPoliciesFromEnvironmentBuildsCanonicalGrowthPolicy(t *testing.T)
 	if policy.PolicyVersion != "growth-policy-v7" ||
 		policy.TextHashOrVersion != "sha256:approved-copy" {
 		t.Fatalf("unexpected growth policy: %#v", policy)
+	}
+}
+
+func TestCanonicalEnvironmentNeverSelectsConformanceForProductionVariants(t *testing.T) {
+	for _, raw := range []string{"PRODUCTION", "production", " production ", "\tPrOdUcTiOn\n"} {
+		actual := canonicalEnvironment(raw)
+		if actual != "PRODUCTION" || !runtimepostgres.RequiresDatabase(actual) {
+			t.Fatalf("raw %q selected unsafe runtime %q", raw, actual)
+		}
+	}
+	for _, raw := range []string{"STAGING", " staging "} {
+		actual := canonicalEnvironment(raw)
+		if actual != "STAGING" || !runtimepostgres.RequiresDatabase(actual) {
+			t.Fatalf("staging variant %q was not normalized: %q", raw, actual)
+		}
 	}
 }

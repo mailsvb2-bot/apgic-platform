@@ -24,12 +24,20 @@ import (
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/runtimepostgres"
 )
 
+// canonicalEnvironment is shared by persistence readiness and supply-mode
+// selection, so supported case/whitespace variants cannot boot test commerce.
+func canonicalEnvironment(raw string) string {
+	return strings.ToUpper(strings.TrimSpace(raw))
+}
+
 func main() {
 	var readinessCheck func(context.Context) error
 	var storage *runtimepostgres.Checker
 	var ledgerStore demand.LedgerStore
 	var journeyStore demand.JourneyStore
-	environment := os.Getenv("APGIC_ENVIRONMENT")
+	// A lowercase/space-padded PRODUCTION value must never select the
+	// conformance fixture while RequiresDatabase already treats it as live.
+	environment := canonicalEnvironment(os.Getenv("APGIC_ENVIRONMENT"))
 	releaseTrack := envOr("APGIC_RELEASE_TRACK", "R0")
 	clientSessionKey := []byte(os.Getenv("APGIC_CLIENT_SESSION_KEY"))
 	deepLinkSigningKey := []byte(os.Getenv("APGIC_DEEPLINK_SIGNING_KEY"))
@@ -71,7 +79,13 @@ func main() {
 	var demandService *demand.Service
 	if journeyStore != nil {
 		var err error
-		demandService, err = demand.NewConformanceServiceWithStoresAndSpecialists(nil, ledgerStore, journeyStore, storage)
+		if environment == "PRODUCTION" {
+			// Production must never mint the four preapproved demo
+			// specialists, bookable slots or synthetic economic offers.
+			demandService, err = demand.NewLiveServiceWithStoresAndSpecialists(nil, ledgerStore, journeyStore, storage)
+		} else {
+			demandService, err = demand.NewConformanceServiceWithStoresAndSpecialists(nil, ledgerStore, journeyStore, storage)
+		}
 		if err != nil {
 			log.Fatalf("APGIC journey hydration failed: %v", err)
 		}

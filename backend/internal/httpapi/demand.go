@@ -223,7 +223,7 @@ func registerDemand(
 		writeJSON(w, http.StatusOK, map[string]any{
 			"topic":                  topic,
 			"ranking_policy_version": demand.RankingVersion,
-			"catalog_mode":           demand.CatalogModeConformance,
+			"catalog_mode":           service.CatalogMode(),
 			"matches":                cards,
 		})
 	})

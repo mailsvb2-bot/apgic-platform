@@ -330,6 +330,17 @@ func (c *Checker) LoadJourney(slots []demand.Slot) (demand.JourneySnapshot, erro
 		return snapshot, fmt.Errorf("iterate help intents: %w", err)
 	}
 	rows.Close()
+	if len(slots) == 0 {
+		// Production supply without any certified/bookable offers still
+		// restores its canonical HelpIntents. Historical conformance
+		// bookings and payments remain in PostgreSQL, but must never be
+		// presented as production client bookings. No source rows are
+		// deleted or rewritten during this transition.
+		if err := tx.Commit(); err != nil {
+			return snapshot, fmt.Errorf("commit intent-only journey snapshot: %w", err)
+		}
+		return snapshot, nil
+	}
 
 	rows, err = tx.QueryContext(ctx,
 		`SELECT h.id::text, s.specialist_identity_id::text, s.starts_at,
