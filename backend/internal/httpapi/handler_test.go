@@ -26,6 +26,32 @@ func readyConfig() launchconfig.Config {
 	}
 }
 
+func TestPublicCannotMutateSpecialistSearchProjection(t *testing.T) {
+	service := demand.NewConformanceService(nil)
+	for _, path := range []string{"/v1/search/stale", "/v1/search/rebuild"} {
+		t.Run(path, func(t *testing.T) {
+			handler := New(Options{Demand: service})
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, httptest.NewRequest(http.MethodPost, path,
+				strings.NewReader(`{"topic":"sleep","specialist_id":"spec-lebedeva"}`)))
+			if response.Code != http.StatusForbidden ||
+				!contains(response.Body.String(), "SEARCH_CONFORMANCE_ONLY") {
+				t.Fatalf("public search mutation status=%d body=%s", response.Code, response.Body.String())
+			}
+		})
+	}
+
+	// Explicit isolated conformance runs preserve the diagnostic endpoint,
+	// without exposing it in deployed PostgreSQL-backed environments.
+	conformance := New(Options{Demand: service, ConformanceProviderEvents: true})
+	response := httptest.NewRecorder()
+	conformance.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/v1/search/rebuild",
+		strings.NewReader(`{"topic":"sleep"}`)))
+	if response.Code != http.StatusOK {
+		t.Fatalf("isolated search rebuild status=%d body=%s", response.Code, response.Body.String())
+	}
+}
+
 func TestPublicProviderEventCannotSelfAttestPayment(t *testing.T) {
 	handler := New(Options{})
 	recorder := httptest.NewRecorder()
