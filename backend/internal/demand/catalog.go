@@ -19,6 +19,8 @@ const (
 )
 
 type Slot struct {
+	OfferID      string    `json:"offer_id,omitempty"`
+	Topic        string    `json:"topic,omitempty"`
 	ID           string    `json:"id"`
 	SpecialistID string    `json:"specialist_id"`
 	StartsAt     time.Time `json:"starts_at"`
