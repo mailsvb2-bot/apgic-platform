@@ -7,7 +7,7 @@ import (
 )
 
 type memoryDeliveryStore struct {
-	plans map[string]DeliveryPlan
+	plans      map[string]DeliveryPlan
 	dispatches map[string]bool
 }
 
@@ -32,8 +32,8 @@ func (s *memoryDeliveryStore) ReserveNotificationPushDispatch(_ context.Context,
 	s.dispatches[plan.DeliveryID] = true
 	return PushTransportEnvelope{
 		ContractVersion: "notification-transport-v1",
-		DeliveryID: plan.DeliveryID,
-		IntentID: plan.IntentID,
+		DeliveryID:      plan.DeliveryID,
+		IntentID:        plan.IntentID,
 	}, nil
 }
 
