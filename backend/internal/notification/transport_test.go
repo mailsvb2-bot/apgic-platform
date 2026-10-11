@@ -112,7 +112,6 @@ func TestChannelPreferenceSuppressesBeforeProviderEnvelope(t *testing.T) {
 	}
 }
 
-
 func TestPushEnvelopeRejectsNonPendingDeliveryStates(t *testing.T) {
 	for _, state := range []DeliveryState{
 		DeliverySent,
