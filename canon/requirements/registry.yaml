@@ -2779,6 +2779,9 @@ requirements:
   - apps/mobile/src/mobile-notification-client.ts
   - backend/internal/notification/transport.go
   - backend/internal/runtimepostgres/notification.go
+  - backend/internal/notification/dispatch.go
+  - backend/internal/runtimepostgres/notification_dispatch.go
+  - backend/migrations/000030_r2_notification_push_dispatch_reservations.sql
   - backend/internal/httpapi/mobile_notification.go
   - backend/migrations/000011_r2_transaction_edge.sql
   - backend/migrations/000025_r2_notification_policy_runtime.sql
@@ -2798,6 +2801,7 @@ requirements:
   - .github/workflows/ci.yml
   evidence_refs:
   - docs/traceability/R2-mobile007-notification-runtime.md
+  - docs/traceability/R2-mobile007-atomic-push-dispatch.md
   - surface://WEB/mobile007-notification-transport/run-36906994292/job-110519954885
   - surface://IOS/mobile007-notification-transport/run-36906994292/job-110519955325
   - surface://ANDROID/mobile007-notification-transport/run-36906994292/job-110519955578
