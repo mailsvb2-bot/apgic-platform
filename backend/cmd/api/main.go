@@ -24,6 +24,12 @@ import (
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/runtimepostgres"
 )
 
+// canonicalEnvironment is shared by persistence readiness and supply-mode
+// selection, so supported case/whitespace variants cannot boot test commerce.
+func canonicalEnvironment(raw string) string {
+	return strings.ToUpper(strings.TrimSpace(raw))
+}
+
 func main() {
 	var readinessCheck func(context.Context) error
 	var storage *runtimepostgres.Checker
@@ -31,7 +37,7 @@ func main() {
 	var journeyStore demand.JourneyStore
 	// A lowercase/space-padded PRODUCTION value must never select the
 	// conformance fixture while RequiresDatabase already treats it as live.
-	environment := strings.ToUpper(strings.TrimSpace(os.Getenv("APGIC_ENVIRONMENT")))
+	environment := canonicalEnvironment(os.Getenv("APGIC_ENVIRONMENT"))
 	releaseTrack := envOr("APGIC_RELEASE_TRACK", "R0")
 	clientSessionKey := []byte(os.Getenv("APGIC_CLIENT_SESSION_KEY"))
 	deepLinkSigningKey := []byte(os.Getenv("APGIC_DEEPLINK_SIGNING_KEY"))
