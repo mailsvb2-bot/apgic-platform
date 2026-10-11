@@ -74,18 +74,36 @@ RETURNS boolean LANGUAGE sql STABLE AS $$
   )
 $$;
 
+CREATE FUNCTION apgic_live_offer_insert_guard()
+RETURNS trigger LANGUAGE plpgsql AS $
+BEGIN
+  IF NOT apgic_live_offer_valid(NEW.id) THEN
+    RAISE EXCEPTION 'live offer requires reviewed publication and authorized Product';
+  END IF;
+  RETURN NEW;
+END;
+$;
+CREATE TRIGGER specialist_live_offer_qualification_guard
+AFTER INSERT ON specialist_bookable_offers
+FOR EACH ROW EXECUTE FUNCTION apgic_live_offer_insert_guard();
+
 CREATE FUNCTION apgic_live_slot_write_guard()
 RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE
   offer_identity uuid;
 BEGIN
   IF TG_OP = 'UPDATE' THEN
-    IF NEW.specialist_offer_id IS DISTINCT FROM OLD.specialist_offer_id
-       OR NEW.specialist_identity_id IS DISTINCT FROM OLD.specialist_identity_id
-       OR NEW.tenant_scope IS DISTINCT FROM OLD.tenant_scope
-       OR NEW.starts_at IS DISTINCT FROM OLD.starts_at
-       OR NEW.ends_at IS DISTINCT FROM OLD.ends_at THEN
-      RAISE EXCEPTION 'live booking slot ownership and timing are immutable';
+    -- Existing conformance catalog may refresh its rolling test horizon.
+    -- Never impose LIVE immutability on unrelated conformance rows.
+    IF OLD.tenant_scope = 'specialist/live'
+       OR NEW.tenant_scope = 'specialist/live' THEN
+      IF NEW.specialist_offer_id IS DISTINCT FROM OLD.specialist_offer_id
+         OR NEW.specialist_identity_id IS DISTINCT FROM OLD.specialist_identity_id
+         OR NEW.tenant_scope IS DISTINCT FROM OLD.tenant_scope
+         OR NEW.starts_at IS DISTINCT FROM OLD.starts_at
+         OR NEW.ends_at IS DISTINCT FROM OLD.ends_at THEN
+        RAISE EXCEPTION 'live booking slot ownership and timing are immutable';
+      END IF;
     END IF;
     RETURN NEW;
   END IF;
