@@ -865,7 +865,7 @@ export function Journey() {
             </ul>
           ) : null}
 
-          {search ? (
+          {search && conformanceProviderEvents ? (
             <details className="journey-proof-tools">
               <summary>Проверка каталога и поисковой проекции</summary>
               <div className="journey-proof-body">
