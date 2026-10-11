@@ -69,13 +69,94 @@ func TestSignedConsultationPersistsAcrossAPIStoreRestart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = service.CreateCheckout(hold.ID, intent.ClientIdentityID, "SBP"); err != nil {
+	// Unlike an artificial direct UPDATE of bookings, the payment boundary is
+	// exercised end-to-end: signed PSP webhook -> canonical payment evidence ->
+	// persistent economic ledger -> PostgreSQL CONFIRMED booking.
+	checkout, err := service.CreateCheckout(hold.ID, intent.ClientIdentityID, "SBP")
+	if err != nil {
 		t.Fatal(err)
 	}
-	// Represents a prior trusted payment-provider capture in the isolated fixture.
-	if _, err = store.db.ExecContext(ctx,
-		"UPDATE bookings SET state=$1,updated_at=now() WHERE id=$2::uuid", booking.StateConfirmed, hold.BookingID); err != nil {
+	if checkout.APGICAcceptsFunds || checkout.ExecutionOwner != "EXTERNAL_PROVIDER" {
+		t.Fatalf("payment custody is not external: %#v", checkout)
+	}
+	// Payment connector keys are provider-scoped: only the provider named
+	// in the immutable checkout may sign its economic CAPTURED event.
+	paymentConnectorID := checkout.ProviderID
+	paymentPublic, paymentPrivate, err := ed25519.GenerateKey(nil)
+	if err != nil {
 		t.Fatal(err)
+	}
+	paymentKeys := connectorWebhookKeyMap{paymentConnectorID + "/payment-key": paymentPublic}
+	paymentAPI := httpapi.New(httpapi.Options{
+		Demand: service, ProviderWebhookKeys: paymentKeys, ClientSessionKey: sessionKey,
+	})
+	paymentEventID := "payment-capture-" + hold.BookingID
+	paymentPayload, err := json.Marshal(map[string]any{
+		"provider_id":       checkout.ProviderID,
+		"provider_event_id": paymentEventID,
+		"order_id":          checkout.OrderID,
+		"amount_minor":      checkout.AmountMinor,
+		"currency":          checkout.Currency,
+		"outcome":           "CAPTURED",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	paymentEnvelope := connector.WebhookEnvelope{
+		ConnectorInstanceID: paymentConnectorID,
+		ExternalEventID:     paymentEventID,
+		StreamID:            "payment/" + checkout.OrderID,
+		Sequence:            1,
+		KeyID:               "payment-key",
+		OccurredAt:          time.Now().UTC(),
+		Payload:             paymentPayload,
+	}
+	paymentRaw := connectorWebhookSigningPayload{
+		ConnectorInstanceID: paymentEnvelope.ConnectorInstanceID,
+		ExternalEventID:     paymentEnvelope.ExternalEventID,
+		StreamID:            paymentEnvelope.StreamID,
+		Sequence:            paymentEnvelope.Sequence,
+		KeyID:               paymentEnvelope.KeyID,
+		OccurredAt:          paymentEnvelope.OccurredAt,
+		Payload:             paymentEnvelope.Payload,
+	}
+	paymentBytes, err := json.Marshal(paymentRaw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	postPayment := func(event connector.WebhookEnvelope) (int, string) {
+		body, marshalErr := json.Marshal(event)
+		if marshalErr != nil {
+			t.Fatal(marshalErr)
+		}
+		response := httptest.NewRecorder()
+		paymentAPI.ServeHTTP(response,
+			httptest.NewRequest(http.MethodPost, "/v1/provider-webhooks", strings.NewReader(string(body))))
+		return response.Code, response.Body.String()
+	}
+	forgedPayment := paymentEnvelope
+	forgedPayment.Signature = base64.StdEncoding.EncodeToString(make([]byte, ed25519.SignatureSize))
+	if status, body := postPayment(forgedPayment); status != http.StatusUnauthorized {
+		t.Fatalf("forged payment accepted: HTTP %d body=%s", status, body)
+	}
+	paymentEnvelope.Signature = base64.StdEncoding.EncodeToString(ed25519.Sign(paymentPrivate, paymentBytes))
+	if status, body := postPayment(paymentEnvelope); status != http.StatusCreated {
+		t.Fatalf("signed payment capture rejected: HTTP %d body=%s", status, body)
+	}
+	if status, body := postPayment(paymentEnvelope); status != http.StatusOK {
+		t.Fatalf("replayed payment was not idempotent: HTTP %d body=%s", status, body)
+	}
+	confirmed, err := service.HoldStatus(hold.ID, intent.ClientIdentityID)
+	if err != nil || confirmed.BookingState != booking.StateConfirmed {
+		t.Fatalf("signed payment did not confirm booking: hold=%#v err=%v", confirmed, err)
+	}
+	var canonicalState string
+	if err := store.db.QueryRowContext(ctx,
+		"SELECT state FROM bookings WHERE id=$1::uuid", hold.BookingID).Scan(&canonicalState); err != nil {
+		t.Fatal(err)
+	}
+	if canonicalState != string(booking.StateConfirmed) {
+		t.Fatalf("PostgreSQL booking state=%s, expected CONFIRMED", canonicalState)
 	}
 	connectorID, err := persistentid.New()
 	if err != nil {

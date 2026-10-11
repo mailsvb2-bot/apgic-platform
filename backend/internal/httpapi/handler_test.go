@@ -118,7 +118,10 @@ func TestTrustedProviderWebhookRequiresSignatureAndConfirmsExactlyOnce(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	const connectorID = "payment-connector-sandbox"
+	// The signed payment connector identity must match the canonical provider
+	// on the checkout. A different configured key must not capture its order.
+	connectorID := instruction.ProviderID
+	const foreignConnectorID = "other-payment-provider"
 	const keyID = "provider-key-v1"
 	eventID := "provider-event-signed"
 	payload, err := json.Marshal(providerEventRequest{
@@ -143,12 +146,37 @@ func TestTrustedProviderWebhookRequiresSignatureAndConfirmsExactlyOnce(t *testin
 	}, privateKey)
 
 	handler := New(Options{
-		Demand:              service,
-		ProviderWebhookKeys: providerWebhookKeyMap{connectorID + "/" + keyID: publicKey},
+		Demand: service,
+		ProviderWebhookKeys: providerWebhookKeyMap{
+			connectorID + "/" + keyID:        publicKey,
+			foreignConnectorID + "/" + keyID: publicKey,
+		},
 	})
 	encoded, err := json.Marshal(envelope)
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	// Valid Ed25519 signature by another configured provider is not payment
+	// authority for this order. Check it before the legitimate capture.
+	crossProvider := envelope
+	crossProvider.ConnectorInstanceID = foreignConnectorID
+	crossProvider = signProviderWebhook(t, crossProvider, privateKey)
+	crossJSON, err := json.Marshal(crossProvider)
+	if err != nil {
+		t.Fatal(err)
+	}
+	crossResponse := httptest.NewRecorder()
+	handler.ServeHTTP(crossResponse, httptest.NewRequest(http.MethodPost,
+		"/v1/provider-webhooks", strings.NewReader(string(crossJSON))))
+	if crossResponse.Code != http.StatusUnauthorized ||
+		!contains(crossResponse.Body.String(), "PROVIDER_WEBHOOK_PROVIDER_MISMATCH") {
+		t.Fatalf("foreign provider signature accepted payment: HTTP=%d body=%s",
+			crossResponse.Code, crossResponse.Body.String())
+	}
+	beforeCapture, err := service.HoldStatus(hold.ID, intent.ClientIdentityID)
+	if err != nil || beforeCapture.BookingState != "PENDING_PAYMENT" {
+		t.Fatalf("foreign payment affected booking state: hold=%#v err=%v", beforeCapture, err)
 	}
 
 	first := httptest.NewRecorder()
