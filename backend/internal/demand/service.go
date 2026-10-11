@@ -165,7 +165,9 @@ func NewLiveServiceWithStoresAndSpecialists(
 		return nil, err
 	}
 	snapshot, err := journeyStore.(LiveJourneyStore).LoadLiveJourney()
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	if err := service.applyJourneySnapshotLocked(snapshot); err != nil {
 		return nil, err
 	}
@@ -318,9 +320,13 @@ func (s *Service) applyJourneySnapshotLocked(snapshot JourneySnapshot) error {
 func (s *Service) refreshCatalogLocked() error {
 	if s.liveSupplyMode {
 		store, ok := s.specialistStore.(LiveBookableStore)
-		if !ok { return ErrSpecialistSupplyUnavailable }
+		if !ok {
+			return ErrSpecialistSupplyUnavailable
+		}
 		offers, err := store.BookableOffers()
-		if err != nil { return err }
+		if err != nil {
+			return err
+		}
 		s.catalog = liveCatalogFromOffers(offers)
 		return nil
 	}
@@ -346,9 +352,13 @@ func (s *Service) refreshJourneyLocked() error {
 	}
 	if s.liveSupplyMode {
 		store, ok := s.journeyStore.(LiveJourneyStore)
-		if !ok { return ErrSpecialistSupplyUnavailable }
+		if !ok {
+			return ErrSpecialistSupplyUnavailable
+		}
 		snapshot, err := store.LoadLiveJourney()
-		if err != nil { return err }
+		if err != nil {
+			return err
+		}
 		return s.applyJourneySnapshotLocked(snapshot)
 	}
 	snapshot, err := s.journeyStore.LoadJourney(s.journeyRefSlots)
@@ -562,7 +572,7 @@ func (s *Service) Matches(intentID, topic string) ([]MatchCard, string, error) {
 	cards := make([]MatchCard, 0, len(ranked))
 	for _, match := range ranked {
 		cards = append(cards, MatchCard{
-			OfferID: match.OfferID,
+			OfferID:      match.OfferID,
 			SpecialistID: match.SpecialistID,
 			DisplayName:  match.DisplayName,
 			Profession:   professionOf(s.catalog.candidates, match.SpecialistID),
@@ -587,7 +597,9 @@ func (s *Service) SlotsForOffer(specialistID, offerID string) ([]Slot, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.journeyStore == nil {
-		if err := s.refreshCatalogLocked(); err != nil { return nil, err }
+		if err := s.refreshCatalogLocked(); err != nil {
+			return nil, err
+		}
 	}
 	if _, ok := s.catalog.names[specialistID]; !ok || specialistID == "spec-draft" {
 		return nil, ErrSpecialistNotFound
@@ -644,18 +656,26 @@ func (s *Service) AcquireHold(intentID, slotID, clientIdentityID string) (*Hold,
 		if slot.Topic == "" || slot.OfferID == "" || !containsTopic(intent.Topics, slot.Topic) {
 			return nil, ErrSlotUnavailable
 		}
-		domainIntent := marketplace.HelpIntent{ID:intent.ID, FreeText:intent.FreeText, Topics:intent.Topics, Goals:intent.Goals, Context:intent.Context, Status:intent.Status}
+		domainIntent := marketplace.HelpIntent{ID: intent.ID, FreeText: intent.FreeText, Topics: intent.Topics, Goals: intent.Goals, Context: intent.Context, Status: intent.Status}
 		eligible, err := marketplace.MatchEligible(s.catalog.policy, marketplace.MatchRequest{
 			Intent: domainIntent, Topic: slot.Topic,
-			Jurisdiction:contextOr(intent.Context,"jurisdiction",JurisdictionRU),
-			Format:contextOr(intent.Context,"format",FormatOnline),
-			AgeGroup:contextOr(intent.Context,"age_group",AgeGroupAdult),
-			Language:contextOr(intent.Context,"language",LanguageRU),
+			Jurisdiction: contextOr(intent.Context, "jurisdiction", JurisdictionRU),
+			Format:       contextOr(intent.Context, "format", FormatOnline),
+			AgeGroup:     contextOr(intent.Context, "age_group", AgeGroupAdult),
+			Language:     contextOr(intent.Context, "language", LanguageRU),
 		}, s.catalog.candidates)
-		if err != nil { return nil, err }
+		if err != nil {
+			return nil, err
+		}
 		approved := false
-		for _, candidate := range eligible { if candidate.SpecialistID == slot.SpecialistID && candidate.OfferID == slot.OfferID { approved = true } }
-		if !approved { return nil, ErrSlotUnavailable }
+		for _, candidate := range eligible {
+			if candidate.SpecialistID == slot.SpecialistID && candidate.OfferID == slot.OfferID {
+				approved = true
+			}
+		}
+		if !approved {
+			return nil, ErrSlotUnavailable
+		}
 	}
 	if !slot.Exclusive {
 		return nil, ErrSlotNotExclusive
@@ -727,7 +747,11 @@ func (s *Service) HoldStatus(holdID, clientIdentityID string) (*Hold, error) {
 }
 
 func containsTopic(topics []string, topic string) bool {
-	for _, current := range topics { if current == topic { return true } }
+	for _, current := range topics {
+		if current == topic {
+			return true
+		}
+	}
 	return false
 }
 
