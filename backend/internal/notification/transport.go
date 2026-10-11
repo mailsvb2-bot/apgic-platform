@@ -190,17 +190,6 @@ func PlanDelivery(intent Intent, request DeliveryRequest, policy DeliveryPolicy)
 	return plan, decision, nil
 }
 
-func PushEnvelope(plan DeliveryPlan) (PushTransportEnvelope, error) {
-	if plan.Channel != ChannelPush || strings.TrimSpace(plan.DeliveryID) == "" || strings.TrimSpace(plan.IntentID) == "" || plan.State != DeliveryPending {
-		return PushTransportEnvelope{}, ErrInvalidDelivery
-	}
-	return PushTransportEnvelope{
-		ContractVersion: "notification-transport-v1",
-		DeliveryID:      plan.DeliveryID,
-		IntentID:        plan.IntentID,
-	}, nil
-}
-
 func PreviewModeFor(dataClass string, channel Channel, allowSensitivePreview bool) PreviewMode {
 	if channel != ChannelPush {
 		return PreviewFull
