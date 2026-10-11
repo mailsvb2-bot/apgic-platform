@@ -117,7 +117,12 @@ func (c *Checker) ReadConsultationResult(ctx context.Context, bookingID, clientI
 	}
 	var result connector.ConsultationResult
 	var evidence sql.NullString
-	err := c.db.QueryRowContext(ctx, `SELECT s.booking_id, s.state, s.provider_instance_id,
+	err := c.db.QueryRowContext(ctx, `SELECT s.booking_id, s.state,
+        COALESCE(
+          (SELECT f.provider_instance_id FROM consultation_lifecycle_facts f
+            WHERE f.session_id=s.id AND f.fact_type='ENDED'
+            ORDER BY f.occurred_at DESC, f.id DESC LIMIT 1),
+          s.provider_instance_id),
         (SELECT f.evidence_ref FROM consultation_lifecycle_facts f
           WHERE f.session_id=s.id AND f.fact_type='ENDED'
           ORDER BY f.occurred_at DESC, f.id DESC LIMIT 1)
