@@ -1,10 +1,14 @@
 package demand
 
 import (
+	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/marketplace"
 )
+
+var ErrSpecialistSupplyUnavailable = errors.New("trusted specialist supply is unavailable")
 
 const (
 	searchVersion = "search-projection-v1"
@@ -36,17 +40,31 @@ func (s *Service) Search(topic string) (*SearchView, error) {
 	if strings.TrimSpace(topic) == "" {
 		return nil, ErrTopicRequired
 	}
+	// Public reads must see current PostgreSQL review/publication state.
+	// Never hold the global demand mutex across external storage I/O: that
+	// would serialize public searches with booking, payment and consultation.
+	if s.specialistStore != nil {
+		s.mu.Lock()
+		profiles := make([]marketplace.SpecialistProfile, 0, len(s.catalog.candidates))
+		for _, candidate := range s.catalog.candidates {
+			profiles = append(profiles, candidate.Profile)
+		}
+		s.mu.Unlock()
+
+		durable, err := s.specialistStore.PublishedProfiles()
+		if err != nil {
+			return nil, fmt.Errorf("%w: %v", ErrSpecialistSupplyUnavailable, err)
+		}
+		profiles = append(profiles, durable...)
+		// This is a request-local rebuildable projection, not new canonical
+		// truth. Concurrent responses cannot overwrite a newer shared cache.
+		projection := marketplace.RebuildSearchProjection(searchVersion, profiles)
+		return searchView(projection, topic, false, false), nil
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	// A durable public listing is security-sensitive: unpublished, revoked,
-	// expired or unreviewed specialists must disappear on the very next read.
-	// Keep the rebuildable projection, but never serve an unchecked in-memory
-	// snapshot when canonical PostgreSQL supply is attached.
-	if s.specialistStore != nil {
-		if err := s.rebuildProjectionLocked(); err != nil {
-			return nil, err
-		}
-	} else if err := s.ensureProjectionLocked(); err != nil {
+	if err := s.ensureProjectionLocked(); err != nil {
 		return nil, err
 	}
 	return s.searchViewLocked(topic, false), nil
@@ -107,7 +125,11 @@ func (s *Service) rebuildProjectionLocked() error {
 }
 
 func (s *Service) searchViewLocked(topic string, rebuilt bool) *SearchView {
-	entries := s.projection.SearchTopic(topic)
+	return searchView(s.projection, topic, rebuilt, s.searchStale)
+}
+
+func searchView(projection marketplace.SearchProjection, topic string, rebuilt, stale bool) *SearchView {
+	entries := projection.SearchTopic(topic)
 	hits := make([]SearchHit, 0, len(entries))
 	for _, entry := range entries {
 		hits = append(hits, SearchHit{
@@ -117,14 +139,14 @@ func (s *Service) searchViewLocked(topic string, rebuilt bool) *SearchView {
 		})
 	}
 	notice := searchNotice
-	if s.searchStale {
+	if stale {
 		notice = staleNotice
 	}
 	return &SearchView{
-		Version:           s.projection.Version,
+		Version:           projection.Version,
 		Topic:             topic,
 		Rebuilt:           rebuilt,
-		Stale:             s.searchStale,
+		Stale:             stale,
 		OwnsQualification: false,
 		Entries:           hits,
 		Notice:            notice,
