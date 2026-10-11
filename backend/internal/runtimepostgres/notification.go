@@ -25,12 +25,16 @@ func (c *Checker) ClaimNotificationDelivery(ctx context.Context, plan notificati
 	var policyVersion string
 	var channelAllowed bool
 	var sensitivePreviewPolicy string
+	var deliveryWindowOpen bool
+	var intentExpired bool
 	err = tx.QueryRowContext(ctx, `
 		SELECT booking_id::text,
 		       data_class,
 		       channel_policy_version,
 		       COALESCE((channel_preferences ->> $2)::boolean, false),
-		       sensitive_preview_policy
+		       sensitive_preview_policy,
+		       CURRENT_TIMESTAMP >= not_before,
+		       expires_at IS NOT NULL AND CURRENT_TIMESTAMP >= expires_at
 		FROM notification_intents
 		WHERE id::text = $1
 	`, plan.IntentID, string(plan.Channel)).Scan(
@@ -39,6 +43,8 @@ func (c *Checker) ClaimNotificationDelivery(ctx context.Context, plan notificati
 		&policyVersion,
 		&channelAllowed,
 		&sensitivePreviewPolicy,
+		&deliveryWindowOpen,
+		&intentExpired,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return notification.DeliveryPlan{}, false, notification.ErrInvalidDelivery
@@ -62,6 +68,29 @@ func (c *Checker) ClaimNotificationDelivery(ctx context.Context, plan notificati
 		plan.Channel,
 		strings.EqualFold(sensitivePreviewPolicy, "FULL_ALLOWED"),
 	)
+
+	// Scheduling and expiry are canonical NotificationIntent facts, not
+	// assertions from a caller-controlled timestamp. Check them against the
+	// PostgreSQL transaction clock before creating *new* provider work.
+	// Historical idempotent delivery replays are still allowed after expiry:
+	// they return the existing row, never enqueue a second notification.
+	if plan.State == notification.DeliveryPending && (!deliveryWindowOpen || intentExpired) {
+		var alreadyClaimed bool
+		if err := tx.QueryRowContext(ctx, `
+			SELECT EXISTS (
+				SELECT 1 FROM notification_deliveries
+				 WHERE delivery_idempotency_key = $1
+			)
+		`, plan.IdempotencyKey).Scan(&alreadyClaimed); err != nil {
+			return notification.DeliveryPlan{}, false, err
+		}
+		if !alreadyClaimed {
+			if intentExpired {
+				return notification.DeliveryPlan{}, false, notification.ErrDeliveryExpired
+			}
+			return notification.DeliveryPlan{}, false, notification.ErrDeliveryNotBefore
+		}
+	}
 
 	if plan.State == notification.DeliverySuppressed {
 		var duplicate bool
