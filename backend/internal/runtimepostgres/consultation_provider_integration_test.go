@@ -92,33 +92,33 @@ func TestSignedConsultationPersistsAcrossAPIStoreRestart(t *testing.T) {
 	})
 	paymentEventID := "payment-capture-" + hold.BookingID
 	paymentPayload, err := json.Marshal(map[string]any{
-		"provider_id": checkout.ProviderID,
+		"provider_id":       checkout.ProviderID,
 		"provider_event_id": paymentEventID,
-		"order_id": checkout.OrderID,
-		"amount_minor": checkout.AmountMinor,
-		"currency": checkout.Currency,
-		"outcome": "CAPTURED",
+		"order_id":          checkout.OrderID,
+		"amount_minor":      checkout.AmountMinor,
+		"currency":          checkout.Currency,
+		"outcome":           "CAPTURED",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	paymentEnvelope := connector.WebhookEnvelope{
 		ConnectorInstanceID: paymentConnectorID,
-		ExternalEventID: paymentEventID,
-		StreamID: "payment/" + checkout.OrderID,
-		Sequence: 1,
-		KeyID: "payment-key",
-		OccurredAt: time.Now().UTC(),
-		Payload: paymentPayload,
+		ExternalEventID:     paymentEventID,
+		StreamID:            "payment/" + checkout.OrderID,
+		Sequence:            1,
+		KeyID:               "payment-key",
+		OccurredAt:          time.Now().UTC(),
+		Payload:             paymentPayload,
 	}
 	paymentRaw := connectorWebhookSigningPayload{
 		ConnectorInstanceID: paymentEnvelope.ConnectorInstanceID,
-		ExternalEventID: paymentEnvelope.ExternalEventID,
-		StreamID: paymentEnvelope.StreamID,
-		Sequence: paymentEnvelope.Sequence,
-		KeyID: paymentEnvelope.KeyID,
-		OccurredAt: paymentEnvelope.OccurredAt,
-		Payload: paymentEnvelope.Payload,
+		ExternalEventID:     paymentEnvelope.ExternalEventID,
+		StreamID:            paymentEnvelope.StreamID,
+		Sequence:            paymentEnvelope.Sequence,
+		KeyID:               paymentEnvelope.KeyID,
+		OccurredAt:          paymentEnvelope.OccurredAt,
+		Payload:             paymentEnvelope.Payload,
 	}
 	paymentBytes, err := json.Marshal(paymentRaw)
 	if err != nil {
