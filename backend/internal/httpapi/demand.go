@@ -682,6 +682,9 @@ func writeDemandFailure(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, demand.ErrTextRequired):
 		writeDemandError(w, r, http.StatusBadRequest, "HELP_INTENT_TEXT_REQUIRED", "Опишите запрос своими словами.", false, nil)
+	case errors.Is(err, demand.ErrSpecialistSupplyUnavailable):
+		writeDemandError(w, r, http.StatusServiceUnavailable, "SPECIALIST_SUPPLY_UNAVAILABLE",
+			"Актуальные данные специалистов временно недоступны. Повторите попытку.", true, nil)
 	case errors.Is(err, demand.ErrTopicRequired):
 		writeDemandError(w, r, http.StatusBadRequest, "HELP_INTENT_TOPIC_REQUIRED", "Выберите хотя бы одну тему.", false, nil)
 	case errors.Is(err, demand.ErrTopicUnknown):
