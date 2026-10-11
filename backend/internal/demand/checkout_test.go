@@ -388,8 +388,8 @@ func TestLiveCheckoutFailsClosedEvenWithHistoricalFixtureHold(t *testing.T) {
 			t.Fatalf("live created fixture checkout for %s: %#v, %v", method, instruction, err)
 		}
 	}
-	if len(service.instructions) != 0 || len(service.orders) != 0 {
-		t.Fatalf("live checkout wrote synthetic economic state: instructions=%d orders=%d", len(service.instructions), len(service.orders))
+	if len(service.instructions) != 0 || len(service.orderEvidence) != 0 {
+		t.Fatalf("live checkout wrote synthetic economic state: instructions=%d order_evidence=%d", len(service.instructions), len(service.orderEvidence))
 	}
 	// The hold is not silently consumed or booked by a rejected payment route.
 	if hold.State != "ACTIVE" || len(service.bookings) != 0 {
