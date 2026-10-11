@@ -36,4 +36,5 @@ type OfferStore interface {
 	CreateBookableOffer(identityID, productID, topicID string, priceMinor int64) (BookableOffer, error)
 	AddBookableSlot(identityID, offerID string, start, end time.Time) (BookableSlot, error)
 	ListBookableOffers(identityID string) ([]BookableOffer, error)
+	PauseBookableOffer(identityID, offerID string) (BookableOffer, error)
 }
