@@ -62,6 +62,7 @@ type Intent struct {
 }
 
 type MatchCard struct {
+	OfferID      string   `json:"offer_id,omitempty"`
 	SpecialistID string   `json:"specialist_id"`
 	DisplayName  string   `json:"display_name"`
 	Profession   string   `json:"profession"`
@@ -144,6 +145,12 @@ func NewLiveServiceWithStoresAndSpecialists(
 	if journeyStore == nil || specialistStore == nil {
 		return nil, errors.New("production catalog requires durable journey and specialist stores")
 	}
+	if _, ok := specialistStore.(LiveBookableStore); !ok {
+		return nil, errors.New("production catalog requires PostgreSQL bookable offer owner")
+	}
+	if _, ok := journeyStore.(LiveJourneyStore); !ok {
+		return nil, errors.New("production journey requires canonical live booking persistence")
+	}
 	service, err := newConformanceService(now, ledgerStore, nil, specialistStore)
 	if err != nil {
 		return nil, err
@@ -154,10 +161,11 @@ func NewLiveServiceWithStoresAndSpecialists(
 	// Intents continue to use canonical durable persistence. Historical
 	// conformance holds/bookings remain in PostgreSQL but are not rehydrated
 	// as live offers, avoiding loss or false monetization of existing records.
-	snapshot, err := journeyStore.LoadJourney(nil)
-	if err != nil {
+	if err := service.refreshCatalogLocked(); err != nil {
 		return nil, err
 	}
+	snapshot, err := journeyStore.(LiveJourneyStore).LoadLiveJourney()
+	if err != nil { return nil, err }
 	if err := service.applyJourneySnapshotLocked(snapshot); err != nil {
 		return nil, err
 	}
@@ -309,7 +317,11 @@ func (s *Service) applyJourneySnapshotLocked(snapshot JourneySnapshot) error {
 
 func (s *Service) refreshCatalogLocked() error {
 	if s.liveSupplyMode {
-		// The live supply owner is PostgreSQL, never the static fixture.
+		store, ok := s.specialistStore.(LiveBookableStore)
+		if !ok { return ErrSpecialistSupplyUnavailable }
+		offers, err := store.BookableOffers()
+		if err != nil { return err }
+		s.catalog = liveCatalogFromOffers(offers)
 		return nil
 	}
 	fresh := conformanceCatalog(s.now().UTC())
@@ -331,6 +343,13 @@ func (s *Service) refreshJourneyLocked() error {
 	}
 	if err := s.refreshCatalogLocked(); err != nil {
 		return err
+	}
+	if s.liveSupplyMode {
+		store, ok := s.journeyStore.(LiveJourneyStore)
+		if !ok { return ErrSpecialistSupplyUnavailable }
+		snapshot, err := store.LoadLiveJourney()
+		if err != nil { return err }
+		return s.applyJourneySnapshotLocked(snapshot)
 	}
 	snapshot, err := s.journeyStore.LoadJourney(s.journeyRefSlots)
 	if err != nil {
@@ -543,6 +562,7 @@ func (s *Service) Matches(intentID, topic string) ([]MatchCard, string, error) {
 	cards := make([]MatchCard, 0, len(ranked))
 	for _, match := range ranked {
 		cards = append(cards, MatchCard{
+			OfferID: match.OfferID,
 			SpecialistID: match.SpecialistID,
 			DisplayName:  match.DisplayName,
 			Profession:   professionOf(s.catalog.candidates, match.SpecialistID),
@@ -557,12 +577,17 @@ func (s *Service) Matches(intentID, topic string) ([]MatchCard, string, error) {
 }
 
 func (s *Service) Slots(specialistID string) ([]Slot, error) {
+	return s.SlotsForOffer(specialistID, "")
+}
+
+// SlotsForOffer keeps a specialist's distinct priced topics separate.
+// The offer identifier comes from a trusted MatchCard; it does not grant
+// authorization or override the publication and Product qualification.
+func (s *Service) SlotsForOffer(specialistID, offerID string) ([]Slot, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.journeyStore == nil {
-		if err := s.refreshCatalogLocked(); err != nil {
-			return nil, err
-		}
+		if err := s.refreshCatalogLocked(); err != nil { return nil, err }
 	}
 	if _, ok := s.catalog.names[specialistID]; !ok || specialistID == "spec-draft" {
 		return nil, ErrSpecialistNotFound
@@ -573,7 +598,7 @@ func (s *Service) Slots(specialistID string) ([]Slot, error) {
 	now := s.now().UTC()
 	out := make([]Slot, 0, 2)
 	for _, slot := range s.catalog.slots {
-		if slot.SpecialistID != specialistID || !slot.StartsAt.After(now) {
+		if slot.SpecialistID != specialistID || (offerID != "" && slot.OfferID != offerID) || !slot.StartsAt.After(now) {
 			continue
 		}
 		if _, held := s.slotHolds[slot.ID]; held || s.slotBookedLocked(slot.ID) {
@@ -614,6 +639,23 @@ func (s *Service) AcquireHold(intentID, slotID, clientIdentityID string) (*Hold,
 	slot, ok := s.slot(slotID)
 	if !ok {
 		return nil, ErrSlotNotFound
+	}
+	if s.liveSupplyMode {
+		if slot.Topic == "" || slot.OfferID == "" || !containsTopic(intent.Topics, slot.Topic) {
+			return nil, ErrSlotUnavailable
+		}
+		domainIntent := marketplace.HelpIntent{ID:intent.ID, FreeText:intent.FreeText, Topics:intent.Topics, Goals:intent.Goals, Context:intent.Context, Status:intent.Status}
+		eligible, err := marketplace.MatchEligible(s.catalog.policy, marketplace.MatchRequest{
+			Intent: domainIntent, Topic: slot.Topic,
+			Jurisdiction:contextOr(intent.Context,"jurisdiction",JurisdictionRU),
+			Format:contextOr(intent.Context,"format",FormatOnline),
+			AgeGroup:contextOr(intent.Context,"age_group",AgeGroupAdult),
+			Language:contextOr(intent.Context,"language",LanguageRU),
+		}, s.catalog.candidates)
+		if err != nil { return nil, err }
+		approved := false
+		for _, candidate := range eligible { if candidate.SpecialistID == slot.SpecialistID && candidate.OfferID == slot.OfferID { approved = true } }
+		if !approved { return nil, ErrSlotUnavailable }
 	}
 	if !slot.Exclusive {
 		return nil, ErrSlotNotExclusive
@@ -682,6 +724,11 @@ func (s *Service) HoldStatus(holdID, clientIdentityID string) (*Hold, error) {
 		copyHold.BookingState = booked.State
 	}
 	return &copyHold, nil
+}
+
+func containsTopic(topics []string, topic string) bool {
+	for _, current := range topics { if current == topic { return true } }
+	return false
 }
 
 func (s *Service) knownTopic(topic string) bool {
