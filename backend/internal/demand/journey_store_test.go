@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/booking"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/marketplace"
 )
 
 type fakeJourneyStore struct {
@@ -174,5 +175,105 @@ func TestCreateCheckoutStoreFailureLeavesHoldActive(t *testing.T) {
 	}
 	if len(service.bookings) != 0 || len(service.instructions) != 0 {
 		t.Fatalf("failed booking create committed memory: bookings=%d instructions=%d", len(service.bookings), len(service.instructions))
+	}
+}
+
+type liveJourneyStoreProbe struct {
+	fakeJourneyStore
+	bootstrapCalls int
+}
+
+func (f *liveJourneyStoreProbe) BootstrapCatalog(slots []Slot) ([]Slot, error) {
+	f.bootstrapCalls++
+	return f.fakeJourneyStore.BootstrapCatalog(slots)
+}
+
+func TestLiveSupplyNeverBootstrapsOrBooksConformanceSpecialists(t *testing.T) {
+	store := &liveJourneyStoreProbe{}
+	profile, err := marketplace.NewSpecialistProfile(
+		"approved-live-specialist", "live-specialist-identity", "Проверенная Анна",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	capability, err := marketplace.NewCapability(
+		"anxiety", marketplace.EvidenceAPGICVerified, "reviewed:live",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile.AddCapability(capability)
+	profile.Complete = true
+	profile.Profession = "PSYCHOLOGIST"
+	profile.Review = marketplace.ReviewApproved
+	profile.PublishState = marketplace.PublishPublished
+	profile.PublishedTopics = []string{"anxiety"}
+	supply := publishedSpecialistStoreStub{profiles: []marketplace.SpecialistProfile{*profile}}
+
+	service, err := NewLiveServiceWithStoresAndSpecialists(nil, nil, store, supply)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if store.bootstrapCalls != 0 {
+		t.Fatalf("production seeded %d conformance catalogs", store.bootstrapCalls)
+	}
+	if service.CatalogMode() != CatalogModeLive || len(service.catalog.candidates) != 0 ||
+		len(service.catalog.slots) != 0 || len(service.catalog.names) != 0 {
+		t.Fatalf("production inherited synthetic provider truth: %#v", service.catalog)
+	}
+	view, err := service.Search("anxiety")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found bool
+	for _, entry := range view.Entries {
+		if entry.SpecialistID == "spec-sokolov" || entry.SpecialistID == "spec-lebedeva" {
+			t.Fatalf("fixture specialist leaked into live public search: %#v", view.Entries)
+		}
+		if entry.SpecialistID == profile.ID {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("approved durable profile absent from live discovery: %#v", view.Entries)
+	}
+	intent, err := service.CreateIntent("нужна помощь при тревоге")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if intent.CatalogMode != CatalogModeLive {
+		t.Fatalf("live intent mode = %s", intent.CatalogMode)
+	}
+	if _, err := service.ConfirmIntent(intent.ID, []string{"anxiety"}, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	cards, topic, err := service.Matches(intent.ID, "anxiety")
+	if err != nil || topic != "anxiety" || len(cards) != 0 {
+		t.Fatalf("live supply invented bookable offer before real price/slot: %#v topic=%s err=%v", cards, topic, err)
+	}
+	for _, demoID := range []string{"spec-lebedeva", "spec-sokolov", "spec-kim", "spec-volkova"} {
+		if _, err := service.Slots(demoID); !errors.Is(err, ErrSpecialistNotFound) {
+			t.Fatalf("live catalog exposed fabricated slots for %s: err=%v", demoID, err)
+		}
+	}
+	if _, err := service.Slots(profile.ID); !errors.Is(err, ErrSpecialistNotFound) {
+		t.Fatalf("published profile without certified offer became bookable: %v", err)
+	}
+	if store.bootstrapCalls != 0 {
+		t.Fatal("live user journey bootstrapped demo slots")
+	}
+	restarted, err := NewLiveServiceWithStoresAndSpecialists(nil, nil, store, supply)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reloaded, err := restarted.GetIntent(intent.ID)
+	if err != nil || reloaded.CatalogMode != CatalogModeLive {
+		t.Fatalf("live intent not restored after restart: %#v err=%v", reloaded, err)
+	}
+}
+
+func TestLiveSupplyRejectsMissingDurableOwners(t *testing.T) {
+	if _, err := NewLiveServiceWithStoresAndSpecialists(nil, nil, nil, nil); err == nil {
+		t.Fatal("live startup accepted absent durable owners")
 	}
 }
