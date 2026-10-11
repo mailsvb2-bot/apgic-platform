@@ -79,10 +79,9 @@ func TestSignedConsultationPersistsAcrossAPIStoreRestart(t *testing.T) {
 	if checkout.APGICAcceptsFunds || checkout.ExecutionOwner != "EXTERNAL_PROVIDER" {
 		t.Fatalf("payment custody is not external: %#v", checkout)
 	}
-	paymentConnectorID, err := persistentid.New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	// Payment connector keys are provider-scoped: only the provider named
+	// in the immutable checkout may sign its economic CAPTURED event.
+	paymentConnectorID := checkout.ProviderID
 	paymentPublic, paymentPrivate, err := ed25519.GenerateKey(nil)
 	if err != nil {
 		t.Fatal(err)
