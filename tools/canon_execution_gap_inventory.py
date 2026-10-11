@@ -8,6 +8,7 @@ It reports missing traceability separately from incomplete implementation.
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import sys
 from collections import Counter, defaultdict
@@ -135,6 +136,7 @@ def build_inventory(coverage: dict[str, Any], registry: dict[str, Any], producti
             unmapped.append(item)
             by_domain[str(row.get("owner_domain"))] += 1
 
+    all_requirements: list[dict[str, Any]] = []
     incomplete: list[dict[str, Any]] = []
     by_profile: dict[str, Counter[str]] = defaultdict(Counter)
     status_totals: Counter[str] = Counter()
@@ -144,8 +146,6 @@ def build_inventory(coverage: dict[str, Any], registry: dict[str, Any], producti
         profile = str(row.get("release_profile"))
         status_totals[str(status)] += 1
         by_profile[profile][str(status)] += 1
-        if status == "RELEASED":
-            continue
         dependencies = row.get("dependencies") or []
         item = {
             "requirement_id": rid,
@@ -169,7 +169,9 @@ def build_inventory(coverage: dict[str, Any], registry: dict[str, Any], producti
                 else "IMPLEMENTATION_INTEGRATION_AND_REQUIRED_EVIDENCE"
             ),
         }
-        incomplete.append(item)
+        all_requirements.append(item)
+        if status != "RELEASED":
+            incomplete.append(item)
 
     records = production_index.get("records")
     if not isinstance(records, dict):
@@ -198,6 +200,7 @@ def build_inventory(coverage: dict[str, Any], registry: dict[str, Any], producti
         "owner_only_sections": unmapped,
         "traceability_mismatches": traceability_mismatches,
         "requirements_backlog_dependency_order": incomplete,
+        "all_requirements_dependency_order": all_requirements,
         "section_index": section_inventory,
     }
 
@@ -229,6 +232,57 @@ def render_summary(inventory: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+
+def strict_production_release_blockers(
+    inventory: dict[str, Any], manifest_path: Path | None, candidate_sha: str | None,
+    production_index: dict[str, Any], registry: dict[str, Any],
+) -> list[str]:
+    totals = inventory["totals"]
+    blockers: list[str] = []
+    if totals["owner_only_sections_needing_analysis"]:
+        blockers.append("CANON_OWNER_ONLY_SECTIONS_REMAIN")
+    if totals["traceability_mismatches"]:
+        blockers.append("CANON_LINK_DISAGREEMENTS_REMAIN")
+    if totals["non_released_requirements"]:
+        blockers.append("CANON_NON_RELEASED_REQUIREMENTS_REMAIN")
+    # Never let an arbitrary non-empty index satisfy final production acceptance.
+    if manifest_path is None or not candidate_sha:
+        blockers.append("CANON_PRODUCTION_MANIFEST_AND_EXACT_CANDIDATE_REQUIRED")
+        return blockers
+    try:
+        manifest_path = manifest_path.resolve(strict=True)
+        manifest_path.relative_to(ROOT)
+        manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+        if not isinstance(manifest, dict):
+            blockers.append("CANON_PRODUCTION_MANIFEST_INVALID")
+            return blockers
+    except (OSError, ValueError, yaml.YAMLError):
+        blockers.append("CANON_PRODUCTION_MANIFEST_INVALID_OR_OUTSIDE_REPOSITORY")
+        return blockers
+    if manifest.get("candidate_sha") != candidate_sha:
+        blockers.append("CANON_PRODUCTION_CANDIDATE_SHA_MISMATCH")
+    # Reuse the existing, centralized release proof validator (including
+    # manifest schema, exact candidate ref binding, artifact digest, synthetic
+    # rejection and all native/store/payment evidence classes). No second
+    # release-evidence policy is introduced here.
+    spec = importlib.util.spec_from_file_location("apgic_r4_release_gate", ROOT / "tools/r4_release_gate.py")
+    if spec is None or spec.loader is None:
+        blockers.append("CANON_EXISTING_RELEASE_VALIDATOR_UNAVAILABLE")
+        return blockers
+    verifier = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(verifier)
+    passed, release_blockers = verifier.evaluate(manifest, "all", "production", production_index)
+    if not passed:
+        blockers.extend("RELEASE_" + reason for reason in release_blockers)
+    for reqid in (
+        verifier.NATIVE_RELEASE_REQUIREMENT_ID,
+        verifier.STORE_RELEASE_REQUIREMENT_ID,
+        verifier.PAYMENT_RELEASE_REQUIREMENT_ID,
+    ):
+        blockers.extend(verifier.canon_dependency_blockers(registry, reqid))
+    return blockers
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--coverage", type=Path, default=COVERAGE)
@@ -237,13 +291,14 @@ def main() -> int:
     parser.add_argument("--output", type=Path)
     parser.add_argument("--summary", type=Path)
     parser.add_argument("--strict-complete", action="store_true", help="For FINAL all-canon acceptance only")
+    parser.add_argument("--production-manifest", type=Path, help="Approved existing R4 production evidence manifest")
+    parser.add_argument("--candidate-sha", help="Exact audited candidate SHA")
     args = parser.parse_args()
     try:
-        inventory = build_inventory(
-            json.loads(args.coverage.read_text(encoding="utf-8")),
-            yaml.safe_load(args.registry.read_text(encoding="utf-8")),
-            yaml.safe_load(args.production_index.read_text(encoding="utf-8")),
-        )
+        coverage = json.loads(args.coverage.read_text(encoding="utf-8"))
+        registry = yaml.safe_load(args.registry.read_text(encoding="utf-8"))
+        production_index = yaml.safe_load(args.production_index.read_text(encoding="utf-8"))
+        inventory = build_inventory(coverage, registry, production_index)
     except (ValueError, OSError, KeyError, TypeError, yaml.YAMLError) as exc:
         print(f"CANON EXECUTION INVENTORY: FAIL: {exc}", file=sys.stderr)
         return 1
@@ -265,13 +320,14 @@ def main() -> int:
         f"non-released={counts['non_released_requirements']}",
         file=sys.stderr,
     )
-    if args.strict_complete and (
-        counts["owner_only_sections_needing_analysis"] or counts["non_released_requirements"]
-        or counts["traceability_mismatches"]
-        or not counts["production_evidence_records"]
-    ):
-        print("CANON EXECUTION INVENTORY: final full-canon acceptance BLOCKED", file=sys.stderr)
-        return 2
+    if args.strict_complete:
+        blockers = strict_production_release_blockers(
+            inventory, args.production_manifest, args.candidate_sha, production_index, registry,
+        )
+        if blockers:
+            print("CANON EXECUTION INVENTORY: final full-canon acceptance BLOCKED: " +
+                  "; ".join(blockers), file=sys.stderr)
+            return 2
     return 0
 
 
