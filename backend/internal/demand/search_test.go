@@ -42,6 +42,10 @@ type publishedSpecialistStoreStub struct {
 	profiles []marketplace.SpecialistProfile
 }
 
+func (s publishedSpecialistStoreStub) BookableOffers() ([]BookableOffer, error) {
+	return nil, nil
+}
+
 func (s publishedSpecialistStoreStub) PublishedProfiles() ([]marketplace.SpecialistProfile, error) {
 	return append([]marketplace.SpecialistProfile(nil), s.profiles...), nil
 }
