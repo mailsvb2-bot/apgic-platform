@@ -90,7 +90,12 @@ func (c *Checker) ClaimNotificationDelivery(ctx context.Context, plan notificati
 		INSERT INTO notification_deliveries (
 			id, intent_id, channel, endpoint_ref, provider_instance_id,
 			delivery_idempotency_key, state, created_at, updated_at
-		) VALUES ($1::uuid, $2::uuid, $3, $4, $5::uuid, $6, 'PENDING', $7, $7)
+		)
+		SELECT $1::uuid, $2::uuid, $3, $4, $5::uuid, $6, 'PENDING', $7, $7
+		FROM notification_intents intent
+		WHERE intent.id = $2::uuid
+		  AND clock_timestamp() >= intent.not_before
+		  AND (intent.expires_at IS NULL OR clock_timestamp() < intent.expires_at)
 		ON CONFLICT (delivery_idempotency_key) DO NOTHING
 	`,
 		plan.DeliveryID,
@@ -128,6 +133,41 @@ func (c *Checker) ClaimNotificationDelivery(ctx context.Context, plan notificati
 			&state,
 			&existing.OccurredAt,
 		)
+		if errors.Is(err, sql.ErrNoRows) {
+			// No delivery exists for this idempotency key: the atomic INSERT
+			// did not create provider work because of the canonical time window.
+			// A PostgreSQL transaction-start timestamp is insufficient here:
+			// the wall clock may have advanced past expires_at while waiting.
+			var tooEarly, expired bool
+			if checkErr := tx.QueryRowContext(ctx, `
+				SELECT clock_timestamp() < not_before,
+				       expires_at IS NOT NULL AND clock_timestamp() >= expires_at
+				FROM notification_intents WHERE id = $1::uuid
+			`, plan.IntentID).Scan(&tooEarly, &expired); checkErr != nil {
+				return notification.DeliveryPlan{}, false, checkErr
+			}
+			if !tooEarly && !expired {
+				return notification.DeliveryPlan{}, false, notification.ErrInvalidDelivery
+			}
+			plan.State = notification.DeliverySuppressed
+			var denied error
+			if expired {
+				plan.ReasonCode = notification.ReasonDeliveryExpired
+				denied = notification.ErrDeliveryExpired
+			} else {
+				plan.ReasonCode = notification.ReasonDeliveryNotBefore
+				denied = notification.ErrDeliveryNotBefore
+			}
+			// Denials are immutable audit decisions too. Commit the audit,
+			// but never insert a provider delivery or pretend delivery occurred.
+			if auditErr := appendNotificationDeliveryAudit(ctx, tx, plan, decision, false); auditErr != nil {
+				return notification.DeliveryPlan{}, false, auditErr
+			}
+			if commitErr := tx.Commit(); commitErr != nil {
+				return notification.DeliveryPlan{}, false, commitErr
+			}
+			return notification.DeliveryPlan{}, false, denied
+		}
 		if err != nil {
 			return notification.DeliveryPlan{}, false, err
 		}

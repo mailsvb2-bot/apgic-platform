@@ -27,11 +27,15 @@ const (
 	ReasonDeliveryPreferenceSuppressed = "NOTIFICATION_DELIVERY_PREFERENCE_SUPPRESSED"
 	ReasonDeliveryDuplicate            = "NOTIFICATION_DELIVERY_DUPLICATE"
 	ReasonDeliveryIdempotencyConflict  = "NOTIFICATION_DELIVERY_IDEMPOTENCY_CONFLICT"
+	ReasonDeliveryNotBefore            = "NOTIFICATION_DELIVERY_NOT_BEFORE"
+	ReasonDeliveryExpired              = "NOTIFICATION_DELIVERY_EXPIRED"
 )
 
 var (
 	ErrInvalidDelivery             = errors.New("invalid notification delivery")
 	ErrDeliveryIdempotencyConflict = errors.New("notification delivery idempotency conflict")
+	ErrDeliveryNotBefore           = errors.New("notification delivery is not yet permitted")
+	ErrDeliveryExpired             = errors.New("notification delivery intent has expired")
 )
 
 type DeliveryPolicy struct {
