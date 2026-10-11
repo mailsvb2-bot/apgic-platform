@@ -35,7 +35,7 @@ CREATE UNIQUE INDEX booking_slots_live_identity_start_unique
 -- and the already published Organization/Product owner; a profile alone does
 -- not manufacture a paid offer or permitted sales channel.
 CREATE FUNCTION apgic_live_offer_valid(p_offer_id uuid)
-RETURNS boolean LANGUAGE sql STABLE AS $$
+RETURNS boolean LANGUAGE sql VOLATILE AS $
   SELECT EXISTS (
     SELECT 1
       FROM specialist_bookable_offers offer
