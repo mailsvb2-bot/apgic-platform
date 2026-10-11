@@ -172,6 +172,12 @@ export function Journey() {
   const [topics, setTopics] = useState<string[]>([]);
   const [matches, setMatches] = useState<MatchCard[] | null>(null);
   const [search, setSearch] = useState<{ notice: string; stale: boolean; rebuilt: boolean; owns_qualification: boolean; entries: { specialist_id: string; display_name: string }[] } | null>(null);
+  // A reviewed specialist may be publicly published before an actual priced
+  // consultation and bookable slot exists. These are discovery-only profiles,
+  // never actionable MatchCards; don't invent a price or a booking control.
+  const livePreview = intent?.catalog_mode === "LIVE" && matches !== null
+    ? search?.entries ?? []
+    : [];
   const [specialist, setSpecialist] = useState<MatchCard | null>(null);
   const [slots, setSlots] = useState<Slot[]>([]);
   const [hold, setHold] = useState<Hold | null>(null);
@@ -835,7 +841,11 @@ export function Journey() {
               <p>
                 {matches.length
                   ? `Нашли ${matches.length} ${matches.length === 1 ? "подходящий вариант" : "подходящих варианта"}. Сравните формат, стоимость и доступное время.`
-                  : "По подтверждённым темам сейчас нет подходящих специалистов."}
+                  : livePreview.length
+                    ? "Есть проверенные опубликованные профили по вашей теме, но запись пока недоступна: специалисты ещё не опубликовали стоимость и свободное время."
+                    : intent?.catalog_mode === "LIVE"
+                      ? "Сейчас нет специалистов с подтверждённой публикацией и доступной записью по выбранной теме."
+                      : "По подтверждённым темам сейчас нет подходящих специалистов."}
               </p>
             </div>
           </div>
@@ -863,6 +873,26 @@ export function Journey() {
                 </li>
               ))}
             </ul>
+          ) : null}
+
+          {matches.length === 0 && livePreview.length > 0 ? (
+            <div aria-label="Опубликованные профили без доступной записи">
+              <p>Публикация профиля подтверждена. Это не предложение консультации: цена и расписание пока не опубликованы.</p>
+              <ul className="specialist-cards">
+                {livePreview.map((entry) => (
+                  <li key={entry.specialist_id}>
+                    <div className="specialist-card-top">
+                      <div className="specialist-avatar" aria-hidden="true">{initials(entry.display_name)}</div>
+                      <div className="specialist-card-name">
+                        <span className="match-badge">Опубликованный проверенный профиль</span>
+                        <h3>{entry.display_name}</h3>
+                        <p>Запись пока недоступна</p>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
           ) : null}
 
           {search && conformanceProviderEvents ? (
