@@ -94,7 +94,7 @@ func TestNotificationTransportClaimIsIdempotentAuditedAndOwned(t *testing.T) {
 	}
 	type reservationResult struct {
 		envelope notification.PushTransportEnvelope
-		err error
+		err      error
 	}
 	results := make(chan reservationResult, workers)
 	for _, id := range auditIDs {
