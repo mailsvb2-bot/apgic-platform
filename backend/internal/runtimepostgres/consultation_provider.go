@@ -31,11 +31,11 @@ func (c *Checker) ApplyConsultationProviderWebhook(ctx context.Context, envelope
 		return "", ErrConsultationProviderPayload
 	}
 	switch body.FactType {
-	case "JOINED":
+	case "JOINED", "LEFT":
 		if body.Role != "CLIENT" && body.Role != "SPECIALIST" {
 			return "", ErrConsultationProviderPayload
 		}
-	case "STARTED", "ENDED":
+	case "STARTED", "RECOVERY_STARTED", "RECOVERY_SUCCEEDED", "TECHNICAL_FAILURE", "ENDED":
 		if body.Role != "SYSTEM" {
 			return "", ErrConsultationProviderPayload
 		}
@@ -69,7 +69,27 @@ func (c *Checker) ApplyConsultationProviderWebhook(ctx context.Context, envelope
 			return fmt.Errorf("confirmed consultation unavailable: %w", err)
 		}
 		if activeProviderID != envelope.ConnectorInstanceID {
-			return ErrConsultationProviderPayload
+			// The original provider remains immutable on the session. A
+			// replacement may speak only after a persisted, policy-guarded
+			// FALLBACK_PROVIDER decision whose effective time precedes this
+			// signed event. The DB trigger independently enforces the same
+			// canonical evidence boundary inside this transaction.
+			var fallbackAuthorized bool
+			if err := tx.QueryRowContext(ctx,
+				`SELECT EXISTS (
+					SELECT 1 FROM consultation_recovery_decisions
+					 WHERE session_id = $1::uuid
+					   AND action = 'FALLBACK_PROVIDER'
+					   AND target_provider_instance_id = $2::uuid
+					   AND decided_at <= $3
+				)`,
+				sessionID, envelope.ConnectorInstanceID, envelope.OccurredAt.UTC(),
+			).Scan(&fallbackAuthorized); err != nil {
+				return fmt.Errorf("check durable consultation fallback decision: %w", err)
+			}
+			if !fallbackAuthorized {
+				return ErrConsultationProviderPayload
+			}
 		}
 		var participant any
 		if body.Role == "CLIENT" {
@@ -97,7 +117,12 @@ func (c *Checker) ReadConsultationResult(ctx context.Context, bookingID, clientI
 	}
 	var result connector.ConsultationResult
 	var evidence sql.NullString
-	err := c.db.QueryRowContext(ctx, `SELECT s.booking_id, s.state, s.provider_instance_id,
+	err := c.db.QueryRowContext(ctx, `SELECT s.booking_id, s.state,
+        COALESCE(
+          (SELECT f.provider_instance_id FROM consultation_lifecycle_facts f
+            WHERE f.session_id=s.id AND f.fact_type='ENDED'
+            ORDER BY f.occurred_at DESC, f.id DESC LIMIT 1),
+          s.provider_instance_id),
         (SELECT f.evidence_ref FROM consultation_lifecycle_facts f
           WHERE f.session_id=s.id AND f.fact_type='ENDED'
           ORDER BY f.occurred_at DESC, f.id DESC LIMIT 1)

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -203,7 +204,7 @@ func TestSignedConsultationPersistsAcrossAPIStoreRestart(t *testing.T) {
 		}
 		raw := connectorWebhookSigningPayload{
 			ConnectorInstanceID: connectorID,
-			ExternalEventID:     "consultation-event-" + hold.BookingID + "-" + factType + "-" + role,
+			ExternalEventID:     "consultation-event-" + hold.BookingID + "-" + factType + "-" + role + "-" + strconv.FormatUint(seq, 10),
 			StreamID:            "consultation/" + hold.BookingID,
 			Sequence:            seq, KeyID: "test-key", OccurredAt: now.Add(time.Duration(seq) * time.Second), Payload: payload,
 		}
@@ -217,11 +218,47 @@ func TestSignedConsultationPersistsAcrossAPIStoreRestart(t *testing.T) {
 			Payload: raw.Payload, Signature: base64.StdEncoding.EncodeToString(ed25519.Sign(private, message)),
 		}
 	}
-	for _, event := range []connector.WebhookEnvelope{
+	signAs := func(event connector.WebhookEnvelope, provider string, sequence uint64, key ed25519.PrivateKey) connector.WebhookEnvelope {
+		event.ConnectorInstanceID = provider
+		event.Sequence = sequence
+		raw := connectorWebhookSigningPayload{
+			ConnectorInstanceID: event.ConnectorInstanceID,
+			ExternalEventID:     event.ExternalEventID,
+			StreamID:            event.StreamID,
+			Sequence:            event.Sequence,
+			KeyID:               event.KeyID,
+			OccurredAt:          event.OccurredAt,
+			Payload:             event.Payload,
+		}
+		message, marshalErr := json.Marshal(raw)
+		if marshalErr != nil {
+			t.Fatal(marshalErr)
+		}
+		event.Signature = base64.StdEncoding.EncodeToString(ed25519.Sign(key, message))
+		return event
+	}
+
+	var fallbackID string
+	var fallbackPrivate ed25519.PrivateKey
+	for _, original := range []connector.WebhookEnvelope{
 		signed(1, "JOINED", "CLIENT"), signed(2, "JOINED", "SPECIALIST"),
-		signed(3, "STARTED", "SYSTEM"), signed(4, "ENDED", "SYSTEM"),
+		signed(3, "STARTED", "SYSTEM"),
+		signed(4, "JOINED", "CLIENT"), // delayed rejoin cannot rewind an active call
+		signed(5, "LEFT", "CLIENT"),
+		signed(6, "RECOVERY_STARTED", "SYSTEM"),
+		signed(7, "RECOVERY_SUCCEEDED", "SYSTEM"),
+		signed(8, "ENDED", "SYSTEM"),
 	} {
-		if event.Sequence == 1 {
+		stage := original.Sequence
+		event := original
+		if stage >= 7 {
+			// A distinct connector owns its own monotonically sequenced stream.
+			if fallbackID == "" || len(fallbackPrivate) == 0 {
+				t.Fatal("fallback provider was not authorized before its first event")
+			}
+			event = signAs(original, fallbackID, stage-6, fallbackPrivate)
+		}
+		if stage == 1 {
 			forged := event
 			forged.Signature = base64.StdEncoding.EncodeToString(make([]byte, ed25519.SignatureSize))
 			if status, _ := postSigned(forged); status != http.StatusUnauthorized {
@@ -230,14 +267,74 @@ func TestSignedConsultationPersistsAcrossAPIStoreRestart(t *testing.T) {
 		}
 		status, decision := postSigned(event)
 		if status != http.StatusOK || decision != connector.DeliveryApply {
-			t.Fatalf("event %d HTTP=%d decision=%s", event.Sequence, status, decision)
+			t.Fatalf("event %d (provider=%s) HTTP=%d decision=%s", stage, event.ConnectorInstanceID, status, decision)
 		}
-		if event.Sequence == 4 {
-			status, decision = postSigned(event)
-			if status != http.StatusOK || decision != connector.DeliveryDuplicate {
-				t.Fatalf("replay HTTP=%d decision=%s", status, decision)
+		if stage == 4 || stage == 6 || stage == 7 {
+			intermediate, readErr := store.ReadConsultationResult(ctx, hold.BookingID, intent.ClientIdentityID)
+			want := "IN_PROGRESS"
+			if stage == 6 {
+				want = "RECOVERING"
+			}
+			if readErr != nil || intermediate == nil || intermediate.State != want {
+				t.Fatalf("provider event %d: state=%#v err=%v (want %s)", stage, intermediate, readErr, want)
 			}
 		}
+		if stage == 6 {
+			// Reviewer's P1: a signed fallback event must fail before, and
+			// succeed only after, an immutable canonical recovery decision.
+			fallbackID, err = persistentid.New()
+			if err != nil {
+				t.Fatal(err)
+			}
+			fallbackPublic, privateKey, keyErr := ed25519.GenerateKey(nil)
+			if keyErr != nil {
+				t.Fatal(keyErr)
+			}
+			fallbackPrivate = privateKey
+			keys[fallbackID+"/test-key"] = fallbackPublic
+			if _, err := store.db.ExecContext(ctx,
+				`INSERT INTO connector_instances(id,capability_class,provider_kind,status,config_ref)
+				 VALUES($1::uuid,'COMMUNICATION_PROVIDER','consultation-fallback','ACTIVE',$2)`,
+				fallbackID, "secretref://consultation/fallback/"+fallbackID); err != nil {
+				t.Fatal(err)
+			}
+			notYetAuthorized := signAs(signed(7, "RECOVERY_SUCCEEDED", "SYSTEM"), fallbackID, 1, fallbackPrivate)
+			if rejectedStatus, _ := postSigned(notYetAuthorized); rejectedStatus != http.StatusConflict {
+				t.Fatalf("fallback without trusted recovery decision accepted: HTTP %d", rejectedStatus)
+			}
+			var sessionID, sourceFactID string
+			if err := store.db.QueryRowContext(ctx,
+				`SELECT session_id::text, id::text FROM consultation_lifecycle_facts
+				 WHERE idempotency_key=$1`, event.ExternalEventID).Scan(&sessionID, &sourceFactID); err != nil {
+				t.Fatal(err)
+			}
+			decisionID, idErr := persistentid.New()
+			if idErr != nil {
+				t.Fatal(idErr)
+			}
+			if _, err := store.db.ExecContext(ctx,
+				`INSERT INTO consultation_recovery_decisions
+				 (id,session_id,source_fact_id,policy_version,action,target_provider_instance_id,
+				  followup_path_ref,reason_code,decided_at)
+				 VALUES($1::uuid,$2::uuid,$3::uuid,'r3-signed-integration-v1','FALLBACK_PROVIDER',
+				        $4::uuid,NULL,'COMM_RECOVERY_FALLBACK',$5)`,
+				decisionID, sessionID, sourceFactID, fallbackID, event.OccurredAt.Add(time.Millisecond)); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if stage == 8 {
+			status, decision = postSigned(event)
+			if status != http.StatusOK || decision != connector.DeliveryDuplicate {
+				t.Fatalf("completion replay HTTP=%d decision=%s", status, decision)
+			}
+		}
+	}
+	// Terminal state must reject delayed signed facts from either provider.
+	if status, _ := postSigned(signAs(signed(9, "JOINED", "CLIENT"), connectorID, 7, private)); status != http.StatusConflict {
+		t.Fatalf("late rejoin resurrected completed consultation: HTTP %d", status)
+	}
+	if status, _ := postSigned(signAs(signed(9, "TECHNICAL_FAILURE", "SYSTEM"), fallbackID, 3, fallbackPrivate)); status != http.StatusConflict {
+		t.Fatalf("late technical failure changed terminal consultation: HTTP %d", status)
 	}
 	// The next Checker is a separate connection, equivalent to restarting API
 	// without any in-process consultation sessions.
@@ -247,7 +344,7 @@ func TestSignedConsultationPersistsAcrossAPIStoreRestart(t *testing.T) {
 	}
 	defer restarted.Close()
 	result, err := restarted.ReadConsultationResult(ctx, hold.BookingID, intent.ClientIdentityID)
-	if err != nil || result == nil || result.State != "COMPLETED" || result.CompletionEvidenceRef != "provider-evidence/ENDED/SYSTEM" {
+	if err != nil || result == nil || result.State != "COMPLETED" || result.ProviderInstanceID != fallbackID || result.CompletionEvidenceRef != "provider-evidence/ENDED/SYSTEM" {
 		t.Fatalf("restart result=%#v err=%v", result, err)
 	}
 	stranger, err := persistentid.New()
@@ -281,7 +378,7 @@ func TestSignedConsultationPersistsAcrossAPIStoreRestart(t *testing.T) {
 	if err := json.Unmarshal(readback.Body.Bytes(), &apiResult); err != nil {
 		t.Fatal(err)
 	}
-	if apiResult.State != "COMPLETED" || apiResult.CompletionEvidenceRef != "provider-evidence/ENDED/SYSTEM" {
+	if apiResult.State != "COMPLETED" || apiResult.ProviderInstanceID != fallbackID || apiResult.CompletionEvidenceRef != "provider-evidence/ENDED/SYSTEM" {
 		t.Fatalf("wrong HTTP restart result: %#v", apiResult)
 	}
 	outsiderRead := httptest.NewRecorder()
