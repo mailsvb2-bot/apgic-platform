@@ -223,15 +223,13 @@ test("live client sees reviewed specialists without fabricated prices or booking
   await page.getByRole("button", { name: "Подтвердить и показать специалистов" }).click();
 
   const discovery = page.getByRole("region", { name: "Опубликованные профили без доступной записи" });
-  // An aria-label on a generic div alone is not a landmark: assert the
-  // actual semantic list and its user-readable no-booking explanation.
-  await expect(page.getByText("Специалист с проверенной квалификацией")).toBeVisible();
+  await expect(discovery).toBeVisible();
+  await expect(discovery.getByText("Специалист с проверенной квалификацией")).toBeVisible();
   await expect(page.getByText("Публикация профиля подтверждена. Это не предложение консультации: цена и расписание пока не опубликованы.")).toBeVisible();
   await expect(page.getByText("Запись пока недоступна")).toBeVisible();
   await expect(page.getByRole("button", { name: /Выбрать время у/ })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /Удержать слот/ })).toHaveCount(0);
   await expect(page.getByText(/0\s*₽/)).toHaveCount(0);
-  void discovery;
 });
 
 test("replacing a help request invalidates stale matches even on API failure", async ({ page }) => {
