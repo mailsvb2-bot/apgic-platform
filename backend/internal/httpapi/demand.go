@@ -432,6 +432,24 @@ func registerDemand(
 		writeJSON(w, status, evidence)
 	})
 
+	mux.HandleFunc("GET /v1/bookings/{id}", func(w http.ResponseWriter, r *http.Request) {
+		if service == nil {
+			writeDemandError(w, r, http.StatusServiceUnavailable, "DEMAND_CATALOG_UNAVAILABLE", "Каталог недоступен.", true, nil)
+			return
+		}
+		identityID, ok := trustedClientIdentity(w, r, sessions, sessionConfigErr, "")
+		if !ok {
+			return
+		}
+		status, err := service.ReadBookingStatus(r.PathValue("id"), identityID)
+		if err != nil {
+			writeDemandFailure(w, r, err)
+			return
+		}
+		w.Header().Set("Cache-Control", "no-store")
+		writeJSON(w, http.StatusOK, status)
+	})
+
 	mux.HandleFunc("GET /v1/bookings/{id}/fulfillment", func(w http.ResponseWriter, r *http.Request) {
 		if service == nil {
 			writeDemandError(w, r, http.StatusServiceUnavailable, "DEMAND_CATALOG_UNAVAILABLE", "Каталог спроса не подключён.", false, nil)
