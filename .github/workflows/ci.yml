@@ -28,6 +28,19 @@ jobs:
           python-version: '3.13'
       - run: python -m pip install -r requirements-dev.txt
       - run: python tools/canon_lint.py
+      - name: Inventory every Canon v7 section and remaining requirement
+        shell: bash
+        run: |
+          python tools/canon_execution_gap_inventory.py \
+            --output "$RUNNER_TEMP/apgic-v7-execution-gap-inventory.json" \
+            --summary "$GITHUB_STEP_SUMMARY"
+      - name: Publish full Canon gap inventory
+        uses: actions/upload-artifact@v7
+        with:
+          name: canon-v7-gap-inventory-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/apgic-v7-execution-gap-inventory.json
+          if-no-files-found: error
+          retention-days: 90
       - run: python tools/canon_freeze_contract_guard.py
       - run: python tools/architecture_guard.py
       - run: python tools/restore_evidence_contract_guard.py
