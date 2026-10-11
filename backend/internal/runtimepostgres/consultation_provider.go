@@ -31,11 +31,11 @@ func (c *Checker) ApplyConsultationProviderWebhook(ctx context.Context, envelope
 		return "", ErrConsultationProviderPayload
 	}
 	switch body.FactType {
-	case "JOINED":
+	case "JOINED", "LEFT":
 		if body.Role != "CLIENT" && body.Role != "SPECIALIST" {
 			return "", ErrConsultationProviderPayload
 		}
-	case "STARTED", "ENDED":
+	case "STARTED", "RECOVERY_STARTED", "RECOVERY_SUCCEEDED", "TECHNICAL_FAILURE", "ENDED":
 		if body.Role != "SYSTEM" {
 			return "", ErrConsultationProviderPayload
 		}
