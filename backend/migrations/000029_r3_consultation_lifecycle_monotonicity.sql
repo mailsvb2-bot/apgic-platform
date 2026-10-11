@@ -52,7 +52,9 @@ BEGIN
         AND fact_type IN ('READY','JOINED')
     ) INTO specialist_ready;
 
-    -- Re-joining after STARTED or during recovery is valid evidence, but\n    -- cannot roll IN_PROGRESS / RECOVERING back to READY.\n    IF client_ready AND specialist_ready AND EXISTS (
+    -- Re-joining after STARTED or during recovery is valid evidence, but
+    -- cannot roll IN_PROGRESS / RECOVERING back to READY.
+    IF client_ready AND specialist_ready AND EXISTS (
       SELECT 1 FROM consultation_sessions
       WHERE id = NEW.session_id AND state IN ('SCHEDULED','READY')
     ) THEN
