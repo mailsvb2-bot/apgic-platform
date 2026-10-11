@@ -26,6 +26,18 @@ func readyConfig() launchconfig.Config {
 	}
 }
 
+func TestUnavailableSpecialistSupplyIsRetryableServiceFailure(t *testing.T) {
+	response := httptest.NewRecorder()
+	writeDemandFailure(response, httptest.NewRequest(http.MethodGet, "/v1/search?topic=sleep", nil),
+		demand.ErrSpecialistSupplyUnavailable)
+	if response.Code != http.StatusServiceUnavailable ||
+		!contains(response.Body.String(), "SPECIALIST_SUPPLY_UNAVAILABLE") ||
+		!contains(response.Body.String(), "\"retryable\":true") {
+		t.Fatalf("unavailable trusted supply incorrectly classified: status=%d body=%s",
+			response.Code, response.Body.String())
+	}
+}
+
 func TestPublicCannotMutateSpecialistSearchProjection(t *testing.T) {
 	service := demand.NewConformanceService(nil)
 	for _, path := range []string{"/v1/search/stale", "/v1/search/rebuild"} {
