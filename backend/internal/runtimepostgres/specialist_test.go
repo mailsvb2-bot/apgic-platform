@@ -165,6 +165,56 @@ func TestSpecialistSupplyPersistsEvidenceReviewAndPublishGate(t *testing.T) {
 		t.Fatalf("active publication missing from durable discovery snapshot: %#v", discoveryProfiles)
 	}
 
+	// A published specialist must disappear immediately when new evidence
+	// invalidates the profile review. Reviewing the evidence and profile must
+	// not silently restore an old publication without a fresh publish.
+	profile, err = store.SubmitEvidence(identityID, "anxiety", "CERTIFICATE", "document:post-publication-review")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if profile.ReviewState != marketplace.ReviewManual || len(profile.PublishedTopics) != 0 {
+		t.Fatalf("post-publication evidence did not revoke public claim: %#v", profile)
+	}
+	assertSpecialistAbsentFromDiscovery(t, store, identityID)
+	var postPublicationID string
+	for _, item := range profile.Evidence {
+		if item.Reference == "document:post-publication-review" {
+			postPublicationID = item.ID
+			break
+		}
+	}
+	if postPublicationID == "" {
+		t.Fatal("new evidence not retained")
+	}
+	if err := store.ReviewEvidence(postPublicationID, true, "reviewer:test"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.ReviewProfile(identityID, true, "reviewer:test"); err != nil {
+		t.Fatal(err)
+	}
+	assertSpecialistAbsentFromDiscovery(t, store, identityID)
+	if res, err := store.Publish(identityID, "anxiety"); err != nil || !res.Allowed {
+		t.Fatalf("explicit republish after new review failed: %#v err=%v", res, err)
+	}
+
+	// Material changes to a previously approved profile also revoke every
+	// active claim and require a new review and explicit publication.
+	profile, err = store.UpsertProfile(identityID, "Тестовый Специалист (обновлён)", "PSYCHOLOGIST")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if profile.ReviewState != marketplace.ReviewPending || len(profile.PublishedTopics) != 0 {
+		t.Fatalf("material profile change retained previous approval: %#v", profile)
+	}
+	assertSpecialistAbsentFromDiscovery(t, store, identityID)
+	if err := store.ReviewProfile(identityID, true, "reviewer:test"); err != nil {
+		t.Fatal(err)
+	}
+	assertSpecialistAbsentFromDiscovery(t, store, identityID)
+	if res, err := store.Publish(identityID, "anxiety"); err != nil || !res.Allowed {
+		t.Fatalf("explicit republish after profile change failed: %#v err=%v", res, err)
+	}
+
 	if _, err := store.Unpublish(identityID, "anxiety"); err != nil {
 		t.Fatal(err)
 	}
@@ -182,6 +232,19 @@ func TestSpecialistSupplyPersistsEvidenceReviewAndPublishGate(t *testing.T) {
 	for _, candidate := range discoveryProfiles {
 		if candidate.IdentityID == identityID {
 			t.Fatalf("unpublished specialist remained discoverable: %#v", candidate)
+		}
+	}
+}
+
+func assertSpecialistAbsentFromDiscovery(t *testing.T, store *Checker, identityID string) {
+	t.Helper()
+	profiles, err := store.PublishedProfiles()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, profile := range profiles {
+		if profile.IdentityID == identityID {
+			t.Fatalf("unreviewed or unpublished specialist leaked into public discovery: %#v", profile)
 		}
 	}
 }
