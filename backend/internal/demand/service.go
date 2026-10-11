@@ -99,6 +99,7 @@ type Service struct {
 	ledgerStore     LedgerStore
 	journeyStore    JourneyStore
 	journeyRefSlots []Slot
+	liveSupplyMode bool
 	notices         map[string]*BookingNotice
 	sessions        map[string]*consultation.Session
 	projection      marketplace.SearchProjection
@@ -128,6 +129,37 @@ func NewConformanceServiceWithStoresAndSpecialists(
 	specialistStore PublishedSpecialistStore,
 ) (*Service, error) {
 	return newConformanceService(now, ledgerStore, journeyStore, specialistStore)
+}
+
+// NewLiveServiceWithStoresAndSpecialists runs the same APGIC business owners
+// without conformance profiles, invented offers, synthetic prices or slots.
+// It never bootstraps test data into a production database.
+func NewLiveServiceWithStoresAndSpecialists(
+	now func() time.Time,
+	ledgerStore LedgerStore,
+	journeyStore JourneyStore,
+	specialistStore PublishedSpecialistStore,
+) (*Service, error) {
+	if journeyStore == nil || specialistStore == nil {
+		return nil, errors.New("production catalog requires durable journey and specialist stores")
+	}
+	service, err := newConformanceService(now, ledgerStore, nil, specialistStore)
+	if err != nil {
+		return nil, err
+	}
+	service.journeyStore = journeyStore
+	service.liveSupplyMode = true
+	// Intents continue to use canonical durable persistence. Historical
+	// conformance holds/bookings remain in PostgreSQL but are not rehydrated
+	// as live offers, avoiding loss or false monetization of existing records.
+	snapshot, err := journeyStore.LoadJourney(nil)
+	if err != nil {
+		return nil, err
+	}
+	if err := service.applyJourneySnapshotLocked(snapshot); err != nil {
+		return nil, err
+	}
+	return service, nil
 }
 
 func newConformanceService(
@@ -273,6 +305,10 @@ func (s *Service) applyJourneySnapshotLocked(snapshot JourneySnapshot) error {
 }
 
 func (s *Service) refreshCatalogLocked() error {
+	if s.liveSupplyMode {
+		// The live supply owner is PostgreSQL, never the static fixture.
+		return nil
+	}
 	fresh := conformanceCatalog(s.now().UTC())
 	if s.journeyStore != nil {
 		s.journeyRefSlots = append([]Slot(nil), fresh.slots...)
@@ -345,7 +381,7 @@ func (s *Service) CreateIntentForIdentity(clientIdentityID, freeText string) (*I
 		ReasonCodes:       append([]string(nil), suggestion.ReasonCodes...),
 		Notice:            InterpretationNotice,
 		DiagnosisAsserted: false,
-		CatalogMode:       CatalogModeConformance,
+		CatalogMode:       s.catalogMode(),
 	}
 	if s.journeyStore != nil {
 		if err := s.journeyStore.CreateIntent(intent); err != nil {
@@ -453,6 +489,19 @@ func (s *Service) ConfirmIntent(id string, topics, goals []string, context map[s
 	}
 	*intent = *updated
 	return cloneIntent(intent), nil
+}
+
+func (s *Service) catalogMode() string {
+	if s.liveSupplyMode {
+		return CatalogModeLive
+	}
+	return CatalogModeConformance
+}
+
+// CatalogMode returns a product-observable mode. An unconfigured live offer
+// never inherits the prices, availability, or verified status of a test fixture.
+func (s *Service) CatalogMode() string {
+	return s.catalogMode()
 }
 
 func (s *Service) Matches(intentID, topic string) ([]MatchCard, string, error) {
