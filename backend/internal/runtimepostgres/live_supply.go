@@ -77,6 +77,9 @@ func (c *Checker) CreateBookableOffer(identityID, productID, topicID string, pri
 		if strings.Contains(err.Error(), "specialist_one_active_bookable_offer_per_topic") {
 			return empty, specialist.ErrOfferInvalid
 		}
+		if strings.Contains(err.Error(), "live offer requires reviewed publication and authorized Product") {
+			return empty, specialist.ErrOfferNotEligible
+		}
 		return empty, fmt.Errorf("insert priced offer: %w", err)
 	}
 	var valid bool
