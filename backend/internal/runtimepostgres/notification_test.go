@@ -200,6 +200,20 @@ func proveCanonicalNotificationDeliveryWindow(t *testing.T, store *Checker, book
 			tc.intent.ID).Scan(&count); err != nil || count != 0 {
 			t.Fatalf("out-of-window intent generated delivery: count=%d err=%v", count, err)
 		}
+		key, keyErr := notification.DeliveryIdempotencyKey(tc.intent, tc.request.Channel, tc.request.EndpointRef)
+		if keyErr != nil {
+			t.Fatal(keyErr)
+		}
+		reason := notification.ReasonDeliveryNotBefore
+		if errors.Is(tc.want, notification.ErrDeliveryExpired) {
+			reason = notification.ReasonDeliveryExpired
+		}
+		if err := store.db.QueryRowContext(ctx,
+			`SELECT count(*) FROM audit_records
+			 WHERE correlation_id=$1 AND action='NOTIFICATION_DELIVERY_DECISION' AND reason=$2`,
+			key, reason).Scan(&count); err != nil || count != 1 {
+			t.Fatalf("delivery-window denial missing durable reason=%s audit: count=%d err=%v", reason, count, err)
+		}
 	}
 	// An already persisted delivery is safe to replay after the intent expires.
 	// It is not a new send, and the canonical idempotency owner must return it.
