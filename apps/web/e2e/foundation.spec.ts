@@ -198,21 +198,26 @@ test("live client sees reviewed specialists without fabricated prices or booking
       }),
     });
   });
+  const seenSearchTopics = new Set<string>();
   await page.route("**/v1/search?topic=*", async (route) => {
+    const topic = new URL(route.request().url()).searchParams.get("topic");
+    if (topic) seenSearchTopics.add(topic);
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        topic: "sleep",
+        topic,
         owns_qualification: false,
         stale: false,
         rebuilt: false,
         notice: "Public discovery only",
-        entries: [{
+        // A verified profile published *only* under the second topic must
+        // appear in live discovery; the sleep-only projection is empty.
+        entries: topic === "anxiety" ? [{
           specialist_id: "approved-real-profile",
           display_name: "Специалист с проверенной квалификацией",
-          topics: ["sleep"],
-        }],
+          topics: ["anxiety"],
+        }] : [],
       }),
     });
   });
@@ -220,11 +225,14 @@ test("live client sees reviewed specialists without fabricated prices or booking
   await page.goto("/");
   await page.getByLabel("С чем нужна помощь").fill("Проблемы со сном и бессонница");
   await page.getByRole("button", { name: "Разобрать запрос" }).click();
+  await page.getByRole("checkbox", { name: "Сон" }).check();
+  await page.getByRole("checkbox", { name: "Тревога и волнение" }).check();
   await page.getByRole("button", { name: "Подтвердить и показать специалистов" }).click();
 
   const discovery = page.getByRole("region", { name: "Опубликованные профили без доступной записи" });
   await expect(discovery).toBeVisible();
   await expect(discovery.getByText("Специалист с проверенной квалификацией")).toBeVisible();
+  expect([...seenSearchTopics].sort()).toEqual(["anxiety", "sleep"]);
   await expect(page.getByText("Публикация профиля подтверждена. Это не предложение консультации: цена и расписание пока не опубликованы.")).toBeVisible();
   await expect(page.getByText("Запись пока недоступна")).toBeVisible();
   await expect(page.getByRole("button", { name: /Выбрать время у/ })).toHaveCount(0);
