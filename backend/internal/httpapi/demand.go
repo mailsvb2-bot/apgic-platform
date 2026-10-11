@@ -146,6 +146,14 @@ func registerDemand(
 	})
 
 	mux.HandleFunc("POST /v1/search/rebuild", func(w http.ResponseWriter, r *http.Request) {
+		// Mutation of the search projection is an isolated conformance-only
+		// diagnostic. Public clients must never remove listings or force
+		// expensive rebuilds against live PostgreSQL supply.
+		if !allowConformanceProviderEvents {
+			writeDemandError(w, r, http.StatusForbidden, "SEARCH_CONFORMANCE_ONLY",
+				"Управление тестовым поисковым индексом недоступно.", false, nil)
+			return
+		}
 		if service == nil {
 			writeDemandError(w, r, http.StatusServiceUnavailable, "DEMAND_CATALOG_UNAVAILABLE", "Каталог спроса не подключён.", false, nil)
 			return
@@ -166,6 +174,14 @@ func registerDemand(
 	})
 
 	mux.HandleFunc("POST /v1/search/stale", func(w http.ResponseWriter, r *http.Request) {
+		// Mutation of the search projection is an isolated conformance-only
+		// diagnostic. Public clients must never remove listings or force
+		// expensive rebuilds against live PostgreSQL supply.
+		if !allowConformanceProviderEvents {
+			writeDemandError(w, r, http.StatusForbidden, "SEARCH_CONFORMANCE_ONLY",
+				"Управление тестовым поисковым индексом недоступно.", false, nil)
+			return
+		}
 		if service == nil {
 			writeDemandError(w, r, http.StatusServiceUnavailable, "DEMAND_CATALOG_UNAVAILABLE", "Каталог спроса не подключён.", false, nil)
 			return
