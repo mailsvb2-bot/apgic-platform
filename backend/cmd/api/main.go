@@ -71,7 +71,13 @@ func main() {
 	var demandService *demand.Service
 	if journeyStore != nil {
 		var err error
-		demandService, err = demand.NewConformanceServiceWithStoresAndSpecialists(nil, ledgerStore, journeyStore, storage)
+		if environment == "PRODUCTION" {
+			// Production must never mint the four preapproved demo
+			// specialists, bookable slots or synthetic economic offers.
+			demandService, err = demand.NewLiveServiceWithStoresAndSpecialists(nil, ledgerStore, journeyStore, storage)
+		} else {
+			demandService, err = demand.NewConformanceServiceWithStoresAndSpecialists(nil, ledgerStore, journeyStore, storage)
+		}
 		if err != nil {
 			log.Fatalf("APGIC journey hydration failed: %v", err)
 		}
