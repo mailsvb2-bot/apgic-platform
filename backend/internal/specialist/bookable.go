@@ -23,11 +23,11 @@ type BookableOffer struct {
 }
 
 type BookableSlot struct {
-	ID       string    `json:"id"`
-	OfferID  string    `json:"offer_id"`
-	StartsAt time.Time `json:"starts_at"`
-	EndsAt   time.Time `json:"ends_at"`
-	Exclusive bool     `json:"exclusive"`
+	ID        string    `json:"id"`
+	OfferID   string    `json:"offer_id"`
+	StartsAt  time.Time `json:"starts_at"`
+	EndsAt    time.Time `json:"ends_at"`
+	Exclusive bool      `json:"exclusive"`
 }
 
 // OfferStore is an authenticated server-side mutation owner. Client claims
