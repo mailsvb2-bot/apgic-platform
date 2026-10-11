@@ -1217,6 +1217,10 @@ requirements:
   - apps/web/app/specialist/onboarding.tsx
   - backend/migrations/000007_r1_marketplace_discovery.sql
   - backend/migrations/000019_r1_specialist_supply_runtime.sql
+  - backend/internal/runtimepostgres/live_supply.go
+  - backend/internal/specialist/bookable.go
+  - backend/internal/httpapi/specialist_live_supply.go
+  - backend/migrations/000031_r1_live_priced_specialist_supply.sql
   contract_refs:
   - contracts/openapi/apgic-v1.yaml
   - contracts/jsonschema/marketplace-discovery-v1.schema.json
@@ -1227,6 +1231,7 @@ requirements:
   - backend/internal/demand/search_test.go
   - apps/web/e2e/foundation.spec.ts
   - backend/migrations/ci_r1_marketplace_invariants.sql
+  - backend/internal/runtimepostgres/live_supply_test.go
   evidence_refs: []
   acceptance:
     given: профиль специалиста неполон или review не завершён
@@ -1362,10 +1367,16 @@ requirements:
   - APGIC-QUAL-001
   implementation_refs:
   - backend/internal/marketplace/discovery.go
+  - backend/internal/demand/live_supply.go
+  - backend/internal/demand/service.go
+  - backend/internal/runtimepostgres/live_supply.go
+  - apps/web/app/journey.tsx
   contract_refs:
   - contracts/jsonschema/marketplace-discovery-v1.schema.json
   test_refs:
   - backend/internal/marketplace/marketplace_test.go
+  - backend/internal/demand/live_supply_test.go
+  - backend/internal/runtimepostgres/live_supply_test.go
   evidence_refs:
   - canon/evidence/staging-runtime-20260926T215500Z.json
   - canon/evidence/staging-runtime-20260927T072352Z.json
@@ -1503,6 +1514,8 @@ requirements:
   - backend/internal/demand/journey_store.go
   - backend/internal/runtimepostgres/journey.go
   - backend/migrations/000008_r2_booking_order.sql
+  - backend/internal/runtimepostgres/live_journey.go
+  - backend/migrations/000031_r1_live_priced_specialist_supply.sql
   contract_refs:
   - contracts/jsonschema/booking-order-v1.schema.json
   test_refs:
@@ -1514,6 +1527,8 @@ requirements:
   - backend/ci/r2_booking_concurrency.sh
   - backend/migrations/ci_r2_booking_order_invariants.sql
   - .github/workflows/ci.yml
+  - backend/internal/demand/live_supply_test.go
+  - backend/internal/runtimepostgres/live_supply_test.go
   evidence_refs: []
   acceptance:
     given: свободен один exclusive slot
