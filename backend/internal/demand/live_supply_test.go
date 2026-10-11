@@ -49,7 +49,7 @@ func liveFixtureOffer(t *testing.T, topic, offerID string, price int64, start ti
 	return BookableOffer{
 		ID: offerID, Profile: profile, Topic: topic, PriceMinor: price, Currency: "RUB",
 		Slots: []Slot{{
-			ID: profile.ID + "-slot-" + start.Format("20060102T1504Z"),
+			ID:           profile.ID + "-slot-" + start.Format("20060102T1504Z"),
 			SpecialistID: profile.ID, OfferID: offerID, Topic: topic,
 			StartsAt: start, EndsAt: start.Add(50 * time.Minute), Exclusive: true,
 		}},
