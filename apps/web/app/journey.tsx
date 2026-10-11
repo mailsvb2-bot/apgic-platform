@@ -18,6 +18,7 @@ type Intent = {
 };
 
 type MatchCard = {
+  offer_id?: string;
   specialist_id: string;
   display_name: string;
   profession: string;
@@ -463,7 +464,7 @@ export function Journey() {
     setFulfillment(null);
     setSession(null);
     try {
-      const response = await fetch(`/v1/specialists/${card.specialist_id}/slots`);
+      const response = await fetch(`/v1/specialists/${card.specialist_id}/slots${card.offer_id ? `?offer_id=${encodeURIComponent(card.offer_id)}` : ``}`);
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.message_safe || "Слоты недоступны.");
       setSpecialist(card);
