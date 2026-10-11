@@ -2060,6 +2060,7 @@ components:
       additionalProperties: false
       required: [specialist_id, display_name, profession, price_minor, currency, format, sponsored]
       properties:
+        offer_id: { type: string, description: Published, priced canonical offer; present only for real live bookable specialists }
         specialist_id: { type: string }
         display_name: { type: string }
         profession: { type: string }
