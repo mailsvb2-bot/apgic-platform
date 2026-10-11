@@ -537,8 +537,9 @@ func TestJourneyStoreSurvivesServiceRestart(t *testing.T) {
 		     ON booking.id = order_row.booking_id
 		   JOIN ledger_entries ledger
 		     ON ledger.economic_event_ref = order_row.id::text
-		  WHERE direction.id = $1::uuid`,
-		expectedDirectionID,
+		  WHERE direction.id = $1::uuid
+		    AND order_row.id = $2::uuid`,
+		expectedDirectionID, instruction.OrderID,
 	).Scan(
 		&archivedStatus,
 		&linkedProductID,
