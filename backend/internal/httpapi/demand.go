@@ -233,7 +233,7 @@ func registerDemand(
 			writeDemandError(w, r, http.StatusServiceUnavailable, "DEMAND_CATALOG_UNAVAILABLE", "Каталог спроса не подключён.", false, nil)
 			return
 		}
-		slots, err := service.Slots(r.PathValue("id"))
+		slots, err := service.SlotsForOffer(r.PathValue("id"), r.URL.Query().Get("offer_id"))
 		if err != nil {
 			writeDemandFailure(w, r, err)
 			return
