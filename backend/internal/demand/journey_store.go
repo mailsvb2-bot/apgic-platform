@@ -47,7 +47,7 @@ type JourneyStore interface {
 // holds of offers that have since become unavailable, without rehydrating
 // old conformance checkout or payment fixtures.
 type LiveJourneyStore interface {
-    LoadLiveJourney() (JourneySnapshot, error)
+	LoadLiveJourney() (JourneySnapshot, error)
 }
 
 func journeyReasonError(reason string) error {
