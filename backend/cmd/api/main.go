@@ -29,7 +29,9 @@ func main() {
 	var storage *runtimepostgres.Checker
 	var ledgerStore demand.LedgerStore
 	var journeyStore demand.JourneyStore
-	environment := os.Getenv("APGIC_ENVIRONMENT")
+	// A lowercase/space-padded PRODUCTION value must never select the
+	// conformance fixture while RequiresDatabase already treats it as live.
+	environment := strings.ToUpper(strings.TrimSpace(os.Getenv("APGIC_ENVIRONMENT")))
 	releaseTrack := envOr("APGIC_RELEASE_TRACK", "R0")
 	clientSessionKey := []byte(os.Getenv("APGIC_CLIENT_SESSION_KEY"))
 	deepLinkSigningKey := []byte(os.Getenv("APGIC_DEEPLINK_SIGNING_KEY"))
