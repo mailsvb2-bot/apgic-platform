@@ -172,6 +172,12 @@ export function Journey() {
   const [topics, setTopics] = useState<string[]>([]);
   const [matches, setMatches] = useState<MatchCard[] | null>(null);
   const [search, setSearch] = useState<{ notice: string; stale: boolean; rebuilt: boolean; owns_qualification: boolean; entries: { specialist_id: string; display_name: string }[] } | null>(null);
+  // A reviewed specialist may be publicly published before an actual priced
+  // consultation and bookable slot exists. These are discovery-only profiles,
+  // never actionable MatchCards; don't invent a price or a booking control.
+  const livePreview = intent?.catalog_mode === "LIVE" && matches !== null
+    ? search?.entries ?? []
+    : [];
   const [specialist, setSpecialist] = useState<MatchCard | null>(null);
   const [slots, setSlots] = useState<Slot[]>([]);
   const [hold, setHold] = useState<Hold | null>(null);
@@ -376,13 +382,29 @@ export function Journey() {
         return payload as { matches: MatchCard[] };
       });
       setMatches(listed.matches);
-      const topic = topics[0];
-      if (topic) {
-        const projected = await fetch(`/v1/search?topic=${encodeURIComponent(topic)}`);
-        const projection = await projected.json();
-        if (!projected.ok) throw new Error(projection.message_safe || "Поиск недоступен.");
+      // Live discovery follows *all* topics confirmed by the backend.
+      // Qualification remains owned by the canonical specialist store;
+      // this projection never makes an unpriced profile bookable.
+      // Keep isolated conformance proof tools scoped to their first topic.
+      const searchTopics = confirmed.catalog_mode === "LIVE"
+        ? [...new Set(confirmed.topics)]
+        : confirmed.topics.slice(0, 1);
+      const projections = await Promise.all(searchTopics.map(async (topic) => {
+        const response = await fetch(`/v1/search?topic=${encodeURIComponent(topic)}`);
+        const projection = await response.json() as NonNullable<typeof search> & { message_safe?: string };
+        if (!response.ok) throw new Error(projection.message_safe || "Поиск недоступен.");
         if (projection.owns_qualification) throw new Error("Поиск не должен владеть допуском.");
-        setSearch(projection);
+        return projection;
+      }));
+      if (projections.length > 0) {
+        const first = projections[0];
+        const unique = new Map<string, typeof first.entries[number]>();
+        for (const projection of projections) {
+          for (const entry of projection.entries) {
+            unique.set(entry.specialist_id, entry);
+          }
+        }
+        setSearch({ ...first, entries: [...unique.values()] });
       }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Не удалось подтвердить запрос.");
@@ -835,7 +857,11 @@ export function Journey() {
               <p>
                 {matches.length
                   ? `Нашли ${matches.length} ${matches.length === 1 ? "подходящий вариант" : "подходящих варианта"}. Сравните формат, стоимость и доступное время.`
-                  : "По подтверждённым темам сейчас нет подходящих специалистов."}
+                  : livePreview.length
+                    ? "Есть проверенные опубликованные профили по вашей теме, но запись пока недоступна: специалисты ещё не опубликовали стоимость и свободное время."
+                    : intent?.catalog_mode === "LIVE"
+                      ? "Сейчас нет специалистов с подтверждённой публикацией и доступной записью по выбранной теме."
+                      : "По подтверждённым темам сейчас нет подходящих специалистов."}
               </p>
             </div>
           </div>
@@ -863,6 +889,26 @@ export function Journey() {
                 </li>
               ))}
             </ul>
+          ) : null}
+
+          {matches.length === 0 && livePreview.length > 0 ? (
+            <section aria-label="Опубликованные профили без доступной записи">
+              <p>Публикация профиля подтверждена. Это не предложение консультации: цена и расписание пока не опубликованы.</p>
+              <ul className="specialist-cards">
+                {livePreview.map((entry) => (
+                  <li key={entry.specialist_id}>
+                    <div className="specialist-card-top">
+                      <div className="specialist-avatar" aria-hidden="true">{initials(entry.display_name)}</div>
+                      <div className="specialist-card-name">
+                        <span className="match-badge">Опубликованный проверенный профиль</span>
+                        <h3>{entry.display_name}</h3>
+                        <p>Запись пока недоступна</p>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </section>
           ) : null}
 
           {search && conformanceProviderEvents ? (

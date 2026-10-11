@@ -176,6 +176,70 @@ test("help intent journey stays usable and accessible", async ({ page }) => {
   expect(accessibility.violations).toEqual([]);
 });
 
+test("live client sees reviewed specialists without fabricated prices or booking", async ({ page }) => {
+  await page.route("**/v1/help-intents/*/confirm", async (route) => {
+    const response = await route.fetch();
+    const intent = await response.json();
+    await route.fulfill({
+      response,
+      contentType: "application/json",
+      body: JSON.stringify({ ...intent, catalog_mode: "LIVE" }),
+    });
+  });
+  await page.route("**/v1/help-intents/*/matches**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        topic: "sleep",
+        catalog_mode: "LIVE",
+        matches: [],
+        ranking_policy_version: "ranking-v1",
+      }),
+    });
+  });
+  const seenSearchTopics = new Set<string>();
+  await page.route("**/v1/search?topic=*", async (route) => {
+    const topic = new URL(route.request().url()).searchParams.get("topic");
+    if (topic) seenSearchTopics.add(topic);
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        topic,
+        owns_qualification: false,
+        stale: false,
+        rebuilt: false,
+        notice: "Public discovery only",
+        // A verified profile published *only* under the second topic must
+        // appear in live discovery; the sleep-only projection is empty.
+        entries: topic === "anxiety" ? [{
+          specialist_id: "approved-real-profile",
+          display_name: "Специалист с проверенной квалификацией",
+          topics: ["anxiety"],
+        }] : [],
+      }),
+    });
+  });
+
+  await page.goto("/");
+  await page.getByLabel("С чем нужна помощь").fill("Проблемы со сном и бессонница");
+  await page.getByRole("button", { name: "Разобрать запрос" }).click();
+  await page.getByRole("checkbox", { name: "Сон" }).check();
+  await page.getByRole("checkbox", { name: "Тревога и волнение" }).check();
+  await page.getByRole("button", { name: "Подтвердить и показать специалистов" }).click();
+
+  const discovery = page.getByRole("region", { name: "Опубликованные профили без доступной записи" });
+  await expect(discovery).toBeVisible();
+  await expect(discovery.getByText("Специалист с проверенной квалификацией")).toBeVisible();
+  expect([...seenSearchTopics].sort()).toEqual(["anxiety", "sleep"]);
+  await expect(page.getByText("Публикация профиля подтверждена. Это не предложение консультации: цена и расписание пока не опубликованы.")).toBeVisible();
+  await expect(discovery.getByText("Запись пока недоступна", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Выбрать время у/ })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Удержать слот/ })).toHaveCount(0);
+  await expect(page.getByText(/0\s*₽/)).toHaveCount(0);
+});
+
 test("replacing a help request invalidates stale matches even on API failure", async ({ page }) => {
   await page.goto("/");
   const request = page.getByLabel("С чем нужна помощь");
