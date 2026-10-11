@@ -82,7 +82,7 @@ func TestLivePricedSpecialistToDurableHoldAfterRestart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	start := time.Now().UTC().Add(2*time.Hour).Truncate(time.Minute)
+	start := time.Now().UTC().Add(2 * time.Hour).Truncate(time.Minute)
 	end := start.Add(50 * time.Minute)
 	slot, err := store.AddBookableSlot(specialistIdentityID, offer.ID, start, end)
 	if err != nil || slot.OfferID != offer.ID {
