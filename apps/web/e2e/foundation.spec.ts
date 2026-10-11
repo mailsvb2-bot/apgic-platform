@@ -234,7 +234,7 @@ test("live client sees reviewed specialists without fabricated prices or booking
   await expect(discovery.getByText("Специалист с проверенной квалификацией")).toBeVisible();
   expect([...seenSearchTopics].sort()).toEqual(["anxiety", "sleep"]);
   await expect(page.getByText("Публикация профиля подтверждена. Это не предложение консультации: цена и расписание пока не опубликованы.")).toBeVisible();
-  await expect(page.getByText("Запись пока недоступна")).toBeVisible();
+  await expect(discovery.getByText("Запись пока недоступна", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: /Выбрать время у/ })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /Удержать слот/ })).toHaveCount(0);
   await expect(page.getByText(/0\s*₽/)).toHaveCount(0);
