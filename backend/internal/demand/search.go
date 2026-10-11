@@ -38,7 +38,15 @@ func (s *Service) Search(topic string) (*SearchView, error) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err := s.ensureProjectionLocked(); err != nil {
+	// A durable public listing is security-sensitive: unpublished, revoked,
+	// expired or unreviewed specialists must disappear on the very next read.
+	// Keep the rebuildable projection, but never serve an unchecked in-memory
+	// snapshot when canonical PostgreSQL supply is attached.
+	if s.specialistStore != nil {
+		if err := s.rebuildProjectionLocked(); err != nil {
+			return nil, err
+		}
+	} else if err := s.ensureProjectionLocked(); err != nil {
 		return nil, err
 	}
 	return s.searchViewLocked(topic, false), nil
