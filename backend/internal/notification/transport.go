@@ -27,8 +27,8 @@ const (
 	ReasonDeliveryPreferenceSuppressed = "NOTIFICATION_DELIVERY_PREFERENCE_SUPPRESSED"
 	ReasonDeliveryDuplicate            = "NOTIFICATION_DELIVERY_DUPLICATE"
 	ReasonDeliveryIdempotencyConflict  = "NOTIFICATION_DELIVERY_IDEMPOTENCY_CONFLICT"
-	ReasonDeliveryNotBefore           = "NOTIFICATION_DELIVERY_NOT_BEFORE"
-	ReasonDeliveryExpired             = "NOTIFICATION_DELIVERY_EXPIRED"
+	ReasonDeliveryNotBefore            = "NOTIFICATION_DELIVERY_NOT_BEFORE"
+	ReasonDeliveryExpired              = "NOTIFICATION_DELIVERY_EXPIRED"
 )
 
 var (
