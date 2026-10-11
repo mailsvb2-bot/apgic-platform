@@ -181,12 +181,12 @@ func proveCanonicalNotificationDeliveryWindow(t *testing.T, store *Checker, book
 	}
 	future := insertIntent(now.Add(time.Hour), now.Add(2*time.Hour), now)
 	expired := insertIntent(now.Add(-2*time.Hour), now.Add(-time.Hour), now.Add(-3*time.Hour))
-	futureRequest := createRequest("device/future-"+future.ID)
-	expiredRequest := createRequest("device/expired-"+expired.ID)
+	futureRequest := createRequest("device/future-" + future.ID)
+	expiredRequest := createRequest("device/expired-" + expired.ID)
 	for _, tc := range []struct {
-		intent notification.Intent
+		intent  notification.Intent
 		request notification.DeliveryRequest
-		want error
+		want    error
 	}{
 		{future, futureRequest, notification.ErrDeliveryNotBefore},
 		{expired, expiredRequest, notification.ErrDeliveryExpired},
