@@ -266,9 +266,9 @@ func TestLiveSupplyNeverBootstrapsOrBooksConformanceSpecialists(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	reloaded, err := restarted.GetIntent(intent.ID)
-	if err != nil || reloaded.CatalogMode != CatalogModeLive {
-		t.Fatalf("live intent not restored after restart: %#v err=%v", reloaded, err)
+	reloaded := restarted.intents[intent.ID]
+	if reloaded == nil || reloaded.CatalogMode != CatalogModeLive {
+		t.Fatalf("live intent not restored after restart: %#v", reloaded)
 	}
 }
 
