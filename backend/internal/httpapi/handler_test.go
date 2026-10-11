@@ -146,9 +146,9 @@ func TestTrustedProviderWebhookRequiresSignatureAndConfirmsExactlyOnce(t *testin
 	}, privateKey)
 
 	handler := New(Options{
-		Demand:              service,
+		Demand: service,
 		ProviderWebhookKeys: providerWebhookKeyMap{
-			connectorID + "/" + keyID: publicKey,
+			connectorID + "/" + keyID:        publicKey,
 			foreignConnectorID + "/" + keyID: publicKey,
 		},
 	})
