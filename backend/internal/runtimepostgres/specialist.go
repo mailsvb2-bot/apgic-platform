@@ -108,6 +108,13 @@ func (c *Checker) UpsertProfile(identityID, displayName, professionCode string) 
 		); err != nil {
 			return specialist.Profile{}, fmt.Errorf("update specialist profile: %w", err)
 		}
+		// A changed name or profession invalidates the previously reviewed
+		// public claim. Reapproval must not resurrect its old publication.
+		if materialChange {
+			if err := revokeSpecialistPublicationsTx(ctx, tx, existingID); err != nil {
+				return specialist.Profile{}, err
+			}
+		}
 	}
 	if err := tx.Commit(); err != nil {
 		return specialist.Profile{}, fmt.Errorf("commit specialist profile upsert: %w", err)
@@ -249,6 +256,11 @@ func (c *Checker) SubmitEvidence(identityID, topicID, kind, reference string) (s
 			specialistID,
 		); err != nil {
 			return specialist.Profile{}, fmt.Errorf("mark specialist profile for manual review: %w", err)
+		}
+		// Document resubmission invalidates the profile review and every
+		// active public claim in the same durable transaction.
+		if err := revokeSpecialistPublicationsTx(ctx, tx, specialistID); err != nil {
+			return specialist.Profile{}, err
 		}
 	}
 	if err := tx.Commit(); err != nil {
@@ -424,6 +436,11 @@ func (c *Checker) ReviewProfile(identityID string, approved bool, reviewerRef st
 		specialistID, target,
 	); err != nil {
 		return fmt.Errorf("review specialist profile: %w", err)
+	}
+	if oldState != target {
+		if err := revokeSpecialistPublicationsTx(ctx, tx, specialistID); err != nil {
+			return err
+		}
 	}
 	auditID, err := persistentid.New()
 	if err != nil {
@@ -632,6 +649,14 @@ func (c *Checker) PublishedProfiles() ([]marketplace.SpecialistProfile, error) {
 		   JOIN specialist_publications publication
 		     ON publication.specialist_id = profile.id
 		    AND publication.state = 'ACTIVE'
+		   JOIN specialist_capabilities capability
+		     ON capability.specialist_id = profile.id
+		    AND capability.topic_id = publication.topic_id
+		    AND capability.evidence_state = 'APGIC_VERIFIED'
+		    AND capability.verification_state = 'ACTIVE'
+		    AND (capability.expires_at IS NULL OR capability.expires_at > now())
+		  WHERE profile.profile_complete
+		    AND profile.review_state = 'APPROVED'
 		  ORDER BY profile.identity_id::text`)
 	if err != nil {
 		return nil, fmt.Errorf("list published specialist identities: %w", err)
@@ -675,8 +700,16 @@ func (c *Checker) PublishedProfiles() ([]marketplace.SpecialistProfile, error) {
 			}
 			domain.AddCapability(item)
 		}
+		for _, topic := range profile.PublishedTopics {
+			if !specialistPolicyAllows(profile.ProfessionCode, topic) {
+				continue
+			}
+			domain.PublishedTopics = append(domain.PublishedTopics, topic)
+		}
+		if len(domain.PublishedTopics) == 0 {
+			continue
+		}
 		domain.PublishState = marketplace.PublishPublished
-		domain.PublishedTopics = append([]string(nil), profile.PublishedTopics...)
 		profiles = append(profiles, *domain)
 	}
 
@@ -783,11 +816,20 @@ func loadSpecialistProfileTx(ctx context.Context, tx *sql.Tx, identityID string)
 	rows.Close()
 
 	rows, err = tx.QueryContext(ctx,
-		`SELECT topic_id
-		   FROM specialist_publications
-		  WHERE specialist_id = $1::uuid AND state = 'ACTIVE'
-		  ORDER BY topic_id`,
-		profile.ID,
+		`SELECT publication.topic_id
+		   FROM specialist_publications publication
+		   JOIN specialist_capabilities capability
+		     ON capability.specialist_id = publication.specialist_id
+		    AND capability.topic_id = publication.topic_id
+		    AND capability.evidence_state = 'APGIC_VERIFIED'
+		    AND capability.verification_state = 'ACTIVE'
+		    AND (capability.expires_at IS NULL OR capability.expires_at > now())
+		  WHERE publication.specialist_id = $1::uuid
+		    AND publication.state = 'ACTIVE'
+		    AND $2 = 'APPROVED'
+		    AND $3
+		  ORDER BY publication.topic_id`,
+		profile.ID, profile.ReviewState, profile.ProfileComplete,
 	)
 	if err != nil {
 		return specialist.Profile{}, fmt.Errorf("read specialist publications: %w", err)
@@ -816,6 +858,22 @@ func loadSpecialistProfileTx(ctx context.Context, tx *sql.Tx, identityID string)
 		profile.PublishedTopics = []string{}
 	}
 	return profile, nil
+}
+
+// revokeSpecialistPublicationsTx atomically withdraws public visibility when
+// previously approved identity/qualification claims become unreviewed.
+func revokeSpecialistPublicationsTx(ctx context.Context, tx *sql.Tx, specialistID string) error {
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE specialist_publications
+		    SET state = 'UNPUBLISHED',
+		        reason_code = 'PUBLISH_REVIEW_INCOMPLETE',
+		        ended_at = COALESCE(ended_at, now())
+		  WHERE specialist_id = $1::uuid AND state = 'ACTIVE'`,
+		specialistID,
+	); err != nil {
+		return fmt.Errorf("revoke specialist publications after review invalidation: %w", err)
+	}
+	return nil
 }
 
 func specialistPolicyAllows(profession, topic string) bool {
