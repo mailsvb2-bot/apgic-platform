@@ -8,6 +8,7 @@ import (
 
 type memoryDeliveryStore struct {
 	plans map[string]DeliveryPlan
+	dispatches map[string]bool
 }
 
 func (s *memoryDeliveryStore) ClaimNotificationDelivery(_ context.Context, plan DeliveryPlan, _ DeliveryAudit) (DeliveryPlan, bool, error) {
@@ -19,6 +20,21 @@ func (s *memoryDeliveryStore) ClaimNotificationDelivery(_ context.Context, plan 
 	}
 	s.plans[plan.IdempotencyKey] = plan
 	return plan, false, nil
+}
+
+func (s *memoryDeliveryStore) ReserveNotificationPushDispatch(_ context.Context, plan DeliveryPlan, _, _ string) (PushTransportEnvelope, error) {
+	if s.dispatches == nil {
+		s.dispatches = make(map[string]bool)
+	}
+	if s.dispatches[plan.DeliveryID] {
+		return PushTransportEnvelope{}, ErrPushDispatchAlreadyReserved
+	}
+	s.dispatches[plan.DeliveryID] = true
+	return PushTransportEnvelope{
+		ContractVersion: "notification-transport-v1",
+		DeliveryID: plan.DeliveryID,
+		IntentID: plan.IntentID,
+	}, nil
 }
 
 func TestPushTransportIsOneIdempotentIntentWithSafePreview(t *testing.T) {
@@ -37,7 +53,8 @@ func TestPushTransportIsOneIdempotentIntentWithSafePreview(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	service, err := NewTransportService(&memoryDeliveryStore{})
+	store := &memoryDeliveryStore{}
+	service, err := NewTransportService(store)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +77,11 @@ func TestPushTransportIsOneIdempotentIntentWithSafePreview(t *testing.T) {
 	if intent.RequiresGrowthOptIn() {
 		t.Fatal("transactional push must not become dependent on growth opt-in")
 	}
-	envelope, err := PushEnvelope(first)
+	dispatcher, err := NewPushDispatchService(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	envelope, err := dispatcher.Reserve(context.Background(), first, "dispatch-audit-1", "system:notification")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,6 +94,9 @@ func TestPushTransportIsOneIdempotentIntentWithSafePreview(t *testing.T) {
 	second, duplicate, err := service.Claim(context.Background(), intent, request, policy)
 	if err != nil || !duplicate || second.DeliveryID != first.DeliveryID {
 		t.Fatalf("duplicate claim = %#v duplicate=%v err=%v", second, duplicate, err)
+	}
+	if _, err := dispatcher.Reserve(context.Background(), second, "dispatch-audit-2", "system:notification"); err != ErrPushDispatchAlreadyReserved {
+		t.Fatalf("duplicate transport dispatch must be rejected: %v", err)
 	}
 }
 
@@ -107,12 +131,20 @@ func TestChannelPreferenceSuppressesBeforeProviderEnvelope(t *testing.T) {
 	if plan.State != DeliverySuppressed || plan.ReasonCode != ReasonDeliveryPreferenceSuppressed || auditDecision.ReasonCode != ReasonDeliveryPreferenceSuppressed {
 		t.Fatalf("preference was not applied before provider: plan=%#v audit=%#v", plan, auditDecision)
 	}
-	if _, err := PushEnvelope(plan); err == nil {
+	dispatcher, err := NewPushDispatchService(&memoryDeliveryStore{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := dispatcher.Reserve(context.Background(), plan, "dispatch-audit-2", "system:notification"); err == nil {
 		t.Fatal("suppressed delivery must not produce provider push envelope")
 	}
 }
 
-func TestPushEnvelopeRejectsNonPendingDeliveryStates(t *testing.T) {
+func TestPushDispatchRejectsNonPendingDeliveryStates(t *testing.T) {
+	dispatcher, err := NewPushDispatchService(&memoryDeliveryStore{})
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, state := range []DeliveryState{
 		DeliverySent,
 		DeliveryDelivered,
@@ -128,7 +160,7 @@ func TestPushEnvelopeRejectsNonPendingDeliveryStates(t *testing.T) {
 				Channel:    ChannelPush,
 				State:      state,
 			}
-			if _, err := PushEnvelope(plan); err == nil {
+			if _, err := dispatcher.Reserve(context.Background(), plan, "audit-1", "system:notification"); err == nil {
 				t.Fatalf("state %q must not create a fresh provider push envelope", state)
 			}
 		})
@@ -138,7 +170,7 @@ func TestPushEnvelopeRejectsNonPendingDeliveryStates(t *testing.T) {
 		{DeliveryID: "delivery-1", IntentID: "", Channel: ChannelPush, State: DeliveryPending},
 		{DeliveryID: "delivery-1", IntentID: "intent-1", Channel: ChannelEmail, State: DeliveryPending},
 	} {
-		if _, err := PushEnvelope(tc); err == nil {
+		if _, err := dispatcher.Reserve(context.Background(), tc, "audit-2", "system:notification"); err == nil {
 			t.Fatalf("invalid pending push scope must be rejected: %#v", tc)
 		}
 	}
