@@ -94,6 +94,7 @@ def build_inventory(coverage: dict[str, Any], registry: dict[str, Any], producti
                 raise CanonInventoryError(f"{rid}: unknown source canon section {number}")
             reverse[number].add(rid)
 
+    traceability_mismatches: list[dict[str, Any]] = []
     unmapped: list[dict[str, Any]] = []
     section_inventory: list[dict[str, Any]] = []
     by_domain: Counter[str] = Counter()
@@ -109,10 +110,14 @@ def build_inventory(coverage: dict[str, Any], registry: dict[str, Any], producti
                 raise CanonInventoryError(f"section {number}: unknown requirement {rid!r}")
         source_ids = sorted(reverse[number])
         if sorted(explicit) != source_ids:
-            raise CanonInventoryError(
-                f"section {number}: immutable coverage links disagree with registry source_sections "
-                f"(coverage={sorted(explicit)}, registry={source_ids})"
-            )
+            # Frozen canon companions may disagree with each other. Report the
+            # inconsistency as an explicit blocker for human/RFC reconciliation;
+            # do not rewrite either normative source or hide the whole backlog.
+            traceability_mismatches.append({
+                "section": number,
+                "coverage_requirement_ids": sorted(explicit),
+                "registry_requirement_ids": source_ids,
+            })
         has_explicit = bool(explicit)
         item = {
             "section": number,
@@ -184,10 +189,12 @@ def build_inventory(coverage: dict[str, Any], registry: dict[str, Any], producti
             "status_counts": dict(sorted(status_totals.items())),
             "non_released_requirements": len(incomplete),
             "production_evidence_records": len(records),
+            "traceability_mismatches": len(traceability_mismatches),
         },
         "profile_status": {p: dict(sorted(by_profile[p].items())) for p in PROFILES},
         "unmapped_by_owner_domain": dict(sorted(by_domain.items(), key=lambda kv: (-kv[1], kv[0]))),
         "owner_only_sections": unmapped,
+        "traceability_mismatches": traceability_mismatches,
         "requirements_backlog_dependency_order": incomplete,
         "section_index": section_inventory,
     }
@@ -203,6 +210,7 @@ def render_summary(inventory: dict[str, Any]) -> str:
         f"- Owner-only sections requiring human analysis: **{counts['owner_only_sections_needing_analysis']}**",
         f"- Requirements: **{counts['requirements']}**; not RELEASED: **{counts['non_released_requirements']}**",
         f"- Production evidence records: **{counts['production_evidence_records']}**",
+        f"- Frozen-coverage / registry link inconsistencies: **{counts['traceability_mismatches']}**",
         "",
         "| Release | Status counts |",
         "|---|---|",
@@ -257,6 +265,7 @@ def main() -> int:
     )
     if args.strict_complete and (
         counts["owner_only_sections_needing_analysis"] or counts["non_released_requirements"]
+        or counts["traceability_mismatches"]
         or not counts["production_evidence_records"]
     ):
         print("CANON EXECUTION INVENTORY: final full-canon acceptance BLOCKED", file=sys.stderr)
