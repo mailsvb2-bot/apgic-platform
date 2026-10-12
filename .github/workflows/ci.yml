@@ -330,6 +330,7 @@ jobs:
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000030_r2_notification_push_dispatch_reservations.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000031_r1_live_priced_specialist_supply.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000032_r3_consultation_readiness_outcome.sql
+          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000033_r3_terminal_session_join_guard.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r0_connector_delivery_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r1_mobile_invariants.sql
@@ -714,6 +715,7 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f backend/migrations/000030_r2_notification_push_dispatch_reservations.sql
           psql -v ON_ERROR_STOP=1 -f backend/migrations/000031_r1_live_priced_specialist_supply.sql
           psql -v ON_ERROR_STOP=1 -f backend/migrations/000032_r3_consultation_readiness_outcome.sql
+          psql -v ON_ERROR_STOP=1 -f backend/migrations/000033_r3_terminal_session_join_guard.sql
           bash backend/ci/restore_drill.sh
       - uses: actions/upload-artifact@v7
         with:

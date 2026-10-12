@@ -16,6 +16,7 @@ type ConsultationJourneyStore interface {
 	ReadConsultationReady(context.Context, string, string) (*connector.ReadySnapshot, error)
 	ConfirmConsultationReady(context.Context, string, string, time.Time) (*connector.ReadySnapshot, error)
 	ReadConsultationOutcome(context.Context, string, string) (*connector.OutcomeReport, error)
+	ReadConsultationTimeline(context.Context, string, string) (*connector.ConsultationTimeline, error)
 	RecordConsultationOutcome(context.Context, string, string, string, int, int, time.Time) (*connector.OutcomeReport, error)
 }
 
@@ -88,6 +89,16 @@ func registerConsultationJourney(mux *http.ServeMux, store ConsultationJourneySt
 		}
 		w.Header().Set("Cache-Control", "no-store")
 		writeJSON(w, http.StatusOK, v)
+	})
+	mux.HandleFunc("GET /v1/consultations/{bookingID}/timeline", func(w http.ResponseWriter, r *http.Request) {
+		if !available(w,r) {return}
+		identity,ok:=identityFor(w,r)
+		if !ok {return}
+		timeline,err:=store.ReadConsultationTimeline(r.Context(),r.PathValue("bookingID"),identity)
+		if err!=nil {consultationStorageError(w,r);return}
+		if timeline==nil {consultationHidden(w,r);return}
+		w.Header().Set("Cache-Control","no-store")
+		writeJSON(w,http.StatusOK,timeline)
 	})
 	mux.HandleFunc("GET /v1/consultations/{bookingID}/outcome", func(w http.ResponseWriter, r *http.Request) {
 		if !available(w, r) {

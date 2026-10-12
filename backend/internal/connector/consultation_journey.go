@@ -17,6 +17,7 @@ type ReadySnapshot struct {
 	BookingID         string     `json:"booking_id"`
 	Role              string     `json:"role"`
 	BookingState      string     `json:"booking_state"`
+	ConsultationState string     `json:"consultation_state,omitempty"`
 	OpensAt           time.Time  `json:"opens_at"`
 	ClosesAt          time.Time  `json:"closes_at"`
 	ClientReadyAt     *time.Time `json:"client_ready_at,omitempty"`

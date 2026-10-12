@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import ConsultationResultView from "./consultation-result";
 import ConsultationJourney from "./consultation-journey";
+import ConsultationHistory from "./consultation-history";
 
 import type { BookingStatus } from "../../../packages/contracts/src/generated/apgic-v1";
 
@@ -109,6 +110,8 @@ export default function BookingDetail({ bookingID }: { bookingID: string }) {
           {booking.state === "CONFIRMED" || booking.state === "COMPLETED" ?
             <><ConsultationJourney key={bookingID + "-journey"} bookingID={bookingID} />
             <ConsultationResultView key={bookingID} bookingID={bookingID} /></> : null}
+          {["CONFIRMED","COMPLETED","CANCELLED","NO_SHOW"].includes(booking.state) ?
+            <ConsultationHistory key={bookingID+"-history"} bookingID={bookingID} /> : null}
         </section>
       ) : null}
       <button type="button" onClick={() => setRetry((value) => value + 1)}

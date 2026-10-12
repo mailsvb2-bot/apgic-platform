@@ -107,6 +107,23 @@ func (c *Checker) ApplyConsultationProviderWebhook(ctx context.Context, envelope
 		if err != nil {
 			return fmt.Errorf("apply consultation lifecycle fact: %w", err)
 		}
+		if body.FactType == "ENDED" {
+			// Keep provider-signed completion and the canonical booking outcome
+			// in one PostgreSQL transaction. Never complete a cancelled booking.
+			changed, updateErr := tx.ExecContext(ctx, `UPDATE bookings
+				SET state='COMPLETED', updated_at=$2
+				WHERE id=$1::uuid AND state='CONFIRMED'
+				  AND EXISTS (SELECT 1 FROM consultation_sessions
+					WHERE booking_id=$1::uuid AND state='COMPLETED')`,
+				body.BookingID, envelope.OccurredAt.UTC())
+			if updateErr != nil {
+				return fmt.Errorf("provider completion booking transition: %w", updateErr)
+			}
+			affected, affectedErr := changed.RowsAffected()
+			if affectedErr != nil || affected != 1 {
+				return ErrConsultationProviderPayload
+			}
+		}
 		return nil
 	})
 }

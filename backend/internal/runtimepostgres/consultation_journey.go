@@ -25,20 +25,23 @@ func (c *Checker) ReadConsultationReady(ctx context.Context, bookingID, identity
 	}
 	var v connector.ReadySnapshot
 	var client, specialist sql.NullTime
+	var sessionState sql.NullString
 	err := c.db.QueryRowContext(ctx, `SELECT b.id::text,
         CASE WHEN b.client_identity_id=$2::uuid THEN 'CLIENT' ELSE 'SPECIALIST' END,
         b.state,b.starts_at-interval '15 minutes',b.ends_at,
+        (SELECT session.state FROM consultation_sessions session WHERE session.booking_id=b.id),
         (SELECT r.ready_at FROM consultation_participant_readiness r WHERE r.booking_id=b.id AND r.identity_id=b.client_identity_id),
         (SELECT r.ready_at FROM consultation_participant_readiness r WHERE r.booking_id=b.id AND r.identity_id=bs.specialist_identity_id)
         FROM bookings b JOIN booking_slots bs ON bs.id=b.slot_id
         WHERE b.id=$1::uuid AND (b.client_identity_id=$2::uuid OR bs.specialist_identity_id=$2::uuid)`,
-		bookingID, identityID).Scan(&v.BookingID, &v.Role, &v.BookingState, &v.OpensAt, &v.ClosesAt, &client, &specialist)
+		bookingID, identityID).Scan(&v.BookingID, &v.Role, &v.BookingState, &v.OpensAt, &v.ClosesAt, &sessionState, &client, &specialist)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("read consultation readiness: %w", err)
 	}
+	if sessionState.Valid { v.ConsultationState = sessionState.String }
 	if client.Valid {
 		t := client.Time.UTC()
 		v.ClientReadyAt = &t

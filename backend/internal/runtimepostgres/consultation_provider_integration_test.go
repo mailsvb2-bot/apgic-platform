@@ -343,6 +343,11 @@ func TestSignedConsultationPersistsAcrossAPIStoreRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer restarted.Close()
+	timeline, timelineErr := restarted.ReadConsultationTimeline(ctx,hold.BookingID,intent.ClientIdentityID)
+	if timelineErr!=nil || timeline==nil || timeline.BookingState!="COMPLETED" ||
+		timeline.ConsultationState!="COMPLETED" || len(timeline.Facts)<8 {
+		t.Fatalf("restart lost immutable consultation history: timeline=%+v error=%v", timeline,timelineErr)
+	}
 	result, err := restarted.ReadConsultationResult(ctx, hold.BookingID, intent.ClientIdentityID)
 	if err != nil || result == nil || result.State != "COMPLETED" || result.ProviderInstanceID != fallbackID || result.CompletionEvidenceRef != "provider-evidence/ENDED/SYSTEM" {
 		t.Fatalf("restart result=%#v err=%v", result, err)
@@ -370,7 +375,7 @@ func TestSignedConsultationPersistsAcrossAPIStoreRestart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reopened canonical journey after API restart: %v", err)
 	}
-	secondAPI := httpapi.New(httpapi.Options{Demand: restartedDemand, ConsultationProvider: restarted, ClientSessionKey: sessionKey})
+	secondAPI := httpapi.New(httpapi.Options{Demand: restartedDemand, ConsultationProvider: restarted, ConsultationJourney: restarted, ClientSessionKey: sessionKey})
 	// Full paid user journey remains available by direct booking ID after
 	// PostgreSQL connection/API restart; no browser sessionStorage token needed.
 	bookingRead := httptest.NewRequest(http.MethodGet, "/v1/bookings/"+hold.BookingID, nil)
@@ -384,7 +389,7 @@ func TestSignedConsultationPersistsAcrossAPIStoreRestart(t *testing.T) {
 	if err := json.Unmarshal(bookingResponse.Body.Bytes(), &persistedBooking); err != nil {
 		t.Fatal(err)
 	}
-	if persistedBooking.BookingID != hold.BookingID || persistedBooking.State != booking.StateConfirmed ||
+	if persistedBooking.BookingID != hold.BookingID || persistedBooking.State != booking.StateCompleted ||
 		persistedBooking.StartsAt == nil || persistedBooking.EndsAt == nil {
 		t.Fatalf("restarted booking projection lost confirmed economic journey: %#v", persistedBooking)
 	}
@@ -403,6 +408,15 @@ func TestSignedConsultationPersistsAcrossAPIStoreRestart(t *testing.T) {
 	var apiResult connector.ConsultationResult
 	if err := json.Unmarshal(readback.Body.Bytes(), &apiResult); err != nil {
 		t.Fatal(err)
+	}
+	// Full timeline is also available from an entirely new HTTP API process
+	// with the same signed owner session after PostgreSQL reconnection.
+	timelineRequest:=httptest.NewRequest(http.MethodGet,"/v1/consultations/"+hold.BookingID+"/timeline",nil)
+	timelineRequest.AddCookie(sessionCookie)
+	timelineResponse:=httptest.NewRecorder()
+	secondAPI.ServeHTTP(timelineResponse,timelineRequest)
+	if timelineResponse.Code!=http.StatusOK || timelineResponse.Header().Get("Cache-Control")!="no-store" {
+		t.Fatalf("post-restart owner consultation history unreadable: HTTP=%d %s",timelineResponse.Code,timelineResponse.Body.String())
 	}
 	if apiResult.State != "COMPLETED" || apiResult.ProviderInstanceID != fallbackID || apiResult.CompletionEvidenceRef != "provider-evidence/ENDED/SYSTEM" {
 		t.Fatalf("wrong HTTP restart result: %#v", apiResult)

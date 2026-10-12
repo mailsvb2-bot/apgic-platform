@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 type Readiness = {
   booking_id: string; role: "CLIENT" | "SPECIALIST"; booking_state: string;
+  consultation_state?: string;
   opens_at: string; closes_at: string;
   client_ready_at?: string; specialist_ready_at?: string;
 };
@@ -149,11 +150,18 @@ export default function ConsultationJourney({ bookingID }: { bookingID: string }
           <p>Клиент: {ready.client_ready_at ? "готов" : "готовность не подтверждена"}.
             Специалист: {ready.specialist_ready_at ? "готов" : "готовность не подтверждена"}.</p>
           <p>Окно готовности: {new Date(ready.opens_at).toLocaleString("ru-RU")} – {new Date(ready.closes_at).toLocaleString("ru-RU")}.</p>
-          {ready.booking_state === "CONFIRMED" ? (
+          {ready.consultation_state === "TECHNICAL_FAILURE" ?
+            <p role="alert">Медиасервис подтвердил технический сбой. Повторная выдача токена заблокирована. Возврат или перенос оформляется через владельца бронирования.</p> : null}
+          {ready.consultation_state === "COMPLETED" ?
+            <p role="status">Медиасервис подтвердил завершение консультации.</p> : null}
+          {ready.booking_state === "CONFIRMED" &&
+            ready.consultation_state !== "COMPLETED" &&
+            ready.consultation_state !== "TECHNICAL_FAILURE" ? (
             <>
               <button type="button" disabled={busy} onClick={() => void confirmReady()}>Я готов</button>
               {((ready.role === "CLIENT" && ready.client_ready_at) ||
-                (ready.role === "SPECIALIST" && ready.specialist_ready_at)) ? (
+                (ready.role === "SPECIALIST" && ready.specialist_ready_at)) &&
+                ready.client_ready_at && ready.specialist_ready_at ? (
                 <button type="button" disabled={busy} onClick={() => void startJoin()}>Получить вход в консультацию</button>
               ) : null}
               {joinLink ? <p><a href={joinLink} target="_blank" rel="noopener noreferrer">Открыть защищённую комнату</a></p> : null}

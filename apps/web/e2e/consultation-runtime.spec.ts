@@ -27,7 +27,7 @@ test("confirmed booking enables readiness, fail-closed room entry and verified p
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
       booking_id:id, role:"CLIENT", booking_state:"CONFIRMED",
       opens_at:"2026-10-12T10:00:00Z",closes_at:"2026-10-12T11:15:00Z",
-      ...(ready ? {client_ready_at:"2026-10-12T10:03:00Z"} : {}),
+      ...(ready ? {client_ready_at:"2026-10-12T10:03:00Z", specialist_ready_at:"2026-10-12T10:04:00Z"} : {}),
     }) });
   });
   await page.route(`**/v1/consultations/${id}/result`, async route => {
