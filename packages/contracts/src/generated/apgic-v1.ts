@@ -2,7 +2,7 @@
 // DO NOT EDIT.
 export const apiContractVersion = "0.10.0-r0-remote-config" as const;
 
-export type ApiOperationId = "acquireSlotHold" | "applyProviderEvent" | "applyTrustedProviderWebhook" | "archiveOrganizationDirection" | "cancelOrder" | "completeConsultation" | "confirmHelpIntent" | "createCheckoutInstruction" | "createHelpIntent" | "createMobileCheckoutInstruction" | "createOrganization" | "createOrganizationDirection" | "createOrganizationProduct" | "createSpecialistBookableOffer" | "createSpecialistBookableSlot" | "declareSpecialistCapability" | "deleteAccount" | "exportConsultationToGrowth" | "getBookingFulfillment" | "getBookingStatus" | "getClientPersonal" | "getConsultationResult" | "getLegalAcceptanceStatus" | "getMeta" | "getMobileCompatibility" | "getMobileNotificationDelivery" | "getMobileRemoteConfig" | "getOrganization" | "getPrivateOrganizationProfile" | "getSpecialistProfile" | "health" | "issueMobileDeepLink" | "listCheckoutOptions" | "listHelpIntentMatches" | "listMobileInstallations" | "listMobileWorkspaces" | "listMySpecialistBookableOffers" | "listOrganizationProducts" | "listOrganizations" | "listSpecialistSlots" | "markSearchProjectionStale" | "pauseSpecialistBookableOffer" | "publishOrganizationProduct" | "publishSpecialistCapability" | "putClientPersonalPreferences" | "readiness" | "rebuildSearchProjection" | "recordConsent" | "recordConsultationPresence" | "recordLegalAcceptance" | "registerMobileInstallation" | "reportConsultationFailure" | "resolveMobileDeepLink" | "resolveMobileWorkspace" | "revokeConsent" | "revokeMobileInstallation" | "rotateMobilePushEndpoint" | "searchProjection" | "submitSpecialistEvidence" | "succeedConsultationRecovery" | "unpublishSpecialistCapability" | "updateProductCommercialOwner" | "upsertSpecialistProfile";
+export type ApiOperationId = "acquireSlotHold" | "applyProviderEvent" | "applyTrustedProviderWebhook" | "archiveOrganizationDirection" | "cancelOrder" | "completeConsultation" | "confirmHelpIntent" | "createCheckoutInstruction" | "createHelpIntent" | "createMobileCheckoutInstruction" | "createOrganization" | "createOrganizationDirection" | "createOrganizationProduct" | "createSpecialistBookableOffer" | "createSpecialistBookableSlot" | "declareSpecialistCapability" | "deleteAccount" | "exportConsultationToGrowth" | "getBookingFulfillment" | "getBookingStatus" | "getClientPersonal" | "getConsultationResult" | "getLegalAcceptanceStatus" | "getMeta" | "getMobileCompatibility" | "getMobileNotificationDelivery" | "getMobileRemoteConfig" | "getOrganization" | "getPrivateOrganizationProfile" | "getSpecialistProfile" | "health" | "issueMobileDeepLink" | "listCheckoutOptions" | "listHelpIntentMatches" | "listMobileInstallations" | "listMobileWorkspaces" | "listMySpecialistBookableOffers" | "listOrganizationProducts" | "listOrganizations" | "listSpecialistSlots" | "markSearchProjectionStale" | "pauseSpecialistBookableOffer" | "postClientPersonalCheckIn" | "publishOrganizationProduct" | "publishSpecialistCapability" | "putClientPersonalPreferences" | "readiness" | "rebuildSearchProjection" | "recordConsent" | "recordConsultationPresence" | "recordLegalAcceptance" | "registerMobileInstallation" | "reportConsultationFailure" | "resolveMobileDeepLink" | "resolveMobileWorkspace" | "revokeConsent" | "revokeMobileInstallation" | "rotateMobilePushEndpoint" | "searchProjection" | "submitSpecialistEvidence" | "succeedConsultationRecovery" | "unpublishSpecialistCapability" | "updateProductCommercialOwner" | "upsertSpecialistProfile";
 
 export interface AccountDeletion {
   apgic_deletes_ledger: boolean;
@@ -143,10 +143,26 @@ export interface CompleteConsultationRequest {
   evidence_ref: string;
 }
 
+export interface ClientPersonalCheckIn {
+  booking_id: string;
+  idempotent: boolean;
+  match_satisfaction?: number;
+  progress_code: "IMPROVED" | "UNCHANGED" | "WORSE" | "UNSURE";
+  recorded_at: string;
+}
+
+export interface ClientPersonalCheckInInput {
+  booking_id: string;
+  match_satisfaction?: number;
+  progress_code: "IMPROVED" | "UNCHANGED" | "WORSE" | "UNSURE";
+}
+
 export interface ClientPersonalBooking {
   booking_id: string;
+  client_progress?: "IMPROVED" | "UNCHANGED" | "WORSE" | "UNSURE";
   consultation_state?: "SCHEDULED" | "READY" | "IN_PROGRESS" | "RECOVERING" | "TECHNICAL_FAILURE" | "COMPLETED";
   ends_at: string;
+  match_satisfaction?: number;
   order_id?: string;
   specialist_name: string;
   specialist_profession: string;
