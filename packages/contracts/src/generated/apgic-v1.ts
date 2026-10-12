@@ -143,6 +143,19 @@ export interface CompleteConsultationRequest {
   evidence_ref: string;
 }
 
+export interface ClientPersonalBooking {
+  booking_id: string;
+  client_progress?: "IMPROVED" | "UNCHANGED" | "WORSE" | "UNSURE";
+  consultation_state?: "SCHEDULED" | "READY" | "IN_PROGRESS" | "RECOVERING" | "TECHNICAL_FAILURE" | "COMPLETED";
+  ends_at: string;
+  match_satisfaction?: number;
+  order_id?: string;
+  specialist_name: string;
+  specialist_profession: string;
+  starts_at: string;
+  state: "HELD" | "PENDING_PAYMENT" | "CONFIRMED" | "CANCELLED" | "EXPIRED" | "COMPLETED" | "NO_SHOW";
+}
+
 export interface ClientPersonalCheckIn {
   booking_id: string;
   idempotent: boolean;
@@ -155,19 +168,6 @@ export interface ClientPersonalCheckInInput {
   booking_id: string;
   match_satisfaction?: number;
   progress_code: "IMPROVED" | "UNCHANGED" | "WORSE" | "UNSURE";
-}
-
-export interface ClientPersonalBooking {
-  booking_id: string;
-  client_progress?: "IMPROVED" | "UNCHANGED" | "WORSE" | "UNSURE";
-  consultation_state?: "SCHEDULED" | "READY" | "IN_PROGRESS" | "RECOVERING" | "TECHNICAL_FAILURE" | "COMPLETED";
-  ends_at: string;
-  match_satisfaction?: number;
-  order_id?: string;
-  specialist_name: string;
-  specialist_profession: string;
-  starts_at: string;
-  state: "HELD" | "PENDING_PAYMENT" | "CONFIRMED" | "CANCELLED" | "EXPIRED" | "COMPLETED" | "NO_SHOW";
 }
 
 export interface ClientPersonalPreferences {
