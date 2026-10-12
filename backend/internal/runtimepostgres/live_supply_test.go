@@ -207,4 +207,69 @@ func TestLivePricedSpecialistToDurableHoldAfterRestart(t *testing.T) {
 	if err != nil || updatedOffer.PriceMinor != 240000 || updatedOffer.ID == offer.ID {
 		t.Fatalf("immutable price could not be corrected via new version: %#v, err=%v", updatedOffer, err)
 	}
+	// The revocation probe uses a NEW free slot. A held slot alone would
+	// not prove that qualification blocks fresh booking acquisition.
+	newStart := start.Add(3 * time.Hour)
+	newSlot, err := store.AddBookableSlot(specialistIdentityID, updatedOffer.ID, newStart, newStart.Add(50*time.Minute))
+	if err != nil {
+		t.Fatal(err)
+	}
+	publicFresh, err := store.PublicOffers(context.Background(), created.ID)
+	if err != nil || len(publicFresh) != 1 || publicFresh[0].ID != updatedOffer.ID ||
+		len(publicFresh[0].Slots) != 1 || publicFresh[0].Slots[0].SlotID != newSlot.ID {
+		t.Fatalf("real refreshed offer absent: %#v err=%v", publicFresh, err)
+	}
+	if err := store.RevokeCapability(created.ID, "anxiety", "reviewer:postgres-revoke"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.RevokeCapability(created.ID, "anxiety", "reviewer:postgres-revoke"); err != nil {
+		t.Fatalf("revocation replay must be idempotent: %v", err)
+	}
+	currentDirectory, err := store.PublicProfiles(context.Background(), "anxiety", 21, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range currentDirectory {
+		if entry.ID == created.ID {
+			t.Fatal("revoked qualification remained in public search")
+		}
+	}
+	if _, err := store.PublicProfile(context.Background(), created.ID); !errors.Is(err, specialist.ErrPublicProfileNotFound) {
+		t.Fatalf("revoked qualification still has public profile: %v", err)
+	}
+	if _, err := store.PublicOffers(context.Background(), created.ID); !errors.Is(err, specialist.ErrPublicProfileNotFound) {
+		t.Fatalf("revoked qualification still has public offers: %v", err)
+	}
+	currentSupply, err := store.BookableOffers()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, item := range currentSupply {
+		if item.ID == updatedOffer.ID {
+			t.Fatal("revoked qualification remained in canonical available offers")
+		}
+	}
+	afterRevoke, err := demand.NewLiveServiceWithStoresAndSpecialists(nil, store, store, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	currentMatches, _, err := afterRevoke.Matches(intent.ID, "anxiety")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, candidate := range currentMatches {
+		if candidate.OfferID == updatedOffer.ID {
+			t.Fatal("revoked qualification remained in confirmed HelpIntent matching")
+		}
+	}
+	if _, err := afterRevoke.AcquireHold(intent.ID, newSlot.ID, clientIdentityID); err == nil {
+		t.Fatal("revoked qualification accepted new hold from stale client view")
+	}
+	status, err = afterRevoke.ReadBookingStatus(hold.BookingID, clientIdentityID)
+	if err != nil || status == nil || status.HoldID != hold.ID {
+		t.Fatalf("revoke erased historical booking: %#v err=%v", status, err)
+	}
+	if decision, err := store.Publish(specialistIdentityID, "anxiety"); err != nil || decision.Allowed {
+		t.Fatalf("revoked competence could republish without review: %#v err=%v", decision, err)
+	}
 }

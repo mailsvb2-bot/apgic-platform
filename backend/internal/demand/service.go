@@ -576,7 +576,7 @@ func (s *Service) Matches(intentID, topic string) ([]MatchCard, string, error) {
 			SpecialistID: match.SpecialistID,
 			DisplayName:  match.DisplayName,
 			Profession:   professionOf(s.catalog.candidates, match.SpecialistID),
-			PriceMinor:   priceOf(s.catalog.candidates, match.SpecialistID),
+			PriceMinor:   priceOfOffer(s.catalog.candidates, match.OfferID, match.SpecialistID),
 			Currency:     "RUB",
 			Format:       FormatOnline,
 			Sponsored:    match.Sponsored,
@@ -827,9 +827,9 @@ func professionOf(candidates []marketplace.Candidate, id string) string {
 	return ""
 }
 
-func priceOf(candidates []marketplace.Candidate, id string) int64 {
+func priceOfOffer(candidates []marketplace.Candidate, offerID, specialistID string) int64 {
 	for _, candidate := range candidates {
-		if candidate.Profile.ID == id {
+		if candidate.OfferID == offerID && candidate.Profile.ID == specialistID {
 			return candidate.PriceMinor
 		}
 	}
