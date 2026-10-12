@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import ResumeBooking from "../src/resume-booking";
 import ConsultationResultView from "../src/consultation-result";
+import type { OrderStatus } from "../../../packages/contracts/src/generated/apgic-v1";
 
 type Intent = {
   id: string;
@@ -258,6 +259,7 @@ export function Journey() {
       setActiveHoldUnverified(false);
       if (fresh.booking_state !== "HELD" && fresh.booking_state !== "PENDING_PAYMENT") {
         setInstruction(null);
+        setOrderStatus(null);
         setOptions([]);
       }
     } catch (cause) {
@@ -283,6 +285,8 @@ export function Journey() {
   const [instruction, setInstruction] = useState<CheckoutInstruction | null>(null);
   const [evidence, setEvidence] = useState<PaymentEvidence | null>(null);
   const [cancellation, setCancellation] = useState<Cancellation | null>(null);
+  const [orderStatus, setOrderStatus] = useState<OrderStatus | null>(null);
+  const [checkingOrderStatus, setCheckingOrderStatus] = useState(false);
   const [fulfillment, setFulfillment] = useState<{ notice: string; join: string } | null>(null);
   const [session, setSession] = useState<{
     state: string;
@@ -336,6 +340,7 @@ export function Journey() {
     setHold(null);
     setOptions([]);
     setInstruction(null);
+    setOrderStatus(null);
     setEvidence(null);
     setCancellation(null);
     setFulfillment(null);
@@ -370,6 +375,7 @@ export function Journey() {
     setHold(null);
     setOptions([]);
     setInstruction(null);
+    setOrderStatus(null);
     setEvidence(null);
     setCancellation(null);
     setFulfillment(null);
@@ -459,6 +465,7 @@ export function Journey() {
     setHold(null);
     setOptions([]);
     setInstruction(null);
+    setOrderStatus(null);
     setEvidence(null);
     setCancellation(null);
     setFulfillment(null);
@@ -487,6 +494,7 @@ export function Journey() {
     setHold(null);
     setOptions([]);
     setInstruction(null);
+    setOrderStatus(null);
     setEvidence(null);
     setCancellation(null);
     setFulfillment(null);
@@ -501,6 +509,7 @@ export function Journey() {
       setHold(created);
       setActiveHoldUnverified(false);
       setInstruction(null);
+      setOrderStatus(null);
       if (!conformanceProviderEvents) {
         setOptions([]);
         return;
@@ -513,6 +522,33 @@ export function Journey() {
       setError(cause instanceof Error ? cause.message : "Слот не удержан.");
     } finally {
       setPending(false);
+    }
+  }
+
+  async function refreshOrderStatus(order: CheckoutInstruction) {
+    setCheckingOrderStatus(true);
+    try {
+      const response = await fetch(`/v1/orders/${encodeURIComponent(order.order_id)}`, {
+        cache: "no-store", credentials: "include",
+      });
+      if (!response.ok) throw new Error("Проверка заказа у сервера недоступна.");
+      const status = await response.json() as OrderStatus;
+      if (status.order_id !== order.order_id ||
+          status.booking_id !== hold?.booking_id ||
+          status.provider_id !== order.provider_id ||
+          status.amount_minor !== order.amount_minor ||
+          status.currency !== order.currency ||
+          status.payment_method !== order.method_code ||
+          !["PENDING_PROVIDER", "CAPTURED"].includes(status.payment_state) ||
+          (status.refund_state !== undefined && status.payment_state !== "CAPTURED")) {
+        throw new Error("Сервер вернул несогласованное состояние заказа.");
+      }
+      setOrderStatus(status);
+    } catch (cause) {
+      setOrderStatus(null);
+      throw cause;
+    } finally {
+      setCheckingOrderStatus(false);
     }
   }
 
@@ -531,6 +567,8 @@ export function Journey() {
         throw new Error("APGIC не принимает деньги.");
       }
       setInstruction(created);
+      setOrderStatus(null);
+      await refreshOrderStatus(created);
       setEvidence(null);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Поручение не создано.");
@@ -554,6 +592,7 @@ export function Journey() {
       });
       if (created.apgic_accepts_funds) throw new Error("APGIC не принимает деньги.");
       setEvidence(created);
+      await refreshOrderStatus(instruction);
       if (intent) {
         const listed = await fetch(`/v1/bookings/${created.booking_id}/fulfillment`);
         const payload = await listed.json();
@@ -690,6 +729,7 @@ export function Journey() {
         throw new Error("Возврат исполняет только внешний провайдер.");
       }
       setCancellation(created);
+      await refreshOrderStatus(instruction);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Отмена не выполнена.");
     } finally {
@@ -1060,6 +1100,21 @@ export function Journey() {
             <p>{instruction.notice}</p>
             <p className="meta">Заказ {instruction.order_id} · {instruction.booking_state} · {money(instruction.amount_minor, instruction.currency)}</p>
             <p className="meta">APGIC принимает деньги: {instruction.apgic_accepts_funds ? "да" : "нет"}.</p>
+            <button type="button" onClick={() => {
+              void refreshOrderStatus(instruction).catch((cause) =>
+                setError(cause instanceof Error ? cause.message : "Статус заказа недоступен."));
+            }} disabled={checkingOrderStatus}>
+              {checkingOrderStatus ? "Проверка статуса…" : "Обновить состояние оплаты"}
+            </button>
+            {orderStatus && orderStatus.order_id === instruction.order_id ? (
+              <div className="booking-summary" role="status">
+                <div><span>Бронирование</span><strong>{orderStatus.booking_state}</strong></div>
+                <div><span>Подтверждение оплаты</span><strong>{orderStatus.payment_state === "CAPTURED" ? "Подтверждено провайдером" : "Ожидаем подтверждения"}</strong></div>
+                {orderStatus.refund_state ? <div><span>Возврат</span><strong>{orderStatus.refund_state}</strong></div> : null}
+              </div>
+            ) : (
+              <p role="status">Актуальное состояние оплаты не подтверждено чтением с сервера.</p>
+            )}
           </div>
           {conformanceProviderEvents ? (
             <button type="button" onClick={captureProviderEvent} disabled={pending}>
