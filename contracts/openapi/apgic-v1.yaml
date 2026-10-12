@@ -1635,6 +1635,115 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/BookingFulfillment'
+  /v1/consultations/{bookingID}/ready:
+    get:
+      operationId: getConsultationReadiness
+      summary: Check both real participants' persisted readiness without inferring media presence
+      security:
+        - ClientSession: []
+      parameters:
+        - { name: bookingID, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Authenticated participant readiness from canonical PostgreSQL
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConsultationReadySnapshot' }
+        '401': { description: Signed session required }
+        '404': { description: Booking absent or not accessible to participant }
+        '503': { description: Readiness storage unavailable }
+    post:
+      operationId: confirmConsultationReadiness
+      summary: Idempotently persist own readiness, not media JOINED or STARTED
+      security:
+        - ClientSession: []
+      parameters:
+        - { name: bookingID, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: X-APGIC-Request, in: header, required: true, schema: { type: string, enum: [consultation-v1] } }
+      responses:
+        '200':
+          description: Persisted readiness; second participant must acknowledge independently
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConsultationReadySnapshot' }
+        '403': { description: Not in canonical readiness window or participant mismatch }
+        '404': { description: Booking not accessible }
+        '503': { description: Provider or storage unavailable }
+  /v1/consultations/{bookingID}/join:
+    post:
+      operationId: issueConsultationRoomJoin
+      summary: Issue a short-lived provider-scoped room credential after both participants are ready and entitlement is current
+      description: Requires externally confirmed booking/payment access and a real configured CommunicationProvider. A ready check never creates payment evidence or provider media facts.
+      security:
+        - ClientSession: []
+      parameters:
+        - { name: bookingID, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: X-APGIC-Request, in: header, required: true, schema: { type: string, enum: [consultation-v1] } }
+        - { name: Idempotency-Key, in: header, required: true, schema: { type: string, minLength: 16, maxLength: 128 } }
+      responses:
+        '200':
+          description: Issuer-issued scoped credential, only returned after APGIC persists authorization
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConsultationJoinGrant' }
+        '401': { description: Signed session missing }
+        '403': { description: Unready, revoked, unpaid, wrong participant or out-of-window }
+        '409': { description: Credential was issued but durable grant authorization rejected }
+        '503': { description: CommunicationProvider unavailable or issuer failed }
+  /v1/consultations/{bookingID}/timeline:
+    get:
+      operationId: getConsultationTimeline
+      summary: Read durable signed provider facts and technical failure history without media or transcript
+      security:
+        - ClientSession: []
+      parameters:
+        - { name: bookingID, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Canonical immutable facts and recovery decisions from PostgreSQL
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConsultationTimeline' }
+        '404': { description: Booking absent or foreign }
+        '503': { description: PostgreSQL unavailable }
+  /v1/consultations/{bookingID}/outcome:
+    get:
+      operationId: getConsultationClientOutcome
+      summary: Read personal self-reported progress after verified provider completion
+      security:
+        - ClientSession: []
+      parameters:
+        - { name: bookingID, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Owner-only self-report; not medical evidence
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConsultationClientOutcome' }
+        '404': { description: Outcome missing, not completed or foreign }
+    post:
+      operationId: submitConsultationClientOutcome
+      summary: Append bounded client feedback after signed provider completion, idempotent by key
+      security:
+        - ClientSession: []
+      parameters:
+        - { name: bookingID, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: X-APGIC-Request, in: header, required: true, schema: { type: string, enum: [consultation-v1] } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ConsultationClientOutcomeRequest' }
+      responses:
+        '200':
+          description: Immutable client-only outcome or exact idempotent replay
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConsultationClientOutcome' }
+        '401': { description: Signed client session required }
+        '404': { description: Booking absent or not owned }
+        '409': { description: Outcome not completed or key reused with changed fields }
+        '503': { description: Canonical outcome storage unavailable }
   /v1/consultations/{bookingID}/result:
     get:
       operationId: getConsultationResult
@@ -2851,6 +2960,77 @@ components:
       required: [evidence_ref]
       properties:
         evidence_ref: { type: string }
+    ConsultationReadySnapshot:
+      type: object
+      additionalProperties: false
+      required: [booking_id, role, booking_state, opens_at, closes_at]
+      properties:
+        booking_id: { type: string, format: uuid }
+        role: { type: string, enum: [CLIENT, SPECIALIST] }
+        booking_state: { type: string }
+        consultation_state: { type: string }
+        opens_at: { type: string, format: date-time }
+        closes_at: { type: string, format: date-time }
+        client_ready_at: { type: string, format: date-time }
+        specialist_ready_at: { type: string, format: date-time }
+    ConsultationJoinGrant:
+      type: object
+      additionalProperties: false
+      required: [booking_id, provider_instance_id, join_uri, credential_scope, credential_expires_at, reason_code]
+      properties:
+        booking_id: { type: string, format: uuid }
+        provider_instance_id: { type: string, format: uuid }
+        join_uri: { type: string, format: uri }
+        credential_scope: { type: string, enum: [ROOM_JOIN] }
+        credential_expires_at: { type: string, format: date-time }
+        reason_code: { type: string }
+    ConsultationTimeline:
+      type: object
+      additionalProperties: false
+      required: [booking_id, booking_state, consultation_state, facts, recovery, requires_followup]
+      properties:
+        booking_id: { type: string, format: uuid }
+        booking_state: { type: string }
+        consultation_state: { type: string }
+        facts: { type: array, items: { $ref: '#/components/schemas/ConsultationTimelineFact' } }
+        recovery: { type: array, items: { $ref: '#/components/schemas/ConsultationRecoveryFact' } }
+        requires_followup: { type: boolean }
+    ConsultationTimelineFact:
+      type: object
+      additionalProperties: false
+      required: [fact_type, role, evidence_ref, occurred_at]
+      properties:
+        fact_type: { type: string }
+        role: { type: string }
+        evidence_ref: { type: string }
+        occurred_at: { type: string, format: date-time }
+    ConsultationRecoveryFact:
+      type: object
+      additionalProperties: false
+      required: [action, reason_code, decided_at]
+      properties:
+        action: { type: string }
+        reason_code: { type: string }
+        followup_path_ref: { type: string }
+        decided_at: { type: string, format: date-time }
+    ConsultationClientOutcomeRequest:
+      type: object
+      additionalProperties: false
+      required: [progress, match_satisfaction, idempotency_key]
+      properties:
+        progress: { type: integer, minimum: -2, maximum: 2 }
+        match_satisfaction: { type: integer, minimum: 1, maximum: 5 }
+        idempotency_key: { type: string, minLength: 16, maxLength: 128 }
+    ConsultationClientOutcome:
+      type: object
+      additionalProperties: false
+      required: [booking_id, progress, match_satisfaction, reported_at, idempotent]
+      properties:
+        booking_id: { type: string, format: uuid }
+        progress: { type: integer, minimum: -2, maximum: 2 }
+        match_satisfaction: { type: integer, minimum: 1, maximum: 5 }
+        reported_at: { type: string, format: date-time }
+        idempotent: { type: boolean }
     ConsultationResult:
       type: object
       additionalProperties: false
