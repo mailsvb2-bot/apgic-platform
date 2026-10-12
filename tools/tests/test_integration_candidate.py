@@ -26,6 +26,19 @@ class AssemblyTests(unittest.TestCase):
         (self.repo / "backend/migrations").mkdir(parents=True)
         (self.repo / "backend/migrations/000001_base.sql").write_text("select 1;\n")
         (self.repo / "shared.txt").write_text("initial\n")
+        (self.repo / "contracts/openapi").mkdir(parents=True)
+        (self.repo / "contracts/openapi/apgic-v1.yaml").write_text(
+            "openapi: 3.1.0\npaths: {}\ncomponents:\n  schemas: {}\n")
+        (self.repo / "packages/contracts/src/generated").mkdir(parents=True)
+        (self.repo / "packages/contracts/src/generated/apgic-v1.ts").write_text("base version\n")
+        (self.repo / "tools").mkdir(parents=True)
+        (self.repo / "tools/generate_client_contract.py").write_text(
+            "from pathlib import Path\n"
+            "import yaml\n"
+            "p = yaml.safe_load(Path('contracts/openapi/apgic-v1.yaml').read_text())\n"
+            "Path('packages/contracts/src/generated/apgic-v1.ts').write_text("
+            "'// ' + ','.join(sorted(p['paths'])) + '\\n')\n"
+        )
         git(self.repo, "add", ".")
         git(self.repo, "commit", "-m", "base")
         self.base = git(self.repo, "rev-parse", "HEAD")
@@ -99,6 +112,22 @@ class AssemblyTests(unittest.TestCase):
         self.assertTrue((dest / "booking.txt").exists())
         self.assertFalse(result["persisted_remote_branch"])
         git(self.repo,"worktree","remove","--force",str(dest))
+
+    def test_generated_client_conflict_is_regenerated_from_merged_api(self):
+        self.update("feat/marketplace", module.GENERATED_CLIENT, "marketplace types\n")
+        self.update("feat/booking", module.GENERATED_CLIENT, "booking types\n")
+        result = module.assemble(self.plan, self.repo)
+        self.assertTrue(result["composition_complete"])
+        self.assertTrue(result["stages"][2]["generated_client_rebuilt"])
+        self.assertFalse(result["production_release"])
+
+    def test_silent_openapi_source_loss_is_detected(self):
+        self.update("feat/marketplace", module.OPENAPI,
+            "openapi: 3.1.0\npaths:\n  /v1/verified:\n    get:\n      operationId: verified\ncomponents:\n  schemas: {}\n")
+        source = git(self.repo, "rev-parse", "feat/marketplace")
+        loss = module.contract_integration_errors(self.repo, self.repo, self.base,
+                                                   [("feat/marketplace", source)])
+        self.assertTrue(any("GET /v1/verified" in row for row in loss))
 
     def test_missing_ref_blocks_without_guessing(self):
         git(self.repo,"update-ref","-d","refs/remotes/origin/feat/booking")

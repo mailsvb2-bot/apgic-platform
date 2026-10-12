@@ -44,6 +44,61 @@ def refs(repo, plan):
         result[name] = sha
     return result
 
+GENERATED_CLIENT = "packages/contracts/src/generated/apgic-v1.ts"
+OPENAPI = "contracts/openapi/apgic-v1.yaml"
+HTTP_METHODS = {"get", "put", "post", "patch", "delete", "head", "options", "trace"}
+
+def openapi_parts(document):
+    parts = {}
+    for path, methods in (document.get("paths") or {}).items():
+        if not isinstance(methods, dict):
+            raise ValueError("Invalid OpenAPI path: " + path)
+        for method, spec in methods.items():
+            if method in HTTP_METHODS:
+                parts["operation " + method.upper() + " " + path] = spec
+    for name, schema in ((document.get("components") or {}).get("schemas") or {}).items():
+        parts["schema " + name] = schema
+    return parts
+
+def contract_integration_errors(repository, root, base_sha, source_shas):
+    """Never accept a silent YAML auto-merge which loses a lane's API change."""
+    import yaml
+    base_file = git(repository, "show", base_sha + ":" + OPENAPI, check=False)
+    if base_file.returncode:
+        return ["baseline OpenAPI could not be read"]
+    base = openapi_parts(yaml.safe_load(base_file.stdout))
+    current_file = root / OPENAPI
+    if not current_file.is_file():
+        return ["candidate OpenAPI missing"]
+    candidate = openapi_parts(yaml.safe_load(current_file.read_text(encoding="utf-8")))
+    errors = []
+    for name, sha in source_shas:
+        upstream = git(repository, "show", sha + ":" + OPENAPI, check=False)
+        if upstream.returncode:
+            errors.append("missing upstream OpenAPI " + name)
+            continue
+        upstream_parts = openapi_parts(yaml.safe_load(upstream.stdout))
+        for key, value in upstream_parts.items():
+            if value != base.get(key) and candidate.get(key) != value:
+                errors.append(name + ": lost or incompatible changed " + key)
+    return errors
+
+def regenerate_client_for_generated_only_conflict(root, paths):
+    """Generated artifacts are regenerated, NEVER resolved by choosing ours/theirs."""
+    if sorted(paths) != [GENERATED_CLIENT]:
+        return (False, "Other source conflicts exist")
+    ours = git(root, "checkout", "--ours", "--", GENERATED_CLIENT, check=False)
+    if ours.returncode:
+        return (False, ours.stderr)
+    git(root, "add", "--", GENERATED_CLIENT)
+    regen = subprocess.run([sys.executable, "tools/generate_client_contract.py"],
+                           cwd=root, capture_output=True, text=True)
+    if regen.returncode:
+        return (False, (regen.stdout + regen.stderr)[-1600:])
+    git(root, "add", "--", GENERATED_CLIENT)
+    committed = git(root, "commit", "--no-edit", check=False)
+    return (committed.returncode == 0, committed.stderr if committed.returncode else "regenerated from combined OpenAPI")
+
 def probe_pairwise(repository, tmp, plan, heads, control):
     dest = Path(tmp) / "pairwise"
     git(repository, "worktree", "add", "--detach", str(dest), control)
@@ -107,25 +162,47 @@ def assemble(plan, repository, scope="launch", retain=None):
                         "reason": "Upstream integration not complete: " + (stopped or ",".join(missing)),
                         "files": []}])
                 else:
+                    before = git(dest, "rev-parse", "HEAD").stdout.strip()
                     proc = git(dest, "merge", "--no-ff", "--no-edit", heads[name], check=False)
-                    if proc.returncode:
-                        row.update(status="MERGE_CONFLICT", blockers=[{
-                            "code": "GIT_MERGE_CONFLICT", "files": conflicts(dest),
-                            "reason": proc.stderr.strip()[-1200:] or "Git 3-way merge rejected"}])
-                        git(dest, "merge", "--abort", check=False)
-                        stopped = name
-                    else:
-                        row["candidate_sha_after"] = git(dest, "rev-parse", "HEAD").stdout.strip()
+                    merge_ok = proc.returncode == 0
+                    if not merge_ok:
+                        paths = conflicts(dest)
+                        if paths == [GENERATED_CLIENT]:
+                            merge_ok, detail = regenerate_client_for_generated_only_conflict(dest, paths)
+                            if merge_ok:
+                                row["generated_client_rebuilt"] = True
+                            else:
+                                proc.stderr += "\n" + detail
+                        if not merge_ok:
+                            row.update(status="MERGE_CONFLICT", blockers=[{
+                                "code": "GIT_MERGE_CONFLICT", "files": paths,
+                                "reason": proc.stderr.strip()[-1600:] or "Git 3-way merge rejected"}])
+                            git(dest, "merge", "--abort", check=False)
+                            stopped = name
+                    if merge_ok:
                         duplicates = versions(dest)
+                        semantic = contract_integration_errors(
+                            repository, dest, base,
+                            [(source, heads[source]) for source in completed] + [(name, heads[name])])
+                        row["candidate_sha_after"] = git(dest, "rev-parse", "HEAD").stdout.strip()
                         if duplicates:
                             row.update(status="POSTGRES_MIGRATION_COLLISION", blockers=[{
                                 "code": "POSTGRES_MIGRATION_COLLISION",
                                 "reason": "Different migrations share one sequential version",
                                 "version": x["version"], "files": x["files"]} for x in duplicates])
                             stopped = name
+                        elif semantic:
+                            row.update(status="OPENAPI_CONTRACT_COLLISION", blockers=[{
+                                "code": "OPENAPI_CONTRACT_LOSS_OR_INCOMPATIBILITY",
+                                "reason": "Merged OpenAPI dropped or overwrote a changed operation/schema from a pinned lane",
+                                "files": [OPENAPI], "affected_operations": semantic}])
+                            stopped = name
                         else:
                             row.update(status="MERGED_FOR_TESTING", blockers=[])
                             completed.add(name)
+                        if stopped:
+                            # Preserve the last verifiably sound prefix for DB/web tests.
+                            git(dest, "reset", "--hard", before)
                 stages.append(row)
             temporary_sha = git(dest, "rev-parse", "HEAD").stdout.strip()
             independent = probe_pairwise(repository, tmp, plan, heads, control)
