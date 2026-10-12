@@ -122,6 +122,28 @@ func TestAcademyVersioningRequiresVerifiedAccess(t *testing.T) {
 	if second.VersionNo != 2 || second.VersionID == created.VersionID {
 		t.Fatalf("version did not advance: %+v", second)
 	}
+
+  // SQL privilege-level regression: neither UPDATE/DELETE nor moving records
+  // into a fresh draft may rewrite the original published learning evidence.
+  for _,mutation:=range []struct{label,statement string;args []any}{
+    {"delete published module","DELETE FROM academy_modules WHERE id=$1::uuid",[]any{m.ID}},
+    {"delete published lesson","DELETE FROM academy_lessons WHERE id=$1::uuid",[]any{l.ID}},
+    {"move published module to draft","UPDATE academy_modules SET version_id=$2::uuid WHERE id=$1::uuid",[]any{m.ID,second.VersionID}},
+    {"retitle published snapshot","UPDATE academy_course_versions SET title_snapshot='Tampered Certificate' WHERE id=$1::uuid",[]any{created.VersionID}},
+    {"rewrite published rubric","UPDATE academy_course_versions SET completion_policy_version='forged-v9' WHERE id=$1::uuid",[]any{created.VersionID}},
+  }{
+    if _,err=db.Exec(mutation.statement,mutation.args...);err==nil{
+      t.Fatalf("direct SQL illegally modified published evidence: %s",mutation.label)
+    }
+  }
+  // The credential verifier must not depend on mutable marketing copy.
+  var historicalTitle string
+  if err=db.QueryRow("SELECT title_snapshot FROM academy_course_versions WHERE id=$1::uuid",created.VersionID).Scan(&historicalTitle);err!=nil{t.Fatal(err)}
+  if historicalTitle!="Canonical learning"{t.Fatalf("published title snapshot changed: %s",historicalTitle)}
+  if _,err=db.Exec("UPDATE academy_courses SET title='Marketing title' WHERE id=$1::uuid",created.ID);err!=nil{t.Fatal(err)}
+  if err=db.QueryRow("SELECT title_snapshot FROM academy_course_versions WHERE id=$1::uuid",created.VersionID).Scan(&historicalTitle);err!=nil{t.Fatal(err)}
+  if historicalTitle!="Canonical learning"{t.Fatalf("updated course marketing title rewrote original version: %s",historicalTitle)}
+
 	var oldText string
 	if err = db.QueryRow("SELECT body FROM academy_lessons WHERE id=$1::uuid", l.ID).Scan(&oldText); err != nil {
 		t.Fatal(err)
