@@ -215,7 +215,10 @@ func TestLivePricedSpecialistToDurableHoldAfterRestart(t *testing.T) {
 	if _, err := restarted.ConfirmIntent(otherIntent.ID, []string{"anxiety"}, nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	if other, err := restarted.AcquireHold(otherIntent.ID, slot.ID, clientIdentityID); !errors.Is(err, demand.ErrSlotHeld) || other != nil {
+	// A different confirmed request from the same signed customer remains
+	// ineligible for the original hold, regardless of matching topic. In both
+	// in-memory and PostgreSQL-backed paths the canonical denial is UNAVAILABLE.
+	if other, err := restarted.AcquireHold(otherIntent.ID, slot.ID, clientIdentityID); !errors.Is(err, demand.ErrSlotUnavailable) || other != nil {
 		t.Fatalf("same client borrowed another intent's paid slot after restart: %#v err=%v", other, err)
 	}
 	paused, err := store.PauseBookableOffer(specialistIdentityID, offer.ID)
