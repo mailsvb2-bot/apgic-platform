@@ -39,6 +39,7 @@ type message struct {
 }
 type session struct {
 	mode, style, language, purpose string
+	apgicID, binding               string
 	history                        []message
 	turns                          int
 	expires                        time.Time
@@ -49,13 +50,15 @@ type service struct {
 	cfg      config
 	mu       sync.Mutex
 	sessions map[string]*session
+	byAPGIC  map[string]string
+	closed   map[string]time.Time
 }
 
 func newService(c config) *service {
 	if c.client == nil {
 		c.client = &http.Client{Timeout: 23 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	}
-	return &service{cfg: c, sessions: make(map[string]*session)}
+	return &service{cfg: c, sessions: make(map[string]*session), byAPGIC: make(map[string]string), closed: make(map[string]time.Time)}
 }
 func decode(w http.ResponseWriter, r *http.Request, v any) bool {
 	r.Body = http.MaxBytesReader(w, r.Body, 8192)
@@ -90,7 +93,16 @@ func (s *service) reap() {
 				v.cancel()
 			}
 			v.history = nil
+			s.closed[v.apgicID] = time.Now().Add(sessionTTL)
+			delete(s.byAPGIC, v.apgicID)
 			delete(s.sessions, k)
+		}
+	}
+	// Revocation fences are short-lived replay protection, not durable memory.
+	// Expired tombstones must not accumulate after session cleanup.
+	for id, until := range s.closed {
+		if !time.Now().Before(until) {
+			delete(s.closed, id)
 		}
 	}
 }
@@ -127,6 +139,13 @@ type openRequest struct {
 	PolicyVersion  string `json:"policy_version"`
 }
 
+// The exact APGIC-scoped immutable session binding prevents provider Open retries
+// from silently creating multiple paid models or switching a chosen persona.
+func openBinding(q openRequest) string {
+	return q.PersonaID + "|" + q.Purpose + "|" + q.PrivacyMode + "|" + q.Mode + "|" + q.Style + "|" +
+		q.Language + "|" + q.VoiceProfile + "|" + q.VisualProfile + "|" + q.PolicyVersion
+}
+
 func (s *service) open(w http.ResponseWriter, r *http.Request) {
 	var q openRequest
 	if !decode(w, r, &q) {
@@ -145,6 +164,19 @@ func (s *service) open(w http.ResponseWriter, r *http.Request) {
 	s.reap()
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if until, ok := s.closed[q.APGICSessionID]; ok && time.Now().Before(until) {
+		http.Error(w, "SESSION_ALREADY_REVOKED", 410)
+		return
+	}
+	if prior, ok := s.byAPGIC[q.APGICSessionID]; ok {
+		existing := s.sessions[prior]
+		if existing == nil || existing.binding != openBinding(q) {
+			http.Error(w, "SESSION_BINDING_CONFLICT", 409)
+			return
+		}
+		replyJSON(w, 200, map[string]any{"session_ref": prior, "launch_url": "", "mode": existing.mode, "expires_at": existing.expires.UTC()})
+		return
+	}
 	if len(s.sessions) >= maxActiveSessions {
 		http.Error(w, "RESOURCE_LIMIT", 429)
 		return
@@ -156,7 +188,8 @@ func (s *service) open(w http.ResponseWriter, r *http.Request) {
 	}
 	ref := hex.EncodeToString(raw)
 	expires := time.Now().Add(sessionTTL)
-	s.sessions[ref] = &session{mode: q.Mode, style: q.Style, language: q.Language, purpose: q.Purpose, expires: expires}
+	s.sessions[ref] = &session{mode: q.Mode, style: q.Style, language: q.Language, purpose: q.Purpose, expires: expires, apgicID: q.APGICSessionID, binding: openBinding(q)}
+	s.byAPGIC[q.APGICSessionID] = ref
 	// Inline TEXT/VOICE needs no external browser URL or token. APGIC owns the session cookie.
 	replyJSON(w, 201, map[string]any{"session_ref": ref, "launch_url": "", "mode": q.Mode, "expires_at": expires.UTC()})
 }
@@ -177,6 +210,8 @@ func (s *service) close(w http.ResponseWriter, r *http.Request) {
 			v.cancel()
 		}
 		v.history = nil
+		delete(s.byAPGIC, v.apgicID)
+		s.closed[v.apgicID] = time.Now().Add(sessionTTL)
 		delete(s.sessions, q.SessionRef)
 	}
 	s.mu.Unlock()
@@ -210,6 +245,7 @@ func (s *service) turn(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 	v.cancel = cancel
 	v.busy = true
+	v.turns++ // failed model attempts also consume budget; no unlimited retries.
 	history := append([]message(nil), v.history...)
 	s.mu.Unlock()
 	answer, err := s.infer(ctx, v, history, q.Message)
@@ -224,7 +260,6 @@ func (s *service) turn(w http.ResponseWriter, r *http.Request) {
 	v.busy = false
 	v.cancel = nil
 	if err == nil {
-		v.turns++
 		v.history = append(v.history, message{"user", q.Message}, message{"assistant", answer})
 		if len(v.history) > 12 {
 			v.history = append([]message(nil), v.history[len(v.history)-12:]...)

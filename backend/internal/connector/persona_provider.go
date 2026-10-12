@@ -160,3 +160,34 @@ func (p *HTTPPersonaRuntime) Turn(ctx context.Context, ref, message string) (str
 	}
 	return out.Reply, nil
 }
+
+// Ready probes actual model-backed provider process health; a configured
+// catalog without a reachable provider must not create a false CTA.
+func (p *HTTPPersonaRuntime) Ready(ctx context.Context) bool {
+	if p == nil {
+		return false
+	}
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, p.endpoint+"/healthz", nil)
+	if err != nil {
+		return false
+	}
+	req.Header.Set("Authorization", "Bearer "+p.token)
+	res, err := p.client.Do(req)
+	if err != nil {
+		return false
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return false
+	}
+	var state struct {
+		Status string `json:"status"`
+		Mode   string `json:"mode"`
+	}
+	if json.NewDecoder(io.LimitReader(res.Body, 512)).Decode(&state) != nil {
+		return false
+	}
+	return state.Status == "ok" && state.Mode == "MODEL_BACKED"
+}

@@ -136,3 +136,7 @@ persona are actually provisioned. No production LLM credentials or approved
 rights are included here. Do not label APGIC/VPR production-ready solely
 because contract/mock tests pass. A delivery-uncertain provider close is
 reported explicitly rather than falsely declaring remote deletion complete.
+
+## Operational replay and real provider readiness
+
+The model-backed sidecar keeps an ephemeral APGIC-session-to-provider-session binding: repeated OPEN with identical reviewed context returns the same lease, while mismatched persona/style/mode is rejected. After user CLOSE or TTL expiry, an opaque temporary tombstone blocks replay of the same APGIC session. A failed inference attempt consumes the per-session turn budget; no unlimited provider retries. Provider health is probed before APGIC advertises an avatar as selectable. This health check confirms only that the model-backed gateway is reachable; it is **not** a claim of external LLM inference success or model safety certification. Every answer still requires an actual, independently validated model completion.

@@ -76,6 +76,31 @@ func TestRealModelBackedPersonaConversationAndEphemeralDeletion(t *testing.T) {
 	if len(ticket.SessionRef) != 64 || ticket.LaunchURL != "" || ticket.Mode != "TEXT" {
 		t.Fatalf("unexpected ticket: %+v", ticket)
 	}
+
+	// Duplicate APGIC start is transport-idempotent and cannot bill for a second
+	// provider conversation; changed persona binding is rejected.
+	repeated := post("/v1/persona-sessions", opening, true)
+	var repeatedTicket struct {
+		SessionRef string `json:"session_ref"`
+	}
+	_ = json.NewDecoder(repeated.Body).Decode(&repeatedTicket)
+	repeated.Body.Close()
+	if repeated.StatusCode != 200 || repeatedTicket.SessionRef != ticket.SessionRef {
+		t.Fatalf("provider Open duplicate changed identity: %d %+v", repeated.StatusCode, repeatedTicket)
+	}
+	altered := opening
+	altered.PersonaID = "00000000-0000-0000-0000-000000000202"
+	changed := post("/v1/persona-sessions", altered, true)
+	changed.Body.Close()
+	if changed.StatusCode != 409 {
+		t.Fatal("same APGIC session switched personas")
+	}
+	provider.mu.Lock()
+	count := len(provider.sessions)
+	provider.mu.Unlock()
+	if count != 1 {
+		t.Fatal("duplicated provider sessions")
+	}
 	for i := 1; i <= 2; i++ {
 		res := post("/v1/persona-sessions/turns", map[string]string{"session_ref": ticket.SessionRef, "message": "Привет"}, true)
 		var out struct {
@@ -107,6 +132,11 @@ func TestRealModelBackedPersonaConversationAndEphemeralDeletion(t *testing.T) {
 	if revoked.StatusCode != 410 {
 		t.Fatal("revoked provider still talking", revoked.StatusCode)
 	}
+	replay := post("/v1/persona-sessions", opening, true)
+	replay.Body.Close()
+	if replay.StatusCode != 410 {
+		t.Fatal("provider session reopened after user deletion")
+	}
 	if requests.Load() != 2 {
 		t.Fatal("inference after deletion")
 	}
@@ -125,6 +155,9 @@ func TestPersonaProviderRejectsModelOutageAndLimits(t *testing.T) {
 	if rec.Code != 503 || strings.Contains(rec.Body.String(), "MODEL_GENERATED") {
 		t.Fatalf("fake reply after model outage: %d %s", rec.Code, rec.Body.String())
 	}
+	if provider.sessions[ref].turns != 1 {
+		t.Fatal("failed LLM attempt must spend bounded turn budget")
+	}
 	provider.sessions[ref].turns = maxSessionTurns
 	req2 := httptest.NewRequest("POST", "/v1/persona-sessions/turns", bytes.NewBufferString(`{"session_ref":"`+ref+`","message":"Ещё"}`))
 	req2.Header.Set("Authorization", "Bearer "+strings.Repeat("s", 32))
@@ -132,5 +165,20 @@ func TestPersonaProviderRejectsModelOutageAndLimits(t *testing.T) {
 	provider.handler().ServeHTTP(rec2, req2)
 	if rec2.Code != 429 {
 		t.Fatalf("turn budget bypassed: %d", rec2.Code)
+	}
+}
+
+func TestExpiredProviderTombstonesAreRemoved(t *testing.T) {
+	provider := newService(config{token: strings.Repeat("x", 32)})
+	provider.closed["old-session"] = time.Now().Add(-time.Second)
+	provider.closed["fresh-session"] = time.Now().Add(time.Minute)
+	provider.reap()
+	provider.mu.Lock()
+	defer provider.mu.Unlock()
+	if _, ok := provider.closed["old-session"]; ok {
+		t.Fatal("expired session tombstone retained private identifier")
+	}
+	if _, ok := provider.closed["fresh-session"]; !ok {
+		t.Fatal("unexpired revocation fence lost")
 	}
 }

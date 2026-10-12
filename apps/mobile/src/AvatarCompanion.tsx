@@ -61,7 +61,10 @@ export function AvatarCompanion({apiOrigin}:{apiOrigin:string}){
  const button=(label:string,onPress:()=>void,disabled=false)=><Pressable accessibilityRole="button" accessibilityLabel={label}
   style={{borderWidth:1,borderRadius:8,padding:12,minHeight:48,opacity:disabled?0.6:1}} disabled={busy||disabled} onPress={onPress}><Text>{label}</Text></Pressable>;
  const item=catalog.find(x=>x.id===selected);
- // Keep HelpIntent and the production client journey unobstructed when the\n // external model or reviewed catalog has not been provisioned.\n if(!available && !session) return null;\n return <View style={{gap:10,padding:12,borderWidth:1,borderRadius:12}}>
+ // Keep HelpIntent and the production client journey unobstructed when the
+ // external model or reviewed catalog has not been provisioned.
+ if(!available && !session) return null;
+ return <View style={{gap:10,padding:12,borderWidth:1,borderRadius:12}}>
   <Text accessibilityRole="header" style={{fontSize:22,fontWeight:"700"}}>Поговорить с ИИ-персонажем</Text>
   <Text>ИИ — не человек и не специалист. Не диагностирует, не лечит, не заменяет экстренную помощь.</Text>
   <Text>Сообщения хранятся временно в памяти приложения и в памяти провайдера, но не сохраняются в APGIC.</Text>

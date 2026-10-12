@@ -41,6 +41,10 @@ func registerPersona(mux *http.ServeMux, store PersonaStore, provider connector.
 			writeJSON(w, http.StatusOK, map[string]any{"available": false, "reason_code": "PERSONA_NOT_CONFIGURED", "personas": []persona.CatalogItem{}})
 			return
 		}
+		if probe, ok := provider.(interface{ Ready(context.Context) bool }); ok && !probe.Ready(r.Context()) {
+			writeJSON(w, http.StatusOK, map[string]any{"available": false, "reason_code": persona.ReasonProviderUnavailable, "personas": []persona.CatalogItem{}})
+			return
+		}
 		items, err := store.ListPersonas(r.Context(), cfg.ProviderInstanceID, cfg.PolicyVersion)
 		if err != nil {
 			writePersonaError(w, r, err)

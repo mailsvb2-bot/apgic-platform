@@ -45,6 +45,8 @@ func TestPersonaConnectorRequiresRealModelReply(t *testing.T) {
 			return
 		}
 		switch r.URL.Path {
+		case "/healthz":
+			_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok", "mode": "MODEL_BACKED"})
 		case "/v1/persona-sessions":
 			_ = json.NewEncoder(w).Encode(map[string]any{"session_ref": "real-ephemeral-ref", "launch_url": "", "mode": "TEXT", "expires_at": time.Now().Add(5 * time.Minute)})
 		case "/v1/persona-sessions/turns":
@@ -62,6 +64,9 @@ func TestPersonaConnectorRequiresRealModelReply(t *testing.T) {
 		t.Fatal(err)
 	}
 	p.client = server.Client()
+	if !p.Ready(context.Background()) {
+		t.Fatal("healthy external model-backed provider not detected")
+	}
 	out, err := p.Open(context.Background(), PersonaOpen{Mode: "TEXT"})
 	if err != nil || out.Mode != "TEXT" || out.LaunchURL != "" {
 		t.Fatalf("inline conversation denied: %+v %v", out, err)
@@ -84,6 +89,9 @@ func TestPersonaConnectorRejectsFakeReplies(t *testing.T) {
 		t.Fatal(err)
 	}
 	p.client = server.Client()
+	if p.Ready(context.Background()) {
+		t.Fatal("unverified provider health accepted")
+	}
 	if text, err := p.Turn(context.Background(), "ref", "Привет"); err == nil || text != "" {
 		t.Fatal("synthetic provider reply accepted")
 	}
