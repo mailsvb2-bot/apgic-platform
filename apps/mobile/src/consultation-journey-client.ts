@@ -99,7 +99,7 @@ export type CommunicationJoinGrant = {
 };
 export async function requestConsultationJoin(config: BookingClientConfig, bookingID: string,
   idempotencyKey: string, request: Transport = transportDefault): Promise<CommunicationJoinGrant> {
-  if (idempotencyKey.length < 16 || idempotencyKey.length > 128 || /\\s/.test(idempotencyKey)) {
+  if (idempotencyKey.length < 16 || idempotencyKey.length > 128 || /\s/.test(idempotencyKey)) {
     throw new Error("COMM_JOIN_KEY_INVALID");
   }
   const url = endpoint(config, bookingID, "ready").replace(/ready$/, "join");

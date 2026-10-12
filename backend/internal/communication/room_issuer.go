@@ -1,4 +1,3 @@
-
 package communication
 
 import (
@@ -40,10 +39,10 @@ type RoomIssuer interface {
 // The issuer, not APGIC, owns the media room and any bearer room credential.
 // APGIC persists the opaque reference, never the join URI or room token.
 type HTTPRoomIssuer struct {
-	endpoint       string
-	token          string
-	allowedOrigin  string
-	client         *http.Client
+	endpoint      string
+	token         string
+	allowedOrigin string
+	client        *http.Client
 }
 
 func NewHTTPRoomIssuer(endpoint, token, allowedJoinOrigin string) (*HTTPRoomIssuer, error) {
@@ -64,7 +63,7 @@ func NewHTTPRoomIssuer(endpoint, token, allowedJoinOrigin string) (*HTTPRoomIssu
 	return &HTTPRoomIssuer{
 		endpoint: issueURL.String(), token: token, allowedOrigin: joinOrigin.Scheme + "://" + joinOrigin.Host,
 		client: &http.Client{
-			Timeout: 5 * time.Second,
+			Timeout:       5 * time.Second,
 			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 		},
 	}, nil
@@ -78,24 +77,30 @@ func (h *HTTPRoomIssuer) IssueRoomJoin(ctx context.Context, request CredentialRe
 		return IssuedRoomGrant{}, ErrRoomIssuerUnavailable
 	}
 	payload, err := json.Marshal(map[string]any{
-		"contract_version": "apgic.room-join.v1",
+		"contract_version":     "apgic.room-join.v1",
 		"provider_instance_id": request.ProviderInstanceID,
-		"booking_id": request.BookingID,
-		"identity_id": request.IdentityID,
-		"role": request.Role,
-		"scope": "ROOM_JOIN",
-		"idempotency_key": request.IdempotencyKey,
-		"expires_at": request.ExpiresAt.UTC(),
+		"booking_id":           request.BookingID,
+		"identity_id":          request.IdentityID,
+		"role":                 request.Role,
+		"scope":                "ROOM_JOIN",
+		"idempotency_key":      request.IdempotencyKey,
+		"expires_at":           request.ExpiresAt.UTC(),
 	})
-	if err != nil { return IssuedRoomGrant{}, err }
+	if err != nil {
+		return IssuedRoomGrant{}, err
+	}
 	call, err := http.NewRequestWithContext(ctx, http.MethodPost, h.endpoint, bytes.NewReader(payload))
-	if err != nil { return IssuedRoomGrant{}, err }
+	if err != nil {
+		return IssuedRoomGrant{}, err
+	}
 	call.Header.Set("Authorization", "Bearer "+h.token)
 	call.Header.Set("Content-Type", "application/json")
 	call.Header.Set("Accept", "application/json")
 	call.Header.Set("X-APGIC-Contract", "room-join-v1")
 	response, err := h.client.Do(call)
-	if err != nil { return IssuedRoomGrant{}, fmt.Errorf("%w: %v", ErrRoomIssuerUnavailable, err) }
+	if err != nil {
+		return IssuedRoomGrant{}, fmt.Errorf("%w: %v", ErrRoomIssuerUnavailable, err)
+	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusCreated && response.StatusCode != http.StatusOK {
 		return IssuedRoomGrant{}, ErrRoomIssuerUnavailable

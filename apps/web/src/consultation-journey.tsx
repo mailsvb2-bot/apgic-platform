@@ -144,12 +144,14 @@ export default function ConsultationJourney({ bookingID }: { bookingID: string }
             Специалист: {ready.specialist_ready_at ? "готов" : "готовность не подтверждена"}.</p>
           <p>Окно готовности: {new Date(ready.opens_at).toLocaleString("ru-RU")} – {new Date(ready.closes_at).toLocaleString("ru-RU")}.</p>
           {ready.booking_state === "CONFIRMED" ? (
-            <button type="button" disabled={busy} onClick={() => void confirmReady()}>Я готов</button>
-            {((ready.role === "CLIENT" && ready.client_ready_at) ||
-              (ready.role === "SPECIALIST" && ready.specialist_ready_at)) ? (
-              <button type="button" disabled={busy} onClick={() => void startJoin()}>Получить вход в консультацию</button>
-            ) : null}
-            {joinLink ? <p><a href={joinLink} target="_blank" rel="noopener noreferrer">Открыть защищённую комнату</a></p> : null}
+            <>
+              <button type="button" disabled={busy} onClick={() => void confirmReady()}>Я готов</button>
+              {((ready.role === "CLIENT" && ready.client_ready_at) ||
+                (ready.role === "SPECIALIST" && ready.specialist_ready_at)) ? (
+                <button type="button" disabled={busy} onClick={() => void startJoin()}>Получить вход в консультацию</button>
+              ) : null}
+              {joinLink ? <p><a href={joinLink} target="_blank" rel="noopener noreferrer">Открыть защищённую комнату</a></p> : null}
+            </>
           ) : null}
         </div>
       ) : null}
