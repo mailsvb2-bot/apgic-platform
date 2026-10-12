@@ -99,6 +99,8 @@ func main() {
 		ConsultationProvider:        storage,
 		ReleaseTrack:                releaseTrack,
 		Demand:                      demandService,
+		Growth:                      storage,
+		GrowthSigningKey:            []byte(os.Getenv("APGIC_GROWTH_SIGNING_KEY")),
 		ClientSessionKey:            clientSessionKey,
 		ClientCompatibilityPolicies: clientCompatibilityPolicies,
 		RemoteConfigProvider:        remoteConfigProvider,
