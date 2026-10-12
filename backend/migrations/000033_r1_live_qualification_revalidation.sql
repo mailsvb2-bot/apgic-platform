@@ -1,6 +1,4 @@
 -- Shared pricing and hold eligibility must include a current matching qualification evaluation.
-BEGIN;
-
 CREATE OR REPLACE FUNCTION apgic_live_offer_valid(p_offer_id uuid)
 RETURNS boolean LANGUAGE sql VOLATILE AS $$
   SELECT EXISTS (
@@ -50,4 +48,3 @@ RETURNS boolean LANGUAGE sql VOLATILE AS $$
   )
 $$;
 
-COMMIT;
