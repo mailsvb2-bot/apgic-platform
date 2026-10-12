@@ -160,6 +160,20 @@ func TestSignedConsultationPersistsAcrossAPIStoreRestart(t *testing.T) {
 	if canonicalState != string(booking.StateConfirmed) {
 		t.Fatalf("PostgreSQL booking state=%s, expected CONFIRMED", canonicalState)
 	}
+	// The conformance PSP can prove an end-to-end signed webhook in CI,
+	// but it is NEVER a live source of entitlement for a real media room.
+	// Only the specialist/live owner with an exact matching immutable
+	// economic ledger capture may issue that privilege.
+	var conformanceGrants int
+	if err := store.db.QueryRowContext(ctx, `
+		SELECT count(*) FROM booking_access_entitlement_versions
+		WHERE booking_id=$1::uuid AND policy_version='signed-psp-capture-r3-v1'
+	`, hold.BookingID).Scan(&conformanceGrants); err != nil {
+		t.Fatal(err)
+	}
+	if conformanceGrants != 0 {
+		t.Fatalf("conformance PSP minted %d production room entitlements", conformanceGrants)
+	}
 	connectorID, err := persistentid.New()
 	if err != nil {
 		t.Fatal(err)
@@ -288,6 +302,18 @@ func TestSignedConsultationPersistsAcrossAPIStoreRestart(t *testing.T) {
 	// Replaying a refused event cannot claim success or mint a receipt.
 	if status, _ := postSigned(forgedEntitlement); status != http.StatusConflict {
 		t.Fatalf("replayed unpaid signed event was accepted: HTTP %d", status)
+	}
+	// Even a manually forged CONFIRMED booking plus correctly signed
+	// communication event cannot mint payment-backed entitlement versions.
+	var forgedMediaGrants int
+	if err := store.db.QueryRowContext(ctx, `
+		SELECT count(*) FROM booking_access_entitlement_versions
+		WHERE booking_id=$1::uuid AND policy_version='signed-psp-capture-r3-v1'
+	`, unpaidHold.BookingID).Scan(&forgedMediaGrants); err != nil {
+		t.Fatal(err)
+	}
+	if forgedMediaGrants != 0 {
+		t.Fatalf("unpaid forged booking minted %d provider-backed media entitlements", forgedMediaGrants)
 	}
 	unpaidOrder, err := service.ReadOrderForBooking(unpaidHold.BookingID, unpaidIntent.ClientIdentityID)
 	if err != nil || unpaidOrder == nil || unpaidOrder.BookingState != booking.StateConfirmed ||
