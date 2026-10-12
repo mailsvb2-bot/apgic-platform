@@ -18,7 +18,7 @@ Normative source: APGIC v7 FINAL sections 163–165, 169–172, 197–200, 250�
 - Link source/owner/offer, touch and intent attribution are immutable in SQL; link revocation is one-way.
 - Growth API fails closed when 32-byte APGIC_GROWTH_SIGNING_KEY or PostgreSQL is missing. Never commit secrets.
 - No platform money movement, provider custody, synthetic payments or automatic advertising spend.
-- This version explicitly does not claim paid booking/order conversion, revenue, CAC or contribution margin: binding actual HelpIntent → Hold → Booking → Payment Evidence / Ledger / Fulfillment must be completed with the booking/finance owners. Report says payment_attribution_available=true only when a verified HelpIntent, the same owned live specialist offer, an acquired hold, a real booking/order and confirmed non-custodial provider ledger evidence are linked. Payment execution remains disabled until the canonical PSP owner certifies a provider; zero is not a fabricated conversion. Gross revenue, CAC, commission and contribution margin remain out of scope.
+- **Verified conversion bridge:** a confirmed HelpIntent may link to a real hold only in the same database transaction and only when the clicked link and held slot point to the same qualified live specialist offer. Booking → Order → non-custodial Ledger can then produce provider-paid order counts. This does not enable payment processing or attest checkout, revenue, net refunds, CAC, royalty, commission or contribution margin. Without external provider evidence the paid-order count stays zero.
 
 ## Evidence gate
 
