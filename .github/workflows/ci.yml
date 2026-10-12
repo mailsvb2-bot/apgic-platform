@@ -300,6 +300,7 @@ jobs:
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000029_r3_consultation_lifecycle_monotonicity.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000030_r2_notification_push_dispatch_reservations.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000031_r1_live_priced_specialist_supply.sql
+          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000032_r6_instant_duty_dispatch.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r0_connector_delivery_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r1_mobile_invariants.sql
@@ -312,6 +313,7 @@ jobs:
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r3_communication_consultation_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r4_store_lifecycle_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r2_refund_invariants.sql
+          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r6_instant_duty_invariants.sql
           APGIC_DATABASE_URL='postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable' \
             bash deploy/staging/test-staging-migration-ledger.sh
           PGHOST=127.0.0.1 PGUSER=apgic PGDATABASE=apgic_ci bash backend/ci/r0_order_snapshot_baseline_repair.sh
@@ -682,6 +684,7 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f backend/migrations/000029_r3_consultation_lifecycle_monotonicity.sql
           psql -v ON_ERROR_STOP=1 -f backend/migrations/000030_r2_notification_push_dispatch_reservations.sql
           psql -v ON_ERROR_STOP=1 -f backend/migrations/000031_r1_live_priced_specialist_supply.sql
+          psql -v ON_ERROR_STOP=1 -f backend/migrations/000032_r6_instant_duty_dispatch.sql
           bash backend/ci/restore_drill.sh
       - uses: actions/upload-artifact@v7
         with:

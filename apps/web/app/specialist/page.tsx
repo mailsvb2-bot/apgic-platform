@@ -44,6 +44,7 @@ export default function SpecialistPage() {
             <a href="/">Для клиентов</a>
             <a href="/organization">Организация</a>
             <a href="#path">Как подключиться</a>
+            <a href="/specialist/now">Принимать сейчас</a>
           </nav>
         </header>
 
@@ -58,6 +59,7 @@ export default function SpecialistPage() {
             <div className="hero-actions">
               <a className="button-link primary-action" href="#onboarding">Начать подключение</a>
               <a className="button-link secondary-action" href="/">Вернуться к клиентскому входу</a>
+              <a className="button-link secondary-action" href="/specialist/now">Дежурство</a>
             </div>
           </div>
 

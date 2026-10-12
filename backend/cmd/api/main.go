@@ -99,6 +99,8 @@ func main() {
 		ConsultationProvider:        storage,
 		ReleaseTrack:                releaseTrack,
 		Demand:                      demandService,
+		Instant:                     storage,
+		InstantEnabled:              os.Getenv("APGIC_DUTY_NOW_ENABLED") == "1",
 		ClientSessionKey:            clientSessionKey,
 		ClientCompatibilityPolicies: clientCompatibilityPolicies,
 		RemoteConfigProvider:        remoteConfigProvider,
