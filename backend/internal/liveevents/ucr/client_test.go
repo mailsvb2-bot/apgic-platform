@@ -100,7 +100,7 @@ func TestUCRServerOwnedConferenceJoinAndModeration(t *testing.T) {
 			w.Write([]byte(`{"participant":{"audio_muted":true}}`))
 		case "/v1/attendance":
 			json.NewEncoder(w).Encode(map[string]any{"attendance": map[string]any{
-				"join_count": 2, "media_ready_count": 1, "first_media_ready_at_unix_ms": now.Add(-30*time.Second).UnixMilli(), "total_connected_seconds": 850, "first_join_at_unix_ms": now.Add(-time.Minute).UnixMilli()}})
+				"join_count": 2, "media_ready_count": 1, "first_media_ready_at_unix_ms": now.Add(-30 * time.Second).UnixMilli(), "total_connected_seconds": 850, "first_join_at_unix_ms": now.Add(-time.Minute).UnixMilli()}})
 		default:
 			w.WriteHeader(404)
 		}
@@ -173,4 +173,62 @@ func TestUCRRejectsUntrustedGrantOrigin(t *testing.T) {
 	if err != liveevents.ErrUnavailable || grant.JoinURL != "" {
 		t.Fatalf("untrusted origin accepted: %+v %v", grant, err)
 	}
+}
+
+func TestUCRRoomCapacityIncludesHostAndNoConferenceIsCreatedOnShortfall(t *testing.T) {
+	now := time.Date(2026, 10, 12, 11, 0, 0, 0, time.UTC)
+	mutations := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/capabilities" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"capabilities":{"max_participants":12,"browser_realtime_gateway":true,"production_webrtc":true,"turn":true,"video":true,"horizontal_sfu":true}}`))
+			return
+		}
+		mutations++
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+	c, err := NewClient(server.URL, "machine-test-credential", "integration-id", "provider-id", "https://join.example", server.Client(), func() time.Time { return now })
+	if err != nil { t.Fatal(err) }
+	_, err = c.Prepare(context.Background(), mockEvent(now))
+	if err != liveevents.ErrUnavailable || mutations != 0 {
+		t.Fatalf("host overflow accepted: error=%v UCR_mutations=%d", err, mutations)
+	}
+}
+func TestUCRWaitingRoomAdmissionIsNotRealMediaAttendance(t *testing.T) {
+	now := time.Date(2026, 10, 12, 11, 0, 0, 0, time.UTC)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/attendance" { w.WriteHeader(http.StatusNotFound); return }
+		_, _ = w.Write([]byte(`{"attendance":{"join_count":1,"media_ready_count":0,"total_connected_seconds":10,"first_join_at_unix_ms":1791793140000}}`))
+	}))
+	defer server.Close()
+	c, err := NewClient(server.URL, "machine-test-credential", "integration-id", "provider-id", "https://join.example", server.Client(), func() time.Time { return now })
+	if err != nil { t.Fatal(err) }
+	room := liveevents.MediaRoom{OrganizationID:"tenant",ConferenceID:"ucr-room-101",IntegrationID:"integration-id"}
+	fact, err := c.Attendance(context.Background(), room, "guest")
+	if err != nil { t.Fatal(err) }
+	if !fact.Joined || fact.MediaReady || fact.MediaReadyCount != 0 {
+		t.Fatalf("waiting-room user counted as realtime participant: %+v", fact)
+	}
+}
+func TestUCRRejectsUnpreparedRuntimeEvenWhenAPIConferenceExists(t *testing.T) {
+	now := time.Date(2026, 10, 12, 11, 0, 0, 0, time.UTC)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/v1/capabilities":
+			_, _ = w.Write([]byte(`{"capabilities":{"max_participants":300,"browser_realtime_gateway":true,"production_webrtc":true,"turn":true,"video":true}}`))
+		case "/v1/conferences":
+			_, _ = w.Write([]byte(`{"conference":{"conference_id":"ucr-room-101","lifecycle":"scheduled"}}`))
+		case "/v1/conferences/runtime":
+			_, _ = w.Write([]byte(`{"runtime":{"group_ready":true,"call_ready":false}}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+	c, err := NewClient(server.URL, "machine-test-credential", "integration-id", "provider-id", "https://join.example", server.Client(), func() time.Time { return now })
+	if err != nil { t.Fatal(err) }
+	_, err = c.Prepare(context.Background(), mockEvent(now))
+	if err != liveevents.ErrUnavailable { t.Fatalf("UCR not-media-ready room was certified: %v",err) }
 }

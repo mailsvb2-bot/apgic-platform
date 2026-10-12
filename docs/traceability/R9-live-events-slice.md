@@ -179,3 +179,9 @@ PostgreSQL snapshot requires those values, rejects waiting-room-only facts,
 and exposes the distinct number of media-ready identities. Raw signed
 JOINED/LEFT provider callbacks remain separately visible as transport counts,
 never conflated with real participation.
+
+## Named SQL rejection contract
+The PostgreSQL media-ready CHECK has an explicit stable name
+`r9_media_ready_count_check`. The negative test matches the named
+constraint; generated PostgreSQL relation-based constraint names are not
+accepted as stable domain evidence.

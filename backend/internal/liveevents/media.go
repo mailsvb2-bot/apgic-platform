@@ -26,12 +26,12 @@ type MediaGrant struct {
 }
 
 type MediaParticipantFact struct {
-	Joined           bool
-	MediaReady       bool
-	JoinCount        int
-	MediaReadyCount  int
-	ConnectedSeconds int64
-	FirstJoinedAt    time.Time
+	Joined            bool
+	MediaReady        bool
+	JoinCount         int
+	MediaReadyCount   int
+	ConnectedSeconds  int64
+	FirstJoinedAt     time.Time
 	FirstMediaReadyAt time.Time
 }
 

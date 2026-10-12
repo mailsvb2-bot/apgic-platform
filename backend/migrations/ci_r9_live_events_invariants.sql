@@ -185,7 +185,7 @@ SELECT pg_temp.r9_must_reject($r9_stmt$
  '91919191-0000-4000-8000-000000000002',
  '91919191-0000-4000-8000-000000000020',
  'ucr-r9-ci-conference',1,0,0,clock_timestamp(),clock_timestamp(),clock_timestamp())
-$r9_stmt$,'media_ready_count');
+$r9_stmt$,'r9_media_ready_count_check');
 
 SELECT pg_temp.r9_must_reject($r9_stmt$
  UPDATE live_event_attendance_snapshots SET connected_seconds=999

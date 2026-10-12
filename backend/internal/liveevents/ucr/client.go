@@ -130,7 +130,7 @@ func (c *Client) capabilities(ctx context.Context, org string, capacity int, for
 		return liveevents.ErrUnavailable
 	}
 	caps := child(result, "capabilities")
-	if !yes(caps, "browser_realtime_gateway") || !yes(caps, "production_webrtc") || !yes(caps, "turn") || !yes(caps, "video") || int(num(caps, "max_participants")) < capacity ||
+	if !yes(caps, "browser_realtime_gateway") || !yes(caps, "production_webrtc") || !yes(caps, "turn") || !yes(caps, "video") || int(num(caps, "max_participants")) < capacity+1 ||
 		((format == liveevents.Webinar || format == liveevents.Conference) && !yes(caps, "webinar")) || (capacity > 100 && !yes(caps, "horizontal_sfu")) {
 		return liveevents.ErrUnavailable
 	}
