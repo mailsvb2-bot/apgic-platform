@@ -3,6 +3,7 @@ import type { BookingClientConfig } from "./mobile-booking-client.ts";
 
 export type ConsultationReadiness = {
   booking_id: string; role: "CLIENT" | "SPECIALIST"; booking_state: string;
+  consultation_state?: string;
   opens_at: string; closes_at: string; client_ready_at?: string; specialist_ready_at?: string;
 };
 export type ConsultationResult = {

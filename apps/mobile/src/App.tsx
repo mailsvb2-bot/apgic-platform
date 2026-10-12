@@ -43,6 +43,7 @@ import {
 import {offlineMutationStorage} from "./offline-mutation-storage.ts";
 import {clearUserScopedLocalState, secureCredentialStorage} from "./secure-local-storage.ts";
 import {runNativeRealtimeE2E, type NativeRealtimeE2EResult} from "./r3-realtime-e2e.ts";
+import NativeConsultationAccess from "./native-consultation-access.tsx";
 import type {HelpIntent} from "../../../packages/contracts/src/generated/apgic-v1.ts";
 import {
   confirmMobileHelpIntent,
@@ -1085,6 +1086,14 @@ export default function App({
               </Text>
             ) : null}
           </View>
+        ) : null}
+
+        {!infrastructureE2EActive ? (
+          <NativeConsultationAccess
+            baseURL={demandAPIBaseURL}
+            sessionCookie={demandE2ESessionCookie}
+            enabled={compatibilityAllowsRuntime && remoteConfigAllowsRealtime}
+          />
         ) : null}
 
         {demandE2E.status !== "IDLE" ? (
