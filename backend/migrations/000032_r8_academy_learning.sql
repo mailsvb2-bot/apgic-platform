@@ -56,25 +56,51 @@ CREATE TABLE academy_assessments (
 );
 
 -- Content and assessment rules are frozen once a course version is published.
+-- Every content mutation locks the owning course version; published content is
+-- immutable even when the caller attempts to MOVE an existing row to a draft.
 CREATE FUNCTION academy_require_draft_version() RETURNS trigger LANGUAGE plpgsql AS $$
-DECLARE v_state text;
+DECLARE
+  version_id uuid;
+  version_state text;
 BEGIN
-  IF TG_TABLE_NAME = 'academy_modules' THEN
-    SELECT state INTO v_state FROM academy_course_versions WHERE id=COALESCE(NEW.version_id,OLD.version_id);
-  ELSIF TG_TABLE_NAME = 'academy_lessons' THEN
-    SELECT v.state INTO v_state FROM academy_course_versions v
-      JOIN academy_modules m ON m.version_id=v.id
-      WHERE m.id=COALESCE(NEW.module_id,OLD.module_id);
+  IF TG_TABLE_NAME='academy_modules' THEN
+    IF TG_OP='UPDATE' AND OLD.version_id IS DISTINCT FROM NEW.version_id THEN
+      RAISE EXCEPTION 'academy module version cannot change';
+    END IF;
+    IF TG_OP='DELETE' THEN version_id:=OLD.version_id;
+    ELSE version_id:=NEW.version_id; END IF;
+  ELSIF TG_TABLE_NAME='academy_lessons' THEN
+    IF TG_OP='UPDATE' AND OLD.module_id IS DISTINCT FROM NEW.module_id THEN
+      RAISE EXCEPTION 'academy lesson module cannot change';
+    END IF;
+    IF TG_OP='DELETE' THEN
+      SELECT m.version_id INTO version_id FROM academy_modules m WHERE m.id=OLD.module_id;
+    ELSE
+      SELECT m.version_id INTO version_id FROM academy_modules m WHERE m.id=NEW.module_id;
+    END IF;
+  ELSIF TG_TABLE_NAME='academy_assessments' THEN
+    IF TG_OP='UPDATE' AND OLD.lesson_id IS DISTINCT FROM NEW.lesson_id THEN
+      RAISE EXCEPTION 'academy assessment lesson cannot change';
+    END IF;
+    IF TG_OP='DELETE' THEN
+      SELECT m.version_id INTO version_id FROM academy_lessons l
+        JOIN academy_modules m ON m.id=l.module_id WHERE l.id=OLD.lesson_id;
+    ELSE
+      SELECT m.version_id INTO version_id FROM academy_lessons l
+        JOIN academy_modules m ON m.id=l.module_id WHERE l.id=NEW.lesson_id;
+    END IF;
   ELSE
-    SELECT v.state INTO v_state FROM academy_course_versions v
-      JOIN academy_modules m ON m.version_id=v.id
-      JOIN academy_lessons l ON l.module_id=m.id
-      WHERE l.id=COALESCE(NEW.lesson_id,OLD.lesson_id);
+    RAISE EXCEPTION 'unrecognized academy content table';
   END IF;
-  IF v_state IS DISTINCT FROM 'DRAFT' THEN
+  IF version_id IS NULL THEN
+    RAISE EXCEPTION 'academy content parent not found';
+  END IF;
+  SELECT state INTO version_state FROM academy_course_versions WHERE id=version_id FOR SHARE;
+  IF version_state IS DISTINCT FROM 'DRAFT' THEN
     RAISE EXCEPTION 'academy version content is immutable after publication';
   END IF;
-  RETURN COALESCE(NEW,OLD);
+  IF TG_OP='DELETE' THEN RETURN OLD; END IF;
+  RETURN NEW;
 END; $$;
 CREATE TRIGGER academy_module_draft_guard BEFORE INSERT OR UPDATE OR DELETE ON academy_modules
   FOR EACH ROW EXECUTE FUNCTION academy_require_draft_version();
@@ -148,16 +174,37 @@ BEGIN
 END; $$;
 CREATE TRIGGER academy_enrollment_insert_guard BEFORE INSERT ON academy_enrollments
   FOR EACH ROW EXECUTE FUNCTION academy_enrollment_entitlement_guard();
+-- A certificate must never be obtained by a direct UPDATE skipping lessons.
 CREATE FUNCTION academy_enrollment_transition_guard() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE
+ total_lessons bigint;
+ completed_lessons bigint;
+ entitlement_status text;
 BEGIN
- IF NEW.identity_id<>OLD.identity_id OR NEW.version_id<>OLD.version_id OR
-    NEW.entitlement_id<>OLD.entitlement_id OR NEW.enrolled_at<>OLD.enrolled_at THEN
-  RAISE EXCEPTION 'academy enrollment immutable basis';
- END IF;
- IF OLD.state<>'ACTIVE' AND NEW.state<>OLD.state THEN
-  RAISE EXCEPTION 'academy enrollment terminal';
- END IF;
- RETURN NEW;
+  IF NEW.identity_id IS DISTINCT FROM OLD.identity_id
+     OR NEW.version_id IS DISTINCT FROM OLD.version_id
+     OR NEW.entitlement_id IS DISTINCT FROM OLD.entitlement_id
+     OR NEW.enrolled_at IS DISTINCT FROM OLD.enrolled_at THEN
+    RAISE EXCEPTION 'academy enrollment immutable basis';
+  END IF;
+  IF OLD.state<>'ACTIVE' AND NEW.state<>OLD.state THEN
+    RAISE EXCEPTION 'academy enrollment terminal';
+  END IF;
+  IF NEW.state='COMPLETED' AND OLD.state<>'COMPLETED' THEN
+    SELECT state INTO entitlement_status FROM store_entitlements WHERE id=OLD.entitlement_id FOR SHARE;
+    IF entitlement_status IS DISTINCT FROM 'ACTIVE' THEN
+      RAISE EXCEPTION 'academy completion requires active verified entitlement';
+    END IF;
+    SELECT count(l.id), count(p.lesson_id) INTO total_lessons, completed_lessons
+    FROM academy_modules m
+    JOIN academy_lessons l ON l.module_id=m.id
+    LEFT JOIN academy_progress p ON p.lesson_id=l.id AND p.enrollment_id=OLD.id
+    WHERE m.version_id=OLD.version_id;
+    IF total_lessons=0 OR completed_lessons<>total_lessons OR NEW.completed_at IS NULL THEN
+      RAISE EXCEPTION 'academy completion requires passing all version lessons';
+    END IF;
+  END IF;
+  RETURN NEW;
 END; $$;
 CREATE TRIGGER academy_enrollment_update_guard BEFORE UPDATE ON academy_enrollments
  FOR EACH ROW EXECUTE FUNCTION academy_enrollment_transition_guard();
@@ -172,21 +219,28 @@ CREATE TABLE academy_progress (
   PRIMARY KEY(enrollment_id,lesson_id)
 );
 CREATE FUNCTION academy_progress_guard() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE lesson_kind text;
 BEGIN
- IF NOT EXISTS (
-  SELECT 1 FROM academy_enrollments e
+  SELECT l.kind INTO lesson_kind
+  FROM academy_enrollments e
   JOIN academy_modules m ON m.version_id=e.version_id
   JOIN academy_lessons l ON l.module_id=m.id
   JOIN store_entitlements t ON t.id=e.entitlement_id
   WHERE e.id=NEW.enrollment_id AND l.id=NEW.lesson_id
-    AND e.state='ACTIVE' AND t.state='ACTIVE'
- ) THEN RAISE EXCEPTION 'academy progress requires active matching enrollment'; END IF;
- IF (SELECT kind FROM academy_lessons WHERE id=NEW.lesson_id)='ASSESSMENT'
-    AND NOT EXISTS (
-      SELECT 1 FROM academy_attempts a WHERE a.enrollment_id=NEW.enrollment_id
-       AND a.lesson_id=NEW.lesson_id AND a.result='PASSED'
-    ) THEN RAISE EXCEPTION 'assessment lesson needs evaluated passing attempt'; END IF;
- RETURN NEW;
+    AND e.state='ACTIVE' AND t.state='ACTIVE';
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'academy progress requires active matching enrollment and entitlement';
+  END IF;
+  IF lesson_kind='VIDEO' THEN
+    RAISE EXCEPTION 'academy playback requires trusted provider attestation';
+  END IF;
+  IF lesson_kind='ASSESSMENT' AND NOT EXISTS (
+    SELECT 1 FROM academy_attempts a WHERE a.enrollment_id=NEW.enrollment_id
+      AND a.lesson_id=NEW.lesson_id AND a.result='PASSED'
+  ) THEN
+    RAISE EXCEPTION 'academy assessment requires a human-evaluated passing attempt';
+  END IF;
+  RETURN NEW;
 END; $$;
 
 CREATE TABLE academy_attempts (
@@ -208,18 +262,51 @@ CREATE TABLE academy_attempts (
           AND evaluated_at IS NOT NULL AND evaluation_evidence_ref IS NOT NULL))
 );
 CREATE FUNCTION academy_attempt_guard() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE
+ expected_rubric text;
+ expected_pass integer;
+ expected_author uuid;
+ enrolled_state text;
+ entitlement_state text;
 BEGIN
- IF TG_OP='UPDATE' THEN
-  IF OLD.result<>'PENDING' OR NEW.id<>OLD.id OR NEW.enrollment_id<>OLD.enrollment_id
-    OR NEW.lesson_id<>OLD.lesson_id OR NEW.attempt_no<>OLD.attempt_no OR
-    NEW.response_text<>OLD.response_text OR NEW.rubric_version<>OLD.rubric_version
-    OR NEW.submitted_at<>OLD.submitted_at THEN
-   RAISE EXCEPTION 'academy attempt is immutable after evaluation';
+  SELECT assessment.rubric_version, assessment.passing_score, c.author_id,
+         e.state,t.state
+  INTO expected_rubric,expected_pass,expected_author,enrolled_state,entitlement_state
+  FROM academy_enrollments e
+  JOIN store_entitlements t ON t.id=e.entitlement_id
+  JOIN academy_course_versions v ON v.id=e.version_id
+  JOIN academy_courses c ON c.id=v.course_id
+  JOIN academy_modules m ON m.version_id=v.id
+  JOIN academy_lessons l ON l.module_id=m.id
+  JOIN academy_assessments assessment ON assessment.lesson_id=l.id
+  WHERE e.id=NEW.enrollment_id AND l.id=NEW.lesson_id;
+  IF NOT FOUND OR expected_rubric IS DISTINCT FROM NEW.rubric_version
+    OR enrolled_state IS DISTINCT FROM 'ACTIVE'
+    OR entitlement_state IS DISTINCT FROM 'ACTIVE' THEN
+    RAISE EXCEPTION 'academy attempt requires active matching enrollment and assessment rubric';
   END IF;
- END IF;
- RETURN NEW;
+  IF TG_OP='INSERT' THEN
+    IF NEW.result<>'PENDING' OR NEW.evaluated_by IS NOT NULL THEN
+      RAISE EXCEPTION 'academy attempt must await human review';
+    END IF;
+  ELSE
+    IF OLD.result<>'PENDING'
+      OR NEW.id IS DISTINCT FROM OLD.id
+      OR NEW.enrollment_id IS DISTINCT FROM OLD.enrollment_id
+      OR NEW.lesson_id IS DISTINCT FROM OLD.lesson_id
+      OR NEW.attempt_no IS DISTINCT FROM OLD.attempt_no
+      OR NEW.response_text IS DISTINCT FROM OLD.response_text
+      OR NEW.rubric_version IS DISTINCT FROM OLD.rubric_version
+      OR NEW.submitted_at IS DISTINCT FROM OLD.submitted_at
+      OR NEW.evaluated_by IS DISTINCT FROM expected_author
+      OR NEW.result IS DISTINCT FROM
+         (CASE WHEN NEW.score>=expected_pass THEN 'PASSED' ELSE 'FAILED' END) THEN
+      RAISE EXCEPTION 'academy evaluation must be immutable, human-authored and rubric-consistent';
+    END IF;
+  END IF;
+  RETURN NEW;
 END; $$;
-CREATE TRIGGER academy_attempt_update_guard BEFORE UPDATE ON academy_attempts
+CREATE TRIGGER academy_attempt_update_guard BEFORE INSERT OR UPDATE ON academy_attempts
  FOR EACH ROW EXECUTE FUNCTION academy_attempt_guard();
 CREATE TRIGGER academy_attempt_no_delete BEFORE DELETE ON academy_attempts
  FOR EACH ROW EXECUTE FUNCTION apgic_reject_delete();
@@ -268,6 +355,20 @@ CREATE TABLE academy_evidence_candidates (
   state text NOT NULL DEFAULT 'PENDING_VERIFICATION' CHECK(state='PENDING_VERIFICATION'),
   created_at timestamptz NOT NULL DEFAULT now()
 );
+-- A completion does not grant specialist status; candidate owner/identity must match certificate.
+CREATE FUNCTION academy_evidence_candidate_guard() RETURNS trigger LANGUAGE plpgsql AS $
+DECLARE learner uuid;
+BEGIN
+  SELECT e.identity_id INTO learner FROM academy_certificates cert
+    JOIN academy_enrollments e ON e.id=cert.enrollment_id
+    WHERE cert.id=NEW.certificate_id;
+  IF learner IS NULL OR learner<>NEW.candidate_identity_id OR NEW.state<>'PENDING_VERIFICATION' THEN
+    RAISE EXCEPTION 'academy evidence candidate must match certified learner';
+  END IF;
+  RETURN NEW;
+END; $;
+CREATE TRIGGER academy_evidence_candidate_guard BEFORE INSERT ON academy_evidence_candidates
+ FOR EACH ROW EXECUTE FUNCTION academy_evidence_candidate_guard();
 CREATE TRIGGER academy_evidence_candidate_immutable BEFORE UPDATE OR DELETE ON academy_evidence_candidates
  FOR EACH ROW EXECUTE FUNCTION apgic_reject_mutation();
 
