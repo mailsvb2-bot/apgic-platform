@@ -128,6 +128,11 @@ export default function BookingDetail({ bookingID }: { bookingID: string }) {
   }, [bookingID, retry]);
 
   const booking = view?.id === bookingID ? view.booking : null;
+  const paidEntitlement = orderStatus === "VERIFIED" &&
+    order?.payment_state === "CAPTURED" &&
+    !order.refund_state &&
+    booking?.booking_id === order?.booking_id &&
+    booking?.state === order?.booking_state;
   return (
     <main>
       <h1>Моя запись</h1>
@@ -155,8 +160,10 @@ export default function BookingDetail({ bookingID }: { bookingID: string }) {
           {booking.ends_at ? <p>Окончание: {new Date(booking.ends_at).toLocaleString("ru-RU")}.</p> : null}
           {booking.state === "HELD" || booking.state === "PENDING_PAYMENT" ?
             <p>Это ещё не подтверждённая консультация. Не совершайте повторную оплату без проверки заказа.</p> : null}
-          {booking.state === "CONFIRMED" || booking.state === "COMPLETED" ?
+          {(booking.state === "CONFIRMED" || booking.state === "COMPLETED") && paidEntitlement ?
             <ConsultationResultView key={bookingID} bookingID={bookingID} /> : null}
+          {(booking.state === "CONFIRMED" || booking.state === "COMPLETED") && !paidEntitlement ?
+            <p role="alert">Доступ к консультации закрыт до подтверждения оплаты и проверки состояния заказа на сервере.</p> : null}
         </section>
       ) : null}
       <button type="button" onClick={() => setRetry((value) => value + 1)}

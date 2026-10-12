@@ -27,7 +27,7 @@ func (s *Service) capturedPaymentForBookingLocked(booked *booking.Booking) (stri
 			evidence.ProviderEventID == "" || evidence.LedgerEntryID == "" ||
 			evidence.AmountMinor != instruction.AmountMinor ||
 			evidence.Currency != instruction.Currency ||
-			key != evidence.ProviderID + "/" + evidence.ProviderEventID {
+			key != evidence.ProviderID+"/"+evidence.ProviderEventID {
 			continue
 		}
 		return key, true

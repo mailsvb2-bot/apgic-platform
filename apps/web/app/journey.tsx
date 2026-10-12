@@ -1098,7 +1098,10 @@ export function Journey() {
           {holdTimeExpired && (hold.booking_state !== "CONFIRMED" || activeHoldUnverified) ? (
             <p className="alert" role="alert">Указанное время удержания прошло. Статус брони на сервере необходимо проверить заново; не считайте запись подтверждённой.</p>
           ) : null}
-          {!activeHoldUnverified && hold.booking_state === "CONFIRMED" ? (
+          {!activeHoldUnverified && hold.booking_state === "CONFIRMED" &&
+            orderStatus?.booking_id === hold.booking_id &&
+            orderStatus.payment_state === "CAPTURED" &&
+            !orderStatus.refund_state ? (
             <ConsultationResultView key={hold.booking_id} bookingID={hold.booking_id} />
           ) : null}
 

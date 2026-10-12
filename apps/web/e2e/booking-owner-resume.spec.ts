@@ -5,6 +5,7 @@ import { expect, test } from "@playwright/test";
 test("direct booking page recovers from canonical owner API without sessionStorage token", async ({ page }) => {
   const id = "book-direct-resume";
   let mode: "confirmed" | "outage" | "foreign" | "denied" | "cancelled" = "confirmed";
+  let paymentMode: "captured" | "pending" | "outage" | "missing" = "captured";
   await page.route(`**/v1/bookings/${id}`, async (route) => {
     if (mode === "outage") return route.fulfill({ status: 503, body: "{}" });
     if (mode === "denied") return route.fulfill({ status: 401, body: "{}" });
@@ -20,10 +21,13 @@ test("direct booking page recovers from canonical owner API without sessionStora
   });
 
   await page.route(`**/v1/bookings/${id}/order`, async (route) => {
+    if (paymentMode === "outage") return route.fulfill({status: 503, body: "{}"});
+    if (paymentMode === "missing") return route.fulfill({status: 404, body: "{}"});
     const economic = {
       order_id: "ord-direct-resume", booking_id: id,
       booking_state: mode === "cancelled" ? "CANCELLED" : "CONFIRMED",
-      payment_state: "CAPTURED", amount_minor: 150000, currency: "RUB",
+      payment_state: paymentMode === "pending" ? "PENDING_PROVIDER" : "CAPTURED",
+      amount_minor: 150000, currency: "RUB",
       provider_id: "provider-external", payment_method: "SBP",
       ...(mode === "cancelled" ? {refund_state: "SUCCEEDED"} : {}),
     };
@@ -36,6 +40,19 @@ test("direct booking page recovers from canonical owner API without sessionStora
   await expect(page.getByRole("heading", { name: "Запись подтверждена" })).toBeVisible();
   await expect(page.getByRole("region", { name: "Подтверждённые сведения о платеже" })).toContainText("Списание подтверждено");
   await expect(page.getByRole("region", { name: "Результат консультации" })).toBeVisible();
+
+  // A booking can carry CONFIRMED while the payment read is pending,
+  // missing, or unavailable. None of these states may expose consultation.
+  for (const uncertain of ["pending", "outage", "missing"] as const) {
+    paymentMode = uncertain;
+    await page.getByRole("button", {name: "Проверить актуальный статус"}).click();
+    await expect(page.getByRole("heading", {name: "Запись подтверждена"})).toBeVisible();
+    await expect(page.getByRole("region", {name: "Результат консультации"})).toHaveCount(0);
+    await expect(page.getByRole("alert").filter({hasText: "Доступ к консультации закрыт"})).toBeVisible();
+  }
+  paymentMode = "captured";
+  await page.getByRole("button", {name: "Проверить актуальный статус"}).click();
+  await expect(page.getByRole("region", {name: "Результат консультации"})).toBeVisible();
 
   // An upstream outage cannot silently replay the previously confirmed state.
   mode = "outage";
