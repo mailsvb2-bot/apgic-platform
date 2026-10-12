@@ -57,7 +57,7 @@ func liveCatalog() catalog {
 // multi-surface end-to-end suite. These synthetic slots are NEVER loaded into
 // the LIVE catalog, which must receive priced supply from PostgreSQL owners.
 const (
-	conformanceDays = 14
+	conformanceDays        = 14
 	conformanceSlotsPerDay = 3
 )
 

@@ -734,7 +734,7 @@ func TestJourneyStoreSurvivesServiceRestart(t *testing.T) {
 		if entry.EconomicEventRef == instruction.OrderID {
 			captureCount++
 		}
-		if entry.EconomicEventRef == "reversal:"+instruction.OrderID {
+		if entry.EconomicEventRef == "reversal:" + instruction.OrderID {
 			reversalCount++
 		}
 	}

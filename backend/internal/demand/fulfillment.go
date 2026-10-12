@@ -80,6 +80,11 @@ func (s *Service) Fulfillment(bookingID, identityID string) (*BookingNotice, *Jo
 		return nil, nil, err
 	}
 	provider.Status = connector.StatusActive
+	paymentEvidenceKey, entitled := s.capturedPaymentForBookingLocked(booked)
+	evidenceRef := ""
+	if entitled {
+		evidenceRef = "payment-evidence:" + paymentEvidenceKey
+	}
 	decision, err := communication.AuthorizeJoin(
 		communication.JoinRequest{
 			IdentityID:     identityID,
@@ -97,8 +102,8 @@ func (s *Service) Fulfillment(bookingID, identityID string) (*BookingNotice, *Jo
 			ID:          "ent-" + bookingID,
 			BookingID:   bookingID,
 			IdentityID:  booked.ClientIdentityID,
-			Active:      booked.State == "CONFIRMED",
-			EvidenceRef: "payment-evidence:" + bookingID,
+			Active:      entitled,
+			EvidenceRef: evidenceRef,
 			ExpiresAt:   booked.EndsAt,
 		},
 		communication.JoinWindow{OpensAt: booked.StartsAt.Add(-joinLead), ClosesAt: booked.EndsAt},

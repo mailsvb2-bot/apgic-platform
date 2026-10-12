@@ -26,7 +26,7 @@ func TestConformanceCatalogUsesStableRollingFutureSlotRefs(t *testing.T) {
 			againIDs = append(againIDs, slot.ID)
 		}
 	}
-	if len(firstIDs) != conformanceDays * conformanceSlotsPerDay || len(againIDs) != conformanceDays * conformanceSlotsPerDay {
+	if len(firstIDs) != conformanceDays*conformanceSlotsPerDay || len(againIDs) != conformanceDays*conformanceSlotsPerDay {
 		t.Fatalf("slot counts first=%d again=%d", len(firstIDs), len(againIDs))
 	}
 	for i := range firstIDs {
@@ -42,7 +42,7 @@ func TestConformanceCatalogUsesStableRollingFutureSlotRefs(t *testing.T) {
 			nextIDs = append(nextIDs, slot.ID)
 		}
 	}
-	if len(nextIDs) != conformanceDays * conformanceSlotsPerDay {
+	if len(nextIDs) != conformanceDays*conformanceSlotsPerDay {
 		t.Fatalf("next-day slot count=%d", len(nextIDs))
 	}
 	for i := 0; i < (conformanceDays-1)*conformanceSlotsPerDay; i++ {
@@ -87,13 +87,13 @@ func TestLongLivedServiceRefreshesRollingSlotHorizon(t *testing.T) {
 	now := time.Date(2026, 9, 27, 12, 0, 0, 0, time.UTC)
 	service := NewConformanceService(func() time.Time { return now })
 	first, err := service.Slots("spec-lebedeva")
-	if err != nil || len(first) != conformanceDays * conformanceSlotsPerDay {
+	if err != nil || len(first) != conformanceDays*conformanceSlotsPerDay {
 		t.Fatalf("initial slots=%#v err=%v", first, err)
 	}
 
 	now = now.AddDate(0, 0, 9)
 	next, err := service.Slots("spec-lebedeva")
-	if err != nil || len(next) != conformanceDays * conformanceSlotsPerDay {
+	if err != nil || len(next) != conformanceDays*conformanceSlotsPerDay {
 		t.Fatalf("refreshed slots=%#v err=%v", next, err)
 	}
 	if !next[0].StartsAt.After(now) {
