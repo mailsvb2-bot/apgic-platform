@@ -189,27 +189,46 @@ func (c *Checker) CaptureTouch(subject, linkID string, at time.Time) (growth.Tou
 }
 
 // Revocation is idempotent for the owner but never restores an old link.
+// Revocation and issuance share one advisory lock for each owner/offer.
+// Concurrent revoke/reissue cannot accidentally return a newly revoked link.
 func (c *Checker) RevokeSpecialistLink(owner, linkID string) error {
 	if c == nil || c.db == nil {
 		return errors.New("growth storage unavailable")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), growthWriteTimeout)
 	defer cancel()
-	var found string
-	err := c.db.QueryRowContext(ctx,
-		"UPDATE growth_links SET state='REVOKED',revoked_at=clock_timestamp() "+
-			"WHERE id=$1::uuid AND issuer_identity_id=$2::uuid AND state='ACTIVE' RETURNING id::text",
-		linkID, owner).Scan(&found)
-	if errors.Is(err, sql.ErrNoRows) {
-		// A repeated revoke by the same specialist is a safe replay.
-		err = c.db.QueryRowContext(ctx,
-			"SELECT id::text FROM growth_links WHERE id=$1::uuid AND issuer_identity_id=$2::uuid",
-			linkID, owner).Scan(&found)
+	tx, err := c.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin growth link revocation: %w", err)
 	}
+	defer tx.Rollback()
+	var offerID string
+	err = tx.QueryRowContext(ctx,
+		"SELECT specialist_offer_id::text FROM growth_links WHERE id=$1::uuid AND issuer_identity_id=$2::uuid",
+		linkID, owner).Scan(&offerID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return growth.ErrNotOwner
 	}
-	return err
+	if err != nil {
+		return fmt.Errorf("verify growth link owner: %w", err)
+	}
+	_, err = tx.ExecContext(ctx,
+		"SELECT pg_advisory_xact_lock(hashtextextended('apgic:growth-link:' || $1 || ':' || $2, 0))",
+		owner, offerID)
+	if err != nil {
+		return fmt.Errorf("lock growth link revocation: %w", err)
+	}
+	_, err = tx.ExecContext(ctx,
+		"UPDATE growth_links SET state='REVOKED',revoked_at=clock_timestamp() "+
+			"WHERE id=$1::uuid AND issuer_identity_id=$2::uuid AND state='ACTIVE'",
+		linkID, owner)
+	if err != nil {
+		return fmt.Errorf("persist growth link revocation: %w", err)
+	}
+	if err = tx.Commit(); err != nil {
+		return fmt.Errorf("commit growth link revocation: %w", err)
+	}
+	return nil
 }
 
 func (c *Checker) SpecialistGrowthReport(owner string) ([]growth.Report, error) {

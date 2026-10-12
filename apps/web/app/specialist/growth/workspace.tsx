@@ -109,6 +109,26 @@ export function GrowthWorkspace() {
     }
   };
 
+  const share = async (path: string) => {
+    setError("");
+    const address = growthURL(path, window.location.origin);
+    if (typeof navigator.share !== "function") {
+      await copy(path);
+      return;
+    }
+    try {
+      await navigator.share({
+        title: "Специалист в APGIC",
+        text: "Выберите специалиста и доступное время в APGIC.",
+        url: address,
+      });
+      setNotice("Вы выбрали способ поделиться предложением.");
+    } catch (cause) {
+      if (cause instanceof Error && cause.name === "AbortError") return;
+      setError("Не удалось открыть меню отправки. Вы можете скопировать ссылку.");
+    }
+  };
+
   const revoke = async (id: string) => {
     setBusy(true);
     setError("");
@@ -159,6 +179,7 @@ export function GrowthWorkspace() {
         {link.state === "ACTIVE" && link.path && <>
           <p><a href={link.path} rel="noreferrer">{growthURL(link.path, "https://apgic.ru")}</a></p>
           <button type="button" disabled={busy} onClick={() => void copy(link.path!)}>Скопировать ссылку</button>{" "}
+          <button type="button" disabled={busy} onClick={() => void share(link.path!)}>Поделиться</button>{" "}
           <button type="button" disabled={busy} onClick={() => void revoke(link.id)}>Отозвать</button>
         </>}
       </article>)}

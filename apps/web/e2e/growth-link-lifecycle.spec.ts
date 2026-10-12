@@ -44,6 +44,7 @@ test("professional owner resumes, reuses and revokes a signed distribution link"
   await page.getByRole("button", { name: "Получить ссылку для предложения" }).click();
   await expect.poll(() => issued).toBe(1);
   await expect(page.locator(`a[href="${path}"]`)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Поделиться" })).toBeVisible();
   await page.getByRole("button", { name: "Отозвать" }).click();
   await expect(page.getByText("Отозвана", { exact: false })).toBeVisible();
   await expect(page.locator(`a[href="${path}"]`)).toHaveCount(0);
