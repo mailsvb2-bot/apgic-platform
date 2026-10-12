@@ -78,19 +78,22 @@ func TestEvent001HTTPSGatewayRetryAndDurableAck(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	delivered, err := store.DeliverPendingOutbox(context.Background(), 100, deliverer.Deliver)
-	if delivered != 0 || !errors.Is(err, eventspine.ErrDeliveryRejected) {
-		t.Fatalf("failed HTTPS attempt: delivered=%d err=%v", delivered, err)
+	// The shared integration DB also holds other domains' outbox records.
+	// Exercise the *specific* event via the same durable locked delivery path,
+	// without sending unrelated private events to this strict test gateway.
+	delivered, err := store.deliverOneOutbox(context.Background(), id, deliverer.Deliver)
+	if delivered || !errors.Is(err, eventspine.ErrDeliveryRejected) {
+		t.Fatalf("failed HTTPS attempt: delivered=%v err=%v", delivered, err)
 	}
 	assertOutboxState(t, store.db, id, "PENDING", 1)
 
-	delivered, err = store.DeliverPendingOutbox(context.Background(), 100, deliverer.Deliver)
-	if delivered != 1 || err != nil {
-		t.Fatalf("HTTPS retry: delivered=%d err=%v", delivered, err)
+	delivered, err = store.deliverOneOutbox(context.Background(), id, deliverer.Deliver)
+	if !delivered || err != nil {
+		t.Fatalf("HTTPS retry: delivered=%v err=%v", delivered, err)
 	}
 	assertOutboxState(t, store.db, id, "DELIVERED", 2)
-	delivered, err = store.DeliverPendingOutbox(context.Background(), 100, deliverer.Deliver)
-	if delivered != 0 || err != nil || calls != 2 {
-		t.Fatalf("unexpected duplicate delivery: delivered=%d calls=%d err=%v", delivered, calls, err)
+	delivered, err = store.deliverOneOutbox(context.Background(), id, deliverer.Deliver)
+	if delivered || err != nil || calls != 2 {
+		t.Fatalf("unexpected duplicate delivery: delivered=%v calls=%d err=%v", delivered, calls, err)
 	}
 }
