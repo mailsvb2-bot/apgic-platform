@@ -27,7 +27,68 @@ var (
 	ErrBudgetExceeded = errors.New("PERSONA_BUDGET_EXHAUSTED")
 	ErrConcurrencyExceeded = errors.New("PERSONA_CONCURRENT_LIMIT")
 )
-var codePattern = regexp.MustCompile(`^[a-z]{2}(-[A-Z]{2})?$`)
+var codePattern = regexp.MustCompile(`^[a-z]{2}(-[A-Z]{2})?// Package persona owns APGIC Avatar Companion business semantics. No external
+// persona runtime, model SDK, transcript or provider credential belongs here.
+package persona
+
+import (
+	"errors"
+	"regexp"
+	"strings"
+	"time"
+)
+
+const (
+	PrivateEphemeral          = "PRIVATE_EPHEMERAL"
+	StatePending              = "PENDING"
+	StateActive               = "ACTIVE"
+	StateFailed               = "FAILED"
+	StateEnded                = "ENDED"
+	ReasonProviderUnavailable = "PERSONA_PROVIDER_UNAVAILABLE"
+)
+
+var (
+	ErrInvalidRequest = errors.New("PERSONA_REQUEST_INVALID")
+	ErrNotFound       = errors.New("PERSONA_NOT_FOUND")
+	ErrUnavailable    = errors.New("PERSONA_NOT_CONFIGURED")
+	ErrConflict       = errors.New("PERSONA_STATE_CONFLICT")
+	ErrIdempotency    = errors.New("PERSONA_IDEMPOTENCY_CONFLICT")
+	ErrBudgetExceeded = errors.New("PERSONA_BUDGET_EXHAUSTED")
+	ErrConcurrencyExceeded = errors.New("PERSONA_CONCURRENT_LIMIT")
+)
+)
+var personaIDPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}// Package persona owns APGIC Avatar Companion business semantics. No external
+// persona runtime, model SDK, transcript or provider credential belongs here.
+package persona
+
+import (
+	"errors"
+	"regexp"
+	"strings"
+	"time"
+)
+
+const (
+	PrivateEphemeral          = "PRIVATE_EPHEMERAL"
+	StatePending              = "PENDING"
+	StateActive               = "ACTIVE"
+	StateFailed               = "FAILED"
+	StateEnded                = "ENDED"
+	ReasonProviderUnavailable = "PERSONA_PROVIDER_UNAVAILABLE"
+)
+
+var (
+	ErrInvalidRequest = errors.New("PERSONA_REQUEST_INVALID")
+	ErrNotFound       = errors.New("PERSONA_NOT_FOUND")
+	ErrUnavailable    = errors.New("PERSONA_NOT_CONFIGURED")
+	ErrConflict       = errors.New("PERSONA_STATE_CONFLICT")
+	ErrIdempotency    = errors.New("PERSONA_IDEMPOTENCY_CONFLICT")
+	ErrBudgetExceeded = errors.New("PERSONA_BUDGET_EXHAUSTED")
+	ErrConcurrencyExceeded = errors.New("PERSONA_CONCURRENT_LIMIT")
+)
+)
+
+func ValidID(value string) bool { return personaIDPattern.MatchString(value) }
 
 type Start struct {
 	PersonaID   string `json:"persona_id"`
@@ -39,7 +100,7 @@ type Start struct {
 }
 
 func (s Start) Validate() error {
-	if strings.TrimSpace(s.PersonaID) == "" || !oneOf(s.Purpose, "LISTEN", "ORGANIZE_THOUGHTS", "PREPARE_HUMAN", "WAIT_FOR_HUMAN", "NAVIGATE") ||
+	if !ValidID(s.PersonaID) || !oneOf(s.Purpose, "LISTEN", "ORGANIZE_THOUGHTS", "PREPARE_HUMAN", "WAIT_FOR_HUMAN", "NAVIGATE") ||
 		!oneOf(s.Mode, "VIDEO", "VOICE", "TEXT") || !codePattern.MatchString(s.Language) ||
 		!oneOf(s.Style, "CALM", "NEUTRAL", "BUSINESS", "WARM") || s.PrivacyMode != PrivateEphemeral {
 		return ErrInvalidRequest

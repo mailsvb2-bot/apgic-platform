@@ -99,8 +99,11 @@ func registerPersona(mux *http.ServeMux, store PersonaStore, provider connector.
 			writePersonaError(w, r, err)
 			return
 		}
-		session.State = persona.StateActive
-		session.Mode = result.Mode
+		session, err = store.ReadAvatar(r.Context(), session.ID, identity)
+		if err != nil {
+			writePersonaError(w, r, err)
+			return
+		}
 		writeJSON(w, http.StatusCreated, map[string]any{"session": session,
 			"transport":  map[string]any{"launch_url": result.LaunchURL, "expires_at": result.ExpiresAt, "mode": result.Mode},
 			"disclosure": "Это AI-аватар, а не живой специалист. Он не диагностирует и не заменяет профессиональную помощь."})
@@ -113,6 +116,10 @@ func registerPersona(mux *http.ServeMux, store PersonaStore, provider connector.
 		}
 		owner, ok := requiredClientSessionIdentity(w, r, sessions, sessionConfigErr)
 		if !ok {
+			return
+		}
+		if !persona.ValidID(r.PathValue("id")) {
+			writePersonaError(w, r, persona.ErrInvalidRequest)
 			return
 		}
 		session, err := store.ReadAvatar(r.Context(), r.PathValue("id"), owner)
@@ -143,6 +150,10 @@ func registerPersona(mux *http.ServeMux, store PersonaStore, provider connector.
 			return
 		}
 		id := r.PathValue("id")
+		if !persona.ValidID(id) {
+			writePersonaError(w, r, persona.ErrInvalidRequest)
+			return
+		}
 		current, err := store.ReadAvatar(r.Context(), id, owner)
 		if err != nil {
 			writePersonaError(w, r, err)

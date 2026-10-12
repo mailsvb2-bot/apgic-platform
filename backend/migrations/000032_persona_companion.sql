@@ -119,6 +119,13 @@ BEGIN
      (OLD.id,OLD.user_id,OLD.persona_id,OLD.provider_instance_id,OLD.idempotency_key,OLD.session_purpose,
    OLD.privacy_mode,OLD.style,OLD.language,OLD.voice_profile,OLD.visual_profile,OLD.created_at,OLD.policy_version)
   THEN RAISE EXCEPTION 'immutable avatar session identity/context';END IF;
+  -- Provider downgrades are allowed only to catalog-supported, rights-cleared modes.
+  IF OLD.state='PENDING' AND NEW.state='ACTIVE' AND NOT EXISTS (
+   SELECT 1 FROM persona_catalog p WHERE p.id=NEW.persona_id
+    AND ((NEW.mode='VIDEO' AND p.supports_video)
+     OR (NEW.mode='VOICE' AND p.supports_voice)
+     OR (NEW.mode='TEXT' AND p.supports_text))
+  ) THEN RAISE EXCEPTION 'unsupported persona transport mode'; END IF;
   IF OLD.state='PENDING' AND NEW.state NOT IN ('ACTIVE','FAILED') OR
      OLD.state='ACTIVE' AND NEW.state <> 'ENDED' OR
      OLD.state IN ('FAILED','ENDED') AND NEW.state <> OLD.state

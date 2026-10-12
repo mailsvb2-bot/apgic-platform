@@ -127,10 +127,8 @@ func (c *Checker) BeginAvatar(ctx context.Context, userID, providerID, idempoten
 	if err := tx.Commit(); err != nil {
 		return persona.Session{}, err
 	}
-	return persona.Session{ID: id, UserID: userID, PersonaID: s.PersonaID, ProviderInstanceID: providerID,
-		Purpose: s.Purpose, PrivacyMode: s.PrivacyMode, Mode: s.Mode, Style: s.Style, Language: s.Language,
-		VoiceProfile: catalog.VoiceProfile, VisualProfile: catalog.VisualProfile, State: persona.StatePending,
-		SafetyState: "NORMAL", PolicyVersion: policyVersion}, nil
+	// Read durable committed truth, including the actual creation timestamp.
+	return c.ReadAvatar(ctx, id, userID)
 }
 func insertAvatarFact(ctx context.Context, tx *sql.Tx, id, actor, event, reason, policy string) error {
 	factID, err := persistentid.New()

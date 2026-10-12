@@ -24,7 +24,7 @@ func (s *personaStoreFake) ListPersonas(context.Context, string, string) ([]pers
 }
 func (s *personaStoreFake) BeginAvatar(_ context.Context, id, provider, _, policy string, request persona.Start) (persona.Session, error) {
 	s.owner = id
-	s.session = persona.Session{ID: "fake", UserID: id, PersonaID: request.PersonaID, ProviderInstanceID: provider,
+	s.session = persona.Session{ID: "00000000-0000-0000-0000-000000000301", UserID: id, PersonaID: request.PersonaID, ProviderInstanceID: provider,
 		Purpose: request.Purpose, PrivacyMode: request.PrivacyMode, Mode: request.Mode, Style: request.Style, Language: request.Language,
 		VoiceProfile: "voice", VisualProfile: "visual", State: persona.StatePending, PolicyVersion: policy}
 	return s.session, nil
@@ -85,7 +85,7 @@ func TestPersonaHTTPDisabledAndPrivacy(t *testing.T) {
 	}
 }
 func TestPersonaHTTPStartHandoffAndOwnerBoundary(t *testing.T) {
-	store := &personaStoreFake{catalog: []persona.CatalogItem{{ID: "p", Label: "Test", SupportsVoice: true}}}
+	store := &personaStoreFake{catalog: []persona.CatalogItem{{ID: "00000000-0000-0000-0000-000000000201", Label: "Test", SupportsVoice: true}}}
 	handler := New(Options{ClientSessionKey: bytes.Repeat([]byte("k"), 32), PersonaStore: store,
 		PersonaProvider: personaProviderFake{}, PersonaEnabled: true, PersonaProviderInstanceID: "provider", PersonaPolicyVersion: "v1"})
 	body := `{"persona_id":"p","session_purpose":"LISTEN","mode":"VOICE","language":"ru","style":"CALM","privacy_mode":"PRIVATE_EPHEMERAL"}`
@@ -104,7 +104,7 @@ func TestPersonaHTTPStartHandoffAndOwnerBoundary(t *testing.T) {
 	}
 	cookie := start.Result().Cookies()[0]
 	handoff := httptest.NewRecorder()
-	r := httptest.NewRequest("POST", "/v1/avatar-sessions/fake/actions", bytes.NewBufferString(`{"action":"HUMAN_HANDOFF"}`))
+	r := httptest.NewRequest("POST", "/v1/avatar-sessions/00000000-0000-0000-0000-000000000301/actions", bytes.NewBufferString(`{"action":"HUMAN_HANDOFF"}`))
 	r.AddCookie(cookie)
 	handler.ServeHTTP(handoff, r)
 	if handoff.Code != 200 || !bytes.Contains(handoff.Body.Bytes(), []byte("NEW_HELP_INTENT_REQUIRED")) {
@@ -114,7 +114,7 @@ func TestPersonaHTTPStartHandoffAndOwnerBoundary(t *testing.T) {
 		t.Fatal("provider ref leaked on handoff")
 	}
 	unauthorized := httptest.NewRecorder()
-	handler.ServeHTTP(unauthorized, httptest.NewRequest("GET", "/v1/avatar-sessions/fake", nil))
+	handler.ServeHTTP(unauthorized, httptest.NewRequest("GET", "/v1/avatar-sessions/00000000-0000-0000-0000-000000000301", nil))
 	if unauthorized.Code == 200 {
 		t.Fatal("no owner session must not read")
 	}

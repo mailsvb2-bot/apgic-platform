@@ -6,16 +6,16 @@ import (
 )
 
 func TestStartPrivacyAndSafetyInvariants(t *testing.T) {
-	s := Start{PersonaID: "test", Purpose: "LISTEN", Mode: "VOICE", Language: "ru", Style: "CALM", PrivacyMode: PrivateEphemeral}
+	s := Start{PersonaID: "00000000-0000-0000-0000-000000000101", Purpose: "LISTEN", Mode: "VOICE", Language: "ru", Style: "CALM", PrivacyMode: PrivateEphemeral}
 	if err := s.Validate(); err != nil {
 		t.Fatal(err)
 	}
 	for _, bad := range []Start{
-		{PersonaID: "test", Purpose: "DIAGNOSE", Mode: "VOICE", Language: "ru", Style: "CALM", PrivacyMode: PrivateEphemeral},
-		{PersonaID: "test", Purpose: "LISTEN", Mode: "VOICE", Language: "ru", Style: "CALM", PrivacyMode: "PUBLIC"},
-		{PersonaID: "test", Purpose: "LISTEN", Mode: "VOICE", Language: "ru", Style: "CALM", PrivacyMode: "REMEMBER"},
-		{PersonaID: "test", Purpose: "LISTEN", Mode: "HUMAN_IMPERSONATION", Language: "ru", Style: "CALM", PrivacyMode: PrivateEphemeral},
-		{PersonaID: "test", Purpose: "LISTEN", Mode: "VOICE", Language: "../bad", Style: "CALM", PrivacyMode: PrivateEphemeral},
+		{PersonaID: "00000000-0000-0000-0000-000000000101", Purpose: "DIAGNOSE", Mode: "VOICE", Language: "ru", Style: "CALM", PrivacyMode: PrivateEphemeral},
+		{PersonaID: "00000000-0000-0000-0000-000000000101", Purpose: "LISTEN", Mode: "VOICE", Language: "ru", Style: "CALM", PrivacyMode: "PUBLIC"},
+		{PersonaID: "00000000-0000-0000-0000-000000000101", Purpose: "LISTEN", Mode: "VOICE", Language: "ru", Style: "CALM", PrivacyMode: "REMEMBER"},
+		{PersonaID: "00000000-0000-0000-0000-000000000101", Purpose: "LISTEN", Mode: "HUMAN_IMPERSONATION", Language: "ru", Style: "CALM", PrivacyMode: PrivateEphemeral},
+		{PersonaID: "00000000-0000-0000-0000-000000000101", Purpose: "LISTEN", Mode: "VOICE", Language: "../bad", Style: "CALM", PrivacyMode: PrivateEphemeral},
 	} {
 		if !errors.Is(bad.Validate(), ErrInvalidRequest) {
 			t.Errorf("accepted unsafe request: %+v", bad)
