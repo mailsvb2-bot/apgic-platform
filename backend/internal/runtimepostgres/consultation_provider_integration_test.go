@@ -238,6 +238,61 @@ func TestSignedConsultationPersistsAcrossAPIStoreRestart(t *testing.T) {
 		return event
 	}
 
+	// A privileged/stale booking flag cannot substitute for a signed PSP
+	// capture. Prove this using a second PostgreSQL booking whose state was
+	// set CONFIRMED without any captured payment ledger entry. The webhook
+	// itself has a VALID provider signature; only economic authorization
+	// should reject it and roll back the connector business effect.
+	unpaidIntent, err := service.CreateIntent("бессонница")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.ConfirmIntent(unpaidIntent.ID, []string{"sleep"}, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	unpaidSlots, err := service.Slots("spec-lebedeva")
+	if err != nil || len(unpaidSlots) < 1 {
+		t.Fatalf("need second distinct slot to prove unpaid access: %d %v", len(unpaidSlots), err)
+	}
+	unpaidHold, err := service.AcquireHold(unpaidIntent.ID, unpaidSlots[0].ID, unpaidIntent.ClientIdentityID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.CreateCheckout(unpaidHold.ID, unpaidIntent.ClientIdentityID, "SBP"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.db.ExecContext(ctx,
+		`UPDATE bookings SET state='CONFIRMED', updated_at=now()
+		  WHERE id=$1::uuid AND state='PENDING_PAYMENT'`, unpaidHold.BookingID); err != nil {
+		t.Fatalf("forge booking without capture: %v", err)
+	}
+	forgedEntitlement := signed(1, "JOINED", "CLIENT")
+	forgedPayload, err := json.Marshal(ConsultationProviderEvent{
+		BookingID: unpaidHold.BookingID,
+		FactType: "JOINED", Role: "CLIENT",
+		ProviderReference: "unpaid-attempt/" + unpaidHold.BookingID,
+		EvidenceRef: "signed-but-unpaid/" + unpaidHold.BookingID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	forgedEntitlement.Payload = forgedPayload
+	forgedEntitlement.StreamID = "consultation/" + unpaidHold.BookingID
+	forgedEntitlement.ExternalEventID = "unpaid-" + unpaidHold.BookingID
+	forgedEntitlement = signAs(forgedEntitlement, connectorID, 1, private)
+	if status, _ := postSigned(forgedEntitlement); status != http.StatusConflict {
+		t.Fatalf("valid signed communication webhook opened UNPAID confirmed booking: HTTP %d", status)
+	}
+	var forgedSessions int
+	if err := store.db.QueryRowContext(ctx,
+		"SELECT count(*) FROM consultation_sessions WHERE booking_id=$1::uuid",
+		unpaidHold.BookingID).Scan(&forgedSessions); err != nil {
+		t.Fatal(err)
+	}
+	if forgedSessions != 0 {
+		t.Fatalf("unpaid booking generated %d durable consultation sessions", forgedSessions)
+	}
+
 	var fallbackID string
 	var fallbackPrivate ed25519.PrivateKey
 	for _, original := range []connector.WebhookEnvelope{
