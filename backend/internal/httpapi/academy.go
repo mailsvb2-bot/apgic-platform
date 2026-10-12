@@ -24,6 +24,7 @@ type academyStore interface {
  AcademyAuthorCourses(string)([]academy.Course,error)
  AcademyOutline(string,string,string)(map[string]any,error)
  AcademyMyEnrollments(string)([]academy.Enrollment,error)
+ AcademyPendingReviews(string)([]academy.ReviewAttempt,error)
 }
 func registerAcademy(mux *http.ServeMux,store academyStore,sessions *clientSessionManager,sessionConfigErr error) {
  mux.HandleFunc("GET /v1/academy/courses",func(w http.ResponseWriter,r *http.Request){
@@ -157,6 +158,15 @@ func registerAcademy(mux *http.ServeMux,store academyStore,sessions *clientSessi
   if err!=nil{academyHTTPError(w,r,err);return}
   w.Header().Set("Cache-Control","private, no-store")
   writeJSON(w,200,map[string]any{"enrollments":enrollments})
+ })
+
+ mux.HandleFunc("GET /v1/academy/review/attempts",func(w http.ResponseWriter,r *http.Request){
+  if store==nil{academyHTTPError(w,r,academy.ErrUnavailable);return}
+  actor,ok:=trustedClientIdentity(w,r,sessions,sessionConfigErr,"");if !ok{return}
+  attempts,err:=store.AcademyPendingReviews(actor)
+  if err!=nil{academyHTTPError(w,r,err);return}
+  w.Header().Set("Cache-Control","private, no-store")
+  writeJSON(w,200,map[string]any{"attempts":attempts})
  })
 
 }
