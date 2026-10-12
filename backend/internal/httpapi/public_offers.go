@@ -26,8 +26,8 @@ func registerPublicSpecialistOffers(mux *http.ServeMux, store specialist.Store) 
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{
-			"specialist_id": id,
-			"offers": offers,
+			"specialist_id":     id,
+			"offers":            offers,
 			"availability_rule": "CURRENT_ELIGIBLE_UNHELD_SLOTS",
 		})
 	})

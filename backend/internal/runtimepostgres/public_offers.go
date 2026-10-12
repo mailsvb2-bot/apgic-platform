@@ -61,18 +61,18 @@ LIMIT 100`, specialistID)
 			index = len(result)
 			positions[id] = index
 			result = append(result, specialist.PublicBookableOffer{
-				ID: id,
-				TopicID: topic,
+				ID:         id,
+				TopicID:    topic,
 				PriceMinor: priceMinor,
-				Currency: currency,
-				Slots: make([]specialist.PublicBookableSlot, 0, 4),
+				Currency:   currency,
+				Slots:      make([]specialist.PublicBookableSlot, 0, 4),
 			})
 		}
 		if len(result[index].Slots) < 4 {
 			result[index].Slots = append(result[index].Slots, specialist.PublicBookableSlot{
-				SlotID: publicSlotRef(specialistID, starts),
+				SlotID:   publicSlotRef(specialistID, starts),
 				StartsAt: starts,
-				EndsAt: ends,
+				EndsAt:   ends,
 			})
 		}
 	}

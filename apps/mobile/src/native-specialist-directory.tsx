@@ -1,4 +1,5 @@
 import React, {useEffect, useState} from "react";
+import {canonicalAPGICOrigin} from "./mobile-deep-link-client.ts";
 import {Linking, Pressable, StyleSheet, Text, View} from "react-native";
 import {
  fetchNativePublicSpecialist,
@@ -76,7 +77,7 @@ export function NativeSpecialistDirectory({baseURL,topic}:{baseURL:string;topic:
    </View>)}
    <Text style={styles.note}>Цены и свободное время берутся из действующих предложений. Просмотр анкеты не резервирует слот и не создаёт оплату.</Text>
    <Pressable accessibilityRole="button" accessibilityLabel="Продолжить запись к выбранному специалисту"
-     style={styles.action} onPress={()=>void Linking.openURL(`https://apgic.ru/?specialist_id=${encodeURIComponent(selected.id)}#start`)}>
+     style={styles.action} onPress={()=>void Linking.openURL(`${canonicalAPGICOrigin}/?specialist_id=${encodeURIComponent(selected.id)}#start`)}>
     <Text style={styles.actionText}>Продолжить к записи</Text>
    </Pressable>
   </View>:null}
