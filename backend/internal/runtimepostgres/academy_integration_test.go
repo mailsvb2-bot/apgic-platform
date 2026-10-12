@@ -171,6 +171,18 @@ func TestAcademyVersioningRequiresVerifiedAccess(t *testing.T) {
 	if outboxCount < 3 {
 		t.Fatalf("durable author events missing: %d", outboxCount)
 	}
+	var brokenOrdering int
+	if err = db.QueryRow(`SELECT count(*) FROM (
+  SELECT aggregate_ref,aggregate_version,count(*) AS duplicates
+  FROM outbox_events WHERE producer='apgic-academy'
+  GROUP BY aggregate_ref,aggregate_version
+  HAVING aggregate_version IS NULL OR aggregate_version < 1 OR count(*) > 1
+ ) invalid_events`).Scan(&brokenOrdering); err != nil {
+		t.Fatal(err)
+	}
+	if brokenOrdering != 0 {
+		t.Fatalf("Academy emitted %d unordered or duplicate-version durable event groups", brokenOrdering)
+	}
 }
 
 // TestAcademyStoreVerifiedPaidJourneySurvivesRestart exercises the full

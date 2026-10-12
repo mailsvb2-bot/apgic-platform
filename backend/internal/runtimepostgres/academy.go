@@ -38,9 +38,17 @@ func academyEvent(ctx context.Context, tx *sql.Tx, actor, resource, eventType st
 	if err != nil {
 		return err
 	}
+	// The common event spine must observe a non-null, strictly ordered version.
+	// Lock the aggregate for the whole transaction before assigning its next
+	// sequence; multiple lesson submissions can otherwise race each other.
+	if _, err = tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 7319))`, resource); err != nil {
+		return fmt.Errorf("academy outbox ordering lock: %w", err)
+	}
 	_, err = tx.ExecContext(ctx, `INSERT INTO outbox_events
- (event_id,event_type,schema_version,aggregate_ref,correlation_id,idempotency_key,occurred_at,producer,payload)
- VALUES ($1::uuid,$2,'academy-event-v1',$3,$1,$2||'/'||$3||'/'||$1::text,now(),'apgic-academy',$4::jsonb)`,
+ (event_id,event_type,schema_version,aggregate_ref,aggregate_version,correlation_id,idempotency_key,occurred_at,producer,payload)
+ VALUES ($1::uuid,$2,'academy-event-v1',$3,
+ (SELECT COALESCE(MAX(aggregate_version),0)+1 FROM outbox_events WHERE aggregate_ref=$3),
+ $1,$2||'/'||$3||'/'||$1::text,now(),'apgic-academy',$4::jsonb)`,
 		id, eventType, resource, string(raw))
 	if err != nil {
 		return fmt.Errorf("academy outbox: %w", err)
