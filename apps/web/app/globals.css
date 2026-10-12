@@ -1340,3 +1340,33 @@ fieldset {
 .resume-booking h2 { margin: 0 0 10px; font-size: clamp(1.5rem, 3vw, 2rem); }
 .resume-booking p:last-child { margin: 0; line-height: 1.55; }
 @media (max-width: 640px) { .resume-booking .button-link { width: 100%; } }
+
+/* Canonical R1 public specialist directory */
+.marketplace-shell{padding-bottom:5rem}
+.marketplace-heading{padding:clamp(28px,6vw,70px) 0 32px;max-width:800px}
+.marketplace-heading h1,.marketplace-public-profile h1{font-size:clamp(2rem,5vw,3.5rem);line-height:1.12;margin:0 0 14px}
+.marketplace-heading p{max-width:720px;line-height:1.7}
+.marketplace-filter{display:flex;justify-content:space-between;align-items:end;gap:20px;margin-bottom:24px}
+.marketplace-filter h2{margin:0 0 8px}.marketplace-filter p{max-width:550px}
+.marketplace-filter label{display:grid;gap:7px;font-weight:700;min-width:230px}
+.marketplace-filter select{min-height:46px;border:1px solid #9ebaaa;border-radius:12px;padding:10px;background:white;font:inherit}
+.marketplace-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));padding:0;margin:0;gap:18px;list-style:none}
+.marketplace-profile-card{display:flex;flex-direction:column;align-items:flex-start;gap:12px}
+.marketplace-profile-card h3{margin:0}.marketplace-profile-card p{margin:6px 0}
+.marketplace-profile-card a:not(.button-link){color:#163f31}
+.marketplace-profile-card .button-link{margin-top:auto}
+.marketplace-avatar{width:64px;height:64px;border-radius:50%;background:#dcece2;display:grid;place-items:center;color:#174a31;font-size:1.35rem;font-weight:800}
+.marketplace-avatar-large{width:112px;height:112px;font-size:2.3rem}
+.marketplace-verified{font-weight:650;color:#24573f}
+.marketplace-topic-list{line-height:1.65}
+.marketplace-pagination{display:flex;align-items:center;justify-content:center;gap:22px;padding:26px}
+.marketplace-pagination button{border:1px solid #9ebaaa;background:white;border-radius:12px;padding:10px 20px;cursor:pointer}
+.marketplace-pagination button:disabled{opacity:.5;cursor:not-allowed}
+.marketplace-public-profile{display:grid;grid-template-columns:120px minmax(0,1fr);gap:28px;max-width:900px;padding:48px 0}
+.marketplace-public-profile section{margin:30px 0}.marketplace-public-profile li{margin:8px 0}
+.marketplace-bio{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.7}
+@media(max-width:720px){
+ .marketplace-filter{align-items:stretch;flex-direction:column}
+ .marketplace-grid{grid-template-columns:1fr}
+ .marketplace-public-profile{grid-template-columns:1fr;padding:24px 0}
+}

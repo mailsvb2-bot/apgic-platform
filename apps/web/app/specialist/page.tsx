@@ -1,4 +1,5 @@
 import { SpecialistOnboarding } from "./onboarding";
+import { SpecialistPublicEditor } from "./public-editor";
 
 // Public HTML must not be served with Next's immutable static-page cache.
 export const dynamic = "force-dynamic";
@@ -42,6 +43,7 @@ export default function SpecialistPage() {
           </a>
           <nav className="top-nav" aria-label="Разделы">
             <a href="/">Для клиентов</a>
+            <a href="/specialists">Каталог специалистов</a>
             <a href="/organization">Организация</a>
             <a href="#path">Как подключиться</a>
           </nav>
@@ -77,6 +79,7 @@ export default function SpecialistPage() {
         </section>
 
         <SpecialistOnboarding />
+        <SpecialistPublicEditor />
 
         <section className="how-section" id="path" aria-labelledby="specialist-path-title">
           <div>
