@@ -269,38 +269,10 @@ jobs:
           cache-dependency-path: backend/go.sum
       - shell: bash
         run: |
-          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000001_r0_foundation.sql
-          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000002_legal_acceptance_mobile_installation.sql
-          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000003_r0_semantic_invariants.sql
-          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000004_r0_outbox_terminality.sql
-          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000005_r0_legal_transaction_snapshot.sql
-          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000006_r1_account_deletion.sql
-          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000007_r1_marketplace_discovery.sql
-          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000008_r2_booking_order.sql
-          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000009_r2_payment_control_plane.sql
-          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000010_r2_refund_reversal.sql
-          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000011_r2_transaction_edge.sql
-          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000012_r2_payment_governance.sql
-          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000013_r2_mobile_store_entitlements.sql
-          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000014_r3_communication_consultation.sql
-          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000015_r4_store_lifecycle_reconciliation.sql
-          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000016_r0_connector_delivery_semantics.sql
-          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000017_r0_ledger_economic_event_idempotency.sql
-          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000018_r0_order_product_ownership_snapshot.sql
-          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000019_r1_specialist_supply_runtime.sql
-          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000020_r0_organization_direction_runtime.sql
-          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000021_r0_organization_history_links.sql
-          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000022_r0_connector_atomic_application.sql
-          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000023_r0_product_runtime.sql
-          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000024_r0_published_product_order_gate.sql
-          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000025_r2_notification_policy_runtime.sql
-          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000026_r2_offline_mutation_failure.sql
-          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000027_r0_order_snapshot_baseline_repair.sql
-          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000028_r0_consent_ledger.sql
-          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000029_r3_consultation_lifecycle_monotonicity.sql
-          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000030_r2_notification_push_dispatch_reservations.sql
-          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000031_r1_live_priced_specialist_supply.sql
-          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/000032_r1_specialist_public_directory.sql
+          # All numbered migrations run before E2E: no stale schema snapshots.
+          for migration in backend/migrations/[0-9][0-9][0-9][0-9][0-9][0-9]_*.sql; do
+            psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f "$migration"
+          done
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r0_connector_delivery_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r1_mobile_invariants.sql
@@ -652,38 +624,9 @@ jobs:
       - uses: actions/checkout@v7
       - shell: bash
         run: |
-          psql -v ON_ERROR_STOP=1 -f backend/migrations/000001_r0_foundation.sql
-          psql -v ON_ERROR_STOP=1 -f backend/migrations/000002_legal_acceptance_mobile_installation.sql
-          psql -v ON_ERROR_STOP=1 -f backend/migrations/000003_r0_semantic_invariants.sql
-          psql -v ON_ERROR_STOP=1 -f backend/migrations/000004_r0_outbox_terminality.sql
-          psql -v ON_ERROR_STOP=1 -f backend/migrations/000005_r0_legal_transaction_snapshot.sql
-          psql -v ON_ERROR_STOP=1 -f backend/migrations/000006_r1_account_deletion.sql
-          psql -v ON_ERROR_STOP=1 -f backend/migrations/000007_r1_marketplace_discovery.sql
-          psql -v ON_ERROR_STOP=1 -f backend/migrations/000008_r2_booking_order.sql
-          psql -v ON_ERROR_STOP=1 -f backend/migrations/000009_r2_payment_control_plane.sql
-          psql -v ON_ERROR_STOP=1 -f backend/migrations/000010_r2_refund_reversal.sql
-          psql -v ON_ERROR_STOP=1 -f backend/migrations/000011_r2_transaction_edge.sql
-          psql -v ON_ERROR_STOP=1 -f backend/migrations/000012_r2_payment_governance.sql
-          psql -v ON_ERROR_STOP=1 -f backend/migrations/000013_r2_mobile_store_entitlements.sql
-          psql -v ON_ERROR_STOP=1 -f backend/migrations/000014_r3_communication_consultation.sql
-          psql -v ON_ERROR_STOP=1 -f backend/migrations/000015_r4_store_lifecycle_reconciliation.sql
-          psql -v ON_ERROR_STOP=1 -f backend/migrations/000016_r0_connector_delivery_semantics.sql
-          psql -v ON_ERROR_STOP=1 -f backend/migrations/000017_r0_ledger_economic_event_idempotency.sql
-          psql -v ON_ERROR_STOP=1 -f backend/migrations/000018_r0_order_product_ownership_snapshot.sql
-          psql -v ON_ERROR_STOP=1 -f backend/migrations/000019_r1_specialist_supply_runtime.sql
-          psql -v ON_ERROR_STOP=1 -f backend/migrations/000020_r0_organization_direction_runtime.sql
-          psql -v ON_ERROR_STOP=1 -f backend/migrations/000021_r0_organization_history_links.sql
-          psql -v ON_ERROR_STOP=1 -f backend/migrations/000022_r0_connector_atomic_application.sql
-          psql -v ON_ERROR_STOP=1 -f backend/migrations/000023_r0_product_runtime.sql
-          psql -v ON_ERROR_STOP=1 -f backend/migrations/000024_r0_published_product_order_gate.sql
-          psql -v ON_ERROR_STOP=1 -f backend/migrations/000025_r2_notification_policy_runtime.sql
-          psql -v ON_ERROR_STOP=1 -f backend/migrations/000026_r2_offline_mutation_failure.sql
-          psql -v ON_ERROR_STOP=1 -f backend/migrations/000027_r0_order_snapshot_baseline_repair.sql
-          psql -v ON_ERROR_STOP=1 -f backend/migrations/000028_r0_consent_ledger.sql
-          psql -v ON_ERROR_STOP=1 -f backend/migrations/000029_r3_consultation_lifecycle_monotonicity.sql
-          psql -v ON_ERROR_STOP=1 -f backend/migrations/000030_r2_notification_push_dispatch_reservations.sql
-          psql -v ON_ERROR_STOP=1 -f backend/migrations/000031_r1_live_priced_specialist_supply.sql
-          psql -v ON_ERROR_STOP=1 -f backend/migrations/000032_r1_specialist_public_directory.sql
+          for migration in backend/migrations/[0-9][0-9][0-9][0-9][0-9][0-9]_*.sql; do
+            psql -v ON_ERROR_STOP=1 -f "$migration"
+          done
           bash backend/ci/restore_drill.sh
       - uses: actions/upload-artifact@v7
         with:

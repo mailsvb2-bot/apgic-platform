@@ -20,17 +20,17 @@ type PublicDetails struct {
 	Limitations     []string `json:"limitations"`
 }
 type PublicProfile struct {
-	ID              string   `json:"id"`
-	DisplayName     string   `json:"display_name"`
-	ProfessionCode  string   `json:"profession_code"`
-	Headline        string   `json:"headline"`
-	About           string   `json:"about"`
-	ExperienceYears int      `json:"experience_years"`
-	Languages       []string `json:"languages"`
-	Limitations     []string `json:"limitations"`
-	PublishedTopics []string `json:"published_topics"`
-	VerifiedReviewCount int `json:"verified_review_count"`
-	VerifiedRating *float64 `json:"verified_rating,omitempty"`
+	ID                  string   `json:"id"`
+	DisplayName         string   `json:"display_name"`
+	ProfessionCode      string   `json:"profession_code"`
+	Headline            string   `json:"headline"`
+	About               string   `json:"about"`
+	ExperienceYears     int      `json:"experience_years"`
+	Languages           []string `json:"languages"`
+	Limitations         []string `json:"limitations"`
+	PublishedTopics     []string `json:"published_topics"`
+	VerifiedReviewCount int      `json:"verified_review_count"`
+	VerifiedRating      *float64 `json:"verified_rating,omitempty"`
 }
 type PublicDirectoryStore interface {
 	PublicProfile(ctx context.Context, specialistID string) (PublicProfile, error)

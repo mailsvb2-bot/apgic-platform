@@ -38,12 +38,16 @@ function isResult(value: unknown, bookingID: string): value is ConsultationResul
 export default function ConsultationResultView({ bookingID }: { bookingID: string }) {
   const [result, setResult] = useState<ConsultationResult | null>(null);
   const [state, setState] = useState<"IDLE" | "LOADING" | "READY" | "NOT_FOUND" | "DENIED" | "ERROR">("IDLE");
+  const [rating, setRating] = useState(0);
+  const [feedback, setFeedback] = useState<"IDLE" | "SENDING" | "PENDING" | "NOT_ELIGIBLE" | "ERROR">("IDLE");
   // A stale asynchronous read must never show the outcome of a previous booking.
   const requestEpoch = useRef(0);
   useEffect(() => {
     requestEpoch.current += 1;
     setResult(null);
     setState("IDLE");
+    setRating(0);
+    setFeedback("IDLE");
     return () => { requestEpoch.current += 1; };
   }, [bookingID]);
 
@@ -83,6 +87,39 @@ export default function ConsultationResultView({ bookingID }: { bookingID: strin
     }
   }
 
+  async function submitFeedback() {
+    if (result?.state !== "COMPLETED" || !result.completion_evidence_ref ||
+        !Number.isInteger(rating) || rating < 1 || rating > 5 || feedback !== "IDLE") return;
+    // Client status is only an entry point. The API independently verifies
+    // the signed client, canonical booking, completed state and uniqueness.
+    const epoch = requestEpoch.current;
+    setFeedback("SENDING");
+    try {
+      const response = await fetch("/v1/specialist-feedback", {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ booking_id: bookingID, rating }),
+      });
+      if (epoch !== requestEpoch.current) return;
+      if (response.status === 201) {
+        const payload: unknown = await response.json();
+        if (!payload || typeof payload !== "object" ||
+            (payload as { state?: unknown }).state !== "PENDING") {
+          setFeedback("ERROR");
+          return;
+        }
+        setFeedback("PENDING");
+      } else if (response.status === 409 || response.status === 401 || response.status === 403) {
+        setFeedback("NOT_ELIGIBLE");
+      } else {
+        setFeedback("ERROR");
+      }
+    } catch {
+      if (epoch === requestEpoch.current) setFeedback("ERROR");
+    }
+  }
+
   return (
     <section className="journey-stage" aria-label="Результат консультации">
       <h3>Результат консультации</h3>
@@ -97,7 +134,27 @@ export default function ConsultationResultView({ bookingID }: { bookingID: strin
         <div role="status">
           <p>Состояние консультации: {STATE_LABELS[result.state]}.</p>
           {result.state === "COMPLETED" ? (
-            <p>Подтверждение провайдера: {result.completion_evidence_ref}.</p>
+            <>
+              <p>Консультация завершена по подтверждённому событию провайдера.</p>
+              <div aria-label="Оценка завершённой консультации">
+                <label htmlFor="consultation-feedback-rating">Оцените проведённую консультацию</label>
+                <select id="consultation-feedback-rating" value={rating}
+                  disabled={feedback !== "IDLE"} onChange={(event) => setRating(Number(event.target.value))}>
+                  <option value={0}>Выберите оценку</option>
+                  {[1,2,3,4,5].map(value => <option value={value} key={value}>{value} из 5</option>)}
+                </select>
+                <button type="button" onClick={() => void submitFeedback()}
+                  disabled={rating === 0 || feedback !== "IDLE"}>
+                  {feedback === "SENDING" ? "Отправляем…" : "Отправить подтверждённую оценку"}
+                </button>
+                {feedback === "PENDING" ?
+                  <p>Оценка зарегистрирована. Она появится в рейтинге только после независимой проверки.</p> : null}
+                {feedback === "NOT_ELIGIBLE" ?
+                  <p role="alert">Оценка недоступна: запись ещё не завершена, не принадлежит вам или уже оценена.</p> : null}
+                {feedback === "ERROR" ?
+                  <p role="alert">Не удалось подтвердить сохранение оценки. Проверьте результат перед повторной отправкой.</p> : null}
+              </div>
+            </>
           ) : (
             <p>Завершение консультации пока не подтверждено.</p>
           )}

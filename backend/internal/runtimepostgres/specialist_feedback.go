@@ -67,7 +67,7 @@ func (c *Checker) ReviewVerifiedFeedback(feedbackID string, approved bool, revie
 	if c == nil || c.db == nil {
 		return errors.New("PostgreSQL unavailable")
 	}
-	if !feedbackUUID.MatchString(feedbackID) || strings.TrimSpace(reviewerRef)=="" {
+	if !feedbackUUID.MatchString(feedbackID) || strings.TrimSpace(reviewerRef) == "" {
 		return specialist.ErrFeedbackInvalid
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), specialistWriteTimeout)
@@ -89,11 +89,15 @@ func (c *Checker) ReviewVerifiedFeedback(feedbackID string, approved bool, revie
 	newState := "REJECTED"
 	if approved {
 		newState = "APPROVED"
+	} else if oldState == "APPROVED" || oldState == "WITHDRAWN" {
+		// An operator rejection of an already visible rating is an audited
+		// withdrawal; it never rewrites the source booking or historical score.
+		newState = "WITHDRAWN"
 	}
 	if oldState == newState {
 		return tx.Commit()
 	}
-	if oldState != "PENDING" {
+	if oldState != "PENDING" && !(oldState == "APPROVED" && newState == "WITHDRAWN") {
 		return specialist.ErrFeedbackNotEligible
 	}
 	_, err = tx.ExecContext(ctx, `UPDATE specialist_verified_feedback
@@ -106,8 +110,8 @@ func (c *Checker) ReviewVerifiedFeedback(feedbackID string, approved bool, revie
 	if err != nil {
 		return err
 	}
-	oldJSON, _ := json.Marshal(map[string]string{"state":oldState})
-	newJSON, _ := json.Marshal(map[string]string{"state":newState})
+	oldJSON, _ := json.Marshal(map[string]string{"state": oldState})
+	newJSON, _ := json.Marshal(map[string]string{"state": newState})
 	_, err = tx.ExecContext(ctx, `INSERT INTO audit_records
 		(id,actor_id,action,scope,resource_ref,old_state,new_state,reason,policy_version,correlation_id)
 		VALUES ($1::uuid,$2,'SPECIALIST_FEEDBACK_MODERATE','SPECIALIST',$3,

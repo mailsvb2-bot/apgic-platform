@@ -139,7 +139,7 @@ func TestVerifiedOutcomeTiersNeverInventReputation(t *testing.T) {
 func TestVerifiedFeedbackRankingRequiresReviewedBookingSample(t *testing.T) {
 	cases := []struct {
 		count, sum int64
-		want int
+		want       int
 	}{
 		{0, 0, 0}, {4, 20, 0}, {5, 25, 4}, {20, 100, 5},
 		{10, 30, 2}, {5, 5, 1}, {5, 4, 0},

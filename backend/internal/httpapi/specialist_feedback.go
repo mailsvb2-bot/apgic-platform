@@ -26,7 +26,7 @@ func registerSpecialistFeedback(mux *http.ServeMux, store specialist.Store,
 		}
 		var body struct {
 			BookingID string `json:"booking_id"`
-			Rating int `json:"rating"`
+			Rating    int    `json:"rating"`
 		}
 		decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 2048))
 		decoder.DisallowUnknownFields()

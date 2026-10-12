@@ -48,6 +48,11 @@ BEGIN
       OR NEW.rating<>OLD.rating OR NEW.submitted_at<>OLD.submitted_at THEN
       RAISE EXCEPTION 'verified feedback identity and rating are immutable';
     END IF;
+    IF OLD.state<>'PENDING' AND NEW.state=OLD.state
+      AND (NEW.reviewed_at, NEW.reviewer_ref)
+       IS DISTINCT FROM (OLD.reviewed_at, OLD.reviewer_ref) THEN
+      RAISE EXCEPTION 'verified feedback moderation decision cannot be rewritten';
+    END IF;
     IF NEW.state<>OLD.state AND NOT (
       (OLD.state='PENDING' AND NEW.state IN ('APPROVED','REJECTED'))
       OR (OLD.state='APPROVED' AND NEW.state='WITHDRAWN')
