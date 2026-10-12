@@ -21,6 +21,9 @@ type academyStore interface {
  AcademyVerify(string)(map[string]any,error)
  AcademySubmitAttempt(string,string,string,string)(academy.Attempt,error)
  AcademyEvaluateAttempt(string,string,string,int)(academy.Attempt,error)
+ AcademyAuthorCourses(string)([]academy.Course,error)
+ AcademyOutline(string,string,string)(map[string]any,error)
+ AcademyMyEnrollments(string)([]academy.Enrollment,error)
 }
 func registerAcademy(mux *http.ServeMux,store academyStore,sessions *clientSessionManager,sessionConfigErr error) {
  mux.HandleFunc("GET /v1/academy/courses",func(w http.ResponseWriter,r *http.Request){
@@ -129,6 +132,31 @@ func registerAcademy(mux *http.ServeMux,store academyStore,sessions *clientSessi
   if err!=nil{academyHTTPError(w,r,err);return}
   w.Header().Set("Cache-Control","private, no-store")
   writeJSON(w,http.StatusOK,attempt)
+ })
+
+ mux.HandleFunc("GET /v1/academy/my-courses",func(w http.ResponseWriter,r *http.Request){
+  if store==nil{academyHTTPError(w,r,academy.ErrUnavailable);return}
+  actor,ok:=trustedClientIdentity(w,r,sessions,sessionConfigErr,"");if !ok{return}
+  courses,err:=store.AcademyAuthorCourses(actor)
+  if err!=nil{academyHTTPError(w,r,err);return}
+  w.Header().Set("Cache-Control","private, no-store")
+  writeJSON(w,200,map[string]any{"courses":courses})
+ })
+ mux.HandleFunc("GET /v1/academy/courses/{courseID}/versions/{versionID}/outline",func(w http.ResponseWriter,r *http.Request){
+  if store==nil{academyHTTPError(w,r,academy.ErrUnavailable);return}
+  actor,ok:=trustedClientIdentity(w,r,sessions,sessionConfigErr,"");if !ok{return}
+  outline,err:=store.AcademyOutline(actor,r.PathValue("courseID"),r.PathValue("versionID"))
+  if err!=nil{academyHTTPError(w,r,err);return}
+  w.Header().Set("Cache-Control","private, no-store")
+  writeJSON(w,200,outline)
+ })
+ mux.HandleFunc("GET /v1/academy/my-enrollments",func(w http.ResponseWriter,r *http.Request){
+  if store==nil{academyHTTPError(w,r,academy.ErrUnavailable);return}
+  actor,ok:=trustedClientIdentity(w,r,sessions,sessionConfigErr,"");if !ok{return}
+  enrollments,err:=store.AcademyMyEnrollments(actor)
+  if err!=nil{academyHTTPError(w,r,err);return}
+  w.Header().Set("Cache-Control","private, no-store")
+  writeJSON(w,200,map[string]any{"enrollments":enrollments})
  })
 
 }
