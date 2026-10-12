@@ -120,7 +120,7 @@ test("help intent journey stays usable and accessible", async ({ page }) => {
   await page.getByRole("button", { name: "Выбрать Карта через внешнего провайдера" }).click();
   await expect(page.getByRole("heading", { name: "Поручение на оплату создано" })).toBeVisible();
   await expect(page.getByText("APGIC принимает деньги: нет.")).toBeVisible();
-  await expect(page.getByText("PENDING_PAYMENT")).toBeVisible();
+  await expect(page.getByText("PENDING_PAYMENT", {exact: true})).toBeVisible();
   await page.getByRole("button", { name: "Зафиксировать подтверждение внешнего провайдера" }).click();
   await expect(page.getByRole("heading", { name: "Бронь подтверждена провайдером" })).toBeVisible();
   await expect(page.getByText("CONFIRMED")).toBeVisible();

@@ -2,8 +2,10 @@ import { expect, test } from "@playwright/test";
 
 test("a late specialist response cannot resurrect old checkout after replacing help intent", async ({ page }) => {
   await page.goto("/");
-  await page.getByLabel("С чем нужна помощь").fill("Нужна помощь со сном");
+  await page.getByLabel("С чем нужна помощь").fill("Плохо сплю");
   await page.getByRole("button", { name: "Разобрать запрос" }).click();
+  await expect(page.getByRole("heading", {name: "Правильно ли мы вас поняли?"})).toBeVisible();
+  await expect(page.getByRole("checkbox", {name: "Сон"})).toBeChecked();
   await page.getByRole("button", { name: "Подтвердить и показать специалистов" }).click();
   await expect(page.getByRole("button", { name: "Выбрать время у Марина Лебедева" })).toBeVisible();
 
