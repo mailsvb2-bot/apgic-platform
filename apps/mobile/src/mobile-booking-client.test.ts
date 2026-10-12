@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readOwnedBookingStatus, readOwnedOrderStatus } from "./mobile-booking-client.ts";
+import { readOwnedBookingStatus, readOwnedOrderStatus, readOwnedOrderForBooking } from "./mobile-booking-client.ts";
 
 const data = {
   booking_id: "booking-1", hold_id: "hold-1", state: "CONFIRMED",
@@ -106,4 +106,31 @@ test("native order resume denies forged outcomes, foreign orders, unsafe origin,
   }
   await assert.rejects(readOwnedOrderStatus({baseURL: "http://attacker.example"}, "order-1", request(order)), /ORDER_ORIGIN_INVALID/);
   await assert.rejects(readOwnedOrderStatus({baseURL: "https://apgic.ru"}, "../foreign", request(order)), /ORDER_ID_INVALID/);
+});
+
+test("native booking deep-link recovers order after process restart and rejects foreign evidence", async () => {
+  let requested = "";
+  const own = await readOwnedOrderForBooking(
+    {baseURL: "https://apgic.ru"},
+    "booking-1",
+    async (url, init) => {
+      requested = url;
+      assert.equal(init?.cache, "no-store");
+      return {status: 200, async json() { return order; }};
+    },
+  );
+  assert.equal(requested, "https://apgic.ru/v1/bookings/booking-1/order");
+  assert.equal(own.order_id, "order-1");
+  await assert.rejects(
+    readOwnedOrderForBooking({baseURL: "https://apgic.ru"}, "booking-1", request({...order, booking_id: "foreign"})),
+    /ORDER_STATUS_INVALID/,
+  );
+  await assert.rejects(
+    readOwnedOrderForBooking({baseURL: "https://apgic.ru"}, "booking-1", request({}, 404)),
+    /ORDER_NOT_FOUND/,
+  );
+  await assert.rejects(
+    readOwnedOrderForBooking({baseURL: "https://apgic.ru"}, "booking-1", request({}, 503)),
+    /ORDER_OWNER_UNAVAILABLE/,
+  );
 });

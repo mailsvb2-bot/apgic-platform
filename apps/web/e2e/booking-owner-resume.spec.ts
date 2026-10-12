@@ -19,10 +19,22 @@ test("direct booking page recovers from canonical owner API without sessionStora
     return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(payload) });
   });
 
+  await page.route(`**/v1/bookings/${id}/order`, async (route) => {
+    const economic = {
+      order_id: "ord-direct-resume", booking_id: id,
+      booking_state: mode === "cancelled" ? "CANCELLED" : "CONFIRMED",
+      payment_state: "CAPTURED", amount_minor: 150000, currency: "RUB",
+      provider_id: "provider-external", payment_method: "SBP",
+      ...(mode === "cancelled" ? {refund_state: "SUCCEEDED"} : {}),
+    };
+    return route.fulfill({status: 200, contentType: "application/json", body: JSON.stringify(economic)});
+  });
+
   await page.goto(`/bookings/${id}`);
   expect(await page.evaluate(() => sessionStorage.length)).toBe(0);
   await expect(page.getByRole("heading", { name: "Моя запись" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Запись подтверждена" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Подтверждённые сведения о платеже" })).toContainText("Списание подтверждено");
   await expect(page.getByRole("region", { name: "Результат консультации" })).toBeVisible();
 
   // An upstream outage cannot silently replay the previously confirmed state.
@@ -40,6 +52,7 @@ test("direct booking page recovers from canonical owner API without sessionStora
   mode = "cancelled";
   await page.getByRole("button", { name: "Проверить актуальный статус" }).click();
   await expect(page.getByRole("heading", { name: "Запись отменена" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Подтверждённые сведения о платеже" })).toContainText("SUCCEEDED");
   await expect(page.getByRole("region", { name: "Результат консультации" })).toHaveCount(0);
 
   mode = "denied";

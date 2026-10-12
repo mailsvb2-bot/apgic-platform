@@ -124,3 +124,44 @@ export async function readOwnedOrderStatus(
   if (response.status !== 200) throw new Error("ORDER_OWNER_UNAVAILABLE");
   return requireOwnedOrderStatus(await response.json(), orderID);
 }
+
+/**
+ * Deep-linked native booking pages restore the canonical payment without
+ * relying on an order ID cached on the device. A missing checkout is a 404,
+ * not evidence of a completed, failed or refunded payment.
+ */
+export async function readOwnedOrderForBooking(
+  config: BookingClientConfig,
+  bookingID: string,
+  request: BookingFetch = (url, init) => fetch(url, init),
+): Promise<OrderStatus> {
+  if (!bookingID.trim() || bookingID.includes("/") || bookingID.includes("?") || bookingID.includes("#")) {
+    throw new Error("BOOKING_ID_INVALID");
+  }
+  const {baseURL, sessionCookie} = config;
+  let origin: URL;
+  try { origin = new URL(baseURL); } catch { throw new Error("ORDER_ORIGIN_INVALID"); }
+  const local = origin.protocol === "http:" && (origin.hostname === "localhost" || origin.hostname === "127.0.0.1");
+  if ((origin.protocol !== "https:" && !local) || origin.username || origin.password ||
+      origin.search || origin.hash || (origin.pathname && origin.pathname !== "/")) {
+    throw new Error("ORDER_ORIGIN_INVALID");
+  }
+  const response = await request(origin.origin + "/v1/bookings/" + encodeURIComponent(bookingID) + "/order", {
+    credentials: "include",
+    cache: "no-store",
+    headers: {
+      Accept: "application/json",
+      ...(sessionCookie ? {Cookie: sessionCookie} : {}),
+    },
+  });
+  if (response.status === 401 || response.status === 403) throw new Error("ORDER_SESSION_REQUIRED");
+  if (response.status === 404) throw new Error("ORDER_NOT_FOUND");
+  if (response.status !== 200) throw new Error("ORDER_OWNER_UNAVAILABLE");
+  const payload = await response.json();
+  if (!payload || typeof payload !== "object" ||
+      (payload as Partial<OrderStatus>).booking_id !== bookingID ||
+      typeof (payload as Partial<OrderStatus>).order_id !== "string") {
+    throw new Error("ORDER_STATUS_INVALID");
+  }
+  return requireOwnedOrderStatus(payload, (payload as OrderStatus).order_id);
+}
