@@ -173,92 +173,137 @@ func TestAcademyVersioningRequiresVerifiedAccess(t *testing.T) {
 	}
 }
 
- 
 // TestAcademyStoreVerifiedPaidJourneySurvivesRestart exercises the full
 // persisted learner journey against a store transaction that was verified by
 // the existing canonical PAYMENT_EFFECT -> LEDGER -> STORE_VERIFICATION gates.
 // The preceding ci_r2_mobile_store_invariants.sql supplies a synthetic,
 // provider-verified CI transaction. It is not evidence of a live payment.
 func TestAcademyStoreVerifiedPaidJourneySurvivesRestart(t *testing.T) {
- dsn := os.Getenv("APGIC_ORGANIZATION_TEST_DATABASE_URL")
- if dsn=="" {t.Skip("isolated PostgreSQL Academy journey database not configured")}
- const author = "00000000-0000-0000-0000-00000000b001"
- const learner = "00000000-0000-0000-0000-00000000b003"
- const product = "00000000-0000-0000-0000-00000000af03"
- const paidEntitlement = "00000000-0000-0000-0000-00000000a902"
- ctx := context.Background()
- store, err := Open(ctx,dsn)
- if err!=nil {t.Fatal(err)}
- defer store.Close()
- course,err:=store.AcademyCreateCourse(author,academy.Course{ProductID:product,Title:"Verified paid course",Description:"Commercial learning journey"})
- if err!=nil {t.Fatalf("author cannot create the store-bound course: %v",err)}
- module,err:=store.AcademyAddModule(author,course.ID,course.VersionID,academy.Module{Title:"Module A",Ordinal:1})
- if err!=nil {t.Fatal(err)}
- reading,err:=store.AcademyAddLesson(author,course.ID,course.VersionID,module.ID,academy.Lesson{
-   Title:"Persisting progress",Kind:academy.Reading,Ordinal:1,Body:"Knowledge persists after a restart.",
- })
- if err!=nil {t.Fatal(err)}
- assessment,err:=store.AcademyAddLesson(author,course.ID,course.VersionID,module.ID,academy.Lesson{
-   Title:"Checked understanding",Kind:academy.Assessment,Ordinal:2,PassingScore:70,RubricVersion:"rubric-pay-v1",
- })
- if err!=nil {t.Fatal(err)}
- published,err:=store.AcademyPublish(author,course.ID,course.VersionID)
- if err!=nil || published.State!="PUBLISHED" {t.Fatalf("published course missing: %+v: %v",published,err)}
- if _,err=store.AcademyEnroll(author,course.ID);!errors.Is(err,academy.ErrEntitlement) {
-   t.Fatalf("author without purchased entitlement enrolled: %v",err)
- }
- enrollment,err:=store.AcademyEnroll(learner,course.ID)
- if err!=nil {t.Fatalf("store-verified purchase did not unlock enrollment: %v",err)}
- if enrollment.EntitlementID!=paidEntitlement || enrollment.State!="ACTIVE" {t.Fatalf("course granted access without bound verified purchase: %+v",enrollment)}
- if _,err=store.AcademyLearning(author,enrollment.ID);err==nil {t.Fatal("non-learner read purchased content")}
- if err=store.AcademyMarkProgress(learner,enrollment.ID,assessment.ID);!errors.Is(err,academy.ErrDenied) {
-   t.Fatalf("assessment bypass without review: %v",err)
- }
- if _,err=store.AcademyComplete(learner,enrollment.ID);!errors.Is(err,academy.ErrState) {
-   t.Fatalf("early completion bypassed lesson evidence: %v",err)
- }
- if err=store.AcademyMarkProgress(learner,enrollment.ID,reading.ID);err!=nil {t.Fatal(err)}
- attempt,err:=store.AcademySubmitAttempt(learner,enrollment.ID,assessment.ID,"Course progress is transactional PostgreSQL state.")
- if err!=nil {t.Fatalf("student assessment not submitted: %v",err)}
- if _,err=store.AcademyEvaluateAttempt(learner,attempt.ID,"review/unauthorized",95);!errors.Is(err,academy.ErrDenied) {
-   t.Fatalf("learner graded their own submission: %v",err)
- }
- evaluated,err:=store.AcademyEvaluateAttempt(author,attempt.ID,"academy/human-review/ci",95)
- if err!=nil || evaluated.Result!="PASSED" {t.Fatalf("instructor review did not persist: %+v: %v",evaluated,err)}
- // Drop the runtime before completing the course: progress must NOT depend
- // on any process-local cache or React Native/Web application memory.
- if err=store.Close();err!=nil {t.Fatal(err)}
- store,err=Open(ctx,dsn)
- if err!=nil {t.Fatal(err)}
- lessons,err:=store.AcademyLearning(learner,enrollment.ID)
- if err!=nil {t.Fatalf("learner cannot resume after process restart: %v",err)}
- if len(lessons)!=2 || !lessons[0].Completed || !lessons[1].Completed {
-   t.Fatalf("restart lost paid progress: %+v",lessons)
- }
- certificate,err:=store.AcademyComplete(learner,enrollment.ID)
- if err!=nil {t.Fatalf("completed paid course did not issue certificate: %v",err)}
- if certificate.State!="ACTIVE" || certificate.EvidenceCandidateState!=academy.EvidenceCandidateStatus || len(certificate.VerificationToken)<32 {
-   t.Fatalf("unsafe/invalid certificate outcome: %+v",certificate)
- }
- if err=store.Close();err!=nil {t.Fatal(err)}
- store,err=Open(ctx,dsn)
- if err!=nil {t.Fatal(err)}
- certificateAgain,err:=store.AcademyComplete(learner,enrollment.ID)
- if err!=nil || certificateAgain.ID!=certificate.ID {t.Fatalf("certificate is not idempotent after restart: %+v %v",certificateAgain,err)}
- verified,err:=store.AcademyVerify(certificate.VerificationToken)
- if err!=nil || verified["state"]!="ACTIVE" || verified["qualification_status"]!="NOT_GRANTED" {
-   t.Fatalf("public verification does not match durable certificate: %+v %v",verified,err)
- }
- db,err:=sql.Open("pgx",dsn)
- if err!=nil {t.Fatal(err)}
- defer db.Close()
- var verification string
- err=db.QueryRow(`SELECT sv.provider_evidence_ref FROM academy_enrollments e
+	dsn := os.Getenv("APGIC_ORGANIZATION_TEST_DATABASE_URL")
+	if dsn == "" {
+		t.Skip("isolated PostgreSQL Academy journey database not configured")
+	}
+	const author = "00000000-0000-0000-0000-00000000b001"
+	const learner = "00000000-0000-0000-0000-00000000b003"
+	const product = "00000000-0000-0000-0000-00000000af03"
+	const paidEntitlement = "00000000-0000-0000-0000-00000000a902"
+	ctx := context.Background()
+	store, err := Open(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	course, err := store.AcademyCreateCourse(author, academy.Course{ProductID: product, Title: "Verified paid course", Description: "Commercial learning journey"})
+	if err != nil {
+		t.Fatalf("author cannot create the store-bound course: %v", err)
+	}
+	module, err := store.AcademyAddModule(author, course.ID, course.VersionID, academy.Module{Title: "Module A", Ordinal: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reading, err := store.AcademyAddLesson(author, course.ID, course.VersionID, module.ID, academy.Lesson{
+		Title: "Persisting progress", Kind: academy.Reading, Ordinal: 1, Body: "Knowledge persists after a restart.",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assessment, err := store.AcademyAddLesson(author, course.ID, course.VersionID, module.ID, academy.Lesson{
+		Title: "Checked understanding", Kind: academy.Assessment, Ordinal: 2, PassingScore: 70, RubricVersion: "rubric-pay-v1",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	published, err := store.AcademyPublish(author, course.ID, course.VersionID)
+	if err != nil || published.State != "PUBLISHED" {
+		t.Fatalf("published course missing: %+v: %v", published, err)
+	}
+	if _, err = store.AcademyEnroll(author, course.ID); !errors.Is(err, academy.ErrEntitlement) {
+		t.Fatalf("author without purchased entitlement enrolled: %v", err)
+	}
+	enrollment, err := store.AcademyEnroll(learner, course.ID)
+	if err != nil {
+		t.Fatalf("store-verified purchase did not unlock enrollment: %v", err)
+	}
+	if enrollment.EntitlementID != paidEntitlement || enrollment.State != "ACTIVE" {
+		t.Fatalf("course granted access without bound verified purchase: %+v", enrollment)
+	}
+	if _, err = store.AcademyLearning(author, enrollment.ID); err == nil {
+		t.Fatal("non-learner read purchased content")
+	}
+	if err = store.AcademyMarkProgress(learner, enrollment.ID, assessment.ID); !errors.Is(err, academy.ErrDenied) {
+		t.Fatalf("assessment bypass without review: %v", err)
+	}
+	if _, err = store.AcademyComplete(learner, enrollment.ID); !errors.Is(err, academy.ErrState) {
+		t.Fatalf("early completion bypassed lesson evidence: %v", err)
+	}
+	if err = store.AcademyMarkProgress(learner, enrollment.ID, reading.ID); err != nil {
+		t.Fatal(err)
+	}
+	attempt, err := store.AcademySubmitAttempt(learner, enrollment.ID, assessment.ID, "Course progress is transactional PostgreSQL state.")
+	if err != nil {
+		t.Fatalf("student assessment not submitted: %v", err)
+	}
+	if _, err = store.AcademyEvaluateAttempt(learner, attempt.ID, "review/unauthorized", 95); !errors.Is(err, academy.ErrDenied) {
+		t.Fatalf("learner graded their own submission: %v", err)
+	}
+	evaluated, err := store.AcademyEvaluateAttempt(author, attempt.ID, "academy/human-review/ci", 95)
+	if err != nil || evaluated.Result != "PASSED" {
+		t.Fatalf("instructor review did not persist: %+v: %v", evaluated, err)
+	}
+	// Drop the runtime before completing the course: progress must NOT depend
+	// on any process-local cache or React Native/Web application memory.
+	if err = store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	store, err = Open(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lessons, err := store.AcademyLearning(learner, enrollment.ID)
+	if err != nil {
+		t.Fatalf("learner cannot resume after process restart: %v", err)
+	}
+	if len(lessons) != 2 || !lessons[0].Completed || !lessons[1].Completed {
+		t.Fatalf("restart lost paid progress: %+v", lessons)
+	}
+	certificate, err := store.AcademyComplete(learner, enrollment.ID)
+	if err != nil {
+		t.Fatalf("completed paid course did not issue certificate: %v", err)
+	}
+	if certificate.State != "ACTIVE" || certificate.EvidenceCandidateState != academy.EvidenceCandidateStatus || len(certificate.VerificationToken) < 32 {
+		t.Fatalf("unsafe/invalid certificate outcome: %+v", certificate)
+	}
+	if err = store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	store, err = Open(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	certificateAgain, err := store.AcademyComplete(learner, enrollment.ID)
+	if err != nil || certificateAgain.ID != certificate.ID {
+		t.Fatalf("certificate is not idempotent after restart: %+v %v", certificateAgain, err)
+	}
+	verified, err := store.AcademyVerify(certificate.VerificationToken)
+	if err != nil || verified["state"] != "ACTIVE" || verified["qualification_status"] != "NOT_GRANTED" {
+		t.Fatalf("public verification does not match durable certificate: %+v %v", verified, err)
+	}
+	db, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	var verification string
+	err = db.QueryRow(`SELECT sv.provider_evidence_ref FROM academy_enrollments e
  JOIN store_entitlements t ON t.id=e.entitlement_id
  JOIN store_transaction_verifications sv ON sv.id=t.verification_id
- WHERE e.id=$1::uuid`,enrollment.ID).Scan(&verification)
- if err!=nil || verification=="" {t.Fatalf("purchase missing persisted provider verification evidence: %v",err)}
- var count int
- err=db.QueryRow("SELECT count(*) FROM academy_progress WHERE enrollment_id=$1::uuid",enrollment.ID).Scan(&count)
- if err!=nil || count!=2 {t.Fatalf("missing durable lesson evidence, count=%d: %v",count,err)}
+ WHERE e.id=$1::uuid`, enrollment.ID).Scan(&verification)
+	if err != nil || verification == "" {
+		t.Fatalf("purchase missing persisted provider verification evidence: %v", err)
+	}
+	var count int
+	err = db.QueryRow("SELECT count(*) FROM academy_progress WHERE enrollment_id=$1::uuid", enrollment.ID).Scan(&count)
+	if err != nil || count != 2 {
+		t.Fatalf("missing durable lesson evidence, count=%d: %v", count, err)
+	}
 }
