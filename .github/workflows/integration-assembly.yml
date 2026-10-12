@@ -48,10 +48,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - name: Exercise real three-way merges, SQL duplicates and branch immutability
-        run: python -m unittest discover -s tools/tests -p test_integration_candidate.py -v
       - name: Install real API contract parser before synthesizing generated clients
         run: python -m pip install -r requirements-dev.txt
+      - name: Exercise real three-way merges, SQL duplicates and branch immutability
+        run: python -m unittest discover -s tools/tests -p test_integration_candidate.py -v
       - name: Fetch exact branch heads and synthesize ephemeral launch composition
         id: assemble
         shell: bash
