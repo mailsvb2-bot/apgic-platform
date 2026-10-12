@@ -2,7 +2,7 @@
 import {useEffect,useState} from "react";
 import {growthURL} from "../../../src/growth-client";
 type Offer={id:string;topic_id:string;state:string;price_minor:number;currency:string};
-type Report={link_id:string;offer_id:string;source:string;state:string;touches:number;help_intents:number;confirmed_intents:number};
+type Report={link_id:string;offer_id:string;source:string;state:string;touches:number;help_intents:number;confirmed_intents:number;attributed_holds:number;confirmed_bookings:number;provider_paid_orders:number};
 type Link={path:string;id:string};
 async function api<T>(url:string,init?:RequestInit):Promise<T>{
  const r=await fetch(url,{...init,credentials:"include",cache:"no-store"});
@@ -59,10 +59,10 @@ export function GrowthWorkspace(){
    <button type="button" onClick={()=>void navigator.clipboard.writeText(url)}>Скопировать</button>
   </div>}
   <section aria-label="Атрибуция"><h2>Результаты</h2>
-   <p>Учитываются только переходы и связанные запросы. Оплата и прибыль здесь пока не подсчитываются — неподтверждённые продажи не показываются.</p>
+   <p>Учитываются только переходы и связанные запросы. Подтверждённые продажи учитываются только по доказательствам внешнего платёжного провайдера в ledger. Расходы и прибыль не рассчитываются.</p>
    {reports.map(x=><article key={x.link_id}>
     <p>{x.source} · {x.state} · предложение {x.offer_id}</p>
-    <p>Переходов: {x.touches}. Запросов: {x.help_intents}. Подтверждено: {x.confirmed_intents}.</p>
+    <p>Переходов: {x.touches}. Запросов: {x.help_intents}. Подтверждено: {x.confirmed_intents}. Броней: {x.attributed_holds}. Подтверждённых записей: {x.confirmed_bookings}. Оплачено у провайдера: {x.provider_paid_orders}.</p>
     {x.state==="ACTIVE"&&<button type="button" disabled={busy} onClick={()=>void revoke(x.link_id)}>Отозвать ссылку</button>}
    </article>)}
   </section>

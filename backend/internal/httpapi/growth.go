@@ -116,7 +116,7 @@ func registerGrowth(mux *http.ServeMux, store growth.Store, key []byte,
 			return
 		}
 		w.Header().Set("Cache-Control", "no-store")
-		writeJSON(w, http.StatusOK, map[string]any{"funnel": "ACQUISITION_TO_HELP_INTENT", "items": report, "payment_attribution_available": false})
+		writeJSON(w, http.StatusOK, map[string]any{"funnel": "FIRST_PARTY_VERIFIED_CONVERSION", "items": report, "payment_attribution_available": true})
 	})
 }
 func writeGrowthError(w http.ResponseWriter, r *http.Request, status int, code string) {

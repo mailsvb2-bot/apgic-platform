@@ -127,14 +127,27 @@ func (c *Checker) SpecialistGrowthReport(owner string) ([]growth.Report, error) 
 	ctx, cancel := context.WithTimeout(context.Background(), growthWriteTimeout)
 	defer cancel()
 	rows, err := c.db.QueryContext(ctx,
-		"SELECT l.id::text,l.specialist_offer_id::text,l.acquisition_source,l.state, "+
-			"COUNT(DISTINCT t.id), COUNT(DISTINCT a.intent_id), "+
-			"COUNT(DISTINCT a.intent_id) FILTER (WHERE i.state='CONFIRMED') "+
-			"FROM growth_links l LEFT JOIN growth_touches t ON t.link_id=l.id "+
-			"LEFT JOIN growth_intent_attribution a ON a.touch_id=t.id "+
-			"LEFT JOIN help_intents i ON i.id=a.intent_id "+
-			"WHERE l.issuer_identity_id=$1::uuid "+
-			"GROUP BY l.id,l.specialist_offer_id,l.acquisition_source,l.state ORDER BY l.id", owner)
+		`SELECT l.id::text,l.specialist_offer_id::text,l.acquisition_source,l.state,
+			COUNT(DISTINCT t.id),COUNT(DISTINCT a.intent_id),
+			COUNT(DISTINCT a.intent_id) FILTER (WHERE i.state='CONFIRMED'),
+			COUNT(DISTINCT h.hold_id),
+			COUNT(DISTINCT b.id) FILTER (WHERE b.state IN ('CONFIRMED','COMPLETED')),
+			COUNT(DISTINCT o.id) FILTER (WHERE e.id IS NOT NULL)
+		   FROM growth_links l
+		   LEFT JOIN growth_touches t ON t.link_id=l.id
+		   LEFT JOIN growth_intent_attribution a ON a.touch_id=t.id
+		   LEFT JOIN help_intents i ON i.id=a.intent_id
+		   LEFT JOIN growth_hold_attribution h ON h.intent_id=a.intent_id
+		     AND h.link_id=l.id AND h.touch_id=t.id
+		   LEFT JOIN bookings b ON b.hold_id=h.hold_id
+		   LEFT JOIN orders o ON o.booking_id=b.id
+		   LEFT JOIN ledger_entries e ON e.economic_event_ref=o.id::text
+		     AND e.credit_account_ref=o.payment_recipient_ref
+		     AND e.amount_minor=o.amount_minor AND e.currency=o.currency
+		     AND e.debit_account_ref LIKE 'external-provider/%/settlement'
+		  WHERE l.issuer_identity_id=$1::uuid
+		  GROUP BY l.id,l.specialist_offer_id,l.acquisition_source,l.state
+		  ORDER BY l.id`, owner)
 	if err != nil {
 		return nil, fmt.Errorf("read growth funnel: %w", err)
 	}
@@ -142,7 +155,7 @@ func (c *Checker) SpecialistGrowthReport(owner string) ([]growth.Report, error) 
 	out := make([]growth.Report, 0)
 	for rows.Next() {
 		var v growth.Report
-		if err := rows.Scan(&v.LinkID, &v.OfferID, &v.Source, &v.State, &v.Touches, &v.HelpIntents, &v.ConfirmedIntents); err != nil {
+		if err := rows.Scan(&v.LinkID, &v.OfferID, &v.Source, &v.State, &v.Touches, &v.HelpIntents, &v.ConfirmedIntents, &v.AttributedHolds, &v.ConfirmedBookings, &v.ProviderPaidOrders); err != nil {
 			return nil, err
 		}
 		out = append(out, v)

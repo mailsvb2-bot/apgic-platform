@@ -37,6 +37,9 @@ type Report struct {
 	Touches          int64  `json:"touches"`
 	HelpIntents      int64  `json:"help_intents"`
 	ConfirmedIntents int64  `json:"confirmed_intents"`
+	AttributedHolds int64  `json:"attributed_holds"`
+	ConfirmedBookings int64  `json:"confirmed_bookings"`
+	ProviderPaidOrders int64  `json:"provider_paid_orders"`
 }
 
 type Store interface {

@@ -28,6 +28,7 @@ var requiredTables = []string{
 	"growth_links",
 	"growth_touches",
 	"growth_intent_attribution",
+	"growth_hold_attribution",
 	"outbox_events",
 	"audit_records",
 	"consent_records",
