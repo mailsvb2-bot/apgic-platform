@@ -160,10 +160,17 @@ export default function BookingDetail({ bookingID }: { bookingID: string }) {
           {booking.ends_at ? <p>Окончание: {new Date(booking.ends_at).toLocaleString("ru-RU")}.</p> : null}
           {booking.state === "HELD" || booking.state === "PENDING_PAYMENT" ?
             <p>Это ещё не подтверждённая консультация. Не совершайте повторную оплату без проверки заказа.</p> : null}
-          {(booking.state === "CONFIRMED" || booking.state === "COMPLETED") && paidEntitlement ?
-            <ConsultationResultView key={bookingID} bookingID={bookingID} /> : null}
-          {(booking.state === "CONFIRMED" || booking.state === "COMPLETED") && !paidEntitlement ?
-            <p role="alert">Доступ к консультации закрыт до подтверждения оплаты и проверки состояния заказа на сервере.</p> : null}
+          {(booking.state === "CONFIRMED" || booking.state === "COMPLETED") ? (
+            <>
+              {/* Historical outcome is a separate owner-authorized read.
+                  An absent/uncertain payment must block a NEW media grant,
+                  never erase or conceal an existing provider-confirmed result. */}
+              <ConsultationResultView key={bookingID} bookingID={bookingID} />
+              {!paidEntitlement ? (
+                <p role="status">Вход в защищённую медиакомнату недоступен без подтверждённого права доступа и платежа. Историю проведённой консультации можно проверить отдельно; её достоверность подтверждает сервер.</p>
+              ) : null}
+            </>
+          ) : null}
         </section>
       ) : null}
       <button type="button" onClick={() => setRetry((value) => value + 1)}
