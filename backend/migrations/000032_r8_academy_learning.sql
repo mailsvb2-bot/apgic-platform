@@ -1,5 +1,4 @@
 -- R8 Academy/EdTech: PostgreSQL owns every learning truth; external storage owns bytes.
-BEGIN;
 
 CREATE TABLE academy_courses (
   id uuid PRIMARY KEY,
@@ -296,4 +295,3 @@ CREATE TABLE academy_drip_schedule (
  unlock_after_seconds bigint NOT NULL CHECK(unlock_after_seconds>=0),
  PRIMARY KEY(version_id,lesson_id)
 );
-COMMIT;
