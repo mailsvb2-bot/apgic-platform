@@ -28,7 +28,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd 'pg_isready -U apgic -d apgic_ci'
+          --health-cmd "pg_isready -U apgic -d apgic_ci"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 8
@@ -108,9 +108,11 @@ jobs:
           APGIC_SPECIALIST_TEST_DATABASE_URL: ${{ env.APGIC_TEST_DB }}
           APGIC_AUTHZ_TEST_DATABASE_URL: ${{ env.APGIC_TEST_DB }}
           APGIC_JOURNEY_STORE_TEST_DATABASE_URL: ${{ env.APGIC_TEST_DB }}
+          APGIC_OUTBOX_TEST_DATABASE_URL: ${{ env.APGIC_TEST_DB }}
+          APGIC_CONNECTOR_DELIVERY_TEST_DATABASE_URL: ${{ env.APGIC_TEST_DB }}
         run: |
           go test ./internal/runtimepostgres \
-            -run 'TestLivePricedSpecialistToDurableHoldAfterRestart|TestSpecialistSupplyPersistsEvidenceReviewAndPublishGate|TestAuthorizationEvaluatorPersistsCrossTenantDenial|TestJourneyStoreSurvivesServiceRestart' \
+            -run 'TestLivePricedSpecialistToDurableHoldAfterRestart|TestSpecialistSupplyPersistsEvidenceReviewAndPublishGate|TestAuthorizationEvaluatorPersistsCrossTenantDenial|TestJourneyStoreSurvivesServiceRestart|TestTransactionalOutboxSurvivesRollbackRestartAndRetry|TestConnectorWebhookAppliesBusinessEffectExactlyOnceAcrossOutOfOrderAndRetry|TestSignedConsultationPersistsAcrossAPIStoreRestart' \
             -count=1 -v
       - name: Next.js production build against composed backend/OpenAPI
         working-directory: ${{ runner.temp }}/apgic-launch-candidate/apps/web
