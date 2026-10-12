@@ -3,11 +3,14 @@ package instant
 import "testing"
 
 func TestNoDispatchStateEverGrantsRoomWithoutPaidBooking(t *testing.T) {
-	for _, state := range []string{DispatchUnfilled, DispatchOffered, DispatchAccepted, DispatchDeclined, DispatchExpired} {
+	for _, state := range []string{DispatchUnfilled, DispatchOffered, DispatchAccepted, DispatchDeclined, DispatchExpired, DispatchCancelled, DispatchInvalidated} {
 		d := Dispatch{State: state, RoomReady: true}
 		d.Normalize()
 		if d.RoomReady {
 			t.Fatalf("%s granted an unpaid room", state)
+		}
+		if state == DispatchCancelled && d.NextAction != ActionRetry {
+			t.Fatalf("cancelled dispatch must allow retry, never imply room/payment access")
 		}
 		if state == DispatchAccepted && d.NextAction != ActionPaymentRequired {
 			t.Fatalf("accepted dispatch must require payment")

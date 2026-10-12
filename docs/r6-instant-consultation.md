@@ -17,6 +17,8 @@ The UI entry points are `/now` (client), `/specialist/now` (specialist), and the
 - Presence: `OFFLINE`, `AVAILABLE_NOW`, `OFFERED`, `RESERVED`, `IN_CONSULTATION`, `COOLDOWN`
 - Dispatch: `UNFILLED`, `OFFERED`, `ACCEPTED`, `DECLINED`, `EXPIRED`
 - The `IN_CONSULTATION` state is reserved for future R3/R6 fulfillment integration; this feature does **not** set it without verified paid booking evidence.
+- `INVALIDATED` is a terminal state for an active offer/accepted-but-unpaid agreement whose real Product/publication/most recent qualification is no longer eligible. Availability becomes OFFLINE; the client is never sent to a payment or room based on stale approval.
+- `CANCELLED` is a durable terminal state for the signed client's explicit cancellation before confirmed payment. It never means a PSP refund occurred. A second cancel returns the same terminal state; a late specialist acceptance is rejected.
 
 ## Ownership / API contract
 
@@ -32,6 +34,7 @@ The API is always scoped to the authenticated APGIC `ClientSession`, including w
 | `GET /v1/instant/dispatches/{id}` | Read client/specialist-owned proposal only |
 | `GET /v1/instant/active` | Recover client-owned unexpired offer or accepted pending-payment agreement |
 | `POST /v1/instant/dispatches/{id}/answer` | Specialist answer, only for owned active proposal |
+| `POST /v1/instant/dispatches/{id}/cancel` | Signed client cancels pending offer or unpaid agreement; never claims a refund |
 
 **Versioned response schema:** `contracts/jsonschema/instant-duty-v1.schema.json`. Non-custodial access gate is explicit. No raw consultation content is read or exported by this subsystem. Outgoing notifications are not invented; client and specialist poll durable state until a qualified messaging connector is available.
 
@@ -48,14 +51,19 @@ The API is always scoped to the authenticated APGIC `ClientSession`, including w
 | Specialist declines or misses 45s window | Terminal decline/expiry; release to future dispatch, never silently accept |
 | Specialist has overlapping paid/scheduled booking | Do not enter duty/select/accept conflicting instant offer |
 | Qualification, Product publication or ownership revoked | Reject availability and acceptance; fail closed |
+| New latest qualification becomes MANUAL_REVIEW between dispatch and acceptance | Automatically invalidate the offer, remove the specialist from live availability, reject late acceptance and refuse any room/payment claim |
 | Fraudulent foreign UUID/identity/cross-tenant request | Session-scoped 404/403, no private resource disclosure |
 | Time passes / app closes | Server expiry and ten-minute presence lease, not an infinite green badge |
 | Payment not configured / uncertain provider callback | Never issue booking/entitlement/realtime room credentials |
 | Restart / refresh during dispatch | Same persisted state is read; no new dispatch needed |
+| Client cancels offered or accepted-but-unpaid proposal | Only signed owner may cancel, retry is idempotent, late specialist response denied; specialist returns to eligible supply only if lease and qualification remain valid |
+| Client explicitly starts a new request after cancelling | May choose the same still-qualified specialist; a declined, timed-out or invalidated offer is not silently re-sent to that specialist for the same HelpIntent |
+| Network breaks after request was committed | Reuse the same idempotency key in Web; native client recovers signed active dispatch and does not invent a second offer |
+| Revoked qualification after previously successful offer | Real PostgreSQL journey revokes verified capability and confirms duty activation fails closed |
 
 ## Proof and integration gates
 
-New Go domain tests, HTTP owner/unsigned/missing-boolean tests, SQL invariants and the dedicated migration are wired into canonical CI. Full PostgreSQL CI includes the new migration before invariant tests, including the parallel DB path. The feature is **not release-ready merely because source code compiles**.
+Go domain tests, HTTP owner/unsigned/missing-boolean/cancellation tests, SQL invariants, **a positive full real-Product/qualification-to-dispatch-to-cancellation journey (rolled back after proof)** and the dedicated migration are wired into canonical CI. Full PostgreSQL CI includes the new migration before invariant tests, including the parallel DB path. The feature is **not release-ready merely because source code compiles**.
 
 Before enabling production, integration owners must prove, without changing the canonical owners:
 - R2 booking/payment branch: specialist acceptance → mutually exclusive paid reservation → real PSP checkout/instruction → **verified** signed callback and ledger evidence → only then confirmed booking, entitlement; timeout/refund/cancellation follow existing business owners. APGIC does not receive or distribute funds.

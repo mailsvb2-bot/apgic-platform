@@ -24,7 +24,7 @@ CREATE TABLE instant_dispatches (
   topic_id text,
   price_minor bigint,
   currency text,
-  state text NOT NULL CHECK (state IN ('UNFILLED','OFFERED','DECLINED','EXPIRED','ACCEPTED')),
+  state text NOT NULL CHECK (state IN ('UNFILLED','OFFERED','DECLINED','EXPIRED','ACCEPTED','CANCELLED','INVALIDATED')),
   policy_version text NOT NULL DEFAULT 'duty-dispatch-v1',
   offered_at timestamptz,
   expires_at timestamptz,
@@ -45,6 +45,24 @@ CREATE UNIQUE INDEX instant_one_active_dispatch_per_specialist ON instant_dispat
   WHERE state IN ('OFFERED','ACCEPTED');
 CREATE INDEX instant_dispatch_specialist_inbox ON instant_dispatches(specialist_identity_id, created_at DESC)
   WHERE state IN ('OFFERED','ACCEPTED');
+
+-- Duty/Now has a narrower real-time scope than the general marketplace:
+-- online, Russian jurisdiction, adult clients. A historic ELIGIBLE verdict
+-- is insufficient if a later decision is MANUAL_REVIEW or INELIGIBLE.
+CREATE FUNCTION apgic_instant_supply_eligible(p_offer_id uuid)
+RETURNS boolean LANGUAGE sql VOLATILE AS $
+  SELECT EXISTS (
+    SELECT 1 FROM specialist_bookable_offers o
+    JOIN LATERAL (
+      SELECT q.decision FROM qualification_evaluations q
+       WHERE q.specialist_id=o.specialist_id AND q.topic_id=o.topic_id
+         AND q.jurisdiction='RU' AND q.service_format='ONLINE'
+         AND q.age_group='ADULT'
+       ORDER BY q.evaluated_at DESC,q.id DESC LIMIT 1
+    ) qualification ON qualification.decision='ELIGIBLE'
+    WHERE o.id=p_offer_id AND apgic_live_offer_valid(o.id)
+  )
+$;
 
 -- At all entrypoints, release timed-out offers; never leave a busy specialist
 -- forever or expose an expired offer as available. An ACCEPTED dispatch is a
@@ -67,9 +85,40 @@ BEGIN
      AND p.offer_id=d.offer_id
      AND p.state IN ('OFFERED','RESERVED');
 
-  UPDATE instant_presence SET state='OFFLINE',available_until=NULL,
-      updated_at=p_now,version=version+1
-  WHERE state IN ('AVAILABLE_NOW','COOLDOWN') AND available_until <= p_now;
+  -- A previous successful evaluation is not a permanent entitlement.
+  -- Revoked publications, Product ownership and later MANUAL_REVIEW decisions
+  -- terminate even already accepted but unpaid offers on the next read.
+  WITH invalidated AS (
+    UPDATE instant_dispatches d SET state='INVALIDATED'
+    WHERE d.state IN ('OFFERED','ACCEPTED')
+      AND NOT EXISTS (
+        SELECT 1 FROM specialist_bookable_offers o
+        JOIN help_intents h ON h.id=d.help_intent_id
+        JOIN LATERAL (
+          SELECT q.decision FROM qualification_evaluations q
+           WHERE q.specialist_id=o.specialist_id AND q.topic_id=o.topic_id
+             AND q.jurisdiction=h.context->>'jurisdiction'
+             AND q.service_format=h.context->>'format'
+             AND q.age_group=h.context->>'age_group'
+           ORDER BY q.evaluated_at DESC,q.id DESC LIMIT 1
+        ) qualification ON qualification.decision='ELIGIBLE'
+        WHERE o.id=d.offer_id AND apgic_live_offer_valid(o.id)
+          AND o.topic_id=ANY(h.topics) AND h.state='CONFIRMED'
+      )
+    RETURNING d.specialist_identity_id,d.offer_id
+  )
+  UPDATE instant_presence p
+     SET state='OFFLINE',available_until=NULL,updated_at=p_now,version=version+1
+    FROM invalidated d
+   WHERE p.specialist_identity_id=d.specialist_identity_id
+     AND p.offer_id=d.offer_id
+     AND p.state IN ('OFFERED','RESERVED');
+
+  UPDATE instant_presence p
+     SET state='OFFLINE',available_until=NULL,
+         updated_at=p_now,version=version+1
+  WHERE p.state IN ('AVAILABLE_NOW','COOLDOWN')
+    AND (p.available_until <= p_now OR NOT apgic_instant_supply_eligible(p.offer_id));
 END;
 $$;
 
@@ -90,7 +139,7 @@ BEGIN
     RETURN 'DUTY_OFFLINE';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM specialist_bookable_offers o
-       WHERE o.id=p_offer AND o.specialist_identity_id=p_identity AND apgic_live_offer_valid(o.id)) THEN
+       WHERE o.id=p_offer AND o.specialist_identity_id=p_identity AND apgic_instant_supply_eligible(o.id)) THEN
     RETURN 'DUTY_NOT_ELIGIBLE';
   END IF;
   -- Do not offer a specialist who has an overlapping scheduled booking:
@@ -161,7 +210,7 @@ BEGIN
        ORDER BY q.evaluated_at DESC,q.id DESC LIMIT 1
     ) qualification ON qualification.decision='ELIGIBLE'
     WHERE p.state='AVAILABLE_NOW' AND p.available_until>p_now + interval '90 seconds'
-      AND apgic_live_offer_valid(o.id)
+      AND apgic_instant_supply_eligible(o.id)
       AND o.topic_id=ANY(h.topics)
       AND p.specialist_identity_id<>p_identity
       AND NOT EXISTS (
@@ -172,8 +221,12 @@ BEGIN
           AND b.starts_at < p_now + interval '70 minutes'
           AND b.ends_at > p_now
       )
+      -- A user who explicitly cancelled may choose to try again.
+      -- Never silently re-offer a practitioner who declined, missed the
+      -- deadline, or became ineligible during this HelpIntent.
       AND NOT EXISTS (SELECT 1 FROM instant_dispatches tried
-        WHERE tried.help_intent_id=p_intent AND tried.specialist_identity_id=p.specialist_identity_id)
+        WHERE tried.help_intent_id=p_intent AND tried.specialist_identity_id=p.specialist_identity_id
+          AND tried.state IN ('DECLINED','EXPIRED','OFFERED','ACCEPTED','INVALIDATED'))
     ORDER BY p.updated_at,p.specialist_identity_id
     FOR UPDATE OF p SKIP LOCKED LIMIT 1;
   IF NOT FOUND THEN
@@ -207,8 +260,27 @@ BEGIN
   END IF;
   IF current_dispatch.state<>'OFFERED' THEN RETURN 'DUTY_OFFER_NOT_ACTIVE'; END IF;
   IF current_dispatch.expires_at<=p_now THEN RETURN 'DUTY_OFFER_NOT_ACTIVE'; END IF;
-  IF p_accept AND NOT EXISTS (SELECT 1 FROM specialist_bookable_offers o
-     WHERE o.id=current_dispatch.offer_id AND apgic_live_offer_valid(o.id)) THEN
+  -- Recheck the current qualification decision at acceptance, not merely
+  -- the old Product/publication approval. A later MANUAL_REVIEW or revocation
+  -- must not turn a stale OFFERED badge into a payable agreement.
+  IF p_accept AND NOT EXISTS (
+    SELECT 1
+      FROM specialist_bookable_offers o
+      JOIN help_intents h ON h.id=current_dispatch.help_intent_id
+      JOIN LATERAL (
+        SELECT q.decision FROM qualification_evaluations q
+         WHERE q.specialist_id=o.specialist_id AND q.topic_id=o.topic_id
+           AND q.jurisdiction=h.context->>'jurisdiction'
+           AND q.service_format=h.context->>'format'
+           AND q.age_group=h.context->>'age_group'
+         ORDER BY q.evaluated_at DESC,q.id DESC LIMIT 1
+      ) qualification ON qualification.decision='ELIGIBLE'
+     WHERE o.id=current_dispatch.offer_id
+       AND o.specialist_identity_id=p_specialist
+       AND o.topic_id=ANY(h.topics)
+       AND h.state='CONFIRMED'
+       AND apgic_live_offer_valid(o.id)
+  ) THEN
     RETURN 'DUTY_NOT_ELIGIBLE';
   END IF;
   IF p_accept AND EXISTS (
@@ -231,5 +303,46 @@ BEGIN
      AND state='OFFERED';
   IF NOT FOUND THEN RAISE EXCEPTION 'instant duty presence changed during answer'; END IF;
   RETURN CASE WHEN p_accept THEN 'DUTY_ACCEPTED_PAYMENT_REQUIRED' ELSE 'DUTY_DECLINED' END;
+END;
+$$;
+
+-- A signed client's explicit cancellation is a terminal and idempotent
+-- transition: release the specialist without creating booking/payment.
+-- The prepayment offer cannot be resurrected by a late specialist response.
+CREATE FUNCTION apgic_instant_cancel(
+  p_id uuid, p_client uuid, p_now timestamptz
+) RETURNS text LANGUAGE plpgsql AS $$
+DECLARE
+  selected instant_dispatches%ROWTYPE;
+BEGIN
+  PERFORM apgic_instant_expire(p_now);
+  SELECT * INTO selected FROM instant_dispatches WHERE id=p_id FOR UPDATE;
+  IF NOT FOUND OR selected.client_identity_id<>p_client THEN
+    RETURN 'DUTY_NOT_FOUND';
+  END IF;
+  IF selected.state='CANCELLED' THEN
+    RETURN 'DUTY_ALREADY_CANCELLED';
+  END IF;
+  IF selected.state NOT IN ('OFFERED','ACCEPTED') THEN
+    RETURN 'DUTY_NOT_CANCELLABLE';
+  END IF;
+  UPDATE instant_dispatches
+     SET state='CANCELLED', responded_at=COALESCE(responded_at,p_now)
+   WHERE id=p_id;
+  UPDATE instant_presence p
+     SET state=CASE WHEN p.available_until>p_now+interval '90 seconds'
+                          AND apgic_instant_supply_eligible(p.offer_id)
+                    THEN 'AVAILABLE_NOW' ELSE 'OFFLINE' END,
+         available_until=CASE WHEN p.available_until>p_now+interval '90 seconds'
+                                  AND apgic_instant_supply_eligible(p.offer_id)
+                              THEN p.available_until ELSE NULL END,
+         updated_at=p_now, version=version+1
+   WHERE p.specialist_identity_id=selected.specialist_identity_id
+     AND p.offer_id=selected.offer_id
+     AND p.state IN ('OFFERED','RESERVED');
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'instant duty presence changed during cancellation';
+  END IF;
+  RETURN 'DUTY_CANCELLED';
 END;
 $$;

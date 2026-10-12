@@ -44,6 +44,18 @@ func (s *fakeDutyStore) ActiveDispatch(identityID string) (instant.Dispatch, err
 	return s.dispatch, nil
 }
 
+func (s *fakeDutyStore) Cancel(id, clientIdentityID string) (instant.Dispatch, error) {
+	if s.dispatch.ID != id || s.dispatch.ClientIdentityID != clientIdentityID {
+		return instant.Dispatch{}, instant.ErrNotFound
+	}
+	if s.dispatch.State != instant.DispatchOffered && s.dispatch.State != instant.DispatchAccepted && s.dispatch.State != instant.DispatchCancelled {
+		return instant.Dispatch{}, instant.ErrConflict
+	}
+	s.dispatch.State = instant.DispatchCancelled
+	s.dispatch.Normalize()
+	return s.dispatch, nil
+}
+
 func (s *fakeDutyStore) Answer(id, owner string, accept bool) (instant.Dispatch, error) {
 	if id != s.dispatch.ID {
 		return instant.Dispatch{}, instant.ErrNotFound
@@ -162,5 +174,51 @@ func TestDutySpecialistProjectionNeverLeaksPrepaymentClientIdentity(t *testing.T
 	}
 	if !strings.Contains(string(public), "anxiety") {
 		t.Fatalf("specialist lost safe matching facts: %s", string(public))
+	}
+}
+
+func TestDutyCancellationOwnerAndNoUnpaidRoom(t *testing.T) {
+	store := &fakeDutyStore{dispatch: instant.Dispatch{
+		ID:               "3f898240-2092-4922-a582-e001cd9e378b",
+		ClientIdentityID: "61f998fe-cd75-4e88-bdc7-2bfc7dc2a07a",
+		State:            instant.DispatchAccepted,
+	}}
+	key := []byte(strings.Repeat("s", 32))
+	session, err := newClientSessionManager(key, time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ownerCookie, err := session.issue(store.dispatch.ClientIdentityID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	strangerCookie, err := session.issue("68c7c2a5-bf5b-4895-ac4a-d4d9944799ae")
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := New(Options{ClientSessionKey: key, Instant: store, InstantEnabled: true})
+	target := "/v1/instant/dispatches/" + store.dispatch.ID + "/cancel"
+	req := httptest.NewRequest(http.MethodPost, target, nil)
+	req.AddCookie(strangerCookie)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusNotFound || store.dispatch.State != instant.DispatchAccepted {
+		t.Fatalf("non-owner cancellation changed state: %d %+v", w.Code, store.dispatch)
+	}
+	for attempt := 0; attempt < 2; attempt++ {
+		req = httptest.NewRequest(http.MethodPost, target, nil)
+		req.AddCookie(ownerCookie)
+		w = httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("owner cancel attempt %d: %d %s", attempt, w.Code, w.Body.String())
+		}
+		var got instant.Dispatch
+		if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+			t.Fatal(err)
+		}
+		if got.State != instant.DispatchCancelled || got.RoomReady || got.NextAction != instant.ActionRetry {
+			t.Fatalf("cancelled duty granted unwanted access: %+v", got)
+		}
 	}
 }

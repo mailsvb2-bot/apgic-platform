@@ -1,8 +1,8 @@
 "use client";
-import {useEffect,useState} from "react";
+import {useEffect,useRef,useState} from "react";
 
 type Intent={id:string;topics:string[];goals:string[];context:Record<string,string>};
-type Duty={id:string;state:string;topic_id?:string;price_minor?:number;currency?:string;expires_at?:string;next_action:string;room_ready:boolean};
+type Duty={id:string;help_intent_id?:string;state:string;topic_id?:string;price_minor?:number;currency?:string;expires_at?:string;next_action:string;room_ready:boolean};
 type ApiError={code?:string;message_safe?:string};
 const styles={panel:{background:"var(--surface, #fff)",border:"1px solid #ccc",borderRadius:14,padding:22,marginTop:16} as const,button:{padding:"0.7rem 1.1rem",borderRadius:8,marginTop:14,cursor:"pointer"} as const};
 async function api<T>(path:string,body?:unknown,method="POST"):Promise<T>{
@@ -17,6 +17,7 @@ export function NowJourney(){
  const [topic,setTopic]=useState("");const [confirmed,setConfirmed]=useState(false);
  const [dispatch,setDispatch]=useState<Duty|null>(null);const [busy,setBusy]=useState(false);
  const [error,setError]=useState("");const [notice,setNotice]=useState("");
+ const retryKeyRef=useRef<string|null>(null);
  useEffect(()=>{
   // Reload/resume reads canonical server state, not a stale browser flag.
   void api<Duty>("/instant/active").then(setDispatch).catch(()=>undefined);
@@ -30,7 +31,7 @@ export function NowJourney(){
   return ()=>window.clearInterval(timer);
  },[dispatch?.id,dispatch?.state]);
  async function create(){
-  setBusy(true);setError("");setNotice("");setDispatch(null);setConfirmed(false);
+  setBusy(true);setError("");setNotice("");setDispatch(null);setConfirmed(false);retryKeyRef.current=null;
   try{
    const next=await api<Intent>("/help-intents",{free_text:text});
    setIntent(next);setTopic(next.topics?.[0]||"");setNotice("Проверьте тему запроса. Платформа не ставит диагнозы.");
@@ -48,11 +49,36 @@ export function NowJourney(){
  async function request(){
   if(!intent)return;setBusy(true);setError("");
   try{
-   const {request_key}=await api<{request_key:string}>("/instant/request-key");
-   if(!request_key)throw new Error("Не удалось создать безопасный ключ запроса.");
-   const next=await api<Duty>("/instant/dispatches",{help_intent_id:intent.id,request_key});
+   if(dispatch && !["OFFERED","ACCEPTED"].includes(dispatch.state))retryKeyRef.current=null;
+   if(!retryKeyRef.current){
+    const {request_key}=await api<{request_key:string}>("/instant/request-key");
+    if(!request_key)throw new Error("Не удалось создать безопасный ключ запроса.");
+    retryKeyRef.current=request_key;
+   }
+   const next=await api<Duty>("/instant/dispatches",{help_intent_id:intent.id,request_key:retryKeyRef.current});
+   if(next.room_ready)throw new Error("Недопустимый доступ к неоплаченной консультации.");
    setDispatch(next);
-  }catch(e){setError(e instanceof Error?e.message:"Ошибка");}
+  }catch(e){
+   // POST may have committed before the network response was lost.
+   // Read the signed owner's durable state instead of double-dispatching.
+   try{
+    const recovered=await api<Duty>("/instant/active");
+    if(recovered.help_intent_id===intent.id && !recovered.room_ready){
+     setDispatch(recovered);return;
+    }
+   }catch{}
+   setError(e instanceof Error?e.message:"Ошибка");
+  }
+  finally{setBusy(false);}
+ }
+ async function cancel(){
+  if(!dispatch || busy)return;
+  setBusy(true);setError("");
+  try{
+   const next=await api<Duty>("/instant/dispatches/"+encodeURIComponent(dispatch.id)+"/cancel",{},"POST");
+   if(next.state!=="CANCELLED" || next.room_ready)throw new Error("Отмена не была подтверждена сервером.");
+   setDispatch(next);retryKeyRef.current=null;setNotice("Обращение отменено. Деньги не списывались.");
+  }catch(e){setError(e instanceof Error?e.message:"Не удалось отменить запрос.");}
   finally{setBusy(false);}
  }
  const terminal=dispatch && !["OFFERED","ACCEPTED"].includes(dispatch.state);
@@ -75,10 +101,12 @@ export function NowJourney(){
   </>}
   {confirmed&&!dispatch&&<><h2>Запрос подтверждён</h2><p>Система направит предложение одному доступному квалифицированному специалисту. Время ответа ограничено.</p><button style={styles.button} type="button" disabled={busy} onClick={request}>Найти дежурного</button></>}
   {dispatch&&<div aria-live="polite">
-   <h2>{dispatch.state==="OFFERED"?"Ожидаем ответ специалиста":dispatch.state==="ACCEPTED"?"Специалист ответил":dispatch.state==="UNFILLED"?"Свободного специалиста нет":dispatch.state==="DECLINED"?"Специалист не смог принять":dispatch.state==="EXPIRED"?"Предложение истекло":"Статус предложения"}</h2>
+   <h2>{dispatch.state==="OFFERED"?"Ожидаем ответ специалиста":dispatch.state==="ACCEPTED"?"Специалист ответил":dispatch.state==="UNFILLED"?"Свободного специалиста нет":dispatch.state==="DECLINED"?"Специалист не смог принять":dispatch.state==="EXPIRED"?"Предложение истекло":dispatch.state==="INVALIDATED"?"Предложение отозвано":"Статус предложения"}</h2>
    {dispatch.state==="OFFERED"&&<p>Предложение отправлено. Ожидание до {dispatch.expires_at?new Date(dispatch.expires_at).toLocaleTimeString("ru-RU"):"истечения предложения"}.</p>}
+   {dispatch.state==="INVALIDATED"&&<p>Статус специалиста изменился. Данное предложение больше недействительно, к оплате или разговору по нему переходить нельзя.</p>}
    {dispatch.state==="ACCEPTED"&&<p>Специалист принял запрос. Для начала платной консультации требуется подтверждённый платёж через внешнего провайдера. Пока оплата не подключена, доступ к разговору закрыт.</p>}
    {dispatch.price_minor&&<p>Цена предложения: <strong>{(dispatch.price_minor/100).toLocaleString("ru-RU")} {dispatch.currency}</strong>. Списание сейчас не выполняется.</p>}
+   {["OFFERED","ACCEPTED"].includes(dispatch.state)&&<button style={styles.button} type="button" disabled={busy} onClick={cancel}>Отменить обращение</button>}
    {terminal&&(intent ? <button style={styles.button} type="button" disabled={busy} onClick={request}>Попробовать другого</button> : <button type="button" style={styles.button} onClick={()=>{setDispatch(null);setConfirmed(false);}}>Начать новый запрос</button>)}
    <p style={{fontSize:13}}>Состояние: {dispatch.state} · Следующее действие: {dispatch.next_action}</p>
   </div>}

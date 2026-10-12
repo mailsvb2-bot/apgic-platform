@@ -1,6 +1,6 @@
 import type {MobileDemandClientOptions} from "./mobile-demand-client.ts";
 
-export type InstantDispatchState = "UNFILLED" | "OFFERED" | "ACCEPTED" | "DECLINED" | "EXPIRED";
+export type InstantDispatchState = "UNFILLED" | "OFFERED" | "ACCEPTED" | "DECLINED" | "EXPIRED" | "CANCELLED" | "INVALIDATED";
 
 export type InstantDispatch = {
   id: string;
@@ -69,7 +69,7 @@ async function instantFetch<T>(
 
 function verifyDispatch(d: InstantDispatch): InstantDispatch {
   if (!d.id || !d.request_key || d.room_ready!==false ||
-    !["UNFILLED","OFFERED","ACCEPTED","DECLINED","EXPIRED"].includes(d.state)) {
+    !["UNFILLED","OFFERED","ACCEPTED","DECLINED","EXPIRED","CANCELLED","INVALIDATED"].includes(d.state)) {
     throw new Error("DUTY_INVALID_PROVIDER_CONTRACT");
   }
   if(d.state==="ACCEPTED" && d.next_action!=="PAY_REAL_PROVIDER_REQUIRED")
@@ -82,9 +82,21 @@ export async function createInstantDispatch(intentID:string,options:MobileDemand
   // never a hidden iOS/Android dependency.
   const key = await instantFetch<{request_key:string}>(options,"/instant/request-key");
   if(!key.request_key) throw new Error("DUTY_REQUEST_KEY_REQUIRED");
-  return verifyDispatch(await instantFetch<InstantDispatch>(options,"/instant/dispatches","POST",{
-    help_intent_id:intentID,request_key:key.request_key,
-  }));
+  try {
+    return verifyDispatch(await instantFetch<InstantDispatch>(options,"/instant/dispatches","POST",{
+      help_intent_id:intentID,request_key:key.request_key,
+    }));
+  } catch (originalError) {
+    // Request may have committed before the mobile connection was interrupted.
+    // Recover only this signed owner's confirmed intent, never synthesize success.
+    try {
+      const recovered=await readActiveInstantDispatch(options);
+      if(recovered.help_intent_id===intentID && recovered.room_ready===false) return recovered;
+    } catch {
+      // No active dispatch to recover; surface the original failure.
+    }
+    throw originalError;
+  }
 }
 
 export async function readActiveInstantDispatch(options:MobileDemandClientOptions):Promise<InstantDispatch> {
@@ -123,4 +135,11 @@ export async function answerInstantDispatch(
 ):Promise<InstantSpecialistDispatch> {
   return verifySpecialistDispatch(await instantFetch<InstantSpecialistDispatch>(options,
     "/instant/dispatches/"+encodeURIComponent(id)+"/answer","POST",{accept}));
+}
+
+export async function cancelInstantDispatch(id:string, options:MobileDemandClientOptions):Promise<InstantDispatch> {
+  const d=verifyDispatch(await instantFetch<InstantDispatch>(options,
+    "/instant/dispatches/"+encodeURIComponent(id)+"/cancel","POST",{}));
+  if(d.state!=="CANCELLED")throw new Error("DUTY_CANCEL_UNCONFIRMED");
+  return d;
 }

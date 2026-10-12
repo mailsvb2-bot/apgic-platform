@@ -314,6 +314,7 @@ jobs:
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r4_store_lifecycle_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r2_refund_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r6_instant_duty_invariants.sql
+          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r6_instant_duty_journey.sql
           APGIC_DATABASE_URL='postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable' \
             bash deploy/staging/test-staging-migration-ledger.sh
           PGHOST=127.0.0.1 PGUSER=apgic PGDATABASE=apgic_ci bash backend/ci/r0_order_snapshot_baseline_repair.sh

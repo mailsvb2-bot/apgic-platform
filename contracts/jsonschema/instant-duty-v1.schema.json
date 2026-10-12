@@ -55,7 +55,9 @@
         "OFFERED",
         "ACCEPTED",
         "DECLINED",
-        "EXPIRED"
+        "EXPIRED",
+        "CANCELLED",
+        "INVALIDATED"
       ]
     },
     "next_action": {

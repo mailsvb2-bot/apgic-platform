@@ -2,7 +2,7 @@ import React, {useCallback,useEffect,useState} from "react";
 import {Pressable,StyleSheet,Text,View} from "react-native";
 import type {MobileDemandClientOptions} from "./mobile-demand-client.ts";
 import {
-  answerInstantDispatch,createInstantDispatch,listInstantInbox,listInstantSpecialistOffers,
+  answerInstantDispatch,cancelInstantDispatch,createInstantDispatch,listInstantInbox,listInstantSpecialistOffers,
   readActiveInstantDispatch,readInstantDispatch,readInstantPresence,updateInstantPresence,
   type InstantDispatch,type InstantPresence,type InstantSpecialistDispatch,type InstantSpecialistOffer,
 } from "./instant-now-client.ts";
@@ -67,6 +67,16 @@ export function InstantNowSurface({intentID,options,enabled,initialMode="client"
   catch(e){setError(e instanceof Error?e.message:"Не удалось обратиться");}
   finally{setBusy(false);}
  }
+ async function cancelPending(){
+  if(!dispatch || busy)return;
+  setBusy(true);setError("");setMessage("");
+  try{
+   const next=await cancelInstantDispatch(dispatch.id,options);
+   setDispatch(next);
+   setMessage("Обращение отменено сервером. Доступ к консультации не предоставлен.");
+  }catch(e){setError(e instanceof Error?e.message:"Отмена не подтверждена");}
+  finally{setBusy(false);}
+ }
  async function update(available:boolean){
   setBusy(true);setError("");setMessage("");
   try{
@@ -105,10 +115,13 @@ export function InstantNowSurface({intentID,options,enabled,initialMode="client"
        dispatch.state==="ACCEPTED"?"Специалист согласился. Требуется реальная внешняя оплата; комната пока закрыта.":
        dispatch.state==="UNFILLED"?"Нет подходящих дежурных. Можно записаться на другое время.":
        dispatch.state==="EXPIRED"?"Время предложения истекло.":
+       dispatch.state==="CANCELLED"?"Обращение отменено. Можно начать новый запрос.":
+       dispatch.state==="INVALIDATED"?"Предложение отозвано из-за изменения допуска или доступности специалиста. Можно выбрать другого.":
        "Предложение отклонено. Попробуйте снова или выберите запись."}
      </Text>
      {dispatch.price_minor? <Text style={styles.detail}>Стоимость предложения: {(dispatch.price_minor/100).toLocaleString("ru-RU")} {dispatch.currency}</Text>:null}
      <Text style={styles.detail}>Следующий шаг: {dispatch.next_action} · Доступ к комнате: закрыт</Text>
+     {["OFFERED","ACCEPTED"].includes(dispatch.state)&&choice("Отменить обращение",()=>void cancelPending(),!enabled)}
     </>}
   </>:<>
    <Text style={styles.body}>Доступность подтверждается только для действующего квалифицированного предложения.</Text>

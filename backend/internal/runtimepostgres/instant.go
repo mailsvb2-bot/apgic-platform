@@ -217,6 +217,36 @@ func (c *Checker) Answer(id, specialistID string, accept bool) (instant.Dispatch
 	}
 }
 
+// Cancel is owned exclusively by the signed client. It persists a terminal
+// state and releases the matching specialist; it never cancels money or room
+// access, neither of which this R6 prepayment subsystem can grant.
+func (c *Checker) Cancel(id, clientIdentityID string) (instant.Dispatch, error) {
+	if !instant.ValidID(id) || !instant.ValidID(clientIdentityID) {
+		return instant.Dispatch{}, instant.ErrInvalid
+	}
+	ctx, cancel, err := c.instantContext()
+	if err != nil {
+		return instant.Dispatch{}, err
+	}
+	defer cancel()
+	var reason string
+	err = c.db.QueryRowContext(ctx, `SELECT apgic_instant_cancel($1::uuid,$2::uuid,$3)`,
+		id, clientIdentityID, time.Now().UTC()).Scan(&reason)
+	if err != nil {
+		return instant.Dispatch{}, fmt.Errorf("cancel duty dispatch: %w", err)
+	}
+	switch reason {
+	case "DUTY_NOT_FOUND":
+		return instant.Dispatch{}, instant.ErrNotFound
+	case "DUTY_NOT_CANCELLABLE":
+		return instant.Dispatch{}, instant.ErrConflict
+	case "DUTY_CANCELLED", "DUTY_ALREADY_CANCELLED":
+		return c.GetDispatch(id, clientIdentityID)
+	default:
+		return instant.Dispatch{}, fmt.Errorf("unknown duty cancellation reason %q", reason)
+	}
+}
+
 // Polling returns only the authenticated specialist's inbox, never another
 // tenant's HelpIntent text or unrelated client-sensitive records.
 func (c *Checker) Inbox(specialistID string) ([]instant.Dispatch, error) {

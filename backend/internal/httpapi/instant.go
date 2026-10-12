@@ -157,6 +157,18 @@ func registerInstant(mux *http.ServeMux, store instant.Store,
 			writeJSON(w, http.StatusOK, dispatch)
 		}
 	})
+	mux.HandleFunc("POST /v1/instant/dispatches/{id}/cancel", func(w http.ResponseWriter, r *http.Request) {
+		identity, ok := authorize(w, r)
+		if !ok {
+			return
+		}
+		dispatch, err := store.Cancel(r.PathValue("id"), identity)
+		if err != nil {
+			writeInstantError(w, r, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, dispatch)
+	})
 	mux.HandleFunc("POST /v1/instant/dispatches/{id}/answer", func(w http.ResponseWriter, r *http.Request) {
 		identity, ok := authorize(w, r)
 		if !ok {

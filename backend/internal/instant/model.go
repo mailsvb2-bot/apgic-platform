@@ -20,6 +20,8 @@ const (
 	DispatchAccepted      = "ACCEPTED"
 	DispatchDeclined      = "DECLINED"
 	DispatchExpired       = "EXPIRED"
+	DispatchCancelled     = "CANCELLED"
+	DispatchInvalidated   = "INVALIDATED"
 	ActionPaymentRequired = "PAY_REAL_PROVIDER_REQUIRED"
 	ActionWaiting         = "WAIT_SPECIALIST_RESPONSE"
 	ActionRetry           = "RETRY_OR_BOOK_LATER"
@@ -81,5 +83,6 @@ type Store interface {
 	GetDispatch(id, identityID string) (Dispatch, error)
 	ActiveDispatch(identityID string) (Dispatch, error)
 	Answer(id, specialistID string, accept bool) (Dispatch, error)
+	Cancel(id, clientIdentityID string) (Dispatch, error)
 	Inbox(specialistID string) ([]Dispatch, error)
 }
