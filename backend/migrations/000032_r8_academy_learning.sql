@@ -13,7 +13,7 @@ CREATE INDEX academy_courses_state_idx ON academy_courses(state);
 
 -- Legal and billing ownership cannot be rebound by editing a course record.
 -- A changed marketing title does not rewrite published version snapshots.
-CREATE FUNCTION academy_course_owner_guard() RETURNS trigger LANGUAGE plpgsql AS $
+CREATE FUNCTION academy_course_owner_guard() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
  IF NEW.id IS DISTINCT FROM OLD.id OR NEW.product_id IS DISTINCT FROM OLD.product_id
     OR NEW.author_id IS DISTINCT FROM OLD.author_id
@@ -27,7 +27,7 @@ BEGIN
    RAISE EXCEPTION 'archived academy course cannot be reopened without governed restoration';
  END IF;
  RETURN NEW;
-END; $;
+END; $$;
 CREATE TRIGGER academy_course_owner_guard BEFORE UPDATE ON academy_courses
  FOR EACH ROW EXECUTE FUNCTION academy_course_owner_guard();
 CREATE TRIGGER academy_course_no_delete BEFORE DELETE ON academy_courses
@@ -50,14 +50,14 @@ CREATE TABLE academy_course_versions (
 CREATE UNIQUE INDEX academy_one_draft_per_course ON academy_course_versions(course_id) WHERE state='DRAFT';
 
 -- Do not permit INSERT to bypass the UPDATE-time publication invariants.
-CREATE FUNCTION academy_version_insert_guard() RETURNS trigger LANGUAGE plpgsql AS $
+CREATE FUNCTION academy_version_insert_guard() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
  IF NEW.state<>'DRAFT' OR NEW.published_at IS NOT NULL
     OR NEW.title_snapshot IS NOT NULL OR NEW.description_snapshot IS NOT NULL THEN
    RAISE EXCEPTION 'academy version must be created as an unpublished draft';
  END IF;
  RETURN NEW;
-END; $;
+END; $$;
 CREATE TRIGGER academy_version_insert_guard BEFORE INSERT ON academy_course_versions
  FOR EACH ROW EXECUTE FUNCTION academy_version_insert_guard();
 
@@ -401,7 +401,7 @@ CREATE TABLE academy_evidence_candidates (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 -- A completion does not grant specialist status; candidate owner/identity must match certificate.
-CREATE FUNCTION academy_evidence_candidate_guard() RETURNS trigger LANGUAGE plpgsql AS $
+CREATE FUNCTION academy_evidence_candidate_guard() RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE learner uuid;
 BEGIN
   SELECT e.identity_id INTO learner FROM academy_certificates cert
@@ -411,7 +411,7 @@ BEGIN
     RAISE EXCEPTION 'academy evidence candidate must match certified learner';
   END IF;
   RETURN NEW;
-END; $;
+END; $$;
 CREATE TRIGGER academy_evidence_candidate_guard BEFORE INSERT ON academy_evidence_candidates
  FOR EACH ROW EXECUTE FUNCTION academy_evidence_candidate_guard();
 CREATE TRIGGER academy_evidence_candidate_immutable BEFORE UPDATE OR DELETE ON academy_evidence_candidates
