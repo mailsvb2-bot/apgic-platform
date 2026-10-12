@@ -130,7 +130,7 @@ class LaunchReadinessTests(unittest.TestCase):
         self.assertIn("R4_REAL_PROVIDER_PROOF_MISSING", report["blockers"])
 
     def test_real_frozen_baseline_must_not_claim_ready(self):
-        root = SCRIPT.parents[2]
+        root = SCRIPT.parents[1]
         registry = yaml.safe_load((root / "canon/requirements/registry.yaml").read_text(encoding="utf-8"))
         coverage = json.loads((root / "canon/requirements/coverage.json").read_text(encoding="utf-8"))
         idx = yaml.safe_load((root / "canon/evidence/production-evidence-index.yaml").read_text(encoding="utf-8"))
