@@ -135,3 +135,47 @@ func TestAcademyErrorsDoNotLeakDatabaseDetail(t *testing.T) {
 		}
 	}
 }
+
+
+func TestAcademyFailsClosedWhenSignedSessionsAreNotConfigured(t *testing.T) {
+ fake:=&academyStoreStub{}
+ handler:=New(Options{Academy:fake})
+ for _,request:=range []struct{method,path string}{
+  {http.MethodPost,"/v1/academy/courses"},
+  {http.MethodPost,"/v1/academy/courses/forged/enroll"},
+  {http.MethodGet,"/v1/academy/my-courses"},
+  {http.MethodGet,"/v1/academy/my-enrollments"},
+  {http.MethodGet,"/v1/academy/review/attempts"},
+ }{
+  w:=httptest.NewRecorder()
+  handler.ServeHTTP(w,httptest.NewRequest(request.method,request.path,strings.NewReader("{}")))
+  if w.Code!=http.StatusServiceUnavailable || !strings.Contains(w.Body.String(),"ACADEMY_SESSION_UNAVAILABLE"){
+    t.Fatalf("unsigned Academy principal unexpectedly trusted: %s HTTP %d %s",request.path,w.Code,w.Body.String())
+  }
+ }
+ if fake.calls!=0{t.Fatalf("unsigned requests reached repository: %d",fake.calls)}
+}
+
+func TestAcademyJSONRejectsAmbiguousMultiObjectRequests(t *testing.T){
+ fake:=&academyStoreStub{}
+ signingKey:=[]byte(strings.Repeat("k",48))
+ sessions,err:=newClientSessionManager(signingKey,nil)
+ if err!=nil{t.Fatal(err)}
+ cookie,err:=sessions.issue("identity-cryptographically-signed")
+ if err!=nil{t.Fatal(err)}
+ handler:=New(Options{Academy:fake,ClientSessionKey:signingKey})
+ for _,body:=range []string{
+  `{"title":"course"}{"product_id":"forged"}`,
+  `{"title":"course"} trailing`,
+  `{"title":"course","unknown_role":"owner"}`,
+ }{
+  w:=httptest.NewRecorder()
+  req:=httptest.NewRequest(http.MethodPost,"/v1/academy/courses",strings.NewReader(body))
+  req.AddCookie(cookie)
+  handler.ServeHTTP(w,req)
+  if w.Code!=http.StatusBadRequest || !strings.Contains(w.Body.String(),"ACADEMY_INVALID"){
+   t.Fatalf("unsafe Academy JSON accepted: %d %s",w.Code,w.Body.String())
+  }
+ }
+ if fake.calls!=0{t.Fatalf("malformed requests reached repository: %d",fake.calls)}
+}
