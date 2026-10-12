@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/booking"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/communication"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/consultation"
 )
@@ -22,20 +23,41 @@ func (s *Service) ReportProviderFailure(bookingID, kind, evidenceRef string, rec
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	// A technical-failure refund closes paid consultation entitlement.
+	// Reading the *same terminal provider evidence* is still idempotent,
+	// but may never reinstate a session or a provider join credential.
+	if err := s.refreshJourneyLocked(); err != nil {
+		return nil, err
+	}
+	if prior := s.sessions[bookingID]; prior != nil && prior.State == consultation.StateTechnicalFailure {
+		booked := s.bookings[bookingID]
+		reversal := s.reversals[s.orderIDForBookingLocked(bookingID)]
+		if booked == nil || booked.State != booking.StateCancelled || reversal == nil {
+			return nil, ErrConsultNotReady
+		}
+		evidenceMatches := false
+		for _, fact := range prior.Facts() {
+			if fact.Type == consultation.FactTechnicalFailure && fact.EvidenceRef == evidenceRef {
+				evidenceMatches = true
+				break
+			}
+		}
+		if !evidenceMatches {
+			return nil, ErrConsultEvidence
+		}
+		view := sessionView(prior, evidenceRef, true)
+		view.RecoveryAction = string(communication.RecoveryRefund)
+		view.ReasonCode = "COMM_RECOVERY_EXHAUSTED_REFUND"
+		view.RefundPathOpened = true
+		view.Notice = failureNotice
+		return view, nil
+	}
 	session, err := s.sessionLocked(bookingID)
 	if err != nil {
 		return nil, err
 	}
 	if session.State == consultation.StateCompleted {
 		return nil, ErrConsultNotReady
-	}
-	if session.State == consultation.StateTechnicalFailure {
-		view := sessionView(session, evidenceRef, true)
-		view.RecoveryAction = string(communication.RecoveryRefund)
-		view.ReasonCode = "COMM_RECOVERY_EXHAUSTED_REFUND"
-		view.RefundPathOpened = s.reversals[s.orderIDForBookingLocked(bookingID)] != nil
-		view.Notice = failureNotice
-		return view, nil
 	}
 	attempt := 0
 	if !recoverable {

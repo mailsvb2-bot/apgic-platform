@@ -74,14 +74,18 @@ type MatchCard struct {
 }
 
 type Hold struct {
-	ID               string        `json:"id"`
-	BookingID        string        `json:"booking_id"`
-	SlotID           string        `json:"slot_id"`
-	ClientIdentityID string        `json:"client_identity_id"`
-	State            string        `json:"state"`
-	BookingState     booking.State `json:"booking_state"`
-	ExpiresAt        time.Time     `json:"expires_at"`
-	ReasonCode       string        `json:"reason_code"`
+	ID               string `json:"id"`
+	BookingID        string `json:"booking_id"`
+	SlotID           string `json:"slot_id"`
+	ClientIdentityID string `json:"client_identity_id"`
+	// Immutable hold provenance prevents one intent borrowing a different
+	// intent's paid offer; not exposed as client-controlled API fields.
+	IntentID     string        `json:"-"`
+	OfferID      string        `json:"-"`
+	State        string        `json:"state"`
+	BookingState booking.State `json:"booking_state"`
+	ExpiresAt    time.Time     `json:"expires_at"`
+	ReasonCode   string        `json:"reason_code"`
 }
 
 type Service struct {
@@ -637,12 +641,22 @@ func (s *Service) AcquireHold(intentID, slotID, clientIdentityID string) (*Hold,
 	if intent.ClientIdentityID != clientIdentityID {
 		return nil, ErrIdentityMismatch
 	}
+	// The public live offer query intentionally hides held slots. Replays
+	// therefore use the immutable PostgreSQL hold provenance, NOT current
+	// availability. Cross-intent / legacy unidentified hold replay fails
+	// closed while a true retry retains its original ID across API restarts.
 	// An idempotent replay of an already-durable active hold must not depend on
 	// whether the current catalog projection still advertises the slot. The
 	// projection can legitimately roll forward while the hold remains active.
 	if existingID, held := s.slotHolds[slotID]; held {
 		existing := s.holds[existingID]
 		if existing != nil && existing.ClientIdentityID == clientIdentityID && existing.State == "ACTIVE" {
+			if s.liveSupplyMode && (existing.IntentID == "" || existing.IntentID != intentID || existing.OfferID == "") {
+				// An active reservation belongs to its original confirmed HelpIntent,
+				// not simply to the same client. Treat disjoint or legacy provenance
+				// as unavailable without allowing the caller to reuse its authority.
+				return nil, ErrSlotUnavailable
+			}
 			copyHold := *existing
 			return &copyHold, nil
 		}
@@ -653,28 +667,8 @@ func (s *Service) AcquireHold(intentID, slotID, clientIdentityID string) (*Hold,
 		return nil, ErrSlotNotFound
 	}
 	if s.liveSupplyMode {
-		if slot.Topic == "" || slot.OfferID == "" || !containsTopic(intent.Topics, slot.Topic) {
-			return nil, ErrSlotUnavailable
-		}
-		domainIntent := marketplace.HelpIntent{ID: intent.ID, FreeText: intent.FreeText, Topics: intent.Topics, Goals: intent.Goals, Context: intent.Context, Status: intent.Status}
-		eligible, err := marketplace.MatchEligible(s.catalog.policy, marketplace.MatchRequest{
-			Intent: domainIntent, Topic: slot.Topic,
-			Jurisdiction: contextOr(intent.Context, "jurisdiction", JurisdictionRU),
-			Format:       contextOr(intent.Context, "format", FormatOnline),
-			AgeGroup:     contextOr(intent.Context, "age_group", AgeGroupAdult),
-			Language:     contextOr(intent.Context, "language", LanguageRU),
-		}, s.catalog.candidates)
-		if err != nil {
+		if err := s.authorizeLiveSlotForIntentLocked(intent, slot); err != nil {
 			return nil, err
-		}
-		approved := false
-		for _, candidate := range eligible {
-			if candidate.SpecialistID == slot.SpecialistID && candidate.OfferID == slot.OfferID {
-				approved = true
-			}
-		}
-		if !approved {
-			return nil, ErrSlotUnavailable
 		}
 	}
 	if !slot.Exclusive {
@@ -704,6 +698,8 @@ func (s *Service) AcquireHold(intentID, slotID, clientIdentityID string) (*Hold,
 		BookingID:        bookingID,
 		SlotID:           slot.ID,
 		ClientIdentityID: clientIdentityID,
+		IntentID:         intentID,
+		OfferID:          slot.OfferID,
 		State:            "ACTIVE",
 		BookingState:     booking.StateHeld,
 		ExpiresAt:        expires,
@@ -722,6 +718,36 @@ func (s *Service) AcquireHold(intentID, slotID, clientIdentityID string) (*Hold,
 	s.slotHolds[slot.ID] = hold.ID
 	copyHold := *hold
 	return &copyHold, nil
+}
+
+// authorizeLiveSlotForIntentLocked applies the same supply/qualification
+// boundary to a new hold and an idempotent hold replay. It must be called
+// under the service lock, after the canonical live catalog is refreshed.
+func (s *Service) authorizeLiveSlotForIntentLocked(intent *Intent, slot Slot) error {
+	if intent == nil || slot.Topic == "" || slot.OfferID == "" ||
+		!containsTopic(intent.Topics, slot.Topic) {
+		return ErrSlotUnavailable
+	}
+	domainIntent := marketplace.HelpIntent{
+		ID: intent.ID, FreeText: intent.FreeText, Topics: intent.Topics,
+		Goals: intent.Goals, Context: intent.Context, Status: intent.Status,
+	}
+	eligible, err := marketplace.MatchEligible(s.catalog.policy, marketplace.MatchRequest{
+		Intent: domainIntent, Topic: slot.Topic,
+		Jurisdiction: contextOr(intent.Context, "jurisdiction", JurisdictionRU),
+		Format:       contextOr(intent.Context, "format", FormatOnline),
+		AgeGroup:     contextOr(intent.Context, "age_group", AgeGroupAdult),
+		Language:     contextOr(intent.Context, "language", LanguageRU),
+	}, s.catalog.candidates)
+	if err != nil {
+		return err
+	}
+	for _, candidate := range eligible {
+		if candidate.SpecialistID == slot.SpecialistID && candidate.OfferID == slot.OfferID {
+			return nil
+		}
+	}
+	return ErrSlotUnavailable
 }
 
 // HoldStatus refreshes expiry and returns a copy only to the owning client.

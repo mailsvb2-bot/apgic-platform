@@ -171,6 +171,24 @@ func TestLivePricedSpecialistToDurableHoldAfterRestart(t *testing.T) {
 	if err != nil || len(publicAfterHold) != 0 {
 		t.Fatalf("held slot remained in public availability: %#v err=%v", publicAfterHold, err)
 	}
+	if hold.IntentID != intent.ID || hold.OfferID != offer.ID {
+		t.Fatalf("lost immutable booking provenance: %#v", hold)
+	}
+	// Public supply must no longer advertise this exclusively occupied slot,
+	// but exact origin-bound retries must not depend on public availability.
+	hidden, err := store.BookableOffers()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, item := range hidden {
+		if item.ID == offer.ID {
+			t.Fatalf("held slot still offered publicly: %#v", item)
+		}
+	}
+	same, err := service.AcquireHold(intent.ID, slot.ID, clientIdentityID)
+	if err != nil || same.ID != hold.ID {
+		t.Fatalf("initial live retry was not idempotent: %#v err=%v", same, err)
+	}
 	// Simulate a new API process with the same PostgreSQL: readback cannot
 	// depend on a browser tab-local cache or the old in-memory service.
 	restarted, err := demand.NewLiveServiceWithStoresAndSpecialists(nil, store, store, store)
@@ -184,6 +202,24 @@ func TestLivePricedSpecialistToDurableHoldAfterRestart(t *testing.T) {
 	}
 	if _, err := restarted.ReadBookingStatus(hold.BookingID, specialistIdentityID); !errors.Is(err, demand.ErrBookingNotFound) {
 		t.Fatalf("cross-owner booking status leaked: %v", err)
+	}
+	afterRestartReplay, err := restarted.AcquireHold(intent.ID, slot.ID, clientIdentityID)
+	if err != nil || afterRestartReplay.ID != hold.ID ||
+		afterRestartReplay.IntentID != intent.ID || afterRestartReplay.OfferID != offer.ID {
+		t.Fatalf("PostgreSQL-backed replay failed after restart: %#v err=%v", afterRestartReplay, err)
+	}
+	otherIntent, err := restarted.CreateIntentForIdentity(clientIdentityID, "мне опять тревожно")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := restarted.ConfirmIntent(otherIntent.ID, []string{"anxiety"}, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	// A different confirmed request from the same signed customer remains
+	// ineligible for the original hold, regardless of matching topic. In both
+	// in-memory and PostgreSQL-backed paths the canonical denial is UNAVAILABLE.
+	if other, err := restarted.AcquireHold(otherIntent.ID, slot.ID, clientIdentityID); !errors.Is(err, demand.ErrSlotUnavailable) || other != nil {
+		t.Fatalf("same client borrowed another intent's paid slot after restart: %#v err=%v", other, err)
 	}
 	paused, err := store.PauseBookableOffer(specialistIdentityID, offer.ID)
 	if err != nil || paused.State != "PAUSED" {

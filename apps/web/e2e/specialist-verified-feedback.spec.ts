@@ -12,6 +12,14 @@ const completed={
  state:"COMPLETED",completion_evidence_ref:"provider-evidence/recorded-completion"
 };
 
+// An unavailable separate financial projection cannot hide the owner's
+// server-authorized historical provider result. No paid media grant is issued.
+test.beforeEach(async ({page})=>{
+ await page.route(`**/v1/bookings/${bookingID}/order`,async r=>r.fulfill({
+  status:404,json:{code:"ORDER_NOT_FOUND",message_safe:"order unavailable"}
+ }));
+});
+
 test("only completed canonical consultation exposes signed, pending-moderation rating",async({page})=>{
  await page.route(`**/v1/bookings/${bookingID}`,async r=>r.fulfill({json:booking}));
  await page.route(`**/v1/consultations/${bookingID}/result`,async r=>r.fulfill({json:completed}));
@@ -24,6 +32,7 @@ test("only completed canonical consultation exposes signed, pending-moderation r
   await r.fulfill({status:201,json:{id:"33333333-3333-4333-8333-333333333333",state:"PENDING",notice:"under review"}});
  });
  await page.goto(`/bookings/${bookingID}`);
+ await expect(page.getByText(/Вход в защищённую медиакомнату недоступен/)).toBeVisible();
  await page.getByRole("button",{name:"Проверить результат консультации"}).click();
  await expect(page.getByText("Консультация завершена по подтверждённому событию провайдера.")).toBeVisible();
  await page.getByLabel("Оцените проведённую консультацию").selectOption("5");

@@ -2,7 +2,7 @@
 // DO NOT EDIT.
 export const apiContractVersion = "0.10.0-r0-remote-config" as const;
 
-export type ApiOperationId = "acquireSlotHold" | "applyProviderEvent" | "applyTrustedProviderWebhook" | "archiveOrganizationDirection" | "cancelOrder" | "completeConsultation" | "confirmHelpIntent" | "createCheckoutInstruction" | "createHelpIntent" | "createMobileCheckoutInstruction" | "createOrganization" | "createOrganizationDirection" | "createOrganizationProduct" | "createSpecialistBookableOffer" | "createSpecialistBookableSlot" | "declareSpecialistCapability" | "deleteAccount" | "exportConsultationToGrowth" | "getBookingFulfillment" | "getBookingStatus" | "getConsultationResult" | "getLegalAcceptanceStatus" | "getMeta" | "getMobileCompatibility" | "getMobileNotificationDelivery" | "getMobileRemoteConfig" | "getMySpecialistPublicDetails" | "getOrganization" | "getPrivateOrganizationProfile" | "getPublicSpecialist" | "getSpecialistProfile" | "health" | "issueMobileDeepLink" | "listCheckoutOptions" | "listHelpIntentMatches" | "listMobileInstallations" | "listMobileWorkspaces" | "listMySpecialistBookableOffers" | "listOrganizationProducts" | "listOrganizations" | "listPublicBookableOffers" | "listPublicSpecialists" | "listSpecialistSlots" | "markSearchProjectionStale" | "pauseSpecialistBookableOffer" | "publishOrganizationProduct" | "publishSpecialistCapability" | "readiness" | "rebuildSearchProjection" | "recordConsent" | "recordConsultationPresence" | "recordLegalAcceptance" | "registerMobileInstallation" | "reportConsultationFailure" | "resolveMobileDeepLink" | "resolveMobileWorkspace" | "revokeConsent" | "revokeMobileInstallation" | "rotateMobilePushEndpoint" | "searchProjection" | "submitSpecialistEvidence" | "submitVerifiedSpecialistFeedback" | "succeedConsultationRecovery" | "unpublishSpecialistCapability" | "updateMySpecialistPublicDetails" | "updateProductCommercialOwner" | "upsertSpecialistProfile";
+export type ApiOperationId = "acquireSlotHold" | "applyProviderEvent" | "applyTrustedProviderWebhook" | "archiveOrganizationDirection" | "cancelOrder" | "completeConsultation" | "confirmHelpIntent" | "createCheckoutInstruction" | "createHelpIntent" | "createMobileCheckoutInstruction" | "createOrganization" | "createOrganizationDirection" | "createOrganizationProduct" | "createSpecialistBookableOffer" | "createSpecialistBookableSlot" | "declareSpecialistCapability" | "deleteAccount" | "exportConsultationToGrowth" | "getBookingFulfillment" | "getBookingStatus" | "getConsultationResult" | "getLegalAcceptanceStatus" | "getMeta" | "getMobileCompatibility" | "getMobileNotificationDelivery" | "getMobileRemoteConfig" | "getMySpecialistPublicDetails" | "getOrderForBooking" | "getOrderStatus" | "getOrganization" | "getPrivateOrganizationProfile" | "getPublicSpecialist" | "getSpecialistProfile" | "health" | "issueMobileDeepLink" | "listCheckoutOptions" | "listHelpIntentMatches" | "listMobileInstallations" | "listMobileWorkspaces" | "listMySpecialistBookableOffers" | "listOrganizationProducts" | "listOrganizations" | "listPublicBookableOffers" | "listPublicSpecialists" | "listSpecialistSlots" | "markSearchProjectionStale" | "pauseSpecialistBookableOffer" | "publishOrganizationProduct" | "publishSpecialistCapability" | "readiness" | "rebuildSearchProjection" | "recordConsent" | "recordConsultationPresence" | "recordLegalAcceptance" | "registerMobileInstallation" | "reportConsultationFailure" | "resolveMobileDeepLink" | "resolveMobileWorkspace" | "revokeConsent" | "revokeMobileInstallation" | "rotateMobilePushEndpoint" | "searchProjection" | "submitSpecialistEvidence" | "submitVerifiedSpecialistFeedback" | "succeedConsultationRecovery" | "unpublishSpecialistCapability" | "updateMySpecialistPublicDetails" | "updateProductCommercialOwner" | "upsertSpecialistProfile";
 
 export interface AccountDeletion {
   apgic_deletes_ledger: boolean;
@@ -369,6 +369,18 @@ export interface MobileWorkspaceResolution {
   allowed: boolean;
   reason_code: string;
   workspace?: AuthorizedMobileWorkspace;
+}
+
+export interface OrderStatus {
+  amount_minor: number;
+  booking_id: string;
+  booking_state: "HELD" | "PENDING_PAYMENT" | "CONFIRMED" | "CANCELLED" | "EXPIRED" | "COMPLETED" | "NO_SHOW";
+  currency: string;
+  order_id: string;
+  payment_method: string;
+  payment_state: "PENDING_PROVIDER" | "CAPTURED";
+  provider_id: string;
+  refund_state?: "REQUESTED" | "SENT" | "PENDING" | "SUCCEEDED" | "FAILED_TERMINAL" | "AMBIGUOUS";
 }
 
 export interface OrganizationDirectionSnapshot {

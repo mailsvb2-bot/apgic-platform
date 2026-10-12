@@ -1,9 +1,10 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import ResumeBooking from "../src/resume-booking";
 import ConsultationResultView from "../src/consultation-result";
+import type { OrderStatus } from "../../../packages/contracts/src/generated/apgic-v1";
 
 type Intent = {
   id: string;
@@ -191,6 +192,10 @@ export function Journey() {
     : [];
   const [specialist, setSpecialist] = useState<MatchCard | null>(null);
   const [slots, setSlots] = useState<Slot[]>([]);
+  const [slotAvailability, setSlotAvailability] = useState<"IDLE" | "CHECKING" | "AVAILABLE" | "EMPTY" | "UNAVAILABLE">("IDLE");
+  // Every selection has its own version. A delayed HTTP response must never
+  // replace a newer specialist or resurrect another client's checkout UI.
+  const selectedAvailabilityRequest = useRef(0);
   const [hold, setHold] = useState<Hold | null>(null);
   const [restoredHold, setRestoredHold] = useState<Hold | null>(null);
   const [restoration, setRestoration] = useState<"CHECKING" | "READY" | "DENIED" | "UNAVAILABLE">("CHECKING");
@@ -199,6 +204,7 @@ export function Journey() {
   useEffect(() => { setResumeTarget(document.getElementById("resume-booking-slot")); }, []);
   useEffect(() => {
     let active = true;
+    const requestVersion = selectedAvailabilityRequest.current;
     const id = sessionStorage.getItem("apgic:current-hold-id");
     setResumeRequested(Boolean(id));
     if (!id) {
@@ -208,8 +214,11 @@ export function Journey() {
     void fetch(`/v1/slot-holds/${encodeURIComponent(id)}`, { cache: "no-store", credentials: "include" })
       .then(async (response) => {
         if (response.status === 401 || response.status === 403 || response.status === 404) {
-          sessionStorage.removeItem("apgic:current-hold-id");
-          if (active) setRestoration("DENIED");
+          if (active && requestVersion === selectedAvailabilityRequest.current &&
+              sessionStorage.getItem("apgic:current-hold-id") === id) {
+            sessionStorage.removeItem("apgic:current-hold-id");
+            setRestoration("DENIED");
+          }
           return;
         }
         if (!response.ok) throw new Error("Booking status unavailable");
@@ -217,15 +226,22 @@ export function Journey() {
         if (value.id !== id || !value.booking_id || !value.booking_state || !value.expires_at) {
           throw new Error("Invalid booking status");
         }
-        if (active) {
+        if (active && requestVersion === selectedAvailabilityRequest.current &&
+            sessionStorage.getItem("apgic:current-hold-id") === id) {
           setRestoredHold(value);
           setRestoration("READY");
         }
       })
-      .catch(() => { if (active) setRestoration("UNAVAILABLE"); });
+      .catch(() => {
+        if (active && requestVersion === selectedAvailabilityRequest.current &&
+            sessionStorage.getItem("apgic:current-hold-id") === id) {
+          setRestoration("UNAVAILABLE");
+        }
+      });
     return () => { active = false; };
   }, []);
   async function refreshPreviousHold() {
+    const requestVersion = selectedAvailabilityRequest.current;
     const id = sessionStorage.getItem("apgic:current-hold-id");
     if (!id) {
       setRestoredHold(null);
@@ -237,45 +253,58 @@ export function Journey() {
     try {
       const response = await fetch(`/v1/slot-holds/${encodeURIComponent(id)}`, { cache: "no-store", credentials: "include" });
       if (response.status === 401 || response.status === 403 || response.status === 404) {
-        sessionStorage.removeItem("apgic:current-hold-id");
-        setRestoration("DENIED");
+        if (requestVersion === selectedAvailabilityRequest.current &&
+            sessionStorage.getItem("apgic:current-hold-id") === id) {
+          sessionStorage.removeItem("apgic:current-hold-id");
+          setRestoration("DENIED");
+        }
         return;
       }
       if (!response.ok) throw new Error("Hold status unavailable");
       const value = await response.json() as Hold;
+      if (requestVersion !== selectedAvailabilityRequest.current ||
+          sessionStorage.getItem("apgic:current-hold-id") !== id) return;
       if (value.id !== id || !value.booking_id || !value.booking_state || !value.expires_at) {
         throw new Error("Invalid hold status");
       }
       setRestoredHold(value);
       setRestoration("READY");
     } catch {
-      setRestoration("UNAVAILABLE");
+      if (requestVersion === selectedAvailabilityRequest.current &&
+          sessionStorage.getItem("apgic:current-hold-id") === id) setRestoration("UNAVAILABLE");
     }
   }
   const [checkingActiveHold, setCheckingActiveHold] = useState(false);
   const [activeHoldUnverified, setActiveHoldUnverified] = useState(false);
   async function refreshActiveHold() {
     if (!hold || checkingActiveHold) return;
+    const requestVersion = selectedAvailabilityRequest.current;
+    const holdID = hold.id;
     setCheckingActiveHold(true);
     setError("");
     try {
       const response = await fetch(`/v1/slot-holds/${encodeURIComponent(hold.id)}`, { credentials: "include", cache: "no-store" });
       if (!response.ok) throw new Error("Не удалось проверить статус брони. Повторите попытку.");
       const fresh = await response.json() as Hold;
-      if (fresh.id !== hold.id || fresh.booking_id !== hold.booking_id ||
+      // Switching a specialist/slot or changing the help intent revokes
+      // this response's authority to update the visible booking.
+      if (requestVersion !== selectedAvailabilityRequest.current) return;
+      if (fresh.id !== holdID || fresh.booking_id !== hold.booking_id ||
           !fresh.booking_state || !fresh.expires_at) throw new Error("Сервер вернул несогласованное состояние брони.");
       setHold(fresh);
       setActiveHoldUnverified(false);
       if (fresh.booking_state !== "HELD" && fresh.booking_state !== "PENDING_PAYMENT") {
         setInstruction(null);
+        setOrderStatus(null);
         setOptions([]);
       }
     } catch (cause) {
+      if (requestVersion !== selectedAvailabilityRequest.current) return;
       setActiveHoldUnverified(true);
       setOptions([]);
       setError(cause instanceof Error ? cause.message : "Статус брони недоступен.");
     } finally {
-      setCheckingActiveHold(false);
+      if (requestVersion === selectedAvailabilityRequest.current) setCheckingActiveHold(false);
     }
   }
   const [holdTimeExpired, setHoldTimeExpired] = useState(false);
@@ -293,6 +322,8 @@ export function Journey() {
   const [instruction, setInstruction] = useState<CheckoutInstruction | null>(null);
   const [evidence, setEvidence] = useState<PaymentEvidence | null>(null);
   const [cancellation, setCancellation] = useState<Cancellation | null>(null);
+  const [orderStatus, setOrderStatus] = useState<OrderStatus | null>(null);
+  const [checkingOrderStatus, setCheckingOrderStatus] = useState(false);
   const [fulfillment, setFulfillment] = useState<{ notice: string; join: string } | null>(null);
   const [session, setSession] = useState<{
     state: string;
@@ -331,6 +362,13 @@ export function Journey() {
 
   async function interpret(event: FormEvent) {
     event.preventDefault();
+    // Starting a different journey invalidates even an in-flight availability
+    // HTTP response; the previous specialist may not be made bookable later.
+    ++selectedAvailabilityRequest.current;
+    setSlotAvailability("IDLE");
+    setCheckingActiveHold(false);
+    setCheckingOrderStatus(false);
+    setActiveHoldUnverified(false);
     setError("");
     setPending(true);
     sessionStorage.removeItem("apgic:current-hold-id");
@@ -346,6 +384,7 @@ export function Journey() {
     setHold(null);
     setOptions([]);
     setInstruction(null);
+    setOrderStatus(null);
     setEvidence(null);
     setCancellation(null);
     setFulfillment(null);
@@ -369,6 +408,12 @@ export function Journey() {
   async function confirm(event: FormEvent) {
     event.preventDefault();
     if (!intent) return;
+    ++selectedAvailabilityRequest.current;
+    setSlotAvailability("IDLE");
+    setCheckingActiveHold(false);
+    setCheckingOrderStatus(false);
+    setActiveHoldUnverified(false);
+    sessionStorage.removeItem("apgic:current-hold-id");
     setError("");
     setPending(true);
     // Never leave matches from the previous confirmation actionable while
@@ -380,6 +425,7 @@ export function Journey() {
     setHold(null);
     setOptions([]);
     setInstruction(null);
+    setOrderStatus(null);
     setEvidence(null);
     setCancellation(null);
     setFulfillment(null);
@@ -460,34 +506,73 @@ export function Journey() {
   }
 
   async function choose(card: MatchCard) {
+    const requestVersion = ++selectedAvailabilityRequest.current;
     setError("");
-    setPending(true);
-    // Changing the specialist invalidates all downstream booking and payment UI.
-    // Even a failed slots lookup must not expose the prior specialist's checkout.
+    setSlotAvailability("CHECKING");
+    setCheckingActiveHold(false);
+    setCheckingOrderStatus(false);
+    setActiveHoldUnverified(false);
+    sessionStorage.removeItem("apgic:current-hold-id");
+    // Always discard stale booking and payment data before loading a different
+    // provider's availability. A failed fetch cannot leave old checkout actions.
     setSpecialist(null);
     setSlots([]);
     setHold(null);
     setOptions([]);
     setInstruction(null);
+    setOrderStatus(null);
     setEvidence(null);
     setCancellation(null);
     setFulfillment(null);
     setSession(null);
     try {
-      const response = await fetch(`/v1/specialists/${card.specialist_id}/slots${card.offer_id ? `?offer_id=${encodeURIComponent(card.offer_id)}` : ``}`);
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.message_safe || "Слоты недоступны.");
+      const endpoint = `/v1/specialists/${encodeURIComponent(card.specialist_id)}/slots` +
+        (card.offer_id ? `?offer_id=${encodeURIComponent(card.offer_id)}` : "");
+      const response = await fetch(endpoint, { cache: "no-store", credentials: "include" });
+      const payload: unknown = await response.json();
+      if (!response.ok) {
+        const message = payload && typeof payload === "object" &&
+          "message_safe" in payload && typeof payload.message_safe === "string"
+          ? payload.message_safe : "Расписание временно недоступно.";
+        throw new Error(message);
+      }
+      if (!payload || typeof payload !== "object" ||
+          !("specialist_id" in payload) || payload.specialist_id !== card.specialist_id ||
+          !("slots" in payload) || !Array.isArray(payload.slots)) {
+        throw new Error("Не удалось подтвердить актуальное расписание специалиста.");
+      }
+      const listed = payload.slots as unknown[];
+      if (!listed.every((item) =>
+        item !== null && typeof item === "object" &&
+        "id" in item && typeof item.id === "string" && item.id.length > 0 &&
+        "starts_at" in item && typeof item.starts_at === "string" && Number.isFinite(Date.parse(item.starts_at)) &&
+        "ends_at" in item && typeof item.ends_at === "string" && Number.isFinite(Date.parse(item.ends_at)) &&
+        Date.parse(item.ends_at as string) > Date.parse(item.starts_at as string) &&
+        "exclusive" in item && item.exclusive === true)) {
+        throw new Error("Сервер вернул некорректные данные о времени записи.");
+      }
+      if (requestVersion !== selectedAvailabilityRequest.current) return;
       setSpecialist(card);
-      setSlots(payload.slots);
+      setSlots(listed as Slot[]);
+      setSlotAvailability(listed.length ? "AVAILABLE" : "EMPTY");
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Не удалось открыть слоты.");
-    } finally {
-      setPending(false);
+      if (requestVersion !== selectedAvailabilityRequest.current) return;
+      setSpecialist(card);
+      setSlots([]);
+      setSlotAvailability("UNAVAILABLE");
+      setError(cause instanceof Error ? cause.message : "Расписание недоступно.");
     }
   }
 
   async function acquire(slot: Slot) {
-    if (!intent) return;
+    // Never create a hold from a stale or unverified specialist slot card.
+    if (!intent || slotAvailability !== "AVAILABLE" || !slots.some((item) => item.id === slot.id)) return;
+    // Invalidate all in-flight reads associated with a previous booking
+    // even when the selected specialist did not change.
+    ++selectedAvailabilityRequest.current;
+    setCheckingActiveHold(false);
+    setCheckingOrderStatus(false);
+    setActiveHoldUnverified(false);
     setError("");
     setPending(true);
     sessionStorage.removeItem("apgic:current-hold-id");
@@ -497,6 +582,7 @@ export function Journey() {
     setHold(null);
     setOptions([]);
     setInstruction(null);
+    setOrderStatus(null);
     setEvidence(null);
     setCancellation(null);
     setFulfillment(null);
@@ -511,6 +597,7 @@ export function Journey() {
       setHold(created);
       setActiveHoldUnverified(false);
       setInstruction(null);
+      setOrderStatus(null);
       if (!conformanceProviderEvents) {
         setOptions([]);
         return;
@@ -523,6 +610,36 @@ export function Journey() {
       setError(cause instanceof Error ? cause.message : "Слот не удержан.");
     } finally {
       setPending(false);
+    }
+  }
+
+  async function refreshOrderStatus(order: CheckoutInstruction) {
+    const requestVersion = selectedAvailabilityRequest.current;
+    setCheckingOrderStatus(true);
+    try {
+      const response = await fetch(`/v1/orders/${encodeURIComponent(order.order_id)}`, {
+        cache: "no-store", credentials: "include",
+      });
+      if (!response.ok) throw new Error("Проверка заказа у сервера недоступна.");
+      const status = await response.json() as OrderStatus;
+      if (requestVersion !== selectedAvailabilityRequest.current) return;
+      if (status.order_id !== order.order_id ||
+          status.booking_id !== hold?.booking_id ||
+          status.provider_id !== order.provider_id ||
+          status.amount_minor !== order.amount_minor ||
+          status.currency !== order.currency ||
+          status.payment_method !== order.method_code ||
+          !["PENDING_PROVIDER", "CAPTURED"].includes(status.payment_state) ||
+          (status.refund_state !== undefined && status.payment_state !== "CAPTURED")) {
+        throw new Error("Сервер вернул несогласованное состояние заказа.");
+      }
+      setOrderStatus(status);
+    } catch (cause) {
+      if (requestVersion !== selectedAvailabilityRequest.current) return;
+      setOrderStatus(null);
+      throw cause;
+    } finally {
+      if (requestVersion === selectedAvailabilityRequest.current) setCheckingOrderStatus(false);
     }
   }
 
@@ -541,6 +658,8 @@ export function Journey() {
         throw new Error("APGIC не принимает деньги.");
       }
       setInstruction(created);
+      setOrderStatus(null);
+      await refreshOrderStatus(created);
       setEvidence(null);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Поручение не создано.");
@@ -564,6 +683,7 @@ export function Journey() {
       });
       if (created.apgic_accepts_funds) throw new Error("APGIC не принимает деньги.");
       setEvidence(created);
+      await refreshOrderStatus(instruction);
       if (intent) {
         const listed = await fetch(`/v1/bookings/${created.booking_id}/fulfillment`);
         const payload = await listed.json();
@@ -700,6 +820,7 @@ export function Journey() {
         throw new Error("Возврат исполняет только внешний провайдер.");
       }
       setCancellation(created);
+      await refreshOrderStatus(instruction);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Отмена не выполнена.");
     } finally {
@@ -951,6 +1072,10 @@ export function Journey() {
         </section>
       ) : null}
 
+      {slotAvailability === "CHECKING" ? (
+        <p role="status">Проверяем доступное время у выбранного специалиста…</p>
+      ) : null}
+
       {specialist ? (
         <section className="journey-stage" aria-labelledby="slots-title">
           <div className="journey-stage-heading">
@@ -967,13 +1092,24 @@ export function Journey() {
               <span>{PROFESSIONS[specialist.profession] ?? specialist.profession} · {money(specialist.price_minor, specialist.currency)}</span>
             </div>
           </div>
+          {slotAvailability === "EMPTY" ? (
+            <p role="status">Сейчас нет свободных временных слотов у этого специалиста. Попробуйте обновить расписание или выберите другого специалиста.</p>
+          ) : null}
+          {slotAvailability === "UNAVAILABLE" ? (
+            <p role="alert">Не удалось подтвердить свободное время. Пока сервер не ответит, бронирование недоступно.</p>
+          ) : null}
+          {(slotAvailability === "EMPTY" || slotAvailability === "UNAVAILABLE") ? (
+            <button type="button" disabled={pending} onClick={() => { if (specialist) void choose(specialist); }}>
+              Повторить загрузку расписания
+            </button>
+          ) : null}
           <ul className="slot-grid">
             {slots.map((slot) => (
               <li key={slot.id}>
                 <span className="slot-day">{when(slot.starts_at).split(",")[0]}</span>
                 <strong>{when(slot.starts_at)}</strong>
                 <small>{slot.exclusive ? "Эксклюзивный слот" : "Доступное время"}</small>
-                <button type="button" onClick={() => acquire(slot)} disabled={pending}>
+                <button type="button" data-slot-id={slot.id} onClick={() => acquire(slot)} disabled={pending}>
                   Удержать слот {when(slot.starts_at)}
                 </button>
               </li>
@@ -995,8 +1131,15 @@ export function Journey() {
           {restoredHold.booking_state === "HELD" || restoredHold.booking_state === "PENDING_PAYMENT"
             ? <p role="status">Это не подтверждённая запись. {Date.now() >= Date.parse(restoredHold.expires_at) ? "Показанный срок удержания прошёл; обновите страницу для повторной проверки." : "Оплата выполняется только внешним провайдером."}</p>
             : <p role="status">Состояние брони: {restoredHold.booking_state}. Для дальнейших действий требуется действующий доступ к записи.</p>}
-          {restoration === "READY" && restoredHold.booking_state === "CONFIRMED" ? (
-            <ConsultationResultView key={restoredHold.booking_id} bookingID={restoredHold.booking_id} />
+          {restoration === "READY" ? (
+            <p>
+              <a href={`/bookings/${encodeURIComponent(restoredHold.booking_id)}`}>
+                Проверить запись и оплату
+              </a>
+            </p>
+          ) : null}
+          {restoredHold.booking_state === "CONFIRMED" ? (
+            <p role="status">CONFIRMED — статус записи, а не самостоятельное доказательство списания. Доступ к консультации проверяется только после подтверждения оплаты.</p>
           ) : null}
         </section>
       ) : null}
@@ -1027,7 +1170,10 @@ export function Journey() {
           {holdTimeExpired && (hold.booking_state !== "CONFIRMED" || activeHoldUnverified) ? (
             <p className="alert" role="alert">Указанное время удержания прошло. Статус брони на сервере необходимо проверить заново; не считайте запись подтверждённой.</p>
           ) : null}
-          {!activeHoldUnverified && hold.booking_state === "CONFIRMED" ? (
+          {!activeHoldUnverified && hold.booking_state === "CONFIRMED" &&
+            orderStatus?.booking_id === hold.booking_id &&
+            orderStatus.payment_state === "CAPTURED" &&
+            !orderStatus.refund_state ? (
             <ConsultationResultView key={hold.booking_id} bookingID={hold.booking_id} />
           ) : null}
 
@@ -1082,6 +1228,21 @@ export function Journey() {
             <p>{instruction.notice}</p>
             <p className="meta">Заказ {instruction.order_id} · {instruction.booking_state} · {money(instruction.amount_minor, instruction.currency)}</p>
             <p className="meta">APGIC принимает деньги: {instruction.apgic_accepts_funds ? "да" : "нет"}.</p>
+            <button type="button" onClick={() => {
+              void refreshOrderStatus(instruction).catch((cause) =>
+                setError(cause instanceof Error ? cause.message : "Статус заказа недоступен."));
+            }} disabled={checkingOrderStatus}>
+              {checkingOrderStatus ? "Проверка статуса…" : "Обновить состояние оплаты"}
+            </button>
+            {orderStatus && orderStatus.order_id === instruction.order_id ? (
+              <div className="booking-summary" role="status">
+                <div><span>Бронирование</span><strong>{orderStatus.booking_state}</strong></div>
+                <div><span>Подтверждение оплаты</span><strong>{orderStatus.payment_state === "CAPTURED" ? "Подтверждено провайдером" : "Ожидаем подтверждения"}</strong></div>
+                {orderStatus.refund_state ? <div><span>Возврат</span><strong>{orderStatus.refund_state}</strong></div> : null}
+              </div>
+            ) : (
+              <p role="status">Актуальное состояние оплаты не подтверждено чтением с сервера.</p>
+            )}
           </div>
           {conformanceProviderEvents ? (
             <button type="button" onClick={captureProviderEvent} disabled={pending}>

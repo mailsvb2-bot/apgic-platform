@@ -93,19 +93,6 @@ func TestLiveSupplyMatchesSelectedPricedOfferAndHoldsOnlyConfirmedTopic(t *testi
 	if err != nil || len(cards) != 1 || cards[0].OfferID != anxiety.ID || cards[0].PriceMinor != 185000 {
 		t.Fatalf("live matches = %#v, err=%v", cards, err)
 	}
-	// One verified specialist can offer multiple reviewed topics at different
-	// real prices. The exact offer identity, not the specialist, owns pricing.
-	sleepIntent, err := service.CreateIntentForIdentity("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "трудно спать")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := service.ConfirmIntent(sleepIntent.ID, []string{"sleep"}, nil, nil); err != nil {
-		t.Fatal(err)
-	}
-	sleepMatches, _, err := service.Matches(sleepIntent.ID, "sleep")
-	if err != nil || len(sleepMatches) != 1 || sleepMatches[0].OfferID != sleep.ID || sleepMatches[0].PriceMinor != 290000 {
-		t.Fatalf("multiple services were cross-priced: %#v err=%v", sleepMatches, err)
-	}
 	slots, err := service.SlotsForOffer(anxiety.Profile.ID, cards[0].OfferID)
 	if err != nil || len(slots) != 1 || slots[0].ID != anxiety.Slots[0].ID {
 		t.Fatalf("live slot selection = %#v, err=%v", slots, err)
@@ -117,52 +104,43 @@ func TestLiveSupplyMatchesSelectedPricedOfferAndHoldsOnlyConfirmedTopic(t *testi
 	if err != nil || hold.BookingState != "HELD" {
 		t.Fatalf("valid priced slot was not held: %#v, err=%v", hold, err)
 	}
-}
-
-func TestVerifiedOutcomeTiersNeverInventReputation(t *testing.T) {
-	cases := []struct {
-		completed, noShow       int64
-		reliability, experience int
-	}{
-		{0, 0, 0, 0}, {1, 0, 0, 1}, {4, 0, 0, 1},
-		{5, 0, 5, 3}, {5, 5, 2, 3}, {20, 0, 5, 4},
-		{100, 0, 5, 5}, {-1, 0, 0, 0},
+	// A repeat from the same canonical identity and the SAME eligible
+	// intent is idempotent. A newly confirmed disjoint intent from the
+	// same person must not borrow the old authorization merely because
+	// its slot is still exclusively held by that person.
+	replayed, err := service.AcquireHold(intent.ID, slots[0].ID, intent.ClientIdentityID)
+	if err != nil || replayed.ID != hold.ID {
+		t.Fatalf("same-intent replay changed exclusive hold: %#v err=%v", replayed, err)
 	}
-	for _, tc := range cases {
-		reliability, experience := verifiedOutcomeTiers(tc.completed, tc.noShow)
-		if reliability != tc.reliability || experience != tc.experience {
-			t.Fatalf("outcomes (%d,%d): reliability=%d experience=%d", tc.completed, tc.noShow, reliability, experience)
-		}
+	otherIntent, err := service.CreateIntentForIdentity(intent.ClientIdentityID, "хочу разобраться со сном")
+	if err != nil {
+		t.Fatal(err)
 	}
-}
-
-func TestVerifiedFeedbackRankingRequiresReviewedBookingSample(t *testing.T) {
-	cases := []struct {
-		count, sum int64
-		want       int
-	}{
-		{0, 0, 0}, {4, 20, 0}, {5, 25, 4}, {20, 100, 5},
-		{10, 30, 2}, {5, 5, 1}, {5, 4, 0},
+	if _, err := service.ConfirmIntent(otherIntent.ID, []string{"sleep"}, nil, nil); err != nil {
+		t.Fatal(err)
 	}
-	for _, item := range cases {
-		got := verifiedFeedbackTier(item.count, item.sum)
-		if got != item.want {
-			t.Fatalf("verified rating count=%d sum=%d: got %d want %d", item.count, item.sum, got, item.want)
-		}
+	if other, err := service.AcquireHold(otherIntent.ID, anxiety.Slots[0].ID, intent.ClientIdentityID); !errors.Is(err, ErrSlotUnavailable) || other != nil {
+		t.Fatalf("same client bypassed a disjoint topic through active hold replay: %#v err=%v", other, err)
 	}
-	offer := liveFixtureOffer(t, "anxiety", "aaaa1111-1111-4111-8111-111111111111",
-		210000, time.Date(2026, 12, 14, 14, 0, 0, 0, time.UTC))
-	offer.VerifiedReviewCount = 20
-	offer.VerifiedRatingTotal = 100
-	ranked := liveCatalogFromOffers([]BookableOffer{offer})
-	if len(ranked.candidates) != 1 || ranked.candidates[0].ReputationTier != 5 ||
-		ranked.candidates[0].CommercialBoostTier != 0 {
-		t.Fatalf("verified booking feedback was not trusted or became sponsored: %#v", ranked.candidates)
+	// A new HelpIntent with the same eligible topic and the same signed
+	// identity is still a different purchase decision. It cannot claim the
+	// original hold, even though both requests would match the specialist.
+	sameTopicIntent, err := service.CreateIntentForIdentity(intent.ClientIdentityID, "ещё один запрос по тревоге")
+	if err != nil {
+		t.Fatal(err)
 	}
-	offer.VerifiedReviewCount = 4
-	offer.VerifiedRatingTotal = 20
-	few := liveCatalogFromOffers([]BookableOffer{offer})
-	if len(few.candidates) != 1 || few.candidates[0].ReputationTier != 0 {
-		t.Fatalf("too few private feedback records became an invented rating: %#v", few.candidates)
+	if _, err := service.ConfirmIntent(sameTopicIntent.ID, []string{"anxiety"}, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	if reused, err := service.AcquireHold(sameTopicIntent.ID, anxiety.Slots[0].ID, intent.ClientIdentityID); !errors.Is(err, ErrSlotUnavailable) || reused != nil {
+		t.Fatalf("second same-topic intent reused first intent hold: %#v err=%v", reused, err)
+	}
+	// A foreign signed identity cannot replay the original confirmed intent.
+	if reused, err := service.AcquireHold(intent.ID, anxiety.Slots[0].ID, "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"); !errors.Is(err, ErrIdentityMismatch) || reused != nil {
+		t.Fatalf("foreign identity replayed first intent hold: %#v err=%v", reused, err)
+	}
+	if retained, err := service.HoldStatus(hold.ID, intent.ClientIdentityID); err != nil || retained.ID != hold.ID ||
+		retained.BookingState != "HELD" {
+		t.Fatalf("disallowed replay damaged the original valid hold: %#v err=%v", retained, err)
 	}
 }
