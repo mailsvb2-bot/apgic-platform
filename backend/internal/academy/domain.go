@@ -40,12 +40,12 @@ type Course struct {
 // OriginalRightsDeclaration is only an authenticated author's declaration;
 // it does not independently verify ownership or a third-party content license.
 type OriginalRightsDeclaration struct {
-	ID string `json:"id"`
-	VersionID string `json:"version_id"`
-	CurriculumSHA256 string `json:"curriculum_sha256"`
-	PolicyVersion string `json:"policy_version"`
-	ProvenanceRef string `json:"provenance_ref"`
-	AttestedAt time.Time `json:"attested_at"`
+	ID               string    `json:"id"`
+	VersionID        string    `json:"version_id"`
+	CurriculumSHA256 string    `json:"curriculum_sha256"`
+	PolicyVersion    string    `json:"policy_version"`
+	ProvenanceRef    string    `json:"provenance_ref"`
+	AttestedAt       time.Time `json:"attested_at"`
 }
 type Module struct {
 	ID        string `json:"id"`

@@ -275,6 +275,7 @@ func (c *Checker) AcademyAddLesson(actor, courseID, versionID, moduleID string, 
 	l.ModuleID = moduleID
 	return l, nil
 }
+
 // AcademyDeclareOriginalRights signs a snapshot of an ORIGINAL-work curriculum.
 func (c *Checker) AcademyDeclareOriginalRights(actor, courseID, versionID, provenanceRef string) (academy.OriginalRightsDeclaration, error) {
 	provenanceRef = strings.TrimSpace(provenanceRef)

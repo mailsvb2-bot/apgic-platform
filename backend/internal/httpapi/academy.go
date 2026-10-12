@@ -129,7 +129,7 @@ func registerAcademy(mux *http.ServeMux, store academyStore, sessions *clientSes
 		}
 		var input struct {
 			ProvenanceRef string `json:"provenance_ref"`
-			Acknowledged bool `json:"acknowledged"`
+			Acknowledged  bool   `json:"acknowledged"`
 		}
 		if !academyRead(w, r, &input) {
 			return
