@@ -239,7 +239,7 @@ func registerLiveEvents(mux *http.ServeMux, store LiveEventStore, keys connector
 				// an expired readiness proof afterwards.
 				if (transition.target == liveevents.Published || transition.target == liveevents.Live) &&
 					(room.ProviderReadyAt.IsZero() || instant.Sub(room.ProviderReadyAt) > 5*time.Minute ||
-					room.ProviderReadyAt.After(instant.Add(time.Minute))) {
+						room.ProviderReadyAt.After(instant.Add(time.Minute))) {
 					liveError(w, r, liveevents.ErrUnavailable)
 					return
 				}

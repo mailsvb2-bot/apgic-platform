@@ -58,6 +58,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("APGIC UCR provider configuration invalid: %v", err)
 	}
+	if liveEventsEnabled && ucrMedia == nil {
+		log.Fatal("R9 live events cannot start without an authenticated UCR communication provider")
+	}
 	providerWebhookKeys, err := providerWebhookKeysFromEnvironment()
 	if err != nil {
 		log.Fatalf("APGIC provider webhook public-key configuration failed: %v", err)
@@ -88,7 +91,10 @@ func main() {
 				if err := baseReady(ctx); err != nil {
 					return err
 				}
-				return storage.LiveEventsReady(ctx)
+				if err := storage.LiveEventsReady(ctx); err != nil {
+					return err
+				}
+				return ucrMedia.TransportReady(ctx)
 			}
 		}
 		ledgerStore = storage

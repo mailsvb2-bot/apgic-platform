@@ -157,3 +157,14 @@ token. APGIC validates the signed-grant URL origin/fragment and expiry, but
 UCR remains sole grant issuer/verifier. UCR contract tests exercise two distinct
 participant identities joining the same provider conference; these tests use a
 fake HTTP provider and **do not** prove a running WebRTC path.
+
+## Fail-closed activation and readiness
+
+`APGIC_LIVE_EVENTS_ENABLED=1` without a complete authenticated UCR configuration
+fails API startup, even if PostgreSQL is available. `/readyz` verifies the
+canonical R9 schema, SQL guards and UCR `/healthz` transport. Per-event
+`Prepare` and `Join` additionally require UCR's live capability proof
+(`production_webrtc`, browser gateway, TURN, video, required session
+capacity, and Group/Call runtime preparation). Transport liveness is not a
+media call, and no read endpoint advertises actual SFU participation solely
+from a green transport health response.
