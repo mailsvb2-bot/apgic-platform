@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apgic.ru/contracts/launch-journey-observation-v1.schema.json",
+  "title": "Launch production journey proof",
+  "description": "A hashed independently reviewed receipt for an R0-R4 production end-to-end business path; CI and staging receipts do not qualify.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "journey_id",
+    "candidate_sha",
+    "environment",
+    "status",
+    "synthetic",
+    "source_ref",
+    "verified_at",
+    "verified_by",
+    "correlation_id",
+    "observed_steps",
+    "business_outcome",
+    "failure_or_denial_probe"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "launch-journey-observation-v1"
+    },
+    "journey_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "candidate_sha": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{40}$"
+    },
+    "environment": {
+      "const": "PRODUCTION"
+    },
+    "status": {
+      "const": "PASS"
+    },
+    "synthetic": {
+      "const": false
+    },
+    "source_ref": {
+      "type": "string",
+      "pattern": "^https://[^/]+/.+"
+    },
+    "verified_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "verified_by": {
+      "type": "string",
+      "minLength": 1
+    },
+    "correlation_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "observed_steps": {
+      "type": "array",
+      "minItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "phase",
+          "event_id",
+          "canonical_owner",
+          "observed_at"
+        ],
+        "properties": {
+          "phase": {
+            "type": "string",
+            "minLength": 1
+          },
+          "event_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "canonical_owner": {
+            "type": "string",
+            "minLength": 1
+          },
+          "observed_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      }
+    },
+    "business_outcome": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "canonical_result_id"
+      ],
+      "properties": {
+        "status": {
+          "const": "CONFIRMED"
+        },
+        "canonical_result_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "failure_or_denial_probe": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "observed_result",
+        "source_ref"
+      ],
+      "properties": {
+        "status": {
+          "const": "PASS"
+        },
+        "observed_result": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_ref": {
+          "type": "string",
+          "pattern": "^https://[^/]+/.+"
+        }
+      }
+    }
+  }
+}

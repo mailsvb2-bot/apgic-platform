@@ -61,3 +61,11 @@ To populate `canon/evidence/production-evidence-index.yaml`, each production rec
 ### Critical policy validation is not satisfied by hashes
 
 The `--strict` invocation executes the repository's existing `launch_config_guard.py --mode production --profile R4` itself, before constructing a passing assessment. It checks policy contents, scope, version binding, jurisdiction, SLO/RPO/RTO, retention, allowed providers, real MarketCell thresholds, commerce and multi-provider settlement; merely marking `production_approved: true` and supplying valid SHA256s is insufficient. This is in addition to the separate preflight GitHub Actions step. Missing/invalid policies fail closed without manufacturing production evidence.
+
+## Production journey assurance and no relaxed policy preflight
+
+A production-preflight receipt must now pass the SAME semantic policy checks as the production workflow, not just hash production_approved-looking files. LaunchConfig rules for jurisdiction, retention, SLO, providers, commerce and settlement must fail closed.
+
+Full R4 authorization additionally requires a correlated, non-synthetic, candidate-bound R0–R4 **critical production journey manifest** (launch-critical-journeys-v1) assessed by tools/launch_journey_gate.py. Nine journeys cover tenant denial, outbox recovery, isolated restore, qualified discovery, payment and entitlement, refund reversal, realtime consultation, provider settlement and native-store lifecycle. Every proof must have immutable indexed artifact digest, independent HTTPS source, chronological canonical event chain, end business result and separately observed failure/denial probe. Missing proofs block release; CI and staging cannot create substitute production evidence.
+
+Use --journey-manifest config/release/launch-journeys-approved-production.yaml with --strict for the real release candidate. The provided example intentionally cannot pass. The evidence gate is an admission check, not cryptographic provider attestation or permission to deploy; independently review external proofs and manually authorize a rollout.

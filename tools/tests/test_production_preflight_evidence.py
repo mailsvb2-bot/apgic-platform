@@ -5,6 +5,7 @@ import importlib.util
 import json
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 import yaml
@@ -25,6 +26,9 @@ class ProductionPreflightEvidenceTests(unittest.TestCase):
         self.original_root = module.ROOT
         module.ROOT = self.root
         self.addCleanup(setattr, module, "ROOT", self.original_root)
+        semantic_validator = patch.object(module.launch_config_guard, "validate_launch_configuration")
+        semantic_validator.start()
+        self.addCleanup(semantic_validator.stop)
 
     def write_yaml(self, rel: str, data: dict) -> None:
         path = self.root / rel
@@ -72,6 +76,20 @@ class ProductionPreflightEvidenceTests(unittest.TestCase):
             self.write_yaml(rel, {"version": field + "-v1"})
             config[field] = rel
         return config
+
+    def test_semantic_policy_validation_always_invoked(self):
+        self.seed_canonical_binding()
+        self.write_yaml("config/launch.production.yaml", self.production_config())
+        module.build_evidence("a" * 40, "R0", "config/launch.production.yaml")
+        module.launch_config_guard.validate_launch_configuration.assert_called_once_with(
+            "config/launch.production.yaml", "production", "R0")
+
+    def test_semantic_policy_failure_does_not_issue_proof(self):
+        self.seed_canonical_binding()
+        self.write_yaml("config/launch.production.yaml", self.production_config())
+        module.launch_config_guard.validate_launch_configuration.side_effect = SystemExit(1)
+        with self.assertRaises(SystemExit):
+            module.build_evidence("a" * 40, "R0", "config/launch.production.yaml")
 
     def test_build_evidence_binds_exact_candidate_and_policy_hashes(self) -> None:
         self.seed_canonical_binding()

@@ -55,7 +55,8 @@ class LaunchReadinessTests(unittest.TestCase):
         params.update(changes)
         # The existing R4 gate remains authoritative; here only substitute its
         # outcome to isolate the launch-cut policy under test.
-        with patch.object(launch.r4, "evaluate", return_value=(True, [])), \
+        with patch.object(launch.journey_gate, "evaluate", return_value=(True, [])), \
+             patch.object(launch.r4, "evaluate", return_value=(True, [])), \
              patch.object(launch.r4, "canon_dependency_blockers", return_value=[]):
             return launch.assess(**params)
 
@@ -122,12 +123,21 @@ class LaunchReadinessTests(unittest.TestCase):
         self.assertIn("PRODUCTION_CONFIG_CANDIDATE_MISMATCH", report["blockers"])
 
     def test_r4_validator_blockers_survive_even_with_released_requirements(self):
-        with patch.object(launch.r4, "evaluate", return_value=(False, ["REAL_PROVIDER_PROOF_MISSING"])), \
+        with patch.object(launch.journey_gate, "evaluate", return_value=(True, [])), \
+             patch.object(launch.r4, "evaluate", return_value=(False, ["REAL_PROVIDER_PROOF_MISSING"])), \
              patch.object(launch.r4, "canon_dependency_blockers", return_value=[]):
             report = launch.assess(candidate_sha=self.sha, coverage=self.coverage,
                  registry=self.registry, production_index=self.index, manifest=self.manifest,
                  preflight_evidence=self.preflight)
         self.assertIn("R4_REAL_PROVIDER_PROOF_MISSING", report["blockers"])
+
+    def test_journey_proofs_remain_mandatory_when_other_gates_look_ready(self):
+        with patch.object(launch.r4, "evaluate", return_value=(True, [])), \
+             patch.object(launch.r4, "canon_dependency_blockers", return_value=[]):
+            report = launch.assess(candidate_sha=self.sha, coverage=self.coverage,
+                registry=self.registry, production_index=self.index, manifest=self.manifest,
+                preflight_evidence=self.preflight)
+        self.assertIn("JOURNEY_MANIFEST_MISSING", report["blockers"])
 
     def test_strict_checkout_prevents_forged_candidate_provenance(self):
         with patch.object(launch.subprocess, "check_output", return_value="b" * 40):

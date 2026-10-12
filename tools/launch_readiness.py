@@ -21,6 +21,7 @@ import yaml
 import canon_execution_gap_inventory as inventory_tool
 import production_preflight_evidence as preflight
 import r4_release_gate as r4
+import launch_journey_gate as journey_gate
 
 ROOT = Path(__file__).resolve().parents[1]
 SHA_RE = re.compile(r"^[a-f0-9]{40}$")
@@ -52,6 +53,7 @@ def assess(
     production_index: dict[str, Any],
     manifest: dict[str, Any] | None = None,
     preflight_evidence: dict[str, Any] | None = None,
+    journey_manifest: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Pure decision: absence of proof is a blocker, not a successful default."""
     blockers: list[str] = []
@@ -129,6 +131,10 @@ def assess(
         ):
             blockers.extend("R4_" + reason for reason in r4.canon_dependency_blockers(registry, reqid))
 
+    journey_ok, journey_reasons = journey_gate.evaluate(journey_manifest, production_index, candidate_sha)
+    if not journey_ok:
+        blockers.extend('JOURNEY_' + reason for reason in journey_reasons)
+
     blockers = sorted(set(blockers))
     return {
         "schema_version": "launch-readiness-assessment-v1",
@@ -154,6 +160,7 @@ def assess(
             "production_index_records": len(production_records) if isinstance(production_records, dict) else 0,
             "r4_production_manifest_supplied": manifest is not None,
             "production_config_preflight_supplied": preflight_evidence is not None,
+            "critical_journey_manifest_supplied": journey_manifest is not None,
         },
     }
 
@@ -221,6 +228,7 @@ def main() -> int:
     parser.add_argument("--candidate-sha", required=True)
     parser.add_argument("--config", help="Approved production R4 LaunchConfig path")
     parser.add_argument("--manifest", help="R4 evidence manifest path")
+    parser.add_argument("--journey-manifest", help="R0-R4 production critical-journey evidence manifest")
     parser.add_argument("--output", required=True)
     parser.add_argument("--summary")
     parser.add_argument("--strict", action="store_true",
@@ -235,6 +243,7 @@ def main() -> int:
         coverage = json.loads((ROOT / "canon/requirements/coverage.json").read_text(encoding="utf-8"))
         index = load_yaml(ROOT / "canon/evidence/production-evidence-index.yaml")
         manifest = load_yaml(confined_file(args.manifest)) if args.manifest else None
+        journey_manifest = load_yaml(confined_file(args.journey_manifest)) if args.journey_manifest else None
         configuration = preflight.build_evidence(
             args.candidate_sha, "R4", args.config
         ) if args.config else None
@@ -242,6 +251,7 @@ def main() -> int:
             candidate_sha=args.candidate_sha,
             coverage=coverage, registry=registry,
             production_index=index, manifest=manifest, preflight_evidence=configuration,
+            journey_manifest=journey_manifest,
         )
         output = (ROOT / args.output).resolve()
         if not output.is_relative_to(ROOT):

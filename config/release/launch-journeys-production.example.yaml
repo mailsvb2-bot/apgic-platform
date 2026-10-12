@@ -1,0 +1,6 @@
+# Deliberately incomplete. CI/staging is not production proof.
+schema_version: launch-critical-journeys-v1
+candidate_sha: CONFIG_REQUIRED
+environment: PRODUCTION
+synthetic: false
+journeys: {}
