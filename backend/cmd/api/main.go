@@ -16,6 +16,7 @@ import (
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/clientcompat"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/connector"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/demand"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/growth"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/httpapi"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/launchconfig"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/mobile"
@@ -30,6 +31,29 @@ func canonicalEnvironment(raw string) string {
 	return strings.ToUpper(strings.TrimSpace(raw))
 }
 
+// growthSigningKeyFromEnvironment prevents silent false-green deployments.
+// No public acquisition endpoint is advertised as usable without an explicit
+// capability opt-in and a sufficiently strong first-party signing key.
+func growthSigningKeyFromEnvironment() ([]byte, error) {
+	enabled := strings.TrimSpace(os.Getenv("APGIC_GROWTH_ENABLED"))
+	secret := strings.TrimSpace(os.Getenv("APGIC_GROWTH_SIGNING_KEY"))
+	switch enabled {
+	case "", "0":
+		if secret != "" {
+			return nil, fmt.Errorf("APGIC_GROWTH_SIGNING_KEY supplied without APGIC_GROWTH_ENABLED=1")
+		}
+		return nil, nil
+	case "1":
+		key := []byte(secret)
+		if _, err := growth.NewSigner(key); err != nil {
+			return nil, fmt.Errorf("enabled Growth requires an independent 32-byte signing key: %w", err)
+		}
+		return key, nil
+	default:
+		return nil, fmt.Errorf("APGIC_GROWTH_ENABLED must be 0 or 1")
+	}
+}
+
 func main() {
 	var readinessCheck func(context.Context) error
 	var storage *runtimepostgres.Checker
@@ -40,6 +64,10 @@ func main() {
 	environment := canonicalEnvironment(os.Getenv("APGIC_ENVIRONMENT"))
 	releaseTrack := envOr("APGIC_RELEASE_TRACK", "R0")
 	clientSessionKey := []byte(os.Getenv("APGIC_CLIENT_SESSION_KEY"))
+	growthSigningKey, err := growthSigningKeyFromEnvironment()
+	if err != nil {
+		log.Fatalf("APGIC Growth configuration failed: %v", err)
+	}
 	deepLinkSigningKey := []byte(os.Getenv("APGIC_DEEPLINK_SIGNING_KEY"))
 	clientCompatibilityPolicies, err := clientCompatibilityPoliciesFromEnvironment(environment)
 	if err != nil {
@@ -101,7 +129,7 @@ func main() {
 		Demand:                      demandService,
 		Growth:                      storage,
 		SearchDistribution:          storage,
-		GrowthSigningKey:            []byte(os.Getenv("APGIC_GROWTH_SIGNING_KEY")),
+		GrowthSigningKey:            growthSigningKey,
 		ClientSessionKey:            clientSessionKey,
 		ClientCompatibilityPolicies: clientCompatibilityPolicies,
 		RemoteConfigProvider:        remoteConfigProvider,
