@@ -167,7 +167,7 @@ export default function BookingDetail({ bookingID }: { bookingID: string }) {
               {/* Historical outcome is a separate owner-authorized read.
                   An absent/uncertain payment must block a NEW media grant,
                   never erase or conceal an existing provider-confirmed result. */}
-              <ConsultationJourney key={bookingID + "-journey"} bookingID={bookingID} />
+              {paidEntitlement ? <ConsultationJourney key={bookingID + "-journey"} bookingID={bookingID} /> : null}
               <ConsultationResultView key={bookingID} bookingID={bookingID} />
               {!paidEntitlement ? (
                 <p role="status">Вход в защищённую медиакомнату недоступен без подтверждённого права доступа и платежа. Историю проведённой консультации можно проверить отдельно; её достоверность подтверждает сервер.</p>
