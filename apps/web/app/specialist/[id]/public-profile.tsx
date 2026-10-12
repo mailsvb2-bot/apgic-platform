@@ -48,7 +48,7 @@ export function PublicSpecialistProfile({id}:{id:string}){
     </section>
     {profile.languages.length>0?<p>Языки: {profile.languages.join(", ")}</p>:null}
     {profile.limitations.length>0?<section><h2>С чем не работает</h2><ul>{profile.limitations.map((x,i)=><li key={i}>{x}</li>)}</ul></section>:null}
-    <div className="hero-actions"><a className="button-link primary-action" href="/#start">Уточнить запрос и выбрать время</a>
+    <div className="hero-actions"><a className="button-link primary-action" href={`/?specialist_id=${encodeURIComponent(profile.id)}#start`}>Уточнить запрос и выбрать время</a>
      <a className="button-link secondary-action" href="/specialists">Сравнить специалистов</a></div>
     <p className="status-note">Стоимость и свободное время подтверждаются отдельно при подборе. Анкета не является гарантией записи.</p>
    </div>
