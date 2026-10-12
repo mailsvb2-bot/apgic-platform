@@ -78,6 +78,10 @@ type Hold struct {
 	BookingID        string        `json:"booking_id"`
 	SlotID           string        `json:"slot_id"`
 	ClientIdentityID string        `json:"client_identity_id"`
+	// Immutable hold provenance prevents one intent borrowing a different
+	// intent's paid offer; not exposed as client-controlled API fields.
+	IntentID         string        `json:"-"`
+	OfferID          string        `json:"-"`
 	State            string        `json:"state"`
 	BookingState     booking.State `json:"booking_state"`
 	ExpiresAt        time.Time     `json:"expires_at"`
@@ -637,26 +641,19 @@ func (s *Service) AcquireHold(intentID, slotID, clientIdentityID string) (*Hold,
 	if intent.ClientIdentityID != clientIdentityID {
 		return nil, ErrIdentityMismatch
 	}
-	// An existing hold is not a transferable authorization. In live supply
-	// an identical client may have multiple different help intents; reusing
-	// the old hold must still verify that the NEW request can legally book
-	// the exact priced offer. Reject when its offer was withdrawn or its
-	// qualification/jurisdiction/topic no longer passes the owner policy.
-	if s.liveSupplyMode {
-		current, ok := s.slot(slotID)
-		if !ok {
-			return nil, ErrSlotUnavailable
-		}
-		if err := s.authorizeLiveSlotForIntentLocked(intent, current); err != nil {
-			return nil, err
-		}
-	}
+	// The public live offer query intentionally hides held slots. Replays
+	// therefore use the immutable PostgreSQL hold provenance, NOT current
+	// availability. Cross-intent / legacy unidentified hold replay fails
+	// closed while a true retry retains its original ID across API restarts.
 	// An idempotent replay of an already-durable active hold must not depend on
 	// whether the current catalog projection still advertises the slot. The
 	// projection can legitimately roll forward while the hold remains active.
 	if existingID, held := s.slotHolds[slotID]; held {
 		existing := s.holds[existingID]
 		if existing != nil && existing.ClientIdentityID == clientIdentityID && existing.State == "ACTIVE" {
+			if s.liveSupplyMode && (existing.IntentID == "" || existing.IntentID != intentID || existing.OfferID == "") {
+				return nil, ErrSlotHeld
+			}
 			copyHold := *existing
 			return &copyHold, nil
 		}
@@ -665,6 +662,11 @@ func (s *Service) AcquireHold(intentID, slotID, clientIdentityID string) (*Hold,
 	slot, ok := s.slot(slotID)
 	if !ok {
 		return nil, ErrSlotNotFound
+	}
+	if s.liveSupplyMode {
+		if err := s.authorizeLiveSlotForIntentLocked(intent, slot); err != nil {
+			return nil, err
+		}
 	}
 	if !slot.Exclusive {
 		return nil, ErrSlotNotExclusive
@@ -693,6 +695,8 @@ func (s *Service) AcquireHold(intentID, slotID, clientIdentityID string) (*Hold,
 		BookingID:        bookingID,
 		SlotID:           slot.ID,
 		ClientIdentityID: clientIdentityID,
+		IntentID:         intentID,
+		OfferID:          slot.OfferID,
 		State:            "ACTIVE",
 		BookingState:     booking.StateHeld,
 		ExpiresAt:        expires,
