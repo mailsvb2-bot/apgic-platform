@@ -209,3 +209,14 @@ in-memory and should not be load-balanced without a session-affine routing
 contract; its independent 12-minute TTL and bounded revocation fence are
 defense-in-depth, not proof of persistent remote erasure. A future durable
 provider-cleanup reconciliation path is necessary before launch certification.
+
+## Rights-scope projection invariant
+
+Public persona capabilities are the intersection of three independent gates:
+published catalog support, an unexpired independently reviewed **per-mode**
+rights grant, and the provider's current executable capabilities. Text-only
+rights cannot make voice or an external appearance selectable. Voice rights
+alone do not authorize likeness/video use. Rights revocation removes modes
+from discovery and rejects new turns, even for a previously started session.
+The PostgreSQL invariant suite includes a deliberately text-only licensed
+persona that rejects attempted voice admission.

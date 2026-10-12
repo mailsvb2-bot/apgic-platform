@@ -59,6 +59,52 @@ INSERT INTO persona_rights_reviews (
  repeat('a',64),'ci://rights-reviewer',true,true,true,now()+interval '1 day'
 );
 
+-- A valid text license cannot be projected as a licensed voice/video mode.
+-- The visible catalog and start admission must agree by actual rights scope.
+INSERT INTO persona_catalog (
+ id,label,language,voice_profile,visual_profile,supports_video,supports_voice,
+ supports_text,rights_evidence_ref,state
+) VALUES (
+ '00000000-0000-0000-0000-00000000d222',
+ 'CI text-only licensed persona','ru','voice-unlicensed','visual-unlicensed',
+ true,true,true,'ci://synthetic-text-only-license','PUBLISHED'
+);
+INSERT INTO persona_rights_reviews (
+ persona_id,rights_holder_ref,evidence_sha256,reviewed_by,
+ text_use,voice_use,appearance_use,valid_until
+) VALUES (
+ '00000000-0000-0000-0000-00000000d222','ci://text-rights-holder',
+ repeat('b',64),'ci://reviewer',true,false,false,now()+interval '1 day'
+);
+DO $rights_scopes$
+DECLARE can_text boolean; can_voice boolean; can_video boolean; rejected boolean:=false;
+BEGIN
+ SELECT p.supports_text AND rr.text_use,p.supports_voice AND rr.voice_use,
+        p.supports_video AND rr.voice_use AND rr.appearance_use
+ INTO can_text,can_voice,can_video
+ FROM persona_catalog p JOIN persona_rights_reviews rr ON rr.persona_id=p.id
+ WHERE p.id='00000000-0000-0000-0000-00000000d222' AND rr.valid_until>now();
+ IF can_text IS DISTINCT FROM true OR can_voice IS DISTINCT FROM false
+    OR can_video IS DISTINCT FROM false THEN
+   RAISE EXCEPTION 'catalog advertised an unlicensed persona mode';
+ END IF;
+ BEGIN
+  INSERT INTO avatar_sessions (
+   id,user_id,persona_id,provider_instance_id,idempotency_key,session_purpose,
+   privacy_mode,mode,style,language,voice_profile,visual_profile,state,policy_version
+  ) VALUES (
+   '00000000-0000-0000-0000-00000000d227',
+   '00000000-0000-0000-0000-00000000d201',
+   '00000000-0000-0000-0000-00000000d222',
+   '00000000-0000-0000-0000-00000000d211','ci-text-no-voice',
+   'LISTEN','PRIVATE_EPHEMERAL','VOICE','CALM','ru','voice-unlicensed',
+   'visual-unlicensed','PENDING','ci-persona-policy-v1'
+  );
+ EXCEPTION WHEN raise_exception THEN rejected:=true;
+ END;
+ IF NOT rejected THEN RAISE EXCEPTION 'unlicensed voice unexpectedly started'; END IF;
+END $rights_scopes$;
+
 -- No raw media or conversations may silently grow into business truth.
 DO $$
 BEGIN

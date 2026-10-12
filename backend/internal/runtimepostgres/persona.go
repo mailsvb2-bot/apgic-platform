@@ -16,18 +16,22 @@ func (c *Checker) ListPersonas(ctx context.Context, providerID, policyVersion st
 	if c == nil || c.db == nil {
 		return nil, persona.ErrUnavailable
 	}
-	rows, err := c.db.QueryContext(ctx, `SELECT id::text,label,language,voice_profile,visual_profile,
- supports_video,supports_voice,supports_text FROM persona_catalog WHERE state='PUBLISHED'
+	rows, err := c.db.QueryContext(ctx, `SELECT p.id::text,p.label,p.language,p.voice_profile,p.visual_profile,
+ (p.supports_video AND rr.voice_use AND rr.appearance_use),
+ (p.supports_voice AND rr.voice_use),
+ (p.supports_text AND rr.text_use)
+ FROM persona_catalog p
+ JOIN persona_rights_reviews rr ON rr.persona_id=p.id
+ WHERE p.state='PUBLISHED' AND rr.valid_until>now()
+ AND NOT EXISTS (SELECT 1 FROM persona_rights_revocations rv WHERE rv.persona_id=rr.persona_id)
+ AND ((p.supports_text AND rr.text_use) OR (p.supports_voice AND rr.voice_use)
+   OR (p.supports_video AND rr.voice_use AND rr.appearance_use))
  AND EXISTS (SELECT 1 FROM persona_model_deployments md JOIN connector_instances ci
  ON ci.id=md.connector_instance_id WHERE md.policy_version=$2
- AND EXISTS(SELECT 1 FROM persona_rights_reviews rr WHERE rr.persona_id=persona_catalog.id
-   AND rr.valid_until>now() AND NOT EXISTS(SELECT 1 FROM persona_rights_revocations rv WHERE rv.persona_id=rr.persona_id)
-   AND ((persona_catalog.supports_text AND rr.text_use) OR (persona_catalog.supports_voice AND rr.voice_use)
-     OR (persona_catalog.supports_video AND rr.voice_use AND rr.appearance_use)))
  AND md.connector_instance_id=$1::uuid AND md.state='ACTIVE'
  AND ci.capability_class='PERSONA_PROVIDER' AND ci.status='ACTIVE'
  AND NOT EXISTS (SELECT 1 FROM persona_model_disable_decisions d WHERE d.policy_version=md.policy_version))
- ORDER BY label,id LIMIT 100`, providerID, policyVersion)
+ ORDER BY p.label,p.id LIMIT 100`, providerID, policyVersion)
 	if err != nil {
 		return nil, err
 	}
