@@ -97,6 +97,8 @@ func main() {
 		ConformanceProviderEvents:   !runtimepostgres.RequiresDatabase(environment) && os.Getenv("APGIC_CONFORMANCE_PROVIDER_EVENTS") == "1",
 		ProviderWebhookKeys:         providerWebhookKeys,
 		ConsultationProvider:        storage,
+		LiveEvents:                  storage,
+		LiveEventsEnabled:           os.Getenv("APGIC_LIVE_EVENTS_ENABLED") == "1",
 		ReleaseTrack:                releaseTrack,
 		Demand:                      demandService,
 		ClientSessionKey:            clientSessionKey,
