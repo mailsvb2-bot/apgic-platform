@@ -1,0 +1,319 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apgic.ru/contracts/academy-learning-v1.schema.json",
+  "title": "APGIC Academy domain contracts v1 (Canon §237, R8)",
+  "description": "Versioned course and learning state owned by APGIC. Payment entitlement must be provider-verified. Certificate is learning provenance, not professional qualification.",
+  "$defs": {
+    "UUID": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "Course": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "product_id",
+        "title",
+        "description",
+        "state",
+        "version_id",
+        "version_no"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/UUID"
+        },
+        "product_id": {
+          "$ref": "#/$defs/UUID"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 200
+        },
+        "description": {
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "DRAFT",
+            "PUBLISHED",
+            "ARCHIVED"
+          ]
+        },
+        "version_id": {
+          "$ref": "#/$defs/UUID"
+        },
+        "version_no": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "author_id": {
+          "$ref": "#/$defs/UUID"
+        }
+      }
+    },
+    "Module": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "version_id",
+        "ordinal",
+        "title"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/UUID"
+        },
+        "version_id": {
+          "$ref": "#/$defs/UUID"
+        },
+        "ordinal": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "Lesson": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "module_id",
+        "ordinal",
+        "title",
+        "kind"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/UUID"
+        },
+        "module_id": {
+          "$ref": "#/$defs/UUID"
+        },
+        "ordinal": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "enum": [
+            "READING",
+            "VIDEO",
+            "ASSESSMENT"
+          ]
+        },
+        "body": {
+          "type": "string"
+        },
+        "media_asset_ref": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Opaque media provider asset ID, never a public delivery URL"
+        },
+        "passing_score": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "rubric_version": {
+          "type": "string"
+        },
+        "completed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "Enrollment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "version_id",
+        "state",
+        "enrolled_at"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/UUID"
+        },
+        "identity_id": {
+          "$ref": "#/$defs/UUID"
+        },
+        "version_id": {
+          "$ref": "#/$defs/UUID"
+        },
+        "entitlement_id": {
+          "$ref": "#/$defs/UUID"
+        },
+        "state": {
+          "enum": [
+            "ACTIVE",
+            "COMPLETED",
+            "REVOKED"
+          ]
+        },
+        "enrolled_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "completed_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "Attempt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "enrollment_id",
+        "lesson_id",
+        "attempt_no",
+        "result",
+        "rubric_version",
+        "submitted_at"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/UUID"
+        },
+        "enrollment_id": {
+          "$ref": "#/$defs/UUID"
+        },
+        "lesson_id": {
+          "$ref": "#/$defs/UUID"
+        },
+        "attempt_no": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "result": {
+          "enum": [
+            "PENDING",
+            "PASSED",
+            "FAILED"
+          ]
+        },
+        "rubric_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "score": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "submitted_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "evaluated_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "Certificate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "enrollment_id",
+        "verification_url",
+        "state",
+        "version_id",
+        "issued_at",
+        "evidence_candidate_state"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/UUID"
+        },
+        "enrollment_id": {
+          "$ref": "#/$defs/UUID"
+        },
+        "verification_token": {
+          "type": "string",
+          "minLength": 32
+        },
+        "verification_url": {
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "ACTIVE",
+            "REVOKED"
+          ]
+        },
+        "version_id": {
+          "$ref": "#/$defs/UUID"
+        },
+        "issued_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "evidence_candidate_state": {
+          "const": "PENDING_VERIFICATION"
+        }
+      }
+    },
+    "Failure": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "code",
+        "message_safe"
+      ],
+      "properties": {
+        "code": {
+          "enum": [
+            "ACADEMY_INVALID",
+            "ACADEMY_NOT_FOUND",
+            "ACADEMY_ACCESS_DENIED",
+            "ACADEMY_ENTITLEMENT_REQUIRED",
+            "ACADEMY_STATE_CONFLICT",
+            "ACADEMY_CONFLICT",
+            "ACADEMY_UNAVAILABLE"
+          ]
+        },
+        "message_safe": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/Course"
+    },
+    {
+      "$ref": "#/$defs/Module"
+    },
+    {
+      "$ref": "#/$defs/Lesson"
+    },
+    {
+      "$ref": "#/$defs/Enrollment"
+    },
+    {
+      "$ref": "#/$defs/Attempt"
+    },
+    {
+      "$ref": "#/$defs/Certificate"
+    },
+    {
+      "$ref": "#/$defs/Failure"
+    }
+  ]
+}
