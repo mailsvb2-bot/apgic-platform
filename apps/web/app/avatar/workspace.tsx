@@ -19,7 +19,7 @@ export function AvatarWorkspace(){
  useEffect(()=>{
   let active=true;
   fetch("/v1/personas",{cache:"no-store"}).then(async r=>{if(!r.ok)throw Error("Каталог недоступен");return r.json() as Promise<Catalog>})
-   .then(data=>{if(active){setCatalog(data);setPersonaId(data.personas[0]?.id||"");}})
+   .then(data=>{if(active){setCatalog(data);setPersonaId(data.personas[0]?.id||"");const p=data.personas[0];if(p)setMode(p.supports_voice?"VOICE":p.supports_text?"TEXT":"VIDEO");}})
    .catch(()=>{if(active)setNotice("Не удалось загрузить каталог аватаров. Вы можете выбрать живого специалиста.");});
   return ()=>{active=false};
  },[]);
@@ -59,7 +59,7 @@ export function AvatarWorkspace(){
   {!session&&<>
    {catalog===null?<p>Загружаем доступных персонажей…</p>:!catalog.available?<p>Сейчас безопасный разговор с аватаром не настроен. Запись к живому специалисту доступна отдельно.</p>:<>
     <label htmlFor="persona-choice">Аватар</label>
-    <select id="persona-choice" value={personaId} onChange={e=>setPersonaId(e.target.value)}>
+    <select id="persona-choice" value={personaId} onChange={e=>{setPersonaId(e.target.value);const p=catalog?.personas.find(x=>x.id===e.target.value);if(p)setMode(p.supports_voice?"VOICE":p.supports_text?"TEXT":"VIDEO");}}>
      {catalog.personas.map(p=><option key={p.id} value={p.id}>{p.label} — {p.language}</option>)}
     </select>
     <label htmlFor="persona-purpose">Цель разговора</label>
