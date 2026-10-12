@@ -108,7 +108,7 @@ export default function ConsultationJourney({ bookingID }: { bookingID: string }
   }
 
   return (
-    <section className="journey-stage" aria-label="Подготовка и личный результат консультации">
+    <section className="journey-stage" aria-label="Готовность участников и личный отклик">
       <h3>Подготовка к консультации</h3>
       <p>Отметка «Я готов» не означает подключения к комнате или проведения консультации. Вход и завершение подтверждает внешний сервис связи.</p>
       {ready ? (
