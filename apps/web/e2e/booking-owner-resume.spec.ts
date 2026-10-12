@@ -47,8 +47,10 @@ test("direct booking page recovers from canonical owner API without sessionStora
     paymentMode = uncertain;
     await page.getByRole("button", {name: "Проверить актуальный статус"}).click();
     await expect(page.getByRole("heading", {name: "Запись подтверждена"})).toBeVisible();
-    await expect(page.getByRole("region", {name: "Результат консультации"})).toHaveCount(0);
-    await expect(page.getByRole("alert").filter({hasText: "Доступ к консультации закрыт"})).toBeVisible();
+    // Unknown payment must deny a NEW media grant, but preserve the separate provider history read.
+    await expect(page.getByRole("region", {name: "Результат консультации"})).toBeVisible();
+    await expect(page.getByRole("status").filter({hasText: "Вход в защищённую медиакомнату недоступен"})).toBeVisible();
+    await expect(page.getByText("Состояние консультации: Завершена.")).toHaveCount(0);
   }
   paymentMode = "captured";
   await page.getByRole("button", {name: "Проверить актуальный статус"}).click();
