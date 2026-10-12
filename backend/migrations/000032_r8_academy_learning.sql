@@ -64,14 +64,18 @@ DECLARE
   version_state text;
 BEGIN
   IF TG_TABLE_NAME='academy_modules' THEN
-    IF TG_OP='UPDATE' AND OLD.version_id IS DISTINCT FROM NEW.version_id THEN
-      RAISE EXCEPTION 'academy module version cannot change';
+    IF TG_OP='UPDATE' THEN
+      IF OLD.version_id IS DISTINCT FROM NEW.version_id THEN
+        RAISE EXCEPTION 'academy module version cannot change';
+      END IF;
     END IF;
     IF TG_OP='DELETE' THEN version_id:=OLD.version_id;
     ELSE version_id:=NEW.version_id; END IF;
   ELSIF TG_TABLE_NAME='academy_lessons' THEN
-    IF TG_OP='UPDATE' AND OLD.module_id IS DISTINCT FROM NEW.module_id THEN
-      RAISE EXCEPTION 'academy lesson module cannot change';
+    IF TG_OP='UPDATE' THEN
+      IF OLD.module_id IS DISTINCT FROM NEW.module_id THEN
+        RAISE EXCEPTION 'academy lesson module cannot change';
+      END IF;
     END IF;
     IF TG_OP='DELETE' THEN
       SELECT m.version_id INTO version_id FROM academy_modules m WHERE m.id=OLD.module_id;
@@ -79,8 +83,10 @@ BEGIN
       SELECT m.version_id INTO version_id FROM academy_modules m WHERE m.id=NEW.module_id;
     END IF;
   ELSIF TG_TABLE_NAME='academy_assessments' THEN
-    IF TG_OP='UPDATE' AND OLD.lesson_id IS DISTINCT FROM NEW.lesson_id THEN
-      RAISE EXCEPTION 'academy assessment lesson cannot change';
+    IF TG_OP='UPDATE' THEN
+      IF OLD.lesson_id IS DISTINCT FROM NEW.lesson_id THEN
+        RAISE EXCEPTION 'academy assessment lesson cannot change';
+      END IF;
     END IF;
     IF TG_OP='DELETE' THEN
       SELECT m.version_id INTO version_id FROM academy_lessons l
@@ -189,6 +195,9 @@ BEGIN
   END IF;
   IF OLD.state<>'ACTIVE' AND NEW.state<>OLD.state THEN
     RAISE EXCEPTION 'academy enrollment terminal';
+  END IF;
+  IF OLD.state='COMPLETED' AND NEW.completed_at IS DISTINCT FROM OLD.completed_at THEN
+    RAISE EXCEPTION 'academy completed_at history is immutable';
   END IF;
   IF NEW.state='COMPLETED' AND OLD.state<>'COMPLETED' THEN
     SELECT state INTO entitlement_status FROM store_entitlements WHERE id=OLD.entitlement_id FOR SHARE;
