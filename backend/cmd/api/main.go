@@ -54,8 +54,10 @@ func main() {
 	if liveEventsEnabled && !runtimepostgres.RequiresDatabase(environment) {
 		log.Fatal("R9 live events require canonical PostgreSQL storage")
 	}
-	ucrMedia,err:=ucr.NewFromEnvironment()
-	if err!=nil {log.Fatalf("APGIC UCR provider configuration invalid: %v",err)}
+	ucrMedia, err := ucr.NewFromEnvironment()
+	if err != nil {
+		log.Fatalf("APGIC UCR provider configuration invalid: %v", err)
+	}
 	providerWebhookKeys, err := providerWebhookKeysFromEnvironment()
 	if err != nil {
 		log.Fatalf("APGIC provider webhook public-key configuration failed: %v", err)

@@ -51,10 +51,10 @@ func main() {
 	for {
 		// R9 notifications use the existing event gateway. No new push transport,
 		// payment workflow or second notification ledger lives in the worker.
-		if os.Getenv("APGIC_LIVE_EVENTS_ENABLED")=="1" {
-			queued,queueErr:=storage.QueueDueLiveReminders(ctx,time.Now().UTC(),batchSize)
-			if queueErr!=nil && ctx.Err()==nil{
-				log.Printf("R9 reminder scheduling incomplete: queued=%d error=%v",queued,queueErr)
+		if os.Getenv("APGIC_LIVE_EVENTS_ENABLED") == "1" {
+			queued, queueErr := storage.QueueDueLiveReminders(ctx, time.Now().UTC(), batchSize)
+			if queueErr != nil && ctx.Err() == nil {
+				log.Printf("R9 reminder scheduling incomplete: queued=%d error=%v", queued, queueErr)
 			}
 		}
 		delivered, err := storage.DeliverPendingOutbox(ctx, batchSize, deliverer.Deliver)
