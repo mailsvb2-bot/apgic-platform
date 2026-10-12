@@ -44,6 +44,9 @@ func TestUCRServerOwnedConferenceJoinAndModeration(t *testing.T) {
 	now := time.Date(2026, 10, 12, 11, 0, 0, 0, time.UTC)
 	var mu sync.Mutex
 	requests := map[string]int{}
+	var grantKeys []string
+	var conferenceRefs []string
+	var externalUsers []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
 		requests[r.URL.Path]++
@@ -69,6 +72,8 @@ func TestUCRServerOwnedConferenceJoinAndModeration(t *testing.T) {
 				return
 			}
 			w.Write([]byte(`{"conference":{"conference_id":"ucr-room-101","lifecycle":"scheduled"}}`))
+		case "/v1/conferences/runtime":
+			w.Write([]byte(`{"runtime":{"group_ready":true,"call_ready":true,"admitted_participant_count":0}}`))
 		case "/v1/conferences/lifecycle":
 			v, _ := request["target"].(string)
 			json.NewEncoder(w).Encode(map[string]any{"conference": map[string]any{"lifecycle": v}})
@@ -83,6 +88,11 @@ func TestUCRServerOwnedConferenceJoinAndModeration(t *testing.T) {
 		case "/v1/participant-devices":
 			w.Write([]byte(`{"device":{"active":true}}`))
 		case "/v1/join-grants":
+			mu.Lock()
+			grantKeys = append(grantKeys, request["idempotency_key"].(string))
+			conferenceRefs = append(conferenceRefs, request["conference_id"].(string))
+			externalUsers = append(externalUsers, request["external_user_id_b64"].(string))
+			mu.Unlock()
 			json.NewEncoder(w).Encode(map[string]any{"grant": map[string]any{
 				"join_url":           "https://join.example/room#ucr_join=provider-signed-grant",
 				"expires_at_unix_ms": now.Add(90 * time.Second).UnixMilli()}})
@@ -111,6 +121,10 @@ func TestUCRServerOwnedConferenceJoinAndModeration(t *testing.T) {
 	if err != nil || !strings.Contains(token.JoinURL, "#ucr_join=") {
 		t.Fatalf("join: %+v %v", token, err)
 	}
+	second, err := c.Join(context.Background(), room, "dddddddd-dddd-4ddd-8ddd-dddddddddddd", "attendee")
+	if err != nil || second.JoinURL == "" {
+		t.Fatalf("second attendee was denied a grant from the same UCR room: %v", err)
+	}
 	if err = c.Moderate(context.Background(), room, "cccccccc-cccc-4ccc-8ccc-cccccccccccc", "mute"); err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +134,13 @@ func TestUCRServerOwnedConferenceJoinAndModeration(t *testing.T) {
 	}
 	mu.Lock()
 	defer mu.Unlock()
-	for _, path := range []string{"/v1/conferences", "/v1/conferences/lifecycle", "/v1/conferences/entry", "/v1/participants", "/v1/participant-devices", "/v1/join-grants", "/v1/participants/update", "/v1/attendance"} {
+	if len(grantKeys) != 2 || grantKeys[0] == grantKeys[1] ||
+		len(conferenceRefs) != 2 || conferenceRefs[0] != room.ConferenceID ||
+		conferenceRefs[1] != room.ConferenceID ||
+		len(externalUsers) != 2 || externalUsers[0] == externalUsers[1] {
+		t.Fatal("two-person UCR grant contract did not preserve one room and distinct participants")
+	}
+	for _, path := range []string{"/v1/conferences", "/v1/conferences/runtime", "/v1/conferences/lifecycle", "/v1/conferences/entry", "/v1/participants", "/v1/participant-devices", "/v1/join-grants", "/v1/participants/update", "/v1/attendance"} {
 		if requests[path] == 0 {
 			t.Errorf("UCR boundary missing request %s", path)
 		}

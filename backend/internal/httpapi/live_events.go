@@ -235,6 +235,14 @@ func registerLiveEvents(mux *http.ServeMux, store LiveEventStore, keys connector
 					liveError(w, r, err)
 					return
 				}
+				// Never advance a real UCR session if canonical SQL will reject
+				// an expired readiness proof afterwards.
+				if (transition.target == liveevents.Published || transition.target == liveevents.Live) &&
+					(room.ProviderReadyAt.IsZero() || instant.Sub(room.ProviderReadyAt) > 5*time.Minute ||
+					room.ProviderReadyAt.After(instant.Add(time.Minute))) {
+					liveError(w, r, liveevents.ErrUnavailable)
+					return
+				}
 				if err = media.Change(r.Context(), room, transition.target); err != nil {
 					liveError(w, r, err)
 					return

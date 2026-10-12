@@ -145,3 +145,15 @@ The canonical production journey is:
 - Consent and privacy policy for media/recording, participant data removal,
   final attendance reconciliation and NotificationProvider delivery receipts
   must be operationally verified. Recording remains disabled.
+
+## Media runtime and rejoin correctness
+
+UCR room create is followed by authenticated `POST /v1/conferences/runtime`.
+The provider must report both `group_ready` and `call_ready` before APGIC
+persists its media binding. API-level conference creation alone is not counted
+as media readiness. Each single-use join grant uses a fresh cryptographically
+random idempotency identity so reconnecting clients do not reuse a redeemed
+token. APGIC validates the signed-grant URL origin/fragment and expiry, but
+UCR remains sole grant issuer/verifier. UCR contract tests exercise two distinct
+participant identities joining the same provider conference; these tests use a
+fake HTTP provider and **do not** prove a running WebRTC path.

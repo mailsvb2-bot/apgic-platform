@@ -3,14 +3,15 @@ package ucr
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -157,6 +158,23 @@ func (c *Client) Prepare(ctx context.Context, e liveevents.Event) (liveevents.Me
 	if id == "" || (str(room, "lifecycle") != "scheduled" && str(room, "lifecycle") != "waiting" && !(e.State == liveevents.Live && str(room, "lifecycle") == "live")) {
 		return liveevents.MediaRoom{}, liveevents.ErrUnavailable
 	}
+	// UCR runtime (not APGIC) must prove Group and Call preparation before
+	// APGIC binds and publishes the room. Conference existence alone is not
+	// evidence of usable media or admission.
+	runtimeRequest := map[string]any{
+		"scope":           c.scope(e.OrganizationID),
+		"integration_id":  c.integrationID,
+		"conference_id":   id,
+		"idempotency_key": "apgic-r9-runtime-" + e.ID,
+	}
+	prepared, err := c.request(ctx, "POST", "/v1/conferences/runtime", runtimeRequest)
+	if err != nil {
+		return liveevents.MediaRoom{}, err
+	}
+	runtime := child(prepared, "runtime")
+	if !yes(runtime, "group_ready") || !yes(runtime, "call_ready") {
+		return liveevents.MediaRoom{}, liveevents.ErrUnavailable
+	}
 	return liveevents.MediaRoom{EventID: e.ID, OrganizationID: e.OrganizationID, ProviderInstanceID: c.providerID,
 		ConferenceID: id, IntegrationID: c.integrationID, ProviderReadyAt: c.now().UTC(),
 		StartsAt: e.StartsAt, EndsAt: e.EndsAt, Capacity: e.Capacity, Format: e.Format, State: e.State}, nil
@@ -235,7 +253,13 @@ func (c *Client) Join(ctx context.Context, room liveevents.MediaRoom, identity, 
 	request["external_user_id_b64"] = encoded
 	request["ttl_seconds"] = 120
 	request["use_policy"] = "single_use"
-	request["idempotency_key"] = "apgic-r9-join-" + room.EventID + "-" + identity + "-" + strconv.FormatInt(c.now().Unix()/120, 10)
+	// UCR single-use join grants need a fresh idempotency identity for each
+	// new attempt; bucket reuse can strand reconnecting participants.
+	nonce := make([]byte, 16)
+	if _, err := rand.Read(nonce); err != nil {
+		return liveevents.MediaGrant{}, liveevents.ErrUnavailable
+	}
+	request["idempotency_key"] = "apgic-r9-join-" + room.EventID + "-" + identity + "-" + hex.EncodeToString(nonce)
 	result, err = c.request(ctx, "POST", "/v1/join-grants", request)
 	if err != nil {
 		return liveevents.MediaGrant{}, err
