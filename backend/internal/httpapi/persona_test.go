@@ -12,6 +12,7 @@ import (
 )
 
 type personaStoreFake struct {
+	deny    bool
 	session persona.Session
 	owner   string
 	failed  bool
@@ -55,10 +56,16 @@ func (s *personaStoreFake) EscalateAvatar(context.Context, string, string) error
 	return nil
 }
 func (s *personaStoreFake) AuthorizeAvatarTurn(_ context.Context, _, owner string) error {
-	if owner != s.owner || s.session.State != persona.StateActive || s.session.HandoffRequestedAt != nil || s.session.SafetyState == "ESCALATED" {
+	if s.deny || owner != s.owner || s.session.State != persona.StateActive || s.session.HandoffRequestedAt != nil || s.session.SafetyState == "ESCALATED" {
 		return persona.ErrConflict
 	}
 	return nil
+}
+func (s *personaStoreFake) ReadActiveAvatar(_ context.Context, owner, _, _ string) (persona.Session, error) {
+	if owner != s.owner || s.session.State != persona.StateActive {
+		return persona.Session{}, persona.ErrNotFound
+	}
+	return s.session, nil
 }
 func (s *personaStoreFake) ReadAvatar(_ context.Context, _, owner string) (persona.Session, error) {
 	if owner != s.owner {
@@ -68,8 +75,10 @@ func (s *personaStoreFake) ReadAvatar(_ context.Context, _, owner string) (perso
 }
 
 type personaProviderFake struct {
-	fail     bool
-	failTurn bool
+	fail       bool
+	failTurn   bool
+	gone       bool
+	failStatus bool
 }
 
 func (p personaProviderFake) Open(context.Context, connector.PersonaOpen) (connector.PersonaTransport, error) {
@@ -79,6 +88,13 @@ func (p personaProviderFake) Open(context.Context, connector.PersonaOpen) (conne
 	return connector.PersonaTransport{SessionRef: "external", LaunchURL: "https://avatar.example/run", Mode: "VOICE", ExpiresAt: time.Now().Add(3 * time.Minute)}, nil
 }
 func (personaProviderFake) Close(context.Context, string) error { return nil }
+func (p personaProviderFake) Active(_ context.Context, reference string) (bool, error) {
+	if p.failStatus {
+		return false, connector.ErrPersonaTransport
+	}
+	return reference == "external" && !p.gone, nil
+}
+
 func (p personaProviderFake) Turn(_ context.Context, ref, input string) (string, error) {
 	if p.failTurn {
 		return "", connector.ErrPersonaTransport
@@ -249,5 +265,58 @@ func TestPersonaCatalogFiltersUnreviewedProviderIdentity(t *testing.T) {
 	row, ok := items[0].(map[string]any)
 	if !ok || row["supports_voice"] != false || row["supports_text"] != true {
 		t.Fatalf("provider capability not enforced: %+v", row)
+	}
+}
+
+// Real UI reload loses in-memory transcript but must recover session authorization
+// from its HttpOnly owner cookie. A provider restart invalidates stale DB state.
+func TestPersonaResumeOwnershipProviderRecoveryAndModelRevocation(t *testing.T) {
+	for _, scenario := range []string{"ALIVE", "PROVIDER_LOST", "PROVIDER_OUTAGE", "POLICY_REVOKED"} {
+		store := &personaStoreFake{catalog: []persona.CatalogItem{{
+			ID: "00000000-0000-0000-0000-000000000201", SupportsVoice: true,
+		}}}
+		provider := personaProviderFake{gone: scenario == "PROVIDER_LOST", failStatus: scenario == "PROVIDER_OUTAGE"}
+		handler := New(Options{ClientSessionKey: bytes.Repeat([]byte("x"), 32), PersonaStore: store,
+			PersonaProvider: provider, PersonaEnabled: true, PersonaProviderInstanceID: "provider", PersonaPolicyVersion: "v1"})
+		start := httptest.NewRecorder()
+		input := httptest.NewRequest("POST", "/v1/avatar-sessions", bytes.NewBufferString(
+			`{"persona_id":"00000000-0000-0000-0000-000000000201","session_purpose":"LISTEN","mode":"VOICE","language":"ru","style":"CALM","privacy_mode":"PRIVATE_EPHEMERAL"}`))
+		input.Header.Set("Idempotency-Key", "resume-journey-01")
+		handler.ServeHTTP(start, input)
+		if start.Code != 201 {
+			t.Fatalf("%s: start %d %s", scenario, start.Code, start.Body)
+		}
+		cookies := start.Result().Cookies()
+		if len(cookies) == 0 {
+			t.Fatal("owner cookie missing")
+		}
+		if scenario == "POLICY_REVOKED" {
+			store.deny = true
+		}
+		blocked := httptest.NewRecorder()
+		handler.ServeHTTP(blocked, httptest.NewRequest("GET", "/v1/avatar-sessions/current", nil))
+		if blocked.Code == 200 && !bytes.Contains(blocked.Body.Bytes(), []byte(`"session":null`)) {
+			t.Fatalf("%s: another user recovered private session: %s", scenario, blocked.Body)
+		}
+		restored := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", "/v1/avatar-sessions/current", nil)
+		req.AddCookie(cookies[0])
+		handler.ServeHTTP(restored, req)
+		switch scenario {
+		case "ALIVE":
+			if restored.Code != 200 || !bytes.Contains(restored.Body.Bytes(), []byte(store.session.ID)) ||
+				bytes.Contains(restored.Body.Bytes(), []byte("external")) {
+				t.Fatalf("valid reload must restore public session only: %d %s", restored.Code, restored.Body)
+			}
+		case "PROVIDER_LOST", "POLICY_REVOKED":
+			if restored.Code != 200 || store.session.State != persona.StateEnded ||
+				!bytes.Contains(restored.Body.Bytes(), []byte(`"session":null`)) {
+				t.Fatalf("stale provider/policy survived: %s %d %s", scenario, restored.Code, restored.Body)
+			}
+		case "PROVIDER_OUTAGE":
+			if restored.Code != 503 || store.session.State != persona.StateActive {
+				t.Fatalf("unknown provider outage treated as definite close: %d %s", restored.Code, restored.Body)
+			}
+		}
 	}
 }

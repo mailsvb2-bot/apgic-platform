@@ -150,6 +150,17 @@ func TestRealModelBackedPersonaConversationAndEphemeralDeletion(t *testing.T) {
 	if count != 1 {
 		t.Fatal("duplicated provider sessions")
 	}
+	live := post("/v1/persona-sessions/status", map[string]string{"session_ref": ticket.SessionRef}, true)
+	var proof struct {
+		Active bool `json:"active"`
+	}
+	if err := json.NewDecoder(live.Body).Decode(&proof); err != nil {
+		t.Fatal(err)
+	}
+	live.Body.Close()
+	if live.StatusCode != 200 || !proof.Active {
+		t.Fatal("model session not active for reload")
+	}
 	for i := 1; i <= 2; i++ {
 		res := post("/v1/persona-sessions/turns", map[string]string{"session_ref": ticket.SessionRef, "message": "Привет"}, true)
 		var out struct {
@@ -175,6 +186,17 @@ func TestRealModelBackedPersonaConversationAndEphemeralDeletion(t *testing.T) {
 	provider.mu.Unlock()
 	if left != 0 {
 		t.Fatal("ephemeral content was not deleted")
+	}
+	gone := post("/v1/persona-sessions/status", map[string]string{"session_ref": ticket.SessionRef}, true)
+	var noLease struct {
+		Active bool `json:"active"`
+	}
+	if err := json.NewDecoder(gone.Body).Decode(&noLease); err != nil {
+		t.Fatal(err)
+	}
+	gone.Body.Close()
+	if gone.StatusCode != 200 || noLease.Active {
+		t.Fatal("closed provider lease still reported active")
 	}
 	revoked := post("/v1/persona-sessions/turns", map[string]string{"session_ref": ticket.SessionRef, "message": "Ещё"}, true)
 	revoked.Body.Close()
@@ -214,5 +236,94 @@ func TestPersonaProviderRejectsModelOutageAndLimits(t *testing.T) {
 	provider.handler().ServeHTTP(rec2, req2)
 	if rec2.Code != 429 {
 		t.Fatalf("turn budget bypassed: %d", rec2.Code)
+	}
+}
+
+// A provider close must cancel a concurrent model request. No late model
+// completion can resurrect, leak, or be returned as a successful reply.
+func TestPersonaCloseRevokesInflightInference(t *testing.T) {
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	model := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		close(entered)
+		select {
+		case <-r.Context().Done():
+		case <-release: // ensure mock server can always release on test teardown
+		}
+	}))
+	defer model.Close()
+	defer close(release)
+	ref := strings.Repeat("a", 64)
+	svc := newService(config{token: strings.Repeat("s", 32), modelURL: model.URL,
+		modelKey: "model-secret-for-test", model: "evaluated", policy: "v1", client: model.Client()})
+	svc.sessions[ref] = &session{mode: "TEXT", apgicID: "00000000-0000-0000-0000-000000000301", expires: time.Now().Add(sessionTTL)}
+	svc.byAPGIC["00000000-0000-0000-0000-000000000301"] = ref
+	server := httptest.NewServer(svc.handler())
+	defer server.Close()
+	post := func(path string) (*http.Response, error) {
+		var payload string
+		if path == "/v1/persona-sessions/turns" {
+			payload = `{"session_ref":"` + ref + `","message":"Привет"}`
+		} else {
+			payload = `{"session_ref":"` + ref + `"}`
+		}
+		req, err := http.NewRequest("POST", server.URL+path, strings.NewReader(payload))
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Authorization", "Bearer "+strings.Repeat("s", 32))
+		req.Header.Set("Content-Type", "application/json")
+		return http.DefaultClient.Do(req)
+	}
+	answer := make(chan int, 1)
+	go func() {
+		res, err := post("/v1/persona-sessions/turns")
+		if err != nil {
+			answer <- 0
+			return
+		}
+		defer res.Body.Close()
+		answer <- res.StatusCode
+	}()
+	select {
+	case <-entered:
+	case <-time.After(2 * time.Second):
+		t.Fatal("model request never started")
+	}
+	closed, err := post("/v1/persona-sessions/close")
+	if err != nil {
+		t.Fatal(err)
+	}
+	closed.Body.Close()
+	if closed.StatusCode != 200 {
+		t.Fatal("close failed")
+	}
+	select {
+	case status := <-answer:
+		if status == 200 {
+			t.Fatal("cancelled inference returned fake successful reply")
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("cancelled model blocked provider cleanup")
+	}
+	svc.mu.Lock()
+	_, exists := svc.sessions[ref]
+	svc.mu.Unlock()
+	if exists {
+		t.Fatal("model session resurrected after cancellation")
+	}
+}
+func TestExpiredProviderTombstonesAreRemoved(t *testing.T) {
+	svc := newService(config{token: strings.Repeat("x", 32)})
+	svc.closed["old"] = time.Now().Add(-time.Second)
+	svc.closed["new"] = time.Now().Add(time.Minute)
+	svc.reap()
+	svc.mu.Lock()
+	defer svc.mu.Unlock()
+	if _, ok := svc.closed["old"]; ok {
+		t.Fatal("expired private marker retained")
+	}
+	if _, ok := svc.closed["new"]; !ok {
+		t.Fatal("live revocation fence lost")
 	}
 }

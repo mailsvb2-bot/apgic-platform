@@ -302,3 +302,26 @@ func (c *Checker) AuthorizeAvatarTurn(ctx context.Context, id, owner string) err
 	}
 	return nil
 }
+
+// ReadActiveAvatar restores ONLY the owner's current, time-bounded canonical
+// session. It never returns provider secret credentials or conversation data.
+func (c *Checker) ReadActiveAvatar(ctx context.Context, owner, provider, policy string) (persona.Session, error) {
+	if c == nil || c.db == nil {
+		return persona.Session{}, persona.ErrUnavailable
+	}
+	if !persona.ValidID(owner) || !persona.ValidID(provider) || strings.TrimSpace(policy) == "" {
+		return persona.Session{}, persona.ErrInvalidRequest
+	}
+	var id string
+	err := c.db.QueryRowContext(ctx, `SELECT id::text FROM avatar_sessions
+ WHERE user_id=$1::uuid AND provider_instance_id=$2::uuid AND policy_version=$3
+ AND state='ACTIVE' AND started_at>now()-interval '12 minutes'
+ ORDER BY started_at DESC,id DESC LIMIT 1`, owner, provider, policy).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return persona.Session{}, persona.ErrNotFound
+	}
+	if err != nil {
+		return persona.Session{}, err
+	}
+	return c.ReadAvatar(ctx, id, owner)
+}

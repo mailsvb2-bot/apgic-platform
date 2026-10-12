@@ -49,3 +49,18 @@ export async function sendNativePersona(base:string,sessionID:string,message:str
  if(result.source!=="MODEL_GENERATED"||typeof result.reply!=="string"||!result.reply.trim())throw Error("PERSONA_MODEL_UNAVAILABLE");
  return result.reply;
 }
+
+// Resumption uses the HttpOnly/APGIC-owned client session, not local transcript
+// storage or provider references. 401 is an ordinary first-use/no-cookie case.
+export async function readNativeActivePersona(base:string,request:Fetcher=fetch):Promise<PersonaSession|null>{
+ const response=await request(personaOrigin(base)+"/v1/avatar-sessions/current",{
+  credentials:"include",cache:"no-store"
+ });
+ if(response.status===401)return null;
+ const result=await requireSuccess(response) as {session?:PersonaSession|null};
+ if(!result.session)return null;
+ if(result.session.state!=="ACTIVE"||!/^[a-fA-F0-9-]{36}$/.test(result.session.session_id)){
+  throw Error("PERSONA_RESUME_INVALID");
+ }
+ return result.session;
+}

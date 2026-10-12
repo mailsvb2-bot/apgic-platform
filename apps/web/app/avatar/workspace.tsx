@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 type Persona = { id: string; label: string; language: string; supports_video: boolean; supports_voice: boolean; supports_text: boolean };
 type Catalog = { available: boolean; personas: Persona[] };
-type Session = { session_id: string; state: string; mode: string; safety_state: string };
+type Session = { session_id: string; persona_id: string; language: string; state: string; mode: string; safety_state: string };
 type Transport = { launch_url: string; mode: string; expires_at: string };
 type Entry = { side: "user" | "assistant"; text: string };
 type Recognizer = { lang: string; onresult: ((event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null; onerror: (() => void) | null; start: () => void; stop: () => void };
@@ -37,6 +37,28 @@ export function AvatarWorkspace() {
    const first=data.personas[0];
    if(first){setPersonaId(first.id);setMode(first.supports_text ? "TEXT" : first.supports_voice ? "VOICE" : "VIDEO");}
   }).catch(()=>{if(active) setNotice("Каталог аватаров недоступен. Вы можете перейти к живому специалисту.");});
+  // A page refresh loses local private messages, but the server's authenticated
+  // lease can still be resumed without localStorage/sessionStorage transcripts.
+  fetch("/v1/avatar-sessions/current",{credentials:"same-origin",cache:"no-store"})
+   .then(async response=>{
+    if(response.status===401)return null; // no existing cookie, not a failure
+    if(!response.ok)throw Error("Статус предыдущего разговора пока не подтверждён.");
+    return response.json();
+   })
+   .then(data=>{
+    if(!active||!data)return;
+    if(data.session?.state==="ACTIVE"){
+     const resumed=data.session as Session;
+     setSession(resumed);setPersonaId(resumed.persona_id);setMode(resumed.mode);
+     setTransport({launch_url:"",mode:resumed.mode,expires_at:""});
+     setMessages([]);setNotice("Соединение восстановлено. Переписка до перезагрузки не хранится на устройстве.");
+    }else if(data.reason_code==="PERSONA_PROVIDER_SESSION_LOST"){
+     setNotice("Провайдер перезапущен: старый разговор завершён. Можно начать новый.");
+    }else if(data.reason_code==="PERSONA_PROVIDER_CLOSE_UNCERTAIN"){
+     setNotice("Доступ к прежней сессии закрыт, но удаление у провайдера не подтверждено.");
+    }
+   })
+   .catch(error=>{if(active)setNotice(error instanceof Error?error.message:"Не удалось проверить прошлый разговор.")});
   if(typeof window!=="undefined"){const w=window as SpeechWindow;setVoiceAvailable(Boolean(w.SpeechRecognition||w.webkitSpeechRecognition));}
   return ()=>{active=false;recognition.current?.stop();if(typeof window!=="undefined"&&"speechSynthesis" in window)window.speechSynthesis.cancel();};
  },[]);
@@ -79,7 +101,7 @@ export function AvatarWorkspace() {
    if(session.mode==="VOICE"&&"speechSynthesis" in window){
     window.speechSynthesis.cancel();
     const utterance=new SpeechSynthesisUtterance(data.reply);
-    utterance.lang=selected?.language||"ru-RU";utterance.rate=0.95;
+    utterance.lang=session.language||"ru-RU";utterance.rate=0.95;
     window.speechSynthesis.speak(utterance);
    }
   }catch(error){setNotice(error instanceof Error?error.message:"Провайдер недоступен — ответа нет.");}
@@ -92,7 +114,7 @@ export function AvatarWorkspace() {
   if(!Ctor){setNotice("Распознавание речи не поддерживается браузером. Можно написать текст.");return;}
   try{
    recognition.current?.stop();
-   const rec=new Ctor();recognition.current=rec;rec.lang=selected?.language||"ru-RU";
+   const rec=new Ctor();recognition.current=rec;rec.lang=session.language||"ru-RU";
    rec.onresult=(event)=>{const words=event.results[0]?.[0]?.transcript;if(words)void send(words);};
    rec.onerror=()=>setNotice("Микрофон или распознавание речи недоступны. Введите сообщение текстом.");
    rec.start();

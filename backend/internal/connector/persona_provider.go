@@ -232,3 +232,19 @@ func (p *HTTPPersonaRuntime) Catalog(ctx context.Context) ([]PersonaCapability, 
 	}
 	return out.Personas, nil
 }
+
+// Active verifies a specific ephemeral lease with the provider after a client
+// reload or API restart. No transcript, provider ref or token reaches clients.
+func (p *HTTPPersonaRuntime) Active(ctx context.Context, reference string) (bool, error) {
+	if p == nil || strings.TrimSpace(reference) == "" {
+		return false, ErrPersonaTransport
+	}
+	var status struct {
+		Active bool `json:"active"`
+	}
+	if err := p.call(ctx, "/v1/persona-sessions/status",
+		map[string]string{"session_ref": reference}, &status); err != nil {
+		return false, ErrPersonaTransport
+	}
+	return status.Active, nil
+}

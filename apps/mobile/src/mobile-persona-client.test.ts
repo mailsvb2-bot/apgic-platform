@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {personaOrigin,safePersonaLaunchURL,openNativePersona,actNativePersona,sendNativePersona} from "./mobile-persona-client.ts";
+import {personaOrigin,safePersonaLaunchURL,openNativePersona,actNativePersona,sendNativePersona,readNativeActivePersona} from "./mobile-persona-client.ts";
 test("persona mobile egress always uses approved origin syntax",()=>{
  for(const url of ["http://example.com/","https://u:p@example.com/","https://example.com/extra","https://example.com/?x=1"])assert.throws(()=>personaOrigin(url));
  assert.equal(personaOrigin("https://apgic.ru/"),"https://apgic.ru");
@@ -34,4 +34,20 @@ test("inline private text conversation sends a real provider turn and refuses fa
  assert.equal(out,"Ответ действующей модели");
  assert.ok(seen.some(q=>q.includes("/turns")&&q.includes("Привет")));
  await assert.rejects(()=>sendNativePersona("https://apgic.ru/",open.session.session_id,"Привет",async()=>({ok:true,status:200,json:async()=>({source:"MOCK",reply:"Заглушка"})})));
+});
+
+test("native restart resumes only authenticated active session, never an old transcript", async()=>{
+ const uid="00000000-0000-0000-0000-000000000301";
+ const requests:string[]=[];
+ const client=async(url:string)=>{
+  requests.push(url);
+  return {ok:true,status:200,json:async()=>({session:{session_id:uid,state:"ACTIVE",mode:"TEXT",safety_state:"NORMAL"}})};
+ };
+ const current=await readNativeActivePersona("https://apgic.ru/",client);
+ assert.equal(current?.session_id,uid);
+ assert.deepEqual(requests,["https://apgic.ru/v1/avatar-sessions/current"]);
+ assert.equal("transcript" in (current||{}),false);
+ const fresh=await readNativeActivePersona("https://apgic.ru/",async()=>({ok:false,status:401,json:async()=>({code:"CLIENT_SESSION_REQUIRED"})}));
+ assert.equal(fresh,null);
+ await assert.rejects(()=>readNativeActivePersona("https://apgic.ru/",async()=>({ok:false,status:503,json:async()=>({code:"PERSONA_PROVIDER_UNAVAILABLE"})})));
 });

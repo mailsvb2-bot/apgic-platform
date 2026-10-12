@@ -55,6 +55,8 @@ func TestPersonaConnectorRequiresRealModelReply(t *testing.T) {
 			}}})
 		case "/v1/persona-sessions":
 			_ = json.NewEncoder(w).Encode(map[string]any{"session_ref": "real-ephemeral-ref", "launch_url": "", "mode": "TEXT", "expires_at": time.Now().Add(5 * time.Minute)})
+		case "/v1/persona-sessions/status":
+			_ = json.NewEncoder(w).Encode(map[string]bool{"active": true})
 		case "/v1/persona-sessions/turns":
 			turns++
 			_ = json.NewEncoder(w).Encode(map[string]string{"reply": "Настоящий ответ модели", "source": "MODEL_GENERATED"})
@@ -80,6 +82,10 @@ func TestPersonaConnectorRequiresRealModelReply(t *testing.T) {
 	out, err := p.Open(context.Background(), PersonaOpen{Mode: "TEXT"})
 	if err != nil || out.Mode != "TEXT" || out.LaunchURL != "" {
 		t.Fatalf("inline conversation denied: %+v %v", out, err)
+	}
+	active, statusError := p.Active(context.Background(), out.SessionRef)
+	if statusError != nil || !active {
+		t.Fatalf("provider session status did not reconcile: %v %v", active, statusError)
 	}
 	reply, err := p.Turn(context.Background(), out.SessionRef, "Привет")
 	if err != nil || reply != "Настоящий ответ модели" || turns != 1 {

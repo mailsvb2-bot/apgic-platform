@@ -181,3 +181,31 @@ uses the browser's speech recognition and speech synthesis, which may rely
 on external browser-vendor processing. Do not promise voice-profile fidelity,
 zero-retention inference, VPR parity or production readiness without live
 end-to-end proof and provider terms validation.
+
+## Reload, restart and provider-liveness recovery
+
+The protected \`GET /v1/avatar-sessions/current\` endpoint returns at most one
+currently ACTIVE, unexpired session owned by the browser/mobile cookie. It
+never returns a provider session reference, inference credentials, history,
+prompt or audio. If no authorized owner cookie exists, the client treats 401
+as first use. Text/voice sessions can resume after a UI reload while their
+provider lease is still alive. The previous page's temporary messages are
+deliberately lost; the short provider-side conversation memory stays only
+until the original lease expires or is closed.
+
+Restoration requires both PostgreSQL authority (published and rights-cleared
+persona, approved model, kill-switch, state, time budget) **and** positive
+evidence from provider \`POST /v1/persona-sessions/status\`. A definite absence
+after provider restart records ENDED and permits a new session. A provider
+network error returns 503, rather than guessing that the old lease was
+deleted. A revoked policy blocks new turns, closes the business session and
+attempts provider cleanup. Remote failure is explicitly marked uncertain.
+There is no implicit video reauthorization: VIDEO needs a fresh,
+provider-approved short-lived launch capability.
+
+A browser refresh and a lost provider response must never produce a
+fabricated model answer or duplicate billing. Provider is deliberately
+in-memory and should not be load-balanced without a session-affine routing
+contract; its independent 12-minute TTL and bounded revocation fence are
+defense-in-depth, not proof of persistent remote erasure. A future durable
+provider-cleanup reconciliation path is necessary before launch certification.

@@ -127,12 +127,19 @@ func (s *service) reap() {
 			delete(s.sessions, k)
 		}
 	}
+	// Expired revocation fences contain only opaque IDs; bound their lifetime.
+	for id, until := range s.closed {
+		if !time.Now().Before(until) {
+			delete(s.closed, id)
+		}
+	}
 }
 func (s *service) handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /v1/persona-sessions", s.open)
 	mux.HandleFunc("POST /v1/persona-sessions/turns", s.turn)
 	mux.HandleFunc("POST /v1/persona-sessions/close", s.close)
+	mux.HandleFunc("POST /v1/persona-sessions/status", s.status)
 	// Capabilities are the operator-reviewed runtime identity manifest, not a
 	// synthetic list. APGIC intersects this with its rights-cleared SQL catalog.
 	mux.HandleFunc("GET /v1/persona-catalog", func(w http.ResponseWriter, r *http.Request) {
@@ -259,6 +266,26 @@ func (s *service) close(w http.ResponseWriter, r *http.Request) {
 	}
 	s.mu.Unlock()
 	replyJSON(w, 200, map[string]bool{"deleted": true})
+}
+
+// The client never receives the provider reference. The APGIC server uses
+// this private liveness proof to reconcile sessions after provider restarts.
+func (s *service) status(w http.ResponseWriter, r *http.Request) {
+	var q struct {
+		SessionRef string `json:"session_ref"`
+	}
+	if !decode(w, r, &q) {
+		return
+	}
+	if len(q.SessionRef) != 64 {
+		http.Error(w, "INVALID_REFERENCE", 400)
+		return
+	}
+	s.mu.Lock()
+	v, ok := s.sessions[q.SessionRef]
+	active := ok && time.Now().Before(v.expires)
+	s.mu.Unlock()
+	replyJSON(w, 200, map[string]bool{"active": active})
 }
 func (s *service) turn(w http.ResponseWriter, r *http.Request) {
 	var q struct {

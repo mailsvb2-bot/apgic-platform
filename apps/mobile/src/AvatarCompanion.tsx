@@ -1,6 +1,6 @@
 import React,{useEffect,useState} from "react";
 import {Linking,Pressable,ScrollView,Text,TextInput,View} from "react-native";
-import {actNativePersona,listNativePersonas,openNativePersona,sendNativePersona,
+import {actNativePersona,listNativePersonas,openNativePersona,sendNativePersona,readNativeActivePersona,
  type PersonaCard,type PersonaMode,type PersonaSession} from "./mobile-persona-client.ts";
 
 type Entry={side:"user"|"assistant";text:string};
@@ -22,6 +22,13 @@ export function AvatarCompanion({apiOrigin}:{apiOrigin:string}){
    setCatalog(result.personas);setAvailable(result.available);
    if(result.personas.length){const p=result.personas[0];setSelected(p.id);setMode(p.supports_text?"TEXT":p.supports_video?"VIDEO":"VOICE");}
   }).catch(()=>{if(alive)setMessage("Подключённого безопасного PersonaProvider пока нет.")});
+  // No persisted private history: only the server can resolve the active lease.
+  readNativeActivePersona(apiOrigin).then(resumed=>{
+    if(!alive||!resumed)return;
+    setSession(resumed);setLaunchURL("");setLines([]);
+    setSelected((resumed as PersonaSession & {persona_id?:string}).persona_id||"");
+    setMessage("Сессия восстановлена без сохранения переписки на устройстве.");
+  }).catch(()=>{if(alive)setMessage("Предыдущий разговор нельзя подтвердить. Можно обратиться к живому специалисту.");});
   return()=>{alive=false};
  },[apiOrigin]);
  const choose=(p:PersonaCard)=>{setSelected(p.id);setMode(p.supports_text?"TEXT":p.supports_video?"VIDEO":"VOICE")};

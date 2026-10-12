@@ -21,6 +21,7 @@ type PersonaStore interface {
 	HandoffAvatar(context.Context, string, string) error
 	EscalateAvatar(context.Context, string, string) error
 	ReadAvatar(context.Context, string, string) (persona.Session, error)
+	ReadActiveAvatar(context.Context, string, string, string) (persona.Session, error)
 	AuthorizeAvatarTurn(context.Context, string, string) error
 }
 type personaAPIConfig struct {
@@ -193,6 +194,75 @@ func registerPersona(mux *http.ServeMux, store PersonaStore, provider connector.
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]string{"reply": reply, "source": "MODEL_GENERATED"})
+	})
+	// A reload must neither retain sensitive conversation in browser storage,
+	// nor strand the client behind an ACTIVE database session. Every restoration
+	// checks the actual provider lease; an API restart alone cannot invent one.
+	mux.HandleFunc("GET /v1/avatar-sessions/current", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
+		if !enabled() {
+			writeJSON(w, http.StatusOK, map[string]any{"session": nil, "reason_code": "PERSONA_NOT_CONFIGURED"})
+			return
+		}
+		owner, ok := requiredClientSessionIdentity(w, r, sessions, sessionConfigErr)
+		if !ok {
+			return
+		}
+		current, err := store.ReadActiveAvatar(r.Context(), owner, cfg.ProviderInstanceID, cfg.PolicyVersion)
+		if errors.Is(err, persona.ErrNotFound) {
+			writeJSON(w, 200, map[string]any{"session": nil})
+			return
+		}
+		if err != nil {
+			writePersonaError(w, r, err)
+			return
+		}
+		if current.ProviderSessionRef == "" {
+			writePersonaError(w, r, persona.ErrConflict)
+			return
+		}
+		if err := store.AuthorizeAvatarTurn(r.Context(), current.ID, owner); err != nil {
+			// Revoked catalog, model kill switch or withdrawn rights instantly
+			// stop further use even if the remote provider is still reachable.
+			if err := store.EndAvatar(r.Context(), current.ID, owner); err != nil {
+				writePersonaError(w, r, err)
+				return
+			}
+			cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 5*time.Second)
+			defer cancel()
+			if provider.Close(cleanupCtx, current.ProviderSessionRef) != nil {
+				writeJSON(w, 200, map[string]any{"session": nil, "reason_code": "PERSONA_PROVIDER_CLOSE_UNCERTAIN"})
+			} else {
+				writeJSON(w, 200, map[string]any{"session": nil, "reason_code": "PERSONA_POLICY_REVOKED"})
+			}
+			return
+		}
+		verifier, canVerify := provider.(interface {
+			Active(context.Context, string) (bool, error)
+		})
+		if !canVerify {
+			writeDemandError(w, r, 503, persona.ReasonProviderUnavailable, "Возобновление у провайдера пока не поддерживается.", true, nil)
+			return
+		}
+		alive, err := verifier.Active(r.Context(), current.ProviderSessionRef)
+		if err != nil {
+			writeDemandError(w, r, 503, persona.ReasonProviderUnavailable, "Пока не удалось подтвердить состояние разговора.", true, nil)
+			return
+		}
+		if !alive {
+			if err := store.EndAvatar(r.Context(), current.ID, owner); err != nil {
+				writePersonaError(w, r, err)
+				return
+			}
+			writeJSON(w, 200, map[string]any{"session": nil, "reason_code": "PERSONA_PROVIDER_SESSION_LOST"})
+			return
+		}
+		if current.Mode != "TEXT" && current.Mode != "VOICE" {
+			writeDemandError(w, r, 503, persona.ReasonProviderUnavailable, "Видеосессия требует нового защищённого транспорта.", false, nil)
+			return
+		}
+		writeJSON(w, 200, map[string]any{"session": current, "transport": map[string]any{
+			"launch_url": "", "mode": current.Mode}})
 	})
 	mux.HandleFunc("GET /v1/avatar-sessions/{id}", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
