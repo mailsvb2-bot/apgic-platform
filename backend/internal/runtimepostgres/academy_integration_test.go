@@ -308,7 +308,6 @@ func TestAcademyStoreVerifiedPaidJourneySurvivesRestart(t *testing.T) {
 	}
 }
 
-
 // TestAcademyStoreRefundWithdrawsLearningAccess proves that an external store
 // refund revokes learner CONTENT access after previously persisted course
 // completion. The original certificate remains separate historical evidence.

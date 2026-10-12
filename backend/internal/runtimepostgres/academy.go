@@ -384,8 +384,11 @@ func (c *Checker) AcademyEnroll(actor, courseID string) (academy.Enrollment, err
 	err = tx.QueryRowContext(ctx, `SELECT v.id::text,t.id::text
  FROM academy_courses c
  JOIN academy_course_versions v ON v.course_id=c.id AND v.state='PUBLISHED'
- JOIN store_entitlements t ON t.product_ref='product/'||c.product_id::text
+ JOIN store_entitlements t ON t.product_ref=c.product_id::text
   AND t.identity_id=$2::uuid AND t.state='ACTIVE'
+ JOIN store_transaction_verifications sv ON sv.id=t.verification_id
+  AND sv.identity_id=t.identity_id AND sv.product_ref=t.product_ref
+ JOIN payment_effects paid ON paid.id=sv.payment_effect_id AND paid.effect_kind='CAPTURED'
  WHERE c.id=$1::uuid AND c.state='PUBLISHED'
  ORDER BY v.version_no DESC LIMIT 1`, courseID, actor).Scan(&versionID, &entitlementID)
 	if errors.Is(err, sql.ErrNoRows) {
