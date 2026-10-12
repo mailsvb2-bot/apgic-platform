@@ -137,3 +137,79 @@ BEGIN
   ) THEN RAISE EXCEPTION 'raw consultation content leaked into outcome schema'; END IF;
 END
 $$;
+
+-- Test real cancellation invariants against an active canonical provider
+-- session, without contaminating the d012 fixture for later Go integration.
+-- Nested exception block deliberately rolls the whole synthetic scenario
+-- back after asserting both denied active cancel and permitted terminal cancel.
+DO $r3_cancel$
+DECLARE denied boolean:=false;
+BEGIN
+  BEGIN
+    INSERT INTO consultation_sessions(id,booking_id,client_identity_id,specialist_identity_id,
+        provider_instance_id,state,created_at,updated_at)
+    VALUES ('00000000-0000-0000-0000-00000000d301',
+      '00000000-0000-0000-0000-00000000d012',
+      '00000000-0000-0000-0000-00000000b002',
+      '00000000-0000-0000-0000-00000000b001',
+      '00000000-0000-0000-0000-00000000c001',
+      'SCHEDULED',now(),now());
+    INSERT INTO consultation_lifecycle_facts(
+        id,session_id,fact_type,role,identity_id,provider_instance_id,
+        provider_reference,evidence_ref,idempotency_key,occurred_at)
+    VALUES
+      ('00000000-0000-0000-0000-00000000d311',
+       '00000000-0000-0000-0000-00000000d301','JOINED','CLIENT',
+       '00000000-0000-0000-0000-00000000b002',
+       '00000000-0000-0000-0000-00000000c001',
+       'room/cancel-ci','provider-evidence/cancel/client','r3-cancel-client',now()+interval '1 second'),
+      ('00000000-0000-0000-0000-00000000d312',
+       '00000000-0000-0000-0000-00000000d301','JOINED','SPECIALIST',
+       '00000000-0000-0000-0000-00000000b001',
+       '00000000-0000-0000-0000-00000000c001',
+       'room/cancel-ci','provider-evidence/cancel/specialist','r3-cancel-specialist',now()+interval '2 seconds');
+    INSERT INTO consultation_lifecycle_facts(
+        id,session_id,fact_type,role,identity_id,provider_instance_id,
+        provider_reference,evidence_ref,idempotency_key,occurred_at)
+    VALUES ('00000000-0000-0000-0000-00000000d313',
+      '00000000-0000-0000-0000-00000000d301','STARTED','SYSTEM',
+      NULL,'00000000-0000-0000-0000-00000000c001',
+      'room/cancel-ci','provider-evidence/cancel/started','r3-cancel-started',now()+interval '3 seconds');
+
+    denied:=false;
+    BEGIN
+      UPDATE bookings SET state='CANCELLED',updated_at=now()+interval '4 seconds'
+        WHERE id='00000000-0000-0000-0000-00000000d012';
+    EXCEPTION WHEN raise_exception THEN denied:=true;
+    END;
+    IF NOT denied THEN RAISE EXCEPTION 'in-progress media booking was cancelled'; END IF;
+
+    INSERT INTO consultation_lifecycle_facts(
+        id,session_id,fact_type,role,identity_id,provider_instance_id,
+        provider_reference,evidence_ref,idempotency_key,occurred_at)
+    VALUES ('00000000-0000-0000-0000-00000000d314',
+      '00000000-0000-0000-0000-00000000d301','TECHNICAL_FAILURE','SYSTEM',
+      NULL,'00000000-0000-0000-0000-00000000c001',
+      'room/cancel-ci','provider-evidence/cancel/technical-failure',
+      'r3-cancel-technical-failure',now()+interval '5 seconds');
+
+    denied:=false;
+    BEGIN
+      UPDATE bookings SET state='NO_SHOW',updated_at=now()+interval '6 seconds'
+        WHERE id='00000000-0000-0000-0000-00000000d012';
+    EXCEPTION WHEN raise_exception THEN denied:=true;
+    END;
+    IF NOT denied THEN RAISE EXCEPTION 'technical failure misclassified as no-show'; END IF;
+
+    UPDATE bookings SET state='CANCELLED',updated_at=now()+interval '7 seconds'
+      WHERE id='00000000-0000-0000-0000-00000000d012';
+    IF (SELECT state FROM bookings WHERE id='00000000-0000-0000-0000-00000000d012')<>'CANCELLED' OR
+       (SELECT state FROM consultation_sessions WHERE id='00000000-0000-0000-0000-00000000d301')<>'TECHNICAL_FAILURE' THEN
+      RAISE EXCEPTION 'valid terminal cancellation erased provider technical evidence';
+    END IF;
+    RAISE EXCEPTION 'r3 cancellation probe rollback';
+  EXCEPTION WHEN raise_exception THEN
+    IF SQLERRM<>'r3 cancellation probe rollback' THEN RAISE; END IF;
+  END;
+END
+$r3_cancel$;

@@ -144,7 +144,11 @@ func (c *Checker) RecordCommunicationJoin(ctx context.Context, bookingID, identi
 	}
 	if persistedRef != grant.ProviderCredentialRef || persistedPolicy != prepared.Decision.PolicyVersion ||
 		persistedProvider != prepared.Decision.ProviderInstanceID || persistedDecision != "ALLOW" ||
-		!persistedExpires.Equal(grant.ExpiresAt) {
+		// PostgreSQL timestamptz stores microseconds, while Go time.Time can
+		// carry nanoseconds. Preserve deterministic grant replay without
+		// rejecting valid issued tokens on a sub-microsecond rounding difference.
+		persistedExpires.Sub(grant.ExpiresAt) >= time.Microsecond ||
+		persistedExpires.Sub(grant.ExpiresAt) <= -time.Microsecond {
 		return communication.ErrRoomGrantConflict
 	}
 	return tx.Commit()

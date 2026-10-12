@@ -40,12 +40,24 @@ export default function ConsultationJourney({ bookingID }: { bookingID: string }
     setJoinLink("");
     pendingFeedback.current = null;
     pendingJoinKey.current = null;
-    void fetch(`/v1/consultations/${encodeURIComponent(bookingID)}/ready`, { credentials: "include", cache: "no-store" })
-      .then(async (r) => {
-        if (!r.ok) throw new Error("UNAVAILABLE");
-        return r.json() as Promise<unknown>;
-      }).then((payload) => { if (active && validReady(payload, bookingID)) setReady(payload); })
-      .catch(() => { if (active) setStatus("Готовность пока нельзя проверить."); });
+    // The specialist may confirm after the client. Reconcile both readiness
+    // acknowledgments from PostgreSQL while the booking is open; no reload or
+    // browser-local presence inference is required.
+    let initialRead = true;
+    async function refreshReadiness() {
+      try {
+        const response = await fetch(`/v1/consultations/${encodeURIComponent(bookingID)}/ready`, {
+          credentials: "include", cache: "no-store",
+        });
+        if (!response.ok) throw new Error("UNAVAILABLE");
+        const payload: unknown = await response.json();
+        if (active && validReady(payload, bookingID)) setReady(payload);
+      } catch {
+        if (active && initialRead) setStatus("Готовность пока нельзя проверить.");
+      } finally { initialRead = false; }
+    }
+    void refreshReadiness();
+    const readinessRefresh = setInterval(() => { void refreshReadiness(); }, 12_000);
     async function refreshVerifiedState() {
       try {
         const response = await fetch(`/v1/consultations/${encodeURIComponent(bookingID)}/result`, {
@@ -62,7 +74,7 @@ export default function ConsultationJourney({ bookingID }: { bookingID: string }
     }
     void refreshVerifiedState();
     const refresh = setInterval(() => { void refreshVerifiedState(); }, 20_000);
-    return () => { active = false; clearInterval(refresh); };
+    return () => { active = false; clearInterval(refresh); clearInterval(readinessRefresh); };
   }, [bookingID]);
   useEffect(() => {
     if (!verifiedCompletion) return;
@@ -149,6 +161,8 @@ export default function ConsultationJourney({ bookingID }: { bookingID: string }
         <div aria-live="polite">
           <p>Клиент: {ready.client_ready_at ? "готов" : "готовность не подтверждена"}.
             Специалист: {ready.specialist_ready_at ? "готов" : "готовность не подтверждена"}.</p>
+          {!ready.client_ready_at || !ready.specialist_ready_at ?
+            <p role="status">Ожидаем отметки готовности обеих сторон. Состояние обновляется автоматически.</p> : null}
           <p>Окно готовности: {new Date(ready.opens_at).toLocaleString("ru-RU")} – {new Date(ready.closes_at).toLocaleString("ru-RU")}.</p>
           {ready.consultation_state === "TECHNICAL_FAILURE" ?
             <p role="alert">Медиасервис подтвердил технический сбой. Повторная выдача токена заблокирована. Возврат или перенос оформляется через владельца бронирования.</p> : null}

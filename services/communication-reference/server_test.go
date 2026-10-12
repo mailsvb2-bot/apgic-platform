@@ -92,7 +92,9 @@ func TestTwoParticipantsRealMediaEvidenceAndRestartSafeOutbox(t *testing.T) {
 	if first.ProviderCredentialRef == second.ProviderCredentialRef {
 		t.Fatal("credential references collided")
 	}
-	_, replay := issueFixture(t, s, booking, client, "CLIENT", "client-idempotent-key-0001", start.Add(5*time.Minute))
+	// A retransmission after a lost HTTP response recomputes a later requested
+	// expiry, but MUST return the same previously persisted bearer grant.
+	_, replay := issueFixture(t, s, booking, client, "CLIENT", "client-idempotent-key-0001", start.Add(6*time.Minute))
 	if first != replay {
 		t.Fatalf("issuer did not replay deterministic credential: %+v vs %+v", first, replay)
 	}

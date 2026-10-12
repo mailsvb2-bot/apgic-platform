@@ -154,7 +154,12 @@ func (s *referenceService) handleIssue(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	attempt, found := room.Grants[req.IdempotencyKey]
-	if found && (attempt.Identity != memberID || attempt.Role != req.Role || !attempt.ExpiresAt.Equal(req.ExpiresAt)) {
+	// Reusing the SAME opaque key after a lost response must return the
+	// original grant, not another room credential. The retry policy may
+	// advance the calculated expiry, but cannot extend the original TTL.
+	// Any attempt to shorten/revoke its cap fails closed.
+	if found && (attempt.Identity != memberID || attempt.Role != req.Role ||
+		!attempt.ExpiresAt.After(now) || attempt.ExpiresAt.After(req.ExpiresAt)) {
 		http.Error(w, "idempotency conflict", http.StatusConflict)
 		return
 	}
