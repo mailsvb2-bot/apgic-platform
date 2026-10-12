@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type Readiness = {
   booking_id: string; role: "CLIENT" | "SPECIALIST"; booking_state: string;
@@ -21,31 +21,53 @@ function validReady(payload: unknown, id: string): payload is Readiness {
     Number.isFinite(Date.parse(x.opens_at)) && Number.isFinite(Date.parse(x.closes_at));
 }
 
-export default function ConsultationJourney({ bookingID, completed }: { bookingID: string; completed: boolean }) {
+export default function ConsultationJourney({ bookingID }: { bookingID: string }) {
   const [ready, setReady] = useState<Readiness | null>(null);
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
+  const [verifiedCompletion, setVerifiedCompletion] = useState(false);
+  const pendingFeedback = useRef<{ key: string; fingerprint: string } | null>(null);
   const [progress, setProgress] = useState("0");
   const [satisfaction, setSatisfaction] = useState("5");
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [outcomeStatus, setOutcomeStatus] = useState("");
   useEffect(() => {
     let active = true;
-    setReady(null); setOutcome(null); setStatus(""); setOutcomeStatus("");
+    setReady(null); setOutcome(null); setStatus(""); setOutcomeStatus(""); setVerifiedCompletion(false);
+    pendingFeedback.current = null;
     void fetch(`/v1/consultations/${encodeURIComponent(bookingID)}/ready`, { credentials: "include", cache: "no-store" })
       .then(async (r) => {
         if (!r.ok) throw new Error("UNAVAILABLE");
         return r.json() as Promise<unknown>;
       }).then((payload) => { if (active && validReady(payload, bookingID)) setReady(payload); })
       .catch(() => { if (active) setStatus("Готовность пока нельзя проверить."); });
-    if (completed) {
-      void fetch(`/v1/consultations/${encodeURIComponent(bookingID)}/outcome`, { credentials: "include", cache: "no-store" })
-        .then(async (r) => r.ok ? r.json() as Promise<Outcome> : null)
-        .then((payload) => { if (active && payload?.booking_id === bookingID) setOutcome(payload); })
-        .catch(() => {});
+    async function refreshVerifiedState() {
+      try {
+        const response = await fetch(`/v1/consultations/${encodeURIComponent(bookingID)}/result`, {
+          credentials: "include", cache: "no-store",
+        });
+        if (!response.ok) return;
+        const data: unknown = await response.json();
+        if (!active || !data || typeof data !== "object") return;
+        const result = data as { booking_id?: string; state?: string; completion_evidence_ref?: string };
+        if (result.booking_id !== bookingID || result.state !== "COMPLETED" ||
+            typeof result.completion_evidence_ref !== "string" || !result.completion_evidence_ref.trim()) return;
+        setVerifiedCompletion(true);
+      } catch { /* never infer completion from a failed provider read */ }
     }
+    void refreshVerifiedState();
+    const refresh = setInterval(() => { void refreshVerifiedState(); }, 20_000);
+    return () => { active = false; clearInterval(refresh); };
+  }, [bookingID]);
+  useEffect(() => {
+    if (!verifiedCompletion) return;
+    let active = true;
+    void fetch(`/v1/consultations/${encodeURIComponent(bookingID)}/outcome`, { credentials: "include", cache: "no-store" })
+      .then(async (r) => r.ok ? r.json() as Promise<Outcome> : null)
+      .then((payload) => { if (active && payload?.booking_id === bookingID) setOutcome(payload); })
+      .catch(() => {});
     return () => { active = false; };
-  }, [bookingID, completed]);
+  }, [bookingID, verifiedCompletion]);
 
   async function confirmReady() {
     setBusy(true); setStatus("");
@@ -64,7 +86,11 @@ export default function ConsultationJourney({ bookingID, completed }: { bookingI
   async function reportOutcome() {
     setBusy(true); setOutcomeStatus("");
     try {
-      const idempotencyKey = `client-feedback:${bookingID}:${crypto.randomUUID()}`;
+      const fingerprint = `${bookingID}:${progress}:${satisfaction}`;
+      if (pendingFeedback.current?.fingerprint !== fingerprint) {
+        pendingFeedback.current = { fingerprint, key: `client-feedback:${crypto.randomUUID()}` };
+      }
+      const idempotencyKey = pendingFeedback.current.key;
       const response = await fetch(`/v1/consultations/${encodeURIComponent(bookingID)}/outcome`, {
         method: "POST", credentials: "include", cache: "no-store",
         headers: { "Content-Type": "application/json", "X-APGIC-Request": "consultation-v1" },
@@ -75,6 +101,7 @@ export default function ConsultationJourney({ bookingID, completed }: { bookingI
       if (!response.ok || data?.booking_id !== bookingID || typeof data.progress !== "number" ||
           typeof data.match_satisfaction !== "number") throw new Error("NOT_SAVED");
       setOutcome(data as Outcome);
+      pendingFeedback.current = null;
       setOutcomeStatus("Ваш отклик сохранён.");
     } catch { setOutcomeStatus("Не удалось сохранить отклик. Завершение консультации должно быть подтверждено внешним провайдером."); }
     finally { setBusy(false); }
@@ -95,7 +122,7 @@ export default function ConsultationJourney({ bookingID, completed }: { bookingI
         </div>
       ) : null}
       {status ? <p role="status">{status}</p> : null}
-      {completed ? (
+      {verifiedCompletion ? (
         <div>
           <h3>Мой отклик после консультации</h3>
           <p>Это ваша субъективная оценка, не медицинское подтверждение результата. Аудио и текст беседы не собираются.</p>

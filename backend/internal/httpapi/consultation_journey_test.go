@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/connector"
-	"github.com/mailsvb2-bot/apgic-platform/backend/internal/runtimepostgres"
 )
 
 const journeyBookingID = "00000000-0000-4000-8000-000000000001"
@@ -29,7 +28,7 @@ func (s *journeyStub) ReadConsultationOutcome(_ context.Context,b,i string)(*con
 	return &connector.OutcomeReport{BookingID:b,Progress:1,MatchSatisfaction:5},nil
 }
 func (s *journeyStub) RecordConsultationOutcome(ctx context.Context,b,i,k string,p,m int,_ time.Time)(*connector.OutcomeReport,error) {
-	if !s.completed{return nil,runtimepostgres.ErrConsultationOutcomeNotReady}
+	if !s.completed{return nil,connector.ErrConsultationOutcomeNotReady}
 	s.outcomeWrites++;return s.ReadConsultationOutcome(ctx,b,i)
 }
 func TestConsultationJourneySignedSessionAndEvidence(t *testing.T) {

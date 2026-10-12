@@ -10,8 +10,9 @@ CREATE TABLE consultation_participant_readiness (
 
 CREATE OR REPLACE FUNCTION apgic_consultation_readiness_guard()
 RETURNS trigger LANGUAGE plpgsql AS $$
-DECLARE b bookings%ROWTYPE;
-DECLARE specialist uuid;
+DECLARE
+    b bookings%ROWTYPE;
+    specialist uuid;
 BEGIN
     SELECT * INTO b FROM bookings WHERE id=NEW.booking_id FOR UPDATE;
     IF NOT FOUND OR b.state <> 'CONFIRMED' THEN
@@ -54,8 +55,9 @@ CREATE INDEX consultation_client_outcomes_recent
 
 CREATE OR REPLACE FUNCTION apgic_consultation_client_outcome_guard()
 RETURNS trigger LANGUAGE plpgsql AS $$
-DECLARE booking_client uuid;
-DECLARE consultation_state text;
+DECLARE
+    booking_client uuid;
+    consultation_state text;
 BEGIN
     SELECT b.client_identity_id, s.state INTO booking_client, consultation_state
       FROM bookings b JOIN consultation_sessions s ON s.booking_id=b.id

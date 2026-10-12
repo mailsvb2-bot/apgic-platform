@@ -107,7 +107,7 @@ export default function BookingDetail({ bookingID }: { bookingID: string }) {
           {booking.state === "HELD" || booking.state === "PENDING_PAYMENT" ?
             <p>Это ещё не подтверждённая консультация. Не совершайте повторную оплату без проверки заказа.</p> : null}
           {booking.state === "CONFIRMED" || booking.state === "COMPLETED" ?
-            <><ConsultationJourney key={bookingID + "-journey"} bookingID={bookingID} completed={booking.state === "COMPLETED"} />
+            <><ConsultationJourney key={bookingID + "-journey"} bookingID={bookingID} />
             <ConsultationResultView key={bookingID} bookingID={bookingID} /></> : null}
         </section>
       ) : null}

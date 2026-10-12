@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/connector"
-	"github.com/mailsvb2-bot/apgic-platform/backend/internal/runtimepostgres"
 )
 
 type ConsultationJourneyStore interface {
@@ -59,7 +58,7 @@ func registerConsultationJourney(mux *http.ServeMux, store ConsultationJourneySt
 		if !available(w,r) || !mutation(w,r) {return}
 		identity,ok:=identityFor(w,r);if !ok{return}
 		v,err:=store.ConfirmConsultationReady(r.Context(),r.PathValue("bookingID"),identity,now().UTC())
-		if errors.Is(err,runtimepostgres.ErrConsultationNotReady) {
+		if errors.Is(err,connector.ErrConsultationNotReady) {
 			writeDemandError(w,r,http.StatusConflict,"CONSULT_READY_WINDOW_CLOSED","Отметка готовности доступна только для подтверждённой записи в разрешённое время.",false,nil);return
 		}
 		if err!=nil {consultationStorageError(w,r);return}
@@ -87,11 +86,11 @@ func registerConsultationJourney(mux *http.ServeMux, store ConsultationJourneySt
 		}
 		v,err:=store.RecordConsultationOutcome(r.Context(),r.PathValue("bookingID"),identity,req.IdempotencyKey,req.Progress,req.MatchSatisfaction,now().UTC())
 		switch {
-		case errors.Is(err,runtimepostgres.ErrConsultationOutcomeInvalid):
+		case errors.Is(err,connector.ErrConsultationOutcomeInvalid):
 			writeDemandError(w,r,http.StatusBadRequest,"CONSULT_OUTCOME_INVALID","Недопустимая оценка результата.",false,nil);return
-		case errors.Is(err,runtimepostgres.ErrConsultationOutcomeNotReady):
+		case errors.Is(err,connector.ErrConsultationOutcomeNotReady):
 			writeDemandError(w,r,http.StatusConflict,"CONSULT_COMPLETION_UNVERIFIED","Завершение консультации ещё не подтверждено провайдером.",false,nil);return
-		case errors.Is(err,runtimepostgres.ErrConsultationOutcomeConflict):
+		case errors.Is(err,connector.ErrConsultationOutcomeConflict):
 			writeDemandError(w,r,http.StatusConflict,"CONSULT_OUTCOME_IDEMPOTENCY_CONFLICT","Повторный ключ нельзя использовать для другого результата.",false,nil);return
 		case err!=nil:
 			consultationStorageError(w,r);return

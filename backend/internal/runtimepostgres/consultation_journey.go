@@ -13,10 +13,10 @@ import (
 )
 
 var (
-	ErrConsultationNotReady = errors.New("consultation is not in readiness window")
-	ErrConsultationOutcomeNotReady = errors.New("consultation does not have verified completion")
-	ErrConsultationOutcomeConflict = errors.New("outcome idempotency key reused with different content")
-	ErrConsultationOutcomeInvalid = errors.New("invalid consultation outcome")
+	ErrConsultationNotReady = connector.ErrConsultationNotReady
+	ErrConsultationOutcomeNotReady = connector.ErrConsultationOutcomeNotReady
+	ErrConsultationOutcomeConflict = connector.ErrConsultationOutcomeConflict
+	ErrConsultationOutcomeInvalid = connector.ErrConsultationOutcomeInvalid
 )
 
 func (c *Checker) ReadConsultationReady(ctx context.Context, bookingID, identityID string) (*connector.ReadySnapshot, error) {
