@@ -133,3 +133,71 @@ func TestLiveUnsignedProviderFactsCannotChangeAttendance(t *testing.T) {
 }
 
 var _ connector.WebhookPublicKeyResolver = rejectLiveResolver{}
+
+func (s *liveEventStub) ListOrganizationLiveEvents(_ context.Context, actor, org string) ([]liveevents.Event, error) {
+	s.actor = actor
+	if org != "00000000-0000-4000-8000-000000000010" {
+		return nil, liveevents.ErrForbidden
+	}
+	return []liveevents.Event{{ID: "owned", OrganizationID: org, Title: "Only owner draft", State: liveevents.Draft}}, nil
+}
+
+func TestLiveOrganizationListNeverTrustsCallerSuppliedIdentity(t *testing.T) {
+	stub := &liveEventStub{}
+	handler := New(Options{LiveEventsEnabled: true, LiveEvents: stub, ClientSessionKey: []byte(strings.Repeat("s", 40))})
+	path := "/v1/organizations/00000000-0000-4000-8000-000000000010/live-events"
+	anonymous := httptest.NewRecorder()
+	handler.ServeHTTP(anonymous, httptest.NewRequest("GET", path, nil))
+	if anonymous.Code != 401 || stub.actor != "" {
+		t.Fatalf("anonymous owner list %d actor=%q", anonymous.Code, stub.actor)
+	}
+	identity := "11111111-1111-4111-8111-111111111111"
+	request := httptest.NewRequest("GET", path, nil)
+	request.AddCookie(issueLiveCookie(t, identity))
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != 200 || stub.actor != identity || !strings.Contains(response.Body.String(), "Only owner draft") {
+		t.Fatalf("owner list %d actor=%q body=%s", response.Code, stub.actor, response.Body.String())
+	}
+	foreign := httptest.NewRequest("GET", "/v1/organizations/00000000-0000-4000-8000-000000000020/live-events", nil)
+	foreign.AddCookie(issueLiveCookie(t, identity))
+	denied := httptest.NewRecorder()
+	handler.ServeHTTP(denied, foreign)
+	if denied.Code != 403 {
+		t.Fatalf("foreign tenant list %d body=%s", denied.Code, denied.Body.String())
+	}
+}
+
+func (s *liveEventStub) ReadLiveEventAttendance(_ context.Context, actor, org, event string) (liveevents.AttendanceSummary, error) {
+	s.actor = actor
+	if org != "00000000-0000-4000-8000-000000000010" {
+		return liveevents.AttendanceSummary{}, liveevents.ErrForbidden
+	}
+	return liveevents.AttendanceSummary{EventID: event, Registered: 2, JoinedParticipants: 1, ProviderJoinFacts: 1, VerifiedEvidence: true}, nil
+}
+
+func TestLiveAttendanceAggregateOwnerBoundary(t *testing.T) {
+	stub := &liveEventStub{}
+	handler := New(Options{LiveEventsEnabled: true, LiveEvents: stub, ClientSessionKey: []byte(strings.Repeat("s", 40))})
+	identity := "11111111-1111-4111-8111-111111111111"
+	path := "/v1/organizations/00000000-0000-4000-8000-000000000010/live-events/test/attendance"
+	req := httptest.NewRequest("GET", path, nil)
+	req.AddCookie(issueLiveCookie(t, identity))
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != 200 || !strings.Contains(rec.Body.String(), "\"joined_participants\":1") || stub.actor != identity {
+		t.Fatalf("attendance scope status=%d actor=%s body=%s", rec.Code, stub.actor, rec.Body.String())
+	}
+	unauthorized := httptest.NewRecorder()
+	handler.ServeHTTP(unauthorized, httptest.NewRequest("GET", path, nil))
+	if unauthorized.Code != 401 {
+		t.Fatalf("anonymous attendance status=%d body=%s", unauthorized.Code, unauthorized.Body.String())
+	}
+	foreign := httptest.NewRequest("GET", "/v1/organizations/00000000-0000-4000-8000-000000000020/live-events/test/attendance", nil)
+	foreign.AddCookie(issueLiveCookie(t, identity))
+	denied := httptest.NewRecorder()
+	handler.ServeHTTP(denied, foreign)
+	if denied.Code != 403 {
+		t.Fatalf("foreign attendance status=%d body=%s", denied.Code, denied.Body.String())
+	}
+}

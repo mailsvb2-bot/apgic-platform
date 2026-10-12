@@ -18,3 +18,13 @@ export function hasLiveMediaTicket(value:LiveAccessEligibility):false {
  void value;
  return false;
 }
+
+/** Distinct signed JOINED participants, never content or recording truth. */
+export type LiveAttendanceSummary = {
+ event_id:string;
+ registered:number;
+ joined_participants:number;
+ provider_join_facts:number;
+ provider_leave_facts:number;
+ verified_evidence:boolean;
+};

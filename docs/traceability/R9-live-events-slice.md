@@ -18,6 +18,8 @@ Governance gap: registry v7 does not currently contain dedicated APGIC-LIVE-* Re
 ## API (feature gate APGIC_LIVE_EVENTS_ENABLED=1)
 
 - GET /v1/live-events — public catalogue of published events
+- GET /v1/organizations/{organizationID}/live-events — authenticated active owner catalogue, including saved drafts
+- GET /v1/organizations/{organizationID}/live-events/{eventID}/attendance — owner-only signed provider attendance summary, no raw content
 - GET /v1/live-events/{eventID} — public details, draft only for owners
 - POST /v1/organizations/{organizationID}/live-events — owner, JSON draft, Idempotency-Key (16..160 chars)
 - POST /v1/live-events/{eventID}/{publish|start|complete|cancel} — owner, verified provider proof for publish/start
@@ -32,13 +34,24 @@ Governance gap: registry v7 does not currently contain dedicated APGIC-LIVE-* Re
 - [x] Domain state machine, price gate, join decision negative unit tests (code-level).
 - [x] PostgreSQL schema: event/registration/immutable attendance and capacity-row lock (requires database integration verification).
 - [x] HTTP route auth, unavailable provider / unsigned evidence, no fabricated media ticket tests.
-- [x] Public web catalogue, event detail, free-registration UI and organization draft form (pending browser E2E).
+- [x] Public web catalogue, event detail, free-registration UI and organization draft/publish/finish control panel (browser E2E pending).
+- [x] Native iOS/Android event catalogue and registration surface behind explicit opt-in flag (native builds pending).
+- [x] Private owner attendance aggregate from signed provider JOINED/LEFT facts (requires external attendance callback staging proof).
+- [x] PostgreSQL migration and row-level invariants executed in CI, including cross-tenant denial, capacity and signed attendance projection.
 - [ ] Signed room ticket issuing provider connector; actual WebRTC/SFU with verified health, capacity, fallback and restoration.
-- [ ] Native iOS/Android navigation and end-to-end room delivery.
+- [ ] Native iOS/Android production navigation enablement and end-to-end room delivery.
 - [ ] NotificationPolicy versions and PT24H/PT2H/PT15M/AT_START reminders through existing notification delivery.
 - [ ] Real paid Order/PSP/Entitlement/Refund/financial reconciliation before price_minor>0 can be enabled.
 - [ ] Attendance provider integration e2e, post-event follow-up/Offer, privacy consent/recording egress, moderator controls and abuse response.
-- [ ] SQL concurrency and negative tenant tests against an actual Postgres cluster.
+- [ ] SQL high-contention concurrency tests, real provider signed callbacks and cross-tenant API tests against a production-like Postgres staging cluster.
 - [ ] Requirement Registry change and staging production-like evidence with SLO, security, accessibility and responsive checks.
 
 No checkbox above means production completion without the corresponding external evidence. Keep feature **OFF** until completion.
+
+## Code and CI evidence
+
+- API handlers and Postgres-backed domain: `backend/internal/httpapi/live_events.go`, `backend/internal/runtimepostgres/live_events*.go`.
+- SQL migration and isolated invariant checks: `backend/migrations/000032_r9_live_events.sql`, `backend/migrations/ci_r9_live_events_invariants.sql` (wired into CI).
+- Web: `apps/web/app/live-events/`, `apps/web/app/organization/live-events/`; native: `apps/mobile/src/r9-live-events.tsx`.
+- Run `go test -race ./...` and GitHub Actions CI for exact final branch SHA; green job on an earlier SHA is not release evidence for later commits.
+- Provider room/ticket/scheduled reminders/payment/recording are explicit release blockers and must not be marked complete from mocks or signed capability heartbeat alone.

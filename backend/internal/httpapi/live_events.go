@@ -17,6 +17,8 @@ import (
 // The store owns SQL transactions; no in-memory event truth or payment stub.
 type LiveEventStore interface {
 	ListLiveEvents(context.Context) ([]liveevents.Event, error)
+	ListOrganizationLiveEvents(context.Context, string, string) ([]liveevents.Event, error)
+	ReadLiveEventAttendance(context.Context, string, string, string) (liveevents.AttendanceSummary, error)
 	LiveEvent(context.Context, string, string) (liveevents.Event, error)
 	CreateLiveEvent(context.Context, string, string, string, liveevents.DraftInput, time.Time) (liveevents.Event, error)
 	ChangeLiveEvent(context.Context, string, string, liveevents.State, time.Time) (liveevents.Event, error)
@@ -74,6 +76,48 @@ func liveError(w http.ResponseWriter, r *http.Request, err error) {
 }
 func registerLiveEvents(mux *http.ServeMux, store LiveEventStore, keys connector.WebhookPublicKeyResolver,
 	sessions *clientSessionManager, sessionConfigErr error, now func() time.Time) {
+	mux.HandleFunc("GET /v1/organizations/{organizationID}/live-events/{eventID}/attendance", func(w http.ResponseWriter, r *http.Request) {
+		if store == nil {
+			liveError(w, r, liveevents.ErrUnavailable)
+			return
+		}
+		if sessions == nil || sessionConfigErr != nil {
+			writeDemandError(w, r, http.StatusServiceUnavailable, "CLIENT_SESSION_UNAVAILABLE", "Не настроены защищённые сессии.", false, nil)
+			return
+		}
+		actor, ok := trustedClientIdentity(w, r, sessions, sessionConfigErr, "")
+		if !ok {
+			return
+		}
+		summary, err := store.ReadLiveEventAttendance(r.Context(), actor, r.PathValue("organizationID"), r.PathValue("eventID"))
+		if err != nil {
+			liveError(w, r, err)
+			return
+		}
+		w.Header().Set("Cache-Control", "private, no-store")
+		writeJSON(w, http.StatusOK, summary)
+	})
+	mux.HandleFunc("GET /v1/organizations/{organizationID}/live-events", func(w http.ResponseWriter, r *http.Request) {
+		if store == nil {
+			liveError(w, r, liveevents.ErrUnavailable)
+			return
+		}
+		if sessions == nil || sessionConfigErr != nil {
+			writeDemandError(w, r, http.StatusServiceUnavailable, "CLIENT_SESSION_UNAVAILABLE", "Не настроены защищённые сессии.", false, nil)
+			return
+		}
+		actor, ok := trustedClientIdentity(w, r, sessions, sessionConfigErr, "")
+		if !ok {
+			return
+		}
+		events, err := store.ListOrganizationLiveEvents(r.Context(), actor, r.PathValue("organizationID"))
+		if err != nil {
+			liveError(w, r, err)
+			return
+		}
+		w.Header().Set("Cache-Control", "no-store")
+		writeJSON(w, http.StatusOK, map[string]any{"events": events})
+	})
 	mux.HandleFunc("GET /v1/live-events", func(w http.ResponseWriter, r *http.Request) {
 		if store == nil {
 			liveError(w, r, liveevents.ErrUnavailable)

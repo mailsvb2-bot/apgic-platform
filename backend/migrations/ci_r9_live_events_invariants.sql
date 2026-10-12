@@ -68,7 +68,19 @@ INSERT INTO live_event_attendance_facts(id,event_id,registration_id,connector_in
  '91919191-0000-4000-8000-000000000030',
  '91919191-0000-4000-8000-000000000041',
  '91919191-0000-4000-8000-000000000020','joined-ci-1','JOINED',now());
-DO $$
+DO $
+DECLARE registered integer; attended integer;
+BEGIN
+ SELECT count(*) INTO registered FROM live_event_registrations
+ WHERE event_id='91919191-0000-4000-8000-000000000030' AND state='REGISTERED';
+ SELECT count(DISTINCT registration_id) INTO attended FROM live_event_attendance_facts
+ WHERE event_id='91919191-0000-4000-8000-000000000030' AND fact_type='JOINED';
+ IF registered <> 2 OR attended <> 1 THEN
+  RAISE EXCEPTION 'R9 signed attendance projection incorrect registered=% attended=%', registered, attended;
+ END IF;
+END;
+$;
+DO $
 DECLARE blocked boolean := false;
 BEGIN
  BEGIN
