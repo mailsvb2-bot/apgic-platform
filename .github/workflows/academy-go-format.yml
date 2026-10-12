@@ -9,7 +9,11 @@ on:
       - 'backend/internal/httpapi/handler.go'
       - 'backend/internal/runtimepostgres/academy*.go'
       - 'backend/cmd/api/main.go'
+      - 'backend/migrations/000032_r8_academy_learning.sql'
       - '.github/workflows/academy-go-format.yml'
+concurrency:
+  group: academy-format-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: write
 jobs:
