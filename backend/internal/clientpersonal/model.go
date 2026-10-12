@@ -45,8 +45,8 @@ type Booking struct {
 	SpecialistProfession string    `json:"specialist_profession"`
 	ConsultationState    *string   `json:"consultation_state,omitempty"`
 	OrderID              *string   `json:"order_id,omitempty"`
-	ClientProgress *string `json:"client_progress,omitempty"`
-	MatchSatisfaction *int `json:"match_satisfaction,omitempty"`
+	ClientProgress       *string   `json:"client_progress,omitempty"`
+	MatchSatisfaction    *int      `json:"match_satisfaction,omitempty"`
 }
 
 type Request struct {
