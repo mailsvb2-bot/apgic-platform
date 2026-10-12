@@ -20,17 +20,17 @@ func (c *Checker) PrepareCommunicationJoin(ctx context.Context, bookingID, ident
 	if c == nil || c.db == nil {
 		return nil, errors.New("consultation storage unavailable")
 	}
-	var state, clientID, specialistID, providerStatus, providerKind, providerConfig string
+	var state, clientID, specialistID, slotScope, providerStatus, providerKind, providerConfig string
 	var starts, ends time.Time
 	var earlySeconds, lateSeconds, ttlSeconds int
 	err := c.db.QueryRowContext(ctx, `SELECT b.state,b.client_identity_id::text,bs.specialist_identity_id::text,
-        b.starts_at,b.ends_at,ci.status,ci.provider_kind,ci.config_ref,
+        bs.tenant_scope,b.starts_at,b.ends_at,ci.status,ci.provider_kind,ci.config_ref,
         p.join_early_seconds,p.join_late_seconds,p.max_credential_ttl_seconds
         FROM bookings b JOIN booking_slots bs ON bs.id=b.slot_id
         JOIN connector_instances ci ON ci.id=$3::uuid AND ci.capability_class='COMMUNICATION_PROVIDER'
         JOIN communication_access_policy_versions p ON p.version=$4
         WHERE b.id=$1::uuid`, bookingID, identityID, providerID, policyVersion).
-		Scan(&state, &clientID, &specialistID, &starts, &ends, &providerStatus, &providerKind, &providerConfig,
+		Scan(&state, &clientID, &specialistID, &slotScope, &starts, &ends, &providerStatus, &providerKind, &providerConfig,
 			&earlySeconds, &lateSeconds, &ttlSeconds)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, communication.ErrRoomIssuerUnavailable
@@ -77,6 +77,28 @@ func (c *Checker) PrepareCommunicationJoin(ctx context.Context, bookingID, ident
 		bookingID, identityID, string(role), now.UTC()).Scan(&entitlementID, &entitlementState, &basisRef, &proofExpires)
 	if !errors.Is(err, sql.ErrNoRows) && err != nil {
 		return nil, fmt.Errorf("read communication entitlement: %w", err)
+	}
+	// Production participant access requires an immutable signed economic
+	// basis. A self-asserted ACTIVE entitlement cannot bypass the PSP even
+	// if a caller has somehow forged a CONFIRMED booking state.
+	if slotScope == "specialist/live" && entitlementState == "ACTIVE" {
+		var signedCaptureBasis bool
+		err = c.db.QueryRowContext(ctx, `
+			SELECT EXISTS (
+				SELECT 1 FROM bookings b
+				JOIN orders o ON o.booking_id=b.id
+				JOIN ledger_entries l ON l.economic_event_ref=o.id::text
+				WHERE b.id=$1::uuid AND b.state='CONFIRMED'
+					AND $2=('ledger/' || l.id::text)
+					AND l.amount_minor=o.amount_minor AND l.currency=o.currency
+					AND b.ends_at>$3 AND btrim(l.provider_evidence_ref)<>''
+			)`, bookingID, basisRef, now.UTC()).Scan(&signedCaptureBasis)
+		if err != nil {
+			return nil, fmt.Errorf("verify live booking media entitlement provenance: %w", err)
+		}
+		if !signedCaptureBasis {
+			entitlementState = "REVOKED"
+		}
 	}
 	decision, err := communication.AuthorizeJoin(
 		communication.JoinRequest{IdentityID: identityID, Role: role, IdempotencyKey: key, Now: now.UTC()},
