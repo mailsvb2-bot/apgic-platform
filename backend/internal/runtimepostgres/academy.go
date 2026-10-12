@@ -397,3 +397,69 @@ func (c *Checker) AcademyEvaluateAttempt(author,attemptID,evidence string,score 
  a.ID=attemptID;a.Result=result;a.Score=&score
  return a,nil
 }
+
+
+func (c *Checker) AcademyAuthorCourses(actor string)([]academy.Course,error){
+ if c==nil||c.db==nil{return nil,academy.ErrUnavailable}
+ ctx,cancel:=academyContext();defer cancel()
+ rows,err:=c.db.QueryContext(ctx,`SELECT c.id::text,c.product_id::text,c.title,c.description,c.state,
+ COALESCE(v.id::text,''),COALESCE(v.version_no,0)
+ FROM academy_courses c
+ LEFT JOIN LATERAL(SELECT id,version_no FROM academy_course_versions
+   WHERE course_id=c.id ORDER BY (state='DRAFT') DESC,version_no DESC LIMIT 1)v ON true
+ WHERE c.author_id=$1::uuid ORDER BY c.created_at DESC LIMIT 100`,actor)
+ if err!=nil{return nil,err};defer rows.Close()
+ result:=[]academy.Course{}
+ for rows.Next(){
+  var co academy.Course
+  if err=rows.Scan(&co.ID,&co.ProductID,&co.Title,&co.Description,&co.State,&co.VersionID,&co.VersionNo);err!=nil{return nil,err}
+  result=append(result,co)
+ }
+ return result,rows.Err()
+}
+func (c *Checker) AcademyOutline(actor,courseID,versionID string)(map[string]any,error){
+ ctx,cancel,tx,err:=academyBegin(c);defer cancel()
+ if err!=nil{return nil,err};defer tx.Rollback()
+ var author,state string
+ err=tx.QueryRowContext(ctx,`SELECT c.author_id::text,v.state FROM academy_course_versions v
+ JOIN academy_courses c ON c.id=v.course_id WHERE c.id=$1::uuid AND v.id=$2::uuid`,courseID,versionID).Scan(&author,&state)
+ if errors.Is(err,sql.ErrNoRows){return nil,academy.ErrNotFound};if err!=nil{return nil,err}
+ if actor!=author{return nil,academy.ErrDenied}
+ modules:=[]academy.Module{};lessons:=[]academy.Lesson{}
+ rows,err:=tx.QueryContext(ctx,`SELECT id::text,version_id::text,ordinal,title FROM academy_modules
+ WHERE version_id=$1::uuid ORDER BY ordinal`,versionID)
+ if err!=nil{return nil,err}
+ for rows.Next(){
+  var m academy.Module
+  if err=rows.Scan(&m.ID,&m.VersionID,&m.Ordinal,&m.Title);err!=nil{rows.Close();return nil,err}
+  modules=append(modules,m)
+ }
+ if err=rows.Err();err!=nil{rows.Close();return nil,err};rows.Close()
+ rows,err=tx.QueryContext(ctx,`SELECT l.id::text,l.module_id::text,l.ordinal,l.title,l.kind,l.body,
+ COALESCE(l.media_asset_ref,''),COALESCE(a.passing_score,0),COALESCE(a.rubric_version,'')
+ FROM academy_modules m JOIN academy_lessons l ON l.module_id=m.id
+ LEFT JOIN academy_assessments a ON a.lesson_id=l.id
+ WHERE m.version_id=$1::uuid ORDER BY m.ordinal,l.ordinal`,versionID)
+ if err!=nil{return nil,err}
+ for rows.Next(){
+  var l academy.Lesson
+  if err=rows.Scan(&l.ID,&l.ModuleID,&l.Ordinal,&l.Title,&l.Kind,&l.Body,&l.MediaAssetRef,&l.PassingScore,&l.RubricVersion);err!=nil{rows.Close();return nil,err}
+  lessons=append(lessons,l)
+ }
+ if err=rows.Err();err!=nil{rows.Close();return nil,err};rows.Close()
+ return map[string]any{"state":state,"version_id":versionID,"modules":modules,"lessons":lessons},nil
+}
+func (c *Checker) AcademyMyEnrollments(actor string)([]academy.Enrollment,error){
+ if c==nil||c.db==nil{return nil,academy.ErrUnavailable}
+ ctx,cancel:=academyContext();defer cancel()
+ rows,err:=c.db.QueryContext(ctx,`SELECT e.id::text,e.version_id::text,e.state,e.enrolled_at,e.completed_at
+ FROM academy_enrollments e WHERE e.identity_id=$1::uuid ORDER BY e.enrolled_at DESC LIMIT 100`,actor)
+ if err!=nil{return nil,err};defer rows.Close()
+ result:=[]academy.Enrollment{}
+ for rows.Next(){
+  var e academy.Enrollment
+  if err=rows.Scan(&e.ID,&e.VersionID,&e.State,&e.EnrolledAt,&e.CompletedAt);err!=nil{return nil,err}
+  result=append(result,e)
+ }
+ return result,rows.Err()
+}
