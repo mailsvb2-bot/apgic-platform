@@ -450,8 +450,8 @@ func TestSignedConsultationPersistsAcrossAPIStoreRestart(t *testing.T) {
 	persistedOrder, err := restartedDemand.ReadOrderForBooking(hold.BookingID, intent.ClientIdentityID)
 	if err != nil || persistedOrder == nil || persistedOrder.BookingID != hold.BookingID ||
 		persistedOrder.OrderID != checkout.OrderID || persistedOrder.PaymentState != "CAPTURED" ||
-		persistedOrder.BookingState != booking.StateConfirmed || persistedOrder.RefundState != "" {
-		t.Fatalf("restarted signed payment chain did not retain capture: %#v err=%v", persistedOrder, err)
+		persistedOrder.BookingState != booking.StateCompleted || persistedOrder.RefundState != "" {
+		t.Fatalf("restarted signed provider ENDED must preserve CAPTURED payment with COMPLETED booking: %#v err=%v", persistedOrder, err)
 	}
 	if outsider, err := restartedDemand.ReadOrderForBooking(hold.BookingID, "foreign-client"); !errors.Is(err, demand.ErrOrderNotFound) || outsider != nil {
 		t.Fatalf("foreign account recovered signed payment chain: %#v err=%v", outsider, err)
