@@ -69,6 +69,45 @@ func registerAcademy(mux *http.ServeMux,store academyStore,sessions *clientSessi
   writeJSON(w,http.StatusOK,course)
  })
 
+ mux.HandleFunc("POST /v1/academy/courses/{courseID}/enroll",func(w http.ResponseWriter,r *http.Request){
+  if store==nil{academyHTTPError(w,r,academy.ErrUnavailable);return}
+  identity,ok:=trustedClientIdentity(w,r,sessions,sessionConfigErr,"");if !ok{return}
+  enrollment,err:=store.AcademyEnroll(identity,r.PathValue("courseID"))
+  if err!=nil{academyHTTPError(w,r,err);return}
+  w.Header().Set("Cache-Control","private, no-store")
+  writeJSON(w,http.StatusCreated,enrollment)
+ })
+ mux.HandleFunc("GET /v1/academy/enrollments/{enrollmentID}/learn",func(w http.ResponseWriter,r *http.Request){
+  if store==nil{academyHTTPError(w,r,academy.ErrUnavailable);return}
+  identity,ok:=trustedClientIdentity(w,r,sessions,sessionConfigErr,"");if !ok{return}
+  lessons,err:=store.AcademyLearning(identity,r.PathValue("enrollmentID"))
+  if err!=nil{academyHTTPError(w,r,err);return}
+  w.Header().Set("Cache-Control","private, no-store")
+  writeJSON(w,http.StatusOK,map[string]any{"lessons":lessons})
+ })
+ mux.HandleFunc("POST /v1/academy/enrollments/{enrollmentID}/lessons/{lessonID}/complete",func(w http.ResponseWriter,r *http.Request){
+  if store==nil{academyHTTPError(w,r,academy.ErrUnavailable);return}
+  identity,ok:=trustedClientIdentity(w,r,sessions,sessionConfigErr,"");if !ok{return}
+  err:=store.AcademyMarkProgress(identity,r.PathValue("enrollmentID"),r.PathValue("lessonID"))
+  if err!=nil{academyHTTPError(w,r,err);return}
+  writeJSON(w,http.StatusOK,map[string]string{"state":"COMPLETED"})
+ })
+ mux.HandleFunc("POST /v1/academy/enrollments/{enrollmentID}/complete",func(w http.ResponseWriter,r *http.Request){
+  if store==nil{academyHTTPError(w,r,academy.ErrUnavailable);return}
+  identity,ok:=trustedClientIdentity(w,r,sessions,sessionConfigErr,"");if !ok{return}
+  certificate,err:=store.AcademyComplete(identity,r.PathValue("enrollmentID"))
+  if err!=nil{academyHTTPError(w,r,err);return}
+  w.Header().Set("Cache-Control","private, no-store")
+  writeJSON(w,http.StatusCreated,certificate)
+ })
+ mux.HandleFunc("GET /v1/academy/certificates/verify/{token}",func(w http.ResponseWriter,r *http.Request){
+  if store==nil{academyHTTPError(w,r,academy.ErrUnavailable);return}
+  certificate,err:=store.AcademyVerify(r.PathValue("token"))
+  if err!=nil{academyHTTPError(w,r,err);return}
+  w.Header().Set("Cache-Control","no-store")
+  writeJSON(w,http.StatusOK,certificate)
+ })
+
 }
 
 func academyRead(w http.ResponseWriter,r *http.Request,dst any)bool{
