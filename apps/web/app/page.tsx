@@ -46,10 +46,7 @@ export default function Home() {
               <a className="button-link primary-action" href="#start">
                 Подобрать специалиста
               </a>
-              <button className="secondary-action" type="button" disabled aria-describedby="avatar-status">
-                Поговорить с аватаром
-                <span className="coming-soon" id="avatar-status">скоро</span>
-              </button>
+              <a className="secondary-action" href="/avatar">Поговорить с AI-аватаром</a>
             </div>
 
             <ul className="trust-list" aria-label="Что важно">
