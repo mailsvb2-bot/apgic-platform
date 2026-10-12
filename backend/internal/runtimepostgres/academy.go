@@ -375,6 +375,11 @@ func (c *Checker) AcademyEnroll(actor, courseID string) (academy.Enrollment, err
 		return academy.Enrollment{}, err
 	}
 	defer tx.Rollback()
+	// Serialize two enroll requests from the same learner and course. On replay,
+	// read the already persisted entitlement rather than inventing a new basis.
+	if _, err = tx.ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtext($1),hashtext($2))", actor, courseID); err != nil {
+		return academy.Enrollment{}, err
+	}
 	var versionID, entitlementID string
 	err = tx.QueryRowContext(ctx, `SELECT v.id::text,t.id::text
  FROM academy_courses c
@@ -390,11 +395,10 @@ func (c *Checker) AcademyEnroll(actor, courseID string) (academy.Enrollment, err
 		return academy.Enrollment{}, err
 	}
 	var e academy.Enrollment
-	err = tx.QueryRowContext(ctx, `SELECT id::text,state,enrolled_at,completed_at
- FROM academy_enrollments WHERE identity_id=$1::uuid AND version_id=$2::uuid`, actor, versionID).Scan(&e.ID, &e.State, &e.EnrolledAt, &e.CompletedAt)
+	err = tx.QueryRowContext(ctx, `SELECT id::text,state,enrolled_at,completed_at,entitlement_id::text
+ FROM academy_enrollments WHERE identity_id=$1::uuid AND version_id=$2::uuid`, actor, versionID).Scan(&e.ID, &e.State, &e.EnrolledAt, &e.CompletedAt, &e.EntitlementID)
 	if err == nil {
 		e.VersionID = versionID
-		e.EntitlementID = entitlementID
 		e.IdentityID = actor
 		return e, nil
 	}
