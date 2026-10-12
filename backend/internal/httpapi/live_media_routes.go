@@ -223,7 +223,7 @@ func registerLiveMedia(mux *http.ServeMux, store LiveEventStore, media liveevent
 				liveError(w, r, err)
 				return
 			}
-			if fact.Joined {
+			if fact.MediaReady {
 				if err = service.SaveLiveAttendance(r.Context(), room, id, fact, now().UTC()); err != nil {
 					liveError(w, r, err)
 					return

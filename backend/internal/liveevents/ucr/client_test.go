@@ -100,7 +100,7 @@ func TestUCRServerOwnedConferenceJoinAndModeration(t *testing.T) {
 			w.Write([]byte(`{"participant":{"audio_muted":true}}`))
 		case "/v1/attendance":
 			json.NewEncoder(w).Encode(map[string]any{"attendance": map[string]any{
-				"join_count": 2, "total_connected_seconds": 850, "first_join_at_unix_ms": now.Add(-time.Minute).UnixMilli()}})
+				"join_count": 2, "media_ready_count": 1, "first_media_ready_at_unix_ms": now.Add(-30*time.Second).UnixMilli(), "total_connected_seconds": 850, "first_join_at_unix_ms": now.Add(-time.Minute).UnixMilli()}})
 		default:
 			w.WriteHeader(404)
 		}
@@ -129,7 +129,7 @@ func TestUCRServerOwnedConferenceJoinAndModeration(t *testing.T) {
 		t.Fatal(err)
 	}
 	attendance, err := c.Attendance(context.Background(), room, "cccccccc-cccc-4ccc-8ccc-cccccccccccc")
-	if err != nil || attendance.JoinCount != 2 || attendance.ConnectedSeconds != 850 {
+	if err != nil || attendance.JoinCount != 2 || !attendance.MediaReady || attendance.MediaReadyCount != 1 || attendance.ConnectedSeconds != 850 {
 		t.Fatalf("attendance: %+v %v", attendance, err)
 	}
 	mu.Lock()

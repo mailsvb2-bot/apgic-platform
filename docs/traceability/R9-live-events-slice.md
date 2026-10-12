@@ -168,3 +168,14 @@ canonical R9 schema, SQL guards and UCR `/healthz` transport. Per-event
 capacity, and Group/Call runtime preparation). Transport liveness is not a
 media call, and no read endpoint advertises actual SFU participation solely
 from a green transport health response.
+
+## Verified attendance is realtime-media readiness, not room admission
+
+The UCR `join_count` proves transport admission only. A participant may join
+the waiting room without working audio/video. R9 attendance now requires
+authenticated `media_ready_count > 0` and an actual
+`first_media_ready_at_unix_ms` not preceding the first join. The immutable
+PostgreSQL snapshot requires those values, rejects waiting-room-only facts,
+and exposes the distinct number of media-ready identities. Raw signed
+JOINED/LEFT provider callbacks remain separately visible as transport counts,
+never conflated with real participation.

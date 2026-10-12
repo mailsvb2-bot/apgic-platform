@@ -254,10 +254,15 @@ func (c *Checker) SaveLiveAttendance(ctx context.Context, room liveevents.MediaR
 	if c == nil || c.db == nil {
 		return liveevents.ErrUnavailable
 	}
-	if !fact.Joined {
+	// An attendee who merely opened the waiting room is NOT a verified
+	// participant. UCR must attest that their realtime media became ready.
+	if !fact.MediaReady {
 		return nil
 	}
-	if fact.JoinCount < 1 || fact.ConnectedSeconds < 0 || fact.FirstJoinedAt.IsZero() {
+	if !fact.Joined || fact.JoinCount < 1 || fact.MediaReadyCount < 1 ||
+		fact.MediaReadyCount > fact.JoinCount || fact.ConnectedSeconds < 0 ||
+		fact.FirstJoinedAt.IsZero() || fact.FirstMediaReadyAt.IsZero() ||
+		fact.FirstMediaReadyAt.Before(fact.FirstJoinedAt) {
 		return liveevents.ErrInvalid
 	}
 	tx, err := c.db.BeginTx(ctx, nil)
@@ -270,11 +275,11 @@ func (c *Checker) SaveLiveAttendance(ctx context.Context, room liveevents.MediaR
 		return err
 	}
 	res, err := tx.ExecContext(ctx, `INSERT INTO live_event_attendance_snapshots(id,event_id,identity_id,
- provider_instance_id,ucr_conference_id,join_count,connected_seconds,first_join_at,observed_at)
- VALUES($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5,$6,$7,$8,$9)
- ON CONFLICT(event_id,identity_id,join_count,connected_seconds) DO NOTHING`,
+ provider_instance_id,ucr_conference_id,join_count,media_ready_count,connected_seconds,first_join_at,first_media_ready_at,observed_at)
+ VALUES($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5,$6,$7,$8,$9,$10,$11)
+ ON CONFLICT(event_id,identity_id,join_count,media_ready_count,connected_seconds) DO NOTHING`,
 		id, room.EventID, identity, room.ProviderInstanceID, room.ConferenceID, fact.JoinCount,
-		fact.ConnectedSeconds, fact.FirstJoinedAt, at)
+		fact.MediaReadyCount, fact.ConnectedSeconds, fact.FirstJoinedAt, fact.FirstMediaReadyAt, at)
 	if err != nil {
 		return err
 	}

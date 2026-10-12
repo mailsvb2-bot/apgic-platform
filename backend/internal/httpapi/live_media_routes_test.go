@@ -120,7 +120,10 @@ func (m *r9MediaProviderStub) Moderate(_ context.Context, room liveevents.MediaR
 }
 func (m *r9MediaProviderStub) Attendance(_ context.Context, room liveevents.MediaRoom, identity string) (liveevents.MediaParticipantFact, error) {
 	m.attendanceCalls++
-	return liveevents.MediaParticipantFact{Joined: true, JoinCount: 1, ConnectedSeconds: 55, FirstJoinedAt: time.Now().Add(-time.Minute)}, nil
+	return liveevents.MediaParticipantFact{
+		Joined: true, MediaReady: true, JoinCount: 1, MediaReadyCount: 1, ConnectedSeconds: 55,
+		FirstJoinedAt: time.Now().Add(-time.Minute), FirstMediaReadyAt: time.Now().Add(-time.Second),
+	}, nil
 }
 func TestR9MediaJourneyBoundaryAndNoUnauthorizedJoin(t *testing.T) {
 	owner := "22222222-2222-4222-8222-222222222222"

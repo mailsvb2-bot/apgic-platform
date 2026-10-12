@@ -307,10 +307,27 @@ func (c *Client) Attendance(ctx context.Context, room liveevents.MediaRoom, iden
 	}
 	response := child(result, "attendance")
 	count := int(num(response, "join_count"))
+	mediaCount := int(num(response, "media_ready_count"))
 	duration := int64(num(response, "total_connected_seconds"))
-	first := time.UnixMilli(int64(num(response, "first_join_at_unix_ms"))).UTC()
-	if count < 0 || duration < 0 || (count > 0 && num(response, "first_join_at_unix_ms") <= 0) {
-		return liveevents.MediaParticipantFact{}, fmt.Errorf("UCR attendance evidence invalid: %w", liveevents.ErrUnavailable)
+	firstJoinMilli := int64(num(response, "first_join_at_unix_ms"))
+	firstMediaMilli := int64(num(response, "first_media_ready_at_unix_ms"))
+	if count < 0 || mediaCount < 0 || duration < 0 ||
+		(count > 0 && firstJoinMilli <= 0) ||
+		(mediaCount > 0 && (count == 0 || firstMediaMilli <= 0 || firstMediaMilli < firstJoinMilli)) {
+		return liveevents.MediaParticipantFact{}, fmt.Errorf("UCR attendance media evidence invalid: %w", liveevents.ErrUnavailable)
 	}
-	return liveevents.MediaParticipantFact{Joined: count > 0, JoinCount: count, ConnectedSeconds: duration, FirstJoinedAt: first}, nil
+	fact := liveevents.MediaParticipantFact{
+		Joined:           count > 0,
+		MediaReady:       mediaCount > 0,
+		JoinCount:        count,
+		MediaReadyCount:  mediaCount,
+		ConnectedSeconds: duration,
+	}
+	if firstJoinMilli > 0 {
+		fact.FirstJoinedAt = time.UnixMilli(firstJoinMilli).UTC()
+	}
+	if firstMediaMilli > 0 {
+		fact.FirstMediaReadyAt = time.UnixMilli(firstMediaMilli).UTC()
+	}
+	return fact, nil
 }

@@ -9,7 +9,7 @@ import (
 )
 
 // ReadLiveEventAttendance is a private aggregate for the current active
-// organization owner. Signed connector JOINED and authenticated UCR attendance snapshots are the only evidence.
+// organization owner. Only authenticated UCR media-ready snapshots prove participation; connector JOINED merely proves transport admission.
 func (c *Checker) ReadLiveEventAttendance(ctx context.Context, actor, organizationID, eventID string) (liveevents.AttendanceSummary, error) {
 	if c == nil || c.db == nil {
 		return liveevents.AttendanceSummary{}, liveevents.ErrUnavailable
@@ -34,23 +34,23 @@ func (c *Checker) ReadLiveEventAttendance(ctx context.Context, actor, organizati
 	summary.EventID = eventID
 	err = c.db.QueryRowContext(ctx, `SELECT
  (SELECT count(*) FROM live_event_registrations r WHERE r.event_id=$1::uuid AND r.state='REGISTERED'),
- (SELECT count(*) FROM (
-  SELECT r.identity_id FROM live_event_attendance_facts f
-  JOIN live_event_registrations r ON r.id=f.registration_id
-  WHERE f.event_id=$1::uuid AND f.fact_type='JOINED'
-  UNION
-  SELECT s.identity_id FROM live_event_attendance_snapshots s WHERE s.event_id=$1::uuid
- ) verified_people),
- (SELECT count(*) FROM live_event_attendance_facts WHERE event_id=$1::uuid AND fact_type='JOINED')+
+ (SELECT count(DISTINCT identity_id) FROM live_event_attendance_snapshots
+  WHERE event_id=$1::uuid),
+ (SELECT count(*) FROM live_event_attendance_facts WHERE event_id=$1::uuid AND fact_type='JOINED'),
+ (SELECT count(*) FROM live_event_attendance_facts WHERE event_id=$1::uuid AND fact_type='LEFT'),
  (SELECT count(*) FROM live_event_attendance_snapshots WHERE event_id=$1::uuid),
- (SELECT count(*) FROM live_event_attendance_facts WHERE event_id=$1::uuid AND fact_type='LEFT')`, eventID).
-		Scan(&summary.Registered, &summary.JoinedParticipants, &summary.ProviderJoinFacts, &summary.ProviderLeaveFacts)
+ (SELECT COALESCE(sum(connected_seconds),0) FROM (
+  SELECT DISTINCT ON(identity_id) connected_seconds
+  FROM live_event_attendance_snapshots WHERE event_id=$1::uuid
+  ORDER BY identity_id,observed_at DESC,id DESC
+ ) latest_per_person)`, eventID).
+		Scan(&summary.Registered, &summary.JoinedParticipants, &summary.ProviderJoinFacts, &summary.ProviderLeaveFacts, &summary.MediaReadyObservations, &summary.TotalConnectedSeconds)
 	if errors.Is(err, context.Canceled) {
 		return liveevents.AttendanceSummary{}, err
 	}
 	if err != nil {
 		return liveevents.AttendanceSummary{}, fmt.Errorf("aggregate signed attendance: %w", err)
 	}
-	summary.VerifiedEvidence = summary.ProviderJoinFacts > 0
+	summary.VerifiedEvidence = summary.MediaReadyObservations > 0
 	return summary, nil
 }

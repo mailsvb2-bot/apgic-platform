@@ -170,24 +170,35 @@ $r9_stmt$, 'append');
 -- Source-attested UCR duration evidence must be append-only and bound to
 -- the same business registration, connector instance and conference.
 INSERT INTO live_event_attendance_snapshots(id,event_id,identity_id,provider_instance_id,
- ucr_conference_id,join_count,connected_seconds,first_join_at,observed_at)
+ ucr_conference_id,join_count,media_ready_count,connected_seconds,first_join_at,first_media_ready_at,observed_at)
  VALUES('91919191-0000-4000-8000-000000000060',
  '91919191-0000-4000-8000-000000000030',
  '91919191-0000-4000-8000-000000000002',
  '91919191-0000-4000-8000-000000000020',
- 'ucr-r9-ci-conference',1,120,clock_timestamp(),clock_timestamp());
+ 'ucr-r9-ci-conference',1,1,120,clock_timestamp(),clock_timestamp(),clock_timestamp());
+-- JOINED without media-ready must not become a verified attendee.
+SELECT pg_temp.r9_must_reject($r9_stmt$
+ INSERT INTO live_event_attendance_snapshots(id,event_id,identity_id,provider_instance_id,
+ ucr_conference_id,join_count,media_ready_count,connected_seconds,first_join_at,first_media_ready_at,observed_at)
+ VALUES('91919191-0000-4000-8000-000000000065',
+ '91919191-0000-4000-8000-000000000030',
+ '91919191-0000-4000-8000-000000000002',
+ '91919191-0000-4000-8000-000000000020',
+ 'ucr-r9-ci-conference',1,0,0,clock_timestamp(),clock_timestamp(),clock_timestamp())
+$r9_stmt$,'media_ready_count');
+
 SELECT pg_temp.r9_must_reject($r9_stmt$
  UPDATE live_event_attendance_snapshots SET connected_seconds=999
  WHERE id='91919191-0000-4000-8000-000000000060'
 $r9_stmt$,'append');
 SELECT pg_temp.r9_must_reject($r9_stmt$
  INSERT INTO live_event_attendance_snapshots(id,event_id,identity_id,provider_instance_id,
- ucr_conference_id,join_count,connected_seconds,first_join_at,observed_at)
+ ucr_conference_id,join_count,media_ready_count,connected_seconds,first_join_at,first_media_ready_at,observed_at)
  VALUES('91919191-0000-4000-8000-000000000061',
  '91919191-0000-4000-8000-000000000030',
  '91919191-0000-4000-8000-000000000002',
  '91919191-0000-4000-8000-000000000021',
- 'forged-conference',1,120,clock_timestamp(),clock_timestamp())
+ 'forged-conference',1,1,120,clock_timestamp(),clock_timestamp(),clock_timestamp())
 $r9_stmt$,'R9 attendance snapshot requires matching event');
 
 INSERT INTO live_event_bans(event_id,identity_id,moderator_identity_id)
@@ -210,7 +221,7 @@ BEGIN
 END;
 $r9_reminders_test$;
 
--- Reconcile distinct signalled attendees with business registrations.
+-- Reconcile verified media-ready attendees with registrations (not JOINED waiting-room connections).
 DO $r9_projection$
 DECLARE
   registered_count integer;
@@ -218,8 +229,8 @@ DECLARE
 BEGIN
   SELECT count(*) INTO registered_count FROM live_event_registrations
    WHERE event_id='91919191-0000-4000-8000-000000000030' AND state='REGISTERED';
-  SELECT count(DISTINCT registration_id) INTO attended_count FROM live_event_attendance_facts
-   WHERE event_id='91919191-0000-4000-8000-000000000030' AND fact_type='JOINED';
+  SELECT count(DISTINCT identity_id) INTO attended_count FROM live_event_attendance_snapshots
+   WHERE event_id='91919191-0000-4000-8000-000000000030' AND media_ready_count>0;
   IF registered_count<>2 OR attended_count<>1 THEN
     RAISE EXCEPTION 'R9 attendance projection mismatch registered=% attended=%',
       registered_count,attended_count;

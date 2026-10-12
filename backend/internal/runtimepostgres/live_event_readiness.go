@@ -21,6 +21,7 @@ func (c *Checker) LiveEventsReady(ctx context.Context) error {
   AND to_regclass('public.live_event_mutations') IS NOT NULL
   AND to_regclass('public.live_event_bans') IS NOT NULL
   AND to_regclass('public.live_event_attendance_snapshots') IS NOT NULL
+  AND EXISTS(SELECT 1 FROM pg_attribute WHERE attrelid='public.live_event_attendance_snapshots'::regclass AND attname='media_ready_count' AND NOT attisdropped)
   AND to_regclass('public.live_event_reminder_intents') IS NOT NULL
   AND to_regprocedure('public.apgic_r9_schedule_reminders()') IS NOT NULL
   AND to_regprocedure('public.apgic_r9_attendance_snapshot_guard()') IS NOT NULL

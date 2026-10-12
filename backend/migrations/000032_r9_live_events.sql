@@ -196,10 +196,12 @@ CREATE TABLE live_event_attendance_snapshots (
  provider_instance_id uuid NOT NULL REFERENCES connector_instances(id),
  ucr_conference_id text NOT NULL,
  join_count integer NOT NULL CHECK(join_count > 0),
+ media_ready_count integer NOT NULL CHECK(media_ready_count > 0 AND media_ready_count <= join_count),
  connected_seconds bigint NOT NULL CHECK(connected_seconds >= 0),
  first_join_at timestamptz NOT NULL,
+ first_media_ready_at timestamptz NOT NULL CHECK(first_media_ready_at >= first_join_at),
  observed_at timestamptz NOT NULL DEFAULT now(),
- UNIQUE(event_id,identity_id,join_count,connected_seconds)
+ UNIQUE(event_id,identity_id,join_count,media_ready_count,connected_seconds)
 );
 CREATE FUNCTION apgic_r9_attendance_snapshot_guard()
 RETURNS trigger LANGUAGE plpgsql AS $r9_guard$

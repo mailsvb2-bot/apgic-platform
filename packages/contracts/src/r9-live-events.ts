@@ -24,6 +24,8 @@ export type LiveAttendanceSummary = {
  event_id:string;
  registered:number;
  joined_participants:number;
+ media_ready_observations:number;
+ total_connected_seconds:number;
  provider_join_facts:number;
  provider_leave_facts:number;
  verified_evidence:boolean;
