@@ -765,3 +765,45 @@ test("mobile forced-update destination is safe and does not invent store availab
   await expect(page.getByText("официальный магазин или канал", { exact: false })).toBeVisible();
   await expect(page.getByRole("link", { name: "Вернуться на сайт" })).toHaveAttribute("href", "/");
 });
+
+
+test("specialist schedule distinguishes provider outage from no availability and retries without invented booking", async ({ page }) => {
+  await page.goto("/");
+  await page.getByLabel("С чем нужна помощь").fill("Бессонница");
+  await page.getByRole("button", { name: "Разобрать запрос" }).click();
+  await page.getByRole("button", { name: "Подтвердить и показать специалистов" }).click();
+  await expect(page.getByRole("button", { name: "Выбрать время у Марина Лебедева" })).toBeVisible();
+
+  let scenario: "outage" | "empty" | "live" = "outage";
+  await page.route("**/v1/specialists/spec-lebedeva/slots**", async (route) => {
+    if (scenario === "outage") {
+      await route.fulfill({
+        status: 503, contentType: "application/json",
+        body: JSON.stringify({message_safe: "Временная ошибка расписания"}),
+      });
+      return;
+    }
+    if (scenario === "empty") {
+      await route.fulfill({
+        status: 200, contentType: "application/json",
+        body: JSON.stringify({specialist_id: "spec-lebedeva", slots: []}),
+      });
+      return;
+    }
+    await route.continue();
+  });
+
+  await page.getByRole("button", { name: "Выбрать время у Марина Лебедева" }).click();
+  await expect(page.getByRole("alert").filter({hasText: "Не удалось подтвердить свободное время"})).toBeVisible();
+  await expect(page.getByRole("button", {name: /Удержать слот/})).toHaveCount(0);
+  await expect(page.getByRole("button", {name: "Повторить загрузку расписания"})).toBeVisible();
+  scenario = "empty";
+  await page.getByRole("button", {name: "Повторить загрузку расписания"}).click();
+  await expect(page.getByRole("status").filter({hasText: "Сейчас нет свободных временных слотов"})).toBeVisible();
+  await expect(page.getByRole("button", {name: /Удержать слот/})).toHaveCount(0);
+  scenario = "live";
+  await page.getByRole("button", {name: "Повторить загрузку расписания"}).click();
+  await expect(page.getByRole("button", {name: /Удержать слот/}).first()).toBeVisible();
+  await expect(page.getByRole("button", {name: "Повторить загрузку расписания"})).toHaveCount(0);
+});
+

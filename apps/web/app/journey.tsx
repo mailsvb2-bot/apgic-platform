@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import ResumeBooking from "../src/resume-booking";
 import ConsultationResultView from "../src/consultation-result";
@@ -182,6 +182,10 @@ export function Journey() {
     : [];
   const [specialist, setSpecialist] = useState<MatchCard | null>(null);
   const [slots, setSlots] = useState<Slot[]>([]);
+  const [slotAvailability, setSlotAvailability] = useState<"IDLE" | "CHECKING" | "AVAILABLE" | "EMPTY" | "UNAVAILABLE">("IDLE");
+  // Every selection has its own version. A delayed HTTP response must never
+  // replace a newer specialist or resurrect another client's checkout UI.
+  const selectedAvailabilityRequest = useRef(0);
   const [hold, setHold] = useState<Hold | null>(null);
   const [restoredHold, setRestoredHold] = useState<Hold | null>(null);
   const [restoration, setRestoration] = useState<"CHECKING" | "READY" | "DENIED" | "UNAVAILABLE">("CHECKING");
@@ -456,10 +460,12 @@ export function Journey() {
   }
 
   async function choose(card: MatchCard) {
+    const requestVersion = ++selectedAvailabilityRequest.current;
     setError("");
     setPending(true);
-    // Changing the specialist invalidates all downstream booking and payment UI.
-    // Even a failed slots lookup must not expose the prior specialist's checkout.
+    setSlotAvailability("CHECKING");
+    // Always discard stale booking and payment data before loading a different
+    // provider's availability. A failed fetch cannot leave old checkout actions.
     setSpecialist(null);
     setSlots([]);
     setHold(null);
@@ -471,15 +477,43 @@ export function Journey() {
     setFulfillment(null);
     setSession(null);
     try {
-      const response = await fetch(`/v1/specialists/${card.specialist_id}/slots${card.offer_id ? `?offer_id=${encodeURIComponent(card.offer_id)}` : ``}`);
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.message_safe || "Слоты недоступны.");
+      const endpoint = `/v1/specialists/${encodeURIComponent(card.specialist_id)}/slots` +
+        (card.offer_id ? `?offer_id=${encodeURIComponent(card.offer_id)}` : "");
+      const response = await fetch(endpoint, { cache: "no-store", credentials: "include" });
+      const payload: unknown = await response.json();
+      if (!response.ok) {
+        const message = payload && typeof payload === "object" &&
+          "message_safe" in payload && typeof payload.message_safe === "string"
+          ? payload.message_safe : "Расписание временно недоступно.";
+        throw new Error(message);
+      }
+      if (!payload || typeof payload !== "object" ||
+          !("specialist_id" in payload) || payload.specialist_id !== card.specialist_id ||
+          !("slots" in payload) || !Array.isArray(payload.slots)) {
+        throw new Error("Не удалось подтвердить актуальное расписание специалиста.");
+      }
+      const listed = payload.slots as unknown[];
+      if (!listed.every((item) =>
+        item !== null && typeof item === "object" &&
+        "id" in item && typeof item.id === "string" && item.id.length > 0 &&
+        "starts_at" in item && typeof item.starts_at === "string" && Number.isFinite(Date.parse(item.starts_at)) &&
+        "ends_at" in item && typeof item.ends_at === "string" && Number.isFinite(Date.parse(item.ends_at)) &&
+        Date.parse(item.ends_at as string) > Date.parse(item.starts_at as string) &&
+        "exclusive" in item && item.exclusive === true)) {
+        throw new Error("Сервер вернул некорректные данные о времени записи.");
+      }
+      if (requestVersion !== selectedAvailabilityRequest.current) return;
       setSpecialist(card);
-      setSlots(payload.slots);
+      setSlots(listed as Slot[]);
+      setSlotAvailability(listed.length ? "AVAILABLE" : "EMPTY");
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Не удалось открыть слоты.");
+      if (requestVersion !== selectedAvailabilityRequest.current) return;
+      setSpecialist(card);
+      setSlots([]);
+      setSlotAvailability("UNAVAILABLE");
+      setError(cause instanceof Error ? cause.message : "Расписание недоступно.");
     } finally {
-      setPending(false);
+      if (requestVersion === selectedAvailabilityRequest.current) setPending(false);
     }
   }
 
@@ -985,6 +1019,17 @@ export function Journey() {
               <span>{PROFESSIONS[specialist.profession] ?? specialist.profession} · {money(specialist.price_minor, specialist.currency)}</span>
             </div>
           </div>
+          {slotAvailability === "EMPTY" ? (
+            <p role="status">Сейчас нет свободных временных слотов у этого специалиста. Попробуйте обновить расписание или выберите другого специалиста.</p>
+          ) : null}
+          {slotAvailability === "UNAVAILABLE" ? (
+            <p role="alert">Не удалось подтвердить свободное время. Пока сервер не ответит, бронирование недоступно.</p>
+          ) : null}
+          {(slotAvailability === "EMPTY" || slotAvailability === "UNAVAILABLE") ? (
+            <button type="button" disabled={pending} onClick={() => void choose(specialist)}>
+              Повторить загрузку расписания
+            </button>
+          ) : null}
           <ul className="slot-grid">
             {slots.map((slot) => (
               <li key={slot.id}>
