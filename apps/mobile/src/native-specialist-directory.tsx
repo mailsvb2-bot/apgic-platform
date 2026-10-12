@@ -66,6 +66,9 @@ export function NativeSpecialistDirectory({baseURL,topic}:{baseURL:string;topic:
    <Text style={styles.name}>{selected.display_name}</Text>
    {selected.about?<Text>{selected.about}</Text>:null}
    {selected.experience_years>0?<Text>Заявленный опыт: {selected.experience_years} лет</Text>:null}
+   {selected.verified_review_count>=5&&typeof selected.verified_rating==="number"?
+    <Text>Подтверждённый рейтинг: {selected.verified_rating.toFixed(1)} / 5, оценок: {selected.verified_review_count}</Text>:
+    <Text>Проверенный рейтинг пока не сформирован</Text>}
    {selected.limitations.length>0?<Text>Ограничения: {selected.limitations.join("; ")}</Text>:null}
    {offersUnavailable?<Text accessibilityRole="alert">Стоимость и доступность сейчас не подтверждены. Проверьте их при записи.</Text>:null}
    {offers && offers.offers.length===0?<Text>Сейчас нет доступных платных слотов.</Text>:null}

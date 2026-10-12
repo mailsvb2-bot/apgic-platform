@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {fetchNativePublicOffers,fetchNativePublicSpecialist,fetchNativeSpecialistDirectory,specialistBookingHandoffURL} from "./mobile-specialist-directory.ts";
 const profile={id:"sp-1",display_name:"Анна",profession_code:"PSYCHOLOGIST",headline:"",
- about:"",experience_years:0,languages:["ru"],limitations:[],published_topics:["anxiety"]};
+ about:"",experience_years:0,languages:["ru"],limitations:[],published_topics:["anxiety"],verified_review_count:0};
 function reply(body:unknown,status=200){return new Response(JSON.stringify(body),{status,headers:{"content-type":"application/json"}})}
 test("native directory reads public verified server projection, never local claims",async()=>{
  const previous=globalThis.fetch;

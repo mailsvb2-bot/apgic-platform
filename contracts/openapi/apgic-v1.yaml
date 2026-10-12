@@ -1715,6 +1715,30 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /v1/specialist-feedback:
+    post:
+      operationId: submitVerifiedSpecialistFeedback
+      security:
+        - ClientSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifiedFeedbackRequest'
+      responses:
+        '201':
+          description: Signed client feedback verified against a completed canonical booking; pending independent moderation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeedbackSubmission'
+        '400':
+          description: Invalid rating or booking reference
+        '401':
+          description: Client authentication required
+        '409':
+          description: Booking not completed, not owned, not live, or already reviewed
 components:
   securitySchemes:
     ClientSession:
@@ -1749,10 +1773,25 @@ components:
         specialist_id: { type: string }
         offers: { type: array, items: { $ref: '#/components/schemas/PublicBookableOffer' } }
         availability_rule: { type: string, enum: [CURRENT_ELIGIBLE_UNHELD_SLOTS] }
+    VerifiedFeedbackRequest:
+      type: object
+      additionalProperties: false
+      required: [booking_id, rating]
+      properties:
+        booking_id: { type: string, format: uuid }
+        rating: { type: integer, minimum: 1, maximum: 5 }
+    FeedbackSubmission:
+      type: object
+      additionalProperties: false
+      required: [id, state, notice]
+      properties:
+        id: { type: string, format: uuid }
+        state: { type: string, enum: [PENDING] }
+        notice: { type: string }
     PublicSpecialist:
       type: object
       additionalProperties: false
-      required: [id, display_name, profession_code, headline, about, experience_years, languages, limitations, published_topics]
+      required: [id, display_name, profession_code, headline, about, experience_years, languages, limitations, published_topics, verified_review_count]
       properties:
         id: { type: string }
         display_name: { type: string }
@@ -1763,6 +1802,8 @@ components:
         languages: { type: array, items: { type: string } }
         limitations: { type: array, items: { type: string } }
         published_topics: { type: array, minItems: 1, items: { type: string } }
+        verified_review_count: { type: integer, minimum: 0 }
+        verified_rating: { type: number, minimum: 1, maximum: 5 }
     PublicSpecialistDirectory:
       type: object
       additionalProperties: false

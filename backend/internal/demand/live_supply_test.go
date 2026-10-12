@@ -135,3 +135,34 @@ func TestVerifiedOutcomeTiersNeverInventReputation(t *testing.T) {
 		}
 	}
 }
+
+func TestVerifiedFeedbackRankingRequiresReviewedBookingSample(t *testing.T) {
+	cases := []struct {
+		count, sum int64
+		want int
+	}{
+		{0, 0, 0}, {4, 20, 0}, {5, 25, 4}, {20, 100, 5},
+		{10, 30, 2}, {5, 5, 1}, {5, 4, 0},
+	}
+	for _, item := range cases {
+		got := verifiedFeedbackTier(item.count, item.sum)
+		if got != item.want {
+			t.Fatalf("verified rating count=%d sum=%d: got %d want %d", item.count, item.sum, got, item.want)
+		}
+	}
+	offer := liveFixtureOffer(t, "anxiety", "aaaa1111-1111-4111-8111-111111111111",
+		210000, time.Date(2026, 12, 14, 14, 0, 0, 0, time.UTC))
+	offer.VerifiedReviewCount = 20
+	offer.VerifiedRatingTotal = 100
+	ranked := liveCatalogFromOffers([]BookableOffer{offer})
+	if len(ranked.candidates) != 1 || ranked.candidates[0].ReputationTier != 5 ||
+		ranked.candidates[0].CommercialBoostTier != 0 {
+		t.Fatalf("verified booking feedback was not trusted or became sponsored: %#v", ranked.candidates)
+	}
+	offer.VerifiedReviewCount = 4
+	offer.VerifiedRatingTotal = 20
+	few := liveCatalogFromOffers([]BookableOffer{offer})
+	if len(few.candidates) != 1 || few.candidates[0].ReputationTier != 0 {
+		t.Fatalf("too few private feedback records became an invented rating: %#v", few.candidates)
+	}
+}

@@ -55,6 +55,9 @@ export function PublicSpecialistProfile({id}:{id:string}){
     <p className="hero-lead">{professions[profile.profession_code]??"Специалист"}</p>
     {profile.headline?<p>{profile.headline}</p>:null}
     {profile.experience_years>0?<p>Заявленный опыт: {profile.experience_years} лет</p>:null}
+     {profile.verified_review_count>=5&&typeof profile.verified_rating==="number"?
+      <p>Подтверждённый рейтинг: {profile.verified_rating.toFixed(1)} / 5 по {profile.verified_review_count} оценкам завершённых консультаций</p>:
+      <p>Подтверждённый клиентский рейтинг ещё формируется</p>}
     {profile.about?<section><h2>О специалисте</h2><p className="marketplace-bio">{profile.about}</p></section>:null}
     <section><h2>Подтверждённые направления</h2>
      <ul>{profile.published_topics.map(t=><li key={t}>{topics[t]??t}</li>)}</ul>

@@ -157,6 +157,14 @@ func TestLivePricedSpecialistToDurableHoldAfterRestart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("real live slot hold failed: %v", err)
 	}
+	// Reputation must be IMPOSSIBLE to mint from a reserved but unfinished
+	// booking, even by its genuine signed client.
+	if _, err := store.SubmitVerifiedFeedback(clientIdentityID, hold.BookingID, 5); !errors.Is(err, specialist.ErrFeedbackNotEligible) {
+		t.Fatalf("unfinished live hold minted a verified client rating: %v", err)
+	}
+	if _, err := store.SubmitVerifiedFeedback(specialistIdentityID, hold.BookingID, 5); !errors.Is(err, specialist.ErrFeedbackNotEligible) {
+		t.Fatalf("foreign booking owner minted verified feedback: %v", err)
+	}
 	// Public price and availability are computed against the same canonical held
 	// slot state as the client journey. Once held, a slot cannot remain advertised.
 	publicAfterHold, err := store.PublicOffers(context.Background(), created.ID)

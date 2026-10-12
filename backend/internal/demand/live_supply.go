@@ -15,6 +15,9 @@ type BookableOffer struct {
 	// Durable booking lifecycle outcomes, not self-reported reputation.
 	CompletedConsultations int64
 	NoShowConsultations    int64
+	// Moderated ratings tied to actual completed client-owned bookings.
+	VerifiedReviewCount int64
+	VerifiedRatingTotal int64
 }
 
 // LiveBookableStore is only a projection of the canonical specialist/Product/
@@ -47,6 +50,7 @@ func liveCatalogFromOffers(offers []BookableOffer) catalog {
 		// Trusted completed/no-show outcomes provide a conservative sample;
 		// no review score or paid sponsorship is ever inferred.
 		reliability, experience := verifiedOutcomeTiers(offer.CompletedConsultations, offer.NoShowConsultations)
+		reputation := verifiedFeedbackTier(offer.VerifiedReviewCount, offer.VerifiedRatingTotal)
 		availability := len(validSlots)
 		if availability > 5 {
 			availability = 5
@@ -56,9 +60,8 @@ func liveCatalogFromOffers(offers []BookableOffer) catalog {
 			Languages: []string{LanguageRU}, PriceMinor: offer.PriceMinor,
 			Available: true, ExpertiseTier: 1,
 			ReliabilityTier: reliability, PlatformExperienceTier: experience,
-			AvailabilityResponseTier: availability,
-			// ReputationTier and CommercialBoostTier are deliberately zero
-			// pending authoritative verified-review and placement owners.
+			AvailabilityResponseTier: availability, ReputationTier: reputation,
+			// CommercialBoostTier remains zero pending trusted promotion owner.
 		})
 		result.names[offer.Profile.ID] = offer.Profile.DisplayName
 		result.slots = append(result.slots, validSlots...)
@@ -84,4 +87,26 @@ func verifiedOutcomeTiers(completed, noShow int64) (reliability, experience int)
 		return 0, experience
 	}
 	return int((5 * completed) / (completed + noShow)), experience
+}
+
+func verifiedFeedbackTier(count, total int64) int {
+	// No public score for small samples. Conservative Bayesian shrinkage
+	// towards a neutral three-star prior prevents few high ratings from
+	// dominating experienced professionals.
+	if count < 5 || count > 1000000000 || total < count || total > 5*count {
+		return 0
+	}
+	adjusted := float64(total+15) / float64(count+5)
+	switch {
+	case adjusted >= 4.5:
+		return 5
+	case adjusted >= 4:
+		return 4
+	case adjusted >= 3.5:
+		return 3
+	case adjusted >= 3:
+		return 2
+	default:
+		return 1
+	}
 }

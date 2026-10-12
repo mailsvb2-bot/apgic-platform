@@ -29,6 +29,8 @@ type PublicProfile struct {
 	Languages       []string `json:"languages"`
 	Limitations     []string `json:"limitations"`
 	PublishedTopics []string `json:"published_topics"`
+	VerifiedReviewCount int `json:"verified_review_count"`
+	VerifiedRating *float64 `json:"verified_rating,omitempty"`
 }
 type PublicDirectoryStore interface {
 	PublicProfile(ctx context.Context, specialistID string) (PublicProfile, error)

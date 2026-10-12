@@ -147,6 +147,7 @@ func New(options Options) http.Handler {
 	registerSpecialist(mux, options.Specialists, sessions, sessionConfigErr)
 	registerPublicSpecialists(mux, options.Specialists, sessions, sessionConfigErr)
 	registerPublicSpecialistOffers(mux, options.Specialists)
+	registerSpecialistFeedback(mux, options.Specialists, sessions, sessionConfigErr)
 	registerOrganizationAuthorization(mux, options.OrganizationAuth, sessions, sessionConfigErr, options.Now)
 	registerOrganizationRuntime(mux, options.Organizations, sessions, sessionConfigErr)
 	registerOrganizationProducts(mux, options.Products, sessions, sessionConfigErr, options.Now)

@@ -13,7 +13,7 @@ import (
 
 func main() {
 	var (
-		subjectType = flag.String("type", "", "review subject: evidence, profile or capability")
+		subjectType = flag.String("type", "", "review subject: evidence, profile, capability or feedback")
 		subjectID   = flag.String("id", "", "evidence UUID or specialist Identity UUID")
 		decision    = flag.String("decision", "", "approve/reject or revoke for capability")
 		reviewer    = flag.String("reviewer", "", "stable operator/reviewer reference")
@@ -50,8 +50,10 @@ func main() {
 		err = store.ReviewProfile(*subjectID, approved, *reviewer)
 	case "capability":
 		err = store.RevokeCapability(*subjectID, *topic, *reviewer)
+	case "feedback":
+		err = store.ReviewVerifiedFeedback(*subjectID, approved, *reviewer)
 	default:
-		log.Fatal("-type must be evidence, profile or capability")
+		log.Fatal("-type must be evidence, profile, capability or feedback")
 	}
 	if err != nil {
 		log.Fatalf("specialist review failed: %v", err)

@@ -13,6 +13,9 @@ function isProfile(value:unknown):value is PublicSpecialist{
   Array.isArray(p.published_topics)&&p.published_topics.length>0&&
   p.published_topics.every(topic=>typeof topic==="string")&&
   Array.isArray(p.languages)&&Array.isArray(p.limitations) &&
+  Number.isSafeInteger(p.verified_review_count)&&p.verified_review_count>=0&&
+  (p.verified_review_count<5 ? p.verified_rating===undefined :
+   typeof p.verified_rating==="number"&&Number.isFinite(p.verified_rating)&&p.verified_rating>=1&&p.verified_rating<=5) &&
   !("identity_id" in p)&&!("evidence_refs" in p)&&!("reviewer_ref" in p);
 }
 export async function fetchNativeSpecialistDirectory(baseURL:string,topic:string,signal?:AbortSignal):Promise<SpecialistDirectoryResponse>{

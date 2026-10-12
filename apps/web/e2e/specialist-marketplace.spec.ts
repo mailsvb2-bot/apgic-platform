@@ -5,6 +5,7 @@ const profile={
  profession_code:"PSYCHOLOGIST",headline:"Психолог, работа с тревожностью",
  about:"Опора на навыки саморегуляции",experience_years:8,
  languages:["ru"],limitations:["Не работаю с детьми"],published_topics:["anxiety"],
+ verified_review_count:0,
 };
 
 test("public marketplace supports filter, reviewed profile view and route back to confirmed selection",async({page})=>{
@@ -46,7 +47,7 @@ test("revoked publication cannot be viewed even with a bookmarked direct URL",as
 test("specialist page shows only real API-backed offers and unheld slots",async({page})=>{
  const p={id:"00000000-0000-0000-0000-000000000011",display_name:"Мария Смирнова",
   profession_code:"PSYCHOLOGIST",headline:"",about:"",experience_years:1,
-  published_topics:["anxiety"],languages:["ru"],limitations:[]};
+  published_topics:["anxiety"],languages:["ru"],limitations:[],verified_review_count:0};
  await page.route("**/v1/specialists/00000000-0000-0000-0000-000000000011",async r=>r.fulfill({json:p}));
  await page.route("**/v1/specialists/00000000-0000-0000-0000-000000000011/offers",async r=>r.fulfill({
   json:{specialist_id:p.id,availability_rule:"CURRENT_ELIGIBLE_UNHELD_SLOTS",offers:[{
@@ -60,4 +61,16 @@ test("specialist page shows only real API-backed offers and unheld slots",async(
  await expect(page.getByText(/Свободное время не резервируется при просмотре/)).toBeVisible();
  await expect(page.getByRole("link",{name:"Выбрать эту услугу и перейти к записи"})).toHaveAttribute("href",`/?specialist_id=${p.id}&offer_id=00000000-0000-0000-0000-000000000022#start`);
  await expect(page.getByRole("button",{name:"Забронировать"})).toHaveCount(0);
+});
+
+// Verified reputation cannot be self-authored. Five approved completed-session
+// ratings can be rendered; no sample or unmoderated review means no stars.
+test("verified reputation is shown only with independent sufficient evidence",async({page})=>{
+ const p={...profile,verified_review_count:6,verified_rating:4.5};
+ await page.route("**/v1/specialists/00000000-0000-0000-0000-000000000011",async r=>r.fulfill({json:p}));
+ await page.route("**/v1/specialists/00000000-0000-0000-0000-000000000011/offers",async r=>r.fulfill({
+  json:{specialist_id:p.id,offers:[],availability_rule:"CURRENT_ELIGIBLE_UNHELD_SLOTS"}
+ }));
+ await page.goto("/specialist/"+p.id);
+ await expect(page.getByText(/Подтверждённый рейтинг: 4.5 \/ 5/)).toBeVisible();
 });

@@ -37,12 +37,19 @@ SELECT eligible.id::text, eligible.display_name, eligible.profession_code,
  COALESCE(details.experience_years,0),
  COALESCE(to_json(details.languages)::text,'["ru"]'),
  COALESCE(to_json(details.limitations)::text,'[]'),
- to_json(array_agg(DISTINCT eligible.topic_id ORDER BY eligible.topic_id))::text
+ to_json(array_agg(DISTINCT eligible.topic_id ORDER BY eligible.topic_id))::text,
+ COALESCE(ratings.review_count,0),
+ CASE WHEN ratings.review_count >= 5 THEN ratings.rating_average ELSE NULL END
 FROM eligible LEFT JOIN specialist_public_details details ON details.specialist_id=eligible.id
+LEFT JOIN (
+ SELECT specialist_id, count(*)::integer review_count, avg(rating)::float8 rating_average
+ FROM specialist_verified_feedback WHERE state='APPROVED' GROUP BY specialist_id
+) ratings ON ratings.specialist_id=eligible.id
 WHERE ($1::text='' OR EXISTS (SELECT 1 FROM eligible selected WHERE selected.id=eligible.id AND selected.topic_id=$1::text))
  AND ($2::text='' OR eligible.id::text=$2::text)
 GROUP BY eligible.id, eligible.display_name, eligible.profession_code,
- details.headline,details.about,details.experience_years,details.languages,details.limitations
+ details.headline,details.about,details.experience_years,details.languages,details.limitations,
+ ratings.review_count, ratings.rating_average
 ORDER BY eligible.display_name, eligible.id
 LIMIT $3 OFFSET $4`
 
@@ -106,7 +113,8 @@ func scanPublicProfile(row publicRowScanner) (specialist.PublicProfile, error) {
 	var p specialist.PublicProfile
 	var languagesJSON, limitationsJSON, topicsJSON string
 	err := row.Scan(&p.ID, &p.DisplayName, &p.ProfessionCode, &p.Headline, &p.About,
-		&p.ExperienceYears, &languagesJSON, &limitationsJSON, &topicsJSON)
+		&p.ExperienceYears, &languagesJSON, &limitationsJSON, &topicsJSON,
+		&p.VerifiedReviewCount, &p.VerifiedRating)
 	if err != nil {
 		return p, err
 	}

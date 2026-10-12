@@ -58,6 +58,9 @@ export function SpecialistDirectory(){
      <p>{professions[p.profession_code]??"Специалист"}</p>
      {p.headline?<p>{p.headline}</p>:null}
      {p.experience_years>0?<p>Опыт: {p.experience_years} лет</p>:null}
+      {p.verified_review_count>=5&&typeof p.verified_rating==="number"?
+       <p>Подтверждённый рейтинг: {p.verified_rating.toFixed(1)} / 5 ({p.verified_review_count} оценок)</p>:
+       <p>Рейтинг по завершённым консультациям пока не сформирован</p>}
      <p className="marketplace-topic-list">{p.published_topics.map(x=>topics[x]??x).join(" · ")}</p>
      <p className="marketplace-verified">Подтверждены только перечисленные направления</p>
     </div>
