@@ -324,3 +324,76 @@ func (c *Checker) AcademyVerify(token string)(map[string]any,error){
  return map[string]any{"state":state,"course_title":courseTitle,"course_version":versionNo,
  "issued_at":issuedAt,"qualification_status":"NOT_GRANTED"},nil
 }
+
+
+func (c *Checker) AcademySubmitAttempt(actor,enrollmentID,lessonID,response string)(academy.Attempt,error){
+ response=strings.TrimSpace(response)
+ if len(response)<1||len(response)>30000{return academy.Attempt{},academy.ErrInvalid}
+ ctx,cancel,tx,err:=academyBegin(c);defer cancel()
+ if err!=nil{return academy.Attempt{},err};defer tx.Rollback()
+ var rubric,state,entitlementState string
+ err=tx.QueryRowContext(ctx,`SELECT a.rubric_version,e.state,t.state
+ FROM academy_enrollments e JOIN store_entitlements t ON t.id=e.entitlement_id
+ JOIN academy_modules m ON m.version_id=e.version_id
+ JOIN academy_lessons l ON l.module_id=m.id JOIN academy_assessments a ON a.lesson_id=l.id
+ WHERE e.id=$1::uuid AND e.identity_id=$2::uuid AND l.id=$3::uuid
+ FOR UPDATE OF e`,enrollmentID,actor,lessonID).Scan(&rubric,&state,&entitlementState)
+ if errors.Is(err,sql.ErrNoRows){return academy.Attempt{},academy.ErrNotFound};if err!=nil{return academy.Attempt{},err}
+ if entitlementState!="ACTIVE"{return academy.Attempt{},academy.ErrEntitlement}
+ if state!="ACTIVE"{return academy.Attempt{},academy.ErrState}
+ var attempts int
+ err=tx.QueryRowContext(ctx,`SELECT COALESCE(MAX(attempt_no),0)+1 FROM academy_attempts
+ WHERE enrollment_id=$1::uuid AND lesson_id=$2::uuid`,enrollmentID,lessonID).Scan(&attempts)
+ if err!=nil{return academy.Attempt{},err}
+ id,err:=academyID();if err!=nil{return academy.Attempt{},err}
+ var submitted time.Time
+ err=tx.QueryRowContext(ctx,`INSERT INTO academy_attempts(
+ id,enrollment_id,lesson_id,attempt_no,response_text,rubric_version)
+ VALUES($1::uuid,$2::uuid,$3::uuid,$4,$5,$6)
+ RETURNING submitted_at`,id,enrollmentID,lessonID,attempts,response,rubric).Scan(&submitted)
+ if err!=nil{return academy.Attempt{},err}
+ if err=academyEvent(ctx,tx,actor,"academy/enrollment/"+enrollmentID,"academy.assessment.submitted",
+  map[string]any{"attempt_id":id,"lesson_id":lessonID,"attempt_no":attempts});err!=nil{return academy.Attempt{},err}
+ if err=tx.Commit();err!=nil{return academy.Attempt{},err}
+ return academy.Attempt{ID:id,EnrollmentID:enrollmentID,LessonID:lessonID,AttemptNo:attempts,
+  Result:"PENDING",RubricVersion:rubric,SubmittedAt:submitted},nil
+}
+
+func (c *Checker) AcademyEvaluateAttempt(author,attemptID,evidence string,score int)(academy.Attempt,error){
+ if score<0||score>100||strings.TrimSpace(evidence)==""{return academy.Attempt{},academy.ErrInvalid}
+ ctx,cancel,tx,err:=academyBegin(c);defer cancel()
+ if err!=nil{return academy.Attempt{},err};defer tx.Rollback()
+ var a academy.Attempt;var status,entitlementState,enrollmentState string;var pass int;var owner string
+ err=tx.QueryRowContext(ctx,`SELECT a.enrollment_id::text,a.lesson_id::text,a.attempt_no,
+ a.rubric_version,a.result,a.submitted_at,assessment.passing_score,
+ c.author_id::text,t.state,e.state
+ FROM academy_attempts a
+ JOIN academy_assessments assessment ON assessment.lesson_id=a.lesson_id
+ JOIN academy_enrollments e ON e.id=a.enrollment_id
+ JOIN store_entitlements t ON t.id=e.entitlement_id
+ JOIN academy_course_versions v ON v.id=e.version_id
+ JOIN academy_courses c ON c.id=v.course_id
+ WHERE a.id=$1::uuid FOR UPDATE OF a`,attemptID).Scan(&a.EnrollmentID,&a.LessonID,
+ &a.AttemptNo,&a.RubricVersion,&status,&a.SubmittedAt,&pass,&owner,&entitlementState,&enrollmentState)
+ if errors.Is(err,sql.ErrNoRows){return academy.Attempt{},academy.ErrNotFound};if err!=nil{return academy.Attempt{},err}
+ if owner!=author{return academy.Attempt{},academy.ErrDenied}
+ if entitlementState!="ACTIVE"{return academy.Attempt{},academy.ErrEntitlement}
+ if enrollmentState!="ACTIVE"||status!="PENDING"{return academy.Attempt{},academy.ErrState}
+ result:="FAILED";if score>=pass{result="PASSED"}
+ id,err:=academyID();if err!=nil{return academy.Attempt{},err}
+ err=tx.QueryRowContext(ctx,`UPDATE academy_attempts
+ SET result=$2,score=$3,evaluated_by=$4::uuid,evaluation_evidence_ref=$5,evaluated_at=now()
+ WHERE id=$1::uuid AND result='PENDING' RETURNING evaluated_at`,
+ attemptID,result,score,author,evidence).Scan(&a.EvaluatedAt)
+ if err!=nil{return academy.Attempt{},err}
+ if result=="PASSED"{
+  _,err=tx.ExecContext(ctx,`INSERT INTO academy_progress(enrollment_id,lesson_id,evidence_ref)
+  VALUES($1::uuid,$2::uuid,$3) ON CONFLICT DO NOTHING`,a.EnrollmentID,a.LessonID,"academy/attempt/"+attemptID)
+  if err!=nil{return academy.Attempt{},err}
+ }
+ if err=academyEvent(ctx,tx,author,"academy/enrollment/"+a.EnrollmentID,"academy.assessment.evaluated",
+ map[string]any{"attempt_id":attemptID,"lesson_id":a.LessonID,"result":result});err!=nil{return academy.Attempt{},err}
+ if err=tx.Commit();err!=nil{return academy.Attempt{},err}
+ a.ID=attemptID;a.Result=result;a.Score=&score
+ return a,nil
+}
