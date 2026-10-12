@@ -1,10 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-
-type Fact = {fact_type:string; role:string; evidence_ref:string; occurred_at:string};
-type Recovery = {action:string;reason_code:string;followup_path_ref?:string;decided_at:string};
-type Timeline = {booking_id:string;booking_state:string;consultation_state:string;facts:Fact[];recovery:Recovery[];requires_followup:boolean};
+import type {ConsultationTimeline as Timeline} from "../../../packages/contracts/src/generated/apgic-v1";
 const labels:Record<string,string> = {
   JOINED:"Подключение подтверждено провайдером", STARTED:"Медиасеанс начат",
   LEFT:"Отключение участника", RECOVERY_STARTED:"Восстановление связи",
