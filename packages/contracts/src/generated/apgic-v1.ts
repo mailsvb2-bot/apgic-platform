@@ -2,7 +2,7 @@
 // DO NOT EDIT.
 export const apiContractVersion = "0.10.0-r0-remote-config" as const;
 
-export type ApiOperationId = "acquireSlotHold" | "applyProviderEvent" | "applyTrustedProviderWebhook" | "archiveOrganizationDirection" | "cancelOrder" | "completeConsultation" | "confirmHelpIntent" | "createCheckoutInstruction" | "createHelpIntent" | "createMobileCheckoutInstruction" | "createOrganization" | "createOrganizationDirection" | "createOrganizationProduct" | "createSpecialistBookableOffer" | "createSpecialistBookableSlot" | "declareSpecialistCapability" | "deleteAccount" | "exportConsultationToGrowth" | "getBookingFulfillment" | "getBookingStatus" | "getConsultationResult" | "getLegalAcceptanceStatus" | "getMeta" | "getMobileCompatibility" | "getMobileNotificationDelivery" | "getMobileRemoteConfig" | "getOrganization" | "getPrivateOrganizationProfile" | "getSpecialistProfile" | "health" | "issueMobileDeepLink" | "listCheckoutOptions" | "listHelpIntentMatches" | "listMobileInstallations" | "listMobileWorkspaces" | "listMySpecialistBookableOffers" | "listOrganizationProducts" | "listOrganizations" | "listSpecialistSlots" | "markSearchProjectionStale" | "pauseSpecialistBookableOffer" | "publishOrganizationProduct" | "publishSpecialistCapability" | "readiness" | "rebuildSearchProjection" | "recordConsent" | "recordConsultationPresence" | "recordLegalAcceptance" | "registerMobileInstallation" | "reportConsultationFailure" | "resolveMobileDeepLink" | "resolveMobileWorkspace" | "revokeConsent" | "revokeMobileInstallation" | "rotateMobilePushEndpoint" | "searchProjection" | "submitSpecialistEvidence" | "succeedConsultationRecovery" | "unpublishSpecialistCapability" | "updateProductCommercialOwner" | "upsertSpecialistProfile";
+export type ApiOperationId = "acquireSlotHold" | "applyProviderEvent" | "applyTrustedProviderWebhook" | "archiveOrganizationDirection" | "cancelOrder" | "completeConsultation" | "confirmHelpIntent" | "createCheckoutInstruction" | "createHelpIntent" | "createMobileCheckoutInstruction" | "createOrganization" | "createOrganizationDirection" | "createOrganizationProduct" | "createSpecialistBookableOffer" | "createSpecialistBookableSlot" | "declareSpecialistCapability" | "deleteAccount" | "exportConsultationToGrowth" | "getBookingFulfillment" | "getBookingStatus" | "getConsultationResult" | "getLegalAcceptanceStatus" | "getMeta" | "getMobileCompatibility" | "getMobileNotificationDelivery" | "getMobileRemoteConfig" | "getMySpecialistPublicDetails" | "getOrganization" | "getPrivateOrganizationProfile" | "getPublicSpecialist" | "getSpecialistProfile" | "health" | "issueMobileDeepLink" | "listCheckoutOptions" | "listHelpIntentMatches" | "listMobileInstallations" | "listMobileWorkspaces" | "listMySpecialistBookableOffers" | "listOrganizationProducts" | "listOrganizations" | "listPublicBookableOffers" | "listPublicSpecialists" | "listSpecialistSlots" | "markSearchProjectionStale" | "pauseSpecialistBookableOffer" | "publishOrganizationProduct" | "publishSpecialistCapability" | "readiness" | "rebuildSearchProjection" | "recordConsent" | "recordConsultationPresence" | "recordLegalAcceptance" | "registerMobileInstallation" | "reportConsultationFailure" | "resolveMobileDeepLink" | "resolveMobileWorkspace" | "revokeConsent" | "revokeMobileInstallation" | "rotateMobilePushEndpoint" | "searchProjection" | "submitSpecialistEvidence" | "submitVerifiedSpecialistFeedback" | "succeedConsultationRecovery" | "unpublishSpecialistCapability" | "updateMySpecialistPublicDetails" | "updateProductCommercialOwner" | "upsertSpecialistProfile";
 
 export interface AccountDeletion {
   apgic_deletes_ledger: boolean;
@@ -243,6 +243,12 @@ export interface ErrorEnvelope {
   retryable: boolean;
 }
 
+export interface FeedbackSubmission {
+  id: string;
+  notice: string;
+  state: "PENDING";
+}
+
 export interface GrowthExport {
   allowed: boolean;
   classification: string;
@@ -450,6 +456,50 @@ export interface ProviderWebhookEnvelope {
   stream_id: string;
 }
 
+export interface PublicBookableOffer {
+  currency: "RUB";
+  id: string;
+  price_minor: number;
+  slots: Array<PublicBookableSlot>;
+  topic_id: string;
+}
+
+export interface PublicBookableOfferList {
+  availability_rule: "CURRENT_ELIGIBLE_UNHELD_SLOTS";
+  offers: Array<PublicBookableOffer>;
+  specialist_id: string;
+}
+
+export interface PublicBookableSlot {
+  ends_at: string;
+  slot_id: string;
+  starts_at: string;
+}
+
+export interface PublicSpecialist {
+  about: string;
+  display_name: string;
+  experience_years: number;
+  headline: string;
+  id: string;
+  languages: Array<string>;
+  limitations: Array<string>;
+  profession_code: string;
+  published_topics: Array<string>;
+  verified_rating?: number;
+  verified_review_count: number;
+}
+
+export interface PublicSpecialistDirectory {
+  has_more: boolean;
+  limit: number;
+  offset: number;
+  policy_version: string;
+  profiles: Array<PublicSpecialist>;
+  sort: "DISPLAY_NAME_ASC";
+  topic: string;
+}
+
 export interface RecordConsentRequest {
   policy_version: string;
   purpose: string;
@@ -608,6 +658,20 @@ export interface SpecialistProfileUpsertRequest {
   profession_code: string;
 }
 
+export interface SpecialistPublicDetails {
+  about: string;
+  experience_years: number;
+  headline: string;
+  languages: Array<string>;
+  limitations: Array<string>;
+}
+
+export interface SpecialistPublicDetailsUpdateResult {
+  details: SpecialistPublicDetails;
+  notice: string;
+  review_required: boolean;
+}
+
 export interface SpecialistPublishResult {
   allowed: boolean;
   policy_version: string;
@@ -621,3 +685,8 @@ export interface Status {
 }
 
 export type Surface = "WEB" | "PWA" | "IOS" | "ANDROID";
+
+export interface VerifiedFeedbackRequest {
+  booking_id: string;
+  rating: number;
+}

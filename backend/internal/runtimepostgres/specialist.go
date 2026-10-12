@@ -466,6 +466,68 @@ func (c *Checker) ReviewProfile(identityID string, approved bool, reviewerRef st
 	return nil
 }
 
+// RevokeCapability is restricted to trusted review operators, not public APIs.
+// Immutable accepted evidence remains in audit history; every active publication
+// is suspended by the specialist_capability_revalidation_guard database trigger.
+func (c *Checker) RevokeCapability(specialistID, topicID, reviewerRef string) error {
+	topicID, err := specialist.NormalizeTopic(topicID)
+	if err != nil || strings.TrimSpace(reviewerRef) == "" {
+		return specialist.ErrCapabilityInvalid
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), specialistWriteTimeout)
+	defer cancel()
+	tx, err := c.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin specialist capability revocation: %w", err)
+	}
+	defer tx.Rollback()
+	var oldState, evidenceState string
+	err = tx.QueryRowContext(ctx,
+		`SELECT verification_state, evidence_state FROM specialist_capabilities
+		  WHERE specialist_id = $1::uuid AND topic_id = $2 FOR UPDATE`, specialistID, topicID,
+	).Scan(&oldState, &evidenceState)
+	if errors.Is(err, sql.ErrNoRows) {
+		return specialist.ErrCapabilityNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("read specialist capability for revocation: %w", err)
+	}
+	if oldState != "REVOKED" {
+		if evidenceState != "APGIC_VERIFIED" {
+			return specialist.ErrCapabilityInvalid
+		}
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE specialist_capabilities
+			    SET verification_state = 'REVOKED', updated_at = now()
+			  WHERE specialist_id = $1::uuid AND topic_id = $2`,
+			specialistID, topicID); err != nil {
+			return fmt.Errorf("revoke specialist capability: %w", err)
+		}
+		auditID, err := persistentid.New()
+		if err != nil {
+			return err
+		}
+		oldJSON, _ := json.Marshal(map[string]string{"verification_state": oldState})
+		newJSON, _ := json.Marshal(map[string]string{"verification_state": "REVOKED", "topic_id": topicID})
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO audit_records (
+				id, actor_id, action, scope, resource_ref, old_state, new_state,
+				reason, policy_version, correlation_id
+			) VALUES ($1::uuid, $2, 'SPECIALIST_CAPABILITY_REVOKE', 'SPECIALIST',
+				$3, $4::jsonb, $5::jsonb, 'SPECIALIST_COMPETENCE_REVOKED', $6, $7)`,
+			auditID, reviewerRef, "specialist:"+specialistID+"/topic:"+topicID,
+			string(oldJSON), string(newJSON), specialistQualificationPolicyVersion,
+			"specialist-revocation:"+auditID,
+		); err != nil {
+			return fmt.Errorf("audit specialist capability revocation: %w", err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit specialist capability revocation: %w", err)
+	}
+	return nil
+}
+
 func (c *Checker) Publish(identityID, topicID string) (specialist.PublishResult, error) {
 	topicID, err := specialist.NormalizeTopic(topicID)
 	if err != nil {
@@ -504,13 +566,15 @@ func (c *Checker) Publish(identityID, topicID string) (specialist.PublishResult,
 	}
 
 	var evidenceState, verificationState, evidenceJSON string
+	var evidenceUnexpired bool
 	if err := tx.QueryRowContext(ctx,
-		`SELECT evidence_state, verification_state, to_json(evidence_refs)::text
+		`SELECT evidence_state, verification_state, to_json(evidence_refs)::text,
+		    (expires_at IS NULL OR expires_at > clock_timestamp())
 		   FROM specialist_capabilities
 		  WHERE specialist_id = $1::uuid AND topic_id = $2
 		  FOR UPDATE`,
 		specialistID, topicID,
-	).Scan(&evidenceState, &verificationState, &evidenceJSON); err != nil {
+	).Scan(&evidenceState, &verificationState, &evidenceJSON, &evidenceUnexpired); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			result.ReasonCodes = []string{marketplace.ReasonNoCapability}
 			return result, tx.Commit()
@@ -524,7 +588,7 @@ func (c *Checker) Publish(identityID, topicID string) (specialist.PublishResult,
 	}
 	eligible := evidenceState == string(marketplace.EvidenceAPGICVerified) &&
 		verificationState == specialist.VerificationActive &&
-		specialistPolicyAllows(profession, topicID)
+		evidenceUnexpired && specialistPolicyAllows(profession, topicID)
 
 	evaluationID, err := persistentid.New()
 	if err != nil {

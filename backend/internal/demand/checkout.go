@@ -80,7 +80,7 @@ func (s *Service) CheckoutOptions(holdID, clientIdentityID string) ([]CheckoutOp
 		return nil, err
 	}
 	recipient := s.recipientLocked(slot.SpecialistID)
-	amount := priceOf(s.catalog.candidates, slot.SpecialistID)
+	amount := priceOfOffer(s.catalog.candidates, slot.OfferID, slot.SpecialistID)
 	methods := payments.EligibleMethods(payments.CatalogContext{
 		Currency:     "RUB",
 		Jurisdiction: JurisdictionRU,
@@ -191,7 +191,7 @@ func (s *Service) CreateCheckout(holdID, clientIdentityID, methodCode string) (*
 		return nil, err
 	}
 	ownership := productContext.Ownership
-	amount := priceOf(s.catalog.candidates, slot.SpecialistID)
+	amount := priceOfOffer(s.catalog.candidates, slot.OfferID, slot.SpecialistID)
 	now := s.now().UTC()
 	orderID, err := newJourneyID()
 	if err != nil {
