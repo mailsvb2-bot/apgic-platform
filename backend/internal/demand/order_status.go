@@ -29,9 +29,13 @@ func (s *Service) ReadOrderStatus(orderID, clientIdentityID string) (*OrderStatu
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err := s.expireHoldsLocked(); err != nil { return nil, err }
+	if err := s.expireHoldsLocked(); err != nil {
+		return nil, err
+	}
 	instruction := s.instructionByOrderLocked(orderID)
-	if instruction == nil { return nil, ErrOrderNotFound }
+	if instruction == nil {
+		return nil, ErrOrderNotFound
+	}
 	booked := s.bookings[instruction.BookingID]
 	if booked == nil || booked.ID != instruction.BookingID || booked.ClientIdentityID != clientIdentityID {
 		return nil, ErrOrderNotFound

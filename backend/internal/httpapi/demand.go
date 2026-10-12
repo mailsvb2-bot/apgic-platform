@@ -440,7 +440,9 @@ func registerDemand(
 		}
 		identityID, ok := trustedClientIdentity(w, r, sessions, sessionConfigErr, "")
 		if !ok || strings.TrimSpace(identityID) == "" {
-			if ok { writeDemandError(w, r, http.StatusUnauthorized, "CLIENT_SESSION_REQUIRED", "Требуется сессия клиента.", false, nil) }
+			if ok {
+				writeDemandError(w, r, http.StatusUnauthorized, "CLIENT_SESSION_REQUIRED", "Требуется сессия клиента.", false, nil)
+			}
 			return
 		}
 		status, err := service.ReadOrderStatus(r.PathValue("id"), identityID)
@@ -694,7 +696,9 @@ func registerDemand(
 		}
 		clientIdentityID, ok := trustedClientIdentity(w, r, sessions, sessionConfigErr, "")
 		if !ok || strings.TrimSpace(clientIdentityID) == "" {
-			if ok { writeDemandError(w, r, http.StatusUnauthorized, "CLIENT_SESSION_REQUIRED", "Требуется сессия клиента.", false, nil) }
+			if ok {
+				writeDemandError(w, r, http.StatusUnauthorized, "CLIENT_SESSION_REQUIRED", "Требуется сессия клиента.", false, nil)
+			}
 			return
 		}
 		cancellation, err := service.CancelOrderForClient(body.OrderID, clientIdentityID, body.ReasonCode)
