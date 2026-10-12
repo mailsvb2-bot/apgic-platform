@@ -67,3 +67,9 @@ Real live ranking derives reliability and platform experience only from canonica
 Public offer links pass both `specialist_id` and `offer_id` as *preferences* into the confirmed-HelpIntent workflow. The server re-evaluates qualification, current offer ownership, price and slot before any hold; marketplace does not execute payment or bypass booking. MatchCard prices resolve via offer ID, preventing wrong quoted price when a specialist has multiple services.
 
 PostgreSQL integration test `TestPublicSpecialistFullPublicationReviewAndRemoval` additionally proves that a new piece of qualification evidence immediately withdraws the old published topic from public profile and search, and neither evidence review nor profile review alone resurrects the prior publication. Explicit policy evaluation and republish are required before discovery resumes.
+
+## Native exact-service handoff and SQL supply ownership
+
+Native specialist cards now expose a separate selection action for each real API-backed priced `offer_id`. The navigation URL carries the canonical specialist and offer UUIDs into the same confirmed HelpIntent workflow used on web; unpriced profiles cannot masquerade as a specific bookable offer. The URL validator rejects arbitrary or injected identifiers. TypeScript and native contract checks cover this path.
+
+The PostgreSQL live-matching query places `slot.specialist_identity_id = specialist_profile.identity_id` on the **inner booking slot join**, not on the optional completed/no-show outcomes left join. Therefore the absence of booking history cannot accidentally relax canonical slot ownership. New specialist outcome metrics remain read-only ranking evidence, not a booking entitlement or money-processing module.

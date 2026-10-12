@@ -5,6 +5,7 @@ import {
  fetchNativePublicSpecialist,
  fetchNativePublicOffers,
  fetchNativeSpecialistDirectory,
+ specialistBookingHandoffURL,
  type PublicSpecialist,
 } from "./mobile-specialist-directory.ts";
 import type {PublicBookableOfferList} from "../../../packages/contracts/src/generated/apgic-v1.ts";
@@ -74,12 +75,16 @@ export function NativeSpecialistDirectory({baseURL,topic}:{baseURL:string;topic:
     {offer.slots.map(slot=><Text key={slot.slot_id}>
      {new Date(slot.starts_at).toLocaleString("ru-RU")} — {Math.round((new Date(slot.ends_at).getTime()-new Date(slot.starts_at).getTime())/60000)} минут
     </Text>)}
+    <Pressable accessibilityRole="button" accessibilityLabel={`Выбрать услугу ${topicNames[offer.topic_id]??offer.topic_id}`}
+      style={styles.action} onPress={()=>void Linking.openURL(specialistBookingHandoffURL(canonicalAPGICOrigin,selected.id,offer.id))}>
+     <Text style={styles.actionText}>Выбрать эту услугу и перейти к записи</Text>
+    </Pressable>
    </View>)}
    <Text style={styles.note}>Цены и свободное время берутся из действующих предложений. Просмотр анкеты не резервирует слот и не создаёт оплату.</Text>
-   <Pressable accessibilityRole="button" accessibilityLabel="Продолжить запись к выбранному специалисту"
-     style={styles.action} onPress={()=>void Linking.openURL(`${canonicalAPGICOrigin}/?specialist_id=${encodeURIComponent(selected.id)}#start`)}>
-    <Text style={styles.actionText}>Продолжить к записи</Text>
-   </Pressable>
+   {!offers || offers.offers.length===0?<Pressable accessibilityRole="button" accessibilityLabel="Описать запрос к выбранному специалисту"
+     style={styles.action} onPress={()=>void Linking.openURL(specialistBookingHandoffURL(canonicalAPGICOrigin,selected.id))}>
+    <Text style={styles.actionText}>Уточнить запрос и проверить запись</Text>
+   </Pressable>:null}
   </View>:null}
  </View>;
 }

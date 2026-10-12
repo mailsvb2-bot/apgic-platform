@@ -57,3 +57,16 @@ export async function fetchNativePublicOffers(baseURL:string,id:string,signal?:A
  }
  return list as PublicBookableOfferList;
 }
+
+/**
+ * A marketplace selection is only a navigation preference; the confirmed
+ * HelpIntent + current offer qualification + canonical booking hold remain
+ * mandatory. Identifiers MUST be canonical UUIDs (not arbitrary URLs).
+ */
+export function specialistBookingHandoffURL(origin:string,specialistID:string,offerID?:string):string{
+ const uuid=/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
+ if(!uuid.test(specialistID)|| (offerID!==undefined && !uuid.test(offerID)))throw new Error("SPECIALIST_HANDOFF_INVALID");
+ const params=new URLSearchParams({specialist_id:specialistID});
+ if(offerID)params.set("offer_id",offerID);
+ return `${origin.replace(/\/$/,"")}/?${params.toString()}#start`;
+}

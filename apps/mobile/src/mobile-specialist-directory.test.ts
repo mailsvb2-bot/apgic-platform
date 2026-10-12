@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {fetchNativePublicOffers,fetchNativePublicSpecialist,fetchNativeSpecialistDirectory} from "./mobile-specialist-directory.ts";
+import {fetchNativePublicOffers,fetchNativePublicSpecialist,fetchNativeSpecialistDirectory,specialistBookingHandoffURL} from "./mobile-specialist-directory.ts";
 const profile={id:"sp-1",display_name:"Анна",profession_code:"PSYCHOLOGIST",headline:"",
  about:"",experience_years:0,languages:["ru"],limitations:[],published_topics:["anxiety"]};
 function reply(body:unknown,status=200){return new Response(JSON.stringify(body),{status,headers:{"content-type":"application/json"}})}
@@ -48,4 +48,15 @@ test("native public offers fail closed on fabricated or unauthorized pricing",as
  try{
   await assert.rejects(fetchNativePublicOffers("https://example.invalid","sp-1"),/SPECIALIST_OFFERS_INVALID/);
  }finally{globalThis.fetch=old}
+});
+
+test("native hands off the exact priced offer without granting booking entitlement",()=>{
+ const specialist="00000000-0000-0000-0000-000000000011";
+ const offer="00000000-0000-0000-0000-000000000022";
+ assert.equal(specialistBookingHandoffURL("https://apgic.ru/",specialist,offer),
+  `https://apgic.ru/?specialist_id=${specialist}&offer_id=${offer}#start`);
+ assert.equal(specialistBookingHandoffURL("https://apgic.ru",specialist),
+  `https://apgic.ru/?specialist_id=${specialist}#start`);
+ assert.throws(()=>specialistBookingHandoffURL("https://apgic.ru",specialist,"javascript:alert(1)"),
+  /SPECIALIST_HANDOFF_INVALID/);
 });

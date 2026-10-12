@@ -253,6 +253,7 @@ func (c *Checker) BookableOffers() ([]demand.BookableOffer, error) {
           ON cap.specialist_id=sp.id AND cap.topic_id=offer.topic_id
         JOIN booking_slots slot
           ON slot.specialist_offer_id=offer.id AND slot.tenant_scope='specialist/live'
+         AND slot.specialist_identity_id=sp.identity_id
         LEFT JOIN (
           SELECT history.specialist_identity_id,
                  count(*) FILTER (WHERE history_booking.state='COMPLETED') AS completed,
@@ -263,7 +264,6 @@ func (c *Checker) BookableOffers() ([]demand.BookableOffer, error) {
              AND history_booking.state IN ('COMPLETED','NO_SHOW')
            GROUP BY history.specialist_identity_id
         ) outcomes ON outcomes.specialist_identity_id=sp.identity_id
-         AND slot.specialist_identity_id=sp.identity_id
        WHERE apgic_live_offer_valid(offer.id)
          AND slot.exclusive
          AND slot.starts_at > clock_timestamp() + interval '15 minutes'
