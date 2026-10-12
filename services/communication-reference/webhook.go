@@ -49,7 +49,10 @@ type roomState struct {
 	Recovering   bool                   `json:"recovering"`
 	Terminal     bool                   `json:"terminal"`
 	StartedAt    time.Time              `json:"started_at"`
-	FirstBreakAt time.Time              `json:"first_break_at"`
+	// Verified intervals where both authorized participants publish audio.
+	// These survive process restart and exclude disconnected/offline minutes.
+	MediaLiveSince     time.Time `json:"media_live_since"`
+	MediaAccumulatedNS int64     `json:"media_accumulated_ns"`
 	Sequence     uint64                 `json:"sequence"`
 	Outbox       []signedFact           `json:"outbox"`
 	Delivered    int                    `json:"delivered"`
@@ -227,6 +230,19 @@ func (s *referenceService) enqueue(room *roomState, sourceID, factType, role str
 		KeyID: msg.KeyID, OccurredAt: msg.OccurredAt, Payload: payload, Signature: signature})
 	return nil
 }
+// Close the current two-way-media interval. Technical interruption stops
+// accumulation; reconnect creates a fresh interval instead of treating the
+// complete wall-clock duration as media attendance.
+func suspendMediaInterval(room *roomState, at time.Time) {
+	if room.MediaLiveSince.IsZero() {
+		return
+	}
+	if at.After(room.MediaLiveSince) {
+		room.MediaAccumulatedNS += int64(at.Sub(room.MediaLiveSince))
+	}
+	room.MediaLiveSince = time.Time{}
+}
+
 func (s *referenceService) applyLiveKitEvent(room *roomState, event livekitEvent) error {
 	if room.Terminal || room.Seen[event.ID] {
 		return nil
@@ -276,12 +292,32 @@ func (s *referenceService) applyLiveKitEvent(room *roomState, event livekitEvent
 			if !room.Started {
 				room.Started = true
 				room.StartedAt = occurred
+				room.MediaLiveSince = occurred
 				if err := s.enqueue(room, event.ID, "STARTED", "SYSTEM", occurred); err != nil {
 					return err
 				}
 			} else if room.Recovering {
 				room.Recovering = false
+				room.MediaLiveSince = occurred
 				if err := s.enqueue(room, event.ID, "RECOVERY_SUCCEEDED", "SYSTEM", occurred); err != nil {
+					return err
+				}
+			}
+		}
+	case "track_unpublished":
+		if !known || !room.Joined[event.Participant.Identity] {
+			return errors.New("unauthorized media removal")
+		}
+		if strings.ToUpper(event.Track.Type) != "AUDIO" ||
+			!room.Audio[event.Participant.Identity] {
+			break
+		}
+		room.Audio[event.Participant.Identity] = false
+		if room.Started {
+			suspendMediaInterval(room, occurred)
+			if !room.Recovering {
+				room.Recovering = true
+				if err := s.enqueue(room, event.ID, "RECOVERY_STARTED", "SYSTEM", occurred); err != nil {
 					return err
 				}
 			}
@@ -294,9 +330,7 @@ func (s *referenceService) applyLiveKitEvent(room *roomState, event livekitEvent
 			room.Joined[event.Participant.Identity] = false
 			room.Audio[event.Participant.Identity] = false
 			if room.Started {
-				if room.FirstBreakAt.IsZero() {
-					room.FirstBreakAt = occurred
-				}
+				suspendMediaInterval(room, occurred)
 				if err := s.enqueue(room, event.ID, "LEFT", role, occurred); err != nil {
 					return err
 				}
@@ -312,10 +346,8 @@ func (s *referenceService) applyLiveKitEvent(room *roomState, event livekitEvent
 		if !room.Started {
 			break
 		}
-		observed := occurred.Sub(room.StartedAt)
-		if !room.FirstBreakAt.IsZero() {
-			observed = room.FirstBreakAt.Sub(room.StartedAt)
-		}
+		suspendMediaInterval(room, occurred)
+		observed := time.Duration(room.MediaAccumulatedNS)
 		if observed >= s.config.MinimumSession && client != "" && specialist != "" &&
 			room.Finish[client] && room.Finish[specialist] {
 			if err := s.enqueue(room, event.ID, "ENDED", "SYSTEM", occurred); err != nil {
