@@ -1,5 +1,5 @@
 import React,{useCallback,useState} from "react";
-import {Pressable,Text,View} from "react-native";
+import {Pressable,Text,TextInput,View} from "react-native";
 import {canonicalAPGICOrigin} from "./mobile-deep-link-client.ts";
 
 export type NativeAcademyCourse={
@@ -17,10 +17,11 @@ export type NativeAcademyCertificate={
 type AcademyFetch=(url:string,init?:RequestInit)=>Promise<Response>;
 
 export async function academyRequest<T>(
- path:string,method:"GET"|"POST"="GET",fetchImpl:AcademyFetch=fetch,origin=canonicalAPGICOrigin,
+ path:string,method:"GET"|"POST"="GET",fetchImpl:AcademyFetch=fetch,origin=canonicalAPGICOrigin,body?:unknown,
 ):Promise<T>{
  const response=await fetchImpl(new URL(path,origin).toString(),{
-  method,credentials:"include",headers:{"Accept":"application/json"},
+  method,credentials:"include",headers:{"Accept":"application/json","Content-Type":"application/json"},
+  body:body===undefined?undefined:JSON.stringify(body),
  });
  const value:unknown=await response.json();
  if(!response.ok){
@@ -38,6 +39,7 @@ export function AcademySurface(){
  const [certificate,setCertificate]=useState<NativeAcademyCertificate|null>(null);
  const [status,setStatus]=useState("Откройте каталог, чтобы посмотреть доступные курсы.");
  const [busy,setBusy]=useState(false);
+ const [assessmentAnswer,setAssessmentAnswer]=useState("");
  const act=useCallback(async(work:()=>Promise<void>)=>{
   setBusy(true);
   try{await work()}catch(error){
@@ -90,7 +92,22 @@ export function AcademySurface(){
     <Text style={{fontWeight:"700"}}>{lesson.title}{lesson.completed?" ✓":""}</Text>
     {lesson.kind==="READING"&&<Text>{lesson.body}</Text>}
     {lesson.kind==="VIDEO"&&<Text>Видеоматериал требует подтверждённого media grant.</Text>}
-    {lesson.kind==="ASSESSMENT"&&<Text>Письменное задание проходит проверку преподавателем. Для отправки используйте полную учебную форму на web.</Text>}
+    {lesson.kind==="ASSESSMENT"&&<View style={{gap:8}}>
+      <Text>Письменная работа оценивается преподавателем. Нельзя оценить себя самостоятельно.</Text>
+      <TextInput multiline accessibilityLabel="Ответ на письменное задание"
+       value={assessmentAnswer} onChangeText={setAssessmentAnswer}
+       style={{borderWidth:1,borderRadius:9,minHeight:90,padding:10}}
+       placeholder="Напишите ответ"/>
+      <Pressable accessibilityRole="button" disabled={busy||!assessmentAnswer.trim()}
+       style={{minHeight:48,justifyContent:"center"}}
+       onPress={()=>void act(async()=>{
+        const attempt=await academyRequest<{id:string}>(
+         `/v1/academy/enrollments/${encodeURIComponent(selected.id)}/assessments/${encodeURIComponent(lesson.id)}/attempts`,
+         "POST",fetch,canonicalAPGICOrigin,{response:assessmentAnswer});
+        setAssessmentAnswer("");
+        setStatus(`Работа отправлена на проверку: ${attempt.id}`);
+       })}><Text>Отправить задание на оценку</Text></Pressable>
+     </View>}
     {lesson.kind==="READING"&&!lesson.completed&&<Pressable accessibilityRole="button"
      disabled={busy} style={{minHeight:48,justifyContent:"center"}}
      onPress={()=>void act(async()=>{
