@@ -142,6 +142,20 @@ func registerLiveMedia(mux *http.ServeMux, store LiveEventStore, media liveevent
 			liveError(w, r, liveevents.ErrUnavailable)
 			return
 		}
+		// Provider preparation may take seconds. Recheck canonical SQL before
+		// handing a capability to the browser: another request may have
+		// cancelled the event, revoked ownership or removed this participant.
+		current, currentRole, err := service.LiveMediaForJoin(r.Context(), actor, room.EventID, now().UTC())
+		if err != nil {
+			liveError(w, r, err)
+			return
+		}
+		if currentRole != role || current.ConferenceID != room.ConferenceID ||
+			current.ProviderInstanceID != room.ProviderInstanceID ||
+			current.IntegrationID != room.IntegrationID {
+			liveError(w, r, liveevents.ErrConflict)
+			return
+		}
 		w.Header().Set("Cache-Control", "private, no-store")
 		w.Header().Set("Pragma", "no-cache")
 		w.Header().Set("Referrer-Policy", "no-referrer")

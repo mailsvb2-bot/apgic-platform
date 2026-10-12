@@ -214,3 +214,16 @@ accepted as stable domain evidence.
 - Current contract tests use an in-process UCR mock, PostgreSQL CI verifies
   attendee capacity and organizer exclusion, but no two-device live WebRTC
   deployment evidence has been collected. `VERIFIED` is not `RELEASED`.
+
+## Admission race and revocation proof
+
+The media-grant endpoint checks PostgreSQL twice: once before provider
+participant/device setup and once after UCR returns a short-lived join URL.
+A concurrent moderation ban, cancellation, organization ownership withdrawal,
+or provider-room replacement therefore prevents exposure of that URL even
+if UCR issued it during an in-flight request. The API regression test
+forces a ban precisely between UCR grant issuance and HTTP response and
+requires 403 with no `join_url`. This blocks the capability-exposure race,
+but it is not a substitute for UCR revocation of tokens already delivered
+before a subsequent policy change; that needs a separately proven event
+reconciliation/revocation workflow.

@@ -92,6 +92,7 @@ func (s *r9MediaDBStub) ChangeLiveEvent(_ context.Context, actor, eventID string
 }
 
 type r9MediaProviderStub struct {
+	joinHook        func()
 	enrolled        int
 	prepared        int
 	joins           int
@@ -120,6 +121,9 @@ func (m *r9MediaProviderStub) Enroll(_ context.Context, room liveevents.MediaRoo
 }
 func (m *r9MediaProviderStub) Join(_ context.Context, room liveevents.MediaRoom, identity, role string) (liveevents.MediaGrant, error) {
 	m.joins++
+	if m.joinHook != nil {
+		m.joinHook()
+	}
 	return liveevents.MediaGrant{JoinURL: "https://join.example/room#ucr_join=provider-token", ExpiresAt: time.Now().Add(time.Minute)}, nil
 }
 func (m *r9MediaProviderStub) Moderate(_ context.Context, room liveevents.MediaRoom, identity, action string) error {
@@ -204,5 +208,30 @@ func TestR9MediaRoutesNeverClaimJoinWithoutProvider(t *testing.T) {
 	h.ServeHTTP(rec, req)
 	if rec.Code != http.StatusServiceUnavailable || strings.Contains(rec.Body.String(), "join_url") {
 		t.Fatalf("provider missing: %d %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestR9JoinGrantNeverReturnedAfterConcurrentRevocation(t *testing.T) {
+	owner := "22222222-2222-4222-8222-222222222222"
+	attendee := "11111111-1111-4111-8111-111111111111"
+	eventID := "33333333-3333-4333-8333-333333333333"
+	db := &r9MediaDBStub{
+		actor: owner, bound: true,
+		event: liveevents.Event{ID: eventID, State: liveevents.Published,
+			StartsAt: time.Now().Add(time.Minute), EndsAt: time.Now().Add(2 * time.Hour)},
+		room: liveevents.MediaRoom{EventID: eventID, ConferenceID: "ucr-room",
+			ProviderInstanceID: "provider", IntegrationID: "ucr-integration"},
+	}
+	provider := &r9MediaProviderStub{joinHook: func() { db.banned = true }}
+	server := New(Options{LiveEventsEnabled: true, LiveEvents: db, LiveMedia: provider,
+		ClientSessionKey: []byte(strings.Repeat("s", 40))})
+	req := httptest.NewRequest(http.MethodPost, "/v1/live-events/"+eventID+"/join", nil)
+	req.AddCookie(issueLiveCookie(t, attendee))
+	rec := httptest.NewRecorder()
+	server.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden || strings.Contains(rec.Body.String(), "join_url") ||
+		provider.joins != 1 {
+		t.Fatalf("concurrent ban leaked UCR grant status=%d provider=%d body=%s",
+			rec.Code, provider.joins, rec.Body.String())
 	}
 }
