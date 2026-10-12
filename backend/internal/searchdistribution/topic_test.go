@@ -2,19 +2,46 @@ package searchdistribution
 
 import "testing"
 
-func TestSlugRegistryIsStrictAndStable(t *testing.T){
-	for _,slug:=range Slugs(){
-		v,ok:=TopicForSlug(slug)
-		if !ok||v.Slug!=slug||v.Code==""||v.Title==""{t.Fatalf("invalid slug %q",slug)}
+func TestReviewedTopicsAreStrictAndStable(t *testing.T) {
+	seen := make(map[string]bool)
+	for _, slug := range Slugs() {
+		topic, ok := TopicForSlug(slug)
+		if !ok || topic.Slug != slug || topic.Code == "" || topic.Title == "" || seen[slug] {
+			t.Fatalf("invalid or duplicate canonical topic %q", slug)
+		}
+		seen[slug] = true
 	}
-	if _,ok:=TopicForSlug("../admin");ok{t.Fatal("path traversal accepted")}
-	if _,ok:=TopicForSlug("TREVoGA");ok{t.Fatal("unreviewed alias accepted")}
+	if len(seen) != 4 {
+		t.Fatalf("canonical ontology changed without reviewed coverage: %d", len(seen))
+	}
+	for _, invalid := range []string{"../admin", "TREVoGA", "", "new-topic", "__proto__"} {
+		if _, ok := TopicForSlug(invalid); ok {
+			t.Fatalf("unreviewed slug accepted: %q", invalid)
+		}
+	}
 }
-func TestPublicationGateCountsUniqueAvailableEligiblePeople(t *testing.T){
-	a:=Offer{SpecialistID:"a",OfferID:"one",PriceMinor:400000,HasAvailableSlot:true}
-	b:=Offer{SpecialistID:"b",OfferID:"two",PriceMinor:500000,HasAvailableSlot:true}
-	if Publishable(nil)||Publishable([]Offer{a})||Publishable([]Offer{a,a}){t.Fatal("thin page was indexed")}
-	if !Publishable([]Offer{a,b}){t.Fatal("qualified page not indexed")}
-	b.HasAvailableSlot=false
-	if Publishable([]Offer{a,b}){t.Fatal("unavailable supply indexed")}
+
+func TestPublicationGateCountsDistinctAvailablePeople(t *testing.T) {
+	first := Offer{SpecialistID: "a", OfferID: "one", PriceMinor: 400000, Currency: "RUB", HasAvailableSlot: true}
+	second := Offer{SpecialistID: "b", OfferID: "two", PriceMinor: 500000, Currency: "RUB", HasAvailableSlot: true}
+	if Publishable(nil) || Publishable([]Offer{first}) || Publishable([]Offer{first, first}) {
+		t.Fatal("thin or duplicate page was indexed")
+	}
+	if !Publishable([]Offer{first, second}) {
+		t.Fatal("real distinct available supply not indexed")
+	}
+	second.HasAvailableSlot = false
+	if Publishable([]Offer{first, second}) {
+		t.Fatal("unavailable supply indexed")
+	}
+	second.HasAvailableSlot = true
+	second.PriceMinor = 0
+	if Publishable([]Offer{first, second}) {
+		t.Fatal("offer without price indexed")
+	}
+	second.PriceMinor = 500000
+	second.Currency = "OTHER"
+	if Publishable([]Offer{first, second}) {
+		t.Fatal("unverified price currency indexed")
+	}
 }
