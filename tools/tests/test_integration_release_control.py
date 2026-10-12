@@ -4,11 +4,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-spec = importlib.util.spec_from_file_location("integration_release_control", ROOT / "integration_release_control.py")
+ROOT = Path(__file__).resolve().parents[2]
+spec = importlib.util.spec_from_file_location("integration_release_control", ROOT / "tools/integration_release_control.py")
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
-PLAN = json.loads((ROOT / "integration_plan.json").read_text())
+PLAN = json.loads((ROOT / "config/release/integration-plan-v1.json").read_text())
 
 
 def snapshot():
@@ -89,6 +89,34 @@ class IntegrationControlTests(unittest.TestCase):
         result = module.assessment(PLAN, snapshot(), proof)
         self.assertEqual(result["decision"], "BLOCKED")
         self.assertIn("CANON_R4_EXTERNAL_PRODUCTION_EVIDENCE_MANIFEST_MISSING", {b["code"] for b in result["launch_blockers"]})
+
+    def test_live_snapshot_checks_head_ancestry_and_changed_paths(self):
+        import unittest.mock as mock
+        state = snapshot()
+        names = [lane["branch"] for lane in PLAN["lanes"]]
+        # No network: simulate exact GitHub REST payloads and verify we check
+        # ancestry rather than treating a green branch CI as integrated.
+        def fake_github(repo, endpoint, token):
+            if endpoint.startswith("branches/"):
+                branch = endpoint.split("branches/", 1)[1].replace("%2F", "/")
+                if branch == "main":
+                    return {"commit": {"sha": "b" * 40}}
+                if branch == "feat/platform-readiness":
+                    return {"commit": {"sha": "a" * 40}}
+                return {"commit": {"sha": state["branches"][branch]["sha"]}}
+            if endpoint.startswith("compare/"):
+                ref = endpoint.split("compare/", 1)[1].split("?", 1)[0]
+                left, right = ref.split("...", 1)
+                if left == "b" * 40:
+                    return {"files": [{"filename": "backend/migrations/000032_branch.sql"}], "ahead_by": 1}
+                return {"status": "behind", "behind_by": 1}
+            raise AssertionError(endpoint)
+        with mock.patch.object(module, "github_json", side_effect=fake_github):
+            live = module.live_snapshot(PLAN, "feat/platform-readiness", "test-token")
+        self.assertEqual(live["candidate_sha"], "a" * 40)
+        self.assertEqual(set(live["branches"]), set(names))
+        self.assertFalse(live["branches"]["feat/booking-complete"]["included_in_candidate"])
+        self.assertEqual(len(live["branches"]["feat/booking-complete"]["files"]), 1)
 
     def test_report_contains_named_owners_and_pinned_code_evidence(self):
         state = snapshot()
