@@ -122,10 +122,25 @@ BEGIN
    IF occupied>=event_capacity THEN RAISE EXCEPTION 'R9 event capacity exhausted'; END IF;
    IF NEW.state<>'REGISTERED' THEN RAISE EXCEPTION 'R9 invalid initial registration'; END IF;
  ELSE
-   IF NEW.id<>OLD.id OR NEW.event_id<>OLD.event_id
-     OR NEW.identity_id<>OLD.identity_id OR NEW.registered_at<>OLD.registered_at
-     OR OLD.state<>'REGISTERED' OR NEW.state<>'CANCELLED' THEN
-    RAISE EXCEPTION 'R9 registration has illegal transition';
+   IF NEW.id<>OLD.id OR NEW.event_id<>OLD.event_id OR NEW.identity_id<>OLD.identity_id THEN
+    RAISE EXCEPTION 'R9 registration identity is immutable';
+   END IF;
+   IF OLD.state='REGISTERED' AND NEW.state='CANCELLED' THEN
+     IF NEW.registered_at<>OLD.registered_at OR NEW.cancelled_at IS NULL THEN
+      RAISE EXCEPTION 'R9 invalid cancellation evidence';
+     END IF;
+   ELSIF OLD.state='CANCELLED' AND NEW.state='REGISTERED' THEN
+     SELECT state,starts_at,capacity INTO event_state,event_starts,event_capacity
+       FROM live_events WHERE id=NEW.event_id FOR UPDATE;
+     IF event_state IS DISTINCT FROM 'PUBLISHED' OR event_starts<=now()
+       OR NEW.cancelled_at IS NOT NULL OR NEW.registered_at<OLD.cancelled_at THEN
+       RAISE EXCEPTION 'R9 re-registration requires published future event';
+     END IF;
+     SELECT count(*) INTO occupied FROM live_event_registrations
+       WHERE event_id=NEW.event_id AND state='REGISTERED';
+     IF occupied>=event_capacity THEN RAISE EXCEPTION 'R9 re-registration capacity exhausted'; END IF;
+   ELSE
+     RAISE EXCEPTION 'R9 registration has illegal transition';
    END IF;
  END IF;
  RETURN NEW;

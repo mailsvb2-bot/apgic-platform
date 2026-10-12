@@ -55,3 +55,11 @@ No checkbox above means production completion without the corresponding external
 - Web: `apps/web/app/live-events/`, `apps/web/app/organization/live-events/`; native: `apps/mobile/src/r9-live-events.tsx`.
 - Run `go test -race ./...` and GitHub Actions CI for exact final branch SHA; green job on an earlier SHA is not release evidence for later commits.
 - Provider room/ticket/scheduled reminders/payment/recording are explicit release blockers and must not be marked complete from mocks or signed capability heartbeat alone.
+
+## Lifecycle and deployment hardening
+
+- Re-registering after cancellation atomically reclaims a released seat when the published event has capacity; historical outbox facts remain immutable.
+- Public and participant event reads never expose organizer identity UUIDs.
+- Enabling `APGIC_LIVE_EVENTS_ENABLED=1` without canonical PostgreSQL is a startup error; server readiness checks all R9 tables and SQL guard procedures. Feature disabled is the default.
+- Playwright smoke coverage checks truthful unavailable state, organizer route, and unchanged critical-entry baselines.
+- Signed provider heartbeats alone **never** turn the media eligibility response into a room token. Actual access still needs the separately certified communication provider.

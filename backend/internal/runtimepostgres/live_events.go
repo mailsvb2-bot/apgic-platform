@@ -42,9 +42,10 @@ func liveEventByID(ctx context.Context, query interface {
 	if err != nil {
 		return liveevents.Event{}, fmt.Errorf("live event read: %w", err)
 	}
-	if actor == "" {
-		event.OrganizerIdentityID = ""
-	}
+	// Public event metadata is never an authorization to reveal identity IDs.
+	// Owners authorize mutations through the organization boundary, not through
+	// a personal organizer identifier in a read response.
+	event.OrganizerIdentityID = ""
 	return event, nil
 }
 func (c *Checker) LiveEvent(ctx context.Context, eventID, actor string) (liveevents.Event, error) {
@@ -266,12 +267,35 @@ func (c *Checker) RegisterLiveEvent(ctx context.Context, actor, eventID string, 
  FROM live_event_registrations WHERE event_id=$1::uuid AND identity_id=$2::uuid`, eventID, actor).
 		Scan(&out.ID, &out.EventID, &out.IdentityID, &out.State, &out.RegisteredAt)
 	if err == nil {
-		if out.State != "REGISTERED" {
+		if out.State == "REGISTERED" {
+			if err = tx.Commit(); err != nil {
+				return liveevents.Registration{}, err
+			}
+			return out, nil
+		}
+		if out.State != "CANCELLED" {
 			return liveevents.Registration{}, liveevents.ErrConflict
+		}
+		var occupied int
+		if err = tx.QueryRowContext(ctx, `SELECT count(*) FROM live_event_registrations
+WHERE event_id=$1::uuid AND state='REGISTERED'`, eventID).Scan(&occupied); err != nil {
+			return liveevents.Registration{}, err
+		}
+		if occupied >= capacity {
+			return liveevents.Registration{}, liveevents.ErrFull
+		}
+		if _, err = tx.ExecContext(ctx, `UPDATE live_event_registrations
+SET state='REGISTERED',registered_at=$2,cancelled_at=NULL WHERE id=$1::uuid`, out.ID, now); err != nil {
+			return liveevents.Registration{}, err
+		}
+		if err = appendLiveEventOutbox(ctx, tx, eventID, org, actor, "live_event.registered", now); err != nil {
+			return liveevents.Registration{}, err
 		}
 		if err = tx.Commit(); err != nil {
 			return liveevents.Registration{}, err
 		}
+		out.State = "REGISTERED"
+		out.RegisteredAt = now
 		return out, nil
 	}
 	if !errors.Is(err, sql.ErrNoRows) {

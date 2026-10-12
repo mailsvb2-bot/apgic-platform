@@ -3,7 +3,7 @@ import {expect, test} from "@playwright/test";
 test("R9 public event route remains truthful when feature gate is closed", async ({page}) => {
   await page.goto("/live-events");
   await expect(page.getByRole("heading", {name: "Встречи, вебинары и мастер-классы"})).toBeVisible();
-  await expect(page.getByRole("alert")).toContainText("Раздел пока не подключён.");
+  await expect(page.locator(".live-events-panel [role=alert]")).toContainText("Раздел пока не подключён.");
   await expect(page.getByText("Сейчас нет опубликованных мероприятий.")).toHaveCount(0);
 });
 

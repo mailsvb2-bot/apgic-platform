@@ -51,7 +51,12 @@ INSERT INTO live_event_registrations(id,event_id,identity_id)
  VALUES
  ('91919191-0000-4000-8000-000000000041','91919191-0000-4000-8000-000000000030','91919191-0000-4000-8000-000000000002'),
  ('91919191-0000-4000-8000-000000000042','91919191-0000-4000-8000-000000000030','91919191-0000-4000-8000-000000000003');
-DO $$
+-- Cancellation releases a seat, and the same participant can re-register.
+UPDATE live_event_registrations SET state='CANCELLED', cancelled_at=now()
+ WHERE id='91919191-0000-4000-8000-000000000042';
+UPDATE live_event_registrations SET state='REGISTERED',registered_at=now(),cancelled_at=NULL
+ WHERE id='91919191-0000-4000-8000-000000000042';
+DO $
 DECLARE blocked boolean := false;
 BEGIN
  BEGIN

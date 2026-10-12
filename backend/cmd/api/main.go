@@ -49,6 +49,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("APGIC remote config configuration failed: %v", err)
 	}
+	liveEventsEnabled := os.Getenv("APGIC_LIVE_EVENTS_ENABLED") == "1"
+	if liveEventsEnabled && !runtimepostgres.RequiresDatabase(environment) {
+		log.Fatal("R9 live events require canonical PostgreSQL storage")
+	}
 	providerWebhookKeys, err := providerWebhookKeysFromEnvironment()
 	if err != nil {
 		log.Fatalf("APGIC provider webhook public-key configuration failed: %v", err)
@@ -73,6 +77,15 @@ func main() {
 		}
 		defer storage.Close()
 		readinessCheck = storage.Ready
+		if liveEventsEnabled {
+			baseReady := readinessCheck
+			readinessCheck = func(ctx context.Context) error {
+				if err := baseReady(ctx); err != nil {
+					return err
+				}
+				return storage.LiveEventsReady(ctx)
+			}
+		}
 		ledgerStore = storage
 		journeyStore = storage
 	}
@@ -98,7 +111,7 @@ func main() {
 		ProviderWebhookKeys:         providerWebhookKeys,
 		ConsultationProvider:        storage,
 		LiveEvents:                  storage,
-		LiveEventsEnabled:           os.Getenv("APGIC_LIVE_EVENTS_ENABLED") == "1",
+		LiveEventsEnabled:           liveEventsEnabled,
 		ReleaseTrack:                releaseTrack,
 		Demand:                      demandService,
 		ClientSessionKey:            clientSessionKey,
