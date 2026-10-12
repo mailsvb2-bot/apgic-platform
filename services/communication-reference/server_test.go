@@ -259,32 +259,34 @@ func TestUnilateralExitIsFailureNotCompletion(t *testing.T) {
 }
 
 func TestLiveKitSignedWebhookRejectsPayloadTampering(t *testing.T) {
-	s,start:=referenceFixture(t)
-	body:=[]byte(`{"id":"livekit-event","event":"room_started"}`)
-	hash:=sha256.Sum256(body)
-	claims:=map[string]any{
-		"iss":s.config.APIKey,
-		"exp":start.Add(time.Minute).Unix(),
-		"nbf":start.Unix()-5,
-		"sha256":base64.StdEncoding.EncodeToString(hash[:]),
+	s, start := referenceFixture(t)
+	body := []byte(`{"id":"livekit-event","event":"room_started"}`)
+	hash := sha256.Sum256(body)
+	claims := map[string]any{
+		"iss":    s.config.APIKey,
+		"exp":    start.Add(time.Minute).Unix(),
+		"nbf":    start.Unix() - 5,
+		"sha256": base64.StdEncoding.EncodeToString(hash[:]),
 	}
-	claimsBytes,err:=json.Marshal(claims)
-	if err!=nil {t.Fatal(err)}
-	input:=base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"HS256","typ":"JWT"}`))+"."+
+	claimsBytes, err := json.Marshal(claims)
+	if err != nil {
+		t.Fatal(err)
+	}
+	input := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"HS256","typ":"JWT"}`)) + "." +
 		base64.RawURLEncoding.EncodeToString(claimsBytes)
-	mac:=hmac.New(sha256.New,[]byte(s.config.APISecret))
-	_,_=mac.Write([]byte(input))
-	token:=input+"."+base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
-	if err:=s.verifyLiveKitWebhook(body,token);err!=nil {
-		t.Fatalf("provider signed webhook rejected: %v",err)
+	mac := hmac.New(sha256.New, []byte(s.config.APISecret))
+	_, _ = mac.Write([]byte(input))
+	token := input + "." + base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+	if err := s.verifyLiveKitWebhook(body, token); err != nil {
+		t.Fatalf("provider signed webhook rejected: %v", err)
 	}
-	if s.verifyLiveKitWebhook([]byte(`{"id":"tampered","event":"room_started"}`),token)==nil {
+	if s.verifyLiveKitWebhook([]byte(`{"id":"tampered","event":"room_started"}`), token) == nil {
 		t.Fatal("tampered provider body passed the signed SHA-256 check")
 	}
-	if s.verifyLiveKitWebhook(body,token[:len(token)-3])==nil {
+	if s.verifyLiveKitWebhook(body, token[:len(token)-3]) == nil {
 		t.Fatal("corrupted LiveKit JWT signature accepted")
 	}
-	if s.verifyLiveKitWebhook(body,"")==nil {
+	if s.verifyLiveKitWebhook(body, "") == nil {
 		t.Fatal("anonymous provider webhook accepted")
 	}
 }
