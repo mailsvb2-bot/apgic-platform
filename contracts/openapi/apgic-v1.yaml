@@ -1379,7 +1379,7 @@ paths:
       operationId: cancelOrder
       security:
         - ClientSession: []
-      description: Only the authenticated order owner can request cancellation; live refunds require external provider execution and evidence.
+      description: Only the authenticated order owner may request cancellation; real refund execution requires verified provider evidence.
       requestBody:
         required: true
         content:
@@ -1402,11 +1402,7 @@ paths:
   /v1/orders/{id}:
     get:
       operationId: getOrderStatus
-      summary: Read the authenticated client's durable order, payment, and refund status
-      description: |
-        Booking confirmation and actual external capture are separate facts.
-        A foreign order returns the same 404 as a nonexistent order.
-        Response must be no-store; no provider secrets or payment credentials.
+      summary: Read authenticated owner's server-side booking, payment and refund facts
       security:
         - ClientSession: []
       parameters:
@@ -1416,25 +1412,25 @@ paths:
           schema: { type: string }
       responses:
         '200':
-          description: Owner-only snapshot of booking, external payment, and refund outcomes
+          description: No-store financial state for the authenticated owner
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/OrderStatus'
         '401':
-          description: An authenticated client session is required
+          description: Trusted client session required
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
         '404':
-          description: Order not found or owned by another identity
+          description: Order is nonexistent or foreign
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
         '503':
-          description: Canonical persisted order state is unavailable
+          description: Canonical business state unavailable
           content:
             application/json:
               schema:
@@ -1478,7 +1474,7 @@ paths:
   /v1/bookings/{id}/order:
     get:
       operationId: getOrderForBooking
-      summary: Recover the authenticated booking's financial state after reload
+      summary: Recover canonical payment from authenticated booking deep link
       security:
         - ClientSession: []
       parameters:
@@ -1488,25 +1484,25 @@ paths:
           schema: { type: string }
       responses:
         '200':
-          description: No-store owner-scoped order, payment and refund state
+          description: No-store order, payment and refund evidence for the booking owner
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/OrderStatus'
         '401':
-          description: Client session required
+          description: Session required
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
         '404':
-          description: No checkout yet, or booking unknown or foreign
+          description: No checkout, or booking unknown or foreign
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
         '503':
-          description: Canonical order state unavailable
+          description: Persisted financial state unavailable
           content:
             application/json:
               schema:
@@ -2436,236 +2432,7 @@ components:
           type: string
           enum: [REQUESTED, SENT, PENDING, SUCCEEDED, FAILED_TERMINAL, AMBIGUOUS]
         amount_minor: { type: integer, minimum: 1 }
-        currency: { type: string, pattern: '^[A-Z]{3}      type: object
-      additionalProperties: false
-      required: [id, order_id, booking_id, booking_state, provider_id, provider_event_id, ledger_entry_id, amount_minor, currency, debit_account_ref, credit_account_ref, apgic_accepts_funds, idempotent, notice]
-      properties:
-        id: { type: string }
-        order_id: { type: string }
-        booking_id: { type: string }
-        booking_state: { type: string }
-        provider_id: { type: string }
-        provider_event_id: { type: string }
-        ledger_entry_id: { type: string }
-        amount_minor: { type: integer }
-        currency: { type: string }
-        debit_account_ref: { type: string }
-        credit_account_ref: { type: string }
-        apgic_accepts_funds: { type: boolean }
-        idempotent: { type: boolean }
-        notice: { type: string }
-    CancellationRequest:
-      type: object
-      additionalProperties: false
-      required: [order_id, reason_code]
-      properties:
-        order_id: { type: string }
-        reason_code: { type: string }
-    RecordLegalAcceptanceRequest:
-      type: object
-      additionalProperties: false
-      required: [document_id, document_version, evidence_hash]
-      properties:
-        document_id: { type: string, minLength: 1 }
-        document_version: { type: string, minLength: 1 }
-        evidence_hash: { type: string, minLength: 1 }
-    LegalAcceptance:
-      type: object
-      additionalProperties: false
-      required: [id, identity_id, document_id, document_version, evidence_hash, accepted_at]
-      properties:
-        id: { type: string }
-        identity_id: { type: string }
-        document_id: { type: string }
-        document_version: { type: string }
-        evidence_hash: { type: string }
-        accepted_at: { type: string, format: date-time }
-    LegalAcceptanceStatus:
-      type: object
-      additionalProperties: false
-      required: [document_id, document_version, accepted]
-      properties:
-        document_id: { type: string }
-        document_version: { type: string }
-        accepted: { type: boolean }
-    AccountDeletionRequest:
-      type: object
-      additionalProperties: false
-      required: [source]
-      properties:
-        identity_id:
-          type: string
-          deprecated: true
-          description: Compatibility assertion only; trusted identity is resolved from ClientSession.
-        source: { type: string }
-    AccountDeletion:
-      type: object
-      additionalProperties: false
-      required: [id, identity_id, source, state, deactivation, profile_erased, ledger_retained, ledger_reason, provider_ref, provider_evidence, apgic_deletes_ledger, idempotent, notice]
-      properties:
-        id: { type: string }
-        identity_id: { type: string }
-        source: { type: string }
-        state: { type: string }
-        deactivation: { type: boolean }
-        profile_erased: { type: boolean }
-        ledger_retained: { type: boolean }
-        ledger_id: { type: string }
-        ledger_reason: { type: string }
-        provider_ref: { type: string }
-        provider_evidence: { type: string }
-        apgic_deletes_ledger: { type: boolean }
-        idempotent: { type: boolean }
-        notice: { type: string }
-    Cancellation:
-      type: object
-      additionalProperties: false
-      required: [id, order_id, booking_id, booking_state, refund_id, refund_state, provider_id, execution_owner, original_ledger_id, reversal_ledger_id, amount_minor, currency, apgic_accepts_funds, apgic_returns_funds, idempotent, notice]
-      properties:
-        id: { type: string }
-        order_id: { type: string }
-        booking_id: { type: string }
-        booking_state: { type: string }
-        refund_id: { type: string }
-        refund_state: { type: string }
-        provider_id: { type: string }
-        execution_owner: { type: string }
-        original_ledger_id: { type: string }
-        reversal_ledger_id: { type: string }
-        amount_minor: { type: integer }
-        currency: { type: string }
-        apgic_accepts_funds: { type: boolean }
-        apgic_returns_funds: { type: boolean }
-        idempotent: { type: boolean }
-        notice: { type: string }
-    BookingStatus:
-      type: object
-      additionalProperties: false
-      required: [booking_id, state, hold_id, hold_expires_at]
-      properties:
-        booking_id: { type: string }
-        state:
-          type: string
-          enum: [HELD, PENDING_PAYMENT, CONFIRMED, CANCELLED, EXPIRED, COMPLETED, NO_SHOW]
-        hold_id: { type: string }
-        hold_expires_at: { type: string, format: date-time }
-        starts_at: { type: string, format: date-time }
-        ends_at: { type: string, format: date-time }
-    BookingFulfillment:
-      type: object
-      additionalProperties: false
-      required: [join]
-      properties:
-        notice:
-          type: object
-          additionalProperties: false
-          required: [id, booking_id, purpose, transactional, requires_growth_opt_in]
-          properties:
-            id: { type: string }
-            booking_id: { type: string }
-            purpose: { type: string }
-            transactional: { type: boolean }
-            requires_growth_opt_in: { type: boolean }
-            idempotent: { type: boolean }
-        join:
-          type: object
-          additionalProperties: false
-          required: [decision, reason_code, opens_at, closes_at, notice]
-          properties:
-            decision: { type: string }
-            reason_code: { type: string }
-            provider_instance_id: { type: string }
-            opens_at: { type: string, format: date-time }
-            closes_at: { type: string, format: date-time }
-            notice: { type: string }
-    ConsultationFailureRequest:
-      type: object
-      additionalProperties: false
-      required: [kind, evidence_ref, recoverable]
-      properties:
-        kind: { type: string }
-        evidence_ref: { type: string }
-        recoverable: { type: boolean }
-    ConsultationRecoveryRequest:
-      type: object
-      additionalProperties: false
-      required: [evidence_ref]
-      properties:
-        evidence_ref: { type: string }
-    RecordConsentRequest:
-      type: object
-      additionalProperties: false
-      required: [purpose, scope, policy_version, text_hash_or_version]
-      properties:
-        purpose: { type: string, minLength: 1 }
-        scope: { type: string, minLength: 1 }
-        policy_version: { type: string, minLength: 1 }
-        text_hash_or_version: { type: string, minLength: 1 }
-    ConsentRecord:
-      type: object
-      additionalProperties: false
-      required: [consent_id, subject_id, purpose, scope, policy_version, text_hash_or_version, granted_at, source, proof_metadata]
-      properties:
-        consent_id: { type: string }
-        subject_id: { type: string }
-        purpose: { type: string }
-        scope: { type: string }
-        policy_version: { type: string }
-        text_hash_or_version: { type: string }
-        granted_at: { type: string, format: date-time }
-        revoked_at: { type: string, format: date-time, nullable: true }
-        source: { type: string }
-        proof_metadata:
-          type: object
-          additionalProperties: true
-    GrowthExport:
-      type: object
-      additionalProperties: false
-      required: [allowed, classification, purpose_consent, raw_content_included, state, notice]
-      properties:
-        allowed: { type: boolean }
-        classification: { type: string }
-        purpose_consent: { type: boolean }
-        raw_content_included: { type: boolean }
-        state: { type: string }
-        notice: { type: string }
-    CompleteConsultationRequest:
-      type: object
-      additionalProperties: false
-      required: [evidence_ref]
-      properties:
-        evidence_ref: { type: string }
-    ConsultationResult:
-      type: object
-      additionalProperties: false
-      required: [booking_id, state, provider_instance_id]
-      properties:
-        booking_id: { type: string }
-        state:
-          type: string
-          enum: [SCHEDULED, READY, IN_PROGRESS, RECOVERING, TECHNICAL_FAILURE, COMPLETED]
-        provider_instance_id: { type: string }
-        completion_evidence_ref: { type: string }
-    ConsultationView:
-      type: object
-      additionalProperties: false
-      required: [id, booking_id, state, provider_id, apgic_owns_room, charged_again, idempotent, notice]
-      properties:
-        id: { type: string }
-        booking_id: { type: string }
-        state: { type: string }
-        provider_id: { type: string }
-        evidence_ref: { type: string }
-        apgic_owns_room: { type: boolean }
-        charged_again: { type: boolean }
-        raw_content_stored: { type: boolean }
-        refund_path_opened: { type: boolean }
-        apgic_returns_funds: { type: boolean }
-        recovery_action: { type: string }
-        reason_code: { type: string }
-        idempotent: { type: boolean }
-        notice: { type: string }
- }
+        currency: { type: string, pattern: '^[A-Z]{3}$' }
         provider_id: { type: string }
         payment_method: { type: string }
     PaymentEvidence:

@@ -62,6 +62,10 @@ CLIENT_SESSION_OPERATIONS = {
     ("/v1/legal-acceptances", "post"),
     ("/v1/legal-acceptances/{documentID}/{documentVersion}", "get"),
     ("/v1/account-deletions", "post"),
+    ("/v1/cancellations", "post"),
+    ("/v1/bookings/{id}", "get"),
+    ("/v1/bookings/{id}/order", "get"),
+    ("/v1/orders/{id}", "get"),
     ("/v1/bookings/{id}/fulfillment", "get"),
 }
 
