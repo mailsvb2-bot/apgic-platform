@@ -81,3 +81,7 @@ The PostgreSQL CI journey runs immediately after `ci_r2_mobile_store_invariants.
 ## Author provenance and original copyrighted works
 
 Publication is gated in PostgreSQL by an immutable, signed-session author declaration for the SHA-256 of the **exact current curriculum**, including modules, lesson content, grading rubrics and ordering. Editing the draft invalidates previous declarations, including from direct SQL. The author UI exposes acknowledgement and original provenance, and the API stores audit evidence and emits transactional outbox facts. This records a claimed original work; it is **not independent verification of authorship**, and content requiring third-party licensing cannot be admitted with this declaration. Video courses still cannot be published without real trusted playback attestation.
+
+## Replay, forgery and retention proofs for author declarations
+
+PostgreSQL integration now exercises repeated signed attestations (same immutable ID and provenance), no duplicate event, changed curriculum requiring a new snapshot, denial of foreign-author SQL insert, denial of UPDATE/DELETE against signed evidence, and refusal of new attestations after immutable publication. HTTP denial tests cover the new rights endpoint with missing signed sessions. External third-party licensing remains a separate authority; an original-work self-declaration must not be reinterpreted as a verified external contract.

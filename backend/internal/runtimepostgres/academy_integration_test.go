@@ -97,6 +97,33 @@ func TestAcademyVersioningRequiresVerifiedAccess(t *testing.T) {
 	if err != nil || len(original.CurriculumSHA256) != 64 {
 		t.Fatalf("failed to attest original curriculum: %+v %v", original, err)
 	}
+	replayed, err := store.AcademyDeclareOriginalRights(author, created.ID, created.VersionID, "original/another-replayed-source")
+	if err != nil || replayed.ID != original.ID || replayed.ProvenanceRef != original.ProvenanceRef {
+		t.Fatalf("replay changed immutable original rights evidence: old=%+v replay=%+v err=%v", original, replayed, err)
+	}
+	var declarations int
+	if err = db.QueryRow("SELECT count(*) FROM academy_original_rights WHERE version_id=$1::uuid", created.VersionID).Scan(&declarations); err != nil || declarations != 1 {
+		t.Fatalf("duplicate author declaration was persisted: count=%d err=%v", declarations, err)
+	}
+	// Privileged direct SQL still cannot fabricate authorship or rewrite the
+	// immutable provenance after the original learner's course is published.
+	forgedID, err := academyID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = db.Exec(`INSERT INTO academy_original_rights
+ (id,version_id,author_id,rights_basis,provenance_ref,policy_version,curriculum_sha256)
+ VALUES($1::uuid,$2::uuid,$3::uuid,'ORIGINAL_AUTHOR_DECLARATION',
+ 'forged/third-party-copyright','academy-original-rights-v1',$4)`,
+		forgedID, created.VersionID, foreign, original.CurriculumSHA256); err == nil {
+		t.Fatal("direct SQL forged foreign author's rights to copyrighted curriculum")
+	}
+	if _, err = db.Exec("UPDATE academy_original_rights SET provenance_ref='forged/rewrite' WHERE id=$1::uuid", original.ID); err == nil {
+		t.Fatal("original author attestation was rewritten")
+	}
+	if _, err = db.Exec("DELETE FROM academy_original_rights WHERE id=$1::uuid", original.ID); err == nil {
+		t.Fatal("original author attestation was deleted")
+	}
 	if _, err = db.Exec("UPDATE academy_modules SET title='Changed after declaration' WHERE id=$1::uuid", m.ID); err != nil {
 		t.Fatal(err)
 	}
@@ -112,6 +139,9 @@ func TestAcademyVersioningRequiresVerifiedAccess(t *testing.T) {
 	}
 	if published.State != "PUBLISHED" {
 		t.Fatalf("missing publication: %+v", published)
+	}
+	if _, err = store.AcademyDeclareOriginalRights(author, created.ID, created.VersionID, "original/post-publication-retcon"); !errors.Is(err, academy.ErrState) {
+		t.Fatalf("accepted a new rights declaration after immutable publication: %v", err)
 	}
 	_, err = store.AcademyAddLesson(author, created.ID, created.VersionID, m.ID,
 		academy.Lesson{Title: "Retcon", Kind: academy.Reading, Ordinal: 2, Body: "rewrite"})

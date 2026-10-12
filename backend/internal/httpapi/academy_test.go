@@ -90,6 +90,7 @@ func TestAcademyUnauthenticatedMutationsDoNotReachStore(t *testing.T) {
 	cases := []string{
 		"/v1/academy/courses",
 		"/v1/academy/courses/foreign/versions",
+		"/v1/academy/courses/foreign/versions/forged/rights/original",
 		"/v1/academy/courses/foreign/enroll",
 		"/v1/academy/enrollments/foreign/complete",
 		"/v1/academy/enrollments/foreign/lessons/secret/complete",
@@ -146,6 +147,7 @@ func TestAcademyFailsClosedWhenSignedSessionsAreNotConfigured(t *testing.T) {
 	for _, request := range []struct{ method, path string }{
 		{http.MethodPost, "/v1/academy/courses"},
 		{http.MethodPost, "/v1/academy/courses/forged/enroll"},
+		{http.MethodPost, "/v1/academy/courses/forged/versions/forged/rights/original"},
 		{http.MethodGet, "/v1/academy/my-courses"},
 		{http.MethodGet, "/v1/academy/my-enrollments"},
 		{http.MethodGet, "/v1/academy/review/attempts"},

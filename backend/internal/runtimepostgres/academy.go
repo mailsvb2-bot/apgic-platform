@@ -308,6 +308,22 @@ func (c *Checker) AcademyDeclareOriginalRights(actor, courseID, versionID, prove
 	if state != "DRAFT" {
 		return academy.OriginalRightsDeclaration{}, academy.ErrState
 	}
+	// A retry of the signed acknowledgement must return the same immutable
+	// evidence, not issue another record or report a misleading 503.
+	var existing academy.OriginalRightsDeclaration
+	err = tx.QueryRowContext(ctx, `SELECT id::text,provenance_ref,policy_version,attested_at
+ FROM academy_original_rights WHERE version_id=$1::uuid
+ AND author_id=$2::uuid AND curriculum_sha256=$3`,
+		versionID, actor, fingerprint).Scan(&existing.ID, &existing.ProvenanceRef,
+		&existing.PolicyVersion, &existing.AttestedAt)
+	if err == nil {
+		existing.VersionID = versionID
+		existing.CurriculumSHA256 = fingerprint
+		return existing, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return academy.OriginalRightsDeclaration{}, err
+	}
 	id, err := academyID()
 	if err != nil {
 		return academy.OriginalRightsDeclaration{}, err
