@@ -463,3 +463,31 @@ func (c *Checker) AcademyMyEnrollments(actor string)([]academy.Enrollment,error)
  }
  return result,rows.Err()
 }
+
+
+func (c *Checker) AcademyPendingReviews(author string)([]academy.ReviewAttempt,error){
+ if c==nil||c.db==nil{return nil,academy.ErrUnavailable}
+ ctx,cancel:=academyContext();defer cancel()
+ rows,err:=c.db.QueryContext(ctx,`SELECT a.id::text,a.enrollment_id::text,a.lesson_id::text,
+ a.attempt_no,a.response_text,a.submitted_at,a.rubric_version,
+ assessment.passing_score,c.title,l.title
+ FROM academy_attempts a
+ JOIN academy_assessments assessment ON assessment.lesson_id=a.lesson_id
+ JOIN academy_lessons l ON l.id=a.lesson_id
+ JOIN academy_modules m ON m.id=l.module_id
+ JOIN academy_course_versions v ON v.id=m.version_id
+ JOIN academy_courses c ON c.id=v.course_id
+ WHERE c.author_id=$1::uuid AND a.result='PENDING'
+ ORDER BY a.submitted_at,a.id LIMIT 100`,author)
+ if err!=nil{return nil,err};defer rows.Close()
+ pending:=[]academy.ReviewAttempt{}
+ for rows.Next(){
+  var item academy.ReviewAttempt
+  err=rows.Scan(&item.AttemptID,&item.EnrollmentID,&item.LessonID,
+   &item.AttemptNo,&item.ResponseText,&item.SubmittedAt,&item.RubricVersion,
+   &item.PassingScore,&item.CourseTitle,&item.LessonTitle)
+  if err!=nil{return nil,err}
+  pending=append(pending,item)
+ }
+ return pending,rows.Err()
+}
