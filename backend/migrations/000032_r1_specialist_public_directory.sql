@@ -1,6 +1,5 @@
 -- Reviewed public biography is a projection of the existing Specialist owner,
 -- never a second specialist account, credential store or qualification source.
-BEGIN;
 CREATE TABLE specialist_public_details (
  specialist_id uuid PRIMARY KEY REFERENCES specialist_profiles(id) ON DELETE RESTRICT,
  headline text NOT NULL DEFAULT '' CHECK (char_length(headline)<=120),
@@ -14,4 +13,3 @@ CREATE INDEX specialist_public_details_updated_idx ON specialist_public_details(
 CREATE TRIGGER specialist_public_details_no_delete
 BEFORE DELETE ON specialist_public_details
 FOR EACH ROW EXECUTE FUNCTION apgic_reject_delete();
-COMMIT;
