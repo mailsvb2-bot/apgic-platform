@@ -122,6 +122,23 @@ func TestLiveSupplyMatchesSelectedPricedOfferAndHoldsOnlyConfirmedTopic(t *testi
 	if other, err := service.AcquireHold(otherIntent.ID, anxiety.Slots[0].ID, intent.ClientIdentityID); !errors.Is(err, ErrSlotUnavailable) || other != nil {
 		t.Fatalf("same client bypassed a disjoint topic through active hold replay: %#v err=%v", other, err)
 	}
+	// A new HelpIntent with the same eligible topic and the same signed
+	// identity is still a different purchase decision. It cannot claim the
+	// original hold, even though both requests would match the specialist.
+	sameTopicIntent, err := service.CreateIntentForIdentity(intent.ClientIdentityID, "ещё один запрос по тревоге")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.ConfirmIntent(sameTopicIntent.ID, []string{"anxiety"}, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	if reused, err := service.AcquireHold(sameTopicIntent.ID, anxiety.Slots[0].ID, intent.ClientIdentityID); !errors.Is(err, ErrSlotUnavailable) || reused != nil {
+		t.Fatalf("second same-topic intent reused first intent hold: %#v err=%v", reused, err)
+	}
+	// A foreign signed identity cannot replay the original confirmed intent.
+	if reused, err := service.AcquireHold(intent.ID, anxiety.Slots[0].ID, "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"); !errors.Is(err, ErrIdentityMismatch) || reused != nil {
+		t.Fatalf("foreign identity replayed first intent hold: %#v err=%v", reused, err)
+	}
 	if retained, err := service.HoldStatus(hold.ID, intent.ClientIdentityID); err != nil || retained.ID != hold.ID ||
 		retained.BookingState != "HELD" {
 		t.Fatalf("disallowed replay damaged the original valid hold: %#v err=%v", retained, err)
