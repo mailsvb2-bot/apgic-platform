@@ -113,18 +113,28 @@ func TestGrowthOwnedHistoryRestoresOnlyValidLinks(t *testing.T) {
 	if res.Code != http.StatusOK || store.lastOwner != identity || store.listed != 1 {
 		t.Fatalf("listing status=%d owner=%s", res.Code, store.lastOwner)
 	}
-	var body struct{ Links []growth.Link `json:"links"` }
-	if err := json.Unmarshal(res.Body.Bytes(), &body); err != nil { t.Fatal(err) }
-	if len(body.Links) != 4 { t.Fatalf("history missing: %d", len(body.Links)) }
+	var body struct {
+		Links []growth.Link `json:"links"`
+	}
+	if err := json.Unmarshal(res.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Links) != 4 {
+		t.Fatalf("history missing: %d", len(body.Links))
+	}
 	signer, _ := growth.NewSigner(key)
 	linkID, err := signer.Verify(body.Links[0].Token, now)
 	if err != nil || linkID != body.Links[0].ID || body.Links[0].Path == "" {
 		t.Fatalf("live link cannot be resumed: %v", err)
 	}
 	for _, link := range body.Links[1:] {
-		if link.Token != "" || link.Path != "" { t.Fatalf("historic link reactivated: %s", link.ID) }
+		if link.Token != "" || link.Path != "" {
+			t.Fatalf("historic link reactivated: %s", link.ID)
+		}
 	}
-	if res.Header().Get("Cache-Control") != "no-store" { t.Fatal("sensitive link listing is cacheable") }
+	if res.Header().Get("Cache-Control") != "no-store" {
+		t.Fatal("sensitive link listing is cacheable")
+	}
 }
 
 func TestGrowthHistoryFailsClosedOnStorageOutage(t *testing.T) {
@@ -137,5 +147,7 @@ func TestGrowthHistoryFailsClosedOnStorageOutage(t *testing.T) {
 	req.AddCookie(cookie)
 	res := httptest.NewRecorder()
 	h.ServeHTTP(res, req)
-	if res.Code != http.StatusServiceUnavailable { t.Fatalf("outage fail-open: %d", res.Code) }
+	if res.Code != http.StatusServiceUnavailable {
+		t.Fatalf("outage fail-open: %d", res.Code)
+	}
 }
