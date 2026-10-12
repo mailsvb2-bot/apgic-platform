@@ -73,3 +73,7 @@ Signed session is the *only* source of principal. Client-provided identity IDs n
 - Cross-surface API generated contract binding, reviewed idempotency/concurrency policies and production-like E2E with actual external provider, store policy, UI/browser and native devices.
 
 **Do not mark this area 100%/VERIFIED/RELEASED merely because an API or unit test passes.** R8 is a post-launch capability and every required gate remains explicit until proven by CI and production-like evidence.
+
+## Sequential external-commerce lifecycle proof (CI)
+
+The PostgreSQL CI journey runs immediately after `ci_r2_mobile_store_invariants.sql` while its verified fixture entitlement is **ACTIVE**. This validates publication, paid enrollment, reading, human-graded assessment, completion, two store restarts and credential evidence using that existing captured payment chain. Afterward, the canonical R4 store refund/revocation invariant suite is applied, and a second Academy test explicitly proves that the **same student's** previously purchased raw lessons cannot be accessed or re-enrolled with a revoked entitlement. This deliberately tests authorization against the complete commerce lifecycle rather than artificially reactivating a refunded right.

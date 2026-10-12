@@ -307,3 +307,49 @@ func TestAcademyStoreVerifiedPaidJourneySurvivesRestart(t *testing.T) {
 		t.Fatalf("missing durable lesson evidence, count=%d: %v", count, err)
 	}
 }
+
+
+// TestAcademyStoreRefundWithdrawsLearningAccess proves that an external store
+// refund revokes learner CONTENT access after previously persisted course
+// completion. The original certificate remains separate historical evidence.
+func TestAcademyStoreRefundWithdrawsLearningAccess(t *testing.T) {
+	dsn := os.Getenv("APGIC_ORGANIZATION_TEST_DATABASE_URL")
+	if dsn == "" {
+		t.Skip("isolated Academy refund database not configured")
+	}
+	const learner = "00000000-0000-0000-0000-00000000b003"
+	const product = "00000000-0000-0000-0000-00000000af03"
+	db, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	var enrollmentID, entitlementState string
+	err = db.QueryRow(`SELECT e.id::text,t.state FROM academy_enrollments e
+ JOIN academy_course_versions v ON v.id=e.version_id
+ JOIN academy_courses c ON c.id=v.course_id
+ JOIN store_entitlements t ON t.id=e.entitlement_id
+ WHERE e.identity_id=$1::uuid AND c.product_id=$2::uuid`, learner, product).Scan(&enrollmentID, &entitlementState)
+	if err != nil {
+		t.Fatalf("previously completed paid journey must remain durable after refund: %v", err)
+	}
+	if entitlementState != "REVOKED" {
+		t.Fatalf("canonical store refund must revoke the entitlement, got %q", entitlementState)
+	}
+	store, err := Open(context.Background(), dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if _, err = store.AcademyLearning(learner, enrollmentID); !errors.Is(err, academy.ErrEntitlement) {
+		t.Fatalf("revoked purchased lesson body remains accessible: %v", err)
+	}
+	var courseID string
+	if err = db.QueryRow(`SELECT v.course_id::text FROM academy_enrollments e
+ JOIN academy_course_versions v ON v.id=e.version_id WHERE e.id=$1::uuid`, enrollmentID).Scan(&courseID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.AcademyEnroll(learner, courseID); !errors.Is(err, academy.ErrEntitlement) {
+		t.Fatalf("revoked purchase reopened course enrollment: %v", err)
+	}
+}
