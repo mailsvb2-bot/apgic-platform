@@ -5,7 +5,7 @@ import {
   type ClientPersonalView,type ClientPersonalPreferences,
 } from "../../../packages/contracts/src/client-personal.ts";
 
-// Server-owned data only, never persisted in AsyncStorage or shared with telemetry.
+// Server-owned data only, never persisted on the device or sent to telemetry.
 export default function ClientPersonalPanel({baseURL}:{baseURL:string}) {
   const [view,setView]=useState<ClientPersonalView|null>(null);
   const [status,setStatus]=useState<"loading"|"ready"|"auth"|"error">("loading");

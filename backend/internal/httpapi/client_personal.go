@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -75,7 +76,7 @@ func registerClientPersonal(mux *http.ServeMux, store clientPersonalStore, sessi
 			return
 		}
 		var extra any
-		if decoder.Decode(&extra) == nil {
+		if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
 			writeDemandError(w, r, http.StatusBadRequest, "PERSONAL_PREFERENCES_INVALID", "Ожидался один объект настроек.", false, nil)
 			return
 		}
