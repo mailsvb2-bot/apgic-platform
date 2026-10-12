@@ -1475,6 +1475,42 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /v1/bookings/{id}/order:
+    get:
+      operationId: getOrderForBooking
+      summary: Recover the authenticated booking's financial state after reload
+      security:
+        - ClientSession: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: No-store owner-scoped order, payment and refund state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderStatus'
+        '401':
+          description: Client session required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: No checkout yet, or booking unknown or foreign
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '503':
+          description: Canonical order state unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /v1/bookings/{id}/fulfillment:
     get:
       operationId: getBookingFulfillment

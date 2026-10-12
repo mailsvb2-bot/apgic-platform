@@ -458,6 +458,33 @@ func registerDemand(
 		writeJSON(w, http.StatusOK, status)
 	})
 
+	// Booking deep-links recover the owner-scoped financial state without
+	// trusting a saved checkout/order ID in the browser.
+	mux.HandleFunc("GET /v1/bookings/{id}/order", func(w http.ResponseWriter, r *http.Request) {
+		if service == nil {
+			writeDemandError(w, r, http.StatusServiceUnavailable, "DEMAND_CATALOG_UNAVAILABLE", "Каталог недоступен.", true, nil)
+			return
+		}
+		identityID, ok := trustedClientIdentity(w, r, sessions, sessionConfigErr, "")
+		if !ok || strings.TrimSpace(identityID) == "" {
+			if ok {
+				writeDemandError(w, r, http.StatusUnauthorized, "CLIENT_SESSION_REQUIRED", "Требуется сессия клиента.", false, nil)
+			}
+			return
+		}
+		status, err := service.ReadOrderForBooking(r.PathValue("id"), identityID)
+		if err != nil {
+			if errors.Is(err, demand.ErrOrderNotFound) {
+				writeDemandFailure(w, r, err)
+			} else {
+				writeDemandError(w, r, http.StatusServiceUnavailable, "ORDER_STATUS_UNAVAILABLE", "Не удалось проверить состояние оплаты.", true, nil)
+			}
+			return
+		}
+		w.Header().Set("Cache-Control", "no-store")
+		writeJSON(w, http.StatusOK, status)
+	})
+
 	mux.HandleFunc("GET /v1/bookings/{id}", func(w http.ResponseWriter, r *http.Request) {
 		if service == nil {
 			writeDemandError(w, r, http.StatusServiceUnavailable, "DEMAND_CATALOG_UNAVAILABLE", "Каталог недоступен.", true, nil)
