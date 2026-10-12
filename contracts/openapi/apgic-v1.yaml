@@ -58,6 +58,48 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+  /v1/client/personal/check-ins:
+    post:
+      operationId: postClientPersonalCheckIn
+      description: Record an immutable, neutral self-report only after a provider-confirmed owned consultation. Does not attest medical efficacy or change booking/payment truth.
+      security:
+        - ClientSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ClientPersonalCheckInInput' }
+      responses:
+        '201':
+          description: Immutable client report recorded.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ClientPersonalCheckIn' }
+        '200':
+          description: Identical previously recorded report, returned idempotently.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ClientPersonalCheckIn' }
+        '400':
+          description: Invalid structured report; free text and clinical claims are not allowed.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '401':
+          description: Signed client session required.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '404':
+          description: No owned provider-completed consultation for this booking.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '409':
+          description: Conflicting attempt to change immutable report.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
   /v1/client/personal/preferences:
     put:
       operationId: putClientPersonalPreferences
@@ -1686,12 +1728,32 @@ components:
       name: __Host-apgic_session
       description: Server-signed trusted client session. Caller-supplied identity fields are never an authorization source.
   schemas:
+    ClientPersonalCheckIn:
+      type: object
+      additionalProperties: false
+      required: [booking_id, progress_code, recorded_at, idempotent]
+      properties:
+        booking_id: { type: string, format: uuid }
+        progress_code: { type: string, enum: [IMPROVED, UNCHANGED, WORSE, UNSURE] }
+        match_satisfaction: { type: integer, minimum: 1, maximum: 5 }
+        recorded_at: { type: string, format: date-time }
+        idempotent: { type: boolean }
+    ClientPersonalCheckInInput:
+      type: object
+      additionalProperties: false
+      required: [booking_id, progress_code]
+      properties:
+        booking_id: { type: string, format: uuid }
+        progress_code: { type: string, enum: [IMPROVED, UNCHANGED, WORSE, UNSURE] }
+        match_satisfaction: { type: integer, minimum: 1, maximum: 5 }
     ClientPersonalBooking:
       type: object
       additionalProperties: false
       required: [booking_id, state, starts_at, ends_at, specialist_name, specialist_profession]
       properties:
         booking_id: { type: string, format: uuid }
+        client_progress: { type: string, enum: [IMPROVED, UNCHANGED, WORSE, UNSURE] }
+        match_satisfaction: { type: integer, minimum: 1, maximum: 5 }
         state: { type: string, enum: [HELD, PENDING_PAYMENT, CONFIRMED, CANCELLED, EXPIRED, COMPLETED, NO_SHOW] }
         starts_at: { type: string, format: date-time }
         ends_at: { type: string, format: date-time }
