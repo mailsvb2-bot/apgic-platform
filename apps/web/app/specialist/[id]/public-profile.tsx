@@ -76,7 +76,7 @@ export function PublicSpecialistProfile({id}:{id:string}){
         {new Intl.DateTimeFormat("ru-RU",{dateStyle:"medium",timeStyle:"short"}).format(new Date(slot.starts_at))}
         {" · "}{Math.round((new Date(slot.ends_at).getTime()-new Date(slot.starts_at).getTime())/60000)} мин.
        </li>)}</ul>
-       <a href={`/?specialist_id=${encodeURIComponent(profile.id)}#start`}>Уточнить запрос и записаться</a>
+       <a href={`/?specialist_id=${encodeURIComponent(profile.id)}&offer_id=${encodeURIComponent(offer.id)}#start`}>Выбрать эту услугу и перейти к записи</a>
        <p className="status-note">Свободное время не резервируется при просмотре. Доступность и стоимость перепроверяются при бронировании.</p>
       </li>)}
      </ul>:null}

@@ -175,9 +175,12 @@ export function Journey() {
   // A catalog preference is presentation-only and NEVER bypasses confirmed
   // HelpIntent, qualification, ranking, price, ownership, or availability.
   const [requestedSpecialistID, setRequestedSpecialistID] = useState("");
+  const [requestedOfferID, setRequestedOfferID] = useState("");
   useEffect(() => {
     const ref = new URLSearchParams(window.location.search).get("specialist_id") ?? "";
     if (/^[a-f0-9-]{36}$/i.test(ref)) setRequestedSpecialistID(ref);
+    const offer = new URLSearchParams(window.location.search).get("offer_id") ?? "";
+    if (/^[a-f0-9-]{36}$/i.test(offer)) setRequestedOfferID(offer);
   }, []);
   const [search, setSearch] = useState<{ notice: string; stale: boolean; rebuilt: boolean; owns_qualification: boolean; entries: { specialist_id: string; display_name: string }[] } | null>(null);
   // A reviewed specialist may be publicly published before an actual priced
@@ -876,15 +879,15 @@ export function Journey() {
 
           {requestedSpecialistID && (
             <p role="status" className="status-note">
-              {matches.some((card) => card.specialist_id === requestedSpecialistID)
-                ? "Выбранный в каталоге специалист есть среди доступных предложений. Сравните условия и подтвердите выбор времени."
-                : "Выбранный в каталоге специалист пока не предлагает доступную запись по вашему подтверждённому запросу. Посмотрите другие варианты."}
+              {matches.some((card) => card.specialist_id === requestedSpecialistID && (!requestedOfferID || card.offer_id === requestedOfferID))
+                ? "Услуга из каталога повторно проверена по допуску, цене и доступности. Подтвердите выбор и время."
+                : "Выбранная услуга недоступна по подтверждённому запросу. Сравните другие актуальные предложения."}
             </p>
           )}
           {matches.length ? (
             <ul className="specialist-cards">
               {matches.map((card) => (
-                <li key={card.specialist_id} className={specialist?.specialist_id === card.specialist_id || requestedSpecialistID === card.specialist_id ? "is-selected" : ""}>
+                <li key={card.offer_id || card.specialist_id} className={(specialist?.offer_id || specialist?.specialist_id) === (card.offer_id || card.specialist_id) || (requestedSpecialistID === card.specialist_id && (!requestedOfferID || requestedOfferID === card.offer_id)) ? "is-selected" : ""}>
                   <div className="specialist-card-top">
                     <div className="specialist-avatar" aria-hidden="true">{initials(card.display_name)}</div>
                     <div className="specialist-card-name">
@@ -898,7 +901,7 @@ export function Journey() {
                     <span>{money(card.price_minor, card.currency)} / сессия</span>
                     {card.sponsored ? <span>Спонсируемое · без обхода квалификации</span> : null}
                   </div>
-                  {requestedSpecialistID === card.specialist_id ? <p>Вы выбрали эту анкету в каталоге.</p> : null}
+                  {requestedSpecialistID === card.specialist_id && (!requestedOfferID || requestedOfferID === card.offer_id) ? <p>Это выбранная вами услуга из каталога. Допуск, цена и доступность проверены повторно.</p> : null}
                   {intent?.catalog_mode === "LIVE" ? (
                     <a href={`/specialist/${encodeURIComponent(card.specialist_id)}`}>Посмотреть публичную анкету</a>
                   ) : null}

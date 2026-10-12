@@ -50,7 +50,7 @@ test("specialist page shows only real API-backed offers and unheld slots",async(
  await page.route("**/v1/specialists/00000000-0000-0000-0000-000000000011",async r=>r.fulfill({json:p}));
  await page.route("**/v1/specialists/00000000-0000-0000-0000-000000000011/offers",async r=>r.fulfill({
   json:{specialist_id:p.id,availability_rule:"CURRENT_ELIGIBLE_UNHELD_SLOTS",offers:[{
-   id:"offer-live",topic_id:"anxiety",price_minor:230000,currency:"RUB",
+   id:"00000000-0000-0000-0000-000000000022",topic_id:"anxiety",price_minor:230000,currency:"RUB",
    slots:[{slot_id:"slot-live",starts_at:"2026-12-14T11:00:00Z",ends_at:"2026-12-14T12:00:00Z"}]
   }]}
  }));
@@ -58,6 +58,6 @@ test("specialist page shows only real API-backed offers and unheld slots",async(
  await expect(page.getByRole("heading",{name:"Что можно получить у этого специалиста"})).toBeVisible();
  await expect(page.getByText(/2.*300,00.*₽/)).toBeVisible();
  await expect(page.getByText(/Свободное время не резервируется при просмотре/)).toBeVisible();
- await expect(page.getByRole("link",{name:"Уточнить запрос и записаться"})).toHaveAttribute("href",`/?specialist_id=${p.id}#start`);
+ await expect(page.getByRole("link",{name:"Выбрать эту услугу и перейти к записи"})).toHaveAttribute("href",`/?specialist_id=${p.id}&offer_id=00000000-0000-0000-0000-000000000022#start`);
  await expect(page.getByRole("button",{name:"Забронировать"})).toHaveCount(0);
 });

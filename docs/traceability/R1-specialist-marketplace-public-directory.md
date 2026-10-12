@@ -55,3 +55,13 @@ non-public 404, disabled caching and sensitive-field non-disclosure. Browser
 and native clients both use the versioned `PublicBookableOfferList` schema.
 
 This projection must never replace the canonical booking or PSP owner.
+
+## Qualification revocation, provenance-aware ranking and selection
+
+A trusted operator can execute `specialist-review -type capability -id PROFILE_UUID -topic anxiety -decision revoke -reviewer OPERATOR`. The capability and publication are revoked atomically with audit history. The PostgreSQL E2E verifies public directory, public offers, live matches and new booking holds all fail closed immediately while preserving already-held booking history.
+
+Migration `000033` ties a live priced offer to the immutable ELIGIBLE qualification evaluation, current policy, jurisdiction, online format and adult age scope. Publishing additionally tests evidence expiry.
+
+Real live ranking derives reliability and platform experience only from canonical COMPLETED and NO_SHOW bookings; current exclusive available slot count supplies the availability tier. There is no authoritative verified rating/review feed yet; `ReputationTier` is deliberately zero rather than fabricated, as is `CommercialBoostTier` until a trusted commercial placement owner exists. Rank also rejects non-ELIGIBLE input irrespective of sponsored boost. Unit tests cover this explicit invariant.
+
+Public offer links pass both `specialist_id` and `offer_id` as *preferences* into the confirmed-HelpIntent workflow. The server re-evaluates qualification, current offer ownership, price and slot before any hold; marketplace does not execute payment or bypass booking. MatchCard prices resolve via offer ID, preventing wrong quoted price when a specialist has multiple services.

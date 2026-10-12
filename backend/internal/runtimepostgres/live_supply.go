@@ -245,13 +245,24 @@ func (c *Checker) BookableOffers() ([]demand.BookableOffer, error) {
       SELECT offer.id::text, sp.id::text,sp.identity_id::text,sp.display_name,
              sp.profession_code,offer.topic_id,offer.price_minor,offer.currency,
              to_json(cap.evidence_refs)::text,
-             slot.starts_at,slot.ends_at,slot.exclusive
+             slot.starts_at,slot.ends_at,slot.exclusive,
+             COALESCE(outcomes.completed,0),COALESCE(outcomes.no_show,0)
         FROM specialist_bookable_offers offer
         JOIN specialist_profiles sp ON sp.id=offer.specialist_id
         JOIN specialist_capabilities cap
           ON cap.specialist_id=sp.id AND cap.topic_id=offer.topic_id
         JOIN booking_slots slot
           ON slot.specialist_offer_id=offer.id AND slot.tenant_scope='specialist/live'
+        LEFT JOIN (
+          SELECT history.specialist_identity_id,
+                 count(*) FILTER (WHERE history_booking.state='COMPLETED') AS completed,
+                 count(*) FILTER (WHERE history_booking.state='NO_SHOW') AS no_show
+            FROM bookings history_booking
+            JOIN booking_slots history ON history.id=history_booking.slot_id
+           WHERE history.tenant_scope='specialist/live'
+             AND history_booking.state IN ('COMPLETED','NO_SHOW')
+           GROUP BY history.specialist_identity_id
+        ) outcomes ON outcomes.specialist_identity_id=sp.identity_id
          AND slot.specialist_identity_id=sp.identity_id
        WHERE apgic_live_offer_valid(offer.id)
          AND slot.exclusive
@@ -276,8 +287,10 @@ func (c *Checker) BookableOffers() ([]demand.BookableOffer, error) {
 		var price int64
 		var starts, ends time.Time
 		var exclusive bool
+		var completed, noShow int64
 		if err := rows.Scan(&offerID, &profileID, &identityID, &displayName, &profession,
-			&topic, &price, &currency, &evidenceJSON, &starts, &ends, &exclusive); err != nil {
+			&topic, &price, &currency, &evidenceJSON, &starts, &ends, &exclusive,
+			&completed, &noShow); err != nil {
 			rows.Close()
 			return nil, err
 		}
@@ -308,6 +321,7 @@ func (c *Checker) BookableOffers() ([]demand.BookableOffer, error) {
 			positions[offerID] = pos
 			result = append(result, demand.BookableOffer{
 				ID: offerID, Profile: *profile, Topic: topic, PriceMinor: price, Currency: currency,
+				CompletedConsultations: completed, NoShowConsultations: noShow,
 			})
 		}
 		result[pos].Slots = append(result[pos].Slots, demand.Slot{

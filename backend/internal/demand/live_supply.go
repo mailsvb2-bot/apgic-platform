@@ -12,6 +12,9 @@ type BookableOffer struct {
 	PriceMinor int64
 	Currency   string
 	Slots      []Slot
+	// Durable booking lifecycle outcomes, not self-reported reputation.
+	CompletedConsultations int64
+	NoShowConsultations    int64
 }
 
 // LiveBookableStore is only a projection of the canonical specialist/Product/
@@ -41,15 +44,44 @@ func liveCatalogFromOffers(offers []BookableOffer) catalog {
 		if len(validSlots) == 0 {
 			continue
 		}
-		// One canonical priced offer per topic; zero-score never implies
-		// sponsored ranking or unverifiable specialist experience.
+		// Trusted completed/no-show outcomes provide a conservative sample;
+		// no review score or paid sponsorship is ever inferred.
+		reliability, experience := verifiedOutcomeTiers(offer.CompletedConsultations, offer.NoShowConsultations)
+		availability := len(validSlots)
+		if availability > 5 {
+			availability = 5
+		}
 		result.candidates = append(result.candidates, marketplace.Candidate{
 			OfferID: offer.ID, Profile: offer.Profile, Formats: []string{FormatOnline},
 			Languages: []string{LanguageRU}, PriceMinor: offer.PriceMinor,
-			Available: true,
+			Available: true, ExpertiseTier: 1,
+			ReliabilityTier: reliability, PlatformExperienceTier: experience,
+			AvailabilityResponseTier: availability,
+			// ReputationTier and CommercialBoostTier are deliberately zero
+			// pending authoritative verified-review and placement owners.
 		})
 		result.names[offer.Profile.ID] = offer.Profile.DisplayName
 		result.slots = append(result.slots, validSlots...)
 	}
 	return result
+}
+
+func verifiedOutcomeTiers(completed, noShow int64) (reliability, experience int) {
+	if completed < 0 || noShow < 0 {
+		return 0, 0
+	}
+	switch {
+	case completed >= 100:
+		experience = 5
+	case completed >= 20:
+		experience = 4
+	case completed >= 5:
+		experience = 3
+	case completed >= 1:
+		experience = 1
+	}
+	if completed+noShow < 5 {
+		return 0, experience
+	}
+	return int((5 * completed) / (completed + noShow)), experience
 }

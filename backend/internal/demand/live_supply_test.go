@@ -105,3 +105,17 @@ func TestLiveSupplyMatchesSelectedPricedOfferAndHoldsOnlyConfirmedTopic(t *testi
 		t.Fatalf("valid priced slot was not held: %#v, err=%v", hold, err)
 	}
 }
+
+func TestVerifiedOutcomeTiersNeverInventReputation(t *testing.T) {
+	cases := []struct{ completed, noShow int64; reliability, experience int }{
+		{0, 0, 0, 0}, {1, 0, 0, 1}, {4, 0, 0, 1},
+		{5, 0, 5, 3}, {5, 5, 2, 3}, {20, 0, 5, 4},
+		{100, 0, 5, 5}, {-1, 0, 0, 0},
+	}
+	for _, tc := range cases {
+		reliability, experience := verifiedOutcomeTiers(tc.completed, tc.noShow)
+		if reliability != tc.reliability || experience != tc.experience {
+			t.Fatalf("outcomes (%d,%d): reliability=%d experience=%d", tc.completed, tc.noShow, reliability, experience)
+		}
+	}
+}
