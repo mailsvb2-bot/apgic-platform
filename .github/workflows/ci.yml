@@ -873,8 +873,29 @@ jobs:
         run: npm install --ignore-scripts --no-audit --no-fund
       - name: Reject service credentials from iOS client source
         run: python3 tools/client_credential_guard.py --surface IOS
-      - working-directory: apps/mobile/ios
-        run: pod install
+      - name: Install iOS pods with network-only retry, never hide podspec failures
+        working-directory: apps/mobile/ios
+        shell: bash
+        run: |
+          set -euo pipefail
+          log_file="$(mktemp)"
+          trap 'rm -f "$log_file"' EXIT
+          for attempt in 1 2 3; do
+            echo "Installing pinned iOS pods, attempt $attempt/3"
+            if pod install 2>&1 | tee "$log_file"; then
+              exit 0
+            fi
+            # Upstream React Native artifacts are fetched from Maven Central.
+            # Retry only proven transient transport errors; a malformed
+            # Podfile, checksum mismatch or compile error must fail immediately.
+            if ! grep -Eiq 'Connection reset by peer|curl: \\(56\\)|curl: \\(28\\)|Operation timed out|Read timed out|Could not resolve host|503 Service Unavailable|502 Bad Gateway|network is unreachable' "$log_file"; then
+              echo "Non-network CocoaPods failure; refusing retry." >&2
+              exit 1
+            fi
+            if [ "$attempt" -lt 3 ]; then sleep $((attempt * 8)); fi
+          done
+          echo "Transient CocoaPods dependency download failed after 3 attempts." >&2
+          exit 1
       - working-directory: apps/mobile/ios
         env:
           FORCE_BUNDLING: "1"
