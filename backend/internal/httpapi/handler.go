@@ -40,7 +40,7 @@ type Options struct {
 	Organizations               organizationRuntimeStore
 	ProductOwnership            productOwnershipStore
 	Products                    organizationProductStore
-	ClientPersonal               clientPersonalStore
+	ClientPersonal              clientPersonalStore
 	ConformanceProviderEvents   bool
 	ProviderWebhookKeys         connector.WebhookPublicKeyResolver
 	ConsultationProvider        ConsultationProviderStore
