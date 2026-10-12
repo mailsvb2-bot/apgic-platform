@@ -19,6 +19,8 @@ type academyStore interface {
  AcademyMarkProgress(string,string,string)error
  AcademyComplete(string,string)(academy.Certificate,error)
  AcademyVerify(string)(map[string]any,error)
+ AcademySubmitAttempt(string,string,string,string)(academy.Attempt,error)
+ AcademyEvaluateAttempt(string,string,string,int)(academy.Attempt,error)
 }
 func registerAcademy(mux *http.ServeMux,store academyStore,sessions *clientSessionManager,sessionConfigErr error) {
  mux.HandleFunc("GET /v1/academy/courses",func(w http.ResponseWriter,r *http.Request){
@@ -106,6 +108,27 @@ func registerAcademy(mux *http.ServeMux,store academyStore,sessions *clientSessi
   if err!=nil{academyHTTPError(w,r,err);return}
   w.Header().Set("Cache-Control","no-store")
   writeJSON(w,http.StatusOK,certificate)
+ })
+
+ mux.HandleFunc("POST /v1/academy/enrollments/{enrollmentID}/assessments/{lessonID}/attempts",func(w http.ResponseWriter,r *http.Request){
+  if store==nil{academyHTTPError(w,r,academy.ErrUnavailable);return}
+  identity,ok:=trustedClientIdentity(w,r,sessions,sessionConfigErr,"");if !ok{return}
+  var input struct{Response string `json:"response"`}
+  if !academyRead(w,r,&input){return}
+  attempt,err:=store.AcademySubmitAttempt(identity,r.PathValue("enrollmentID"),r.PathValue("lessonID"),input.Response)
+  if err!=nil{academyHTTPError(w,r,err);return}
+  w.Header().Set("Cache-Control","private, no-store")
+  writeJSON(w,http.StatusCreated,attempt)
+ })
+ mux.HandleFunc("POST /v1/academy/attempts/{attemptID}/evaluate",func(w http.ResponseWriter,r *http.Request){
+  if store==nil{academyHTTPError(w,r,academy.ErrUnavailable);return}
+  identity,ok:=trustedClientIdentity(w,r,sessions,sessionConfigErr,"");if !ok{return}
+  var input struct{Score int `json:"score"`; EvidenceRef string `json:"evidence_ref"`}
+  if !academyRead(w,r,&input){return}
+  attempt,err:=store.AcademyEvaluateAttempt(identity,r.PathValue("attemptID"),input.EvidenceRef,input.Score)
+  if err!=nil{academyHTTPError(w,r,err);return}
+  w.Header().Set("Cache-Control","private, no-store")
+  writeJSON(w,http.StatusOK,attempt)
  })
 
 }
