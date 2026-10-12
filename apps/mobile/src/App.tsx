@@ -13,6 +13,7 @@ import {
 } from "react-native";
 
 import {apiContractVersion} from "./api-contract.ts";
+import {AvatarCompanion} from "./AvatarCompanion.tsx";
 import {
   decideCapability,
   type CapabilityState,
@@ -1086,6 +1087,8 @@ export default function App({
             ) : null}
           </View>
         ) : null}
+
+        {!infrastructureE2EActive && compatibilityAllowsRuntime ? <AvatarCompanion apiOrigin={demandAPIBaseURL} /> : null}
 
         {demandE2E.status !== "IDLE" ? (
           <View style={styles.capability} accessibilityRole="summary">
