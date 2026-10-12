@@ -270,9 +270,10 @@ func TestSignedConsultationPersistsAcrossAPIStoreRestart(t *testing.T) {
 	forgedEntitlement := signed(1, "JOINED", "CLIENT")
 	forgedPayload, err := json.Marshal(ConsultationProviderEvent{
 		BookingID: unpaidHold.BookingID,
-		FactType: "JOINED", Role: "CLIENT",
+		FactType:         "JOINED",
+		Role:             "CLIENT",
 		ProviderReference: "unpaid-attempt/" + unpaidHold.BookingID,
-		EvidenceRef: "signed-but-unpaid/" + unpaidHold.BookingID,
+		EvidenceRef:      "signed-but-unpaid/" + unpaidHold.BookingID,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -284,6 +285,15 @@ func TestSignedConsultationPersistsAcrossAPIStoreRestart(t *testing.T) {
 	if status, _ := postSigned(forgedEntitlement); status != http.StatusConflict {
 		t.Fatalf("valid signed communication webhook opened UNPAID confirmed booking: HTTP %d", status)
 	}
+	// Replaying a refused event cannot claim success or mint a receipt.
+	if status, _ := postSigned(forgedEntitlement); status != http.StatusConflict {
+		t.Fatalf("replayed unpaid signed event was accepted: HTTP %d", status)
+	}
+	unpaidOrder, err := service.ReadOrderForBooking(unpaidHold.BookingID, unpaidIntent.ClientIdentityID)
+	if err != nil || unpaidOrder == nil || unpaidOrder.BookingState != booking.StateConfirmed ||
+		unpaidOrder.PaymentState != "PENDING_PROVIDER" || unpaidOrder.RefundState != "" {
+		t.Fatalf("unpaid CONFIRMED booking obscured missing external capture: %#v err=%v", unpaidOrder, err)
+	}
 	var forgedSessions int
 	if err := store.db.QueryRowContext(ctx,
 		"SELECT count(*) FROM consultation_sessions WHERE booking_id=$1::uuid",
@@ -292,6 +302,9 @@ func TestSignedConsultationPersistsAcrossAPIStoreRestart(t *testing.T) {
 	}
 	if forgedSessions != 0 {
 		t.Fatalf("unpaid booking generated %d durable consultation sessions", forgedSessions)
+	}
+	if read, err := store.ReadConsultationResult(ctx, unpaidHold.BookingID, unpaidIntent.ClientIdentityID); err != nil || read != nil {
+		t.Fatalf("unpaid booking yielded consultation result: %#v err=%v", read, err)
 	}
 
 	var fallbackID string
