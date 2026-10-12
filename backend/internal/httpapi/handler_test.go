@@ -106,9 +106,17 @@ func (livePaymentJourneyStub) LoadJourney([]demand.Slot) (demand.JourneySnapshot
 	return demand.JourneySnapshot{}, nil
 }
 
+func (livePaymentJourneyStub) LoadLiveJourney() (demand.JourneySnapshot, error) {
+	return demand.JourneySnapshot{}, nil
+}
+
 type livePaymentSupplyStub struct{}
 
 func (livePaymentSupplyStub) PublishedProfiles() ([]marketplace.SpecialistProfile, error) {
+	return nil, nil
+}
+
+func (livePaymentSupplyStub) BookableOffers() ([]demand.BookableOffer, error) {
 	return nil, nil
 }
 

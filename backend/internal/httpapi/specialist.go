@@ -167,6 +167,7 @@ func registerSpecialist(
 		}
 		writeJSON(w, http.StatusOK, result)
 	})
+	registerSpecialistBookableOffers(mux, store, sessions, sessionConfigErr)
 }
 
 func writeSpecialistFailure(w http.ResponseWriter, r *http.Request, err error) {

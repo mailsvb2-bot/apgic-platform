@@ -1,0 +1,107 @@
+package demand
+
+import (
+	"errors"
+	"testing"
+	"time"
+
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/marketplace"
+)
+
+type liveSupplyFixture struct {
+	offers []BookableOffer
+	err    error
+}
+
+func (s *liveSupplyFixture) PublishedProfiles() ([]marketplace.SpecialistProfile, error) {
+	return nil, s.err
+}
+
+func (s *liveSupplyFixture) BookableOffers() ([]BookableOffer, error) {
+	return s.offers, s.err
+}
+
+func publishedLiveProfile(t *testing.T, topic string) marketplace.SpecialistProfile {
+	t.Helper()
+	profile, err := marketplace.NewSpecialistProfile(
+		"5b7e4811-9abc-4e27-a490-cf85f2267601",
+		"9ef8d120-8f88-4c28-a5f6-7f03cd48dd01", "Реальный специалист",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	capability, err := marketplace.NewCapability(topic, marketplace.EvidenceAPGICVerified, "reviewed-document:123")
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile.AddCapability(capability)
+	profile.Complete = true
+	profile.Review = marketplace.ReviewApproved
+	profile.Profession = "PSYCHOLOGIST"
+	profile.PublishState = marketplace.PublishPublished
+	profile.PublishedTopics = []string{topic}
+	return *profile
+}
+
+func liveFixtureOffer(t *testing.T, topic, offerID string, price int64, start time.Time) BookableOffer {
+	t.Helper()
+	profile := publishedLiveProfile(t, topic)
+	return BookableOffer{
+		ID: offerID, Profile: profile, Topic: topic, PriceMinor: price, Currency: "RUB",
+		Slots: []Slot{{
+			ID:           profile.ID + "-slot-" + start.Format("20060102T1504Z"),
+			SpecialistID: profile.ID, OfferID: offerID, Topic: topic,
+			StartsAt: start, EndsAt: start.Add(50 * time.Minute), Exclusive: true,
+		}},
+	}
+}
+
+func TestLiveSupplyDoesNotInventPriceOrSlots(t *testing.T) {
+	now := time.Date(2026, 10, 12, 14, 0, 0, 0, time.UTC)
+	good := liveFixtureOffer(t, "anxiety", "11111111-1111-4111-8111-111111111111", 185000, now.Add(time.Hour))
+	invalidPrice := liveFixtureOffer(t, "sleep", "22222222-2222-4222-8222-222222222222", 0, now.Add(2*time.Hour))
+	invalidSlot := liveFixtureOffer(t, "sleep", "33333333-3333-4333-8333-333333333333", 250000, now.Add(3*time.Hour))
+	invalidSlot.Slots[0].OfferID = "different"
+	unpublished := liveFixtureOffer(t, "anxiety", "44444444-4444-4444-8444-444444444444", 250000, now.Add(4*time.Hour))
+	unpublished.Profile.PublishState = marketplace.PublishUnpublished
+	c := liveCatalogFromOffers([]BookableOffer{good, invalidPrice, invalidSlot, unpublished})
+	if len(c.candidates) != 1 || len(c.slots) != 1 ||
+		c.candidates[0].OfferID != good.ID || c.candidates[0].PriceMinor != 185000 {
+		t.Fatalf("unverified or unpriced offer appeared as bookable: candidates=%#v slots=%#v", c.candidates, c.slots)
+	}
+	if c.slots[0].OfferID != good.ID {
+		t.Fatalf("slot lost canonical offer identity: %#v", c.slots[0])
+	}
+}
+
+func TestLiveSupplyMatchesSelectedPricedOfferAndHoldsOnlyConfirmedTopic(t *testing.T) {
+	now := time.Date(2026, 10, 12, 14, 0, 0, 0, time.UTC)
+	anxiety := liveFixtureOffer(t, "anxiety", "11111111-1111-4111-8111-111111111111", 185000, now.Add(2*time.Hour))
+	sleep := liveFixtureOffer(t, "sleep", "22222222-2222-4222-8222-222222222222", 290000, now.Add(3*time.Hour))
+	service := NewConformanceService(func() time.Time { return now })
+	service.liveSupplyMode = true
+	service.specialistStore = &liveSupplyFixture{offers: []BookableOffer{anxiety, sleep}}
+	service.catalog = liveCatalogFromOffers([]BookableOffer{anxiety, sleep})
+	intent, err := service.CreateIntentForIdentity("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "мне тревожно")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.ConfirmIntent(intent.ID, []string{"anxiety"}, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	cards, _, err := service.Matches(intent.ID, "anxiety")
+	if err != nil || len(cards) != 1 || cards[0].OfferID != anxiety.ID || cards[0].PriceMinor != 185000 {
+		t.Fatalf("live matches = %#v, err=%v", cards, err)
+	}
+	slots, err := service.SlotsForOffer(anxiety.Profile.ID, cards[0].OfferID)
+	if err != nil || len(slots) != 1 || slots[0].ID != anxiety.Slots[0].ID {
+		t.Fatalf("live slot selection = %#v, err=%v", slots, err)
+	}
+	if _, err := service.AcquireHold(intent.ID, sleep.Slots[0].ID, intent.ClientIdentityID); !errors.Is(err, ErrSlotUnavailable) {
+		t.Fatalf("unconfirmed priced topic acquired hold: %v", err)
+	}
+	hold, err := service.AcquireHold(intent.ID, slots[0].ID, intent.ClientIdentityID)
+	if err != nil || hold.BookingState != "HELD" {
+		t.Fatalf("valid priced slot was not held: %#v, err=%v", hold, err)
+	}
+}

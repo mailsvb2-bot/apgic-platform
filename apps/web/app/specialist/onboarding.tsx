@@ -36,6 +36,26 @@ type PublishResult = {
   policy_version: string;
 };
 
+type BookableOffer = {
+  id: string;
+  product_id: string;
+  topic_id: string;
+  price_minor: number;
+  currency: string;
+  state: string;
+};
+
+type OwnedProduct = {
+  id: string;
+  name: string;
+  status: "DRAFT" | "PUBLISHED";
+};
+
+type OwnedOrganization = {
+  id: string;
+  name: string;
+};
+
 const topicNames: Record<string, string> = {
   anxiety: "Тревога и стресс",
   sleep: "Сон",
@@ -67,10 +87,23 @@ export function SpecialistOnboarding() {
   const [evidenceReference, setEvidenceReference] = useState("");
   const [notice, setNotice] = useState("Создайте профиль, чтобы начать подключение.");
   const [busy, setBusy] = useState(false);
+  const [bookableOffers, setBookableOffers] = useState<BookableOffer[]>([]);
+  const [ownedProducts, setOwnedProducts] = useState<OwnedProduct[]>([]);
+  const [selectedProductID, setSelectedProductID] = useState("");
+  const [selectedOfferID, setSelectedOfferID] = useState("");
+  const [priceRub, setPriceRub] = useState("");
+  const [slotStart, setSlotStart] = useState("");
+  const [slotEnd, setSlotEnd] = useState("");
 
   useEffect(() => {
     void loadProfile();
   }, []);
+
+  useEffect(() => {
+    if (profile) {
+      void loadBookableWorkspace();
+    }
+  }, [profile?.id]);
 
   async function loadProfile() {
     const response = await fetch("/v1/specialist/profile", { cache: "no-store" });
@@ -184,6 +217,114 @@ export function SpecialistOnboarding() {
     }
   }
 
+  async function loadBookableWorkspace() {
+    // No invented product or price: discover only authenticated existing
+    // Organization-owned PUBLISHED products through the canonical API.
+    const [offersReply, organizationsReply] = await Promise.all([
+      fetch("/v1/specialist/offers", { cache: "no-store" }),
+      fetch("/v1/organizations", { cache: "no-store" }),
+    ]);
+    if (offersReply.ok) {
+      const body = await offersReply.json() as { offers: BookableOffer[] };
+      const offers = body.offers ?? [];
+      setBookableOffers(offers);
+      setSelectedOfferID((current) => current || offers.find((offer) => offer.state === "ACTIVE")?.id || "");
+    }
+    if (!organizationsReply.ok) return;
+    const body = await organizationsReply.json() as { organizations: OwnedOrganization[] };
+    const orgs = body.organizations ?? [];
+    const responses = await Promise.all(orgs.map(async (org) => {
+      const result = await fetch(`/v1/organizations/${encodeURIComponent(org.id)}/products`, { cache: "no-store" });
+      if (!result.ok) return [] as OwnedProduct[];
+      const values = await result.json() as { products: OwnedProduct[] };
+      return (values.products ?? []).filter((product) => product.status === "PUBLISHED");
+    }));
+    const published = responses.flat();
+    setOwnedProducts(published);
+    setSelectedProductID((current) => current || published[0]?.id || "");
+  }
+
+  async function createPricedOffer(event: FormEvent) {
+    event.preventDefault();
+    const major = Number(priceRub.replace(",", ".").trim());
+    if (!Number.isFinite(major) || major <= 0) {
+      setNotice("Введите положительную цену консультации.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const response = await fetch("/v1/specialist/offers", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          topic_id: topicID,
+          product_id: selectedProductID,
+          price_minor: Math.round(major * 100),
+        }),
+      });
+      const body = await response.json() as BookableOffer & { message_safe?: string };
+      if (!response.ok) {
+        setNotice(body.message_safe || "Не удалось опубликовать платное предложение.");
+        return;
+      }
+      setBookableOffers((current) => [...current, body]);
+      setSelectedOfferID(body.id);
+      setNotice("Цена и направление сохранены в PostgreSQL. Добавьте свободное время — только тогда предложение станет доступным в подборе.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function pausePricedOffer() {
+    if (!selectedOfferID) return;
+    setBusy(true);
+    try {
+      const response = await fetch(`/v1/specialist/offers/${encodeURIComponent(selectedOfferID)}/pause`, {
+        method: "POST",
+      });
+      const body = await response.json() as BookableOffer & { message_safe?: string };
+      if (!response.ok) {
+        setNotice(body.message_safe || "Не удалось остановить предложение.");
+        return;
+      }
+      setBookableOffers((current) => current.map((offer) => (
+        offer.id === body.id ? body : offer
+      )));
+      setSelectedOfferID("");
+      setNotice("Старая цена снята с публикации без удаления записей. Теперь можно создать новое предложение с другой ценой.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function createBookableSlot(event: FormEvent) {
+    event.preventDefault();
+    const start = new Date(slotStart);
+    const end = new Date(slotEnd);
+    if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || end <= start) {
+      setNotice("Укажите корректное начало и окончание консультации.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const response = await fetch(`/v1/specialist/offers/${encodeURIComponent(selectedOfferID)}/slots`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ starts_at: start.toISOString(), ends_at: end.toISOString() }),
+      });
+      const body = await response.json() as { message_safe?: string };
+      if (!response.ok) {
+        setNotice(body.message_safe || "Не удалось сохранить время консультации.");
+        return;
+      }
+      setSlotStart("");
+      setSlotEnd("");
+      setNotice("Свободное время сохранено в PostgreSQL. Теперь клиент может увидеть цену и удержать этот слот для записи. Реальная оплата остаётся закрыта до подключения PSP.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <section className="specialist-onboarding" id="onboarding" aria-labelledby="onboarding-title">
       <div className="start-heading">
@@ -289,6 +430,56 @@ export function SpecialistOnboarding() {
                   ? profile.published_topics.map((topic) => topicNames[topic] || topic).join(", ")
                   : "пока ничего"}.
               </p>
+            </section>
+            <section className="panel specialist-form" aria-labelledby="offer-title">
+              <h3 id="offer-title">5. Реальная цена и доступное время</h3>
+              <p className="form-help">
+                Для платной консультации нужен уже опубликованный продукт вашей организации,
+                действующее подтверждение компетенции и одобренный профиль. Тестовых цен и слотов нет.
+              </p>
+              {ownedProducts.length === 0 ? (
+                <p>Опубликованных продуктов пока нет. <a href="/organization">Создать и опубликовать продукт в кабинете организации</a>.</p>
+              ) : (
+                <form onSubmit={createPricedOffer}>
+                  <label htmlFor="specialist-owned-product">Опубликованный продукт</label>
+                  <select id="specialist-owned-product" value={selectedProductID}
+                    onChange={(event) => setSelectedProductID(event.target.value)}>
+                    {ownedProducts.map((product) => (
+                      <option key={product.id} value={product.id}>{product.name}</option>
+                    ))}
+                  </select>
+                  <label htmlFor="specialist-priced-amount">Цена консультации, ₽</label>
+                  <input id="specialist-priced-amount" value={priceRub} inputMode="decimal"
+                    onChange={(event) => setPriceRub(event.target.value)} placeholder="Например, 2500"
+                    required />
+                  <button type="submit" disabled={busy || !selectedProductID ||
+                    !profile.published_topics.includes(topicID)}>Сохранить платное предложение</button>
+                </form>
+              )}
+              <label htmlFor="specialist-bookable-offer">Предложение для свободного времени</label>
+              <select id="specialist-bookable-offer" value={selectedOfferID}
+                onChange={(event) => setSelectedOfferID(event.target.value)}>
+                <option value="">Выберите опубликованное предложение</option>
+                {bookableOffers.filter((offer) => offer.state === "ACTIVE").map((offer) => (
+                  <option key={offer.id} value={offer.id}>
+                    {topicNames[offer.topic_id] || offer.topic_id} ·
+                    {" "}{new Intl.NumberFormat("ru-RU").format(offer.price_minor / 100)} ₽
+                  </option>
+                ))}
+              </select>
+              <button type="button" className="secondary-panel-action" onClick={pausePricedOffer}
+                disabled={busy || !selectedOfferID}>
+                Остановить предложение и изменить цену
+              </button>
+              <form onSubmit={createBookableSlot}>
+                <label htmlFor="specialist-slot-start">Начало (местное время)</label>
+                <input id="specialist-slot-start" type="datetime-local" value={slotStart}
+                  onChange={(event) => setSlotStart(event.target.value)} required />
+                <label htmlFor="specialist-slot-end">Окончание (местное время)</label>
+                <input id="specialist-slot-end" type="datetime-local" value={slotEnd}
+                  onChange={(event) => setSlotEnd(event.target.value)} required />
+                <button type="submit" disabled={busy || !selectedOfferID}>Добавить доступное время</button>
+              </form>
             </section>
           </>
         )}

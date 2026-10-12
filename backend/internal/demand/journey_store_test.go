@@ -183,6 +183,10 @@ type liveJourneyStoreProbe struct {
 	bootstrapCalls int
 }
 
+func (f *liveJourneyStoreProbe) LoadLiveJourney() (JourneySnapshot, error) {
+	return f.snapshot, nil
+}
+
 func (f *liveJourneyStoreProbe) BootstrapCatalog(slots []Slot) ([]Slot, error) {
 	f.bootstrapCalls++
 	return f.fakeJourneyStore.BootstrapCatalog(slots)

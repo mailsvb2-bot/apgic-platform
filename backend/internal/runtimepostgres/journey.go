@@ -736,6 +736,9 @@ func (c *Checker) AcquireHold(hold *demand.Hold, slot demand.Slot, now time.Time
 		hold.ExpiresAt,
 		now,
 	).Scan(&acquired, &reason); err != nil {
+		if strings.Contains(err.Error(), "live booking offer no longer eligible") {
+			return "BOOK_SLOT_NOT_AVAILABLE", nil
+		}
 		return "", fmt.Errorf("acquire canonical slot hold: %w", err)
 	}
 	if !acquired {
