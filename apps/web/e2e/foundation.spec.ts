@@ -148,7 +148,13 @@ test("help intent journey stays usable and accessible", async ({ page }) => {
   await expect(page.locator(".alert")).toContainText("согласия");
   await page.getByRole("button", { name: "Отменить бронь через внешнего провайдера" }).click();
   await expect(page.getByRole("heading", { name: "Бронь отменена" })).toBeVisible();
-  await expect(page.getByText("CANCELLED")).toBeVisible();
+  // The booking and financial projections may both legitimately display
+  // CANCELLED. Assert the canonical cancellation outcome, not an ambiguous
+  // text match across two independent server-owned read models.
+  const cancellation = page.locator(".cancellation-result .booking-summary");
+  await expect(cancellation.getByText("CANCELLED", {exact: true})).toBeVisible();
+  await expect(cancellation.getByText("SUCCEEDED", {exact: true})).toBeVisible();
+  await expect(page.getByRole("region", {name: "Результат консультации"})).toHaveCount(0);
   await expect(page.getByText("APGIC возвращает деньги: нет.")).toBeVisible();
   await page.getByRole("button", { name: "Отменить бронь через внешнего провайдера" }).click();
   await expect(page.getByText("Повтор: уже учтён.").last()).toBeVisible();
