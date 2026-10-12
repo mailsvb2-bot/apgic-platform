@@ -118,3 +118,17 @@ func CanIssueCertificate(total, completed int, entitlementActive, enrollmentActi
 
 // Learning result never bypasses the independent verification/qualification owner.
 const EvidenceCandidateStatus = "PENDING_VERIFICATION"
+
+
+type ReviewAttempt struct {
+ AttemptID string `json:"attempt_id"`
+ EnrollmentID string `json:"enrollment_id"`
+ LessonID string `json:"lesson_id"`
+ AttemptNo int `json:"attempt_no"`
+ ResponseText string `json:"response_text"`
+ SubmittedAt time.Time `json:"submitted_at"`
+ RubricVersion string `json:"rubric_version"`
+ PassingScore int `json:"passing_score"`
+ CourseTitle string `json:"course_title"`
+ LessonTitle string `json:"lesson_title"`
+}
