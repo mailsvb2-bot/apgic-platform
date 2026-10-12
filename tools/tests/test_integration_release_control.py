@@ -45,6 +45,25 @@ class IntegrationControlTests(unittest.TestCase):
         self.assertEqual(len(collisions[0]["evidence"]), 2)
         self.assertEqual(result["decision"], "BLOCKED")
 
+    def test_future_overlap_must_not_block_launch_v1(self):
+        state = snapshot()
+        same_ui = "apps/mobile/src/App.tsx"
+        state["branches"]["feat/specialist-marketplace"]["files"] = [same_ui]
+        for name in ("feat/client-personal", "feat/ai-persona", "feat/groups-live-events"):
+            state["branches"][name]["files"] = [same_ui]
+        result = module.assessment(PLAN, state, evidence())
+        self.assertEqual(result["decision"], "READY_FOR_SEPARATE_PROMOTION_REVIEW")
+        self.assertTrue(any(b["owner"] == "native-shell-owner" for b in result["post_launch_blockers"]))
+        self.assertFalse(any(b["owner"] == "native-shell-owner" for b in result["launch_blockers"]))
+
+    def test_future_only_postgres_collision_does_not_block_launch(self):
+        state = snapshot()
+        state["branches"]["feat/client-personal"]["files"] = ["backend/migrations/000033_personal.sql"]
+        state["branches"]["feat/growth-distribution"]["files"] = ["backend/migrations/000033_growth.sql"]
+        result = module.assessment(PLAN, state, evidence())
+        self.assertEqual(result["decision"], "READY_FOR_SEPARATE_PROMOTION_REVIEW")
+        self.assertIn("POSTGRES_MIGRATION_VERSION_COLLISION", {b["code"] for b in result["post_launch_blockers"]})
+
     def test_shared_api_and_generated_types_detected(self):
         state = snapshot()
         paths = ["contracts/openapi/apgic-v1.yaml", "packages/contracts/src/generated/apgic-v1.ts"]

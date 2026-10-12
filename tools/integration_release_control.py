@@ -115,7 +115,12 @@ def assessment(plan: dict, snapshot: dict, launch_assessment: dict | None = None
         if len(unique_paths) <= 1:
             continue
         participating = sorted({name for name, _ in entries})
-        scope = "LAUNCH" if any(lanes[n]["launch_dependency"] for n in participating) else "POST_LAUNCH"
+        # Cross-launch/post-launch collisions alone MUST NOT enlarge R0-R4.
+        # Only two or more independent launch heads assigning the same version
+        # are a current Launch v1 integration conflict. Future-lane conflicts
+        # are still recorded for the later ten-lane convergence.
+        launch_participants = [n for n in participating if lanes[n]["launch_dependency"]]
+        scope = "LAUNCH" if len(launch_participants) > 1 else "POST_LAUNCH"
         sources = [f"https://github.com/{repo}/blob/{snapshot['branches'][name]['sha']}/{path}" for name, path in entries]
         add("POSTGRES_MIGRATION_VERSION_COLLISION", "postgres-schema-owner",
             f"Migration {version} has {len(unique_paths)} different definitions. Allocate an immutable global order, reconcile DDL and test migrate-from-main + fresh DB + rollback/rollforward where safe; never blindly rename after deployment.", sources,
@@ -138,7 +143,8 @@ def assessment(plan: dict, snapshot: dict, launch_assessment: dict | None = None
         else:
             continue
         refs = [f"https://github.com/{repo}/blob/{snapshot['branches'][name]['sha']}/{path}" for name in unique]
-        scope = "LAUNCH" if any(lanes[n]["launch_dependency"] for n in unique) else "POST_LAUNCH"
+        launch_participants = [n for n in unique if lanes[n]["launch_dependency"]]
+        scope = "LAUNCH" if len(launch_participants) > 1 else "POST_LAUNCH"
         add(code, owner, f"Multiple heads change {path}; require one semantic owner, reviewed combined diff, compatibility and real integrated runtime proof. Independent CI is insufficient.", refs,
             scope=scope, affected=unique)
 
