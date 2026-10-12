@@ -83,6 +83,8 @@ def observation_blockers(journey: str, obs: object, record: dict,
             if not isinstance(step, dict) or step.get("phase") != phase:
                 result.append(f"STEP_{n}_PHASE_MISMATCH")
                 continue
+            if step.get("correlation_id") != obs.get("correlation_id"):
+                result.append(f"STEP_{n}_CORRELATION_MISMATCH")
             eid = step.get("event_id")
             if not isinstance(eid, str) or not eid.strip() or eid in ids:
                 result.append(f"STEP_{n}_EVENT_ID_INVALID")
@@ -102,7 +104,11 @@ def observation_blockers(journey: str, obs: object, record: dict,
     outcome = obs.get("business_outcome")
     if not isinstance(outcome, dict) or outcome.get("status") != "CONFIRMED" or not isinstance(outcome.get("canonical_result_id"), str) or not outcome["canonical_result_id"].strip():
         result.append("BUSINESS_OUTCOME_MISSING")
+    if isinstance(outcome, dict) and outcome.get("correlation_id") != obs.get("correlation_id"):
+        result.append("OUTCOME_CORRELATION_MISMATCH")
     probe = obs.get("failure_or_denial_probe")
+    if isinstance(probe, dict) and probe.get("correlation_id") != obs.get("correlation_id"):
+        result.append("FAILURE_PROBE_CORRELATION_MISMATCH")
     if not isinstance(probe, dict) or probe.get("status") != "PASS" or not isinstance(probe.get("observed_result"), str) or not probe["observed_result"].strip() or not external_source(probe.get("source_ref")):
         result.append("FAILURE_PROBE_MISSING")
     return result

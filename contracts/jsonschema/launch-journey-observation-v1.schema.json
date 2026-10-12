@@ -67,7 +67,8 @@
           "phase",
           "event_id",
           "canonical_owner",
-          "observed_at"
+          "observed_at",
+          "correlation_id"
         ],
         "properties": {
           "phase": {
@@ -85,6 +86,10 @@
           "observed_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "correlation_id": {
+            "type": "string",
+            "minLength": 1
           }
         }
       }
@@ -94,13 +99,18 @@
       "additionalProperties": false,
       "required": [
         "status",
-        "canonical_result_id"
+        "canonical_result_id",
+        "correlation_id"
       ],
       "properties": {
         "status": {
           "const": "CONFIRMED"
         },
         "canonical_result_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "correlation_id": {
           "type": "string",
           "minLength": 1
         }
@@ -112,7 +122,8 @@
       "required": [
         "status",
         "observed_result",
-        "source_ref"
+        "source_ref",
+        "correlation_id"
       ],
       "properties": {
         "status": {
@@ -125,6 +136,10 @@
         "source_ref": {
           "type": "string",
           "pattern": "^https://[^/]+/.+"
+        },
+        "correlation_id": {
+          "type": "string",
+          "minLength": 1
         }
       }
     }

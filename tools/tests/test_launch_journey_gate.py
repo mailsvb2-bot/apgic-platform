@@ -36,10 +36,13 @@ class LaunchJourneyGateTests(unittest.TestCase):
                 "verified_by": "independent-verifier", "correlation_id": correlation,
                 "observed_steps": [
                     {"phase": phase, "event_id": name + str(i), "canonical_owner": "APGIC",
+                     "correlation_id": correlation,
                      "observed_at": OBSERVED} for i, phase in enumerate(phases)
                 ],
-                "business_outcome": {"status": "CONFIRMED", "canonical_result_id": name + "-outcome"},
+                "business_outcome": {"status": "CONFIRMED", "canonical_result_id": name + "-outcome",
+                                     "correlation_id": correlation},
                 "failure_or_denial_probe": {"status": "PASS",
+                    "correlation_id": correlation,
                     "observed_result": "recovered or rejected safely",
                     "source_ref": source + "/denial"},
             }
@@ -110,6 +113,28 @@ class LaunchJourneyGateTests(unittest.TestCase):
         path.write_text(json.dumps(obs), encoding="utf-8")
         record["artifact_sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
         self.blocked(manifest, idx, "FAILURE_PROBE_MISSING")
+
+    def test_rehashed_steps_from_another_journey_cannot_masquerade_as_correlated(self):
+        manifest, idx = self.complete()
+        record = next(iter(idx["records"].values()))
+        path = self.root / record["artifact_path"]
+        obs = json.loads(path.read_text(encoding="utf-8"))
+        obs["observed_steps"][1]["correlation_id"] = "other-client-other-booking"
+        path.write_text(json.dumps(obs), encoding="utf-8")
+        record["artifact_sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+        self.blocked(manifest, idx, "STEP_1_CORRELATION_MISMATCH")
+
+    def test_business_outcome_and_denial_probes_require_same_correlation(self):
+        manifest, idx = self.complete()
+        record = next(iter(idx["records"].values()))
+        path = self.root / record["artifact_path"]
+        obs = json.loads(path.read_text(encoding="utf-8"))
+        obs["business_outcome"]["correlation_id"] = "unrelated"
+        obs["failure_or_denial_probe"]["correlation_id"] = "unrelated"
+        path.write_text(json.dumps(obs), encoding="utf-8")
+        record["artifact_sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+        self.blocked(manifest, idx, "OUTCOME_CORRELATION_MISMATCH")
+        self.blocked(manifest, idx, "FAILURE_PROBE_CORRELATION_MISMATCH")
 
     def test_future_verification_rejected(self):
         manifest, idx = self.complete()
