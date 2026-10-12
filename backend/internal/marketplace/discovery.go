@@ -260,6 +260,10 @@ func Rank(policy RankingPolicy, matches []Match) []RankedMatch {
 
 	ranked := make([]RankedMatch, 0, len(copyOf))
 	for _, match := range copyOf {
+		// Ranking cannot make an unqualified result eligible, even via boost.
+		if match.Qualification.Decision != EligibilityEligible {
+			continue
+		}
 		reasons := []string{ReasonRankedDeterministically}
 		sponsored := match.CommercialBoostTier > 0
 		if sponsored {

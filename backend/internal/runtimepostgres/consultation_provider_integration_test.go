@@ -5,6 +5,7 @@ import (
 	"crypto/ed25519"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -238,6 +239,74 @@ func TestSignedConsultationPersistsAcrossAPIStoreRestart(t *testing.T) {
 		return event
 	}
 
+	// A privileged/stale booking flag cannot substitute for a signed PSP
+	// capture. Prove this using a second PostgreSQL booking whose state was
+	// set CONFIRMED without any captured payment ledger entry. The webhook
+	// itself has a VALID provider signature; only economic authorization
+	// should reject it and roll back the connector business effect.
+	unpaidIntent, err := service.CreateIntent("бессонница")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.ConfirmIntent(unpaidIntent.ID, []string{"sleep"}, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	unpaidSlots, err := service.Slots("spec-lebedeva")
+	if err != nil || len(unpaidSlots) < 1 {
+		t.Fatalf("need second distinct slot to prove unpaid access: %d %v", len(unpaidSlots), err)
+	}
+	unpaidHold, err := service.AcquireHold(unpaidIntent.ID, unpaidSlots[0].ID, unpaidIntent.ClientIdentityID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.CreateCheckout(unpaidHold.ID, unpaidIntent.ClientIdentityID, "SBP"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.db.ExecContext(ctx,
+		`UPDATE bookings SET state='CONFIRMED', updated_at=now()
+		  WHERE id=$1::uuid AND state='PENDING_PAYMENT'`, unpaidHold.BookingID); err != nil {
+		t.Fatalf("forge booking without capture: %v", err)
+	}
+	forgedEntitlement := signed(1, "JOINED", "CLIENT")
+	forgedPayload, err := json.Marshal(ConsultationProviderEvent{
+		BookingID:         unpaidHold.BookingID,
+		FactType:          "JOINED",
+		Role:              "CLIENT",
+		ProviderReference: "unpaid-attempt/" + unpaidHold.BookingID,
+		EvidenceRef:       "signed-but-unpaid/" + unpaidHold.BookingID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	forgedEntitlement.Payload = forgedPayload
+	forgedEntitlement.StreamID = "consultation/" + unpaidHold.BookingID
+	forgedEntitlement.ExternalEventID = "unpaid-" + unpaidHold.BookingID
+	forgedEntitlement = signAs(forgedEntitlement, connectorID, 1, private)
+	if status, _ := postSigned(forgedEntitlement); status != http.StatusConflict {
+		t.Fatalf("valid signed communication webhook opened UNPAID confirmed booking: HTTP %d", status)
+	}
+	// Replaying a refused event cannot claim success or mint a receipt.
+	if status, _ := postSigned(forgedEntitlement); status != http.StatusConflict {
+		t.Fatalf("replayed unpaid signed event was accepted: HTTP %d", status)
+	}
+	unpaidOrder, err := service.ReadOrderForBooking(unpaidHold.BookingID, unpaidIntent.ClientIdentityID)
+	if err != nil || unpaidOrder == nil || unpaidOrder.BookingState != booking.StateConfirmed ||
+		unpaidOrder.PaymentState != "PENDING_PROVIDER" || unpaidOrder.RefundState != "" {
+		t.Fatalf("unpaid CONFIRMED booking obscured missing external capture: %#v err=%v", unpaidOrder, err)
+	}
+	var forgedSessions int
+	if err := store.db.QueryRowContext(ctx,
+		"SELECT count(*) FROM consultation_sessions WHERE booking_id=$1::uuid",
+		unpaidHold.BookingID).Scan(&forgedSessions); err != nil {
+		t.Fatal(err)
+	}
+	if forgedSessions != 0 {
+		t.Fatalf("unpaid booking generated %d durable consultation sessions", forgedSessions)
+	}
+	if read, err := store.ReadConsultationResult(ctx, unpaidHold.BookingID, unpaidIntent.ClientIdentityID); err != nil || read != nil {
+		t.Fatalf("unpaid booking yielded consultation result: %#v err=%v", read, err)
+	}
+
 	var fallbackID string
 	var fallbackPrivate ed25519.PrivateKey
 	for _, original := range []connector.WebhookEnvelope{
@@ -376,6 +445,17 @@ func TestSignedConsultationPersistsAcrossAPIStoreRestart(t *testing.T) {
 		t.Fatalf("reopened canonical journey after API restart: %v", err)
 	}
 	secondAPI := httpapi.New(httpapi.Options{Demand: restartedDemand, ConsultationProvider: restarted, ConsultationJourney: restarted, ClientSessionKey: sessionKey})
+	// The authenticated owner must recover the exact captured financial truth
+	// after creating a *new* API instance, rather than trusting a booking flag.
+	persistedOrder, err := restartedDemand.ReadOrderForBooking(hold.BookingID, intent.ClientIdentityID)
+	if err != nil || persistedOrder == nil || persistedOrder.BookingID != hold.BookingID ||
+		persistedOrder.OrderID != checkout.OrderID || persistedOrder.PaymentState != "CAPTURED" ||
+		persistedOrder.BookingState != booking.StateConfirmed || persistedOrder.RefundState != "" {
+		t.Fatalf("restarted signed payment chain did not retain capture: %#v err=%v", persistedOrder, err)
+	}
+	if outsider, err := restartedDemand.ReadOrderForBooking(hold.BookingID, "foreign-client"); !errors.Is(err, demand.ErrOrderNotFound) || outsider != nil {
+		t.Fatalf("foreign account recovered signed payment chain: %#v err=%v", outsider, err)
+	}
 	// Full paid user journey remains available by direct booking ID after
 	// PostgreSQL connection/API restart; no browser sessionStorage token needed.
 	bookingRead := httptest.NewRequest(http.MethodGet, "/v1/bookings/"+hold.BookingID, nil)

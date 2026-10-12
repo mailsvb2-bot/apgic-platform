@@ -43,8 +43,13 @@ func (c *Checker) ApplyConsultationProviderWebhook(ctx context.Context, envelope
 		return "", ErrConsultationProviderPayload
 	}
 	return c.ProcessConnectorWebhook(ctx, envelope, keys, func(ctx context.Context, tx *sql.Tx, payload json.RawMessage) error {
-		// This is executed in the same transaction as the signed delivery receipt.
-		// PostgreSQL's consultation guard verifies booking, provider and transitions.
+		// A signed communication-provider event is NOT payment evidence.
+		// Lock the booking and check its immutable captured ledger in the
+		// same transaction as the signed delivery receipt and lifecycle fact.
+		// An unauthorised attempt rolls back all three business effects.
+		if err := requireCapturedConsultationEntitlement(ctx, tx, body.BookingID); err != nil {
+			return err
+		}
 		result, err := tx.ExecContext(ctx, `INSERT INTO consultation_sessions
             (id, booking_id, client_identity_id, specialist_identity_id, provider_instance_id, state, created_at, updated_at)
             SELECT gen_random_uuid(), b.id, b.client_identity_id, bs.specialist_identity_id,
@@ -160,4 +165,43 @@ func (c *Checker) ReadConsultationResult(ctx context.Context, bookingID, clientI
 		result.CompletionEvidenceRef = evidence.String
 	}
 	return &result, nil
+}
+
+// requireCapturedConsultationEntitlement holds the booking row lock until the
+// caller's connector-delivery transaction commits. This serialises the
+// admission decision against a competing booking cancellation/expiration.
+// A manually flipped CONFIRMED booking cannot invent an economic capture.
+// A reversed payment cannot continue the consultation.
+func requireCapturedConsultationEntitlement(ctx context.Context, tx *sql.Tx, bookingID string) error {
+	var paid bool
+	err := tx.QueryRowContext(ctx, `SELECT
+        b.state = 'CONFIRMED'
+        AND EXISTS (
+          SELECT 1 FROM orders o
+          JOIN ledger_entries capture
+            ON capture.economic_event_ref = o.id::text
+          WHERE o.booking_id = b.id
+            AND capture.amount_minor = o.amount_minor
+            AND capture.currency = o.currency
+            AND capture.credit_account_ref = o.payment_recipient_ref
+            AND capture.debit_account_ref LIKE 'external-provider/%'
+            AND btrim(capture.provider_evidence_ref) <> ''
+            AND NOT EXISTS (
+              SELECT 1 FROM ledger_entries refund
+              WHERE refund.economic_event_ref = 'reversal:' || o.id::text
+            )
+        )
+      FROM bookings b
+      WHERE b.id = $1::uuid
+      FOR UPDATE OF b`, bookingID).Scan(&paid)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrConsultationProviderPayload
+	}
+	if err != nil {
+		return fmt.Errorf("read transactionally locked consultation entitlement: %w", err)
+	}
+	if !paid {
+		return ErrConsultationProviderPayload
+	}
+	return nil
 }

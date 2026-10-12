@@ -5,7 +5,7 @@ import ConsultationResultView from "./consultation-result";
 import ConsultationJourney from "./consultation-journey";
 import ConsultationHistory from "./consultation-history";
 
-import type { BookingStatus } from "../../../packages/contracts/src/generated/apgic-v1";
+import type { BookingStatus, OrderStatus } from "../../../packages/contracts/src/generated/apgic-v1";
 
 type BookingState = BookingStatus["state"];
 
@@ -44,12 +44,16 @@ export default function BookingDetail({ bookingID }: { bookingID: string }) {
   const [retry, setRetry] = useState(0);
   const [view, setView] = useState<{ id: string; booking: BookingStatus } | null>(null);
   const [status, setStatus] = useState<"CHECKING" | "READY" | "DENIED" | "NOT_FOUND" | "UNAVAILABLE">("CHECKING");
+  const [order, setOrder] = useState<OrderStatus | null>(null);
+  const [orderStatus, setOrderStatus] = useState<"CHECKING" | "VERIFIED" | "NO_CHECKOUT" | "UNAVAILABLE">("CHECKING");
 
   useEffect(() => {
     let active = true;
     const controller = new AbortController();
     setStatus("CHECKING");
     setView(null);
+    setOrder(null);
+    setOrderStatus("CHECKING");
     void (async () => {
       try {
         const response = await fetch(`/v1/bookings/${encodeURIComponent(bookingID)}`, {
@@ -78,6 +82,41 @@ export default function BookingDetail({ bookingID }: { bookingID: string }) {
           setStatus("UNAVAILABLE");
           return;
         }
+        const financial = await fetch(`/v1/bookings/${encodeURIComponent(bookingID)}/order`, {
+          method: "GET",
+          credentials: "include",
+          cache: "no-store",
+          headers: { Accept: "application/json" },
+          signal: controller.signal,
+        });
+        if (!active) return;
+        if (financial.status === 404) {
+          setOrderStatus("NO_CHECKOUT");
+        } else if (!financial.ok) {
+          setOrderStatus("UNAVAILABLE");
+        } else {
+          const economic: unknown = await financial.json();
+          if (!active) return;
+          if (!economic || typeof economic !== "object") {
+            setOrderStatus("UNAVAILABLE");
+          } else {
+            const record = economic as Partial<OrderStatus>;
+            if (record.booking_id !== bookingID ||
+                typeof record.order_id !== "string" || !record.order_id ||
+                record.booking_state !== payload.state ||
+                !["PENDING_PROVIDER", "CAPTURED"].includes(record.payment_state ?? "") ||
+                typeof record.amount_minor !== "number" || !Number.isSafeInteger(record.amount_minor) || record.amount_minor <= 0 ||
+                typeof record.currency !== "string" || !/^[A-Z]{3}$/.test(record.currency) ||
+                typeof record.provider_id !== "string" || !record.provider_id ||
+                typeof record.payment_method !== "string" || !record.payment_method ||
+                (record.refund_state && record.payment_state !== "CAPTURED")) {
+              setOrderStatus("UNAVAILABLE");
+            } else {
+              setOrder(record as OrderStatus);
+              setOrderStatus("VERIFIED");
+            }
+          }
+        }
         setView({ id: bookingID, booking: payload });
         setStatus("READY");
       } catch {
@@ -91,6 +130,11 @@ export default function BookingDetail({ bookingID }: { bookingID: string }) {
   }, [bookingID, retry]);
 
   const booking = view?.id === bookingID ? view.booking : null;
+  const paidEntitlement = orderStatus === "VERIFIED" &&
+    order?.payment_state === "CAPTURED" &&
+    !order.refund_state &&
+    booking?.booking_id === order?.booking_id &&
+    booking?.state === order?.booking_state;
   return (
     <main>
       <h1>Моя запись</h1>
@@ -103,15 +147,35 @@ export default function BookingDetail({ bookingID }: { bookingID: string }) {
         <section aria-label="Подтверждённое состояние записи">
           <h2>{labels[booking.state]}</h2>
           <p>Идентификатор записи: {booking.booking_id}</p>
+          {orderStatus === "CHECKING" ? <p role="status">Проверяем платёж у внешнего исполнителя…</p> : null}
+          {orderStatus === "UNAVAILABLE" ? <p role="alert">Платёжные сведения не удалось проверить. Не считайте запись оплаченной только по её статусу.</p> : null}
+          {orderStatus === "NO_CHECKOUT" ? <p role="status">Заказ на оплату ещё не создан либо недоступен. Подтверждения списания нет.</p> : null}
+          {orderStatus === "VERIFIED" && order ? (
+            <section aria-label="Подтверждённые сведения о платеже">
+              <h3>Состояние оплаты</h3>
+              <p>Заказ: {order.order_id}</p>
+              <p>{order.payment_state === "CAPTURED" ? "Списание подтверждено провайдером." : "Подтверждение оплаты от провайдера пока не получено."}</p>
+              {order.refund_state ? <p>Возврат через провайдера: {order.refund_state}.</p> : null}
+            </section>
+          ) : null}
           {booking.starts_at ? <p>Начало: {new Date(booking.starts_at).toLocaleString("ru-RU")}.</p> : null}
           {booking.ends_at ? <p>Окончание: {new Date(booking.ends_at).toLocaleString("ru-RU")}.</p> : null}
           {booking.state === "HELD" || booking.state === "PENDING_PAYMENT" ?
             <p>Это ещё не подтверждённая консультация. Не совершайте повторную оплату без проверки заказа.</p> : null}
-          {booking.state === "CONFIRMED" || booking.state === "COMPLETED" ?
-            <><ConsultationJourney key={bookingID + "-journey"} bookingID={bookingID} />
-            <ConsultationResultView key={bookingID} bookingID={bookingID} /></> : null}
-          {["CONFIRMED","COMPLETED","CANCELLED","NO_SHOW"].includes(booking.state) ?
-            <ConsultationHistory key={bookingID+"-history"} bookingID={bookingID} /> : null}
+          {(booking.state === "CONFIRMED" || booking.state === "COMPLETED") ? (
+            <>
+              {/* Historical outcome is a separate owner-authorized read.
+                  An absent/uncertain payment must block a NEW media grant,
+                  never erase or conceal an existing provider-confirmed result. */}
+              <ConsultationJourney key={bookingID + "-journey"} bookingID={bookingID} />
+              <ConsultationResultView key={bookingID} bookingID={bookingID} />
+              {!paidEntitlement ? (
+                <p role="status">Вход в защищённую медиакомнату недоступен без подтверждённого права доступа и платежа. Историю проведённой консультации можно проверить отдельно; её достоверность подтверждает сервер.</p>
+              ) : null}
+            </>
+          ) : null}
+          {["CONFIRMED", "COMPLETED", "CANCELLED", "NO_SHOW"].includes(booking.state) ?
+            <ConsultationHistory key={bookingID + "-history"} bookingID={bookingID} /> : null}
         </section>
       ) : null}
       <button type="button" onClick={() => setRetry((value) => value + 1)}
