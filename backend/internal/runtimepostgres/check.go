@@ -12,6 +12,7 @@ import (
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/audit"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/booking"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/ledger"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/persistentid"
 )
 
 const ReasonStorageUnavailable = "STORAGE_UNAVAILABLE"
@@ -368,6 +369,9 @@ func (c *Checker) CommitBookingLedger(booked *booking.Booking, entry ledger.Entr
 		if err := ensureOutboxEventTx(writeCtx, tx, outboxEvent); err != nil {
 			return ledger.Entry{}, false, fmt.Errorf("ensure idempotent booking outbox event: %w", err)
 		}
+		if err := c.issueCapturedBookingMediaEntitlementsTx(writeCtx, tx, booked, canonical); err != nil {
+			return ledger.Entry{}, false, fmt.Errorf("verify idempotent booking media entitlements: %w", err)
+		}
 		if err := tx.Commit(); err != nil {
 			return ledger.Entry{}, false, fmt.Errorf("commit idempotent booking ledger replay: %w", err)
 		}
@@ -394,6 +398,9 @@ func (c *Checker) CommitBookingLedger(booked *booking.Booking, entry ledger.Entr
 	if affected != 1 {
 		return ledger.Entry{}, false, fmt.Errorf("atomic booking update affected %d rows", affected)
 	}
+	if err := c.issueCapturedBookingMediaEntitlementsTx(writeCtx, tx, booked, canonical); err != nil {
+		return ledger.Entry{}, false, fmt.Errorf("persist signed-capture booking media entitlements: %w", err)
+	}
 	outboxEvent, err := bookingLedgerOutboxEvent(booked, canonical)
 	if err != nil {
 		return ledger.Entry{}, false, err
@@ -405,6 +412,72 @@ func (c *Checker) CommitBookingLedger(booked *booking.Booking, entry ledger.Entr
 		return ledger.Entry{}, false, fmt.Errorf("commit atomic booking ledger effect: %w", err)
 	}
 	return canonical, false, nil
+}
+
+// issueCapturedBookingMediaEntitlementsTx is part of the SAME transaction as
+// the canonical CAPTURED PSP ledger fact and booking CONFIRMED transition.
+// It never trusts the booking flag on its own. Both bookable participants
+// obtain separate role-scoped, immutable entitlement versions based on
+// the recorded economic event. The media issuer still checks live policy,
+// readiness, provider status, both participants and current entitlement.
+func (c *Checker) issueCapturedBookingMediaEntitlementsTx(ctx context.Context, tx *sql.Tx, booked *booking.Booking, entry ledger.Entry) error {
+	if booked == nil || booked.State != booking.StateConfirmed ||
+		entry.EconomicEventRef == "" || entry.ProviderEvidenceRef == "" ||
+		entry.ID == "" || entry.OccurredAt.IsZero() {
+		return nil // No confirmed signed capture means no new media rights.
+	}
+	clientVersionID, err := persistentid.FromRef("signed-capture-media-entitlement", entry.ID+":CLIENT")
+	if err != nil { return err }
+	specialistVersionID, err := persistentid.FromRef("signed-capture-media-entitlement", entry.ID+":SPECIALIST")
+	if err != nil { return err }
+
+	// Require the exact persisted economic event, real specialist/live slot,
+	// original canonical order, and an unexpired booked appointment.
+	// The booking flag is insufficient: forged CONFIRMED without its ledger
+	// event cannot satisfy the SELECT. Conformance catalog fixtures never
+	// receive production media grants.
+	var eligible bool
+	err = tx.QueryRowContext(ctx, `
+		SELECT EXISTS (
+		 SELECT 1 FROM bookings b
+		 JOIN booking_slots slot ON slot.id=b.slot_id
+		 JOIN orders ord ON ord.booking_id=b.id
+		 JOIN ledger_entries ledger ON ledger.economic_event_ref=ord.id::text
+		 WHERE b.id=$1::uuid AND b.state='CONFIRMED'
+		   AND slot.tenant_scope='specialist/live'
+		   AND ord.id::text=$2 AND ledger.id=$3::uuid
+		   AND ledger.provider_evidence_ref=$4
+		   AND ledger.amount_minor=ord.amount_minor AND ledger.currency=ord.currency
+		   AND b.ends_at > $5
+		)`, booked.ID, entry.EconomicEventRef, entry.ID, entry.ProviderEvidenceRef, entry.OccurredAt).Scan(&eligible)
+	if err != nil { return fmt.Errorf("verify signed paid media basis: %w", err) }
+	if !eligible { return nil }
+
+	// No new version may supersede a prior revocation: cancellation/refund
+	// is authoritative, and replaying CAPTURED must never resurrect access.
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO booking_access_entitlement_versions
+		 (id,booking_id,identity_id,role,state,basis_ref,policy_version,
+		  supersedes_id,effective_from,expires_at,created_at)
+		SELECT assigned.id,b.id,assigned.identity_id,assigned.role,'ACTIVE',
+		 'ledger/' || $3, 'signed-psp-capture-r3-v1', NULL,$4,b.ends_at,$4
+		FROM bookings b JOIN booking_slots slot ON slot.id=b.slot_id
+		CROSS JOIN LATERAL (
+		 VALUES ($5::uuid,b.client_identity_id,'CLIENT'::text),
+		        ($6::uuid,slot.specialist_identity_id,'SPECIALIST'::text)
+		) assigned(id,identity_id,role)
+		WHERE b.id=$1::uuid AND slot.tenant_scope='specialist/live'
+		 AND b.state='CONFIRMED' AND b.ends_at>$4
+		 AND NOT EXISTS (
+		   SELECT 1 FROM booking_access_entitlement_versions existing
+		   WHERE existing.booking_id=b.id AND existing.identity_id=assigned.identity_id
+		     AND existing.role=assigned.role
+		 )
+		ON CONFLICT (id) DO NOTHING
+	`, booked.ID, entry.EconomicEventRef, entry.ID, entry.OccurredAt,
+		clientVersionID, specialistVersionID)
+	if err != nil { return fmt.Errorf("issue durable signed payment media entitlement: %w", err) }
+	return nil
 }
 
 func (c *Checker) ledgerEntryByEconomicEvent(ctx context.Context, economicEventRef string) (ledger.Entry, error) {
