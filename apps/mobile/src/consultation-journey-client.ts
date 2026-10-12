@@ -102,7 +102,7 @@ export async function requestConsultationJoin(config: BookingClientConfig, booki
   if (idempotencyKey.length < 16 || idempotencyKey.length > 128 || /\\s/.test(idempotencyKey)) {
     throw new Error("COMM_JOIN_KEY_INVALID");
   }
-  const url = endpoint(config, bookingID, "ready").replace(/\\/ready$/, "/join");
+  const url = endpoint(config, bookingID, "ready").replace(/ready$/, "join");
   const response = await request(url, {
     method: "POST", credentials: "include", cache: "no-store",
     headers: {Accept:"application/json", "X-APGIC-Request":"consultation-v1",
@@ -115,6 +115,10 @@ export async function requestConsultationJoin(config: BookingClientConfig, booki
   if (!g || g.booking_id!==bookingID || g.credential_scope!=="ROOM_JOIN" ||
       !g.provider_instance_id || !g.join_uri || !g.join_uri.startsWith("https://") ||
       !g.credential_expires_at || !Number.isFinite(Date.parse(g.credential_expires_at))) {
+    throw new Error("COMM_JOIN_GRANT_INVALID");
+  }
+  const parsed = new URL(g.join_uri);
+  if (parsed.protocol !== "https:" || parsed.username || parsed.password || !parsed.hostname) {
     throw new Error("COMM_JOIN_GRANT_INVALID");
   }
   return g as CommunicationJoinGrant;

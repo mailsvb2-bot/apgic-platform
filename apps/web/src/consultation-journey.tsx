@@ -100,6 +100,10 @@ export default function ConsultationJourney({ bookingID }: { bookingID: string }
           typeof candidate.join_uri !== "string" || !candidate.join_uri.startsWith("https://")) {
         throw new Error("NO_VALID_GRANT");
       }
+      const validated = new URL(candidate.join_uri);
+      if (validated.protocol !== "https:" || validated.username || validated.password || !validated.hostname) {
+        throw new Error("UNSAFE_JOIN_URI");
+      }
       setJoinLink(candidate.join_uri);
       setStatus("Доступ к комнате выдан внешним сервисом связи.");
     } catch { setStatus("Вход пока не подтверждён. Проверьте время записи и подключение сервиса связи. Повторная оплата не нужна."); }
