@@ -77,3 +77,7 @@ Signed session is the *only* source of principal. Client-provided identity IDs n
 ## Sequential external-commerce lifecycle proof (CI)
 
 The PostgreSQL CI journey runs immediately after `ci_r2_mobile_store_invariants.sql` while its verified fixture entitlement is **ACTIVE**. This validates publication, paid enrollment, reading, human-graded assessment, completion, two store restarts and credential evidence using that existing captured payment chain. Afterward, the canonical R4 store refund/revocation invariant suite is applied, and a second Academy test explicitly proves that the **same student's** previously purchased raw lessons cannot be accessed or re-enrolled with a revoked entitlement. This deliberately tests authorization against the complete commerce lifecycle rather than artificially reactivating a refunded right.
+
+## Author provenance and original copyrighted works
+
+Publication is gated in PostgreSQL by an immutable, signed-session author declaration for the SHA-256 of the **exact current curriculum**, including modules, lesson content, grading rubrics and ordering. Editing the draft invalidates previous declarations, including from direct SQL. The author UI exposes acknowledgement and original provenance, and the API stores audit evidence and emits transactional outbox facts. This records a claimed original work; it is **not independent verification of authorship**, and content requiring third-party licensing cannot be admitted with this declaration. Video courses still cannot be published without real trusted playback attestation.

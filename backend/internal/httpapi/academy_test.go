@@ -31,6 +31,10 @@ func (s *academyStoreStub) AcademyAddLesson(_, _, _, _ string, _ academy.Lesson)
 	s.calls++
 	return academy.Lesson{}, academy.ErrDenied
 }
+func (s *academyStoreStub) AcademyDeclareOriginalRights(_, _, _, _ string) (academy.OriginalRightsDeclaration, error) {
+	s.calls++
+	return academy.OriginalRightsDeclaration{}, academy.ErrDenied
+}
 func (s *academyStoreStub) AcademyPublish(_, _, _ string) (academy.Course, error) {
 	s.calls++
 	return academy.Course{}, academy.ErrDenied

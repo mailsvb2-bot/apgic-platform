@@ -275,6 +275,67 @@ func (c *Checker) AcademyAddLesson(actor, courseID, versionID, moduleID string, 
 	l.ModuleID = moduleID
 	return l, nil
 }
+// AcademyDeclareOriginalRights signs a snapshot of an ORIGINAL-work curriculum.
+func (c *Checker) AcademyDeclareOriginalRights(actor, courseID, versionID, provenanceRef string) (academy.OriginalRightsDeclaration, error) {
+	provenanceRef = strings.TrimSpace(provenanceRef)
+	if len(provenanceRef) < 12 || len(provenanceRef) > 2048 {
+		return academy.OriginalRightsDeclaration{}, academy.ErrInvalid
+	}
+	ctx, cancel, tx, err := academyBegin(c)
+	defer cancel()
+	if err != nil {
+		return academy.OriginalRightsDeclaration{}, err
+	}
+	defer tx.Rollback()
+	isAuthor, err := academyAuthor(ctx, tx, actor, courseID)
+	if err != nil {
+		return academy.OriginalRightsDeclaration{}, err
+	}
+	if !isAuthor {
+		return academy.OriginalRightsDeclaration{}, academy.ErrDenied
+	}
+	var state, fingerprint string
+	err = tx.QueryRowContext(ctx, `SELECT state,academy_curriculum_fingerprint(id)
+ FROM academy_course_versions WHERE course_id=$1::uuid AND id=$2::uuid FOR UPDATE`,
+		courseID, versionID).Scan(&state, &fingerprint)
+	if errors.Is(err, sql.ErrNoRows) {
+		return academy.OriginalRightsDeclaration{}, academy.ErrNotFound
+	}
+	if err != nil {
+		return academy.OriginalRightsDeclaration{}, err
+	}
+	if state != "DRAFT" {
+		return academy.OriginalRightsDeclaration{}, academy.ErrState
+	}
+	id, err := academyID()
+	if err != nil {
+		return academy.OriginalRightsDeclaration{}, err
+	}
+	var attestedAt time.Time
+	err = tx.QueryRowContext(ctx, `INSERT INTO academy_original_rights
+ (id,version_id,author_id,rights_basis,provenance_ref,policy_version,curriculum_sha256)
+ VALUES ($1::uuid,$2::uuid,$3::uuid,'ORIGINAL_AUTHOR_DECLARATION',$4,
+ 'academy-original-rights-v1',$5) RETURNING attested_at`,
+		id, versionID, actor, provenanceRef, fingerprint).Scan(&attestedAt)
+	if err != nil {
+		return academy.OriginalRightsDeclaration{}, err
+	}
+	if err = academyEvent(ctx, tx, actor, "academy/version/"+versionID,
+		"academy.original_rights.attested", map[string]string{
+			"version_id": versionID, "curriculum_sha256": fingerprint,
+		}); err != nil {
+		return academy.OriginalRightsDeclaration{}, err
+	}
+	if err = tx.Commit(); err != nil {
+		return academy.OriginalRightsDeclaration{}, err
+	}
+	return academy.OriginalRightsDeclaration{
+		ID: id, VersionID: versionID, CurriculumSHA256: fingerprint,
+		PolicyVersion: "academy-original-rights-v1", ProvenanceRef: provenanceRef,
+		AttestedAt: attestedAt,
+	}, nil
+}
+
 func (c *Checker) AcademyPublish(actor, courseID, versionID string) (academy.Course, error) {
 	ctx, cancel, tx, err := academyBegin(c)
 	defer cancel()
@@ -314,6 +375,16 @@ func (c *Checker) AcademyPublish(actor, courseID, versionID string) (academy.Cou
 		return academy.Course{}, err
 	}
 	if unsupportedVideo {
+		return academy.Course{}, academy.ErrState
+	}
+	var attested bool
+	err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM academy_original_rights
+  WHERE version_id=$1::uuid AND author_id=$2::uuid
+   AND curriculum_sha256=academy_curriculum_fingerprint($1::uuid))`, versionID, actor).Scan(&attested)
+	if err != nil {
+		return academy.Course{}, err
+	}
+	if !attested {
 		return academy.Course{}, academy.ErrState
 	}
 	allowed, err := academyPublishedProductOwner(ctx, tx, actor, pID)

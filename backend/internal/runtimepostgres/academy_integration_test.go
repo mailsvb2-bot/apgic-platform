@@ -87,6 +87,25 @@ func TestAcademyVersioningRequiresVerifiedAccess(t *testing.T) {
 	if !errors.Is(err, academy.ErrDenied) {
 		t.Fatalf("foreign author modified draft: %v", err)
 	}
+	if _, err = store.AcademyPublish(author, created.ID, created.VersionID); !errors.Is(err, academy.ErrState) {
+		t.Fatalf("published without author ownership declaration: %v", err)
+	}
+	if _, err = store.AcademyDeclareOriginalRights(foreign, created.ID, created.VersionID, "original/unauthorized-author"); !errors.Is(err, academy.ErrDenied) {
+		t.Fatalf("foreign author attested a course: %v", err)
+	}
+	original, err := store.AcademyDeclareOriginalRights(author, created.ID, created.VersionID, "original/training-materials-created-by-author")
+	if err != nil || len(original.CurriculumSHA256) != 64 {
+		t.Fatalf("failed to attest original curriculum: %+v %v", original, err)
+	}
+	if _, err = db.Exec("UPDATE academy_modules SET title='Changed after declaration' WHERE id=$1::uuid", m.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.AcademyPublish(author, created.ID, created.VersionID); !errors.Is(err, academy.ErrState) {
+		t.Fatalf("publication ignored changed curriculum after author declaration: %v", err)
+	}
+	if _, err = store.AcademyDeclareOriginalRights(author, created.ID, created.VersionID, "original/updated-materials-created-by-author"); err != nil {
+		t.Fatalf("updated curriculum declaration failed: %v", err)
+	}
 	published, err := store.AcademyPublish(author, created.ID, created.VersionID)
 	if err != nil {
 		t.Fatal(err)
@@ -224,6 +243,12 @@ func TestAcademyStoreVerifiedPaidJourneySurvivesRestart(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+	if _, err = store.AcademyPublish(author, course.ID, course.VersionID); !errors.Is(err, academy.ErrState) {
+		t.Fatalf("paid course published without author rights attestation: %v", err)
+	}
+	if _, err = store.AcademyDeclareOriginalRights(author, course.ID, course.VersionID, "original/verified-paid-curriculum-authored-content"); err != nil {
+		t.Fatalf("failed to attest paid curriculum: %v", err)
 	}
 	published, err := store.AcademyPublish(author, course.ID, course.VersionID)
 	if err != nil || published.State != "PUBLISHED" {

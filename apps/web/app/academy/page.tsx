@@ -44,6 +44,9 @@ export default function AcademyPage(){
  const [pendingReviews,setPendingReviews]=useState<ReviewAttempt[]>([]);
  const [evaluationScore,setEvaluationScore]=useState(80);
  const [evaluationEvidence,setEvaluationEvidence]=useState("");
+ const [rightsSource,setRightsSource]=useState("");
+ const [rightsAgreed,setRightsAgreed]=useState(false);
+ const [rightsRecorded,setRightsRecorded]=useState(false);
 
  const refresh=useCallback(async()=>{
   const publicCourses=await api<{courses:Course[]}>("/v1/academy/courses");
@@ -187,6 +190,21 @@ export default function AcademyPage(){
      {modules.map(m=><article key={m.id}><h4>{m.ordinal}. {m.title}</h4>
       <ul>{lessons.filter(l=>l.module_id===m.id).map(l=><li key={l.id}>{l.title} · {l.kind}</li>)}</ul>
      </article>)}
+     <section aria-label="Декларация авторских прав">
+      <h4>Авторские права на материалы курса</h4>
+      <p>Подтвердите авторство оригинального содержания. Сторонняя лицензия требует отдельной проверки.</p>
+      <label htmlFor="academy-original-rights">Источник оригинальных материалов</label>
+      <input id="academy-original-rights" value={rightsSource}
+       onChange={e=>{setRightsSource(e.target.value);setRightsRecorded(false)}}/>
+      <label><input type="checkbox" checked={rightsAgreed} onChange={e=>setRightsAgreed(e.target.checked)}/>
+       Подтверждаю авторство и право публикации этих оригинальных материалов</label>
+      <button type="button" disabled={busy||!rightsAgreed||rightsSource.trim().length<12||lessons.length===0}
+       onClick={()=>void act(()=>api<{id:string}>(
+        `/v1/academy/courses/${course.id}/versions/${course.version_id}/rights/original`,
+        {provenance_ref:rightsSource,acknowledged:true}),()=>setRightsRecorded(true))}>
+       Зафиксировать права на текущую версию</button>
+      {rightsRecorded&&<p>Подтверждение зафиксировано. Изменения уроков потребуют нового подтверждения.</p>}
+     </section>
      <button disabled={busy||lessons.length===0} onClick={()=>void act(
       ()=>api<Course>(`/v1/academy/courses/${course.id}/versions/${course.version_id}/publish`,{}),
       async()=>{setNotice("Версия опубликована и больше не редактируется.");setCourse(null)})}>Опубликовать версию</button>

@@ -14,6 +14,7 @@ type academyStore interface {
 	AcademyAddModule(string, string, string, academy.Module) (academy.Module, error)
 	AcademyAddLesson(string, string, string, string, academy.Lesson) (academy.Lesson, error)
 	AcademyPublish(string, string, string) (academy.Course, error)
+	AcademyDeclareOriginalRights(string, string, string, string) (academy.OriginalRightsDeclaration, error)
 	AcademyCatalog() ([]academy.Course, error)
 	AcademyEnroll(string, string) (academy.Enrollment, error)
 	AcademyLearning(string, string) ([]academy.Lesson, error)
@@ -116,6 +117,35 @@ func registerAcademy(mux *http.ServeMux, store academyStore, sessions *clientSes
 			return
 		}
 		writeJSON(w, http.StatusCreated, lesson)
+	})
+	mux.HandleFunc("POST /v1/academy/courses/{courseID}/versions/{versionID}/rights/original", func(w http.ResponseWriter, r *http.Request) {
+		if store == nil {
+			academyHTTPError(w, r, academy.ErrUnavailable)
+			return
+		}
+		actor, ok := academyIdentity(w, r, sessions, sessionConfigErr)
+		if !ok {
+			return
+		}
+		var input struct {
+			ProvenanceRef string `json:"provenance_ref"`
+			Acknowledged bool `json:"acknowledged"`
+		}
+		if !academyRead(w, r, &input) {
+			return
+		}
+		if !input.Acknowledged {
+			academyHTTPError(w, r, academy.ErrInvalid)
+			return
+		}
+		result, err := store.AcademyDeclareOriginalRights(actor, r.PathValue("courseID"),
+			r.PathValue("versionID"), input.ProvenanceRef)
+		if err != nil {
+			academyHTTPError(w, r, err)
+			return
+		}
+		w.Header().Set("Cache-Control", "private, no-store")
+		writeJSON(w, http.StatusCreated, result)
 	})
 	mux.HandleFunc("POST /v1/academy/courses/{courseID}/versions/{versionID}/publish", func(w http.ResponseWriter, r *http.Request) {
 		if store == nil {
