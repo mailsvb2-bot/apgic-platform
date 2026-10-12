@@ -9,7 +9,8 @@ Normative source: APGIC v7 FINAL sections 163–165, 169–172, 197–200, 250�
 3. The API issues a 29-day first-party signed opaque share path. Its token contains only a link ID and expiry. No browser/partner can set the economic source or tenant.
 4. The visitor opens /g/{token}; API checks HMAC, expiry, revocation, self-referral and current qualification, then binds a touch to an APGIC-signed HttpOnly Identity session.
 5. Repeated hits for the same person/link do not multiply touches. The real HelpIntent INSERT atomically captures the earliest eligible first-party touch within 30 days.
-6. The specialist sees an aggregate, privacy-minimal funnel and can revoke the link without destroying historical evidence.
+6. Re-issuing a share link for the same owned, qualified offer is concurrency-safe and returns the **same token and expiry**; PostgreSQL enforces one ACTIVE row per owner/offer. On expiry the old link is revoked and a new stable version can be issued. On page reload, GET `/v1/specialist/growth-links` reconstructs signatures only for owner-scoped currently valid links. Revoking twice is idempotent and cannot reactivate a link.
+7. The specialist sees aggregate, privacy-minimal funnel outcomes and can revoke a link without destroying historical evidence.
 
 ## Invariants
 

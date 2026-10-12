@@ -17,9 +17,9 @@ const growthWriteTimeout = 3 * time.Second
 // publication state. Both ownership and current professional eligibility are
 // checked in PostgreSQL against the same canonical gate as booking.
 // IssueSpecialistLink makes one stable link per live offer. Every retry,
- // browser refresh, API restart and concurrent request returns the same
- // provenance until expiry or explicit revocation. SQL enforces the
- // uniqueness invariant even if another instance skips the advisory lock.
+// browser refresh, API restart and concurrent request returns the same
+// provenance until expiry or explicit revocation. SQL enforces the
+// uniqueness invariant even if another instance skips the advisory lock.
 func (c *Checker) IssueSpecialistLink(owner, offerID string, expires time.Time) (growth.Link, error) {
 	if c == nil || c.db == nil {
 		return growth.Link{}, errors.New("growth storage unavailable")
