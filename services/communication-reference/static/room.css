@@ -1,0 +1,9 @@
+body{margin:0;background:#111827;color:#f9fafb;font:16px system-ui,sans-serif}
+main{max-width:1060px;margin:auto;padding:24px}
+#participants{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;min-height:220px}
+.media-tile{background:#1f2937;border:1px solid #374151;border-radius:12px;min-height:190px;padding:8px}
+.media-tile video{width:100%;max-height:55vh;border-radius:8px}
+.controls{display:flex;gap:12px;flex-wrap:wrap;margin:20px 0}
+button{padding:12px 16px;border-radius:8px;border:1px solid #9ca3af;background:#374151;color:#fff;cursor:pointer}
+button:disabled{opacity:.45;cursor:not-allowed}
+button:focus-visible{outline:3px solid #93c5fd}

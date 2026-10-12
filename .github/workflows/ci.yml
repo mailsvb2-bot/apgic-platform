@@ -242,6 +242,35 @@ jobs:
         working-directory: backend
         run: go test ./internal/remoteconfig -run TestEmergencyKillSwitchDrill -count=1 -v
 
+  communication-reference:
+    name: R3 real-media reference adapter / room issuer / durable webhook bridge
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.27.1'
+          cache-dependency-path: services/communication-reference/go.mod
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Validate the isolated replaceable media-provider boundary
+        working-directory: services/communication-reference
+        shell: bash
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "Reference media provider requires gofmt:"
+            printf '%s\n' "$unformatted"
+            gofmt -d $unformatted
+            exit 1
+          fi
+          go vet ./...
+          go test -race -count=1 ./...
+          node --check static/room.js
+          test -s static/room.html
+          test -s static/room.css
+
   postgres-invariants:
     name: PostgreSQL migration / invariant proof
     runs-on: ubuntu-latest
