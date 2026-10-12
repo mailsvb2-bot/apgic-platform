@@ -6,6 +6,10 @@ import (
 )
 
 func TestStartPrivacyAndSafetyInvariants(t *testing.T) {
+	if ValidID("../../../x") || ValidID("") || ValidID("not-uuid") {
+		t.Fatal("untrusted persona IDs must be rejected before storage access")
+	}
+
 	s := Start{PersonaID: "00000000-0000-0000-0000-000000000101", Purpose: "LISTEN", Mode: "VOICE", Language: "ru", Style: "CALM", PrivacyMode: PrivateEphemeral}
 	if err := s.Validate(); err != nil {
 		t.Fatal(err)

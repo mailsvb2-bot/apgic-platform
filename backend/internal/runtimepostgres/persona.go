@@ -99,14 +99,22 @@ func (c *Checker) BeginAvatar(ctx context.Context, userID, providerID, idempoten
 	if errors.Is(err, sql.ErrNoRows) {
 		return persona.Session{}, persona.ErrUnavailable
 	}
-	if err != nil { return persona.Session{}, err }
+	if err != nil {
+		return persona.Session{}, err
+	}
 	var hourlyCount, activeCount int
 	err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FILTER (WHERE created_at > now()-interval '1 hour'),
 	COUNT(*) FILTER (WHERE state IN ('PENDING','ACTIVE'))
 	FROM avatar_sessions WHERE user_id=$1::uuid`, userID).Scan(&hourlyCount, &activeCount)
-	if err != nil { return persona.Session{}, err }
-	if hourlyCount >= startsPerHour { return persona.Session{}, persona.ErrBudgetExceeded }
-	if activeCount >= activeLimit { return persona.Session{}, persona.ErrConcurrencyExceeded }
+	if err != nil {
+		return persona.Session{}, err
+	}
+	if hourlyCount >= startsPerHour {
+		return persona.Session{}, persona.ErrBudgetExceeded
+	}
+	if activeCount >= activeLimit {
+		return persona.Session{}, persona.ErrConcurrencyExceeded
+	}
 	var inserted string
 	err = tx.QueryRowContext(ctx, `INSERT INTO avatar_sessions
  (id,user_id,persona_id,provider_instance_id,idempotency_key,session_purpose,privacy_mode,

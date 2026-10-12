@@ -1,5 +1,5 @@
-// Package persona owns APGIC Avatar Companion business semantics. No external
-// persona runtime, model SDK, transcript or provider credential belongs here.
+// Package persona owns the canonical APGIC Avatar Companion semantics.
+// The external media, inference and provider credential runtime is not business truth.
 package persona
 
 import (
@@ -18,74 +18,17 @@ const (
 )
 
 var (
-	ErrInvalidRequest = errors.New("PERSONA_REQUEST_INVALID")
-	ErrNotFound       = errors.New("PERSONA_NOT_FOUND")
-	ErrUnavailable    = errors.New("PERSONA_NOT_CONFIGURED")
-	ErrConflict       = errors.New("PERSONA_STATE_CONFLICT")
-	ErrIdempotency    = errors.New("PERSONA_IDEMPOTENCY_CONFLICT")
-	ErrBudgetExceeded = errors.New("PERSONA_BUDGET_EXHAUSTED")
+	ErrInvalidRequest      = errors.New("PERSONA_REQUEST_INVALID")
+	ErrNotFound            = errors.New("PERSONA_NOT_FOUND")
+	ErrUnavailable         = errors.New("PERSONA_NOT_CONFIGURED")
+	ErrConflict            = errors.New("PERSONA_STATE_CONFLICT")
+	ErrIdempotency         = errors.New("PERSONA_IDEMPOTENCY_CONFLICT")
+	ErrBudgetExceeded      = errors.New("PERSONA_BUDGET_EXHAUSTED")
 	ErrConcurrencyExceeded = errors.New("PERSONA_CONCURRENT_LIMIT")
 )
-var codePattern = regexp.MustCompile(`^[a-z]{2}(-[A-Z]{2})?// Package persona owns APGIC Avatar Companion business semantics. No external
-// persona runtime, model SDK, transcript or provider credential belongs here.
-package persona
 
-import (
-	"errors"
-	"regexp"
-	"strings"
-	"time"
-)
-
-const (
-	PrivateEphemeral          = "PRIVATE_EPHEMERAL"
-	StatePending              = "PENDING"
-	StateActive               = "ACTIVE"
-	StateFailed               = "FAILED"
-	StateEnded                = "ENDED"
-	ReasonProviderUnavailable = "PERSONA_PROVIDER_UNAVAILABLE"
-)
-
-var (
-	ErrInvalidRequest = errors.New("PERSONA_REQUEST_INVALID")
-	ErrNotFound       = errors.New("PERSONA_NOT_FOUND")
-	ErrUnavailable    = errors.New("PERSONA_NOT_CONFIGURED")
-	ErrConflict       = errors.New("PERSONA_STATE_CONFLICT")
-	ErrIdempotency    = errors.New("PERSONA_IDEMPOTENCY_CONFLICT")
-	ErrBudgetExceeded = errors.New("PERSONA_BUDGET_EXHAUSTED")
-	ErrConcurrencyExceeded = errors.New("PERSONA_CONCURRENT_LIMIT")
-)
-)
-var personaIDPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}// Package persona owns APGIC Avatar Companion business semantics. No external
-// persona runtime, model SDK, transcript or provider credential belongs here.
-package persona
-
-import (
-	"errors"
-	"regexp"
-	"strings"
-	"time"
-)
-
-const (
-	PrivateEphemeral          = "PRIVATE_EPHEMERAL"
-	StatePending              = "PENDING"
-	StateActive               = "ACTIVE"
-	StateFailed               = "FAILED"
-	StateEnded                = "ENDED"
-	ReasonProviderUnavailable = "PERSONA_PROVIDER_UNAVAILABLE"
-)
-
-var (
-	ErrInvalidRequest = errors.New("PERSONA_REQUEST_INVALID")
-	ErrNotFound       = errors.New("PERSONA_NOT_FOUND")
-	ErrUnavailable    = errors.New("PERSONA_NOT_CONFIGURED")
-	ErrConflict       = errors.New("PERSONA_STATE_CONFLICT")
-	ErrIdempotency    = errors.New("PERSONA_IDEMPOTENCY_CONFLICT")
-	ErrBudgetExceeded = errors.New("PERSONA_BUDGET_EXHAUSTED")
-	ErrConcurrencyExceeded = errors.New("PERSONA_CONCURRENT_LIMIT")
-)
-)
+var codePattern = regexp.MustCompile(`^[a-z]{2}(-[A-Z]{2})?$`)
+var personaIDPattern = regexp.MustCompile(`^[a-fA-F0-9]{8}(-[a-fA-F0-9]{4}){3}-[a-fA-F0-9]{12}$`)
 
 func ValidID(value string) bool { return personaIDPattern.MatchString(value) }
 

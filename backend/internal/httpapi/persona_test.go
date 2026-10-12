@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/connector"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/persona"
-	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -88,7 +87,7 @@ func TestPersonaHTTPStartHandoffAndOwnerBoundary(t *testing.T) {
 	store := &personaStoreFake{catalog: []persona.CatalogItem{{ID: "00000000-0000-0000-0000-000000000201", Label: "Test", SupportsVoice: true}}}
 	handler := New(Options{ClientSessionKey: bytes.Repeat([]byte("k"), 32), PersonaStore: store,
 		PersonaProvider: personaProviderFake{}, PersonaEnabled: true, PersonaProviderInstanceID: "provider", PersonaPolicyVersion: "v1"})
-	body := `{"persona_id":"p","session_purpose":"LISTEN","mode":"VOICE","language":"ru","style":"CALM","privacy_mode":"PRIVATE_EPHEMERAL"}`
+	body := `{"persona_id":"00000000-0000-0000-0000-000000000201","session_purpose":"LISTEN","mode":"VOICE","language":"ru","style":"CALM","privacy_mode":"PRIVATE_EPHEMERAL"}`
 	req := httptest.NewRequest("POST", "/v1/avatar-sessions", bytes.NewBufferString(body))
 	req.Header.Set("Idempotency-Key", "journey-01")
 	start := httptest.NewRecorder()
@@ -129,7 +128,7 @@ func TestPersonaProviderFailureDoesNotPretendConversation(t *testing.T) {
 	handler := New(Options{ClientSessionKey: bytes.Repeat([]byte("s"), 32), PersonaStore: store,
 		PersonaProvider: personaProviderFake{fail: true}, PersonaEnabled: true, PersonaProviderInstanceID: "provider", PersonaPolicyVersion: "v1"})
 	req := httptest.NewRequest("POST", "/v1/avatar-sessions", bytes.NewBufferString(
-		`{"persona_id":"p","session_purpose":"LISTEN","mode":"VOICE","language":"ru","style":"NEUTRAL","privacy_mode":"PRIVATE_EPHEMERAL"}`))
+		`{"persona_id":"00000000-0000-0000-0000-000000000201","session_purpose":"LISTEN","mode":"VOICE","language":"ru","style":"NEUTRAL","privacy_mode":"PRIVATE_EPHEMERAL"}`))
 	req.Header.Set("Idempotency-Key", "failure-01")
 	res := httptest.NewRecorder()
 	handler.ServeHTTP(res, req)
