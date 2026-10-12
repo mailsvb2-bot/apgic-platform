@@ -74,6 +74,7 @@ type MatchCard struct {
 }
 
 type Hold struct {
+	HelpIntentID     string        `json:"-"`
 	ID               string        `json:"id"`
 	BookingID        string        `json:"booking_id"`
 	SlotID           string        `json:"slot_id"`
@@ -703,6 +704,7 @@ func (s *Service) AcquireHold(intentID, slotID, clientIdentityID string) (*Hold,
 		ID:               holdID,
 		BookingID:        bookingID,
 		SlotID:           slot.ID,
+		HelpIntentID:     intent.ID,
 		ClientIdentityID: clientIdentityID,
 		State:            "ACTIVE",
 		BookingState:     booking.StateHeld,
