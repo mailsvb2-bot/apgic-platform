@@ -17,6 +17,7 @@ import (
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/notification"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/privacy"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/remoteconfig"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/searchdistribution"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/specialist"
 )
 
@@ -28,6 +29,7 @@ type Options struct {
 	ReadinessCheck              func(context.Context) error
 	Demand                      *demand.Service
 	Growth                      growth.Store
+	SearchDistribution          searchdistribution.Store
 	GrowthSigningKey            []byte
 	LegalAcceptances            legal.AcceptanceStore
 	Consents                    privacy.ConsentStore
@@ -136,6 +138,7 @@ func New(options Options) http.Handler {
 	registerLegalAcceptance(mux, options.LegalAcceptances, sessions, sessionConfigErr, options.Now)
 	registerConsents(mux, options.Consents, options.ConsentPolicies, sessions, sessionConfigErr, options.Now)
 	registerGrowth(mux, options.Growth, options.GrowthSigningKey, sessions, sessionConfigErr, options.Now)
+	registerSearchDistribution(mux, options.SearchDistribution)
 	registerMobileCompatibility(mux, options.ClientCompatibilityPolicies)
 	registerMobileRemoteConfig(mux, options.RemoteConfigProvider, options.Now)
 	registerMobileInstallations(mux, options.Installations, sessions, sessionConfigErr, options.Now)
