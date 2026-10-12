@@ -1,11 +1,8 @@
 // R3 shared server business truth, never local proof of provider attendance.
 import type { BookingClientConfig } from "./mobile-booking-client.ts";
+import type { ConsultationReadySnapshot } from "../../../packages/contracts/src/generated/apgic-v1";
 
-export type ConsultationReadiness = {
-  booking_id: string; role: "CLIENT" | "SPECIALIST"; booking_state: string;
-  consultation_state?: string;
-  opens_at: string; closes_at: string; client_ready_at?: string; specialist_ready_at?: string;
-};
+export type ConsultationReadiness = ConsultationReadySnapshot;
 export type ConsultationResult = {
   booking_id: string; state: "SCHEDULED" | "READY" | "IN_PROGRESS" | "RECOVERING" | "TECHNICAL_FAILURE" | "COMPLETED";
   provider_instance_id: string; completion_evidence_ref?: string;
