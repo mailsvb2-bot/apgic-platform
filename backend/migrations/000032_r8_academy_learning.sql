@@ -18,11 +18,13 @@ CREATE TABLE academy_course_versions (
   version_no integer NOT NULL CHECK (version_no > 0),
   state text NOT NULL DEFAULT 'DRAFT' CHECK (state IN ('DRAFT','PUBLISHED','RETIRED')),
   completion_policy_version text NOT NULL DEFAULT 'academy-completion-v1',
+  title_snapshot text,
+  description_snapshot text,
   published_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE(course_id,version_no),
-  CHECK ((state = 'DRAFT' AND published_at IS NULL) OR
-         (state <> 'DRAFT' AND published_at IS NOT NULL))
+  CHECK ((state = 'DRAFT' AND published_at IS NULL AND title_snapshot IS NULL AND description_snapshot IS NULL) OR
+         (state <> 'DRAFT' AND published_at IS NOT NULL AND btrim(title_snapshot) <> '' AND description_snapshot IS NOT NULL))
 );
 CREATE UNIQUE INDEX academy_one_draft_per_course ON academy_course_versions(course_id) WHERE state='DRAFT';
 
@@ -94,8 +96,18 @@ BEGIN
     NEW.completion_policy_version<>OLD.completion_policy_version OR NEW.created_at<>OLD.created_at THEN
     RAISE EXCEPTION 'academy version identity and policy are immutable';
   END IF;
+  IF OLD.state<>'DRAFT' AND (NEW.title_snapshot IS DISTINCT FROM OLD.title_snapshot OR
+    NEW.description_snapshot IS DISTINCT FROM OLD.description_snapshot) THEN
+    RAISE EXCEPTION 'academy version published content provenance is immutable';
+  END IF;
   IF OLD.state<>'DRAFT' AND NEW.published_at IS DISTINCT FROM OLD.published_at THEN
     RAISE EXCEPTION 'academy publication evidence is immutable';
+  END IF;
+  IF OLD.state='DRAFT' AND NEW.state='PUBLISHED' AND EXISTS (
+    SELECT 1 FROM academy_lessons l JOIN academy_modules m ON m.id=l.module_id
+    WHERE m.version_id=NEW.id AND l.kind='VIDEO'
+  ) THEN
+    RAISE EXCEPTION 'academy video publication blocked without trusted media evidence capability';
   END IF;
   IF OLD.state='DRAFT' AND NEW.state='PUBLISHED' AND NOT EXISTS (
     SELECT 1 FROM academy_lessons l JOIN academy_modules m ON m.id=l.module_id
@@ -227,7 +239,7 @@ CREATE TABLE academy_certificates (
  revoked_at timestamptz,
  revocation_reason text,
  CHECK ((state='ACTIVE' AND revoked_at IS NULL AND revocation_reason IS NULL) OR
-        (state='REVOKED' AND revoked_at IS NOT NULL AND btrim(revocation_reason) <> ''))
+        (state='REVOKED' AND revoked_at IS NOT NULL AND coalesce(btrim(revocation_reason),'') <> ''))
 );
 CREATE FUNCTION academy_certificate_guard() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
