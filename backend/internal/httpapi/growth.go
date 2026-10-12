@@ -20,6 +20,37 @@ func registerGrowth(mux *http.ServeMux, store growth.Store, key []byte,
 		}
 		return true
 	}
+	// Reconstruct only currently valid owner-scoped tokens from canonical
+	// PostgreSQL rows. Tokens are never stored as plaintext and a browser
+	// reload never erases access to a legitimately owned distribution link.
+	mux.HandleFunc("GET /v1/specialist/growth-links", func(w http.ResponseWriter, r *http.Request) {
+		if !ready(w, r) {
+			return
+		}
+		owner, ok := trustedClientIdentity(w, r, sessions, sessionConfigErr, "")
+		if !ok {
+			return
+		}
+		links, err := store.ListSpecialistLinks(owner)
+		if err != nil {
+			writeGrowthStoreFailure(w, r, err)
+			return
+		}
+		for i := range links {
+			if links[i].State != "ACTIVE" || !links[i].ExpiresAt.After(now().UTC()) {
+				continue
+			}
+			token, err := signer.Issue(links[i].ID, links[i].ExpiresAt)
+			if err != nil {
+				writeGrowthError(w, r, http.StatusServiceUnavailable, "GROWTH_SIGNING_FAILED")
+				return
+			}
+			links[i].Token = token
+			links[i].Path = "/g/" + token
+		}
+		w.Header().Set("Cache-Control", "no-store")
+		writeJSON(w, http.StatusOK, map[string]any{"links": links})
+	})
 	mux.HandleFunc("POST /v1/specialist/growth-links", func(w http.ResponseWriter, r *http.Request) {
 		if !ready(w, r) {
 			return

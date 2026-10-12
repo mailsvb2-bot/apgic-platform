@@ -16,32 +16,117 @@ const growthWriteTimeout = 3 * time.Second
 // IssueSpecialistLink never believes a caller-supplied specialist/tenant or
 // publication state. Both ownership and current professional eligibility are
 // checked in PostgreSQL against the same canonical gate as booking.
+// IssueSpecialistLink makes one stable link per live offer. Every retry,
+ // browser refresh, API restart and concurrent request returns the same
+ // provenance until expiry or explicit revocation. SQL enforces the
+ // uniqueness invariant even if another instance skips the advisory lock.
 func (c *Checker) IssueSpecialistLink(owner, offerID string, expires time.Time) (growth.Link, error) {
 	if c == nil || c.db == nil {
 		return growth.Link{}, errors.New("growth storage unavailable")
 	}
-	id, err := persistentid.New()
-	if err != nil {
-		return growth.Link{}, err
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), growthWriteTimeout)
 	defer cancel()
-	result := growth.Link{ID: id, OfferID: offerID, Source: growth.SourceSpecialist, ExpiresAt: expires.UTC(), PolicyVersion: growth.LinkPolicyVersion, State: "ACTIVE"}
-	err = c.db.QueryRowContext(ctx,
-		"INSERT INTO growth_links(id,issuer_identity_id,specialist_offer_id,acquisition_source,policy_version,created_at,expires_at) "+
-			"SELECT $1::uuid,$2::uuid,offer.id,$3,$4,clock_timestamp(),$5 "+
-			"FROM specialist_bookable_offers offer WHERE offer.id=$6::uuid "+
-			"AND offer.specialist_identity_id=$2::uuid AND apgic_live_offer_valid(offer.id) "+
-			"AND $5 > clock_timestamp() AND $5 <= clock_timestamp() + interval '30 days' "+
-			"RETURNING (SELECT topic_id FROM specialist_bookable_offers WHERE id=$6::uuid)",
-		id, owner, result.Source, result.PolicyVersion, expires.UTC(), offerID).Scan(&result.TopicID)
+	tx, err := c.db.BeginTx(ctx, nil)
+	if err != nil {
+		return growth.Link{}, fmt.Errorf("begin growth link issuance: %w", err)
+	}
+	defer tx.Rollback()
+
+	// Serialize link lifecycle for this exact owner and offer across all API
+	// instances, not just within an HTTP process.
+	if _, err = tx.ExecContext(ctx,
+		"SELECT pg_advisory_xact_lock(hashtextextended('apgic:growth-link:' || $1 || ':' || $2, 0))",
+		owner, offerID); err != nil {
+		return growth.Link{}, fmt.Errorf("lock growth link lifecycle: %w", err)
+	}
+	var topic string
+	err = tx.QueryRowContext(ctx,
+		"SELECT topic_id FROM specialist_bookable_offers WHERE id=$1::uuid "+
+			"AND specialist_identity_id=$2::uuid AND apgic_live_offer_valid(id)",
+		offerID, owner).Scan(&topic)
 	if errors.Is(err, sql.ErrNoRows) {
 		return growth.Link{}, growth.ErrNotOwner
 	}
 	if err != nil {
-		return growth.Link{}, fmt.Errorf("issue canonical specialist distribution link: %w", err)
+		return growth.Link{}, fmt.Errorf("verify owned qualified offer: %w", err)
 	}
-	return result, nil
+
+	// Expired links can never become active again, but their attribution and
+	// historical revenue evidence remain intact.
+	_, err = tx.ExecContext(ctx,
+		"UPDATE growth_links SET state='REVOKED',revoked_at=clock_timestamp() "+
+			"WHERE issuer_identity_id=$1::uuid AND specialist_offer_id=$2::uuid "+
+			"AND state='ACTIVE' AND expires_at<=clock_timestamp()", owner, offerID)
+	if err != nil {
+		return growth.Link{}, fmt.Errorf("retire expired growth links: %w", err)
+	}
+	link := growth.Link{
+		OfferID: offerID, TopicID: topic, Source: growth.SourceSpecialist,
+		PolicyVersion: growth.LinkPolicyVersion, State: "ACTIVE",
+	}
+	err = tx.QueryRowContext(ctx,
+		"SELECT id::text,expires_at FROM growth_links "+
+			"WHERE issuer_identity_id=$1::uuid AND specialist_offer_id=$2::uuid "+
+			"AND state='ACTIVE' ORDER BY created_at DESC LIMIT 1",
+		owner, offerID).Scan(&link.ID, &link.ExpiresAt)
+	switch {
+	case err == nil:
+		// Existing links retain their original expiry and signature.
+	case errors.Is(err, sql.ErrNoRows):
+		link.ID, err = persistentid.New()
+		if err != nil {
+			return growth.Link{}, err
+		}
+		link.ExpiresAt = expires.UTC()
+		err = tx.QueryRowContext(ctx,
+			"INSERT INTO growth_links(id,issuer_identity_id,specialist_offer_id,acquisition_source,policy_version,expires_at) "+
+				"VALUES($1::uuid,$2::uuid,$3::uuid,$4,$5,$6) RETURNING expires_at",
+			link.ID, owner, offerID, link.Source, link.PolicyVersion, link.ExpiresAt).Scan(&link.ExpiresAt)
+		if err != nil {
+			return growth.Link{}, fmt.Errorf("persist unique growth link: %w", err)
+		}
+	default:
+		return growth.Link{}, fmt.Errorf("read existing growth link: %w", err)
+	}
+	if err = tx.Commit(); err != nil {
+		return growth.Link{}, fmt.Errorf("commit growth link lifecycle: %w", err)
+	}
+	return link, nil
+}
+
+func (c *Checker) ListSpecialistLinks(owner string) ([]growth.Link, error) {
+	if c == nil || c.db == nil {
+		return nil, errors.New("growth storage unavailable")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), growthWriteTimeout)
+	defer cancel()
+	rows, err := c.db.QueryContext(ctx,
+		`SELECT l.id::text,l.specialist_offer_id::text,o.topic_id,
+		        l.acquisition_source,l.policy_version,l.expires_at,
+		        CASE WHEN l.state='REVOKED' THEN 'REVOKED'
+		             WHEN l.expires_at<=clock_timestamp() THEN 'EXPIRED'
+		             WHEN NOT apgic_live_offer_valid(o.id) THEN 'UNAVAILABLE'
+		             ELSE 'ACTIVE' END AS effective_state
+		   FROM growth_links l
+		   JOIN specialist_bookable_offers o ON o.id=l.specialist_offer_id
+		  WHERE l.issuer_identity_id=$1::uuid
+		  ORDER BY l.created_at DESC,l.id DESC LIMIT 100`, owner)
+	if err != nil {
+		return nil, fmt.Errorf("list specialist-owned distribution: %w", err)
+	}
+	defer rows.Close()
+	out := make([]growth.Link, 0)
+	for rows.Next() {
+		var link growth.Link
+		if err = rows.Scan(
+			&link.ID, &link.OfferID, &link.TopicID, &link.Source,
+			&link.PolicyVersion, &link.ExpiresAt, &link.State,
+		); err != nil {
+			return nil, err
+		}
+		out = append(out, link)
+	}
+	return out, rows.Err()
 }
 
 func (c *Checker) CaptureTouch(subject, linkID string, at time.Time) (growth.Touch, error) {
@@ -103,6 +188,7 @@ func (c *Checker) CaptureTouch(subject, linkID string, at time.Time) (growth.Tou
 	return growth.Touch{ID: touchID, LinkID: linkID, Source: source, OfferID: offer, TopicID: topic, SpecialistName: name, RecordedAt: at.UTC(), Idempotent: idempotent}, nil
 }
 
+// Revocation is idempotent for the owner but never restores an old link.
 func (c *Checker) RevokeSpecialistLink(owner, linkID string) error {
 	if c == nil || c.db == nil {
 		return errors.New("growth storage unavailable")
@@ -114,6 +200,12 @@ func (c *Checker) RevokeSpecialistLink(owner, linkID string) error {
 		"UPDATE growth_links SET state='REVOKED',revoked_at=clock_timestamp() "+
 			"WHERE id=$1::uuid AND issuer_identity_id=$2::uuid AND state='ACTIVE' RETURNING id::text",
 		linkID, owner).Scan(&found)
+	if errors.Is(err, sql.ErrNoRows) {
+		// A repeated revoke by the same specialist is a safe replay.
+		err = c.db.QueryRowContext(ctx,
+			"SELECT id::text FROM growth_links WHERE id=$1::uuid AND issuer_identity_id=$2::uuid",
+			linkID, owner).Scan(&found)
+	}
 	if errors.Is(err, sql.ErrNoRows) {
 		return growth.ErrNotOwner
 	}

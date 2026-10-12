@@ -47,4 +47,5 @@ type Store interface {
 	CaptureTouch(clientIdentityID, linkID string, at time.Time) (Touch, error)
 	RevokeSpecialistLink(ownerIdentityID, linkID string) error
 	SpecialistGrowthReport(ownerIdentityID string) ([]Report, error)
+	ListSpecialistLinks(ownerIdentityID string) ([]Link, error)
 }

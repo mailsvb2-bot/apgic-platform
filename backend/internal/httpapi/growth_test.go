@@ -21,6 +21,9 @@ func (f *growthFixture) CaptureTouch(_, id string, at time.Time) (growth.Touch, 
 	f.captured++
 	return growth.Touch{ID: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", LinkID: id, Source: growth.SourceSpecialist, TopicID: "sleep", RecordedAt: at}, nil
 }
+func (f *growthFixture) ListSpecialistLinks(_ string) ([]growth.Link, error) {
+	return []growth.Link{}, nil
+}
 func (f *growthFixture) RevokeSpecialistLink(_, _ string) error { return nil }
 func (f *growthFixture) SpecialistGrowthReport(_ string) ([]growth.Report, error) {
 	return []growth.Report{}, nil
