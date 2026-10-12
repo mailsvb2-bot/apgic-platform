@@ -427,9 +427,13 @@ func (c *Checker) issueCapturedBookingMediaEntitlementsTx(ctx context.Context, t
 		return nil // No confirmed signed capture means no new media rights.
 	}
 	clientVersionID, err := persistentid.FromRef("signed-capture-media-entitlement", entry.ID+":CLIENT")
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	specialistVersionID, err := persistentid.FromRef("signed-capture-media-entitlement", entry.ID+":SPECIALIST")
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 
 	// Require the exact persisted economic event, real specialist/live slot,
 	// original canonical order, and an unexpired booked appointment.
@@ -450,8 +454,12 @@ func (c *Checker) issueCapturedBookingMediaEntitlementsTx(ctx context.Context, t
 		   AND ledger.amount_minor=ord.amount_minor AND ledger.currency=ord.currency
 		   AND b.ends_at > $5
 		)`, booked.ID, entry.EconomicEventRef, entry.ID, entry.ProviderEvidenceRef, entry.OccurredAt).Scan(&eligible)
-	if err != nil { return fmt.Errorf("verify signed paid media basis: %w", err) }
-	if !eligible { return nil }
+	if err != nil {
+		return fmt.Errorf("verify signed paid media basis: %w", err)
+	}
+	if !eligible {
+		return nil
+	}
 
 	// No new version may supersede a prior revocation: cancellation/refund
 	// is authoritative, and replaying CAPTURED must never resurrect access.
@@ -476,7 +484,9 @@ func (c *Checker) issueCapturedBookingMediaEntitlementsTx(ctx context.Context, t
 		ON CONFLICT (id) DO NOTHING
 	`, booked.ID, entry.EconomicEventRef, entry.ID, entry.OccurredAt,
 		clientVersionID, specialistVersionID)
-	if err != nil { return fmt.Errorf("issue durable signed payment media entitlement: %w", err) }
+	if err != nil {
+		return fmt.Errorf("issue durable signed payment media entitlement: %w", err)
+	}
 	return nil
 }
 
