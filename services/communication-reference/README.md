@@ -50,3 +50,7 @@ Build: `docker build -t apgic-communication-reference ./services/communication-r
 ## Operational cautions
 
 Do not return a join URL until APGIC has atomically persisted its entitlement-bound authorization. Do not make native or browser reports into authoritative completion events. Do not automatically retry payment. Keep the outbox on a durable volume; loss of that volume means recovery evidence must come from the upstream media provider, never from invented events.
+
+## Single-writer production safety
+
+The JSON reference adapter is intentionally **one process per durable outbox directory**. At boot, it takes an exclusive OS file lock before processing media callbacks or retrying signed events. A rolling deployment must stop the previous instance before starting a replacement against the same volume; if the lock is held, the new process fails closed instead of forking signed sequence numbers. Do not mount this directory over a filesystem that cannot provide reliable file locks. Horizontal scale requires a different CommunicationProvider implementation with distributed transactional outbox/leases; adding replicas or suppressing this lock is not release evidence. `TestDurableProviderOutboxHasOnlyOneProcessOwner` checks duplicate-denial and restart acquisition.

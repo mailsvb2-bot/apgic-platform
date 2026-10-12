@@ -64,6 +64,13 @@ func main() {
 	if err = s.ready(); err != nil {
 		log.Fatal("reference CommunicationProvider not ready: ", err)
 	}
+	// The local reference outbox is a singleton. Never let another process
+	// fork signed stream sequences during deployment/restart overlap.
+	releaseState, err := lockProviderState(c.StateDir)
+	if err != nil {
+		log.Fatal("reference CommunicationProvider state ownership rejected: ", err)
+	}
+	defer releaseState()
 	ticker := time.NewTicker(3 * time.Second)
 	defer ticker.Stop()
 	go func() {
