@@ -39,23 +39,23 @@ type factForSigning struct {
 	Payload             json.RawMessage `json:"payload"`
 }
 type roomState struct {
-	BookingID    string                 `json:"booking_id"`
-	Grants       map[string]grantRecord `json:"grants"`
-	Seen         map[string]bool        `json:"seen"`
-	Joined       map[string]bool        `json:"joined"`
-	Audio        map[string]bool        `json:"audio"`
-	Finish       map[string]bool        `json:"finish"`
-	Started      bool                   `json:"started"`
-	Recovering   bool                   `json:"recovering"`
-	Terminal     bool                   `json:"terminal"`
-	StartedAt    time.Time              `json:"started_at"`
+	BookingID  string                 `json:"booking_id"`
+	Grants     map[string]grantRecord `json:"grants"`
+	Seen       map[string]bool        `json:"seen"`
+	Joined     map[string]bool        `json:"joined"`
+	Audio      map[string]bool        `json:"audio"`
+	Finish     map[string]bool        `json:"finish"`
+	Started    bool                   `json:"started"`
+	Recovering bool                   `json:"recovering"`
+	Terminal   bool                   `json:"terminal"`
+	StartedAt  time.Time              `json:"started_at"`
 	// Verified intervals where both authorized participants publish audio.
 	// These survive process restart and exclude disconnected/offline minutes.
-	MediaLiveSince     time.Time `json:"media_live_since"`
-	MediaAccumulatedNS int64     `json:"media_accumulated_ns"`
-	Sequence     uint64                 `json:"sequence"`
-	Outbox       []signedFact           `json:"outbox"`
-	Delivered    int                    `json:"delivered"`
+	MediaLiveSince     time.Time    `json:"media_live_since"`
+	MediaAccumulatedNS int64        `json:"media_accumulated_ns"`
+	Sequence           uint64       `json:"sequence"`
+	Outbox             []signedFact `json:"outbox"`
+	Delivered          int          `json:"delivered"`
 }
 type livekitEvent struct {
 	ID        string `json:"id"`
@@ -230,6 +230,7 @@ func (s *referenceService) enqueue(room *roomState, sourceID, factType, role str
 		KeyID: msg.KeyID, OccurredAt: msg.OccurredAt, Payload: payload, Signature: signature})
 	return nil
 }
+
 // Close the current two-way-media interval. Technical interruption stops
 // accumulation; reconnect creates a fresh interval instead of treating the
 // complete wall-clock duration as media attendance.

@@ -120,8 +120,8 @@ func TestAudioUnpublishPausesBusinessMediaTimeAndStopsFalseCompletion(t *testing
 	}
 	for _, event := range []struct {
 		id, kind, participant string
-		sec int
-		audio bool
+		sec                   int
+		audio                 bool
 	}{
 		{"join-c", "participant_joined", clientID, 0, false},
 		{"join-s", "participant_joined", specialistID, 1, false},
@@ -150,7 +150,7 @@ func TestAudioUnpublishPausesBusinessMediaTimeAndStopsFalseCompletion(t *testing
 	}
 	for _, event := range []struct {
 		id, kind, participant string
-		sec int
+		sec                   int
 	}{
 		{"exit-c", "participant_left", clientID, 64},
 		{"exit-s", "participant_left", specialistID, 65},
