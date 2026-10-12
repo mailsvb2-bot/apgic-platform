@@ -161,14 +161,17 @@ test("quick start leads to canonical specialist availability and a persisted hol
   });
   await paidBookingLink.click();
   await expect(page.getByRole("heading", {name: "Моя запись"})).toBeVisible();
-  const closed = page.getByRole("alert").filter({hasText: "Доступ к консультации закрыт"});
-  await expect(closed).toBeVisible();
-  await expect(page.getByRole("region", {name: "Результат консультации"})).toHaveCount(0);
+  // Booking history is independently readable, but an unverified payment cannot grant new media access.
+  const mediaBlocked = page.getByRole("status").filter({hasText: "Вход в защищённую медиакомнату недоступен"});
+  await expect(mediaBlocked).toBeVisible();
+  await expect(page.getByRole("region", {name: "Результат консультации"})).toBeVisible();
+  await expect(page.getByText("Состояние консультации: Завершена.")).toHaveCount(0);
   for (const unsafe of ["unavailable", "missing"] as const) {
     paymentMode = unsafe;
     await page.getByRole("button", {name: "Проверить актуальный статус"}).click();
-    await expect(closed).toBeVisible();
-    await expect(page.getByRole("region", {name: "Результат консультации"})).toHaveCount(0);
+    await expect(mediaBlocked).toBeVisible();
+    await expect(page.getByRole("region", {name: "Результат консультации"})).toBeVisible();
+    await expect(page.getByText("Состояние консультации: Завершена.")).toHaveCount(0);
   }
 
   paymentMode = "captured";
@@ -213,8 +216,9 @@ test("quick start leads to canonical specialist availability and a persisted hol
   // A payment read that loses capture revokes all result actions on refresh.
   paymentMode = "pending";
   await page.getByRole("button", {name: "Проверить актуальный статус"}).click();
-  await expect(closed).toBeVisible();
-  await expect(consultation).toHaveCount(0);
+  await expect(mediaBlocked).toBeVisible();
+  await expect(consultation).toBeVisible();
+  await expect(consultation.getByText("Состояние консультации: Завершена.")).toHaveCount(0);
   await page.unroute(endpoint);
   await page.goto("/");
   await expect(consultation).toHaveCount(0);
