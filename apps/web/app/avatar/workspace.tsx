@@ -145,6 +145,7 @@ export function AvatarWorkspace() {
   </>}
   {session&&<div style={{display:"grid",gap:"1rem"}}>
    <p>Состояние: <strong>{session.state}</strong>. Режим: {session.mode}. ИИ-персонаж.</p>
+   {session.mode==="VOICE"&&<p>При нажатии «Говорить в микрофон» запись может обрабатываться сервисом распознавания речи вашего браузера. APGIC не получает исходное аудио; для полной приватности используйте текстовый ввод.</p>}
    {session.state==="ACTIVE"&&transport?.launch_url&&<a href={transport.launch_url} target="_blank" rel="noopener noreferrer">Открыть внешний видеотранспорт</a>}
    {session.state==="ACTIVE"&&(!transport?.launch_url||session.mode!=="VIDEO")&&<>
     <div role="log" aria-live="polite" aria-label="Временная переписка" style={{display:"grid",gap:"0.6rem",padding:"0.75rem",border:"1px solid #bbb",borderRadius:8,maxHeight:360,overflowY:"auto"}}>

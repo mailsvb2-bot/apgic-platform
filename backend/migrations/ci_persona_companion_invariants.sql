@@ -30,7 +30,7 @@ INSERT INTO persona_catalog (
 
 -- Unreviewed rights do not authorize real voices or appearances, even if
 -- persona_catalog contains a nonempty rights_evidence_ref.
-DO $
+DO $persona_rights$
 DECLARE denied boolean := false;
 BEGIN
  BEGIN
@@ -48,7 +48,7 @@ BEGIN
  EXCEPTION WHEN raise_exception THEN denied:=true;
  END;
  IF NOT denied THEN RAISE EXCEPTION 'unreviewed external persona rights admitted'; END IF;
-END $;
+END $persona_rights$;
 
 -- Synthetic test asset with explicit reviewed mode permissions.
 INSERT INTO persona_rights_reviews (

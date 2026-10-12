@@ -114,24 +114,42 @@ func registerPersona(mux *http.ServeMux, store PersonaStore, provider connector.
 	// Transcripts are deliberately neither logged nor persisted by APGIC.
 	mux.HandleFunc("POST /v1/avatar-sessions/{id}/turns", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
-		if !enabled() { writePersonaError(w, r, persona.ErrUnavailable); return }
+		if !enabled() {
+			writePersonaError(w, r, persona.ErrUnavailable)
+			return
+		}
 		owner, ok := requiredClientSessionIdentity(w, r, sessions, sessionConfigErr)
-		if !ok { return }
+		if !ok {
+			return
+		}
 		id := r.PathValue("id")
-		if !persona.ValidID(id) { writePersonaError(w, r, persona.ErrInvalidRequest); return }
+		if !persona.ValidID(id) {
+			writePersonaError(w, r, persona.ErrInvalidRequest)
+			return
+		}
 		r.Body = http.MaxBytesReader(w, r.Body, 2300)
-		var input struct { Message string `json:"message"` }
+		var input struct {
+			Message string `json:"message"`
+		}
 		decoder := json.NewDecoder(r.Body)
 		decoder.DisallowUnknownFields()
 		if err := decoder.Decode(&input); err != nil || strings.TrimSpace(input.Message) == "" || len(input.Message) > 2000 {
-			writePersonaError(w, r, persona.ErrInvalidRequest); return
+			writePersonaError(w, r, persona.ErrInvalidRequest)
+			return
+		}
+		session, err := store.ReadAvatar(r.Context(), id, owner)
+		if err != nil {
+			writePersonaError(w, r, err)
+			return
+		}
+		if session.State != persona.StateActive || session.SafetyState != "NORMAL" || session.HandoffRequestedAt != nil || session.ProviderSessionRef == "" {
+			writePersonaError(w, r, persona.ErrConflict)
+			return
 		}
 		// SQL authorization checks current session, publication, model policy and kill switch.
-		if err := store.AuthorizeAvatarTurn(r.Context(), id, owner); err != nil { writePersonaError(w, r, err); return }
-		session, err := store.ReadAvatar(r.Context(), id, owner)
-		if err != nil { writePersonaError(w, r, err); return }
-		if session.State != persona.StateActive || session.SafetyState != "NORMAL" || session.HandoffRequestedAt != nil || session.ProviderSessionRef == "" {
-			writePersonaError(w, r, persona.ErrConflict); return
+		if err := store.AuthorizeAvatarTurn(r.Context(), id, owner); err != nil {
+			writePersonaError(w, r, err)
+			return
 		}
 		reply, err := provider.Turn(r.Context(), session.ProviderSessionRef, input.Message)
 		if err != nil || strings.TrimSpace(reply) == "" {
@@ -139,7 +157,10 @@ func registerPersona(mux *http.ServeMux, store PersonaStore, provider connector.
 			return
 		}
 		// A concurrent END/HANDOFF must invalidate any answer still in flight.
-		if err := store.AuthorizeAvatarTurn(r.Context(), id, owner); err != nil { writePersonaError(w, r, persona.ErrConflict); return }
+		if err := store.AuthorizeAvatarTurn(r.Context(), id, owner); err != nil {
+			writePersonaError(w, r, persona.ErrConflict)
+			return
+		}
 		writeJSON(w, http.StatusOK, map[string]string{"reply": reply, "source": "MODEL_GENERATED"})
 	})
 	mux.HandleFunc("GET /v1/avatar-sessions/{id}", func(w http.ResponseWriter, r *http.Request) {
@@ -199,7 +220,11 @@ func registerPersona(mux *http.ServeMux, store PersonaStore, provider connector.
 		case "SAFETY_ESCALATE":
 			err = store.EscalateAvatar(r.Context(), id, owner)
 		case "END":
-			if current.State == persona.StateActive { err = store.EndAvatar(r.Context(), id, owner) } else if current.State != persona.StateEnded { err = persona.ErrConflict }
+			if current.State == persona.StateActive {
+				err = store.EndAvatar(r.Context(), id, owner)
+			} else if current.State != persona.StateEnded {
+				err = persona.ErrConflict
+			}
 		default:
 			writePersonaError(w, r, persona.ErrInvalidRequest)
 			return
@@ -211,7 +236,10 @@ func registerPersona(mux *http.ServeMux, store PersonaStore, provider connector.
 		// Human handoff and safety escalation revoke conversation authority;
 		// they cannot silently keep paid/private provider media active.
 		if request.Action != "END" && current.State == persona.StateActive {
-			if err := store.EndAvatar(r.Context(), id, owner); err != nil { writePersonaError(w, r, err); return }
+			if err := store.EndAvatar(r.Context(), id, owner); err != nil {
+				writePersonaError(w, r, err)
+				return
+			}
 		}
 		updated, err := store.ReadAvatar(r.Context(), id, owner)
 		if err != nil {

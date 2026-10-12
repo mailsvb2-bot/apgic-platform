@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/persistentid"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/persona"
@@ -111,7 +112,8 @@ func (c *Checker) BeginAvatar(ctx context.Context, userID, providerID, idempoten
 	}
 	var hourlyCount, activeCount int
 	err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FILTER (WHERE created_at > now()-interval '1 hour'),
-	COUNT(*) FILTER (WHERE state IN ('PENDING','ACTIVE'))
+	COUNT(*) FILTER (WHERE (state='PENDING' AND created_at>now()-interval '2 minutes') OR
+ (state='ACTIVE' AND started_at>now()-interval '12 minutes'))
 	FROM avatar_sessions WHERE user_id=$1::uuid`, userID).Scan(&hourlyCount, &activeCount)
 	if err != nil {
 		return persona.Session{}, err
@@ -256,14 +258,28 @@ func (c *Checker) ReadAvatar(ctx context.Context, id, owner string) (persona.Ses
 		t := waitlist.Time
 		s.WaitlistRequestedAt = &t
 	}
+
+	// Reconcile the ephemeral provider's bounded 12-minute lease into durable
+	// APGIC lifecycle truth. No stale ACTIVE state is shown or reused forever.
+	if s.State == persona.StateActive && s.StartedAt != nil && time.Since(*s.StartedAt) >= 12*time.Minute {
+		e := c.personaChange(ctx, id, owner, "CLOSED", "PROVIDER_LEASE_EXPIRED", "", "")
+		if e != nil && !errors.Is(e, persona.ErrConflict) {
+			return persona.Session{}, e
+		}
+		return c.ReadAvatar(ctx, id, owner)
+	}
 	return s, nil
 }
 
 // AuthorizeAvatarTurn rechecks every gate on every reply, including immediate
 // kill-switch activation and removal of persona publication or provider authority.
 func (c *Checker) AuthorizeAvatarTurn(ctx context.Context, id, owner string) error {
-	if c == nil || c.db == nil { return persona.ErrUnavailable }
-	if !persona.ValidID(id) || !persona.ValidID(owner) { return persona.ErrInvalidRequest }
+	if c == nil || c.db == nil {
+		return persona.ErrUnavailable
+	}
+	if !persona.ValidID(id) || !persona.ValidID(owner) {
+		return persona.ErrInvalidRequest
+	}
 	var permitted bool
 	err := c.db.QueryRowContext(ctx, `SELECT EXISTS (
  SELECT 1 FROM avatar_sessions s
@@ -273,11 +289,16 @@ func (c *Checker) AuthorizeAvatarTurn(ctx context.Context, id, owner string) err
  JOIN connector_instances ci ON ci.id=s.provider_instance_id AND ci.status='ACTIVE' AND ci.capability_class='PERSONA_PROVIDER'
  JOIN persona_model_deployments md ON md.policy_version=s.policy_version AND md.connector_instance_id=ci.id AND md.state='ACTIVE'
  WHERE s.id=$1::uuid AND s.user_id=$2::uuid AND s.state='ACTIVE'
+ AND s.started_at > now()-interval '12 minutes'
  AND s.handoff_requested_at IS NULL AND s.safety_state='NORMAL'
  AND NOT EXISTS (SELECT 1 FROM persona_model_disable_decisions d WHERE d.policy_version=s.policy_version)
  AND NOT EXISTS (SELECT 1 FROM persona_rights_revocations rev WHERE rev.persona_id=rr.persona_id)
  )`, id, owner).Scan(&permitted)
-	if err != nil { return err }
-	if !permitted { return persona.ErrConflict }
+	if err != nil {
+		return err
+	}
+	if !permitted {
+		return persona.ErrConflict
+	}
 	return nil
 }

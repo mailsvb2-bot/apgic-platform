@@ -148,7 +148,7 @@ func (p *HTTPPersonaRuntime) Turn(ctx context.Context, ref, message string) (str
 		return "", ErrPersonaTransport
 	}
 	var out struct {
-		Reply string `json:"reply"`
+		Reply  string `json:"reply"`
 		Source string `json:"source"`
 	}
 	if err := p.call(ctx, "/v1/persona-sessions/turns", map[string]string{"session_ref": ref, "message": message}, &out); err != nil {

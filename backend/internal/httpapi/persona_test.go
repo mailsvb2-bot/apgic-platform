@@ -25,7 +25,7 @@ func (s *personaStoreFake) BeginAvatar(_ context.Context, id, provider, _, polic
 	s.owner = id
 	s.session = persona.Session{ID: "00000000-0000-0000-0000-000000000301", UserID: id, PersonaID: request.PersonaID, ProviderInstanceID: provider,
 		Purpose: request.Purpose, PrivacyMode: request.PrivacyMode, Mode: request.Mode, Style: request.Style, Language: request.Language,
-		VoiceProfile: "voice", VisualProfile: "visual", State: persona.StatePending, PolicyVersion: policy}
+		VoiceProfile: "voice", VisualProfile: "visual", State: persona.StatePending, SafetyState: "NORMAL", PolicyVersion: policy}
 	return s.session, nil
 }
 func (s *personaStoreFake) ActivateAvatar(_ context.Context, id, owner, _, mode string) error {
@@ -34,6 +34,7 @@ func (s *personaStoreFake) ActivateAvatar(_ context.Context, id, owner, _, mode 
 	}
 	s.session.State = persona.StateActive
 	s.session.Mode = mode
+	s.session.ProviderSessionRef = "external"
 	return nil
 }
 func (s *personaStoreFake) FailAvatar(context.Context, string, string) error {
@@ -54,8 +55,10 @@ func (s *personaStoreFake) EscalateAvatar(context.Context, string, string) error
 	return nil
 }
 func (s *personaStoreFake) AuthorizeAvatarTurn(_ context.Context, _, owner string) error {
- if owner != s.owner || s.session.State!=persona.StateActive || s.session.HandoffRequestedAt!=nil || s.session.SafetyState=="ESCALATED" {return persona.ErrConflict}
- return nil
+	if owner != s.owner || s.session.State != persona.StateActive || s.session.HandoffRequestedAt != nil || s.session.SafetyState == "ESCALATED" {
+		return persona.ErrConflict
+	}
+	return nil
 }
 func (s *personaStoreFake) ReadAvatar(_ context.Context, _, owner string) (persona.Session, error) {
 	if owner != s.owner {
@@ -64,7 +67,10 @@ func (s *personaStoreFake) ReadAvatar(_ context.Context, _, owner string) (perso
 	return s.session, nil
 }
 
-type personaProviderFake struct{ fail bool; failTurn bool }
+type personaProviderFake struct {
+	fail     bool
+	failTurn bool
+}
 
 func (p personaProviderFake) Open(context.Context, connector.PersonaOpen) (connector.PersonaTransport, error) {
 	if p.fail {
@@ -73,10 +79,14 @@ func (p personaProviderFake) Open(context.Context, connector.PersonaOpen) (conne
 	return connector.PersonaTransport{SessionRef: "external", LaunchURL: "https://avatar.example/run", Mode: "VOICE", ExpiresAt: time.Now().Add(3 * time.Minute)}, nil
 }
 func (personaProviderFake) Close(context.Context, string) error { return nil }
-func (p personaProviderFake) Turn(_ context.Context, ref, input string) (string,error) {
- if p.failTurn { return "",connector.ErrPersonaTransport }
- if ref!="external" || input=="" { return "", connector.ErrPersonaTransport }
- return "Ответ настоящего провайдера: "+input,nil
+func (p personaProviderFake) Turn(_ context.Context, ref, input string) (string, error) {
+	if p.failTurn {
+		return "", connector.ErrPersonaTransport
+	}
+	if ref != "external" || input == "" {
+		return "", connector.ErrPersonaTransport
+	}
+	return "Ответ настоящего провайдера: " + input, nil
 }
 func TestPersonaHTTPDisabledAndPrivacy(t *testing.T) {
 	key := bytes.Repeat([]byte("x"), 32)
@@ -147,34 +157,44 @@ func TestPersonaProviderFailureDoesNotPretendConversation(t *testing.T) {
 }
 
 func TestPersonaActualDialogueAndProviderOutage(t *testing.T) {
- for _,failTurn:=range []bool{false,true} {
-  store:=&personaStoreFake{catalog:[]persona.CatalogItem{{ID:"00000000-0000-0000-0000-000000000201",SupportsText:true}}}
-  handler:=New(Options{ClientSessionKey:bytes.Repeat([]byte("k"),32),PersonaStore:store,
-   PersonaProvider:personaProviderFake{failTurn:failTurn},PersonaEnabled:true,PersonaProviderInstanceID:"provider",PersonaPolicyVersion:"v1"})
-  start:=httptest.NewRecorder()
-  req:=httptest.NewRequest("POST","/v1/avatar-sessions",bytes.NewBufferString(`{"persona_id":"00000000-0000-0000-0000-000000000201","session_purpose":"LISTEN","mode":"TEXT","language":"ru","style":"CALM","privacy_mode":"PRIVATE_EPHEMERAL"}`))
-  req.Header.Set("Idempotency-Key","conversation-01")
-  handler.ServeHTTP(start,req)
-  if start.Code!=201 {t.Fatalf("start: %d %s",start.Code,start.Body)}
-  sessionID:=store.session.ID
-  turn:=httptest.NewRecorder()
-  tr:=httptest.NewRequest("POST","/v1/avatar-sessions/"+sessionID+"/turns",bytes.NewBufferString(`{"message":"Привет"}`))
-  tr.AddCookie(start.Result().Cookies()[0])
-  handler.ServeHTTP(turn,tr)
-  if failTurn {
-   if turn.Code!=503 || bytes.Contains(turn.Body.Bytes(),[]byte("Ответ настоящего")) {t.Fatalf("provider outage invented answer: %d %s",turn.Code,turn.Body)}
-  } else if turn.Code!=200 || !bytes.Contains(turn.Body.Bytes(),[]byte("MODEL_GENERATED")) || !bytes.Contains(turn.Body.Bytes(),[]byte("Привет")) {
-   t.Fatalf("real provider dialogue missing: %d %s",turn.Code,turn.Body)
-  }
-  if !failTurn {
-   end:=httptest.NewRecorder()
-   er:=httptest.NewRequest("POST","/v1/avatar-sessions/"+sessionID+"/actions",bytes.NewBufferString(`{"action":"END"}`))
-   er.AddCookie(start.Result().Cookies()[0]);handler.ServeHTTP(end,er)
-   if end.Code!=200 {t.Fatalf("end: %d %s",end.Code,end.Body)}
-   denied:=httptest.NewRecorder()
-   dr:=httptest.NewRequest("POST","/v1/avatar-sessions/"+sessionID+"/turns",bytes.NewBufferString(`{"message":"Ещё"}`))
-   dr.AddCookie(start.Result().Cookies()[0]);handler.ServeHTTP(denied,dr)
-   if denied.Code==200 {t.Fatal("provider turn allowed after END")}
-  }
- }
+	for _, failTurn := range []bool{false, true} {
+		store := &personaStoreFake{catalog: []persona.CatalogItem{{ID: "00000000-0000-0000-0000-000000000201", SupportsText: true}}}
+		handler := New(Options{ClientSessionKey: bytes.Repeat([]byte("k"), 32), PersonaStore: store,
+			PersonaProvider: personaProviderFake{failTurn: failTurn}, PersonaEnabled: true, PersonaProviderInstanceID: "provider", PersonaPolicyVersion: "v1"})
+		start := httptest.NewRecorder()
+		req := httptest.NewRequest("POST", "/v1/avatar-sessions", bytes.NewBufferString(`{"persona_id":"00000000-0000-0000-0000-000000000201","session_purpose":"LISTEN","mode":"TEXT","language":"ru","style":"CALM","privacy_mode":"PRIVATE_EPHEMERAL"}`))
+		req.Header.Set("Idempotency-Key", "conversation-01")
+		handler.ServeHTTP(start, req)
+		if start.Code != 201 {
+			t.Fatalf("start: %d %s", start.Code, start.Body)
+		}
+		sessionID := store.session.ID
+		turn := httptest.NewRecorder()
+		tr := httptest.NewRequest("POST", "/v1/avatar-sessions/"+sessionID+"/turns", bytes.NewBufferString(`{"message":"Привет"}`))
+		tr.AddCookie(start.Result().Cookies()[0])
+		handler.ServeHTTP(turn, tr)
+		if failTurn {
+			if turn.Code != 503 || bytes.Contains(turn.Body.Bytes(), []byte("Ответ настоящего")) {
+				t.Fatalf("provider outage invented answer: %d %s", turn.Code, turn.Body)
+			}
+		} else if turn.Code != 200 || !bytes.Contains(turn.Body.Bytes(), []byte("MODEL_GENERATED")) || !bytes.Contains(turn.Body.Bytes(), []byte("Привет")) {
+			t.Fatalf("real provider dialogue missing: %d %s", turn.Code, turn.Body)
+		}
+		if !failTurn {
+			end := httptest.NewRecorder()
+			er := httptest.NewRequest("POST", "/v1/avatar-sessions/"+sessionID+"/actions", bytes.NewBufferString(`{"action":"END"}`))
+			er.AddCookie(start.Result().Cookies()[0])
+			handler.ServeHTTP(end, er)
+			if end.Code != 200 {
+				t.Fatalf("end: %d %s", end.Code, end.Body)
+			}
+			denied := httptest.NewRecorder()
+			dr := httptest.NewRequest("POST", "/v1/avatar-sessions/"+sessionID+"/turns", bytes.NewBufferString(`{"message":"Ещё"}`))
+			dr.AddCookie(start.Result().Cookies()[0])
+			handler.ServeHTTP(denied, dr)
+			if denied.Code == 200 {
+				t.Fatal("provider turn allowed after END")
+			}
+		}
+	}
 }
