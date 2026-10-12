@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -16,9 +17,11 @@ import (
 type clientPersonalStore interface {
 	ReadClientPersonal(context.Context, string, int, *clientpersonal.HistoryCursor, time.Time) (clientpersonal.View, error)
 	UpdateClientPersonalPreferences(context.Context, string, clientpersonal.Preferences) (clientpersonal.Preferences, error)
+	CreateClientCheckIn(context.Context,string,clientpersonal.CheckInInput)(clientpersonal.CheckIn,error)
 }
 
 func registerClientPersonal(mux *http.ServeMux, store clientPersonalStore, sessions *clientSessionManager, sessionConfigErr error, now func() time.Time) {
+	registerClientPersonalCheckIn(mux,store,sessions,sessionConfigErr)
 	mux.HandleFunc("GET /v1/client/personal", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "private, no-store")
 		identity, ok := requiredClientSessionIdentity(w, r, sessions, sessionConfigErr)
@@ -93,6 +96,34 @@ func registerClientPersonal(mux *http.ServeMux, store clientPersonalStore, sessi
 		writeJSON(w, http.StatusOK, updated)
 	})
 }
+// A client-reported signal is not an attestation of provider session completion.
+func registerClientPersonalCheckIn(mux *http.ServeMux, store clientPersonalStore, sessions *clientSessionManager, sessionConfigErr error) {
+	mux.HandleFunc("POST /v1/client/personal/check-ins",func(w http.ResponseWriter,r *http.Request){
+		w.Header().Set("Cache-Control","private, no-store")
+		identity,ok:=requiredClientSessionIdentity(w,r,sessions,sessionConfigErr)
+		if !ok{return}
+		if store==nil{writeClientPersonalUnavailable(w,r);return}
+		decoder:=json.NewDecoder(http.MaxBytesReader(w,r.Body,2048))
+		decoder.DisallowUnknownFields()
+		var v clientpersonal.CheckInInput
+		if err:=decoder.Decode(&v);err!=nil{writeDemandError(w,r,400,"CHECK_IN_INVALID","Проверьте ответ.",false,nil);return}
+		var extra any
+		if err:=decoder.Decode(&extra);!errors.Is(err,io.EOF){writeDemandError(w,r,400,"CHECK_IN_INVALID","Ожидался один ответ.",false,nil);return}
+		if err:=clientpersonal.ValidateCheckIn(v);err!=nil{writeDemandError(w,r,400,"CHECK_IN_INVALID","Проверьте оценку.",false,nil);return}
+		record,err:=store.CreateClientCheckIn(r.Context(),identity,v)
+		switch{
+		case errors.Is(err,clientpersonal.ErrCheckInNotEligible):
+			writeDemandError(w,r,404,"CHECK_IN_NOT_AVAILABLE","Завершённая консультация не найдена.",false,nil);return
+		case errors.Is(err,clientpersonal.ErrCheckInConflict):
+			writeDemandError(w,r,409,"CHECK_IN_ALREADY_RECORDED","Ответ уже сохранён.",false,nil);return
+		case err!=nil:writeClientPersonalUnavailable(w,r);return
+		}
+		status:=http.StatusCreated
+		if record.Idempotent{status=http.StatusOK}
+		writeJSON(w,status,record)
+	})
+}
+
 func writeClientPersonalUnavailable(w http.ResponseWriter, r *http.Request) {
 	writeDemandError(w, r, http.StatusServiceUnavailable, "PERSONAL_STORE_UNAVAILABLE", "Личный кабинет временно недоступен. Повторите попытку.", true, nil)
 }

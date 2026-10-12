@@ -26,6 +26,7 @@ var requiredTables = []string{
 	"client_mutation_records",
 	"help_intents",
 	"client_personal_preferences",
+	"client_personal_check_ins",
 	"outbox_events",
 	"audit_records",
 	"consent_records",
