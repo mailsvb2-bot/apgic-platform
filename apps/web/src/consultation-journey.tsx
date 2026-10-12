@@ -1,17 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-
-type Readiness = {
-  booking_id: string; role: "CLIENT" | "SPECIALIST"; booking_state: string;
-  consultation_state?: string;
-  opens_at: string; closes_at: string;
-  client_ready_at?: string; specialist_ready_at?: string;
-};
-type Outcome = {
-  booking_id: string; progress: number; match_satisfaction: number;
-  reported_at: string;
-};
+import type {
+  ConsultationReadySnapshot as Readiness,
+  ConsultationClientOutcome as Outcome,
+  ConsultationJoinGrant,
+} from "../../../packages/contracts/src/generated/apgic-v1";
 
 function validReady(payload: unknown, id: string): payload is Readiness {
   if (typeof payload !== "object" || !payload) return false;
@@ -112,7 +106,7 @@ export default function ConsultationJourney({ bookingID }: { bookingID: string }
         headers: { "X-APGIC-Request": "consultation-v1", "Idempotency-Key": key },
       });
       const data: unknown = await response.json();
-      const candidate = data as { join_uri?: string; booking_id?: string; credential_scope?: string };
+      const candidate = data as Partial<ConsultationJoinGrant>;
       if (!response.ok || candidate.booking_id !== bookingID ||
           candidate.credential_scope !== "ROOM_JOIN" ||
           typeof candidate.join_uri !== "string" || !candidate.join_uri.startsWith("https://")) {
