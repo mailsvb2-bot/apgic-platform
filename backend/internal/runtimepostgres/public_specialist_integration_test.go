@@ -81,6 +81,48 @@ func TestPublicSpecialistFullPublicationReviewAndRemoval(t *testing.T) {
 	if got.About != details.About || len(got.PublishedTopics) != 1 || got.ID != p.ID {
 		t.Fatalf("public profile mismatch: %#v", got)
 	}
+	// A NEW evidence claim invalidates an already approved competence and
+	// suspends discovery immediately, without any index rebuild.
+	p, err = store.SubmitEvidence(identityID, "anxiety", "CERTIFICATE", "document:reverification")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.PublicProfile(ctx, p.ID); !errors.Is(err, specialist.ErrPublicProfileNotFound) {
+		t.Fatalf("changed reviewed competence remained publicly discoverable: %v", err)
+	}
+	hidden, err := store.PublicProfiles(ctx, "anxiety", 21, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, item := range hidden {
+		if item.ID == p.ID {
+			t.Fatal("search projection cached competence after evidence update")
+		}
+	}
+	newEvidenceID := ""
+	for _, evidence := range p.Evidence {
+		if evidence.Reference == "document:reverification" && evidence.State == specialist.EvidenceSubmitted {
+			newEvidenceID = evidence.ID
+		}
+	}
+	if newEvidenceID == "" {
+		t.Fatal("new reviewable competence evidence was not persisted")
+	}
+	if err = store.ReviewEvidence(newEvidenceID, true, "reviewer:public-test"); err != nil {
+		t.Fatal(err)
+	}
+	if err = store.ReviewProfile(identityID, true, "reviewer:public-test"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.PublicProfile(ctx, p.ID); !errors.Is(err, specialist.ErrPublicProfileNotFound) {
+		t.Fatal("review incorrectly reactivated a suspended publication")
+	}
+	if res, err := store.Publish(identityID, "anxiety"); err != nil || !res.Allowed {
+		t.Fatalf("explicit policy reevaluation/republish failed: %#v err=%v", res, err)
+	}
+	if _, err = store.PublicProfile(ctx, p.ID); err != nil {
+		t.Fatalf("reviewed and republished new competence missing: %v", err)
+	}
 	if _, err = store.Unpublish(identityID, "anxiety"); err != nil {
 		t.Fatal(err)
 	}

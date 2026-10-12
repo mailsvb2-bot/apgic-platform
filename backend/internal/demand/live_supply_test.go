@@ -93,6 +93,19 @@ func TestLiveSupplyMatchesSelectedPricedOfferAndHoldsOnlyConfirmedTopic(t *testi
 	if err != nil || len(cards) != 1 || cards[0].OfferID != anxiety.ID || cards[0].PriceMinor != 185000 {
 		t.Fatalf("live matches = %#v, err=%v", cards, err)
 	}
+	// One verified specialist can offer multiple reviewed topics at different
+	// real prices. The exact offer identity, not the specialist, owns pricing.
+	sleepIntent, err := service.CreateIntentForIdentity("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "трудно спать")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.ConfirmIntent(sleepIntent.ID, []string{"sleep"}, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	sleepMatches, _, err := service.Matches(sleepIntent.ID, "sleep")
+	if err != nil || len(sleepMatches) != 1 || sleepMatches[0].OfferID != sleep.ID || sleepMatches[0].PriceMinor != 290000 {
+		t.Fatalf("multiple services were cross-priced: %#v err=%v", sleepMatches, err)
+	}
 	slots, err := service.SlotsForOffer(anxiety.Profile.ID, cards[0].OfferID)
 	if err != nil || len(slots) != 1 || slots[0].ID != anxiety.Slots[0].ID {
 		t.Fatalf("live slot selection = %#v, err=%v", slots, err)
@@ -107,7 +120,10 @@ func TestLiveSupplyMatchesSelectedPricedOfferAndHoldsOnlyConfirmedTopic(t *testi
 }
 
 func TestVerifiedOutcomeTiersNeverInventReputation(t *testing.T) {
-	cases := []struct{ completed, noShow int64; reliability, experience int }{
+	cases := []struct {
+		completed, noShow       int64
+		reliability, experience int
+	}{
 		{0, 0, 0, 0}, {1, 0, 0, 1}, {4, 0, 0, 1},
 		{5, 0, 5, 3}, {5, 5, 2, 3}, {20, 0, 5, 4},
 		{100, 0, 5, 5}, {-1, 0, 0, 0},
