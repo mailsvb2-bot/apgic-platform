@@ -5,7 +5,6 @@ package persona
 import (
 	"errors"
 	"regexp"
-	"strings"
 	"time"
 )
 
