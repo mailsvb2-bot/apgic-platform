@@ -127,7 +127,11 @@ func (c *Checker) ReadConsultationResult(ctx context.Context, bookingID, clientI
           WHERE f.session_id=s.id AND f.fact_type='ENDED'
           ORDER BY f.occurred_at DESC, f.id DESC LIMIT 1)
         FROM consultation_sessions s JOIN bookings b ON b.id=s.booking_id
-        WHERE s.booking_id=$1::uuid AND b.client_identity_id=$2::uuid`,
+        WHERE s.booking_id=$1::uuid AND
+          (b.client_identity_id=$2::uuid OR EXISTS (
+             SELECT 1 FROM booking_slots bs
+              WHERE bs.id=b.slot_id AND bs.specialist_identity_id=$2::uuid
+          ))`,
 		bookingID, clientIdentityID).Scan(&result.BookingID, &result.State, &result.ProviderInstanceID, &evidence)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
