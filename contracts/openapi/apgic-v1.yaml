@@ -842,6 +842,111 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/SpecialistBookableOffer' }
+  /v1/specialists:
+    get:
+      operationId: listPublicSpecialists
+      description: Lists only currently eligible and published specialist profiles; all private review evidence and Identity refs are excluded. Available to web and native clients.
+      parameters:
+        - { name: topic, in: query, schema: { type: string, enum: [anxiety, sleep, relationships, career] } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 20 } }
+        - { name: offset, in: query, schema: { type: integer, minimum: 0, maximum: 1000 } }
+      responses:
+        '200':
+          description: Current authoritative qualified specialist public directory, with deterministic ordering
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PublicSpecialistDirectory' }
+        '400':
+          description: Unsupported topic or invalid pagination
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '503':
+          description: Canonical specialist store unavailable, fail closed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+  /v1/specialists/{id}/offers:
+    get:
+      operationId: listPublicBookableOffers
+      description: Public projection of real currently eligible priced specialist offers with future unheld slots. Each slot is informational until a confirmed HelpIntent and canonical hold.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Currently bookable provider-priced offers; empty list when no slots are available.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PublicBookableOfferList' }
+        '404':
+          description: Specialist is not publicly published or is no longer eligible.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '503':
+          description: Canonical live offer availability cannot be checked.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+  /v1/specialists/{id}:
+    get:
+      operationId: getPublicSpecialist
+      description: Returns a public card only while publication and qualification remain current; never returns private verification evidence.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Current qualified public specialist card
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PublicSpecialist' }
+        '404':
+          description: Specialist does not exist or publication was withdrawn, without private status disclosure
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+  /v1/specialist/public-details:
+    get:
+      operationId: getMySpecialistPublicDetails
+      security:
+        - ClientSession: []
+      responses:
+        '200':
+          description: Signed specialist owner public-description draft
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SpecialistPublicDetails' }
+        '401':
+          description: Signed owner session required
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    put:
+      operationId: updateMySpecialistPublicDetails
+      description: Changes signed owner's reviewable public claims; atomically invalidates prior approval and active publication when material changes occur.
+      security:
+        - ClientSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SpecialistPublicDetails' }
+      responses:
+        '200':
+          description: Persisted claims, re-review required before republishing changes
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SpecialistPublicDetailsUpdateResult' }
+        '400':
+          description: Invalid or unsupported personal claims
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '401':
+          description: Signed owner session required
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
   /v1/specialist/profile:
     get:
       operationId: getSpecialistProfile
@@ -1685,6 +1790,30 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /v1/specialist-feedback:
+    post:
+      operationId: submitVerifiedSpecialistFeedback
+      security:
+        - ClientSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifiedFeedbackRequest'
+      responses:
+        '201':
+          description: Signed client feedback verified against a completed canonical booking; pending independent moderation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeedbackSubmission'
+        '400':
+          description: Invalid rating or booking reference
+        '401':
+          description: Client authentication required
+        '409':
+          description: Booking not completed, not owned, not live, or already reviewed
 components:
   securitySchemes:
     ClientSession:
@@ -1693,6 +1822,93 @@ components:
       name: __Host-apgic_session
       description: Server-signed trusted client session. Caller-supplied identity fields are never an authorization source.
   schemas:
+    PublicBookableSlot:
+      type: object
+      additionalProperties: false
+      required: [slot_id, starts_at, ends_at]
+      properties:
+        slot_id: { type: string }
+        starts_at: { type: string, format: date-time }
+        ends_at: { type: string, format: date-time }
+    PublicBookableOffer:
+      type: object
+      additionalProperties: false
+      required: [id, topic_id, price_minor, currency, slots]
+      properties:
+        id: { type: string }
+        topic_id: { type: string }
+        price_minor: { type: integer, minimum: 1 }
+        currency: { type: string, enum: [RUB] }
+        slots: { type: array, minItems: 1, items: { $ref: '#/components/schemas/PublicBookableSlot' } }
+    PublicBookableOfferList:
+      type: object
+      additionalProperties: false
+      required: [specialist_id, offers, availability_rule]
+      properties:
+        specialist_id: { type: string }
+        offers: { type: array, items: { $ref: '#/components/schemas/PublicBookableOffer' } }
+        availability_rule: { type: string, enum: [CURRENT_ELIGIBLE_UNHELD_SLOTS] }
+    VerifiedFeedbackRequest:
+      type: object
+      additionalProperties: false
+      required: [booking_id, rating]
+      properties:
+        booking_id: { type: string, format: uuid }
+        rating: { type: integer, minimum: 1, maximum: 5 }
+    FeedbackSubmission:
+      type: object
+      additionalProperties: false
+      required: [id, state, notice]
+      properties:
+        id: { type: string, format: uuid }
+        state: { type: string, enum: [PENDING] }
+        notice: { type: string }
+    PublicSpecialist:
+      type: object
+      additionalProperties: false
+      required: [id, display_name, profession_code, headline, about, experience_years, languages, limitations, published_topics, verified_review_count]
+      properties:
+        id: { type: string }
+        display_name: { type: string }
+        profession_code: { type: string }
+        headline: { type: string }
+        about: { type: string }
+        experience_years: { type: integer }
+        languages: { type: array, items: { type: string } }
+        limitations: { type: array, items: { type: string } }
+        published_topics: { type: array, minItems: 1, items: { type: string } }
+        verified_review_count: { type: integer, minimum: 0 }
+        verified_rating: { type: number, minimum: 1, maximum: 5 }
+    PublicSpecialistDirectory:
+      type: object
+      additionalProperties: false
+      required: [profiles, topic, limit, offset, has_more, policy_version, sort]
+      properties:
+        profiles: { type: array, items: { $ref: '#/components/schemas/PublicSpecialist' } }
+        topic: { type: string }
+        limit: { type: integer }
+        offset: { type: integer }
+        has_more: { type: boolean }
+        policy_version: { type: string }
+        sort: { type: string, enum: [DISPLAY_NAME_ASC] }
+    SpecialistPublicDetails:
+      type: object
+      additionalProperties: false
+      required: [headline, about, experience_years, languages, limitations]
+      properties:
+        headline: { type: string, maxLength: 120 }
+        about: { type: string, maxLength: 3000 }
+        experience_years: { type: integer, minimum: 0, maximum: 75 }
+        languages: { type: array, maxItems: 8, items: { type: string } }
+        limitations: { type: array, maxItems: 12, items: { type: string } }
+    SpecialistPublicDetailsUpdateResult:
+      type: object
+      additionalProperties: false
+      required: [details, review_required, notice]
+      properties:
+        details: { $ref: '#/components/schemas/SpecialistPublicDetails' }
+        review_required: { type: boolean }
+        notice: { type: string }
     Surface:
       type: string
       enum: [WEB, PWA, IOS, ANDROID]

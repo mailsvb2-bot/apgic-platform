@@ -1,5 +1,3 @@
-BEGIN;
-
 -- A hold is an exclusive, immutable reservation of one specific priced offer
 -- for one confirmed HelpIntent. The public live catalog omits held slots;
 -- without this persisted origin an HTTP retry after API restart could not
@@ -70,4 +68,3 @@ CREATE TRIGGER booking_holds_live_origin_guard
 BEFORE UPDATE ON booking_holds
 FOR EACH ROW EXECUTE FUNCTION apgic_live_hold_origin_guard();
 
-COMMIT;

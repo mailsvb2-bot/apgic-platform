@@ -74,18 +74,18 @@ type MatchCard struct {
 }
 
 type Hold struct {
-	ID               string        `json:"id"`
-	BookingID        string        `json:"booking_id"`
-	SlotID           string        `json:"slot_id"`
-	ClientIdentityID string        `json:"client_identity_id"`
+	ID               string `json:"id"`
+	BookingID        string `json:"booking_id"`
+	SlotID           string `json:"slot_id"`
+	ClientIdentityID string `json:"client_identity_id"`
 	// Immutable hold provenance prevents one intent borrowing a different
 	// intent's paid offer; not exposed as client-controlled API fields.
-	IntentID         string        `json:"-"`
-	OfferID          string        `json:"-"`
-	State            string        `json:"state"`
-	BookingState     booking.State `json:"booking_state"`
-	ExpiresAt        time.Time     `json:"expires_at"`
-	ReasonCode       string        `json:"reason_code"`
+	IntentID     string        `json:"-"`
+	OfferID      string        `json:"-"`
+	State        string        `json:"state"`
+	BookingState booking.State `json:"booking_state"`
+	ExpiresAt    time.Time     `json:"expires_at"`
+	ReasonCode   string        `json:"reason_code"`
 }
 
 type Service struct {
@@ -580,7 +580,7 @@ func (s *Service) Matches(intentID, topic string) ([]MatchCard, string, error) {
 			SpecialistID: match.SpecialistID,
 			DisplayName:  match.DisplayName,
 			Profession:   professionOf(s.catalog.candidates, match.SpecialistID),
-			PriceMinor:   priceOf(s.catalog.candidates, match.SpecialistID),
+			PriceMinor:   priceOfOffer(s.catalog.candidates, match.OfferID, match.SpecialistID),
 			Currency:     "RUB",
 			Format:       FormatOnline,
 			Sponsored:    match.Sponsored,
@@ -850,9 +850,9 @@ func professionOf(candidates []marketplace.Candidate, id string) string {
 	return ""
 }
 
-func priceOf(candidates []marketplace.Candidate, id string) int64 {
+func priceOfOffer(candidates []marketplace.Candidate, offerID, specialistID string) int64 {
 	for _, candidate := range candidates {
-		if candidate.Profile.ID == id {
+		if candidate.OfferID == offerID && candidate.Profile.ID == specialistID {
 			return candidate.PriceMinor
 		}
 	}

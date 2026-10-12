@@ -13,6 +13,7 @@ import {
 } from "react-native";
 
 import {apiContractVersion} from "./api-contract.ts";
+import {NativeSpecialistDirectory} from "./native-specialist-directory.tsx";
 import {
   decideCapability,
   type CapabilityState,
@@ -1076,6 +1077,9 @@ export default function App({
                   <Text accessibilityLabel="native-demand-confirmed">
                     Запрос подтверждён пользователем.
                   </Text>
+                ) : null}
+                {demandStatus === "CONFIRMED" && demandTopics.length>0 ? (
+                  <NativeSpecialistDirectory baseURL={demandAPIBaseURL} topic={demandTopics[0]} />
                 ) : null}
               </View>
             ) : null}
