@@ -78,8 +78,8 @@ func TestUCRServerOwnedConferenceJoinAndModeration(t *testing.T) {
 			mu.Lock()
 			ready := ownerReady && attendeeReady
 			mu.Unlock()
-			json.NewEncoder(w).Encode(map[string]any{"runtime":map[string]any{
-				"group_ready":true,"call_ready":ready,"admitted_participant_count":0}})
+			json.NewEncoder(w).Encode(map[string]any{"runtime": map[string]any{
+				"group_ready": true, "call_ready": ready, "admitted_participant_count": 0}})
 
 		case "/v1/conferences/lifecycle":
 			v, _ := request["target"].(string)
@@ -87,15 +87,19 @@ func TestUCRServerOwnedConferenceJoinAndModeration(t *testing.T) {
 		case "/v1/conferences/entry":
 			w.Write([]byte(`{"conference":{"entry_open":true}}`))
 		case "/v1/participants":
-			role,_ := request["role"].(string)
+			role, _ := request["role"].(string)
 			if role != "attendee" && role != "owner" {
 				w.WriteHeader(403)
 				return
 			}
 			mu.Lock()
-			if role=="owner" {ownerReady=true} else {attendeeReady=true}
+			if role == "owner" {
+				ownerReady = true
+			} else {
+				attendeeReady = true
+			}
 			mu.Unlock()
-			json.NewEncoder(w).Encode(map[string]any{"participant":map[string]any{"active":true,"role":role}})
+			json.NewEncoder(w).Encode(map[string]any{"participant": map[string]any{"active": true, "role": role}})
 
 		case "/v1/participant-devices":
 			w.Write([]byte(`{"device":{"active":true}}`))
@@ -203,7 +207,9 @@ func TestUCRRoomCapacityIncludesHostAndNoConferenceIsCreatedOnShortfall(t *testi
 	}))
 	defer server.Close()
 	c, err := NewClient(server.URL, "machine-test-credential", "integration-id", "provider-id", "https://join.example", server.Client(), func() time.Time { return now })
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	_, err = c.Prepare(context.Background(), mockEvent(now))
 	if err != liveevents.ErrUnavailable || mutations != 0 {
 		t.Fatalf("host overflow accepted: error=%v UCR_mutations=%d", err, mutations)
@@ -212,22 +218,29 @@ func TestUCRRoomCapacityIncludesHostAndNoConferenceIsCreatedOnShortfall(t *testi
 func TestUCRWaitingRoomAdmissionIsNotRealMediaAttendance(t *testing.T) {
 	now := time.Date(2026, 10, 12, 11, 0, 0, 0, time.UTC)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/v1/attendance" { w.WriteHeader(http.StatusNotFound); return }
+		if r.URL.Path != "/v1/attendance" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
 		_, _ = w.Write([]byte(`{"attendance":{"join_count":1,"media_ready_count":0,"total_connected_seconds":10,"first_join_at_unix_ms":1791793140000}}`))
 	}))
 	defer server.Close()
 	c, err := NewClient(server.URL, "machine-test-credential", "integration-id", "provider-id", "https://join.example", server.Client(), func() time.Time { return now })
-	if err != nil { t.Fatal(err) }
-	room := liveevents.MediaRoom{OrganizationID:"tenant",ConferenceID:"ucr-room-101",IntegrationID:"integration-id"}
+	if err != nil {
+		t.Fatal(err)
+	}
+	room := liveevents.MediaRoom{OrganizationID: "tenant", ConferenceID: "ucr-room-101", IntegrationID: "integration-id"}
 	fact, err := c.Attendance(context.Background(), room, "guest")
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	if !fact.Joined || fact.MediaReady || fact.MediaReadyCount != 0 {
 		t.Fatalf("waiting-room user counted as realtime participant: %+v", fact)
 	}
 }
 func TestUCRRejectsUnpreparedRuntimeEvenWhenAPIConferenceExists(t *testing.T) {
 	now := time.Date(2026, 10, 12, 11, 0, 0, 0, time.UTC)
-	preparedRuntimeCalls:=0
+	preparedRuntimeCalls := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
@@ -248,9 +261,11 @@ func TestUCRRejectsUnpreparedRuntimeEvenWhenAPIConferenceExists(t *testing.T) {
 	}))
 	defer server.Close()
 	c, err := NewClient(server.URL, "machine-test-credential", "integration-id", "provider-id", "https://join.example", server.Client(), func() time.Time { return now })
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	_, err = c.Prepare(context.Background(), mockEvent(now))
-	if err != liveevents.ErrUnavailable || preparedRuntimeCalls!=1 {
-		t.Fatalf("UCR Group not prepared was certified: %v, runtime_calls=%d",err,preparedRuntimeCalls)
+	if err != liveevents.ErrUnavailable || preparedRuntimeCalls != 1 {
+		t.Fatalf("UCR Group not prepared was certified: %v, runtime_calls=%d", err, preparedRuntimeCalls)
 	}
 }

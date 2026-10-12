@@ -112,7 +112,9 @@ func (m *r9MediaProviderStub) Change(_ context.Context, room liveevents.MediaRoo
 	return nil
 }
 func (m *r9MediaProviderStub) Enroll(_ context.Context, room liveevents.MediaRoom, identity, role string) error {
-	if identity==""||role!="attendee" {return liveevents.ErrForbidden}
+	if identity == "" || role != "attendee" {
+		return liveevents.ErrForbidden
+	}
 	m.enrolled++
 	return nil
 }
@@ -172,11 +174,11 @@ func TestR9MediaJourneyBoundaryAndNoUnauthorizedJoin(t *testing.T) {
 	if code, b := post("55555555-5555-4555-8555-555555555555", path+"/join", ""); code != 403 || media.joins != 0 {
 		t.Fatalf("foreigner joined: %d %s", code, b)
 	}
-	if code, b := post(participant, path+"/join", ""); code != 200 || !strings.Contains(b, "ucr_join=") || media.joins != 1 || media.enrolled!=0 {
+	if code, b := post(participant, path+"/join", ""); code != 200 || !strings.Contains(b, "ucr_join=") || media.joins != 1 || media.enrolled != 0 {
 		t.Fatalf("joined: %d %s", code, b)
 	}
-	if code,b:=post(owner,path+"/join","");code!=200||media.joins!=2||media.enrolled!=1{
-		t.Fatalf("host/registered attendee not reconciled to same UCR call: %d %s",code,b)
+	if code, b := post(owner, path+"/join", ""); code != 200 || media.joins != 2 || media.enrolled != 1 {
+		t.Fatalf("host/registered attendee not reconciled to same UCR call: %d %s", code, b)
 	}
 	if code, b := post(owner, path+"/attendance/sync", ""); code != 200 || !db.saved || media.attendanceCalls != 1 {
 		t.Fatalf("attendance: %d %s", code, b)
