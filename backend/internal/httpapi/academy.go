@@ -3,8 +3,8 @@ package httpapi
 import (
 	"encoding/json"
 	"errors"
- "io"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/academy"
+	"io"
 	"net/http"
 )
 
@@ -339,15 +339,15 @@ func registerAcademy(mux *http.ServeMux, store academyStore, sessions *clientSes
 // including conformance instances that intentionally run without a signing key.
 // Never fall back to untrusted client-provided identity or a blank principal.
 func academyIdentity(w http.ResponseWriter, r *http.Request, sessions *clientSessionManager, sessionConfigErr error) (string, bool) {
-  if sessionConfigErr != nil || sessions == nil {
-    writeDemandError(w, r, http.StatusServiceUnavailable, "ACADEMY_SESSION_UNAVAILABLE", "Подписанная сессия недоступна.", true, nil)
-    return "", false
-  }
-  identity, ok := trustedClientIdentity(w, r, sessions, sessionConfigErr, "")
-  if !ok || identity == "" {
-    return "", false
-  }
-  return identity, true
+	if sessionConfigErr != nil || sessions == nil {
+		writeDemandError(w, r, http.StatusServiceUnavailable, "ACADEMY_SESSION_UNAVAILABLE", "Подписанная сессия недоступна.", true, nil)
+		return "", false
+	}
+	identity, ok := trustedClientIdentity(w, r, sessions, sessionConfigErr, "")
+	if !ok || identity == "" {
+		return "", false
+	}
+	return identity, true
 }
 
 func academyRead(w http.ResponseWriter, r *http.Request, dst any) bool {
@@ -355,15 +355,15 @@ func academyRead(w http.ResponseWriter, r *http.Request, dst any) bool {
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(dst); err != nil {
-    writeDemandError(w, r, 400, "ACADEMY_INVALID", "Некорректный формат запроса.", false, nil)
-    return false
-  }
-  var trailing any
-  if err := dec.Decode(&trailing); err != io.EOF {
-    writeDemandError(w, r, 400, "ACADEMY_INVALID", "Ожидается ровно один JSON-объект.", false, nil)
-    return false
-  }
-  return true
+		writeDemandError(w, r, 400, "ACADEMY_INVALID", "Некорректный формат запроса.", false, nil)
+		return false
+	}
+	var trailing any
+	if err := dec.Decode(&trailing); err != io.EOF {
+		writeDemandError(w, r, 400, "ACADEMY_INVALID", "Ожидается ровно один JSON-объект.", false, nil)
+		return false
+	}
+	return true
 }
 func academyHTTPError(w http.ResponseWriter, r *http.Request, err error) {
 	status := http.StatusServiceUnavailable
