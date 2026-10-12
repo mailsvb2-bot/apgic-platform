@@ -729,10 +729,6 @@ func (c *Checker) AcademyEvaluateAttempt(author, attemptID, evidence string, sco
 	if score >= pass {
 		result = "PASSED"
 	}
-	id, err := academyID()
-	if err != nil {
-		return academy.Attempt{}, err
-	}
 	err = tx.QueryRowContext(ctx, `UPDATE academy_attempts
  SET result=$2,score=$3,evaluated_by=$4::uuid,evaluation_evidence_ref=$5,evaluated_at=now()
  WHERE id=$1::uuid AND result='PENDING' RETURNING evaluated_at`,
