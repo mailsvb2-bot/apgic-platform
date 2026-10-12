@@ -468,7 +468,6 @@ export function Journey() {
   async function choose(card: MatchCard) {
     const requestVersion = ++selectedAvailabilityRequest.current;
     setError("");
-    setPending(true);
     setSlotAvailability("CHECKING");
     // Always discard stale booking and payment data before loading a different
     // provider's availability. A failed fetch cannot leave old checkout actions.
@@ -518,8 +517,6 @@ export function Journey() {
       setSlots([]);
       setSlotAvailability("UNAVAILABLE");
       setError(cause instanceof Error ? cause.message : "Расписание недоступно.");
-    } finally {
-      if (requestVersion === selectedAvailabilityRequest.current) setPending(false);
     }
   }
 
@@ -1008,6 +1005,10 @@ export function Journey() {
             </details>
           ) : null}
         </section>
+      ) : null}
+
+      {slotAvailability === "CHECKING" ? (
+        <p role="status">Проверяем доступное время у выбранного специалиста…</p>
       ) : null}
 
       {specialist ? (
