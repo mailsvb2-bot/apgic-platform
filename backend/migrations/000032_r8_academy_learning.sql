@@ -248,6 +248,22 @@ CREATE TRIGGER academy_version_publish_guard BEFORE UPDATE ON academy_course_ver
 CREATE TRIGGER academy_version_no_delete BEFORE DELETE ON academy_course_versions
   FOR EACH ROW EXECUTE FUNCTION apgic_reject_delete();
 
+-- Store subscription lifecycle is projected separately from its original
+-- verified transaction. Refund/chargeback/revocation can leave the original
+-- store_entitlements row ACTIVE; no academy reader may rely on it alone.
+CREATE FUNCTION academy_entitlement_is_active(p_entitlement uuid)
+ RETURNS boolean LANGUAGE sql STABLE AS $academy_entitlement_access$
+ SELECT COALESCE((
+  SELECT t.state='ACTIVE' AND NOT EXISTS (
+   SELECT 1 FROM store_subscription_projections projection
+   WHERE projection.entitlement_id=t.id
+     AND (projection.identity_id IS DISTINCT FROM t.identity_id
+          OR projection.entitlement_state<>'ACTIVE')
+  )
+  FROM store_entitlements t WHERE t.id=p_entitlement
+ ),false);
+ $academy_entitlement_access$;
+
 -- Enrollment can only be backed by a store-verified ACTIVE entitlement belonging to the learner.
 CREATE TABLE academy_enrollments (
   id uuid PRIMARY KEY,
@@ -270,7 +286,7 @@ BEGIN
   SELECT c.product_id::text, v.state INTO product_ref,version_state
     FROM academy_course_versions v JOIN academy_courses c ON c.id=v.course_id WHERE v.id=NEW.version_id;
   IF NOT FOUND OR ent.id IS NULL OR ent.identity_id<>NEW.identity_id OR
-     ent.state<>'ACTIVE' OR ent.product_ref<>product_ref OR version_state<>'PUBLISHED' THEN
+     NOT academy_entitlement_is_active(ent.id) OR ent.product_ref<>product_ref OR version_state<>'PUBLISHED' THEN
     RAISE EXCEPTION 'academy enrollment requires verified active entitlement for published version';
   END IF;
   RETURN NEW;
@@ -298,7 +314,7 @@ BEGIN
   END IF;
   IF NEW.state='COMPLETED' AND OLD.state<>'COMPLETED' THEN
     SELECT state INTO entitlement_status FROM store_entitlements WHERE id=OLD.entitlement_id FOR SHARE;
-    IF entitlement_status IS DISTINCT FROM 'ACTIVE' THEN
+    IF entitlement_status IS DISTINCT FROM 'ACTIVE' OR NOT academy_entitlement_is_active(OLD.entitlement_id) THEN
       RAISE EXCEPTION 'academy completion requires active verified entitlement';
     END IF;
     SELECT count(l.id), count(p.lesson_id) INTO total_lessons, completed_lessons
@@ -333,7 +349,7 @@ BEGIN
   JOIN academy_lessons l ON l.module_id=m.id
   JOIN store_entitlements t ON t.id=e.entitlement_id
   WHERE e.id=NEW.enrollment_id AND l.id=NEW.lesson_id
-    AND e.state='ACTIVE' AND t.state='ACTIVE';
+    AND e.state='ACTIVE' AND academy_entitlement_is_active(t.id);
   IF NOT FOUND THEN
     RAISE EXCEPTION 'academy progress requires active matching enrollment and entitlement';
   END IF;
@@ -376,7 +392,7 @@ DECLARE
  entitlement_state text;
 BEGIN
   SELECT assessment.rubric_version, assessment.passing_score, c.author_id,
-         e.state,t.state
+         e.state,CASE WHEN academy_entitlement_is_active(t.id) THEN 'ACTIVE' ELSE 'REVOKED' END
   INTO expected_rubric,expected_pass,expected_author,enrolled_state,entitlement_state
   FROM academy_enrollments e
   JOIN store_entitlements t ON t.id=e.entitlement_id
@@ -436,7 +452,7 @@ CREATE TABLE academy_certificates (
 CREATE FUNCTION academy_certificate_guard() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
  IF TG_OP='INSERT' THEN
-  IF NOT EXISTS (SELECT 1 FROM academy_enrollments WHERE id=NEW.enrollment_id AND state='COMPLETED') THEN
+  IF NOT EXISTS (SELECT 1 FROM academy_enrollments e WHERE e.id=NEW.enrollment_id AND e.state='COMPLETED' AND academy_entitlement_is_active(e.entitlement_id)) THEN
    RAISE EXCEPTION 'certificate requires completed enrollment';
   END IF;
  ELSE

@@ -5,7 +5,7 @@ import {useCallback,useEffect,useState,type FormEvent} from "react";
 type Course = {id:string;product_id:string;title:string;description:string;state:string;version_id:string;version_no:number};
 type Module = {id:string;version_id:string;title:string;ordinal:number};
 type Lesson = {id:string;module_id:string;title:string;kind:"READING"|"VIDEO"|"ASSESSMENT";ordinal:number;body?:string;media_asset_ref?:string;completed?:boolean;passing_score?:number};
-type Enrollment = {id:string;version_id:string;state:string};
+type Enrollment = {id:string;version_id:string;state:string;access_state?:"ACTIVE"|"REVOKED"};
 type Certificate = {verification_url:string;state:string;evidence_candidate_state:string};
 type ReviewAttempt = {attempt_id:string;enrollment_id:string;lesson_id:string;attempt_no:number;response_text:string;submitted_at:string;rubric_version:string;passing_score:number;course_title:string;lesson_title:string};
 
@@ -127,8 +127,8 @@ export default function AcademyPage(){
     </section>
     <section className="panel"><h2>Мои обучения</h2>
      {enrollments.length===0?<p>Пока нет зачислений.</p>:enrollments.map(e=>
-      <div key={e.id}><p>Зачисление {e.id.slice(0,8)} · {e.state}</p>
-       <button disabled={busy} onClick={()=>void act(
+      <div key={e.id}><p>Зачисление {e.id.slice(0,8)} · {e.state} · доступ {e.access_state??"неизвестен"}</p>
+       <button disabled={busy||e.access_state!=="ACTIVE"} onClick={()=>void act(
         ()=>api<{lessons:Lesson[]}>(`/v1/academy/enrollments/${e.id}/learn`),
         async()=>{await loadLearning(e)})}>Продолжить</button>
       </div>)}

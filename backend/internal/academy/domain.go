@@ -70,6 +70,7 @@ type Enrollment struct {
 	IdentityID    string     `json:"identity_id,omitempty"`
 	VersionID     string     `json:"version_id"`
 	EntitlementID string     `json:"entitlement_id,omitempty"`
+	AccessState   string     `json:"access_state"`
 	State         string     `json:"state"`
 	EnrolledAt    time.Time  `json:"enrolled_at"`
 	CompletedAt   *time.Time `json:"completed_at,omitempty"`

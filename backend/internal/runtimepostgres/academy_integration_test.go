@@ -391,16 +391,22 @@ func TestAcademyStoreRefundWithdrawsLearningAccess(t *testing.T) {
 	}
 	defer db.Close()
 	var enrollmentID, entitlementState string
-	err = db.QueryRow(`SELECT e.id::text,t.state FROM academy_enrollments e
+	var projectedState, effectiveState string
+	err = db.QueryRow(`SELECT e.id::text,t.state,p.entitlement_state,
+ CASE WHEN academy_entitlement_is_active(t.id) THEN 'ACTIVE' ELSE 'REVOKED' END
+ FROM academy_enrollments e
  JOIN academy_course_versions v ON v.id=e.version_id
  JOIN academy_courses c ON c.id=v.course_id
  JOIN store_entitlements t ON t.id=e.entitlement_id
- WHERE e.identity_id=$1::uuid AND c.product_id=$2::uuid`, learner, product).Scan(&enrollmentID, &entitlementState)
+ JOIN store_subscription_projections p ON p.entitlement_id=t.id
+ WHERE e.identity_id=$1::uuid AND c.product_id=$2::uuid`, learner, product).
+ Scan(&enrollmentID, &entitlementState, &projectedState, &effectiveState)
 	if err != nil {
 		t.Fatalf("previously completed paid journey must remain durable after refund: %v", err)
 	}
-	if entitlementState != "REVOKED" {
-		t.Fatalf("canonical store refund must revoke the entitlement, got %q", entitlementState)
+	if entitlementState != "ACTIVE" || projectedState != "REVOKED" || effectiveState != "REVOKED" {
+		t.Fatalf("refund must override the original ACTIVE payment: base=%s projection=%s effective=%s",
+			entitlementState, projectedState, effectiveState)
 	}
 	store, err := Open(context.Background(), dsn)
 	if err != nil {
@@ -410,6 +416,23 @@ func TestAcademyStoreRefundWithdrawsLearningAccess(t *testing.T) {
 	if _, err = store.AcademyLearning(learner, enrollmentID); !errors.Is(err, academy.ErrEntitlement) {
 		t.Fatalf("revoked purchased lesson body remains accessible: %v", err)
 	}
+	history, err := store.AcademyMyEnrollments(learner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	seenRevoked := false
+	for _, entry := range history {
+		if entry.ID == enrollmentID {
+			seenRevoked = true
+			if entry.AccessState != "REVOKED" || entry.State != "COMPLETED" {
+				t.Fatalf("refund did not preserve completion history and revoke access: %+v", entry)
+			}
+		}
+	}
+	if !seenRevoked {
+		t.Fatal("refunded course disappeared from learner's historical enrollment list")
+	}
+
 	var courseID string
 	if err = db.QueryRow(`SELECT v.course_id::text FROM academy_enrollments e
  JOIN academy_course_versions v ON v.id=e.version_id WHERE e.id=$1::uuid`, enrollmentID).Scan(&courseID); err != nil {

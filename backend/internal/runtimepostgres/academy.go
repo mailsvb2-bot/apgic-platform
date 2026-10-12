@@ -481,7 +481,7 @@ func (c *Checker) AcademyEnroll(actor, courseID string) (academy.Enrollment, err
  FROM academy_courses c
  JOIN academy_course_versions v ON v.course_id=c.id AND v.state='PUBLISHED'
  JOIN store_entitlements t ON t.product_ref=c.product_id::text
-  AND t.identity_id=$2::uuid AND t.state='ACTIVE'
+  AND t.identity_id=$2::uuid AND academy_entitlement_is_active(t.id)
  JOIN store_transaction_verifications sv ON sv.id=t.verification_id
   AND sv.identity_id=t.identity_id AND sv.product_ref=t.product_ref
  JOIN payment_effects paid ON paid.id=sv.payment_effect_id AND paid.effect_kind='CAPTURED'
@@ -499,6 +499,7 @@ func (c *Checker) AcademyEnroll(actor, courseID string) (academy.Enrollment, err
 	if err == nil {
 		e.VersionID = versionID
 		e.IdentityID = actor
+		e.AccessState = "ACTIVE"
 		return e, nil
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
@@ -524,6 +525,7 @@ func (c *Checker) AcademyEnroll(actor, courseID string) (academy.Enrollment, err
 	e.VersionID = versionID
 	e.EntitlementID = entitlementID
 	e.State = "ACTIVE"
+	e.AccessState = "ACTIVE"
 	return e, nil
 }
 func (c *Checker) AcademyLearning(actor, enrollmentID string) ([]academy.Lesson, error) {
@@ -541,7 +543,7 @@ func (c *Checker) AcademyLearning(actor, enrollmentID string) ([]academy.Lesson,
  LEFT JOIN academy_assessments a ON a.lesson_id=l.id
  LEFT JOIN academy_progress p ON p.enrollment_id=e.id AND p.lesson_id=l.id
  WHERE e.id=$1::uuid AND e.identity_id=$2::uuid
- AND e.state IN ('ACTIVE','COMPLETED') AND t.state='ACTIVE'
+ AND e.state IN ('ACTIVE','COMPLETED') AND academy_entitlement_is_active(t.id)
  ORDER BY m.ordinal,l.ordinal`, enrollmentID, actor)
 	if err != nil {
 		return nil, err
@@ -572,7 +574,7 @@ func (c *Checker) AcademyMarkProgress(actor, enrollmentID, lessonID string) erro
 	}
 	defer tx.Rollback()
 	var kind, versionID, entitlementState, enrollmentState string
-	err = tx.QueryRowContext(ctx, `SELECT l.kind,e.version_id::text,t.state,e.state
+	err = tx.QueryRowContext(ctx, `SELECT l.kind,e.version_id::text,CASE WHEN academy_entitlement_is_active(t.id) THEN 'ACTIVE' ELSE 'REVOKED' END,e.state
  FROM academy_enrollments e JOIN store_entitlements t ON t.id=e.entitlement_id
  JOIN academy_modules m ON m.version_id=e.version_id
  JOIN academy_lessons l ON l.module_id=m.id
@@ -625,7 +627,7 @@ func (c *Checker) AcademyComplete(actor, enrollmentID string) (academy.Certifica
 	}
 	defer tx.Rollback()
 	var versionID, enrollmentState, entitlementState string
-	err = tx.QueryRowContext(ctx, `SELECT e.version_id::text,e.state,t.state FROM academy_enrollments e
+	err = tx.QueryRowContext(ctx, `SELECT e.version_id::text,e.state,CASE WHEN academy_entitlement_is_active(t.id) THEN 'ACTIVE' ELSE 'REVOKED' END FROM academy_enrollments e
  JOIN store_entitlements t ON t.id=e.entitlement_id
  WHERE e.id=$1::uuid AND e.identity_id=$2::uuid FOR UPDATE OF e`, enrollmentID, actor).Scan(&versionID, &enrollmentState, &entitlementState)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -737,7 +739,7 @@ func (c *Checker) AcademySubmitAttempt(actor, enrollmentID, lessonID, response s
 	}
 	defer tx.Rollback()
 	var rubric, state, entitlementState string
-	err = tx.QueryRowContext(ctx, `SELECT a.rubric_version,e.state,t.state
+	err = tx.QueryRowContext(ctx, `SELECT a.rubric_version,e.state,CASE WHEN academy_entitlement_is_active(t.id) THEN 'ACTIVE' ELSE 'REVOKED' END
  FROM academy_enrollments e JOIN store_entitlements t ON t.id=e.entitlement_id
  JOIN academy_modules m ON m.version_id=e.version_id
  JOIN academy_lessons l ON l.module_id=m.id JOIN academy_assessments a ON a.lesson_id=l.id
@@ -800,7 +802,7 @@ func (c *Checker) AcademyEvaluateAttempt(author, attemptID, evidence string, sco
 	var owner string
 	err = tx.QueryRowContext(ctx, `SELECT a.enrollment_id::text,a.lesson_id::text,a.attempt_no,
  a.rubric_version,a.result,a.submitted_at,assessment.passing_score,
- c.author_id::text,t.state,e.state
+ c.author_id::text,CASE WHEN academy_entitlement_is_active(t.id) THEN 'ACTIVE' ELSE 'REVOKED' END,e.state
  FROM academy_attempts a
  JOIN academy_assessments assessment ON assessment.lesson_id=a.lesson_id
  JOIN academy_enrollments e ON e.id=a.enrollment_id
@@ -949,7 +951,8 @@ func (c *Checker) AcademyMyEnrollments(actor string) ([]academy.Enrollment, erro
 	}
 	ctx, cancel := academyContext()
 	defer cancel()
-	rows, err := c.db.QueryContext(ctx, `SELECT e.id::text,e.version_id::text,e.state,e.enrolled_at,e.completed_at
+	rows, err := c.db.QueryContext(ctx, `SELECT e.id::text,e.version_id::text,e.state,e.enrolled_at,e.completed_at,
+ CASE WHEN academy_entitlement_is_active(e.entitlement_id) THEN 'ACTIVE' ELSE 'REVOKED' END
  FROM academy_enrollments e WHERE e.identity_id=$1::uuid ORDER BY e.enrolled_at DESC LIMIT 100`, actor)
 	if err != nil {
 		return nil, err
@@ -958,7 +961,7 @@ func (c *Checker) AcademyMyEnrollments(actor string) ([]academy.Enrollment, erro
 	result := []academy.Enrollment{}
 	for rows.Next() {
 		var e academy.Enrollment
-		if err = rows.Scan(&e.ID, &e.VersionID, &e.State, &e.EnrolledAt, &e.CompletedAt); err != nil {
+		if err = rows.Scan(&e.ID, &e.VersionID, &e.State, &e.EnrolledAt, &e.CompletedAt, &e.AccessState); err != nil {
 			return nil, err
 		}
 		result = append(result, e)
@@ -981,7 +984,8 @@ func (c *Checker) AcademyPendingReviews(author string) ([]academy.ReviewAttempt,
  JOIN academy_modules m ON m.id=l.module_id
  JOIN academy_course_versions v ON v.id=m.version_id
  JOIN academy_courses c ON c.id=v.course_id
- WHERE c.author_id=$1::uuid AND a.result='PENDING'
+ JOIN academy_enrollments e ON e.id=a.enrollment_id
+ WHERE c.author_id=$1::uuid AND a.result='PENDING' AND e.state='ACTIVE' AND academy_entitlement_is_active(e.entitlement_id)
  ORDER BY a.submitted_at,a.id LIMIT 100`, author)
 	if err != nil {
 		return nil, err
