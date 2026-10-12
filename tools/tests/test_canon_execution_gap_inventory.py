@@ -90,7 +90,7 @@ class CanonGapInventoryTests(unittest.TestCase):
         self.assertEqual(result["totals"]["production_evidence_records"], 1)
         manifest = ROOT / "config/release/r4-ci-gate-evidence.yaml"
         blockers = inventory_tool.strict_production_release_blockers(
-            result, manifest, "ci-candidate-sha", production, registry,
+            result, manifest, "a" * 40, production, registry,
         )
         self.assertTrue(any(reason.startswith("RELEASE_") for reason in blockers), blockers)
         self.assertTrue(any("SYNTHETIC_EVIDENCE_FORBIDDEN" in reason for reason in blockers), blockers)
