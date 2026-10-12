@@ -55,7 +55,7 @@ Signed session is the *only* source of principal. Client-provided identity IDs n
 
 ## Fail-closed boundaries
 
-1. No provider-verified ACTIVE `store_entitlements` entry matching `product/{uuid}` → no enrollment, no raw lesson.
+1. No provider-verified ACTIVE `store_entitlements` entry matching the canonical product UUID → no enrollment, no raw lesson.
 2. No signed media provider with genuine playback evidence → video lesson cannot be marked complete. Publishing a course with video lessons is blocked pending the media connector, avoiding an unfinishable paid course.
 3. Pending/failed assessment → no assessment completion. Only author-granted human score and evidence can make attempt `PASSED`.
 4. Incomplete progress, no entitled access, zero lessons → no certificate.
@@ -65,7 +65,7 @@ Signed session is the *only* source of principal. Client-provided identity IDs n
 ## Gates still needed before claiming full R8 release
 
 - Author/owner **rights and license contracts**, copyright provenance, commercial licensing and royalty reconciliation.
-- End-to-end course checkout and provider-agnostic entitlement activation on all allowed rails. **Never simulate a payment.** Existing store-verified entitlement is an intentional integration boundary, not a multi-provider commerce completion.
+- End-to-end course checkout and provider-agnostic entitlement activation on all allowed rails. **Never simulate a payment.** Existing store-verified entitlement is an intentional integration boundary, not a multi-provider commerce completion. The academy now uses the canonical **bare product UUID** stored in `store_transaction_verifications.product_ref` and `store_entitlements.product_ref` (not `product/{uuid}`), and confirms the captured payment effect + verification identity. An isolated PostgreSQL CI journey exercises the existing synthetic, verification-backed store transaction through authoring → publication → entitlement → learning → human review → certificate, including two storage/process restarts. **This is sandbox evidence, not a claim of a live production sale.**
 - Signed media grants, BYOS/managed/external origin delivery, playback attestations; until then video courses remain publish-blocked.
 - Operational instructor/cohort enrollment, prerequisites, drip schedules and migration policies (SQL model exists; domain enforcement is not yet implemented).
 - Certificate revocation with scoped step-up, audit and appeal; public verifier can read history but no protected revocation API yet.

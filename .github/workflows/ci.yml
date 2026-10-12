@@ -497,6 +497,12 @@ jobs:
           APGIC_ORGANIZATION_TEST_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable
         run: go test ./internal/runtimepostgres -run TestAcademyVersioningRequiresVerifiedAccess -count=1 -v
 
+      - name: Prove paid R8 Academy learner journey across PostgreSQL process restart
+        working-directory: backend
+        env:
+          APGIC_ORGANIZATION_TEST_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable
+        run: go test ./internal/runtimepostgres -run TestAcademyStoreVerifiedPaidJourneySurvivesRestart -count=1 -v
+
       - name: Prove AUTH-002 high-risk step-up gate and audit
         working-directory: backend
         env:

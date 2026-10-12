@@ -206,7 +206,7 @@ CREATE FUNCTION academy_enrollment_entitlement_guard() RETURNS trigger LANGUAGE 
 DECLARE ent store_entitlements%ROWTYPE; product_ref text; version_state text;
 BEGIN
   SELECT * INTO ent FROM store_entitlements WHERE id=NEW.entitlement_id;
-  SELECT 'product/' || c.product_id::text, v.state INTO product_ref,version_state
+  SELECT c.product_id::text, v.state INTO product_ref,version_state
     FROM academy_course_versions v JOIN academy_courses c ON c.id=v.course_id WHERE v.id=NEW.version_id;
   IF NOT FOUND OR ent.id IS NULL OR ent.identity_id<>NEW.identity_id OR
      ent.state<>'ACTIVE' OR ent.product_ref<>product_ref OR version_state<>'PUBLISHED' THEN
