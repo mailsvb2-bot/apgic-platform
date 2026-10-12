@@ -30,15 +30,15 @@ type Touch struct {
 // Aggregate report intentionally excludes free-text HelpIntent, individual
 // client identifiers, consultation data, and implied financial outcomes.
 type Report struct {
-	LinkID           string `json:"link_id"`
-	OfferID          string `json:"offer_id"`
-	Source           string `json:"source"`
-	State            string `json:"state"`
-	Touches          int64  `json:"touches"`
-	HelpIntents      int64  `json:"help_intents"`
-	ConfirmedIntents int64  `json:"confirmed_intents"`
-	AttributedHolds int64  `json:"attributed_holds"`
-	ConfirmedBookings int64  `json:"confirmed_bookings"`
+	LinkID             string `json:"link_id"`
+	OfferID            string `json:"offer_id"`
+	Source             string `json:"source"`
+	State              string `json:"state"`
+	Touches            int64  `json:"touches"`
+	HelpIntents        int64  `json:"help_intents"`
+	ConfirmedIntents   int64  `json:"confirmed_intents"`
+	AttributedHolds    int64  `json:"attributed_holds"`
+	ConfirmedBookings  int64  `json:"confirmed_bookings"`
 	ProviderPaidOrders int64  `json:"provider_paid_orders"`
 }
 
