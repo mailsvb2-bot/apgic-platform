@@ -19,3 +19,7 @@
 Mapped to APGIC-CONSULT-001/002, APGIC-PRIV-001, APGIC-DATA-001, APGIC-COMM-001, APGIC-MOBILE-009. These changes do not establish live third-party room provisioning, media connectivity, provider credential issuance or actual mobile device verification. Existing verified provider webhook pipeline and separate conformance tests remain the sole owner of JOINED/ENDED evidence. Do not mark any requirement VERIFIED until staging media call and multi-surface proof exist.
 
 Required next certification: configured provider capabilities and credentials, booked specialist+client ready and scoped join, real 1:1 media, signed STARTED/ENDED, verified read after process restart, forced disconnect/reconnect, technical failure refund/reschedule routing and native lifecycle proof.
+
+## Database negative-proof matrix
+
+`backend/migrations/ci_r3_consultation_outcome_invariants.sql` proves both-side readiness, repeat idempotency, lack of fabricated provider presence, foreign principal denial, append-only records, no unverified outcomes, no specialist impersonation, bounded ratings, and no raw consultation columns. The readiness and outcome tables are now launch readiness dependencies. This remains simulated CI evidence rather than a live media provider certification.

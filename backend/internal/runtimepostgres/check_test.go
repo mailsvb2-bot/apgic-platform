@@ -30,6 +30,7 @@ func TestRequiredCanonicalTablesAndIndexesAreStable(t *testing.T) {
 		"outbox_events": true, "audit_records": true, "consent_records": true, "ledger_entries": true,
 		"booking_slots": true, "booking_holds": true, "bookings": true,
 		"consultation_sessions": true, "consultation_lifecycle_facts": true,
+		"consultation_participant_readiness": true, "consultation_client_outcomes": true,
 		"specialist_profiles": true, "specialist_capabilities": true,
 		"specialist_evidence": true, "qualification_evaluations": true,
 		"specialist_publications": true, "organization_ownerships": true,

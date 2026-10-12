@@ -34,6 +34,8 @@ var requiredTables = []string{
 	"bookings",
 	"consultation_sessions",
 	"consultation_lifecycle_facts",
+	"consultation_participant_readiness",
+	"consultation_client_outcomes",
 	"specialist_profiles",
 	"specialist_capabilities",
 	"specialist_evidence",
