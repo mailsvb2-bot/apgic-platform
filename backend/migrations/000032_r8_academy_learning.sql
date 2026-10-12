@@ -24,7 +24,7 @@ CREATE TABLE academy_course_versions (
   created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE(course_id,version_no),
   CHECK ((state = 'DRAFT' AND published_at IS NULL AND title_snapshot IS NULL AND description_snapshot IS NULL) OR
-         (state <> 'DRAFT' AND published_at IS NOT NULL AND btrim(title_snapshot) <> '' AND description_snapshot IS NOT NULL))
+         (state <> 'DRAFT' AND published_at IS NOT NULL AND coalesce(btrim(title_snapshot),'') <> '' AND description_snapshot IS NOT NULL))
 );
 CREATE UNIQUE INDEX academy_one_draft_per_course ON academy_course_versions(course_id) WHERE state='DRAFT';
 
