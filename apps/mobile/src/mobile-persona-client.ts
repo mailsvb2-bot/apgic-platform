@@ -30,7 +30,7 @@ export async function openNativePersona(base:string,input:PersonaStart,key:strin
  const response=await requireSuccess(await request(personaOrigin(base)+"/v1/avatar-sessions",{
   method:"POST",credentials:"include",cache:"no-store",headers:{"Content-Type":"application/json","Idempotency-Key":key},body:JSON.stringify(input)
  })) as {session:PersonaSession;transport:{launch_url:string;mode:PersonaMode;expires_at:string}};
- if(response.session?.state!=="ACTIVE"||!safePersonaLaunchURL(response.transport?.launch_url))throw Error("PERSONA_TRANSPORT_INVALID");
+ if(response.session?.state!=="ACTIVE"||!response.transport||(!response.transport.launch_url&&response.transport.mode==="VIDEO")||(response.transport.launch_url&&!safePersonaLaunchURL(response.transport.launch_url)))throw Error("PERSONA_TRANSPORT_INVALID");
  return response;
 }
 export async function actNativePersona(base:string,sessionID:string,action:"END"|"HUMAN_HANDOFF"|"SAFETY_ESCALATE",request:Fetcher=fetch):Promise<{session:PersonaSession;provider_close?:string;handoff?:{next_action:string}}>{
@@ -38,4 +38,14 @@ export async function actNativePersona(base:string,sessionID:string,action:"END"
  return await requireSuccess(await request(personaOrigin(base)+"/v1/avatar-sessions/"+encodeURIComponent(sessionID)+"/actions",{
   method:"POST",credentials:"include",cache:"no-store",headers:{"Content-Type":"application/json"},body:JSON.stringify({action})
  })) as {session:PersonaSession;provider_close?:string;handoff?:{next_action:string}};
+}
+
+// Real provider-generated turn. Ephemeral input/output must not be cached on device.
+export async function sendNativePersona(base:string,sessionID:string,message:string,request:Fetcher=fetch):Promise<string>{
+ if(!/^[a-fA-F0-9-]{36}$/.test(sessionID)||!message.trim()||message.length>2000)throw Error("PERSONA_REQUEST_INVALID");
+ const result=await requireSuccess(await request(personaOrigin(base)+"/v1/avatar-sessions/"+encodeURIComponent(sessionID)+"/turns",{
+  method:"POST",credentials:"include",cache:"no-store",headers:{"Content-Type":"application/json"},body:JSON.stringify({message})
+ })) as {reply?:unknown;source?:string};
+ if(result.source!=="MODEL_GENERATED"||typeof result.reply!=="string"||!result.reply.trim())throw Error("PERSONA_MODEL_UNAVAILABLE");
+ return result.reply;
 }

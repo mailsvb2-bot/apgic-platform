@@ -54,3 +54,85 @@ for that policy without rewriting history. Re-enable only through a newly
 approved policy version. PostgreSQL admission is serialized by Identity
 under a transaction-level advisory lock to prevent concurrent budget
 bypass. Releasing an active session requires the canonical END flow.
+
+## Actual conversation: private model-backed PersonaProvider
+
+The separate process `backend/cmd/persona-provider` is a minimal, real
+TEXT/VOICE **conversation** runtime backed by an explicitly selected
+OpenAI-compatible Chat Completions model. It is not a stub or a VPR release.
+It does not claim to produce animated video, WebRTC, high-quality TTS,
+clinical therapy or production certification.
+
+The provider **will not start** without all of:
+
+```sh
+PERSONA_PROVIDER_SERVICE_TOKEN=<random-service-secret-32+-chars>
+PERSONA_PROVIDER_LLM_URL=https://<approved-inference-host>/v1/chat/completions
+PERSONA_PROVIDER_LLM_API_KEY=<private-model-key>
+PERSONA_PROVIDER_LLM_MODEL=<reviewed-model-identifier>
+PERSONA_PROVIDER_POLICY_VERSION=<same-approved-policy-version>
+```
+
+Run it as an independent supervised process (`cd backend && go run ./cmd/persona-provider`),
+bound to `127.0.0.1:8788` only. Put a TLS reverse proxy in front with
+an allowlist that exposes **only the APGIC server as a caller**.
+In APGIC use `APGIC_PERSONA_PROVIDER_ORIGIN=https://<that-proxy>`,
+`APGIC_PERSONA_PROVIDER_TOKEN` = service token,
+`APGIC_PERSONA_TRANSPORT_HOSTS` = approved external video hosts
+(required by the legacy connector), and the matching active connector UUID and
+policy version. Never put inference keys in browser/mobile bundles.
+
+APGIC owns identity and admission. On each POST to
+`/v1/avatar-sessions/{id}/turns` it validates the client session cookie,
+owner, current ACTIVE state, model deployment, provider, rights and
+kill-switch, then exchanges a **single** ephemeral message with the provider.
+The provider calls the configured model using private credentials, verifies
+an actual completion (`source=MODEL_GENERATED`) and returns its text.
+A missing/invalid provider answer is a 503, **not** a scripted AI reply.
+
+The provider holds at most 100 simultaneous sessions, each for 12 minutes
+and up to 16 turns; 2,000 UTF-8 input bytes per turn, 320 generated tokens
+per answer, 12 most recent turn messages in memory. New sessions still pass
+APGIC's per-identity PostgreSQL concurrency/hourly budgets.
+Close and TTL expiry cancel in-flight calls, invalidate references and
+erase provider history. No raw message, audio/video or prompt is written
+to APGIC PostgreSQL by this flow. Client-side text exists only in live UI
+state and is cleared on END/HANDOFF/SAFETY. Do not enable persistent
+HTTP-body/access capture on intermediary proxies.
+
+The browser can do voice input/output with the Web Speech API when supported:
+microphone speech becomes a text turn to the real LLM, its answer is voiced
+by the browser. Browser speech recognition may process audio with the
+browser vendor: disclose this to the user before voice input, never claim
+the browser provider is zero-retention. Mobile currently supports full
+model-backed text, plus external links for voice/video where an independently
+certified transport is available. Native microphone/TTS is **not** claimed.
+
+### External image/voice rights
+
+Migration 000033 introduces an append-only reviewed license record per
+persona, storing its rights holder reference, SHA-256 evidence digest,
+reviewer, permitted TEXT/VOICE/appearance uses and validity deadline.
+A non-empty original `rights_evidence_ref` alone is **not** approval.
+A rights revocation immediately blocks starts and new turns.
+Publishing avatars impersonating actual people requires affirmative
+reviewed rights; no real person's appearance or voice is bundled or seeded.
+Rights evidence and authorized persona publication are operator duties.
+
+### Safety, deletion and release gate
+
+LLM safety prompt discloses AI status, forbids diagnostics/therapy claims,
+fabricated qualifications, dependency and paid coercion, and points to
+real human/emergency help when appropriate. Manual safety escalation and
+human handoff revoke conversation access, close provider resources and
+never copy transcripts into HelpIntent. Provider failure, safety review,
+response quality, adversarial jailbreak tests, voice privacy and
+operator-mediated closure after transport outages **still require
+real-provider evidence**.
+
+This process is a working *conditional* path: genuine model replies occur
+when a compatible authorized endpoint, reviewed model and rights-cleared
+persona are actually provisioned. No production LLM credentials or approved
+rights are included here. Do not label APGIC/VPR production-ready solely
+because contract/mock tests pass. A delivery-uncertain provider close is
+reported explicitly rather than falsely declaring remote deletion complete.

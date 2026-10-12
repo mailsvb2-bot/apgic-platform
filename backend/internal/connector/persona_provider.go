@@ -36,6 +36,7 @@ type PersonaOpen struct {
 type PersonaRuntime interface {
 	Open(context.Context, PersonaOpen) (PersonaTransport, error)
 	Close(context.Context, string) error
+	Turn(context.Context, string, string) (string, error)
 }
 
 var ErrPersonaTransport = errors.New("PERSONA_TRANSPORT_UNAVAILABLE")
@@ -93,13 +94,13 @@ func (p *HTTPPersonaRuntime) call(ctx context.Context, path string, payload any,
 	if result == nil {
 		return nil
 	}
-	res.Body = http.MaxBytesReader(nil, res.Body, 8192)
+	res.Body = io.NopCloser(io.LimitReader(res.Body, 8193))
 	decoder := json.NewDecoder(res.Body)
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(result); err != nil {
 		return ErrPersonaTransport
 	}
-	if _, err = io.Copy(io.Discard, res.Body); err != nil {
+	if n, err := io.Copy(io.Discard, res.Body); err != nil || n > 0 {
 		return ErrPersonaTransport
 	}
 	return nil
@@ -113,9 +114,9 @@ func (p *HTTPPersonaRuntime) Open(ctx context.Context, r PersonaOpen) (PersonaTr
 		return PersonaTransport{}, err
 	}
 	u, err := url.Parse(out.LaunchURL)
-	if err != nil || u.Scheme != "https" || !p.transportHosts[strings.ToLower(u.Hostname())] || u.User != nil || u.Fragment != "" ||
-		strings.TrimSpace(out.SessionRef) == "" || time.Until(out.ExpiresAt) <= 0 || time.Until(out.ExpiresAt) > 15*time.Minute ||
-		!validPersonaMode(out.Mode, r.Mode) {
+	if (out.LaunchURL != "" && (err != nil || u.Scheme != "https" || !p.transportHosts[strings.ToLower(u.Hostname())] || u.User != nil || u.Fragment != "")) ||
+		(out.LaunchURL == "" && out.Mode == "VIDEO") || strings.TrimSpace(out.SessionRef) == "" ||
+		time.Until(out.ExpiresAt) <= 0 || time.Until(out.ExpiresAt) > 15*time.Minute || !validPersonaMode(out.Mode, r.Mode) {
 		return PersonaTransport{}, ErrPersonaTransport
 	}
 	return out, nil
@@ -137,4 +138,25 @@ func (p *HTTPPersonaRuntime) Close(ctx context.Context, reference string) error 
 	}
 	// Reference is a body value: never interpolate provider-controlled IDs into URLs.
 	return p.call(ctx, "/v1/persona-sessions/close", map[string]string{"session_ref": reference}, nil)
+}
+
+// Turn executes model-backed dialogue on the external ephemeral runtime. APGIC never
+// persists inputs or outputs. The provider must fail, not invent a reply, on outage.
+func (p *HTTPPersonaRuntime) Turn(ctx context.Context, ref, message string) (string, error) {
+	message = strings.TrimSpace(message)
+	if p == nil || strings.TrimSpace(ref) == "" || message == "" || len(message) > 2000 {
+		return "", ErrPersonaTransport
+	}
+	var out struct {
+		Reply string `json:"reply"`
+		Source string `json:"source"`
+	}
+	if err := p.call(ctx, "/v1/persona-sessions/turns", map[string]string{"session_ref": ref, "message": message}, &out); err != nil {
+		return "", ErrPersonaTransport
+	}
+	out.Reply = strings.TrimSpace(out.Reply)
+	if out.Source != "MODEL_GENERATED" || out.Reply == "" || len(out.Reply) > 4500 {
+		return "", ErrPersonaTransport
+	}
+	return out.Reply, nil
 }

@@ -19,6 +19,10 @@ func (c *Checker) ListPersonas(ctx context.Context, providerID, policyVersion st
  supports_video,supports_voice,supports_text FROM persona_catalog WHERE state='PUBLISHED'
  AND EXISTS (SELECT 1 FROM persona_model_deployments md JOIN connector_instances ci
  ON ci.id=md.connector_instance_id WHERE md.policy_version=$2
+ AND EXISTS(SELECT 1 FROM persona_rights_reviews rr WHERE rr.persona_id=persona_catalog.id
+   AND rr.valid_until>now() AND NOT EXISTS(SELECT 1 FROM persona_rights_revocations rv WHERE rv.persona_id=rr.persona_id)
+   AND ((persona_catalog.supports_text AND rr.text_use) OR (persona_catalog.supports_voice AND rr.voice_use)
+     OR (persona_catalog.supports_video AND rr.voice_use AND rr.appearance_use)))
  AND md.connector_instance_id=$1::uuid AND md.state='ACTIVE'
  AND ci.capability_class='PERSONA_PROVIDER' AND ci.status='ACTIVE'
  AND NOT EXISTS (SELECT 1 FROM persona_model_disable_decisions d WHERE d.policy_version=md.policy_version))
@@ -64,7 +68,10 @@ func (c *Checker) BeginAvatar(ctx context.Context, userID, providerID, idempoten
 	}
 	var catalog persona.CatalogItem
 	err = tx.QueryRowContext(ctx, `SELECT id::text,label,language,voice_profile,visual_profile,
- supports_video,supports_voice,supports_text FROM persona_catalog WHERE id=$1::uuid AND state='PUBLISHED'`, s.PersonaID).
+ supports_video,supports_voice,supports_text FROM persona_catalog WHERE id=$1::uuid AND state='PUBLISHED'
+ AND EXISTS (SELECT 1 FROM persona_rights_reviews rr WHERE rr.persona_id=persona_catalog.id AND rr.valid_until>now()
+ AND NOT EXISTS (SELECT 1 FROM persona_rights_revocations rev WHERE rev.persona_id=rr.persona_id)
+ AND (CASE WHEN $2='VIDEO' THEN rr.voice_use AND rr.appearance_use WHEN $2='VOICE' THEN rr.voice_use ELSE rr.text_use END))`, s.PersonaID, s.Mode).
 		Scan(&catalog.ID, &catalog.Label, &catalog.Language, &catalog.VoiceProfile, &catalog.VisualProfile,
 			&catalog.SupportsVideo, &catalog.SupportsVoice, &catalog.SupportsText)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -250,4 +257,27 @@ func (c *Checker) ReadAvatar(ctx context.Context, id, owner string) (persona.Ses
 		s.WaitlistRequestedAt = &t
 	}
 	return s, nil
+}
+
+// AuthorizeAvatarTurn rechecks every gate on every reply, including immediate
+// kill-switch activation and removal of persona publication or provider authority.
+func (c *Checker) AuthorizeAvatarTurn(ctx context.Context, id, owner string) error {
+	if c == nil || c.db == nil { return persona.ErrUnavailable }
+	if !persona.ValidID(id) || !persona.ValidID(owner) { return persona.ErrInvalidRequest }
+	var permitted bool
+	err := c.db.QueryRowContext(ctx, `SELECT EXISTS (
+ SELECT 1 FROM avatar_sessions s
+ JOIN persona_catalog p ON p.id=s.persona_id AND p.state='PUBLISHED'
+ JOIN persona_rights_reviews rr ON rr.persona_id=p.id AND rr.valid_until>now()
+ AND (s.mode='TEXT' AND rr.text_use OR s.mode='VOICE' AND rr.voice_use OR s.mode='VIDEO' AND rr.voice_use AND rr.appearance_use)
+ JOIN connector_instances ci ON ci.id=s.provider_instance_id AND ci.status='ACTIVE' AND ci.capability_class='PERSONA_PROVIDER'
+ JOIN persona_model_deployments md ON md.policy_version=s.policy_version AND md.connector_instance_id=ci.id AND md.state='ACTIVE'
+ WHERE s.id=$1::uuid AND s.user_id=$2::uuid AND s.state='ACTIVE'
+ AND s.handoff_requested_at IS NULL AND s.safety_state='NORMAL'
+ AND NOT EXISTS (SELECT 1 FROM persona_model_disable_decisions d WHERE d.policy_version=s.policy_version)
+ AND NOT EXISTS (SELECT 1 FROM persona_rights_revocations rev WHERE rev.persona_id=rr.persona_id)
+ )`, id, owner).Scan(&permitted)
+	if err != nil { return err }
+	if !permitted { return persona.ErrConflict }
+	return nil
 }

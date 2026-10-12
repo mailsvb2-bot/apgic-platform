@@ -28,6 +28,37 @@ INSERT INTO persona_catalog (
  'ci://synthetic-avatar-rights','PUBLISHED'
 );
 
+-- Unreviewed rights do not authorize real voices or appearances, even if
+-- persona_catalog contains a nonempty rights_evidence_ref.
+DO $
+DECLARE denied boolean := false;
+BEGIN
+ BEGIN
+  INSERT INTO avatar_sessions (
+   id,user_id,persona_id,provider_instance_id,idempotency_key,session_purpose,
+   privacy_mode,mode,style,language,voice_profile,visual_profile,state,policy_version
+  ) VALUES (
+   '00000000-0000-0000-0000-00000000d226',
+   '00000000-0000-0000-0000-00000000d201',
+   '00000000-0000-0000-0000-00000000d221',
+   '00000000-0000-0000-0000-00000000d211','ci-unsafe-rights',
+   'LISTEN','PRIVATE_EPHEMERAL','VOICE','CALM','ru','voice-ci','visual-ci',
+   'PENDING','ci-persona-policy-v1'
+  );
+ EXCEPTION WHEN raise_exception THEN denied:=true;
+ END;
+ IF NOT denied THEN RAISE EXCEPTION 'unreviewed external persona rights admitted'; END IF;
+END $;
+
+-- Synthetic test asset with explicit reviewed mode permissions.
+INSERT INTO persona_rights_reviews (
+ persona_id,rights_holder_ref,evidence_sha256,reviewed_by,
+ text_use,voice_use,appearance_use,valid_until
+) VALUES (
+ '00000000-0000-0000-0000-00000000d221','ci://synthetic-rights-holder',
+ repeat('a',64),'ci://rights-reviewer',true,true,true,now()+interval '1 day'
+);
+
 -- No raw media or conversations may silently grow into business truth.
 DO $$
 BEGIN
