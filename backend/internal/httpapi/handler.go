@@ -20,7 +20,7 @@ import (
 )
 
 type Options struct {
-	Academy academyStore
+	Academy                     academyStore
 	CommitSHA                   string
 	ReleaseTrack                string
 	Surfaces                    []string
