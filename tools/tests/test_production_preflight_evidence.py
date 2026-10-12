@@ -86,7 +86,9 @@ class ProductionPreflightEvidenceTests(unittest.TestCase):
         self.assertEqual(evidence["schema_version"], "production-preflight-evidence-v1")
         self.assertEqual(evidence["candidate_sha"], "a" * 40)
         self.assertEqual(evidence["release_profile"], "R0")
-        self.assertTrue(evidence["production_promotion_eligible"])
+        self.assertFalse(evidence["production_promotion_eligible"])
+        self.assertEqual(evidence["gate_stage"], "CONFIG_PREFLIGHT_ONLY")
+        self.assertTrue(evidence["requires_launch_assurance"])
         self.assertFalse(evidence["production_release"])
         self.assertEqual(
             set(evidence["policy_artifacts"]),

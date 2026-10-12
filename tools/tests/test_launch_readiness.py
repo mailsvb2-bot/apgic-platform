@@ -129,6 +129,13 @@ class LaunchReadinessTests(unittest.TestCase):
                  preflight_evidence=self.preflight)
         self.assertIn("R4_REAL_PROVIDER_PROOF_MISSING", report["blockers"])
 
+    def test_strict_checkout_prevents_forged_candidate_provenance(self):
+        with patch.object(launch.subprocess, "check_output", return_value="b" * 40 + "\\n"):
+            with self.assertRaisesRegex(ValueError, "differs"):
+                launch.verify_strict_checkout(self.sha)
+        with patch.object(launch.subprocess, "check_output", return_value=self.sha + "\\n"):
+            launch.verify_strict_checkout(self.sha)
+
     def test_real_frozen_baseline_must_not_claim_ready(self):
         root = SCRIPT.parents[1]
         registry = yaml.safe_load((root / "canon/requirements/registry.yaml").read_text(encoding="utf-8"))

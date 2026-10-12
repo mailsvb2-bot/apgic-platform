@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 import sys
 from collections import Counter
 from datetime import datetime, timezone
@@ -181,6 +182,20 @@ def render_summary(report: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def verify_strict_checkout(candidate_sha: str) -> None:
+    """The claimed candidate must be the code actually under assessment."""
+    if not SHA_RE.fullmatch(candidate_sha):
+        raise ValueError("strict candidate must be an exact lowercase SHA")
+    try:
+        head = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True, stderr=subprocess.DEVNULL,
+        ).strip()
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise ValueError("strict assessment requires an auditable Git checkout") from exc
+    if head != candidate_sha:
+        raise ValueError("strict candidate differs from the checked-out Git HEAD")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--candidate-sha", required=True)
@@ -192,6 +207,8 @@ def main() -> int:
                         help="Fail closed if anything prevents production launch (R0-R4)")
     args = parser.parse_args()
     try:
+        if args.strict:
+            verify_strict_checkout(args.candidate_sha)
         registry = load_yaml(ROOT / "canon/requirements/registry.yaml")
         coverage = json.loads((ROOT / "canon/requirements/coverage.json").read_text(encoding="utf-8"))
         index = load_yaml(ROOT / "canon/evidence/production-evidence-index.yaml")
