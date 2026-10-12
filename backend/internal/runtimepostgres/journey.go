@@ -725,16 +725,18 @@ func (c *Checker) AcquireHold(hold *demand.Hold, slot demand.Slot, now time.Time
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), journeyWriteTimeout)
 	defer cancel()
+	// The canonical slot hold and its attributed source must commit together.
+	tx, err := c.db.BeginTx(ctx, nil)
+	if err != nil {
+		return "", fmt.Errorf("begin source-attributed hold: %w", err)
+	}
+	defer tx.Rollback()
 	var acquired bool
 	var reason string
-	if err := c.db.QueryRowContext(ctx,
+	if err := tx.QueryRowContext(ctx,
 		`SELECT acquired, reason_code
 		 FROM apgic_acquire_slot_hold($1::uuid, $2::uuid, $3::uuid, $4, $5)`,
-		hold.ID,
-		slotID,
-		hold.ClientIdentityID,
-		hold.ExpiresAt,
-		now,
+		hold.ID, slotID, hold.ClientIdentityID, hold.ExpiresAt, now,
 	).Scan(&acquired, &reason); err != nil {
 		if strings.Contains(err.Error(), "live booking offer no longer eligible") {
 			return "BOOK_SLOT_NOT_AVAILABLE", nil
@@ -743,6 +745,30 @@ func (c *Checker) AcquireHold(hold *demand.Hold, slot demand.Slot, now time.Time
 	}
 	if !acquired {
 		return reason, nil
+	}
+	if hold.HelpIntentID != "" {
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO growth_hold_attribution (
+				hold_id,intent_id,touch_id,link_id,source,recorded_at
+			)
+			SELECT $1::uuid,i.id,a.touch_id,a.link_id,l.acquisition_source,$5
+			  FROM help_intents i
+			  JOIN growth_intent_attribution a ON a.intent_id=i.id
+			  JOIN growth_links l ON l.id=a.link_id
+			  JOIN booking_slots slot ON slot.id=$2::uuid
+			 WHERE i.id=$3::uuid
+			   AND i.identity_id=$4::uuid
+			   AND i.state='CONFIRMED'
+			   AND slot.tenant_scope='specialist/live'
+			   AND slot.specialist_offer_id=l.specialist_offer_id
+			 ON CONFLICT (hold_id) DO NOTHING`,
+			hold.ID, slotID, hold.HelpIntentID, hold.ClientIdentityID, now.UTC(),
+		); err != nil {
+			return "", fmt.Errorf("persist verified booking attribution: %w", err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return "", fmt.Errorf("commit source-attributed hold: %w", err)
 	}
 	return "BOOK_HOLD_ACQUIRED", nil
 }
