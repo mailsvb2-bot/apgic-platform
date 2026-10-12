@@ -8,7 +8,7 @@ import (
 func TestGrowthRequiresExplicitEnabledAndIndependentStrongKey(t *testing.T) {
 	cases := []struct {
 		name, enabled, key string
-		accept bool
+		accept             bool
 	}{
 		{name: "disabled", enabled: "0", accept: true},
 		{name: "legacy disabled", accept: true},
