@@ -400,7 +400,7 @@ func TestAcademyStoreRefundWithdrawsLearningAccess(t *testing.T) {
  JOIN store_entitlements t ON t.id=e.entitlement_id
  JOIN store_subscription_projections p ON p.entitlement_id=t.id
  WHERE e.identity_id=$1::uuid AND c.product_id=$2::uuid`, learner, product).
- Scan(&enrollmentID, &entitlementState, &projectedState, &effectiveState)
+		Scan(&enrollmentID, &entitlementState, &projectedState, &effectiveState)
 	if err != nil {
 		t.Fatalf("previously completed paid journey must remain durable after refund: %v", err)
 	}
