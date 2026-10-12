@@ -146,7 +146,6 @@ func (c *Checker) ReadConsultationResult(ctx context.Context, bookingID, clientI
 	return &result, nil
 }
 
-	
 // requireCapturedConsultationEntitlement holds the booking row lock until the
 // caller's connector-delivery transaction commits. This serialises the
 // admission decision against a competing booking cancellation/expiration.

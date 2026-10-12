@@ -123,7 +123,7 @@ test("help intent journey stays usable and accessible", async ({ page }) => {
   await expect(page.getByText("PENDING_PAYMENT", {exact: true})).toBeVisible();
   await page.getByRole("button", { name: "Зафиксировать подтверждение внешнего провайдера" }).click();
   await expect(page.getByRole("heading", { name: "Бронь подтверждена провайдером" })).toBeVisible();
-  await expect(page.getByText("CONFIRMED")).toBeVisible();
+  await expect(page.locator(".consultation-stage .booking-summary").getByText("CONFIRMED", {exact: true})).toBeVisible();
   await page.getByRole("button", { name: "Зафиксировать подтверждение внешнего провайдера" }).click();
   await expect(page.getByText("Повтор: уже учтён.")).toBeVisible();
   await expect(page.getByText("Служебное уведомление о брони отправлено без маркетингового согласия.")).toBeVisible();

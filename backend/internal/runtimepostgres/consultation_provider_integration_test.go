@@ -5,6 +5,7 @@ import (
 	"crypto/ed25519"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -426,6 +427,17 @@ func TestSignedConsultationPersistsAcrossAPIStoreRestart(t *testing.T) {
 		t.Fatalf("reopened canonical journey after API restart: %v", err)
 	}
 	secondAPI := httpapi.New(httpapi.Options{Demand: restartedDemand, ConsultationProvider: restarted, ClientSessionKey: sessionKey})
+	// The authenticated owner must recover the exact captured financial truth
+	// after creating a *new* API instance, rather than trusting a booking flag.
+	persistedOrder, err := restartedDemand.ReadOrderForBooking(hold.BookingID, intent.ClientIdentityID)
+	if err != nil || persistedOrder == nil || persistedOrder.BookingID != hold.BookingID ||
+		persistedOrder.OrderID != checkout.OrderID || persistedOrder.PaymentState != "CAPTURED" ||
+		persistedOrder.BookingState != booking.StateConfirmed || persistedOrder.RefundState != "" {
+		t.Fatalf("restarted signed payment chain did not retain capture: %#v err=%v", persistedOrder, err)
+	}
+	if outsider, err := restartedDemand.ReadOrderForBooking(hold.BookingID, "foreign-client"); !errors.Is(err, demand.ErrOrderNotFound) || outsider != nil {
+		t.Fatalf("foreign account recovered signed payment chain: %#v err=%v", outsider, err)
+	}
 	// Full paid user journey remains available by direct booking ID after
 	// PostgreSQL connection/API restart; no browser sessionStorage token needed.
 	bookingRead := httptest.NewRequest(http.MethodGet, "/v1/bookings/"+hold.BookingID, nil)
