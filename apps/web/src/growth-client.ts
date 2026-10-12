@@ -15,6 +15,6 @@ export function growthTarget(topic:string):string {
 export function growthURL(path:string,origin:string):string {
   if(!/^\/g\/g1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(path))throw Error("GROWTH_LINK_INVALID");
   const o=new URL(origin);
-  if(o.protocol!=="https:" && o.hostname!=="localhost")throw Error("GROWTH_ORIGIN_INVALID");
+  if(o.protocol!=="https:" && !["localhost","127.0.0.1","[::1]"].includes(o.hostname))throw Error("GROWTH_ORIGIN_INVALID");
   return new URL(path,o.origin).toString();
 }
