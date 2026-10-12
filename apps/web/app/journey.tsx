@@ -329,6 +329,10 @@ export function Journey() {
 
   async function interpret(event: FormEvent) {
     event.preventDefault();
+    // Starting a different journey invalidates even an in-flight availability
+    // HTTP response; the previous specialist may not be made bookable later.
+    ++selectedAvailabilityRequest.current;
+    setSlotAvailability("IDLE");
     setError("");
     setPending(true);
     sessionStorage.removeItem("apgic:current-hold-id");
@@ -368,6 +372,8 @@ export function Journey() {
   async function confirm(event: FormEvent) {
     event.preventDefault();
     if (!intent) return;
+    ++selectedAvailabilityRequest.current;
+    setSlotAvailability("IDLE");
     setError("");
     setPending(true);
     // Never leave matches from the previous confirmation actionable while
@@ -518,7 +524,8 @@ export function Journey() {
   }
 
   async function acquire(slot: Slot) {
-    if (!intent) return;
+    // Never create a hold from a stale or unverified specialist slot card.
+    if (!intent || slotAvailability !== "AVAILABLE" || !slots.some((item) => item.id === slot.id)) return;
     setError("");
     setPending(true);
     sessionStorage.removeItem("apgic:current-hold-id");
@@ -1026,7 +1033,7 @@ export function Journey() {
             <p role="alert">Не удалось подтвердить свободное время. Пока сервер не ответит, бронирование недоступно.</p>
           ) : null}
           {(slotAvailability === "EMPTY" || slotAvailability === "UNAVAILABLE") ? (
-            <button type="button" disabled={pending} onClick={() => void choose(specialist)}>
+            <button type="button" disabled={pending} onClick={() => { if (specialist) void choose(specialist); }}>
               Повторить загрузку расписания
             </button>
           ) : null}
