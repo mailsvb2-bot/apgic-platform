@@ -24,6 +24,7 @@ CREATE TABLE avatar_sessions (
  session_purpose text NOT NULL CHECK (session_purpose IN ('LISTEN','ORGANIZE_THOUGHTS','PREPARE_HUMAN','WAIT_FOR_HUMAN','NAVIGATE')),
  privacy_mode text NOT NULL DEFAULT 'PRIVATE_EPHEMERAL' CHECK (privacy_mode='PRIVATE_EPHEMERAL'),
  mode text NOT NULL CHECK (mode IN ('VIDEO','VOICE','TEXT')),
+ style text NOT NULL CHECK (style IN ('CALM','NEUTRAL','BUSINESS','WARM')),
  language text NOT NULL,
  voice_profile text NOT NULL,
  visual_profile text NOT NULL,
@@ -72,10 +73,10 @@ BEGIN
    OR NEW.ended_at IS NOT NULL THEN RAISE EXCEPTION 'new avatar session must be pending'; END IF;
  ELSE
   IF (NEW.id,NEW.user_id,NEW.persona_id,NEW.provider_instance_id,NEW.idempotency_key,NEW.session_purpose,
-   NEW.privacy_mode,NEW.language,NEW.voice_profile,NEW.visual_profile,NEW.created_at,NEW.policy_version)
+   NEW.privacy_mode,NEW.style,NEW.language,NEW.voice_profile,NEW.visual_profile,NEW.created_at,NEW.policy_version)
      IS DISTINCT FROM
      (OLD.id,OLD.user_id,OLD.persona_id,OLD.provider_instance_id,OLD.idempotency_key,OLD.session_purpose,
-   OLD.privacy_mode,OLD.language,OLD.voice_profile,OLD.visual_profile,OLD.created_at,OLD.policy_version)
+   OLD.privacy_mode,OLD.style,OLD.language,OLD.voice_profile,OLD.visual_profile,OLD.created_at,OLD.policy_version)
   THEN RAISE EXCEPTION 'immutable avatar session identity/context';END IF;
   IF OLD.state='PENDING' AND NEW.state NOT IN ('ACTIVE','FAILED') OR
      OLD.state='ACTIVE' AND NEW.state <> 'ENDED' OR

@@ -36,3 +36,8 @@ rights-cleared catalogue, signed provider event verification, real
 native/web transport proof, provider deletion/TTL and kill-switch
 tests, safety/anti-dependency evaluation, incident runbook and
 consent/economic model. Do not silently mark VERIFIED or RELEASED.
+
+The chosen language, voice/visual profiles and **style** are immutable
+business context and forwarded to PersonaProvider; style cannot silently
+be ignored by the connector. Actual policy/model adherence requires provider
+evaluation before release.

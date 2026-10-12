@@ -25,7 +25,7 @@ func (s *personaStoreFake) ListPersonas(context.Context) ([]persona.CatalogItem,
 func (s *personaStoreFake) BeginAvatar(_ context.Context, id, provider, _, policy string, request persona.Start) (persona.Session, error) {
 	s.owner = id
 	s.session = persona.Session{ID: "fake", UserID: id, PersonaID: request.PersonaID, ProviderInstanceID: provider,
-		Purpose: request.Purpose, PrivacyMode: request.PrivacyMode, Mode: request.Mode, Language: request.Language,
+		Purpose: request.Purpose, PrivacyMode: request.PrivacyMode, Mode: request.Mode, Style: request.Style, Language: request.Language,
 		VoiceProfile: "voice", VisualProfile: "visual", State: persona.StatePending, PolicyVersion: policy}
 	return s.session, nil
 }

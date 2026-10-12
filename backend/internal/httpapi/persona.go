@@ -85,7 +85,7 @@ func registerPersona(mux *http.ServeMux, store PersonaStore, provider connector.
 		}
 		result, err := provider.Open(r.Context(), connector.PersonaOpen{
 			APGICSessionID: session.ID, PersonaID: session.PersonaID, Purpose: session.Purpose,
-			PrivacyMode: session.PrivacyMode, Mode: session.Mode, Language: session.Language,
+			PrivacyMode: session.PrivacyMode, Mode: session.Mode, Style: session.Style, Language: session.Language,
 			VoiceProfile: session.VoiceProfile, VisualProfile: session.VisualProfile, PolicyVersion: cfg.PolicyVersion,
 		})
 		if err != nil {

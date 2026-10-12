@@ -83,10 +83,10 @@ func (c *Checker) BeginAvatar(ctx context.Context, userID, providerID, idempoten
 	var inserted string
 	err = tx.QueryRowContext(ctx, `INSERT INTO avatar_sessions
  (id,user_id,persona_id,provider_instance_id,idempotency_key,session_purpose,privacy_mode,
- mode,language,voice_profile,visual_profile,state,safety_state,policy_version)
- VALUES($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5,$6,$7,$8,$9,$10,$11,'PENDING','NORMAL',$12)
+ mode,style,language,voice_profile,visual_profile,state,safety_state,policy_version)
+ VALUES($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5,$6,$7,$8,$9,$10,$11,$12,'PENDING','NORMAL',$13)
  ON CONFLICT (user_id,idempotency_key) DO NOTHING RETURNING id::text`,
-		id, userID, s.PersonaID, providerID, idempotencyKey, s.Purpose, s.PrivacyMode, s.Mode, s.Language,
+		id, userID, s.PersonaID, providerID, idempotencyKey, s.Purpose, s.PrivacyMode, s.Mode, s.Style, s.Language,
 		catalog.VoiceProfile, catalog.VisualProfile, policyVersion).Scan(&inserted)
 	if errors.Is(err, sql.ErrNoRows) {
 		return persona.Session{}, persona.ErrIdempotency
@@ -101,7 +101,7 @@ func (c *Checker) BeginAvatar(ctx context.Context, userID, providerID, idempoten
 		return persona.Session{}, err
 	}
 	return persona.Session{ID: id, UserID: userID, PersonaID: s.PersonaID, ProviderInstanceID: providerID,
-		Purpose: s.Purpose, PrivacyMode: s.PrivacyMode, Mode: s.Mode, Language: s.Language,
+		Purpose: s.Purpose, PrivacyMode: s.PrivacyMode, Mode: s.Mode, Style: s.Style, Language: s.Language,
 		VoiceProfile: catalog.VoiceProfile, VisualProfile: catalog.VisualProfile, State: persona.StatePending,
 		SafetyState: "NORMAL", PolicyVersion: policyVersion}, nil
 }
@@ -185,11 +185,11 @@ func (c *Checker) ReadAvatar(ctx context.Context, id, owner string) (persona.Ses
 	var started, ended, handoff, waitlist sql.NullTime
 	var ref sql.NullString
 	err := c.db.QueryRowContext(ctx, `SELECT id::text,user_id::text,persona_id::text,provider_instance_id::text,
- provider_session_ref,session_purpose,privacy_mode,mode,language,voice_profile,visual_profile,state,safety_state,
+ provider_session_ref,session_purpose,privacy_mode,mode,style,language,voice_profile,visual_profile,state,safety_state,
  created_at,started_at,ended_at,handoff_requested_at,waitlist_requested_at,policy_version
  FROM avatar_sessions WHERE id=$1::uuid AND user_id=$2::uuid`, id, owner).
 		Scan(&s.ID, &s.UserID, &s.PersonaID, &s.ProviderInstanceID, &ref, &s.Purpose, &s.PrivacyMode,
-			&s.Mode, &s.Language, &s.VoiceProfile, &s.VisualProfile, &s.State, &s.SafetyState,
+			&s.Mode, &s.Style, &s.Language, &s.VoiceProfile, &s.VisualProfile, &s.State, &s.SafetyState,
 			&s.CreatedAt, &started, &ended, &handoff, &waitlist, &s.PolicyVersion)
 	if errors.Is(err, sql.ErrNoRows) {
 		return persona.Session{}, persona.ErrNotFound

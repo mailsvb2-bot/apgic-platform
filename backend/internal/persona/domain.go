@@ -72,6 +72,7 @@ type Session struct {
 	Purpose             string     `json:"session_purpose"`
 	PrivacyMode         string     `json:"privacy_mode"`
 	Mode                string     `json:"mode"`
+	Style               string     `json:"style"`
 	Language            string     `json:"language"`
 	VoiceProfile        string     `json:"voice_profile"`
 	VisualProfile       string     `json:"visual_profile"`
