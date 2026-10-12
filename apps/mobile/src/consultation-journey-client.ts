@@ -92,3 +92,30 @@ export async function recordClientOutcome(config: BookingClientConfig, bookingID
       !r.reported_at || !Number.isFinite(Date.parse(r.reported_at))) throw new Error("CONSULT_OUTCOME_INVALID");
   return r as ClientOutcome;
 }
+
+export type CommunicationJoinGrant = {
+  booking_id: string; provider_instance_id: string; join_uri: string;
+  credential_scope: "ROOM_JOIN"; credential_expires_at: string; reason_code: string;
+};
+export async function requestConsultationJoin(config: BookingClientConfig, bookingID: string,
+  idempotencyKey: string, request: Transport = transportDefault): Promise<CommunicationJoinGrant> {
+  if (idempotencyKey.length < 16 || idempotencyKey.length > 128 || /\\s/.test(idempotencyKey)) {
+    throw new Error("COMM_JOIN_KEY_INVALID");
+  }
+  const url = endpoint(config, bookingID, "ready").replace(/\\/ready$/, "/join");
+  const response = await request(url, {
+    method: "POST", credentials: "include", cache: "no-store",
+    headers: {Accept:"application/json", "X-APGIC-Request":"consultation-v1",
+      "Idempotency-Key":idempotencyKey,
+      ...(config.sessionCookie ? {Cookie:config.sessionCookie} : {})},
+  });
+  readOrThrow(response.status);
+  const v: unknown = await response.json();
+  const g = v as Partial<CommunicationJoinGrant> | null;
+  if (!g || g.booking_id!==bookingID || g.credential_scope!=="ROOM_JOIN" ||
+      !g.provider_instance_id || !g.join_uri || !g.join_uri.startsWith("https://") ||
+      !g.credential_expires_at || !Number.isFinite(Date.parse(g.credential_expires_at))) {
+    throw new Error("COMM_JOIN_GRANT_INVALID");
+  }
+  return g as CommunicationJoinGrant;
+}

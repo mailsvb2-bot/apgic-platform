@@ -25,6 +25,7 @@ export default function ConsultationJourney({ bookingID }: { bookingID: string }
   const [ready, setReady] = useState<Readiness | null>(null);
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
+  const [joinLink, setJoinLink] = useState("");
   const [verifiedCompletion, setVerifiedCompletion] = useState(false);
   const pendingFeedback = useRef<{ key: string; fingerprint: string } | null>(null);
   const [progress, setProgress] = useState("0");
@@ -34,6 +35,7 @@ export default function ConsultationJourney({ bookingID }: { bookingID: string }
   useEffect(() => {
     let active = true;
     setReady(null); setOutcome(null); setStatus(""); setOutcomeStatus(""); setVerifiedCompletion(false);
+    setJoinLink("");
     pendingFeedback.current = null;
     void fetch(`/v1/consultations/${encodeURIComponent(bookingID)}/ready`, { credentials: "include", cache: "no-store" })
       .then(async (r) => {
@@ -83,6 +85,27 @@ export default function ConsultationJourney({ bookingID }: { bookingID: string }
     finally { setBusy(false); }
   }
 
+  async function startJoin() {
+    setBusy(true); setJoinLink(""); setStatus("");
+    try {
+      const key = `consultation-join:${crypto.randomUUID()}`;
+      const response = await fetch(`/v1/consultations/${encodeURIComponent(bookingID)}/join`, {
+        method: "POST", credentials: "include", cache: "no-store",
+        headers: { "X-APGIC-Request": "consultation-v1", "Idempotency-Key": key },
+      });
+      const data: unknown = await response.json();
+      const candidate = data as { join_uri?: string; booking_id?: string; credential_scope?: string };
+      if (!response.ok || candidate.booking_id !== bookingID ||
+          candidate.credential_scope !== "ROOM_JOIN" ||
+          typeof candidate.join_uri !== "string" || !candidate.join_uri.startsWith("https://")) {
+        throw new Error("NO_VALID_GRANT");
+      }
+      setJoinLink(candidate.join_uri);
+      setStatus("Доступ к комнате выдан внешним сервисом связи.");
+    } catch { setStatus("Вход пока не подтверждён. Проверьте время записи и подключение сервиса связи. Повторная оплата не нужна."); }
+    finally { setBusy(false); }
+  }
+
   async function reportOutcome() {
     setBusy(true); setOutcomeStatus("");
     try {
@@ -118,6 +141,11 @@ export default function ConsultationJourney({ bookingID }: { bookingID: string }
           <p>Окно готовности: {new Date(ready.opens_at).toLocaleString("ru-RU")} – {new Date(ready.closes_at).toLocaleString("ru-RU")}.</p>
           {ready.booking_state === "CONFIRMED" ? (
             <button type="button" disabled={busy} onClick={() => void confirmReady()}>Я готов</button>
+            {((ready.role === "CLIENT" && ready.client_ready_at) ||
+              (ready.role === "SPECIALIST" && ready.specialist_ready_at)) ? (
+              <button type="button" disabled={busy} onClick={() => void startJoin()}>Получить вход в консультацию</button>
+            ) : null}
+            {joinLink ? <p><a href={joinLink} target="_blank" rel="noopener noreferrer">Открыть защищённую комнату</a></p> : null}
           ) : null}
         </div>
       ) : null}
