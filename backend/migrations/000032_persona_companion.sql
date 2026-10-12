@@ -1,5 +1,41 @@
 -- APGIC business truth only. No transcript/audio/video/prompt/provider token
 -- is stored in these tables. Provider runtime state remains external.
+-- Approved, versioned model/eval/safety and budget evidence; zero default
+-- deployments means no AI starts. No shadow model selection is allowed.
+CREATE TABLE persona_model_deployments (
+ policy_version text PRIMARY KEY CHECK (btrim(policy_version) <> ''),
+ connector_instance_id uuid NOT NULL REFERENCES connector_instances(id),
+ provider_kind text NOT NULL CHECK (btrim(provider_kind) <> ''),
+ model_id text NOT NULL CHECK (btrim(model_id) <> ''),
+ model_version text NOT NULL CHECK (btrim(model_version) <> ''),
+ config_version text NOT NULL CHECK (btrim(config_version) <> ''),
+ eval_suite_version text NOT NULL CHECK (btrim(eval_suite_version) <> ''),
+ eval_evidence_ref text NOT NULL CHECK (btrim(eval_evidence_ref) <> ''),
+ safety_policy_version text NOT NULL CHECK (btrim(safety_policy_version) <> ''),
+ budget_policy_version text NOT NULL CHECK (btrim(budget_policy_version) <> ''),
+ starts_per_identity_hour integer NOT NULL CHECK (starts_per_identity_hour BETWEEN 1 AND 60),
+ max_concurrent_per_identity integer NOT NULL CHECK (max_concurrent_per_identity BETWEEN 1 AND 5),
+ state text NOT NULL CHECK (state IN ('ACTIVE','PAUSED','REVOKED')),
+ approved_at timestamptz NOT NULL,
+ created_at timestamptz NOT NULL DEFAULT now(),
+ CHECK (approved_at <= created_at + interval '5 minutes')
+);
+CREATE INDEX persona_model_deployments_connector_state_idx ON persona_model_deployments(connector_instance_id,state);
+CREATE TRIGGER persona_model_deployments_append_only
+ BEFORE UPDATE OR DELETE ON persona_model_deployments
+ FOR EACH ROW EXECUTE FUNCTION apgic_reject_mutation();
+-- Append-only kill-switch decisions. A paused/revoked model never starts new
+-- sessions; only a NEW policy_version can re-enable a reviewed deployment.
+CREATE TABLE persona_model_disable_decisions (
+ id uuid PRIMARY KEY,
+ policy_version text NOT NULL REFERENCES persona_model_deployments(policy_version),
+ reason_code text NOT NULL CHECK (btrim(reason_code) <> ''),
+ decided_at timestamptz NOT NULL DEFAULT now(),
+ reviewer_ref text NOT NULL CHECK (btrim(reviewer_ref) <> '')
+);
+CREATE TRIGGER persona_model_disable_decisions_append_only
+ BEFORE UPDATE OR DELETE ON persona_model_disable_decisions
+ FOR EACH ROW EXECUTE FUNCTION apgic_reject_mutation();
 CREATE TABLE persona_catalog (
  id uuid PRIMARY KEY,
  label text NOT NULL CHECK (btrim(label) <> ''),
@@ -68,6 +104,11 @@ BEGIN
   END IF;
   IF NOT EXISTS (SELECT 1 FROM persona_catalog WHERE id=NEW.persona_id AND state='PUBLISHED') THEN
    RAISE EXCEPTION 'published rights-cleared persona required';
+  END IF;
+  IF NOT EXISTS(SELECT 1 FROM persona_model_deployments p WHERE p.policy_version=NEW.policy_version
+   AND p.connector_instance_id=NEW.provider_instance_id AND p.state='ACTIVE'
+   AND NOT EXISTS(SELECT 1 FROM persona_model_disable_decisions d WHERE d.policy_version=p.policy_version)) THEN
+   RAISE EXCEPTION 'approved active persona model policy required';
   END IF;
   IF NEW.state <> 'PENDING' OR NEW.started_at IS NOT NULL OR NEW.provider_session_ref IS NOT NULL
    OR NEW.ended_at IS NOT NULL THEN RAISE EXCEPTION 'new avatar session must be pending'; END IF;

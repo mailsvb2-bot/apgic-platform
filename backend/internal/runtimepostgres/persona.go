@@ -11,13 +11,18 @@ import (
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/persona"
 )
 
-func (c *Checker) ListPersonas(ctx context.Context) ([]persona.CatalogItem, error) {
+func (c *Checker) ListPersonas(ctx context.Context, providerID, policyVersion string) ([]persona.CatalogItem, error) {
 	if c == nil || c.db == nil {
 		return nil, persona.ErrUnavailable
 	}
 	rows, err := c.db.QueryContext(ctx, `SELECT id::text,label,language,voice_profile,visual_profile,
  supports_video,supports_voice,supports_text FROM persona_catalog WHERE state='PUBLISHED'
- ORDER BY label,id LIMIT 100`)
+ AND EXISTS (SELECT 1 FROM persona_model_deployments md JOIN connector_instances ci
+ ON ci.id=md.connector_instance_id WHERE md.policy_version=$2
+ AND md.connector_instance_id=$1::uuid AND md.state='ACTIVE'
+ AND ci.capability_class='PERSONA_PROVIDER' AND ci.status='ACTIVE'
+ AND NOT EXISTS (SELECT 1 FROM persona_model_disable_decisions d WHERE d.policy_version=md.policy_version))
+ ORDER BY label,id LIMIT 100`, providerID, policyVersion)
 	if err != nil {
 		return nil, err
 	}
@@ -80,6 +85,28 @@ func (c *Checker) BeginAvatar(ctx context.Context, userID, providerID, idempoten
 	if !active {
 		return persona.Session{}, persona.ErrUnavailable
 	}
+	// A per-identity transactional advisory lock makes budget and concurrent
+	// admission deterministic under concurrent POSTs, without cache truth.
+	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, "persona/"+userID); err != nil {
+		return persona.Session{}, err
+	}
+	var startsPerHour, activeLimit int
+	err = tx.QueryRowContext(ctx, `SELECT starts_per_identity_hour,max_concurrent_per_identity
+	FROM persona_model_deployments md WHERE md.policy_version=$1
+	AND md.connector_instance_id=$2::uuid AND md.state='ACTIVE'
+	AND NOT EXISTS (SELECT 1 FROM persona_model_disable_decisions d WHERE d.policy_version=md.policy_version)`,
+		policyVersion, providerID).Scan(&startsPerHour, &activeLimit)
+	if errors.Is(err, sql.ErrNoRows) {
+		return persona.Session{}, persona.ErrUnavailable
+	}
+	if err != nil { return persona.Session{}, err }
+	var hourlyCount, activeCount int
+	err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FILTER (WHERE created_at > now()-interval '1 hour'),
+	COUNT(*) FILTER (WHERE state IN ('PENDING','ACTIVE'))
+	FROM avatar_sessions WHERE user_id=$1::uuid`, userID).Scan(&hourlyCount, &activeCount)
+	if err != nil { return persona.Session{}, err }
+	if hourlyCount >= startsPerHour { return persona.Session{}, persona.ErrBudgetExceeded }
+	if activeCount >= activeLimit { return persona.Session{}, persona.ErrConcurrencyExceeded }
 	var inserted string
 	err = tx.QueryRowContext(ctx, `INSERT INTO avatar_sessions
  (id,user_id,persona_id,provider_instance_id,idempotency_key,session_purpose,privacy_mode,

@@ -24,6 +24,8 @@ var (
 	ErrUnavailable    = errors.New("PERSONA_NOT_CONFIGURED")
 	ErrConflict       = errors.New("PERSONA_STATE_CONFLICT")
 	ErrIdempotency    = errors.New("PERSONA_IDEMPOTENCY_CONFLICT")
+	ErrBudgetExceeded = errors.New("PERSONA_BUDGET_EXHAUSTED")
+	ErrConcurrencyExceeded = errors.New("PERSONA_CONCURRENT_LIMIT")
 )
 var codePattern = regexp.MustCompile(`^[a-z]{2}(-[A-Z]{2})?$`)
 

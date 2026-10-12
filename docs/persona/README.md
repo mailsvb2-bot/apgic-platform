@@ -41,3 +41,16 @@ The chosen language, voice/visual profiles and **style** are immutable
 business context and forwarded to PersonaProvider; style cannot silently
 be ignored by the connector. Actual policy/model adherence requires provider
 evaluation before release.
+
+## Model registry, launch admission and kill switch
+
+Before publishing any persona or setting APGIC_PERSONA_ENABLED=1,
+provision one reviewed `persona_model_deployments` row for its provider and
+policy version, containing model/config/safety/eval evidence, positive
+per-identity hourly start budget and concurrent-session limit. The schema
+has **no fixture or silent default model**. An append-only
+`persona_model_disable_decisions` record immediately stops new starts
+for that policy without rewriting history. Re-enable only through a newly
+approved policy version. PostgreSQL admission is serialized by Identity
+under a transaction-level advisory lock to prevent concurrent budget
+bypass. Releasing an active session requires the canonical END flow.

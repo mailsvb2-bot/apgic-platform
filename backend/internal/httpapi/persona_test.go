@@ -19,7 +19,7 @@ type personaStoreFake struct {
 	catalog []persona.CatalogItem
 }
 
-func (s *personaStoreFake) ListPersonas(context.Context) ([]persona.CatalogItem, error) {
+func (s *personaStoreFake) ListPersonas(context.Context, string, string) ([]persona.CatalogItem, error) {
 	return s.catalog, nil
 }
 func (s *personaStoreFake) BeginAvatar(_ context.Context, id, provider, _, policy string, request persona.Start) (persona.Session, error) {

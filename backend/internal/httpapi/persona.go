@@ -12,7 +12,7 @@ import (
 )
 
 type PersonaStore interface {
-	ListPersonas(context.Context) ([]persona.CatalogItem, error)
+	ListPersonas(context.Context, string, string) ([]persona.CatalogItem, error)
 	BeginAvatar(context.Context, string, string, string, string, persona.Start) (persona.Session, error)
 	ActivateAvatar(context.Context, string, string, string, string) error
 	FailAvatar(context.Context, string, string) error
@@ -39,7 +39,7 @@ func registerPersona(mux *http.ServeMux, store PersonaStore, provider connector.
 			writeJSON(w, http.StatusOK, map[string]any{"available": false, "reason_code": "PERSONA_NOT_CONFIGURED", "personas": []persona.CatalogItem{}})
 			return
 		}
-		items, err := store.ListPersonas(r.Context())
+		items, err := store.ListPersonas(r.Context(), cfg.ProviderInstanceID, cfg.PolicyVersion)
 		if err != nil {
 			writePersonaError(w, r, err)
 			return
@@ -201,6 +201,10 @@ func writePersonaError(w http.ResponseWriter, r *http.Request, err error) {
 		writeDemandError(w, r, 404, "PERSONA_NOT_FOUND", "Аватар или сессия не найдены.", false, nil)
 	case errors.Is(err, persona.ErrIdempotency):
 		writeDemandError(w, r, 409, "PERSONA_IDEMPOTENCY_CONFLICT", "Повторный запрос уже обработан; создайте новый ключ для новой сессии.", false, nil)
+	case errors.Is(err, persona.ErrBudgetExceeded):
+		writeDemandError(w, r, 429, "PERSONA_BUDGET_EXHAUSTED", "Лимит запусков ИИ-персонажа исчерпан. Вы можете обратиться к живому специалисту.", false, nil)
+	case errors.Is(err, persona.ErrConcurrencyExceeded):
+		writeDemandError(w, r, 409, "PERSONA_CONCURRENT_LIMIT", "Завершите предыдущий разговор перед запуском нового.", false, nil)
 	case errors.Is(err, persona.ErrConflict):
 		writeDemandError(w, r, 409, "PERSONA_STATE_CONFLICT", "Действие недоступно в текущем состоянии.", false, nil)
 	default:
