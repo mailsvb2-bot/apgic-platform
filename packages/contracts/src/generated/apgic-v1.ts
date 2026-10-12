@@ -139,10 +139,6 @@ export interface ClientInstallationList {
   installations: Array<ClientInstallation>;
 }
 
-export interface CompleteConsultationRequest {
-  evidence_ref: string;
-}
-
 export interface ClientPersonalBooking {
   booking_id: string;
   client_progress?: "IMPROVED" | "UNCHANGED" | "WORSE" | "UNSURE";
@@ -198,6 +194,10 @@ export interface ClientPersonalView {
   preferences: ClientPersonalPreferences;
   requests: Array<ClientPersonalRequest>;
   upcoming: Array<ClientPersonalBooking>;
+}
+
+export interface CompleteConsultationRequest {
+  evidence_ref: string;
 }
 
 export interface ConfirmHelpIntentRequest {

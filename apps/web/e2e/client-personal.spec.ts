@@ -17,6 +17,7 @@ test("personal workspace loads owner snapshot, saves preferences and advances hi
     return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({display_name:"Аня",locale:"ru",time_zone:"Europe/Moscow"})});
   });
   await page.route("**/v1/client/personal**",route=>{
+    if(new URL(route.request().url()).pathname!=="/v1/client/personal")return route.fallback();
     const more=new URL(route.request().url()).searchParams.has("history_cursor");
     return route.fulfill({status:200,contentType:"application/json",headers:{"cache-control":"no-store"},body:JSON.stringify(makeView(more))});
   });
@@ -27,7 +28,7 @@ test("personal workspace loads owner snapshot, saves preferences and advances hi
   await expect(page.getByText("Завершена").first()).toBeVisible();
   await page.getByRole("textbox",{name:"Как к вам обращаться"}).fill("Аня");
   await page.getByRole("button",{name:"Сохранить настройки"}).click();
-  expect(saved).toBe(true);
+  await expect.poll(()=>saved).toBe(true);
 });
 test("personal workspace fails closed without signed session",async({page})=>{
   await page.route("**/v1/client/personal",r=>r.fulfill({status:401,body:'{"code":"CLIENT_SESSION_REQUIRED"}'}));

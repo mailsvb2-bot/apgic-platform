@@ -135,23 +135,38 @@ func TestPersonalPreferencesStrictWriteWithoutIdentityOverride(t *testing.T) {
 	}
 }
 
-func (s *personalStoreFixture) CreateClientCheckIn(_ context.Context,identity string,v clientpersonal.CheckInInput)(clientpersonal.CheckIn,error){
-	s.writeOwner=identity;s.writeCalls++
-	return clientpersonal.CheckIn{CheckInInput:v,RecordedAt:time.Now().UTC()},nil
+func (s *personalStoreFixture) CreateClientCheckIn(_ context.Context, identity string, v clientpersonal.CheckInInput) (clientpersonal.CheckIn, error) {
+	s.writeOwner = identity
+	s.writeCalls++
+	return clientpersonal.CheckIn{CheckInInput: v, RecordedAt: time.Now().UTC()}, nil
 }
 
-func TestCheckInRejectsUnsignedAndClinicalClaims(t *testing.T){
-	key:=[]byte(strings.Repeat("q",48));identity:="55555555-5555-4555-8555-555555555555"
-	manager,_:=newClientSessionManager(key,nil);cookie,_:=manager.issue(identity)
-	store:=&personalStoreFixture{};handler:=New(Options{ClientSessionKey:key,ClientPersonal:store})
-	send:=func(body string,signed bool)*httptest.ResponseRecorder{
-		r:=httptest.NewRequest(http.MethodPost,"/v1/client/personal/check-ins",strings.NewReader(body))
-		if signed{r.AddCookie(cookie)};w:=httptest.NewRecorder();handler.ServeHTTP(w,r);return w
+func TestCheckInRejectsUnsignedAndClinicalClaims(t *testing.T) {
+	key := []byte(strings.Repeat("q", 48))
+	identity := "55555555-5555-4555-8555-555555555555"
+	manager, _ := newClientSessionManager(key, nil)
+	cookie, _ := manager.issue(identity)
+	store := &personalStoreFixture{}
+	handler := New(Options{ClientSessionKey: key, ClientPersonal: store})
+	send := func(body string, signed bool) *httptest.ResponseRecorder {
+		r := httptest.NewRequest(http.MethodPost, "/v1/client/personal/check-ins", strings.NewReader(body))
+		if signed {
+			r.AddCookie(cookie)
+		}
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, r)
+		return w
 	}
-	valid:=`{"booking_id":"123e4567-e89b-42d3-a456-426614174001","progress_code":"UNSURE"}`
-	if v:=send(valid,false);v.Code!=401||store.writeCalls!=0{t.Fatal("unsigned check-in accepted")}
-	if v:=send(`{"booking_id":"123e4567-e89b-42d3-a456-426614174001","progress_code":"CURED"}`,true);v.Code!=400||store.writeCalls!=0{t.Fatal("invalid assertion accepted")}
-	if v:=send(valid,true);v.Code!=201||store.writeOwner!=identity{t.Fatalf("owner path rejected: %d %s",v.Code,v.Body.String())}
+	valid := `{"booking_id":"123e4567-e89b-42d3-a456-426614174001","progress_code":"UNSURE"}`
+	if v := send(valid, false); v.Code != 401 || store.writeCalls != 0 {
+		t.Fatal("unsigned check-in accepted")
+	}
+	if v := send(`{"booking_id":"123e4567-e89b-42d3-a456-426614174001","progress_code":"CURED"}`, true); v.Code != 400 || store.writeCalls != 0 {
+		t.Fatal("invalid assertion accepted")
+	}
+	if v := send(valid, true); v.Code != 201 || store.writeOwner != identity {
+		t.Fatalf("owner path rejected: %d %s", v.Code, v.Body.String())
+	}
 }
 
 func TestPersonalAPIFailsClosedWhenPersistenceUnavailable(t *testing.T) {

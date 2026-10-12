@@ -130,8 +130,13 @@ func scanPersonalBookings(rows *sql.Rows) ([]clientpersonal.Booking, error) {
 		if orderID.Valid {
 			b.OrderID = &orderID.String
 		}
-		if progress.Valid { b.ClientProgress = &progress.String }
-		if satisfaction.Valid { n:=int(satisfaction.Int16); b.MatchSatisfaction=&n }
+		if progress.Valid {
+			b.ClientProgress = &progress.String
+		}
+		if satisfaction.Valid {
+			n := int(satisfaction.Int16)
+			b.MatchSatisfaction = &n
+		}
 		out = append(out, b)
 	}
 	if err := rows.Err(); err != nil {
