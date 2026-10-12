@@ -7,6 +7,7 @@ type Module = {id:string;version_id:string;title:string;ordinal:number};
 type Lesson = {id:string;module_id:string;title:string;kind:"READING"|"VIDEO"|"ASSESSMENT";ordinal:number;body?:string;media_asset_ref?:string;completed?:boolean;passing_score?:number};
 type Enrollment = {id:string;version_id:string;state:string};
 type Certificate = {verification_url:string;state:string;evidence_candidate_state:string};
+type ReviewAttempt = {attempt_id:string;enrollment_id:string;lesson_id:string;attempt_no:number;response_text:string;submitted_at:string;rubric_version:string;passing_score:number;course_title:string;lesson_title:string};
 
 async function api<T>(path:string,body?:unknown):Promise<T>{
  const response=await fetch(path,{method:body===undefined?"GET":"POST",
@@ -40,18 +41,21 @@ export default function AcademyPage(){
  const [passingScore,setPassingScore]=useState(80);
  const [attemptResponse,setAttemptResponse]=useState("");
  const [attemptID,setAttemptID]=useState("");
+ const [pendingReviews,setPendingReviews]=useState<ReviewAttempt[]>([]);
  const [evaluationScore,setEvaluationScore]=useState(80);
  const [evaluationEvidence,setEvaluationEvidence]=useState("");
 
  const refresh=useCallback(async()=>{
   const publicCourses=await api<{courses:Course[]}>("/v1/academy/courses");
   setCatalog(publicCourses.courses);
-  const [owned,learning]=await Promise.allSettled([
+  const [owned,learning,reviews]=await Promise.allSettled([
    api<{courses:Course[]}>("/v1/academy/my-courses"),
-   api<{enrollments:Enrollment[]}>("/v1/academy/my-enrollments")
+   api<{enrollments:Enrollment[]}>("/v1/academy/my-enrollments"),
+   api<{attempts:ReviewAttempt[]}>("/v1/academy/review/attempts")
   ]);
   if(owned.status==="fulfilled")setMine(owned.value.courses);
   if(learning.status==="fulfilled")setEnrollments(learning.value.enrollments);
+  if(reviews.status==="fulfilled")setPendingReviews(reviews.value.attempts);
  },[]);
  useEffect(()=>{void refresh().catch(error=>setNotice(String(error)))},[refresh]);
 
@@ -214,6 +218,12 @@ export default function AcademyPage(){
    {certificate&&<p>Сертификат: <a href={certificate.verification_url}>{certificate.verification_url}</a>. Статус профессиональной верификации: {certificate.evidence_candidate_state}.</p>}
   </section>}
   <section className="how-section"><h2>Проверка заданий преподавателем</h2>
+   <div className="how-grid">{pendingReviews.map(item=><article className="panel" key={item.attempt_id}>
+    <h3>{item.course_title} — {item.lesson_title}</h3>
+    <p>Попытка {item.attempt_no}, рубрика {item.rubric_version}, порог {item.passing_score}/100</p>
+    <p style={{whiteSpace:"pre-wrap"}}>{item.response_text}</p>
+    <button disabled={busy} onClick={()=>{setAttemptID(item.attempt_id);setEvaluationScore(item.passing_score)}}>Проверить эту работу</button>
+   </article>)}</div>
    <form className="panel specialist-form" onSubmit={e=>{e.preventDefault();void act(
     ()=>api(`/v1/academy/attempts/${attemptID}/evaluate`,
     {score:evaluationScore,evidence_ref:evaluationEvidence}),
