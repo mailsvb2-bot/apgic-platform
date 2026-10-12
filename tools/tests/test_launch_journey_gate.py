@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from jsonschema import validate as validate_json_schema
 import tempfile
 import unittest
 from datetime import datetime, timezone
@@ -63,6 +64,14 @@ class LaunchJourneyGateTests(unittest.TestCase):
         ok, failures = gate.evaluate(manifest, index, CANDIDATE, root=self.root, now=NOW)
         self.assertFalse(ok)
         self.assertTrue(any(reason in f for f in failures), failures)
+
+    def test_production_evidence_index_schema_accepts_correlated_journey_metadata(self):
+        manifest, idx = self.complete()
+        root = Path(__file__).resolve().parents[2]
+        schema = json.loads((root / "canon/evidence/production-evidence-index-v1.schema.json")
+                            .read_text(encoding="utf-8"))
+        validate_json_schema(idx, schema)
+        self.assertEqual(len(manifest["journeys"]), len(gate.JOURNEYS))
 
     def test_complete_observations_are_admissible_not_launch_authorization(self):
         manifest, idx = self.complete()
