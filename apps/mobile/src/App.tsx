@@ -1,3 +1,4 @@
+import ClientPersonalPanel from "./client-personal-panel.tsx";
 import React, {useCallback, useEffect, useState} from "react";
 import {
   AccessibilityInfo,
@@ -1000,6 +1001,8 @@ export default function App({
         <Text style={styles.body}>
           Одна Identity и одна server truth для iOS, Android, Web и PWA.
         </Text>
+
+        {!infrastructureE2EActive ? <ClientPersonalPanel baseURL={demandAPIBaseURL} /> : null}
 
         {!infrastructureE2EActive ? (
           <View style={styles.demandCard} accessibilityRole="summary">
