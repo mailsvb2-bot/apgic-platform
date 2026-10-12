@@ -713,7 +713,6 @@ func (s *Service) AcquireHold(intentID, slotID, clientIdentityID string) (*Hold,
 	return &copyHold, nil
 }
 
-
 // authorizeLiveSlotForIntentLocked applies the same supply/qualification
 // boundary to a new hold and an idempotent hold replay. It must be called
 // under the service lock, after the canonical live catalog is refreshed.
