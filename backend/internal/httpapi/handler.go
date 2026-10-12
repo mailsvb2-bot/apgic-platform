@@ -20,6 +20,7 @@ import (
 )
 
 type Options struct {
+	Academy academyStore
 	CommitSHA                   string
 	ReleaseTrack                string
 	Surfaces                    []string
@@ -148,6 +149,7 @@ func New(options Options) http.Handler {
 	registerOrganizationAuthorization(mux, options.OrganizationAuth, sessions, sessionConfigErr, options.Now)
 	registerOrganizationRuntime(mux, options.Organizations, sessions, sessionConfigErr)
 	registerOrganizationProducts(mux, options.Products, sessions, sessionConfigErr, options.Now)
+	registerAcademy(mux, options.Academy, sessions, sessionConfigErr)
 	registerHighRiskProductOwnership(mux, options.ProductOwnership, sessions, stepUp, sessionConfigErr, options.Now)
 	return observeRuntimeSLI(mux, sli)
 }
