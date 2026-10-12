@@ -49,12 +49,13 @@ func (c *Checker) ReadClientPersonal(ctx context.Context, identityID string, lim
 	}
 	const bookingColumns = `SELECT b.id::text,b.state,b.starts_at,b.ends_at,
         COALESCE(sp.display_name,'Специалист'),COALESCE(sp.profession_code,''),
-        cs.state,o.id::text
+        cs.state,o.id::text,ci.progress_code,ci.match_satisfaction
         FROM bookings b
         JOIN booking_slots bs ON bs.id=b.slot_id
         LEFT JOIN specialist_profiles sp ON sp.identity_id=bs.specialist_identity_id
         LEFT JOIN consultation_sessions cs ON cs.booking_id=b.id AND cs.client_identity_id=b.client_identity_id
         LEFT JOIN orders o ON o.booking_id=b.id
+        LEFT JOIN client_personal_check_ins ci ON ci.booking_id=b.id AND ci.client_identity_id=b.client_identity_id
         WHERE b.client_identity_id=$1::uuid`
 	upcoming, err := tx.QueryContext(ctx, bookingColumns+` AND b.starts_at >= $2 AND b.state IN ('HELD','PENDING_PAYMENT','CONFIRMED')
         ORDER BY b.starts_at ASC,b.id ASC LIMIT 30`, identityID, now.UTC())
@@ -118,7 +119,9 @@ func scanPersonalBookings(rows *sql.Rows) ([]clientpersonal.Booking, error) {
 	for rows.Next() {
 		var b clientpersonal.Booking
 		var consultationState, orderID sql.NullString
-		if err := rows.Scan(&b.ID, &b.State, &b.StartsAt, &b.EndsAt, &b.SpecialistName, &b.SpecialistProfession, &consultationState, &orderID); err != nil {
+		var progress sql.NullString
+		var satisfaction sql.NullInt16
+		if err := rows.Scan(&b.ID, &b.State, &b.StartsAt, &b.EndsAt, &b.SpecialistName, &b.SpecialistProfession, &consultationState, &orderID, &progress, &satisfaction); err != nil {
 			return nil, fmt.Errorf("scan client booking: %w", err)
 		}
 		if consultationState.Valid {
@@ -127,6 +130,8 @@ func scanPersonalBookings(rows *sql.Rows) ([]clientpersonal.Booking, error) {
 		if orderID.Valid {
 			b.OrderID = &orderID.String
 		}
+		if progress.Valid { b.ClientProgress = &progress.String }
+		if satisfaction.Valid { n:=int(satisfaction.Int16); b.MatchSatisfaction=&n }
 		out = append(out, b)
 	}
 	if err := rows.Err(); err != nil {
