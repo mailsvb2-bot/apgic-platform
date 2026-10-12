@@ -149,7 +149,7 @@ func New(options Options) http.Handler {
 		deepLinkTokens, deepLinkTokenConfigErr = mobile.NewDeepLinkTokenManager(options.DeepLinkSigningKey)
 	}
 	registerMobileDeepLinks(mux, options.DeepLinks, options.MobileWorkspaces, deepLinkTokens, deepLinkTokenConfigErr, sessions, sessionConfigErr, options.Now)
-	registerPersona(mux, options.PersonaStore, options.PersonaProvider, personaAPIConfig{Enabled:options.PersonaEnabled, ProviderInstanceID: options.PersonaProviderInstanceID,PolicyVersion: options.PersonaPolicyVersion}, sessions,sessionConfigErr)
+	registerPersona(mux, options.PersonaStore, options.PersonaProvider, personaAPIConfig{Enabled: options.PersonaEnabled, ProviderInstanceID: options.PersonaProviderInstanceID, PolicyVersion: options.PersonaPolicyVersion}, sessions, sessionConfigErr)
 	registerSpecialist(mux, options.Specialists, sessions, sessionConfigErr)
 	registerOrganizationAuthorization(mux, options.OrganizationAuth, sessions, sessionConfigErr, options.Now)
 	registerOrganizationRuntime(mux, options.Organizations, sessions, sessionConfigErr)
