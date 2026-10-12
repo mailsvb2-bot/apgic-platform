@@ -27,6 +27,7 @@ func(s *academyStoreStub)AcademyEvaluateAttempt(_,_,_ string,_ int)(academy.Atte
 func(s *academyStoreStub)AcademyAuthorCourses(_ string)([]academy.Course,error){s.calls++;return nil,academy.ErrDenied}
 func(s *academyStoreStub)AcademyOutline(_,_,_ string)(map[string]any,error){s.calls++;return nil,academy.ErrDenied}
 func(s *academyStoreStub)AcademyMyEnrollments(_ string)([]academy.Enrollment,error){s.calls++;return nil,academy.ErrDenied}
+func(s *academyStoreStub)AcademyPendingReviews(_ string)([]academy.ReviewAttempt,error){s.calls++;return nil,academy.ErrDenied}
 
 func TestAcademyUnauthenticatedMutationsDoNotReachStore(t *testing.T){
  fake:=&academyStoreStub{}
