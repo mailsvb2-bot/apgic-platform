@@ -136,6 +136,26 @@ class LaunchReadinessTests(unittest.TestCase):
         with patch.object(launch.subprocess, "check_output", return_value=self.sha):
             launch.verify_strict_checkout(self.sha)
 
+    def test_production_config_must_pass_canonical_policy_validator(self):
+        with tempfile.TemporaryDirectory() as directory:
+            current = launch.ROOT
+            launch.ROOT = Path(directory)
+            try:
+                config = launch.ROOT / "config" / "launch.production.yaml"
+                config.parent.mkdir(parents=True)
+                config.write_text("production_approved: true\\n", encoding="utf-8")
+                with patch.object(launch.subprocess, "run", return_value=type(
+                    "Result", (), {"returncode": 1})()) as mock:
+                    with self.assertRaisesRegex(ValueError, "Canonical R4 production"):
+                        launch.validate_full_production_policy("config/launch.production.yaml")
+                    command = mock.call_args.args[0]
+                    self.assertEqual(command[-4:], ["--mode", "production", "--profile", "R4"])
+                with patch.object(launch.subprocess, "run", return_value=type(
+                    "Result", (), {"returncode": 0})()):
+                    launch.validate_full_production_policy("config/launch.production.yaml")
+            finally:
+                launch.ROOT = current
+
     def test_real_frozen_baseline_must_not_claim_ready(self):
         root = SCRIPT.parents[1]
         registry = yaml.safe_load((root / "canon/requirements/registry.yaml").read_text(encoding="utf-8"))

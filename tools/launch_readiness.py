@@ -196,6 +196,26 @@ def verify_strict_checkout(candidate_sha: str) -> None:
         raise ValueError("strict candidate differs from the checked-out Git HEAD")
 
 
+def validate_full_production_policy(config_rel: str) -> None:
+    """Reuse the Canon's complete policy validation, never just the file/hash check.
+
+    Evidence hashing does not establish semantic approval of jurisdiction,
+    retention, SLO, provider, commerce, store and settlement rules.
+    """
+    config = confined_file(config_rel)
+    proc = subprocess.run(
+        [sys.executable, str(ROOT / "tools/launch_config_guard.py"),
+         config.relative_to(ROOT).as_posix(),
+         "--mode", "production", "--profile", "R4"],
+        cwd=ROOT, text=True, capture_output=True, check=False,
+    )
+    if proc.returncode != 0:
+        raise ValueError(
+            "Canonical R4 production LaunchConfig validation failed; "
+            "no release assessment may infer policy approval from hashes alone"
+        )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--candidate-sha", required=True)
@@ -209,6 +229,8 @@ def main() -> int:
     try:
         if args.strict:
             verify_strict_checkout(args.candidate_sha)
+            if args.config:
+                validate_full_production_policy(args.config)
         registry = load_yaml(ROOT / "canon/requirements/registry.yaml")
         coverage = json.loads((ROOT / "canon/requirements/coverage.json").read_text(encoding="utf-8"))
         index = load_yaml(ROOT / "canon/evidence/production-evidence-index.yaml")
