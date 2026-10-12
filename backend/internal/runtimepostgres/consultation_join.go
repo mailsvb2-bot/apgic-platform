@@ -51,19 +51,21 @@ func (c *Checker) PrepareCommunicationJoin(ctx context.Context, bookingID, ident
 	// participants. Ready is not media evidence; signed LiveKit events still
 	// own actual JOINED/STARTED/ENDED business truth.
 	var bothReady bool
-	err = c.db.QueryRowContext(ctx,`SELECT
+	err = c.db.QueryRowContext(ctx, `SELECT
 		EXISTS(SELECT 1 FROM consultation_participant_readiness r
 			WHERE r.booking_id=b.id AND r.identity_id=b.client_identity_id AND r.role='CLIENT')
 		AND EXISTS(SELECT 1 FROM consultation_participant_readiness r
 			WHERE r.booking_id=b.id AND r.identity_id=bs.specialist_identity_id AND r.role='SPECIALIST')
 		FROM bookings b JOIN booking_slots bs ON bs.id=b.slot_id
-		WHERE b.id=$1::uuid`,bookingID).Scan(&bothReady)
-	if err!=nil {return nil,fmt.Errorf("read both participants readiness: %w",err)}
+		WHERE b.id=$1::uuid`, bookingID).Scan(&bothReady)
+	if err != nil {
+		return nil, fmt.Errorf("read both participants readiness: %w", err)
+	}
 	if !bothReady {
-		return &communication.JoinPreparation{Role:role,Decision:communication.JoinDecision{
-			Decision:communication.Deny,ReasonCode:"COMM_PARTICIPANTS_NOT_READY",
-			PolicyVersion:policyVersion,
-		}},nil
+		return &communication.JoinPreparation{Role: role, Decision: communication.JoinDecision{
+			Decision: communication.Deny, ReasonCode: "COMM_PARTICIPANTS_NOT_READY",
+			PolicyVersion: policyVersion,
+		}}, nil
 	}
 	var entitlementID, entitlementState, basisRef string
 	var proofExpires time.Time

@@ -30,10 +30,12 @@ func (s *journeyStub) ConfirmConsultationReady(ctx context.Context, b, i string,
 	s.readyWrites++
 	return s.ReadConsultationReady(ctx, b, i)
 }
-func (s *journeyStub) ReadConsultationTimeline(_ context.Context,b,i string)(*connector.ConsultationTimeline,error) {
-	if i!=journeyIdentityID || b!=journeyBookingID { return nil,nil }
-	return &connector.ConsultationTimeline{BookingID:b,BookingState:"COMPLETED",ConsultationState:"COMPLETED",
-		Facts:[]connector.ConsultationTimelineFact{{FactType:"ENDED",Role:"SYSTEM",EvidenceRef:"provider-signed/complete-1"}}},nil
+func (s *journeyStub) ReadConsultationTimeline(_ context.Context, b, i string) (*connector.ConsultationTimeline, error) {
+	if i != journeyIdentityID || b != journeyBookingID {
+		return nil, nil
+	}
+	return &connector.ConsultationTimeline{BookingID: b, BookingState: "COMPLETED", ConsultationState: "COMPLETED",
+		Facts: []connector.ConsultationTimelineFact{{FactType: "ENDED", Role: "SYSTEM", EvidenceRef: "provider-signed/complete-1"}}}, nil
 }
 func (s *journeyStub) ReadConsultationOutcome(_ context.Context, b, i string) (*connector.OutcomeReport, error) {
 	if i != journeyIdentityID {
@@ -94,11 +96,11 @@ func TestConsultationJourneySignedSessionAndEvidence(t *testing.T) {
 		t.Fatalf("verified outcome status=%d writes=%d body=%s", rr.Code, stub.outcomeWrites, rr.Body.String())
 	}
 	if rr := call("GET", base+"/timeline", "", true, false); rr.Code != http.StatusOK ||
-		rr.Header().Get("Cache-Control") != "no-store" || !strings.Contains(rr.Body.String(),"provider-signed/complete-1") {
-		t.Fatalf("durable timeline missing: HTTP %d body=%s",rr.Code,rr.Body.String())
+		rr.Header().Get("Cache-Control") != "no-store" || !strings.Contains(rr.Body.String(), "provider-signed/complete-1") {
+		t.Fatalf("durable timeline missing: HTTP %d body=%s", rr.Code, rr.Body.String())
 	}
 	if rr := call("GET", base+"/timeline", "", false, false); rr.Code != http.StatusUnauthorized {
-		t.Fatalf("unauthenticated timeline leaked: HTTP %d",rr.Code)
+		t.Fatalf("unauthenticated timeline leaked: HTTP %d", rr.Code)
 	}
 	if rr := call("GET", base+"/outcome", "", true, false); rr.Code != http.StatusOK {
 		t.Fatalf("outcome read status=%d", rr.Code)

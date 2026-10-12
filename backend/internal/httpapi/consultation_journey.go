@@ -91,14 +91,24 @@ func registerConsultationJourney(mux *http.ServeMux, store ConsultationJourneySt
 		writeJSON(w, http.StatusOK, v)
 	})
 	mux.HandleFunc("GET /v1/consultations/{bookingID}/timeline", func(w http.ResponseWriter, r *http.Request) {
-		if !available(w,r) {return}
-		identity,ok:=identityFor(w,r)
-		if !ok {return}
-		timeline,err:=store.ReadConsultationTimeline(r.Context(),r.PathValue("bookingID"),identity)
-		if err!=nil {consultationStorageError(w,r);return}
-		if timeline==nil {consultationHidden(w,r);return}
-		w.Header().Set("Cache-Control","no-store")
-		writeJSON(w,http.StatusOK,timeline)
+		if !available(w, r) {
+			return
+		}
+		identity, ok := identityFor(w, r)
+		if !ok {
+			return
+		}
+		timeline, err := store.ReadConsultationTimeline(r.Context(), r.PathValue("bookingID"), identity)
+		if err != nil {
+			consultationStorageError(w, r)
+			return
+		}
+		if timeline == nil {
+			consultationHidden(w, r)
+			return
+		}
+		w.Header().Set("Cache-Control", "no-store")
+		writeJSON(w, http.StatusOK, timeline)
 	})
 	mux.HandleFunc("GET /v1/consultations/{bookingID}/outcome", func(w http.ResponseWriter, r *http.Request) {
 		if !available(w, r) {

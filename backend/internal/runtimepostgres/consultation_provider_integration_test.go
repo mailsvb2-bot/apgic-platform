@@ -343,10 +343,10 @@ func TestSignedConsultationPersistsAcrossAPIStoreRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer restarted.Close()
-	timeline, timelineErr := restarted.ReadConsultationTimeline(ctx,hold.BookingID,intent.ClientIdentityID)
-	if timelineErr!=nil || timeline==nil || timeline.BookingState!="COMPLETED" ||
-		timeline.ConsultationState!="COMPLETED" || len(timeline.Facts)<8 {
-		t.Fatalf("restart lost immutable consultation history: timeline=%+v error=%v", timeline,timelineErr)
+	timeline, timelineErr := restarted.ReadConsultationTimeline(ctx, hold.BookingID, intent.ClientIdentityID)
+	if timelineErr != nil || timeline == nil || timeline.BookingState != "COMPLETED" ||
+		timeline.ConsultationState != "COMPLETED" || len(timeline.Facts) < 8 {
+		t.Fatalf("restart lost immutable consultation history: timeline=%+v error=%v", timeline, timelineErr)
 	}
 	result, err := restarted.ReadConsultationResult(ctx, hold.BookingID, intent.ClientIdentityID)
 	if err != nil || result == nil || result.State != "COMPLETED" || result.ProviderInstanceID != fallbackID || result.CompletionEvidenceRef != "provider-evidence/ENDED/SYSTEM" {
@@ -411,12 +411,12 @@ func TestSignedConsultationPersistsAcrossAPIStoreRestart(t *testing.T) {
 	}
 	// Full timeline is also available from an entirely new HTTP API process
 	// with the same signed owner session after PostgreSQL reconnection.
-	timelineRequest:=httptest.NewRequest(http.MethodGet,"/v1/consultations/"+hold.BookingID+"/timeline",nil)
+	timelineRequest := httptest.NewRequest(http.MethodGet, "/v1/consultations/"+hold.BookingID+"/timeline", nil)
 	timelineRequest.AddCookie(sessionCookie)
-	timelineResponse:=httptest.NewRecorder()
-	secondAPI.ServeHTTP(timelineResponse,timelineRequest)
-	if timelineResponse.Code!=http.StatusOK || timelineResponse.Header().Get("Cache-Control")!="no-store" {
-		t.Fatalf("post-restart owner consultation history unreadable: HTTP=%d %s",timelineResponse.Code,timelineResponse.Body.String())
+	timelineResponse := httptest.NewRecorder()
+	secondAPI.ServeHTTP(timelineResponse, timelineRequest)
+	if timelineResponse.Code != http.StatusOK || timelineResponse.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("post-restart owner consultation history unreadable: HTTP=%d %s", timelineResponse.Code, timelineResponse.Body.String())
 	}
 	if apiResult.State != "COMPLETED" || apiResult.ProviderInstanceID != fallbackID || apiResult.CompletionEvidenceRef != "provider-evidence/ENDED/SYSTEM" {
 		t.Fatalf("wrong HTTP restart result: %#v", apiResult)

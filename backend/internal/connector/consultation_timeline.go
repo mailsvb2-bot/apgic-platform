@@ -5,12 +5,12 @@ import "time"
 // ConsultationTimeline is a bounded read-only business projection.
 // It never contains recordings, transcript, clinical notes or media credentials.
 type ConsultationTimeline struct {
-	BookingID         string                      `json:"booking_id"`
-	BookingState      string                      `json:"booking_state"`
-	ConsultationState string                      `json:"consultation_state"`
-	Facts             []ConsultationTimelineFact  `json:"facts"`
-	Recovery          []ConsultationRecoveryFact  `json:"recovery"`
-	RequiresFollowup  bool                        `json:"requires_followup"`
+	BookingID         string                     `json:"booking_id"`
+	BookingState      string                     `json:"booking_state"`
+	ConsultationState string                     `json:"consultation_state"`
+	Facts             []ConsultationTimelineFact `json:"facts"`
+	Recovery          []ConsultationRecoveryFact `json:"recovery"`
+	RequiresFollowup  bool                       `json:"requires_followup"`
 }
 
 type ConsultationTimelineFact struct {

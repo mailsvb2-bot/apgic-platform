@@ -41,7 +41,9 @@ func (c *Checker) ReadConsultationReady(ctx context.Context, bookingID, identity
 	if err != nil {
 		return nil, fmt.Errorf("read consultation readiness: %w", err)
 	}
-	if sessionState.Valid { v.ConsultationState = sessionState.String }
+	if sessionState.Valid {
+		v.ConsultationState = sessionState.String
+	}
 	if client.Valid {
 		t := client.Time.UTC()
 		v.ClientReadyAt = &t
