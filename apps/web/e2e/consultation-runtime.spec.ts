@@ -18,6 +18,15 @@ test("confirmed booking enables readiness, fail-closed room entry and verified p
   await page.route(`**/v1/bookings/${id}`, async route => {
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(booking) });
   });
+  // The browser fixture simulates a canonical server-confirmed PSP capture.
+  // Production access cannot be inferred from CONFIRMED booking alone.
+  await page.route(`**/v1/bookings/${id}/order`, async route => {
+    await route.fulfill({status:200, contentType:"application/json", body:JSON.stringify({
+      order_id:"order-consultation-e2e", booking_id:id, booking_state:"CONFIRMED",
+      payment_state:"CAPTURED", amount_minor:150000, currency:"RUB",
+      provider_id:"external-psp", payment_method:"SBP",
+    })});
+  });
   await page.route(`**/v1/consultations/${id}/ready`, async route => {
     const request = route.request();
     if (request.method() === "POST") {
