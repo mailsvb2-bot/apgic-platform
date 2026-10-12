@@ -9,7 +9,7 @@ import (
 )
 
 // ReadLiveEventAttendance is a private aggregate for the current active
-// organization owner. Provider-signed JOINED is the sole attendance evidence.
+// organization owner. Signed connector JOINED and authenticated UCR attendance snapshots are the only evidence.
 func (c *Checker) ReadLiveEventAttendance(ctx context.Context, actor, organizationID, eventID string) (liveevents.AttendanceSummary, error) {
 	if c == nil || c.db == nil {
 		return liveevents.AttendanceSummary{}, liveevents.ErrUnavailable
@@ -34,8 +34,15 @@ func (c *Checker) ReadLiveEventAttendance(ctx context.Context, actor, organizati
 	summary.EventID = eventID
 	err = c.db.QueryRowContext(ctx, `SELECT
  (SELECT count(*) FROM live_event_registrations r WHERE r.event_id=$1::uuid AND r.state='REGISTERED'),
- (SELECT count(DISTINCT registration_id) FROM live_event_attendance_facts WHERE event_id=$1::uuid AND fact_type='JOINED'),
- (SELECT count(*) FROM live_event_attendance_facts WHERE event_id=$1::uuid AND fact_type='JOINED'),
+ (SELECT count(*) FROM (
+  SELECT r.identity_id FROM live_event_attendance_facts f
+  JOIN live_event_registrations r ON r.id=f.registration_id
+  WHERE f.event_id=$1::uuid AND f.fact_type='JOINED'
+  UNION
+  SELECT s.identity_id FROM live_event_attendance_snapshots s WHERE s.event_id=$1::uuid
+ ) verified_people),
+ (SELECT count(*) FROM live_event_attendance_facts WHERE event_id=$1::uuid AND fact_type='JOINED')+
+ (SELECT count(*) FROM live_event_attendance_snapshots WHERE event_id=$1::uuid),
  (SELECT count(*) FROM live_event_attendance_facts WHERE event_id=$1::uuid AND fact_type='LEFT')`, eventID).
 		Scan(&summary.Registered, &summary.JoinedParticipants, &summary.ProviderJoinFacts, &summary.ProviderLeaveFacts)
 	if errors.Is(err, context.Canceled) {

@@ -10,6 +10,7 @@ import (
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/connector"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/demand"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/launchconfig"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/liveevents"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/legal"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/mobile"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/mutation"
@@ -44,6 +45,7 @@ type Options struct {
 	ProviderWebhookKeys         connector.WebhookPublicKeyResolver
 	LiveEvents                  LiveEventStore
 	LiveEventsEnabled           bool
+	LiveMedia                   liveevents.RealMediaProvider
 	ConsultationProvider        ConsultationProviderStore
 	ClientSessionKey            []byte
 	ClientCompatibilityPolicies map[clientcompat.Platform]clientcompat.Policy
@@ -133,7 +135,8 @@ func New(options Options) http.Handler {
 	registerDemand(mux, options.Demand, options.Consents, options.ConsentPolicies, sessions, sessionConfigErr, options.ConformanceProviderEvents, options.ProviderWebhookKeys, options.Now)
 	registerConsultationProvider(mux, options.ConsultationProvider, options.ProviderWebhookKeys, sessions, sessionConfigErr)
 	if options.LiveEventsEnabled {
-		registerLiveEvents(mux, options.LiveEvents, options.ProviderWebhookKeys, sessions, sessionConfigErr, options.Now)
+		registerLiveEvents(mux, options.LiveEvents, options.ProviderWebhookKeys, sessions, sessionConfigErr, options.Now, options.LiveMedia)
+		registerLiveMedia(mux, options.LiveEvents, options.LiveMedia, sessions, sessionConfigErr, options.Now)
 	}
 	registerLegalAcceptance(mux, options.LegalAcceptances, sessions, sessionConfigErr, options.Now)
 	registerConsents(mux, options.Consents, options.ConsentPolicies, sessions, sessionConfigErr, options.Now)

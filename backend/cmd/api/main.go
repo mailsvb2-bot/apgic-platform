@@ -18,6 +18,7 @@ import (
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/demand"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/httpapi"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/launchconfig"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/liveevents/ucr"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/mobile"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/privacy"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/remoteconfig"
@@ -53,6 +54,8 @@ func main() {
 	if liveEventsEnabled && !runtimepostgres.RequiresDatabase(environment) {
 		log.Fatal("R9 live events require canonical PostgreSQL storage")
 	}
+	ucrMedia,err:=ucr.NewFromEnvironment()
+	if err!=nil {log.Fatalf("APGIC UCR provider configuration invalid: %v",err)}
 	providerWebhookKeys, err := providerWebhookKeysFromEnvironment()
 	if err != nil {
 		log.Fatalf("APGIC provider webhook public-key configuration failed: %v", err)
@@ -111,6 +114,7 @@ func main() {
 		ProviderWebhookKeys:         providerWebhookKeys,
 		ConsultationProvider:        storage,
 		LiveEvents:                  storage,
+		LiveMedia:                   ucrMedia,
 		LiveEventsEnabled:           liveEventsEnabled,
 		ReleaseTrack:                releaseTrack,
 		Demand:                      demandService,

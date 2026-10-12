@@ -33,7 +33,8 @@ INSERT INTO live_events(id,organization_id,organizer_identity_id,title,descripti
  now()+interval '2 days',now()+interval '2 days 1 hour',3);
 UPDATE live_events SET state='PUBLISHED',
  provider_instance_id='92929292-0000-4000-8000-000000000101',
- provider_proof_checked_at=clock_timestamp()
+ provider_proof_checked_at=clock_timestamp(),
+ ucr_conference_id='ucr-r9-concurrent-room',ucr_integration_id='ucr-r9-integration'
  WHERE id='92929292-0000-4000-8000-000000000102';
 SQL
 

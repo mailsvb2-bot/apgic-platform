@@ -4,7 +4,7 @@ import Link from "next/link";
 
 type LiveEvent={id:string;title:string;description:string;format:string;starts_at:string;ends_at:string;capacity:number;registered:number;state:string;price_minor:number;recording_available:boolean};
 type Registration={id:string;event_id:string;state:string;registered_at:string};
-type Access={allowed:boolean;reason_code:string;provider_ready:boolean};
+type MediaGrant={join_url:string;expires_at:string;role:string};
 function messageFromError(value:unknown){return value instanceof Error?value.message:"Не удалось выполнить операцию."}
 async function api<T>(path:string,method:"GET"|"POST"="GET"):Promise<T>{
  const r=await fetch(path,{method,credentials:"include",cache:"no-store",headers:method==="POST"?{"Content-Type":"application/json"}:{}});
@@ -16,7 +16,7 @@ export default function EventPage({params}:{params:Promise<{id:string}>}){
  const {id}=use(params);
  const [event,setEvent]=useState<LiveEvent|null>(null);
  const [registration,setRegistration]=useState<Registration|null>(null);
- const [access,setAccess]=useState<Access|null>(null);
+ const [grant,setGrant]=useState<MediaGrant|null>(null);
  const [busy,setBusy]=useState(false);
  const [loading,setLoading]=useState(true);
  const [error,setError]=useState("");
@@ -34,14 +34,17 @@ export default function EventPage({params}:{params:Promise<{id:string}>}){
   try{
    await api(path+"/"+operation,"POST");
    await reload();
-   setAccess(null);
+   setGrant(null);
    setNotice(operation==="registrations"?"Регистрация подтверждена.":"Регистрация отменена.");
   }catch(e){setError(messageFromError(e))}finally{setBusy(false)}
  }
- async function checkAccess(){
-  setBusy(true);setError("");
-  try{setAccess(await api<Access>(path+"/access"))}
-  catch(e){setError(messageFromError(e))}finally{setBusy(false)}
+ async function requestMediaGrant(){
+  setBusy(true);setError("");setGrant(null);
+  try{
+   const response=await api<MediaGrant>(path+"/join","POST");
+   if(!response.join_url||!response.expires_at)throw new Error("Медиапровайдер не выдал подтверждённый доступ.");
+   setGrant(response);
+  }catch(e){setError(messageFromError(e))}finally{setBusy(false)}
  }
  return <main className="site-shell">
   <header className="site-header"><Link className="brand" href="/"><span className="brand-mark">A</span> APGIC</Link><Link href="/live-events">Все мероприятия</Link></header>
@@ -56,10 +59,13 @@ export default function EventPage({params}:{params:Promise<{id:string}>}){
     {registration?.state==="REGISTERED"?<div>
      <p role="status">Вы зарегистрированы.</p>
      <div className="live-action-row">
-      <button type="button" disabled={busy} onClick={()=>void checkAccess()}>Проверить доступ к эфиру</button>
+      <button type="button" disabled={busy} onClick={()=>void requestMediaGrant()}>Получить защищённый вход в эфир</button>
       <button type="button" disabled={busy} onClick={()=>void act("unregister")}>Отменить регистрацию</button>
      </div>
-     {access&&<p role="status">{access.reason_code==="LIVE_PROVIDER_TICKET_NOT_CONFIGURED"?"Подключение ещё не подтверждено провайдером.":access.reason_code}</p>}
+     {grant&&<p role="status">
+      UCR подтвердил доступ до {new Date(grant.expires_at).toLocaleTimeString("ru-RU")}.{" "}
+      <a href={grant.join_url} target="_blank" rel="noopener noreferrer">Войти в групповую медиасессию</a>.
+     </p>}
     </div>:<button type="button" disabled={busy||event.state!=="PUBLISHED"||event.capacity<=event.registered} onClick={()=>void act("registrations")}>Зарегистрироваться бесплатно</button>}
    </>}
    {notice&&<p role="status">{notice}</p>}

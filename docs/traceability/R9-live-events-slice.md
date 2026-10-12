@@ -76,3 +76,72 @@ The first R9 SQL acceptance script was silently damaged by string substitution o
 - The proof suite simulates a stored verified provider reference for DB invariants. It is **not proof of live media**, actual signed UCR grants, production readiness or financial settlement.
 
 CI green is necessary but not sufficient for R9 release. A production-like signed media join, attendance provider outcomes and consent/refund journeys remain release blockers.
+
+## R9 group UCR media vertical slice (unmerged candidate)
+
+The provider integration is `backend/internal/liveevents/ucr`, conforming to
+`UniversalConferenceService` routes from the **UCR** donor contract. This is an
+HTTP integration, not source code import or a second WebRTC engine.
+
+Production configuration is server-side only:
+- `APGIC_LIVE_EVENTS_ENABLED=1` — enables R9 routes, never enabled by default.
+- `APGIC_UCR_CONFERENCE_URL` — authenticated UCR loopback gateway or HTTPS edge.
+- `APGIC_UCR_MACHINE_BEARER` — scoped machine credential, **not** a browser token.
+- `APGIC_UCR_INTEGRATION_ID` — exact integration-bound UCR service identity.
+- `APGIC_UCR_CONNECTOR_INSTANCE_ID` — active canonical CommunicationProvider UUID.
+- `APGIC_UCR_JOIN_ORIGIN` — exact HTTPS origin for a personal UCR join URL.
+Partial settings fail startup. The real UCR runtime must advertise
+`browser_realtime_gateway=true`, `production_webrtc=true`,
+`turn=true`, `video=true`, sufficient `max_participants`, and the
+additional webinar/horizontal flags appropriate for the event. A service
+that only has a prepared API but not deployed WebRTC **cannot pass**.
+
+The canonical production journey is:
+1. Organization owner creates a free DRAFT via APGIC; verified owner binds
+   the UCR conference using `prepare-media` (idempotent UCR create, then
+   authoritative SQL binding).
+2. Publish: server validates owner and transition, sends authenticated UCR
+   waiting-room/entry commands, and commits APGIC PUBLISHED state/outbox.
+3. A client registers in PostgreSQL with a locked capacity row, generating
+   transactional reminder intentions. No duplicate seat or client ownership spoof.
+4. Host starts UCR LIVE; APGIC changes its event state only after provider
+   acknowledgement.
+5. Only verified host or REGISTERED, non-banned attendee may POST `join`.
+   The server ensures the UCR participant/device and requests a short-lived,
+   single-use **provider-issued** join grant for the canonical conference.
+   It refuses cross-origin or unsigned-looking URLs and does not persist or
+   log raw UCR grants.
+6. Owner can mute/remove through UCR; removal leaves a durable APGIC ban.
+7. Owner syncs the authenticated UCR attendance projection. JOIN count,
+   connection duration and first join are recorded as immutable, provider-bound
+   snapshots; "registration" alone never produces an attendance event.
+8. Finish transitions UCR to ending/ended, then commits APGIC COMPLETED and
+   outbox. Only real provider observations may produce verified attendees.
+9. Notification intents are transactional R9 outbox events, scheduled for
+   PT24H/PT2H/PT15M/AT_START where the client registers early enough. The
+   **existing** NotificationProvider/gateway owns policy, actual delivery,
+   preferences and provider receipts. An outbox QUEUED status is not "sent".
+
+### Limitations and conditions for VERIFIED
+
+- No production WebRTC/SFU with **two independent connected participants** has
+  been demonstrated in this branch yet. Mock UCR contract tests prove only API
+  sequencing, not media readiness. Production acceptance must establish an
+  actual UCR deployment, TURN, browser gateway, secure participant devices,
+  multi-user audio/video, moderator effects, reconnect, provider receipts and
+  sustained capacity under load. Do not claim R9=100% without it.
+- Do not enable paid registration using a new balance or synthetic payment
+  flag. Existing canonical `orders` require a Booking and legal/payment
+  snapshot, and entitlement stores require a verified PSP basis. Until an
+  R9 group Booking/Order/Payment/Entitlement integration is proven end-to-end,
+  `price_minor>0` stays invalid. This must remain a visible open requirement.
+- The user-facing media join link is bound to UCR, expires rapidly and stays
+  in memory (never localStorage, URLs of APGIC itself or marketing events).
+- A UCR lifecycle transition and APGIC business transaction span two
+  authoritative services, and cannot be a single DB transaction. UCR calls
+  use stable idempotency identities, plus APGIC rejects invalid transitions.
+  A full crash/reconciliation and provider-unavailable end-to-end drill remains
+  necessary before production flag enablement.
+- Consent and privacy policy for media/recording, participant data removal,
+  final attendance reconciliation and NotificationProvider delivery receipts
+  must be operationally verified. Recording remains disabled.

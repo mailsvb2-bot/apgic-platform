@@ -19,6 +19,10 @@ func (c *Checker) LiveEventsReady(ctx context.Context) error {
   AND to_regclass('public.live_event_registrations') IS NOT NULL
   AND to_regclass('public.live_event_attendance_facts') IS NOT NULL
   AND to_regclass('public.live_event_mutations') IS NOT NULL
+  AND to_regclass('public.live_event_bans') IS NOT NULL
+  AND to_regclass('public.live_event_attendance_snapshots') IS NOT NULL
+  AND to_regprocedure('public.apgic_r9_attendance_snapshot_guard()') IS NOT NULL
+  AND EXISTS(SELECT 1 FROM pg_attribute WHERE attrelid='public.live_events'::regclass AND attname='ucr_conference_id' AND NOT attisdropped)
   AND to_regprocedure('public.apgic_r9_event_guard()') IS NOT NULL
   AND to_regprocedure('public.apgic_r9_registration_guard()') IS NOT NULL
   AND to_regprocedure('public.apgic_r9_attendance_guard()') IS NOT NULL

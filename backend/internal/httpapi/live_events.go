@@ -75,7 +75,7 @@ func liveError(w http.ResponseWriter, r *http.Request, err error) {
 	writeDemandError(w, r, status, code, desc, status >= 500, nil)
 }
 func registerLiveEvents(mux *http.ServeMux, store LiveEventStore, keys connector.WebhookPublicKeyResolver,
-	sessions *clientSessionManager, sessionConfigErr error, now func() time.Time) {
+	sessions *clientSessionManager, sessionConfigErr error, now func() time.Time, media liveevents.RealMediaProvider) {
 	mux.HandleFunc("GET /v1/organizations/{organizationID}/live-events/{eventID}/attendance", func(w http.ResponseWriter, r *http.Request) {
 		if store == nil {
 			liveError(w, r, liveevents.ErrUnavailable)
@@ -203,7 +203,30 @@ func registerLiveEvents(mux *http.ServeMux, store LiveEventStore, keys connector
 			if !ok {
 				return
 			}
-			event, err := store.ChangeLiveEvent(r.Context(), actor, r.PathValue("eventID"), transition.target, now().UTC())
+			// Do not mutate a remote UCR room before validating local authority and
+			// the canonical APGIC business lifecycle/time window.
+			instant:=now().UTC()
+			id:=r.PathValue("eventID")
+			current,err:=store.LiveEvent(r.Context(),id,actor)
+			if err!=nil{liveError(w,r,err);return}
+			if !liveevents.CanTransition(current.State,transition.target){
+				liveError(w,r,liveevents.ErrConflict);return
+			}
+			if (transition.target==liveevents.Published&&!current.StartsAt.After(instant))||
+				(transition.target==liveevents.Live&&(instant.Before(current.StartsAt.Add(-15*time.Minute))||instant.After(current.EndsAt)))||
+				(transition.target==liveevents.Completed&&instant.Before(current.StartsAt)){
+				liveError(w,r,liveevents.ErrConflict);return
+			}
+			// Draft cancellation is purely APGIC business state. Published/live
+			// transitions require successful UCR media lifecycle acknowledgment.
+			if !(transition.target==liveevents.Cancelled&&current.State==liveevents.Draft){
+				service,ok:=store.(LiveMediaStore)
+				if !ok||media==nil{liveError(w,r,liveevents.ErrUnavailable);return}
+				room,err:=service.LiveMediaForOwner(r.Context(),actor,id)
+				if err!=nil{liveError(w,r,err);return}
+				if err=media.Change(r.Context(),room,transition.target);err!=nil{liveError(w,r,err);return}
+			}
+			event, err := store.ChangeLiveEvent(r.Context(), actor, id, transition.target, instant)
 			if err != nil {
 				liveError(w, r, err)
 				return

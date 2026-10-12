@@ -81,9 +81,13 @@ $r9_stmt$, 'R9 event must have signed provider readiness');
 -- The media provider is a signed-evidence boundary.  This SQL test models
 -- storage state only, not production SFU identity or credential issuance.
 UPDATE live_events SET provider_instance_id='91919191-0000-4000-8000-000000000020',
- provider_proof_checked_at=clock_timestamp(),state='PUBLISHED'
+ provider_proof_checked_at=clock_timestamp(),ucr_conference_id='ucr-r9-ci-conference',ucr_integration_id='ucr-r9-ci-integration',state='PUBLISHED'
  WHERE id='91919191-0000-4000-8000-000000000030';
 
+SELECT pg_temp.r9_must_reject($r9_stmt$
+ UPDATE live_events SET ucr_conference_id='forged-room-id'
+ WHERE id='91919191-0000-4000-8000-000000000030'
+$r9_stmt$, 'R9 media conference ownership is immutable');
 SELECT pg_temp.r9_must_reject($r9_stmt$
  UPDATE live_events SET capacity=3
  WHERE id='91919191-0000-4000-8000-000000000030'
@@ -162,6 +166,49 @@ SELECT pg_temp.r9_must_reject($r9_stmt$
  DELETE FROM live_event_attendance_facts
  WHERE id='91919191-0000-4000-8000-000000000050'
 $r9_stmt$, 'append');
+
+-- Source-attested UCR duration evidence must be append-only and bound to
+-- the same business registration, connector instance and conference.
+INSERT INTO live_event_attendance_snapshots(id,event_id,identity_id,provider_instance_id,
+ ucr_conference_id,join_count,connected_seconds,first_join_at,observed_at)
+ VALUES('91919191-0000-4000-8000-000000000060',
+ '91919191-0000-4000-8000-000000000030',
+ '91919191-0000-4000-8000-000000000002',
+ '91919191-0000-4000-8000-000000000020',
+ 'ucr-r9-ci-conference',1,120,clock_timestamp(),clock_timestamp());
+SELECT pg_temp.r9_must_reject($r9_stmt$
+ UPDATE live_event_attendance_snapshots SET connected_seconds=999
+ WHERE id='91919191-0000-4000-8000-000000000060'
+$r9_stmt$,'append');
+SELECT pg_temp.r9_must_reject($r9_stmt$
+ INSERT INTO live_event_attendance_snapshots(id,event_id,identity_id,provider_instance_id,
+ ucr_conference_id,join_count,connected_seconds,first_join_at,observed_at)
+ VALUES('91919191-0000-4000-8000-000000000061',
+ '91919191-0000-4000-8000-000000000030',
+ '91919191-0000-4000-8000-000000000002',
+ '91919191-0000-4000-8000-000000000021',
+ 'forged-conference',1,120,clock_timestamp(),clock_timestamp())
+$r9_stmt$,'R9 attendance snapshot requires matching event');
+
+INSERT INTO live_event_bans(event_id,identity_id,moderator_identity_id)
+ VALUES('91919191-0000-4000-8000-000000000030',
+ '91919191-0000-4000-8000-000000000003',
+ '91919191-0000-4000-8000-000000000001');
+SELECT pg_temp.r9_must_reject($r9_stmt$
+ DELETE FROM live_event_bans
+ WHERE event_id='91919191-0000-4000-8000-000000000030'
+$r9_stmt$,'append');
+
+DO $r9_reminders_test$
+DECLARE quantity integer;
+BEGIN
+ SELECT count(*) INTO quantity FROM live_event_reminder_intents
+ WHERE event_id='91919191-0000-4000-8000-000000000030';
+ IF quantity<12 THEN
+  RAISE EXCEPTION 'R9 scheduled reminder admission lifecycle missing: %',quantity;
+ END IF;
+END;
+$r9_reminders_test$;
 
 -- Reconcile distinct signalled attendees with business registrations.
 DO $r9_projection$

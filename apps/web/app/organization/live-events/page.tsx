@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import type {LiveAttendanceSummary} from "../../../../../packages/contracts/src/r9-live-events";
 
+type MediaGrant={join_url:string;expires_at:string;role:string};
 type Organization = { id: string; name: string };
 type EventState = "DRAFT" | "PUBLISHED" | "LIVE" | "COMPLETED" | "CANCELLED";
 type LiveEvent = {
@@ -33,6 +34,9 @@ export default function ManageLiveEvents() {
   const [org, setOrg] = useState("");
   const [items, setItems] = useState<LiveEvent[]>([]);
   const [attendance, setAttendance] = useState<Record<string, LiveAttendanceSummary>>({});
+  const [mediaPrepared, setMediaPrepared] = useState<Record<string, boolean>>({});
+  const [hostGrants, setHostGrants] = useState<Record<string, MediaGrant>>({});
+  const [participants, setParticipants] = useState<Record<string, string[]>>({});
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [format, setFormat] = useState("WEBINAR");
@@ -79,6 +83,58 @@ export default function ManageLiveEvents() {
       await refresh();
     } catch (e) { setError(e instanceof Error ? e.message : "Не удалось создать мероприятие."); }
     finally { setBusy(false); }
+  }
+  async function prepareMedia(item:LiveEvent) {
+    setBusy(true);setError("");setNotice("");
+    try{
+      const response=await request<{event_id:string;provider_ready:boolean;conference_bound:boolean}>(
+        `/v1/live-events/${encodeURIComponent(item.id)}/prepare-media`,{method:"POST"});
+      if(!response.provider_ready||!response.conference_bound)throw new Error("UCR не подтвердил готовность комнаты.");
+      setMediaPrepared(x=>({...x,[item.id]:true}));
+      setNotice("UCR-комната создана и проверена. Теперь можно управлять мероприятием.");
+    }catch(e){setError(e instanceof Error?e.message:"Видеопровайдер недоступен.")}
+    finally{setBusy(false)}
+  }
+  async function hostJoin(item:LiveEvent) {
+    setBusy(true);setError("");
+    try{
+      const grant=await request<MediaGrant>(`/v1/live-events/${encodeURIComponent(item.id)}/join`,{method:"POST"});
+      if(!grant.join_url)throw new Error("UCR не выдал защищённый доступ.");
+      setHostGrants(x=>({...x,[item.id]:grant}));
+    }catch(e){setError(e instanceof Error?e.message:"Сейчас невозможно подключиться.")}
+    finally{setBusy(false)}
+  }
+  async function loadParticipants(item:LiveEvent){
+    setBusy(true);setError("");
+    try{
+      const results=await request<{identities:string[]}>(
+       `/v1/live-events/${encodeURIComponent(item.id)}/participants`);
+      setParticipants(x=>({...x,[item.id]:results.identities||[]}));
+    }catch(e){setError(e instanceof Error?e.message:"Список участников недоступен.")}
+    finally{setBusy(false)}
+  }
+  async function moderate(item:LiveEvent,identity:string,action:"mute"|"remove"){
+    setBusy(true);setError("");
+    try{
+      await request(`/v1/live-events/${encodeURIComponent(item.id)}/moderate`,{
+       method:"POST",headers:{"Content-Type":"application/json"},
+       body:JSON.stringify({identity_id:identity,action})
+      });
+      setNotice(action==="mute"?"UCR подтвердил отключение микрофона.":"UCR удалил участника из комнаты; повторный доступ заблокирован.");
+    }catch(e){setError(e instanceof Error?e.message:"Не удалось выполнить модерацию.")}
+    finally{setBusy(false)}
+  }
+  async function syncVerifiedAttendance(item:LiveEvent) {
+    setBusy(true);setError("");
+    try{
+      const result=await request<{registered:number;provider_verified_attendees:number}>(
+        `/v1/live-events/${encodeURIComponent(item.id)}/attendance/sync`,{method:"POST"});
+      setNotice(`Подтверждено UCR: ${result.provider_verified_attendees} посещений из ${result.registered} регистраций.`);
+      const stats=await request<LiveAttendanceSummary>(
+        `/v1/organizations/${encodeURIComponent(org)}/live-events/${encodeURIComponent(item.id)}/attendance`);
+      setAttendance(x=>({...x,[item.id]:stats}));
+    }catch(e){setError(e instanceof Error?e.message:"Не удалось подтвердить посещаемость.")}
+    finally{setBusy(false)}
   }
   async function inspectAttendance(item: LiveEvent) {
     setError("");
@@ -130,13 +186,35 @@ export default function ManageLiveEvents() {
           <p>Начало: {new Date(item.starts_at).toLocaleString("ru-RU")}</p>
           <p>Зарегистрировано: {item.registered} из {item.capacity}</p>
           <div className="live-action-row">
+            {(item.state==="DRAFT"||item.state==="PUBLISHED"||item.state==="LIVE") &&
+             <button type="button" disabled={busy} onClick={()=>void prepareMedia(item)}>Проверить и привязать UCR-комнату</button>}
+            {(item.state==="PUBLISHED"||item.state==="LIVE") &&
+             <button type="button" disabled={busy} onClick={()=>void hostJoin(item)}>Войти ведущим</button>}
+            {(item.state==="PUBLISHED"||item.state==="LIVE"||item.state==="COMPLETED") &&
+             <button type="button" disabled={busy} onClick={()=>void syncVerifiedAttendance(item)}>Обновить посещаемость из UCR</button>}
+            {(item.state==="PUBLISHED"||item.state==="LIVE") &&
+             <button type="button" disabled={busy} onClick={()=>void loadParticipants(item)}>Управление участниками</button>}
             {next && <button type="button" disabled={busy} onClick={() => void change(item, next.action)}>{next.label}</button>}
             <button type="button" disabled={busy} onClick={() => void inspectAttendance(item)}>Посещаемость</button>
             {(item.state === "DRAFT" || item.state === "PUBLISHED" || item.state === "LIVE") &&
               <button type="button" disabled={busy} onClick={() => void change(item, "cancel")}>Отменить мероприятие</button>}
           </div>
+          {participants[item.id]&&<div aria-label="Модерация участников">
+            <p>Регистраций в списке: {participants[item.id].length}</p>
+            {participants[item.id].map(identity=><div key={identity} className="live-action-row">
+             <code>{identity}</code>
+             <button type="button" disabled={busy} onClick={()=>void moderate(item,identity,"mute")}>Отключить микрофон</button>
+             <button type="button" disabled={busy} onClick={()=>void moderate(item,identity,"remove")}>Удалить из эфира</button>
+            </div>)}
+           </div>}
+          {mediaPrepared[item.id]&&<p role="status">UCR-медиасервис подтвердил комнату.</p>}
+          {hostGrants[item.id]&&<p role="status">
+            <a href={hostGrants[item.id].join_url} target="_blank" rel="noopener noreferrer">
+              Открыть групповую медиасессию ведущего
+            </a>
+          </p>}
           {attendance[item.id] && <p role="status">Подтверждённое посещение: {attendance[item.id].joined_participants} участников из {attendance[item.id].registered} регистраций.
-            Источник: подписанные события провайдера; это не протокол видеозаписи.</p>}
+            Источник: подписанные события или подтверждённая машинная API-сессия UCR; это не протокол видеозаписи.</p>}
         </li>;
       })}</ul>
       <h2>Создать мероприятие</h2>
