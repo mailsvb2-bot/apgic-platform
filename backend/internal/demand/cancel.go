@@ -35,6 +35,36 @@ func (s *Service) CancelOrder(orderID, reasonCode string) (*Cancellation, error)
 	if err := s.refreshJourneyLocked(); err != nil {
 		return nil, err
 	}
+	// Never report a synthetic external refund in live production.
+	if s.liveSupplyMode {
+		return nil, ErrLivePaymentUnavailable
+	}
+	return s.cancelOrderLocked(orderID, reasonCode, cancelNotice)
+}
+
+// CancelOrderForClient checks ownership and mutates under the same lock,
+// preventing both IDOR and a check/use race. A foreign order is indistinguishable
+// from a nonexistent order.
+func (s *Service) CancelOrderForClient(orderID, clientIdentityID, reasonCode string) (*Cancellation, error) {
+	if s == nil || strings.TrimSpace(orderID) == "" || strings.TrimSpace(clientIdentityID) == "" {
+		return nil, ErrOrderNotFound
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.refreshJourneyLocked(); err != nil {
+		return nil, err
+	}
+	instruction := s.instructionByOrderLocked(orderID)
+	if instruction == nil {
+		return nil, ErrOrderNotFound
+	}
+	booked := s.bookings[instruction.BookingID]
+	if booked == nil || booked.ID != instruction.BookingID || booked.ClientIdentityID != clientIdentityID {
+		return nil, ErrOrderNotFound
+	}
+	if s.liveSupplyMode {
+		return nil, ErrLivePaymentUnavailable
+	}
 	return s.cancelOrderLocked(orderID, reasonCode, cancelNotice)
 }
 
