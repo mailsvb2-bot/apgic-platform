@@ -194,6 +194,7 @@ export function Journey() {
   useEffect(() => { setResumeTarget(document.getElementById("resume-booking-slot")); }, []);
   useEffect(() => {
     let active = true;
+    const requestVersion = selectedAvailabilityRequest.current;
     const id = sessionStorage.getItem("apgic:current-hold-id");
     setResumeRequested(Boolean(id));
     if (!id) {
@@ -203,8 +204,11 @@ export function Journey() {
     void fetch(`/v1/slot-holds/${encodeURIComponent(id)}`, { cache: "no-store", credentials: "include" })
       .then(async (response) => {
         if (response.status === 401 || response.status === 403 || response.status === 404) {
-          sessionStorage.removeItem("apgic:current-hold-id");
-          if (active) setRestoration("DENIED");
+          if (active && requestVersion === selectedAvailabilityRequest.current &&
+              sessionStorage.getItem("apgic:current-hold-id") === id) {
+            sessionStorage.removeItem("apgic:current-hold-id");
+            setRestoration("DENIED");
+          }
           return;
         }
         if (!response.ok) throw new Error("Booking status unavailable");
@@ -212,12 +216,18 @@ export function Journey() {
         if (value.id !== id || !value.booking_id || !value.booking_state || !value.expires_at) {
           throw new Error("Invalid booking status");
         }
-        if (active) {
+        if (active && requestVersion === selectedAvailabilityRequest.current &&
+            sessionStorage.getItem("apgic:current-hold-id") === id) {
           setRestoredHold(value);
           setRestoration("READY");
         }
       })
-      .catch(() => { if (active) setRestoration("UNAVAILABLE"); });
+      .catch(() => {
+        if (active && requestVersion === selectedAvailabilityRequest.current &&
+            sessionStorage.getItem("apgic:current-hold-id") === id) {
+          setRestoration("UNAVAILABLE");
+        }
+      });
     return () => { active = false; };
   }, []);
   async function refreshPreviousHold() {
@@ -233,20 +243,25 @@ export function Journey() {
     try {
       const response = await fetch(`/v1/slot-holds/${encodeURIComponent(id)}`, { cache: "no-store", credentials: "include" });
       if (response.status === 401 || response.status === 403 || response.status === 404) {
-        sessionStorage.removeItem("apgic:current-hold-id");
-        setRestoration("DENIED");
+        if (requestVersion === selectedAvailabilityRequest.current &&
+            sessionStorage.getItem("apgic:current-hold-id") === id) {
+          sessionStorage.removeItem("apgic:current-hold-id");
+          setRestoration("DENIED");
+        }
         return;
       }
       if (!response.ok) throw new Error("Hold status unavailable");
       const value = await response.json() as Hold;
-      if (requestVersion !== selectedAvailabilityRequest.current) return;
+      if (requestVersion !== selectedAvailabilityRequest.current ||
+          sessionStorage.getItem("apgic:current-hold-id") !== id) return;
       if (value.id !== id || !value.booking_id || !value.booking_state || !value.expires_at) {
         throw new Error("Invalid hold status");
       }
       setRestoredHold(value);
       setRestoration("READY");
     } catch {
-      if (requestVersion === selectedAvailabilityRequest.current) setRestoration("UNAVAILABLE");
+      if (requestVersion === selectedAvailabilityRequest.current &&
+          sessionStorage.getItem("apgic:current-hold-id") === id) setRestoration("UNAVAILABLE");
     }
   }
   const [checkingActiveHold, setCheckingActiveHold] = useState(false);
@@ -1094,8 +1109,15 @@ export function Journey() {
           {restoredHold.booking_state === "HELD" || restoredHold.booking_state === "PENDING_PAYMENT"
             ? <p role="status">Это не подтверждённая запись. {Date.now() >= Date.parse(restoredHold.expires_at) ? "Показанный срок удержания прошёл; обновите страницу для повторной проверки." : "Оплата выполняется только внешним провайдером."}</p>
             : <p role="status">Состояние брони: {restoredHold.booking_state}. Для дальнейших действий требуется действующий доступ к записи.</p>}
-          {restoration === "READY" && restoredHold.booking_state === "CONFIRMED" ? (
-            <ConsultationResultView key={restoredHold.booking_id} bookingID={restoredHold.booking_id} />
+          {restoration === "READY" ? (
+            <p>
+              <a href={`/bookings/${encodeURIComponent(restoredHold.booking_id)}`}>
+                Проверить запись и оплату
+              </a>
+            </p>
+          ) : null}
+          {restoredHold.booking_state === "CONFIRMED" ? (
+            <p role="status">CONFIRMED — статус записи, а не самостоятельное доказательство списания. Доступ к консультации проверяется только после подтверждения оплаты.</p>
           ) : null}
         </section>
       ) : null}
