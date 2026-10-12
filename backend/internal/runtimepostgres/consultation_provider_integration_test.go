@@ -269,11 +269,11 @@ func TestSignedConsultationPersistsAcrossAPIStoreRestart(t *testing.T) {
 	}
 	forgedEntitlement := signed(1, "JOINED", "CLIENT")
 	forgedPayload, err := json.Marshal(ConsultationProviderEvent{
-		BookingID: unpaidHold.BookingID,
-		FactType:         "JOINED",
-		Role:             "CLIENT",
+		BookingID:         unpaidHold.BookingID,
+		FactType:          "JOINED",
+		Role:              "CLIENT",
 		ProviderReference: "unpaid-attempt/" + unpaidHold.BookingID,
-		EvidenceRef:      "signed-but-unpaid/" + unpaidHold.BookingID,
+		EvidenceRef:       "signed-but-unpaid/" + unpaidHold.BookingID,
 	})
 	if err != nil {
 		t.Fatal(err)
