@@ -39,8 +39,8 @@ func academyEvent(ctx context.Context, tx *sql.Tx, actor, resource, eventType st
 		return err
 	}
 	_, err = tx.ExecContext(ctx, `INSERT INTO outbox_events
- (event_id,event_type,schema_version,aggregate_ref,correlation_id,occurred_at,producer,payload)
- VALUES ($1::uuid,$2,'academy-event-v1',$3,$1,now(),'apgic-academy',$4::jsonb)`,
+ (event_id,event_type,schema_version,aggregate_ref,correlation_id,idempotency_key,occurred_at,producer,payload)
+ VALUES ($1::uuid,$2,'academy-event-v1',$3,$1,$2||'/'||$3||'/'||$1::text,now(),'apgic-academy',$4::jsonb)`,
 		id, eventType, resource, string(raw))
 	if err != nil {
 		return fmt.Errorf("academy outbox: %w", err)
