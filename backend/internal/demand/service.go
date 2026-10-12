@@ -637,6 +637,20 @@ func (s *Service) AcquireHold(intentID, slotID, clientIdentityID string) (*Hold,
 	if intent.ClientIdentityID != clientIdentityID {
 		return nil, ErrIdentityMismatch
 	}
+	// An existing hold is not a transferable authorization. In live supply
+	// an identical client may have multiple different help intents; reusing
+	// the old hold must still verify that the NEW request can legally book
+	// the exact priced offer. Reject when its offer was withdrawn or its
+	// qualification/jurisdiction/topic no longer passes the owner policy.
+	if s.liveSupplyMode {
+		current, ok := s.slot(slotID)
+		if !ok {
+			return nil, ErrSlotUnavailable
+		}
+		if err := s.authorizeLiveSlotForIntentLocked(intent, current); err != nil {
+			return nil, err
+		}
+	}
 	// An idempotent replay of an already-durable active hold must not depend on
 	// whether the current catalog projection still advertises the slot. The
 	// projection can legitimately roll forward while the hold remains active.
@@ -651,31 +665,6 @@ func (s *Service) AcquireHold(intentID, slotID, clientIdentityID string) (*Hold,
 	slot, ok := s.slot(slotID)
 	if !ok {
 		return nil, ErrSlotNotFound
-	}
-	if s.liveSupplyMode {
-		if slot.Topic == "" || slot.OfferID == "" || !containsTopic(intent.Topics, slot.Topic) {
-			return nil, ErrSlotUnavailable
-		}
-		domainIntent := marketplace.HelpIntent{ID: intent.ID, FreeText: intent.FreeText, Topics: intent.Topics, Goals: intent.Goals, Context: intent.Context, Status: intent.Status}
-		eligible, err := marketplace.MatchEligible(s.catalog.policy, marketplace.MatchRequest{
-			Intent: domainIntent, Topic: slot.Topic,
-			Jurisdiction: contextOr(intent.Context, "jurisdiction", JurisdictionRU),
-			Format:       contextOr(intent.Context, "format", FormatOnline),
-			AgeGroup:     contextOr(intent.Context, "age_group", AgeGroupAdult),
-			Language:     contextOr(intent.Context, "language", LanguageRU),
-		}, s.catalog.candidates)
-		if err != nil {
-			return nil, err
-		}
-		approved := false
-		for _, candidate := range eligible {
-			if candidate.SpecialistID == slot.SpecialistID && candidate.OfferID == slot.OfferID {
-				approved = true
-			}
-		}
-		if !approved {
-			return nil, ErrSlotUnavailable
-		}
 	}
 	if !slot.Exclusive {
 		return nil, ErrSlotNotExclusive
@@ -722,6 +711,37 @@ func (s *Service) AcquireHold(intentID, slotID, clientIdentityID string) (*Hold,
 	s.slotHolds[slot.ID] = hold.ID
 	copyHold := *hold
 	return &copyHold, nil
+}
+
+
+// authorizeLiveSlotForIntentLocked applies the same supply/qualification
+// boundary to a new hold and an idempotent hold replay. It must be called
+// under the service lock, after the canonical live catalog is refreshed.
+func (s *Service) authorizeLiveSlotForIntentLocked(intent *Intent, slot Slot) error {
+	if intent == nil || slot.Topic == "" || slot.OfferID == "" ||
+		!containsTopic(intent.Topics, slot.Topic) {
+		return ErrSlotUnavailable
+	}
+	domainIntent := marketplace.HelpIntent{
+		ID: intent.ID, FreeText: intent.FreeText, Topics: intent.Topics,
+		Goals: intent.Goals, Context: intent.Context, Status: intent.Status,
+	}
+	eligible, err := marketplace.MatchEligible(s.catalog.policy, marketplace.MatchRequest{
+		Intent: domainIntent, Topic: slot.Topic,
+		Jurisdiction: contextOr(intent.Context, "jurisdiction", JurisdictionRU),
+		Format:       contextOr(intent.Context, "format", FormatOnline),
+		AgeGroup:     contextOr(intent.Context, "age_group", AgeGroupAdult),
+		Language:     contextOr(intent.Context, "language", LanguageRU),
+	}, s.catalog.candidates)
+	if err != nil {
+		return err
+	}
+	for _, candidate := range eligible {
+		if candidate.SpecialistID == slot.SpecialistID && candidate.OfferID == slot.OfferID {
+			return nil
+		}
+	}
+	return ErrSlotUnavailable
 }
 
 // HoldStatus refreshes expiry and returns a copy only to the owning client.

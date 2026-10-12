@@ -104,4 +104,26 @@ func TestLiveSupplyMatchesSelectedPricedOfferAndHoldsOnlyConfirmedTopic(t *testi
 	if err != nil || hold.BookingState != "HELD" {
 		t.Fatalf("valid priced slot was not held: %#v, err=%v", hold, err)
 	}
+	// A repeat from the same canonical identity and the SAME eligible
+	// intent is idempotent. A newly confirmed disjoint intent from the
+	// same person must not borrow the old authorization merely because
+	// its slot is still exclusively held by that person.
+	replayed, err := service.AcquireHold(intent.ID, slots[0].ID, intent.ClientIdentityID)
+	if err != nil || replayed.ID != hold.ID {
+		t.Fatalf("same-intent replay changed exclusive hold: %#v err=%v", replayed, err)
+	}
+	otherIntent, err := service.CreateIntentForIdentity(intent.ClientIdentityID, "хочу разобраться со сном")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.ConfirmIntent(otherIntent.ID, []string{"sleep"}, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	if other, err := service.AcquireHold(otherIntent.ID, anxiety.Slots[0].ID, intent.ClientIdentityID); !errors.Is(err, ErrSlotUnavailable) || other != nil {
+		t.Fatalf("same client bypassed a disjoint topic through active hold replay: %#v err=%v", other, err)
+	}
+	if retained, err := service.HoldStatus(hold.ID, intent.ClientIdentityID); err != nil || retained.ID != hold.ID ||
+		retained.BookingState != "HELD" {
+		t.Fatalf("disallowed replay damaged the original valid hold: %#v err=%v", retained, err)
+	}
 }
