@@ -490,6 +490,12 @@ jobs:
         env:
           APGIC_ORGANIZATION_TEST_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable
         run: go test ./internal/httpapi -run 'TestOrganizationDirectionHTTPPersistsOwnershipAndArchivesInsteadOfDelete|TestOrganizationProductHTTPPublishesExplicitOwnershipSnapshot' -count=1
+      - name: Prove R8 Academy canonical course versioning, ownership and entitlement gate in PostgreSQL
+        working-directory: backend
+        env:
+          APGIC_ORGANIZATION_TEST_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable
+        run: go test ./internal/runtimepostgres -run TestAcademyVersioningRequiresVerifiedAccess -count=1 -v
+
       - name: Prove AUTH-002 high-risk step-up gate and audit
         working-directory: backend
         env:
