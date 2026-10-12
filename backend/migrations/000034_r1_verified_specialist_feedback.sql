@@ -69,11 +69,11 @@ BEFORE INSERT OR UPDATE ON specialist_verified_feedback
 FOR EACH ROW EXECUTE FUNCTION apgic_specialist_feedback_guard();
 
 CREATE OR REPLACE FUNCTION apgic_specialist_feedback_no_delete()
-RETURNS trigger LANGUAGE plpgsql AS $
+RETURNS trigger LANGUAGE plpgsql AS $feedback_no_delete$
 BEGIN
   RAISE EXCEPTION 'review evidence is immutable; use explicit audited WITHDRAWN state';
 END;
-$;
+$feedback_no_delete$;
 
 CREATE TRIGGER specialist_verified_feedback_no_delete
 BEFORE DELETE ON specialist_verified_feedback

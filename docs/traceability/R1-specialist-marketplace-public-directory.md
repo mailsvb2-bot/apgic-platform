@@ -91,3 +91,9 @@ After an owner reads their actual booking and requests provider-backed consultat
 The trusted review command can reject a pending rating or, when a rating was already approved, record an audited WITHDRAWN transition; the database prohibits replacing the original score, booking identity or a terminal moderation timestamp. The public rating and protected ranking exclude withdrawn records immediately.
 
 CI no longer maintains two truncated lists of migrations. PostgreSQL invariant and restore jobs now execute the full numbered schema chain before integrations and lifecycle proofs. This is necessary for genuine results after the new review table, and avoids future migrations silently missing from test environments.
+
+## Concurrent qualification withdrawal and a stale booking screen
+
+Migration `000035_r1_live_hold_eligibility_serialization.sql` closes a PostgreSQL race: a hold insert that simply reads the old qualification under MVCC could otherwise commit after a concurrent capability revoke, profile withdrawal, product pause or organization ownership removal. The canonical booking trigger now acquires **shared row locks on the mutable specialist, capability, publication, offer, product, organization, direction, membership and ownership rows** before validating eligibility. If withdrawal takes the lock first, the hold waits and then fails; if the hold locks first, withdrawal waits until that hold is committed, preserving a deterministic order. The marketplace itself never becomes a booking, ledger or PSP owner.
+
+The PostgreSQL live journey adds an overlapping revocation/hold regression using two independent database transactions and confirms no new hold survives the revocation while historical booking state remains readable. This is a stronger guarantee than merely polling stale catalog results.

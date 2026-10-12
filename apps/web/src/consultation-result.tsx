@@ -135,6 +135,7 @@ export default function ConsultationResultView({ bookingID }: { bookingID: strin
           <p>Состояние консультации: {STATE_LABELS[result.state]}.</p>
           {result.state === "COMPLETED" ? (
             <>
+              <p>Подтверждение провайдера: {result.completion_evidence_ref}.</p>
               <p>Консультация завершена по подтверждённому событию провайдера.</p>
               <div aria-label="Оценка завершённой консультации">
                 <label htmlFor="consultation-feedback-rating">Оцените проведённую консультацию</label>

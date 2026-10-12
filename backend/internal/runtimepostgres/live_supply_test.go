@@ -227,6 +227,44 @@ func TestLivePricedSpecialistToDurableHoldAfterRestart(t *testing.T) {
 		len(publicFresh[0].Slots) != 1 || publicFresh[0].Slots[0].SlotID != newSlot.ID {
 		t.Fatalf("real refreshed offer absent: %#v err=%v", publicFresh, err)
 	}
+	// An operator starts withdrawing the qualification while a client with a
+	// stale screen tries to hold a genuine second slot. The DB serializes the
+	// fresh hold against canonical mutable owners, not an old MVCC snapshot.
+	revokeTx, err := store.db.BeginTx(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = revokeTx.ExecContext(context.Background(),
+		`UPDATE specialist_capabilities SET verification_state='REVOKED',updated_at=now()
+		  WHERE specialist_id=$1::uuid AND topic_id='anxiety'`, created.ID); err != nil {
+		_ = revokeTx.Rollback()
+		t.Fatal(err)
+	}
+	overlap := make(chan error, 1)
+	go func() {
+		_, acquireErr := restarted.AcquireHold(intent.ID, newSlot.ID, clientIdentityID)
+		overlap <- acquireErr
+	}()
+	time.Sleep(75 * time.Millisecond)
+	select {
+	case premature := <-overlap:
+		if premature == nil {
+			_ = revokeTx.Rollback()
+			t.Fatal("new slot was held during a concurrent revocation")
+		}
+	default:
+	}
+	if err := revokeTx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case outcome := <-overlap:
+		if outcome == nil {
+			t.Fatal("a client committed a new hold after qualification withdrawal")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("qualification/hold serialization did not release canonical locks")
+	}
 	if err := store.RevokeCapability(created.ID, "anxiety", "reviewer:postgres-revoke"); err != nil {
 		t.Fatal(err)
 	}
