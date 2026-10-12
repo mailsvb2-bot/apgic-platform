@@ -365,6 +365,18 @@ export interface MobileWorkspaceResolution {
   workspace?: AuthorizedMobileWorkspace;
 }
 
+export interface OrderStatus {
+  amount_minor: number;
+  booking_id: string;
+  booking_state: "HELD" | "PENDING_PAYMENT" | "CONFIRMED" | "CANCELLED" | "EXPIRED" | "COMPLETED" | "NO_SHOW";
+  currency: string;
+  order_id: string;
+  payment_method: string;
+  payment_state: "PENDING_PROVIDER" | "CAPTURED";
+  provider_id: string;
+  refund_state?: "REQUESTED" | "SENT" | "PENDING" | "SUCCEEDED" | "FAILED_TERMINAL" | "AMBIGUOUS";
+}
+
 export interface OrganizationDirectionSnapshot {
   direction_type: string;
   id: string;
@@ -391,18 +403,6 @@ export interface OrganizationSnapshot {
   id: string;
   name: string;
   status: "ACTIVE" | "ARCHIVED";
-}
-
-export interface OrderStatus {
-  amount_minor: number;
-  booking_id: string;
-  booking_state: "HELD" | "PENDING_PAYMENT" | "CONFIRMED" | "CANCELLED" | "EXPIRED" | "COMPLETED" | "NO_SHOW";
-  currency: string;
-  order_id: string;
-  payment_method: string;
-  payment_state: "PENDING_PROVIDER" | "CAPTURED";
-  provider_id: string;
-  refund_state?: "REQUESTED" | "SENT" | "PENDING" | "SUCCEEDED" | "FAILED_TERMINAL" | "AMBIGUOUS";
 }
 
 export interface PaymentEvidence {

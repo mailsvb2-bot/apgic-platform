@@ -51,7 +51,10 @@ func TestOrderRecoveredFromBookingRequiresSignedSession(t *testing.T) {
 		handler.ServeHTTP(rec, req)
 		return rec
 	}
-	for _, tc := range []struct{ cookie *http.Cookie; code int }{
+	for _, tc := range []struct {
+		cookie *http.Cookie
+		code   int
+	}{
 		{nil, 401}, {foreign, 404}, {owner, 404},
 	} {
 		rec := call(tc.cookie)
