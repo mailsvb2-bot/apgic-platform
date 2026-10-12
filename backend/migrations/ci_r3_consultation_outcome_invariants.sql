@@ -144,8 +144,11 @@ $$;
 -- back after asserting both denied active cancel and permitted terminal cancel.
 DO $r3_cancel$
 DECLARE denied boolean:=false;
+        booking_clock timestamptz;
 BEGIN
   BEGIN
+    SELECT updated_at INTO STRICT booking_clock FROM bookings
+       WHERE id='00000000-0000-0000-0000-00000000d012';
     INSERT INTO consultation_sessions(id,booking_id,client_identity_id,specialist_identity_id,
         provider_instance_id,state,created_at,updated_at)
     VALUES ('00000000-0000-0000-0000-00000000d301',
@@ -178,9 +181,15 @@ BEGIN
 
     denied:=false;
     BEGIN
-      UPDATE bookings SET state='CANCELLED',updated_at=now()+interval '4 seconds'
+      UPDATE bookings SET state='CANCELLED',updated_at=booking_clock+interval '4 seconds'
         WHERE id='00000000-0000-0000-0000-00000000d012';
-    EXCEPTION WHEN raise_exception THEN denied:=true;
+    EXCEPTION WHEN raise_exception THEN
+      -- Denial must come from the actual active-media guard, not an
+      -- incidental stale timestamp, permission or unrelated trigger.
+      IF SQLERRM <> 'booking cancellation or no-show conflicts with provider session evidence' THEN
+        RAISE;
+      END IF;
+      denied:=true;
     END;
     IF NOT denied THEN RAISE EXCEPTION 'in-progress media booking was cancelled'; END IF;
 
@@ -195,13 +204,19 @@ BEGIN
 
     denied:=false;
     BEGIN
-      UPDATE bookings SET state='NO_SHOW',updated_at=now()+interval '6 seconds'
+      UPDATE bookings SET state='NO_SHOW',updated_at=booking_clock+interval '6 seconds'
         WHERE id='00000000-0000-0000-0000-00000000d012';
-    EXCEPTION WHEN raise_exception THEN denied:=true;
+    EXCEPTION WHEN raise_exception THEN
+      -- Denial must come from the actual active-media guard, not an
+      -- incidental stale timestamp, permission or unrelated trigger.
+      IF SQLERRM <> 'booking cancellation or no-show conflicts with provider session evidence' THEN
+        RAISE;
+      END IF;
+      denied:=true;
     END;
     IF NOT denied THEN RAISE EXCEPTION 'technical failure misclassified as no-show'; END IF;
 
-    UPDATE bookings SET state='CANCELLED',updated_at=now()+interval '7 seconds'
+    UPDATE bookings SET state='CANCELLED',updated_at=booking_clock+interval '7 seconds'
       WHERE id='00000000-0000-0000-0000-00000000d012';
     IF (SELECT state FROM bookings WHERE id='00000000-0000-0000-0000-00000000d012')<>'CANCELLED' OR
        (SELECT state FROM consultation_sessions WHERE id='00000000-0000-0000-0000-00000000d301')<>'TECHNICAL_FAILURE' THEN

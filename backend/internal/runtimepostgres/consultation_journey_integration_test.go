@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mailsvb2-bot/apgic-platform/backend/internal/connector"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/communication"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/connector"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/persistentid"
 )
 
@@ -42,31 +42,33 @@ func TestConsultationJourneyDurableReadAfterStoreRestart(t *testing.T) {
 	// Repeat the same logical grant: the DB must persist one authorization
 	// even when the API response or provider call is retried.
 	grantKey, err := persistentid.New()
-	if err != nil {t.Fatal(err)}
+	if err != nil {
+		t.Fatal(err)
+	}
 	grantKey = "r3-ready-join-" + grantKey
-	prepared, err := store.PrepareCommunicationJoin(ctx,readyBooking,clientID,
+	prepared, err := store.PrepareCommunicationJoin(ctx, readyBooking, clientID,
 		"00000000-0000-0000-0000-00000000c001",
-		"communication-access-r3-ci-v1",grantKey,time.Now().UTC())
-	if err != nil || prepared==nil || prepared.Decision.Decision!=communication.Allow ||
-		prepared.Decision.CredentialRequest==nil {
-		t.Fatalf("canonical ready and entitlement did not authorize join: decision=%+v err=%v",prepared,err)
+		"communication-access-r3-ci-v1", grantKey, time.Now().UTC())
+	if err != nil || prepared == nil || prepared.Decision.Decision != communication.Allow ||
+		prepared.Decision.CredentialRequest == nil {
+		t.Fatalf("canonical ready and entitlement did not authorize join: decision=%+v err=%v", prepared, err)
 	}
-	grant:=communication.IssuedRoomGrant{
-		ProviderCredentialRef:"provider/ci/"+grantKey,
-		JoinURI:"https://media.example/room#ephemeral-test-only",
-		ExpiresAt:prepared.Decision.CredentialRequest.ExpiresAt,
+	grant := communication.IssuedRoomGrant{
+		ProviderCredentialRef: "provider/ci/" + grantKey,
+		JoinURI:               "https://media.example/room#ephemeral-test-only",
+		ExpiresAt:             prepared.Decision.CredentialRequest.ExpiresAt,
 	}
-	if err:=store.RecordCommunicationJoin(ctx,readyBooking,clientID,grantKey,*prepared,grant,time.Now().UTC());err!=nil {
-		t.Fatalf("scoped canonical join not durable: %v",err)
+	if err := store.RecordCommunicationJoin(ctx, readyBooking, clientID, grantKey, *prepared, grant, time.Now().UTC()); err != nil {
+		t.Fatalf("scoped canonical join not durable: %v", err)
 	}
-	if err:=store.RecordCommunicationJoin(ctx,readyBooking,clientID,grantKey,*prepared,grant,time.Now().UTC());err!=nil {
-		t.Fatalf("idempotent join replay not accepted: %v",err)
+	if err := store.RecordCommunicationJoin(ctx, readyBooking, clientID, grantKey, *prepared, grant, time.Now().UTC()); err != nil {
+		t.Fatalf("idempotent join replay not accepted: %v", err)
 	}
 	var grants int
-	if err:=store.db.QueryRowContext(ctx,`SELECT count(*) FROM communication_join_authorizations
+	if err := store.db.QueryRowContext(ctx, `SELECT count(*) FROM communication_join_authorizations
 		WHERE booking_id=$1::uuid AND identity_id=$2::uuid AND idempotency_key=$3`,
-		readyBooking,clientID,grantKey).Scan(&grants);err!=nil||grants!=1 {
-		t.Fatalf("canonical join idempotency broken: count=%d err=%v",grants,err)
+		readyBooking, clientID, grantKey).Scan(&grants); err != nil || grants != 1 {
+		t.Fatalf("canonical join idempotency broken: count=%d err=%v", grants, err)
 	}
 	if denied, err := store.ConfirmConsultationReady(ctx, readyBooking, otherID, time.Now().UTC()); err != nil || denied != nil {
 		t.Fatalf("foreign principal confirmed readiness: value=%+v error=%v", denied, err)
