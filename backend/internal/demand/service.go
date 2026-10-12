@@ -652,7 +652,10 @@ func (s *Service) AcquireHold(intentID, slotID, clientIdentityID string) (*Hold,
 		existing := s.holds[existingID]
 		if existing != nil && existing.ClientIdentityID == clientIdentityID && existing.State == "ACTIVE" {
 			if s.liveSupplyMode && (existing.IntentID == "" || existing.IntentID != intentID || existing.OfferID == "") {
-				return nil, ErrSlotHeld
+				// An active reservation belongs to its original confirmed HelpIntent,
+				// not simply to the same client. Treat disjoint or legacy provenance
+				// as unavailable without allowing the caller to reuse its authority.
+				return nil, ErrSlotUnavailable
 			}
 			copyHold := *existing
 			return &copyHold, nil
