@@ -2,11 +2,11 @@
 
 import {useEffect,useState} from "react";
 
-type Profile = {
- id:string;display_name:string;profession_code:string;headline:string;about:string;
- experience_years:number;languages:string[];limitations:string[];published_topics:string[];
-};
-type Directory = {profiles:Profile[];has_more:boolean;offset:number;limit:number};
+import type {
+ PublicSpecialist as Profile,
+ PublicSpecialistDirectory as Directory,
+} from "../../../../packages/contracts/src/generated/apgic-v1";
+
 const topics:Record<string,string>={
  anxiety:"Тревога и стресс",sleep:"Сон",relationships:"Отношения",career:"Карьера и работа"
 };

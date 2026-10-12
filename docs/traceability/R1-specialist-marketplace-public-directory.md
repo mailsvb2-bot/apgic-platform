@@ -1,0 +1,36 @@
+# APGIC R1 — Specialist Marketplace: public discovery and selection
+
+**Canonical source:** APGIC v7 FINAL, especially sections 12–31, 226–231, 296, 299–302.
+**Release slice:** R1 Supply-Min and Marketplace Discovery. Changes remain isolated in `feat/specialist-marketplace`, not merged into main.
+
+## One complete user path, no invented provider state
+
+1. The specialist signs in through the existing signed single Identity and declares their profession and capabilities in `/specialist`.
+2. Evidence is submitted to the existing canonical owner; only trusted specialist review may approve an evidence subject and profile.
+3. Only a complete, approved specialist with verified, non-expired capabilities and an eligible versioned qualification may publish.
+4. Owner-entered public biography, experience, languages and scope limitations are durable in PostgreSQL; a changed public claim invalidates prior approval and atomically suspends active publications, pending fresh review **and explicit republish**. No self-verification.
+5. `GET /v1/specialists` and `GET /v1/specialists/{id}` derive public projection from the canonical publication, capability, evaluation and profile state on every read. An unpublished specialist returns 404. No raw review evidence or Identity ID enters the public projection.
+6. `/specialists` offers actual topic-filtered discovery and `/specialist/{id}` shows the published page. A visitor can carry a preference to the existing HelpIntent flow; preference alone never implies match, pricing, availability, or bookability.
+7. Native iOS/Android use the same versioned API and generated DTO types and re-read the card before selecting. No independent native specialist database.
+8. Current consultation price, slots, booking and PSP checkout remain under existing product/offer and booking owners. There is no demo price or fabricated provider/appointment.
+
+## Traceability
+
+| Canonical requirement | Implementation | Proof |
+| --- | --- | --- |
+| APGIC-ID-001 / APGIC-AUTH-001 | Existing signed session + same owner Identity, `httpapi/public_specialist.go` | `httpapi/public_specialist_test.go` |
+| APGIC-SPEC-001 / APGIC-SPEC-002 | Existing evidence/review/publication state + `runtimepostgres/public_specialist.go` | `runtimepostgres/public_specialist_integration_test.go` |
+| APGIC-QUAL-001 / APGIC-QUAL-002 | Active ELIGIBLE versioned qualification and nonexpired verified competence required in every public read | PostgreSQL integration test and existing qualification tests |
+| APGIC-SEARCH-001 | Query-scoped projection; PostgreSQL remains canonical, no separate public truth | Public directory read and immediate unpublish/403/404 checks |
+| APGIC-MATCH-001 / APGIC-RANK-001 | Existing confirmed HelpIntent match ranking unchanged; catalog preference cannot manufacture eligible match | `apps/web/app/journey.tsx`, Playwright selection proof |
+| APGIC-UI-001 / APGIC-MOBILE-* | Responsive web, native discovery and accessible selection | `apps/web/e2e/specialist-marketplace.spec.ts`, `mobile-specialist-directory.test.ts` |
+| APGIC-DATA-001 | Explicit public DTO whitelisting, private evidence never transmitted | Public API tests, native response validation |
+
+## Guardrails and intentional scope
+
+- R1 does **not** fake payment acceptance, financial transactions, slot availability, reviews, reputation, certificates, or qualifications. Existing R2–R4 owners remain authoritative.
+- A published profile does not automatically imply an active, priced and bookable offer.
+- Existing protected `/specialists/{id}` mobile deep-link route is retained; publicly shareable profile pages use `/specialist/{id}` to avoid changing protected deep-link semantics.
+- Public pagination is bounded; unknown or unsupported filters are rejected rather than returning unauthorized profiles.
+- Operative verification is still executed only by the existing trusted review operator; publishing directly via the public specialist API is impossible without it.
+- A real production/staging release requires fully green CI, PostgreSQL migration deployment with existing migration ledger, and a live R1 end-to-end proof against actual persisted specialist data. Green local/unit results alone are not release proof.

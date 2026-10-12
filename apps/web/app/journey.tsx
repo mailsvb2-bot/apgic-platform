@@ -172,6 +172,13 @@ export function Journey() {
   const [intent, setIntent] = useState<Intent | null>(null);
   const [topics, setTopics] = useState<string[]>([]);
   const [matches, setMatches] = useState<MatchCard[] | null>(null);
+  // A catalog preference is presentation-only and NEVER bypasses confirmed
+  // HelpIntent, qualification, ranking, price, ownership, or availability.
+  const [requestedSpecialistID, setRequestedSpecialistID] = useState("");
+  useEffect(() => {
+    const ref = new URLSearchParams(window.location.search).get("specialist_id") ?? "";
+    if (/^[a-f0-9-]{36}$/i.test(ref)) setRequestedSpecialistID(ref);
+  }, []);
   const [search, setSearch] = useState<{ notice: string; stale: boolean; rebuilt: boolean; owns_qualification: boolean; entries: { specialist_id: string; display_name: string }[] } | null>(null);
   // A reviewed specialist may be publicly published before an actual priced
   // consultation and bookable slot exists. These are discovery-only profiles,
@@ -867,10 +874,17 @@ export function Journey() {
             </div>
           </div>
 
+          {requestedSpecialistID && (
+            <p role="status" className="status-note">
+              {matches.some((card) => card.specialist_id === requestedSpecialistID)
+                ? "Выбранный в каталоге специалист есть среди доступных предложений. Сравните условия и подтвердите выбор времени."
+                : "Выбранный в каталоге специалист пока не предлагает доступную запись по вашему подтверждённому запросу. Посмотрите другие варианты."}
+            </p>
+          )}
           {matches.length ? (
             <ul className="specialist-cards">
               {matches.map((card) => (
-                <li key={card.specialist_id} className={specialist?.specialist_id === card.specialist_id ? "is-selected" : ""}>
+                <li key={card.specialist_id} className={specialist?.specialist_id === card.specialist_id || requestedSpecialistID === card.specialist_id ? "is-selected" : ""}>
                   <div className="specialist-card-top">
                     <div className="specialist-avatar" aria-hidden="true">{initials(card.display_name)}</div>
                     <div className="specialist-card-name">
@@ -884,6 +898,10 @@ export function Journey() {
                     <span>{money(card.price_minor, card.currency)} / сессия</span>
                     {card.sponsored ? <span>Спонсируемое · без обхода квалификации</span> : null}
                   </div>
+                  {requestedSpecialistID === card.specialist_id ? <p>Вы выбрали эту анкету в каталоге.</p> : null}
+                  {intent?.catalog_mode === "LIVE" ? (
+                    <a href={`/specialist/${encodeURIComponent(card.specialist_id)}`}>Посмотреть публичную анкету</a>
+                  ) : null}
                   <button type="button" onClick={() => choose(card)} disabled={pending}>
                     Выбрать время у {card.display_name}
                   </button>
@@ -904,6 +922,7 @@ export function Journey() {
                         <span className="match-badge">Опубликованный проверенный профиль</span>
                         <h3>{entry.display_name}</h3>
                         <p>Запись пока недоступна</p>
+                        <a href={`/specialist/${encodeURIComponent(entry.specialist_id)}`}>Посмотреть опубликованную анкету</a>
                       </div>
                     </div>
                   </li>

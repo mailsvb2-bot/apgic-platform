@@ -1,13 +1,9 @@
-// The native surface reads the SAME canonical API as web; it never owns
-// specialist qualification, verification or publication state.
-export type PublicSpecialist={
- id:string; display_name:string; profession_code:string;headline:string;about:string;
- experience_years:number;languages:string[];limitations:string[];published_topics:string[];
-};
-export type SpecialistDirectoryResponse={
- profiles:PublicSpecialist[];topic:string;limit:number;offset:number;has_more:boolean;
- policy_version:string;sort:string;
-};
+import type {
+ PublicSpecialist,
+ PublicSpecialistDirectory as SpecialistDirectoryResponse,
+} from "../../../packages/contracts/src/generated/apgic-v1.ts";
+export type {PublicSpecialist,SpecialistDirectoryResponse};
+
 function isProfile(value:unknown):value is PublicSpecialist{
  if(!value||typeof value!=="object")return false;
  const p=value as Partial<PublicSpecialist>;

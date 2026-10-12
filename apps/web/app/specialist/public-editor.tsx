@@ -1,6 +1,6 @@
 "use client";
 import {FormEvent,useEffect,useState} from "react";
-type Details={headline:string;about:string;experience_years:number;languages:string[];limitations:string[]};
+import type {SpecialistPublicDetails as Details} from "../../../../packages/contracts/src/generated/apgic-v1";
 export function SpecialistPublicEditor(){
  const [ready,setReady]=useState(false),[busy,setBusy]=useState(false);
  const [notice,setNotice]=useState("");
@@ -46,6 +46,6 @@ export function SpecialistPublicEditor(){
    <textarea id="public-limitations" rows={3} value={limitations} onChange={e=>setLimitations(e.target.value)}/>
    <button type="submit" disabled={busy}>Сохранить описание</button>
   </form>:<p>Описание станет доступно после создания профиля.</p>}
-  {notice?<p role="status">{notice}</p>:null}
+  {notice?<p className="form-help">{notice}</p>:null}
  </section>;
 }
