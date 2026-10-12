@@ -315,9 +315,9 @@ func (c *Checker) AcademyPublish(actor, courseID, versionID string) (academy.Cou
 	if !allowed {
 		return academy.Course{}, academy.ErrDenied
 	}
-	result, err := tx.ExecContext(ctx, `UPDATE academy_course_versions SET state='PUBLISHED',published_at=now()
+	result, err := tx.ExecContext(ctx, `UPDATE academy_course_versions SET state='PUBLISHED',published_at=now(),title_snapshot=$2,description_snapshot=$3
  WHERE id=$1::uuid AND state='DRAFT' AND EXISTS (
- SELECT 1 FROM academy_lessons l JOIN academy_modules m ON m.id=l.module_id WHERE m.version_id=$1::uuid)`, versionID)
+ SELECT 1 FROM academy_lessons l JOIN academy_modules m ON m.id=l.module_id WHERE m.version_id=$1::uuid)`, versionID, title, description)
 	if err != nil {
 		return academy.Course{}, err
 	}
@@ -608,7 +608,7 @@ func (c *Checker) AcademyVerify(token string) (map[string]any, error) {
 	var state, courseTitle string
 	var versionNo int
 	var issuedAt time.Time
-	err := c.db.QueryRowContext(ctx, `SELECT cert.state,c.title,v.version_no,cert.issued_at FROM academy_certificates cert
+	err := c.db.QueryRowContext(ctx, `SELECT cert.state,COALESCE(v.title_snapshot,c.title),v.version_no,cert.issued_at FROM academy_certificates cert
  JOIN academy_enrollments e ON e.id=cert.enrollment_id
  JOIN academy_course_versions v ON v.id=e.version_id JOIN academy_courses c ON c.id=v.course_id
  WHERE cert.verification_token=$1`, token).Scan(&state, &courseTitle, &versionNo, &issuedAt)
