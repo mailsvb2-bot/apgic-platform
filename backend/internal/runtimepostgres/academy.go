@@ -156,6 +156,15 @@ func (c *Checker) AcademyPublish(actor,courseID,versionID string)(academy.Course
  WHERE c.id=$1::uuid AND v.id=$2::uuid FOR UPDATE OF v`,courseID,versionID).Scan(&pID,&title,&description,&state,&no)
  if errors.Is(err,sql.ErrNoRows){return academy.Course{},academy.ErrNotFound};if err!=nil{return academy.Course{},err}
  if state!="DRAFT"{return academy.Course{},academy.ErrState}
+ // Until a trusted media-playback connector can attest completion, publishing
+ // VIDEO lessons would sell an unfinishable course. Keep draft authoring only.
+ var unsupportedVideo bool
+ err=tx.QueryRowContext(ctx,`SELECT EXISTS(
+  SELECT 1 FROM academy_lessons l JOIN academy_modules m ON m.id=l.module_id
+  WHERE m.version_id=$1::uuid AND l.kind='VIDEO'
+ )`,versionID).Scan(&unsupportedVideo)
+ if err!=nil{return academy.Course{},err}
+ if unsupportedVideo{return academy.Course{},academy.ErrState}
  allowed,err:=academyPublishedProductOwner(ctx,tx,actor,pID);if err!=nil{return academy.Course{},err}
  if !allowed{return academy.Course{},academy.ErrDenied}
  result,err:=tx.ExecContext(ctx,`UPDATE academy_course_versions SET state='PUBLISHED',published_at=now()
