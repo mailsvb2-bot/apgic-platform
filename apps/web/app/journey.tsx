@@ -1044,7 +1044,7 @@ export function Journey() {
                 <span className="slot-day">{when(slot.starts_at).split(",")[0]}</span>
                 <strong>{when(slot.starts_at)}</strong>
                 <small>{slot.exclusive ? "Эксклюзивный слот" : "Доступное время"}</small>
-                <button type="button" onClick={() => acquire(slot)} disabled={pending}>
+                <button type="button" data-slot-id={slot.id} onClick={() => acquire(slot)} disabled={pending}>
                   Удержать слот {when(slot.starts_at)}
                 </button>
               </li>
