@@ -2,16 +2,56 @@
 
 import {useCallback,useEffect,useRef,useState} from "react";
 import {
-  personalBookingLabel,personalConsultationLabel,
+  personalBookingLabel,personalConsultationLabel,personalProgressLabel,
+  type ClientPersonalCheckInInput,
   type ClientPersonalBooking,type ClientPersonalView,type ClientPersonalPreferences,
 } from "../../../packages/contracts/src/client-personal";
-import {loadClientPersonal,saveClientPersonalPreferences,PersonalAPIError} from "./client-personal-api";
+import {loadClientPersonal,saveClientPersonalPreferences,recordPersonalCheckIn,PersonalAPIError} from "./client-personal-api";
 
 function formatDate(iso:string,zone:string) {
   try{return new Intl.DateTimeFormat("ru-RU",{dateStyle:"medium",timeStyle:"short",timeZone:zone}).format(new Date(iso));}
   catch{return new Date(iso).toLocaleString("ru-RU");}
 }
-function BookingList({items,zone}:{items:ClientPersonalBooking[],zone:string}){
+function PersonalCheckIn({booking,onSaved}:{booking:ClientPersonalBooking,onSaved:()=>void}){
+  const [progress,setProgress]=useState<ClientPersonalCheckInInput["progress_code"]>("UNSURE");
+  const [rating,setRating]=useState("");
+  const [busy,setBusy]=useState(false);
+  const [error,setError]=useState("");
+  if(booking.consultation_state!=="COMPLETED")return null;
+  if(booking.client_progress)return <p aria-label="Ваша оценка">
+    Вы отметили: {personalProgressLabel[booking.client_progress]}
+    {booking.match_satisfaction?` · Контакт со специалистом: ${booking.match_satisfaction} из 5`:""}.
+  </p>;
+  const submit=async(e:React.FormEvent)=>{
+    e.preventDefault();
+    if(busy)return;
+    setBusy(true);setError("");
+    try{
+      await recordPersonalCheckIn({booking_id:booking.booking_id,progress_code:progress,
+        ...(rating?{match_satisfaction:Number(rating)}:{})});
+      onSaved();
+    }catch(cause){setError(cause instanceof Error?cause.message:"Ответ не сохранён.");}
+    finally{setBusy(false);}
+  };
+  return <form className="personal-check-in" onSubmit={e=>void submit(e)}>
+    <p>Как вы сейчас оцениваете своё состояние? Это ваша личная оценка, не медицинское заключение.</p>
+    <label>Самочувствие
+      <select value={progress} onChange={e=>setProgress(e.target.value as typeof progress)}>
+        {(Object.keys(personalProgressLabel) as Array<typeof progress>).map(code=>
+          <option key={code} value={code}>{personalProgressLabel[code]}</option>)}
+      </select>
+    </label>
+    <label>Насколько подошёл специалист (необязательно)
+      <select value={rating} onChange={e=>setRating(e.target.value)}>
+        <option value="">Не оценивать</option>
+        {[1,2,3,4,5].map(n=><option key={n} value={String(n)}>{n} из 5</option>)}
+      </select>
+    </label>
+    <button type="submit" disabled={busy}>{busy?"Сохраняем…":"Сохранить оценку"}</button>
+    {error?<p role="alert">{error}</p>:null}
+  </form>;
+}
+function BookingList({items,zone,onSaved}:{items:ClientPersonalBooking[],zone:string,onSaved?:()=>void}){
   if(!items.length)return <p className="personal-muted">Здесь пока нет записей.</p>;
   return <ul className="personal-booking-list">{items.map(item=>
     <li className="personal-booking" key={item.booking_id}>
@@ -23,6 +63,7 @@ function BookingList({items,zone}:{items:ClientPersonalBooking[],zone:string}){
       </div>
       {item.consultation_state?<p>Консультация: {personalConsultationLabel[item.consultation_state]}</p>:null}
       <a href={`/bookings/${encodeURIComponent(item.booking_id)}`}>Детали записи</a>
+      {onSaved?<PersonalCheckIn booking={item} onSaved={onSaved}/>:null}
     </li>)}</ul>;
 }
 export default function ClientPersonalView(){
@@ -97,7 +138,7 @@ export default function ClientPersonalView(){
       </div>
       <section className="personal-section" aria-labelledby="personal-history">
         <h2 id="personal-history">История встреч</h2>
-        <BookingList items={data.history} zone={data.preferences.time_zone}/>
+        <BookingList items={data.history} zone={data.preferences.time_zone} onSaved={()=>void reload()}/>
         {data.next_history_cursor?<button type="button" disabled={loadingMore} onClick={()=>void loadMore()}>
           {loadingMore?"Загружаем…":"Показать более ранние записи"}
         </button>:null}

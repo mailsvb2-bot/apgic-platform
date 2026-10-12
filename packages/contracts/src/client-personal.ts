@@ -14,6 +14,8 @@ export type ClientPersonalBooking = {
   specialist_profession: string;
   consultation_state?: "SCHEDULED" | "READY" | "IN_PROGRESS" | "RECOVERING" | "TECHNICAL_FAILURE" | "COMPLETED";
   order_id?: string;
+  client_progress?: "IMPROVED" | "UNCHANGED" | "WORSE" | "UNSURE";
+  match_satisfaction?: number;
 };
 export type ClientPersonalRequest = {
   id: string;
@@ -31,6 +33,7 @@ export type ClientPersonalView = {
   next_history_cursor?: string;
 };
 
+const progressStates = new Set(["IMPROVED","UNCHANGED","WORSE","UNSURE"]);
 const states = new Set(["HELD","PENDING_PAYMENT","CONFIRMED","CANCELLED","EXPIRED","COMPLETED","NO_SHOW"]);
 const consultStates = new Set(["SCHEDULED","READY","IN_PROGRESS","RECOVERING","TECHNICAL_FAILURE","COMPLETED"]);
 function record(value: unknown): Record<string, unknown> {
@@ -46,7 +49,9 @@ function validBooking(value: unknown): value is ClientPersonalBooking {
     typeof b.starts_at === "string" && Number.isFinite(Date.parse(b.starts_at)) &&
     typeof b.ends_at === "string" && Number.isFinite(Date.parse(b.ends_at)) &&
     (b.consultation_state === undefined || consultStates.has(b.consultation_state)) &&
-    (b.order_id === undefined || (typeof b.order_id === "string" && b.order_id.length === 36));
+    (b.order_id === undefined || (typeof b.order_id === "string" && b.order_id.length === 36)) &&
+    (b.client_progress === undefined || progressStates.has(b.client_progress)) &&
+    (b.match_satisfaction === undefined || (Number.isInteger(b.match_satisfaction) && b.match_satisfaction >= 1 && b.match_satisfaction <= 5));
 }
 export function parseClientPersonalView(value: unknown): ClientPersonalView {
   const v = record(value);
@@ -78,4 +83,17 @@ export const personalBookingLabel: Record<ClientPersonalBooking["state"], string
 export const personalConsultationLabel: Record<NonNullable<ClientPersonalBooking["consultation_state"]>, string> = {
   SCHEDULED:"Запланирована",READY:"Участники готовы",IN_PROGRESS:"Идёт",
   RECOVERING:"Восстанавливается",TECHNICAL_FAILURE:"Технический сбой",COMPLETED:"Завершена",
+};
+
+export type ClientPersonalCheckInInput = {
+  booking_id: string;
+  progress_code: "IMPROVED" | "UNCHANGED" | "WORSE" | "UNSURE";
+  match_satisfaction?: number;
+};
+export type ClientPersonalCheckIn = ClientPersonalCheckInInput & {
+  recorded_at: string;
+  idempotent: boolean;
+};
+export const personalProgressLabel: Record<ClientPersonalCheckInInput["progress_code"], string> = {
+  IMPROVED: "Мне лучше", UNCHANGED: "Без изменений", WORSE: "Мне хуже", UNSURE: "Пока не могу оценить",
 };

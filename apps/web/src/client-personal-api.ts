@@ -34,3 +34,15 @@ export async function saveClientPersonalPreferences(p: ClientPersonalPreferences
   }
   return value as ClientPersonalPreferences;
 }
+
+export async function recordPersonalCheckIn(input: import("../../../packages/contracts/src/client-personal").ClientPersonalCheckInInput): Promise<void> {
+  const response=await fetch("/v1/client/personal/check-ins",{
+    method:"POST",credentials:"include",cache:"no-store",
+    headers:{"content-type":"application/json",Accept:"application/json"},
+    body:JSON.stringify(input),
+  });
+  await check(response);
+  const reply=await response.json() as {booking_id?:string,progress_code?:string};
+  if(reply.booking_id!==input.booking_id || reply.progress_code!==input.progress_code)
+    throw new PersonalAPIError("INVALID","Сервер не подтвердил сохранение оценки.");
+}
