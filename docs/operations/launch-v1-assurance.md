@@ -51,3 +51,9 @@ Required source artifacts are inside the repository with locked hashes; the R4 v
 ## Current baseline
 
 This branch does **not** enable a live launch. The frozen registry contains non-RELEASED R0–R4 requirements, the production index has no records, and no approved R4 production evidence manifest is present. The gate's expected result is `BLOCKED` until real end-to-end functionality and signed-off evidence arrive from all domain branches. Do not artificially set statuses to RELEASED.
+
+## Production evidence ingestion hardening
+
+To populate `canon/evidence/production-evidence-index.yaml`, each production record used by the R4 native/store/payment gate now refers to a JSON observation under `canon/evidence/production/`, conforming to `contracts/jsonschema/production-observation-v1.schema.json`. The observation and index must agree on evidence ID, type, exact 40-character candidate SHA, source URL, verification timestamp and PASS/non-synthetic/PRODUCTION classification; the file must match the indexed SHA256. A generic schema file, CI artifact or staging observation is not acceptable production proof. The external source must be an HTTPS permalink with a meaningful path and a named verifier.
+
+**Security limitation:** a self-authored receipt plus hash is tamper-evident **only relative to Git history**, not a cryptographic attestation from a provider. An operator must independently inspect the HTTPS source's authority, authenticity, content, visibility and timing before declaring production release. No production proof is generated or inserted by CI.

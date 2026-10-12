@@ -3,7 +3,10 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import re
+from datetime import datetime, timezone
+from urllib.parse import urlsplit
 import sys
 from pathlib import Path
 
@@ -14,6 +17,9 @@ REGISTRY_PATH = ROOT / "canon/requirements/registry.yaml"
 PRODUCTION_EVIDENCE_INDEX_PATH = ROOT / "canon/evidence/production-evidence-index.yaml"
 EVIDENCE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]*$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+COMMIT_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+OBSERVATION_VERSION = "production-observation-v1"
+OBSERVATION_ROOT = "canon/evidence/production/"
 NATIVE_RELEASE_REQUIREMENT_ID = "APGIC-MOBILE-015"
 STORE_RELEASE_REQUIREMENT_ID = "APGIC-MOBILE-030"
 PAYMENT_RELEASE_REQUIREMENT_ID = "APGIC-PAY-015"
@@ -123,6 +129,65 @@ def canon_dependency_blockers(
     return blockers
 
 
+def _utc_time(raw: object) -> datetime | None:
+    if not isinstance(raw, str) or not raw.endswith("Z"):
+        return None
+    try:
+        dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return dt.astimezone(timezone.utc) if dt.tzinfo else None
+
+
+def _external_proof_source(raw: object) -> bool:
+    if not isinstance(raw, str):
+        return False
+    try:
+        parsed = urlsplit(raw)
+    except ValueError:
+        return False
+    # A CI-only or staging reference is NOT an independently verifiable
+    # provider/store/operations observation, even if its hash is correct.
+    return (parsed.scheme == "https"
+            and bool(parsed.hostname)
+            and parsed.hostname not in {"localhost", "127.0.0.1", "::1"}
+            and parsed.username is None
+            and parsed.password is None
+            and bool(parsed.path and parsed.path != "/"))
+
+
+def _observation_blockers(
+    *, artifact_path: Path, evidence_id: str, evidence_type: str,
+    record: dict, candidate_sha: str,
+) -> list[str]:
+    label = evidence_type
+    try:
+        observation = json.loads(artifact_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return [f"{label}:PRODUCTION_OBSERVATION_INVALID_JSON"]
+    if not isinstance(observation, dict):
+        return [f"{label}:PRODUCTION_OBSERVATION_INVALID"]
+    expected = {
+        "schema_version": OBSERVATION_VERSION,
+        "evidence_id": evidence_id,
+        "evidence_type": evidence_type,
+        "candidate_sha": candidate_sha,
+        "environment": "PRODUCTION",
+        "status": "PASS",
+        "synthetic": False,
+        "source_ref": record.get("source_ref"),
+        "verified_at": record.get("verified_at"),
+    }
+    blockers = [
+        f"{label}:PRODUCTION_OBSERVATION_{key.upper()}_MISMATCH"
+        for key, value in expected.items() if observation.get(key) != value
+    ]
+    verifier = observation.get("verified_by")
+    if not isinstance(verifier, str) or not verifier.strip() or verifier.startswith("ci-"):
+        blockers.append(f"{label}:PRODUCTION_OBSERVATION_VERIFIER_MISSING")
+    return blockers
+
+
 def production_evidence_blockers(
     document: dict,
     evidence_type: str,
@@ -152,14 +217,16 @@ def production_evidence_blockers(
     if record.get("candidate_sha") != document.get("candidate_sha"):
         blockers.append(f"{evidence_type}:PRODUCTION_EVIDENCE_CANDIDATE_MISMATCH")
     source_ref = record.get("source_ref")
-    if not isinstance(source_ref, str) or not source_ref.strip():
-        blockers.append(f"{evidence_type}:PRODUCTION_EVIDENCE_SOURCE_MISSING")
+    if not _external_proof_source(source_ref):
+        blockers.append(f"{evidence_type}:PRODUCTION_EVIDENCE_EXTERNAL_SOURCE_REQUIRED")
     artifact_path_raw = record.get("artifact_path")
     artifact_path = None
     if not isinstance(artifact_path_raw, str) or not artifact_path_raw.strip():
         blockers.append(f"{evidence_type}:PRODUCTION_EVIDENCE_ARTIFACT_PATH_MISSING")
     else:
         artifact_path = (ROOT / artifact_path_raw).resolve()
+        if not artifact_path_raw.startswith(OBSERVATION_ROOT):
+            blockers.append(f"{evidence_type}:PRODUCTION_EVIDENCE_OBSERVATION_PATH_REQUIRED")
         if ROOT not in artifact_path.parents or not artifact_path.is_file():
             blockers.append(f"{evidence_type}:PRODUCTION_EVIDENCE_ARTIFACT_MISSING")
 
@@ -171,15 +238,25 @@ def production_evidence_blockers(
         if actual_digest != digest:
             blockers.append(f"{evidence_type}:PRODUCTION_EVIDENCE_DIGEST_MISMATCH")
     verified_at = record.get("verified_at")
-    if not isinstance(verified_at, str) or not verified_at.strip():
-        blockers.append(f"{evidence_type}:PRODUCTION_EVIDENCE_VERIFIED_AT_MISSING")
+    verified_dt = _utc_time(verified_at)
+    if verified_dt is None:
+        blockers.append(f"{evidence_type}:PRODUCTION_EVIDENCE_VERIFIED_AT_INVALID")
+    elif verified_dt > datetime.now(timezone.utc):
+        blockers.append(f"{evidence_type}:PRODUCTION_EVIDENCE_VERIFIED_IN_FUTURE")
+    if artifact_path is not None and artifact_path.is_file() and ROOT in artifact_path.parents:
+        blockers.extend(_observation_blockers(
+            artifact_path=artifact_path, evidence_id=evidence_id,
+            evidence_type=evidence_type, record=record,
+            candidate_sha=document.get("candidate_sha"),
+        ))
     return blockers
 
 
 def evaluate(document: dict, gate: str, mode: str, production_index: dict | None = None) -> tuple[bool, list[str]]:
     if document.get("schema_version") != "r4-release-gate-v1":
         return False, ["SCHEMA_VERSION_INVALID"]
-    if not isinstance(document.get("candidate_sha"), str) or len(document["candidate_sha"].strip()) < 7:
+    candidate = document.get("candidate_sha")
+    if not isinstance(candidate, str) or (not COMMIT_SHA_RE.fullmatch(candidate) if mode == "production" else len(candidate.strip()) < 7):
         return False, ["CANDIDATE_SHA_INVALID"]
 
     synthetic = document.get("synthetic")
