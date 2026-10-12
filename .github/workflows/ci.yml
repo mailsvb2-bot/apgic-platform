@@ -270,6 +270,13 @@ jobs:
           node --check static/room.js
           test -s static/room.html
           test -s static/room.css
+      - name: Build deployable LiveKit CommunicationProvider image
+        shell: bash
+        run: |
+          # Go tests alone do not prove the supplied SDK asset actually exists
+          # or that the production container builds with its declared entrypoint.
+          docker build --pull --tag apgic-r3-media-reference:ci \
+            services/communication-reference
 
   postgres-invariants:
     name: PostgreSQL migration / invariant proof

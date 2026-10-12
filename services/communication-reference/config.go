@@ -46,7 +46,7 @@ func readConfig() (config, error) {
 		KeyID:             os.Getenv("APGIC_COMM_REF_KEY_ID"),
 		SigningKey:        ed25519.PrivateKey(private),
 		StateDir:          env("APGIC_COMM_REF_STATE_DIR", "./state"),
-		ClientBundle:      env("APGIC_COMM_REF_LIVEKIT_CLIENT_BUNDLE", "./assets/livekit-client.umd.min.js"),
+		ClientBundle:      env("APGIC_COMM_REF_LIVEKIT_CLIENT_BUNDLE", "./assets/livekit-client.umd.js"),
 		MinimumSession:    60 * time.Second,
 	}
 	if len(c.SigningKey) != ed25519.PrivateKeySize ||

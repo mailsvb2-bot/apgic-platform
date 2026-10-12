@@ -38,7 +38,7 @@ func (s *referenceService) handler() http.Handler {
 		w.Header().Set("Content-Type", "text/css; charset=utf-8")
 		http.ServeFile(w, r, "static/room.css")
 	})
-	mux.HandleFunc("GET /assets/livekit-client.umd.min.js", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /assets/livekit-client.umd.js", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
 		w.Header().Set("Cache-Control", "public,max-age=86400")
 		http.ServeFile(w, r, s.config.ClientBundle)

@@ -54,3 +54,7 @@ Do not return a join URL until APGIC has atomically persisted its entitlement-bo
 ## Single-writer production safety
 
 The JSON reference adapter is intentionally **one process per durable outbox directory**. At boot, it takes an exclusive OS file lock before processing media callbacks or retrying signed events. A rolling deployment must stop the previous instance before starting a replacement against the same volume; if the lock is held, the new process fails closed instead of forking signed sequence numbers. Do not mount this directory over a filesystem that cannot provide reliable file locks. Horizontal scale requires a different CommunicationProvider implementation with distributed transactional outbox/leases; adding replicas or suppressing this lock is not release evidence. `TestDurableProviderOutboxHasOnlyOneProcessOwner` checks duplicate-denial and restart acquisition.
+
+## Deployable media image proof
+
+The official pinned `livekit-client@2.22.3` bundle is `dist/livekit-client.umd.js` (Rollup UMD output and package `main`). Do not substitute a nonexistent `.umd.min.js` path. The mandatory `communication-reference` GitHub job builds the **whole Docker image**, not only source-level Go tests, so the exact bundled browser SDK and container entrypoint remain release gates. This is still not proof of a running SFU or a two-person media call.
