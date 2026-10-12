@@ -63,3 +63,16 @@ No checkbox above means production completion without the corresponding external
 - Enabling `APGIC_LIVE_EVENTS_ENABLED=1` without canonical PostgreSQL is a startup error; server readiness checks all R9 tables and SQL guard procedures. Feature disabled is the default.
 - Playwright smoke coverage checks truthful unavailable state, organizer route, and unchanged critical-entry baselines.
 - Signed provider heartbeats alone **never** turn the media eligibility response into a room token. Actual access still needs the separately certified communication provider.
+
+## SQL regression root cause and prevention (2026-10-12)
+
+The first R9 SQL acceptance script was silently damaged by string substitution of PostgreSQL `$$` quoting into `$`. This was not a PostgreSQL deployment failure: GitHub Actions reached the SQL script and PostgreSQL rejected `DO $`.
+
+**Permanent verification boundary**:
+- `tools/r9_sql_contract_guard.py` refuses unbalanced or truncated SQL dollar quoting, missing negative controls, disabled CI concurrency steps; its regression tests are part of Canon CI.
+- `ci_r9_live_events_invariants.sql` is a rollback-only SQL acceptance suite. It asserts **the exact expected denial reason**, not merely any exception, for foreign owners, draft and unpaid registration, provider proof, lifecycle, scope, capacity, cancellation and re-entry, duplicate signed attendance, immutable evidence and terminal states.
+- `backend/ci/r9_registration_concurrency.sh` uses 24 independent psql clients contending for three real PostgreSQL seats, checks exactly three admissions, all remaining denials and no duplicate participant seats.
+- The GitHub Actions PostgreSQL job runs the migration, the rollback-only suite, and concurrent registration proof against the same database. The R0 bootstrap gate stays dependent on genuine PostgreSQL success; it must not be bypassed.
+- The proof suite simulates a stored verified provider reference for DB invariants. It is **not proof of live media**, actual signed UCR grants, production readiness or financial settlement.
+
+CI green is necessary but not sufficient for R9 release. A production-like signed media join, attendance provider outcomes and consent/refund journeys remain release blockers.
