@@ -140,3 +140,44 @@ reported explicitly rather than falsely declaring remote deletion complete.
 ## Operational replay and real provider readiness
 
 The model-backed sidecar keeps an ephemeral APGIC-session-to-provider-session binding: repeated OPEN with identical reviewed context returns the same lease, while mismatched persona/style/mode is rejected. After user CLOSE or TTL expiry, an opaque temporary tombstone blocks replay of the same APGIC session. A failed inference attempt consumes the per-session turn budget; no unlimited provider retries. Provider health is probed before APGIC advertises an avatar as selectable. This health check confirms only that the model-backed gateway is reachable; it is **not** a claim of external LLM inference success or model safety certification. Every answer still requires an actual, independently validated model completion.
+
+## Mandatory per-persona runtime identity and capability intersection
+
+A single global style prompt is **not** a sufficient implementation of a
+selected AI character. Provider startup also requires
+`PERSONA_PROVIDER_PERSONAS_JSON`: an explicit, operator-reviewed manifest
+with an entry for **every** published and licensed Persona ID to be served.
+A fictional example (not seeded, not a rights approval):
+
+```json
+{
+  "00000000-0000-0000-0000-000000000201": {
+    "label": "Добрый Ёж",
+    "role": "Добрый вымышленный ёж, который внимательно слушает, задаёт короткие вопросы и не притворяется врачом.",
+    "language": "ru",
+    "voice_profile": "reviewed-neutral-browser-voice",
+    "visual_profile": "reviewed-fictional-illustration",
+    "allows_text": true,
+    "allows_voice": true
+  }
+}
+```
+
+This profile must match the independently approved APGIC `persona_catalog`
+identity, voice/visual profiles, language, and reviewed licensing
+(`persona_rights_reviews`). The runtime rejects unknown, mismatched or
+unsupported profiles at OPEN. The selected character's reviewed identity
+and tone are injected into the actual model request under the non-negotiable
+model safety policy, rather than being ignored. The provider's protected
+`GET /v1/persona-catalog` exposes only capabilities, never the private
+role prompt. APGIC offers only the intersection of operator-reviewed
+provider capabilities and its rights-cleared published catalog; if no
+intersection exists, the avatar entry is disabled and HelpIntent still works.
+
+Native voice and real-time animated appearance require an independently
+certified transport; the current model-backed sidecar advertises **TEXT and
+VOICE as model dialogue modes**, not a working synthetic face. Browser VOICE
+uses the browser's speech recognition and speech synthesis, which may rely
+on external browser-vendor processing. Do not promise voice-profile fidelity,
+zero-retention inference, VPR parity or production readiness without live
+end-to-end proof and provider terms validation.

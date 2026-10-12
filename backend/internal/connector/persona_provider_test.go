@@ -47,6 +47,12 @@ func TestPersonaConnectorRequiresRealModelReply(t *testing.T) {
 		switch r.URL.Path {
 		case "/healthz":
 			_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok", "mode": "MODEL_BACKED"})
+		case "/v1/persona-catalog":
+			_ = json.NewEncoder(w).Encode(map[string]any{"personas": []map[string]any{{
+				"id": "00000000-0000-0000-0000-000000000201", "language": "ru",
+				"voice_profile": "cleared-voice", "visual_profile": "cleared-image",
+				"supports_text": true, "supports_voice": false,
+			}}})
 		case "/v1/persona-sessions":
 			_ = json.NewEncoder(w).Encode(map[string]any{"session_ref": "real-ephemeral-ref", "launch_url": "", "mode": "TEXT", "expires_at": time.Now().Add(5 * time.Minute)})
 		case "/v1/persona-sessions/turns":
@@ -66,6 +72,10 @@ func TestPersonaConnectorRequiresRealModelReply(t *testing.T) {
 	p.client = server.Client()
 	if !p.Ready(context.Background()) {
 		t.Fatal("healthy external model-backed provider not detected")
+	}
+	list, listingError := p.Catalog(context.Background())
+	if listingError != nil || len(list) != 1 || list[0].ID != "00000000-0000-0000-0000-000000000201" || list[0].SupportsVoice {
+		t.Fatalf("provider capability contract invalid: %+v %v", list, listingError)
 	}
 	out, err := p.Open(context.Background(), PersonaOpen{Mode: "TEXT"})
 	if err != nil || out.Mode != "TEXT" || out.LaunchURL != "" {

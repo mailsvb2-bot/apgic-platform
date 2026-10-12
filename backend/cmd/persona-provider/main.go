@@ -32,7 +32,35 @@ var validUUID = regexp.MustCompile(`^[a-fA-F0-9]{8}(-[a-fA-F0-9]{4}){3}-[a-fA-F0
 type config struct {
 	token, modelURL, modelKey, model, policy string
 	client                                   *http.Client
+	personas                                 map[string]personaProfile
 }
+type personaProfile struct {
+	Label         string `json:"label"`
+	Role          string `json:"role"`
+	Language      string `json:"language"`
+	VoiceProfile  string `json:"voice_profile"`
+	VisualProfile string `json:"visual_profile"`
+	AllowsText    bool   `json:"allows_text"`
+	AllowsVoice   bool   `json:"allows_voice"`
+}
+
+func validatePersonaProfiles(profiles map[string]personaProfile) error {
+	if len(profiles) == 0 || len(profiles) > 100 {
+		return errors.New("explicit reviewed personas required")
+	}
+	for id, p := range profiles {
+		if !validUUID.MatchString(id) || strings.TrimSpace(p.Label) == "" ||
+			len(p.Label) > 100 || strings.TrimSpace(p.Role) == "" || len(p.Role) > 500 ||
+			!allowed(p.Language, "ru", "en", "ru-RU", "en-US") ||
+			p.VoiceProfile == "" || len(p.VoiceProfile) > 120 ||
+			p.VisualProfile == "" || len(p.VisualProfile) > 120 ||
+			!(p.AllowsText || p.AllowsVoice) {
+			return errors.New("unreviewed persona profile")
+		}
+	}
+	return nil
+}
+
 type message struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
@@ -40,6 +68,7 @@ type message struct {
 type session struct {
 	mode, style, language, purpose string
 	apgicID, binding               string
+	personaLabel, personaRole      string
 	history                        []message
 	turns                          int
 	expires                        time.Time
@@ -98,19 +127,25 @@ func (s *service) reap() {
 			delete(s.sessions, k)
 		}
 	}
-	// Revocation fences are short-lived replay protection, not durable memory.
-	// Expired tombstones must not accumulate after session cleanup.
-	for id, until := range s.closed {
-		if !time.Now().Before(until) {
-			delete(s.closed, id)
-		}
-	}
 }
 func (s *service) handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /v1/persona-sessions", s.open)
 	mux.HandleFunc("POST /v1/persona-sessions/turns", s.turn)
 	mux.HandleFunc("POST /v1/persona-sessions/close", s.close)
+	// Capabilities are the operator-reviewed runtime identity manifest, not a
+	// synthetic list. APGIC intersects this with its rights-cleared SQL catalog.
+	mux.HandleFunc("GET /v1/persona-catalog", func(w http.ResponseWriter, r *http.Request) {
+		result := make([]map[string]any, 0, len(s.cfg.personas))
+		for id, p := range s.cfg.personas {
+			result = append(result, map[string]any{
+				"id": id, "language": p.Language, "voice_profile": p.VoiceProfile,
+				"visual_profile": p.VisualProfile, "supports_text": p.AllowsText,
+				"supports_voice": p.AllowsVoice,
+			})
+		}
+		replyJSON(w, 200, map[string]any{"personas": result})
+	})
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		replyJSON(w, 200, map[string]string{"status": "ok", "mode": "MODEL_BACKED"})
 	})
@@ -151,6 +186,14 @@ func (s *service) open(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &q) {
 		return
 	}
+	selected, known := s.cfg.personas[q.PersonaID]
+	if !known || selected.Language != q.Language || selected.VoiceProfile != q.VoiceProfile ||
+		selected.VisualProfile != q.VisualProfile ||
+		(q.Mode == "VOICE" && !selected.AllowsVoice) ||
+		(q.Mode == "TEXT" && !selected.AllowsText) {
+		http.Error(w, "UNREVIEWED_PERSONA_BINDING", 403)
+		return
+	}
 	if !validUUID.MatchString(q.APGICSessionID) || !validUUID.MatchString(q.PersonaID) ||
 		q.PrivacyMode != "PRIVATE_EPHEMERAL" || q.PolicyVersion != s.cfg.policy ||
 		!allowed(q.Mode, "TEXT", "VOICE") ||
@@ -188,7 +231,7 @@ func (s *service) open(w http.ResponseWriter, r *http.Request) {
 	}
 	ref := hex.EncodeToString(raw)
 	expires := time.Now().Add(sessionTTL)
-	s.sessions[ref] = &session{mode: q.Mode, style: q.Style, language: q.Language, purpose: q.Purpose, expires: expires, apgicID: q.APGICSessionID, binding: openBinding(q)}
+	s.sessions[ref] = &session{mode: q.Mode, style: q.Style, language: q.Language, purpose: q.Purpose, expires: expires, apgicID: q.APGICSessionID, binding: openBinding(q), personaLabel: selected.Label, personaRole: selected.Role}
 	s.byAPGIC[q.APGICSessionID] = ref
 	// Inline TEXT/VOICE needs no external browser URL or token. APGIC owns the session cookie.
 	replyJSON(w, 201, map[string]any{"session_ref": ref, "launch_url": "", "mode": q.Mode, "expires_at": expires.UTC()})
@@ -278,6 +321,9 @@ func (s *service) infer(ctx context.Context, v *session, history []message, inpu
 	if strings.HasPrefix(v.language, "en") {
 		policy = "You are clearly disclosed as an AI, never a human or clinician. No diagnosis, treatment, invented credentials, dependency or sales pressure. In immediate danger, encourage local emergency services and human support. Be kind and brief."
 	}
+	// The reviewed character identity is immutable session context, not a
+	// client-supplied prompt. Model safety policy remains the top-level rule.
+	policy += " Reviewed persona: " + v.personaLabel + ". Identity and manner: " + v.personaRole + "."
 	policy += " Style: " + v.style + ". Purpose: " + v.purpose + "."
 	messages := append([]message{{"system", policy}}, history...)
 	messages = append(messages, message{"user", input})
@@ -317,6 +363,12 @@ func (s *service) infer(ctx context.Context, v *session, history []message, inpu
 func configFromEnv() (config, error) {
 	c := config{token: os.Getenv("PERSONA_PROVIDER_SERVICE_TOKEN"), modelURL: os.Getenv("PERSONA_PROVIDER_LLM_URL"),
 		modelKey: os.Getenv("PERSONA_PROVIDER_LLM_API_KEY"), model: os.Getenv("PERSONA_PROVIDER_LLM_MODEL"), policy: os.Getenv("PERSONA_PROVIDER_POLICY_VERSION")}
+	rawProfiles := strings.TrimSpace(os.Getenv("PERSONA_PROVIDER_PERSONAS_JSON"))
+	if len(rawProfiles) == 0 || len(rawProfiles) > 65536 ||
+		json.Unmarshal([]byte(rawProfiles), &c.personas) != nil ||
+		validatePersonaProfiles(c.personas) != nil {
+		return config{}, fmt.Errorf("reviewed explicit persona identity catalog not configured")
+	}
 	u, err := url.Parse(c.modelURL)
 	if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || u.Fragment != "" || u.RawQuery != "" ||
 		!strings.HasSuffix(u.Path, "/chat/completions") || len(c.token) < 24 || len(c.modelKey) < 16 || c.model == "" || c.policy == "" {

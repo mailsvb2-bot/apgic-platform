@@ -191,3 +191,44 @@ func (p *HTTPPersonaRuntime) Ready(ctx context.Context) bool {
 	}
 	return state.Status == "ok" && state.Mode == "MODEL_BACKED"
 }
+
+// PersonaCapability is provider readiness metadata, never APGIC business truth.
+// A matching ID does not grant public rights without PostgreSQL approval.
+type PersonaCapability struct {
+	ID            string `json:"id"`
+	Language      string `json:"language"`
+	VoiceProfile  string `json:"voice_profile"`
+	VisualProfile string `json:"visual_profile"`
+	SupportsText  bool   `json:"supports_text"`
+	SupportsVoice bool   `json:"supports_voice"`
+}
+
+func (p *HTTPPersonaRuntime) Catalog(ctx context.Context) ([]PersonaCapability, error) {
+	if p == nil {
+		return nil, ErrPersonaTransport
+	}
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, p.endpoint+"/v1/persona-catalog", nil)
+	if err != nil {
+		return nil, ErrPersonaTransport
+	}
+	req.Header.Set("Authorization", "Bearer "+p.token)
+	res, err := p.client.Do(req)
+	if err != nil {
+		return nil, ErrPersonaTransport
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ErrPersonaTransport
+	}
+	var out struct {
+		Personas []PersonaCapability `json:"personas"`
+	}
+	decoder := json.NewDecoder(io.LimitReader(res.Body, 16384))
+	decoder.DisallowUnknownFields()
+	if decoder.Decode(&out) != nil || len(out.Personas) > 100 {
+		return nil, ErrPersonaTransport
+	}
+	return out.Personas, nil
+}

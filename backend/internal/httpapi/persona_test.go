@@ -198,3 +198,56 @@ func TestPersonaActualDialogueAndProviderOutage(t *testing.T) {
 		}
 	}
 }
+
+// The public catalog is the INTERSECTION of approved APGIC rights and a
+// currently executable provider identity. No phantom selected characters.
+type personaCatalogProviderFake struct {
+	personaProviderFake
+	catalog []connector.PersonaCapability
+}
+
+func (p personaCatalogProviderFake) Ready(context.Context) bool { return true }
+func (p personaCatalogProviderFake) Catalog(context.Context) ([]connector.PersonaCapability, error) {
+	return p.catalog, nil
+}
+func TestPersonaCatalogFiltersUnreviewedProviderIdentity(t *testing.T) {
+	id := "00000000-0000-0000-0000-000000000201"
+	store := &personaStoreFake{catalog: []persona.CatalogItem{{
+		ID: id, Label: "Ёж", Language: "ru", VoiceProfile: "licensed-voice",
+		VisualProfile: "licensed-image", SupportsText: true, SupportsVoice: true,
+	}}}
+	provider := personaCatalogProviderFake{catalog: []connector.PersonaCapability{{
+		ID: id, Language: "ru", VoiceProfile: "different-unreviewed-voice",
+		VisualProfile: "licensed-image", SupportsText: true, SupportsVoice: true,
+	}}}
+	handler := New(Options{ClientSessionKey: bytes.Repeat([]byte("k"), 32), PersonaStore: store,
+		PersonaProvider: provider, PersonaEnabled: true, PersonaProviderInstanceID: "provider", PersonaPolicyVersion: "v1"})
+	call := func() (int, map[string]any) {
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, httptest.NewRequest("GET", "/v1/personas", nil))
+		var parsed map[string]any
+		if err := json.Unmarshal(response.Body.Bytes(), &parsed); err != nil {
+			t.Fatal(err)
+		}
+		return response.Code, parsed
+	}
+	status, result := call()
+	if status != 200 || result["available"] != false {
+		t.Fatalf("unreviewed voice shown as available: %+v", result)
+	}
+	provider.catalog[0].VoiceProfile = "licensed-voice"
+	provider.catalog[0].SupportsVoice = false
+	// Interface value captured a shallow slice; mutation updates the same data.
+	status, result = call()
+	if status != 200 || result["available"] != true {
+		t.Fatalf("rights-cleared executable persona missing: %+v", result)
+	}
+	items, ok := result["personas"].([]any)
+	if !ok || len(items) != 1 {
+		t.Fatalf("wrong catalog: %+v", result)
+	}
+	row, ok := items[0].(map[string]any)
+	if !ok || row["supports_voice"] != false || row["supports_text"] != true {
+		t.Fatalf("provider capability not enforced: %+v", row)
+	}
+}

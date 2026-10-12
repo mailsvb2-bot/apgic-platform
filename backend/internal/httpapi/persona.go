@@ -50,6 +50,33 @@ func registerPersona(mux *http.ServeMux, store PersonaStore, provider connector.
 			writePersonaError(w, r, err)
 			return
 		}
+		if verifier, ok := provider.(interface {
+			Catalog(context.Context) ([]connector.PersonaCapability, error)
+		}); ok {
+			capabilities, err := verifier.Catalog(r.Context())
+			if err != nil {
+				writeJSON(w, http.StatusOK, map[string]any{"available": false, "reason_code": persona.ReasonProviderUnavailable, "personas": []persona.CatalogItem{}})
+				return
+			}
+			approved := make(map[string]connector.PersonaCapability, len(capabilities))
+			for _, c := range capabilities {
+				approved[c.ID] = c
+			}
+			filtered := make([]persona.CatalogItem, 0, len(items))
+			for _, item := range items {
+				c, ok := approved[item.ID]
+				if !ok || c.Language != item.Language || c.VoiceProfile != item.VoiceProfile || c.VisualProfile != item.VisualProfile {
+					continue
+				}
+				item.SupportsVideo = false // no simulated video transport from this sidecar
+				item.SupportsText = item.SupportsText && c.SupportsText
+				item.SupportsVoice = item.SupportsVoice && c.SupportsVoice
+				if item.SupportsText || item.SupportsVoice {
+					filtered = append(filtered, item)
+				}
+			}
+			items = filtered
+		}
 		writeJSON(w, http.StatusOK, map[string]any{"available": len(items) > 0, "disclosure": "AI_AVATAR_NOT_HUMAN_SPECIALIST",
 			"privacy_mode": persona.PrivateEphemeral, "personas": items})
 	})

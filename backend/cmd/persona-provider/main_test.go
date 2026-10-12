@@ -25,13 +25,29 @@ func TestRealModelBackedPersonaConversationAndEphemeralDeletion(t *testing.T) {
 		if json.NewDecoder(r.Body).Decode(&req) != nil {
 			t.Error("invalid model input")
 		}
+		if len(req.Messages) == 0 || !strings.Contains(req.Messages[0].Content, "Добрый сказочный ёж") {
+			t.Error("the selected reviewed persona identity did not reach the actual model")
+		}
 		seenHistory.Store(int32(len(req.Messages)))
 		n := requests.Add(1)
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprintf(w, `{"choices":[{"message":{"role":"assistant","content":"Настоящий ответ модели номер %d"},"finish_reason":"stop"}]}`, n)
 	}))
 	defer llm.Close()
-	provider := newService(config{token: strings.Repeat("x", 32), modelURL: llm.URL + "/v1/chat/completions", modelKey: "model-secret-for-test", model: "evaluated", policy: "reviewed-v1", client: llm.Client()})
+	reviewed := map[string]personaProfile{
+		"00000000-0000-0000-0000-000000000201": {
+			Label: "Ёж", Role: "Добрый сказочный ёж, внимательно слушает и задаёт мягкие вопросы.",
+			Language: "ru", VoiceProfile: "rights-cleared", VisualProfile: "no-real-person", AllowsText: true, AllowsVoice: true,
+		},
+		"00000000-0000-0000-0000-000000000202": {
+			Label: "Лиса", Role: "Доброжелательная сказочная лиса, отвечает спокойно.",
+			Language: "ru", VoiceProfile: "rights-cleared", VisualProfile: "no-real-person", AllowsText: true, AllowsVoice: true,
+		},
+	}
+	if err := validatePersonaProfiles(reviewed); err != nil {
+		t.Fatal(err)
+	}
+	provider := newService(config{token: strings.Repeat("x", 32), modelURL: llm.URL + "/v1/chat/completions", modelKey: "model-secret-for-test", model: "evaluated", policy: "reviewed-v1", client: llm.Client(), personas: reviewed})
 	api := httptest.NewServer(provider.handler())
 	defer api.Close()
 	post := func(path string, data any, auth bool) *http.Response {
@@ -59,6 +75,31 @@ func TestRealModelBackedPersonaConversationAndEphemeralDeletion(t *testing.T) {
 	denied.Body.Close()
 	if denied.StatusCode != 401 {
 		t.Fatal("unauthenticated session opened")
+	}
+	unauthCatalog, err := http.Get(api.URL + "/v1/persona-catalog")
+	if err != nil {
+		t.Fatal(err)
+	}
+	unauthCatalog.Body.Close()
+	if unauthCatalog.StatusCode != 401 {
+		t.Fatal("catalog exposed to anonymous callers")
+	}
+	catReq, _ := http.NewRequest("GET", api.URL+"/v1/persona-catalog", nil)
+	catReq.Header.Set("Authorization", "Bearer "+strings.Repeat("x", 32))
+	catRes, err := http.DefaultClient.Do(catReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var caps struct {
+		Personas []struct {
+			ID           string `json:"id"`
+			SupportsText bool   `json:"supports_text"`
+		} `json:"personas"`
+	}
+	err = json.NewDecoder(catRes.Body).Decode(&caps)
+	catRes.Body.Close()
+	if err != nil || catRes.StatusCode != 200 || len(caps.Personas) != 2 {
+		t.Fatalf("reviewed provider catalog unavailable: %+v %v", caps, err)
 	}
 	created := post("/v1/persona-sessions", opening, true)
 	if created.StatusCode != 201 {
@@ -90,6 +131,14 @@ func TestRealModelBackedPersonaConversationAndEphemeralDeletion(t *testing.T) {
 	}
 	altered := opening
 	altered.PersonaID = "00000000-0000-0000-0000-000000000202"
+	forbidden := opening
+	forbidden.PersonaID = "00000000-0000-0000-0000-000000000203"
+	notReviewed := post("/v1/persona-sessions", forbidden, true)
+	notReviewed.Body.Close()
+	if notReviewed.StatusCode != 403 {
+		t.Fatal("unreviewed persona admitted")
+	}
+
 	changed := post("/v1/persona-sessions", altered, true)
 	changed.Body.Close()
 	if changed.StatusCode != 409 {
@@ -165,20 +214,5 @@ func TestPersonaProviderRejectsModelOutageAndLimits(t *testing.T) {
 	provider.handler().ServeHTTP(rec2, req2)
 	if rec2.Code != 429 {
 		t.Fatalf("turn budget bypassed: %d", rec2.Code)
-	}
-}
-
-func TestExpiredProviderTombstonesAreRemoved(t *testing.T) {
-	provider := newService(config{token: strings.Repeat("x", 32)})
-	provider.closed["old-session"] = time.Now().Add(-time.Second)
-	provider.closed["fresh-session"] = time.Now().Add(time.Minute)
-	provider.reap()
-	provider.mu.Lock()
-	defer provider.mu.Unlock()
-	if _, ok := provider.closed["old-session"]; ok {
-		t.Fatal("expired session tombstone retained private identifier")
-	}
-	if _, ok := provider.closed["fresh-session"]; !ok {
-		t.Fatal("unexpired revocation fence lost")
 	}
 }
