@@ -28,6 +28,7 @@ export default function ConsultationJourney({ bookingID }: { bookingID: string }
   const [joinLink, setJoinLink] = useState("");
   const [verifiedCompletion, setVerifiedCompletion] = useState(false);
   const pendingFeedback = useRef<{ key: string; fingerprint: string } | null>(null);
+  const pendingJoinKey = useRef<string | null>(null);
   const [progress, setProgress] = useState("0");
   const [satisfaction, setSatisfaction] = useState("5");
   const [outcome, setOutcome] = useState<Outcome | null>(null);
@@ -37,6 +38,7 @@ export default function ConsultationJourney({ bookingID }: { bookingID: string }
     setReady(null); setOutcome(null); setStatus(""); setOutcomeStatus(""); setVerifiedCompletion(false);
     setJoinLink("");
     pendingFeedback.current = null;
+    pendingJoinKey.current = null;
     void fetch(`/v1/consultations/${encodeURIComponent(bookingID)}/ready`, { credentials: "include", cache: "no-store" })
       .then(async (r) => {
         if (!r.ok) throw new Error("UNAVAILABLE");
@@ -88,7 +90,10 @@ export default function ConsultationJourney({ bookingID }: { bookingID: string }
   async function startJoin() {
     setBusy(true); setJoinLink(""); setStatus("");
     try {
-      const key = `consultation-join:${crypto.randomUUID()}`;
+      // Keep the same issuer idempotency key after network uncertainty;
+      // reissuing with a fresh key could create another provider grant.
+      const key = pendingJoinKey.current ?? `consultation-join:${crypto.randomUUID()}`;
+      pendingJoinKey.current = key;
       const response = await fetch(`/v1/consultations/${encodeURIComponent(bookingID)}/join`, {
         method: "POST", credentials: "include", cache: "no-store",
         headers: { "X-APGIC-Request": "consultation-v1", "Idempotency-Key": key },
@@ -105,6 +110,7 @@ export default function ConsultationJourney({ bookingID }: { bookingID: string }
         throw new Error("UNSAFE_JOIN_URI");
       }
       setJoinLink(candidate.join_uri);
+      pendingJoinKey.current = null;
       setStatus("Доступ к комнате выдан внешним сервисом связи.");
     } catch { setStatus("Вход пока не подтверждён. Проверьте время записи и подключение сервиса связи. Повторная оплата не нужна."); }
     finally { setBusy(false); }

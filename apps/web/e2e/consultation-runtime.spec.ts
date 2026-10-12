@@ -6,6 +6,8 @@ test("confirmed booking enables readiness, fail-closed room entry and verified p
   const id = "00000000-0000-4000-8000-000000000901";
   let ready = false;
   let providerConfigured = false;
+  let stableJoinKey: string | null = null;
+  let joinRequests = 0;
   let completed = false;
   let outcomeCount = 0;
   const booking = {
@@ -39,6 +41,10 @@ test("confirmed booking enables readiness, fail-closed room entry and verified p
     const request = route.request();
     expect(request.method()).toBe("POST");
     expect(request.headers()["idempotency-key"]).toMatch(/^consultation-join:/);
+    const key = request.headers()["idempotency-key"];
+    joinRequests++;
+    if (stableJoinKey === null) stableJoinKey = key;
+    else expect(key).toBe(stableJoinKey);
     expect(request.headers()["x-apgic-request"]).toBe("consultation-v1");
     await route.fulfill({status:providerConfigured?200:503,contentType:"application/json",
       body:JSON.stringify(providerConfigured?{
@@ -71,6 +77,7 @@ test("confirmed booking enables readiness, fail-closed room entry and verified p
   await expect(region.getByRole("link",{name:"Открыть защищённую комнату"})).toHaveCount(0);
   providerConfigured = true;
   await region.getByRole("button",{name:"Получить вход в консультацию"}).click();
+  expect(joinRequests).toBe(2);
   const link = region.getByRole("link",{name:"Открыть защищённую комнату"});
   await expect(link).toHaveAttribute("href",/https:\/\/media\.example\/room\/one/);
   await expect(link).toHaveAttribute("rel",/noreferrer/);

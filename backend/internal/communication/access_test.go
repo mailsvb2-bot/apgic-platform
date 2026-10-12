@@ -121,3 +121,24 @@ func TestJoinFailsClosedAtEntitlementExpiryBoundary(t *testing.T) {
 		t.Fatalf("expired entitlement decision = %#v", decision)
 	}
 }
+
+func TestJoinCredentialNeverOutlivesEntitlementOrJoinWindow(t *testing.T) {
+	request, access, entitlement, window, provider, policy := validJoinFixture()
+	entitlement.ExpiresAt = request.Now.Add(35 * time.Second)
+	decision, err := AuthorizeJoin(request, access, entitlement, window, provider, policy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decision.CredentialRequest == nil || !decision.CredentialRequest.ExpiresAt.Equal(entitlement.ExpiresAt) {
+		t.Fatalf("room credential outlived active entitlement: %+v", decision)
+	}
+	entitlement.ExpiresAt = request.Now.Add(2 * time.Hour)
+	window.ClosesAt = request.Now.Add(20 * time.Second)
+	decision, err = AuthorizeJoin(request, access, entitlement, window, provider, policy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decision.CredentialRequest == nil || !decision.CredentialRequest.ExpiresAt.Equal(window.ClosesAt) {
+		t.Fatalf("room credential outlived booking join window: %+v", decision)
+	}
+}

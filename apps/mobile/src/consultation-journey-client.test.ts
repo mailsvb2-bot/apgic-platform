@@ -69,5 +69,5 @@ test("native room authorization uses one booked resource and rejects unsafe serv
     async()=>({status:200,async json(){return {...grant,join_uri:"https://media.example@evil.example/"};}})),
     /COMM_JOIN_GRANT_INVALID/);
   await assert.rejects(requestConsultationJoin(cfg,id,"join-credential-key-00001",
-    async()=>({status:503,async json(){return {}};})),/CONSULT_UNAVAILABLE/);
+    async()=>({status:503,async json(){return {};}})),/CONSULT_UNAVAILABLE/);
 });

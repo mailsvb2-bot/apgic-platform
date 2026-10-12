@@ -11,3 +11,7 @@ Issuer response:
 ```json
 {"provider_credential_ref":"opaque/non-secret/reference", "join_uri":"https://media.example/room?token=short-lived", "expires_at":"2026-10-12T12:35:00Z"}
 ```
+
+## Expiry and retry invariants
+
+Join credentials must expire no later than **all three** limits: `now + MaxCredentialTTL`, booking policy join-window closure and current entitlement expiry. Browser retries reuse the same opaque idempotency key after network uncertainty; an acknowledged successful grant clears it. Native callers must likewise preserve their idempotency key across retries. Verified by `TestJoinCredentialNeverOutlivesEntitlementOrJoinWindow` and the cross-surface browser scenario.
