@@ -97,6 +97,14 @@ SELECT pg_temp.r9_must_reject($r9_stmt$
  WHERE id='91919191-0000-4000-8000-000000000030'
 $r9_stmt$, 'R9 illegal event lifecycle transition');
 
+-- The organizer already owns the UCR conference: never consume a client seat.
+SELECT pg_temp.r9_must_reject($r9_stmt$
+ INSERT INTO live_event_registrations(id,event_id,identity_id)
+ VALUES('91919191-0000-4000-8000-000000000049',
+ '91919191-0000-4000-8000-000000000030',
+ '91919191-0000-4000-8000-000000000001')
+$r9_stmt$,'R9 organizer must not consume attendee capacity');
+
 INSERT INTO live_event_registrations(id,event_id,identity_id)
  VALUES
  ('91919191-0000-4000-8000-000000000041','91919191-0000-4000-8000-000000000030','91919191-0000-4000-8000-000000000002'),

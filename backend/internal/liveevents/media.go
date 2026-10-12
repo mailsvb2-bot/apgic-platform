@@ -39,6 +39,7 @@ type MediaParticipantFact struct {
 type RealMediaProvider interface {
 	Prepare(context.Context, Event) (MediaRoom, error)
 	Change(context.Context, MediaRoom, State) error
+	Enroll(context.Context, MediaRoom, string, string) error
 	Join(context.Context, MediaRoom, string, string) (MediaGrant, error)
 	Moderate(context.Context, MediaRoom, string, string) error
 	Attendance(context.Context, MediaRoom, string) (MediaParticipantFact, error)

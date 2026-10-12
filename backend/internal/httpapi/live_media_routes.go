@@ -114,6 +114,25 @@ func registerLiveMedia(mux *http.ServeMux, store LiveEventStore, media liveevent
 			liveError(w, r, err)
 			return
 		}
+		// UCR must see one Owner and at least one device-ready invited
+		// attendee before materializing the actual Group Call. A host joining
+		// first primes a confirmed APGIC registration without issuing a
+		// ticket to that attendee; the attendee later obtains their own.
+		if role == "host" {
+			ids, listErr := service.LiveMediaRegistered(r.Context(), actor, room.EventID)
+			if listErr != nil {
+				liveError(w, r, listErr)
+				return
+			}
+			if len(ids) == 0 {
+				liveError(w, r, liveevents.ErrConflict)
+				return
+			}
+			if listErr = media.Enroll(r.Context(), room, ids[0], "attendee"); listErr != nil {
+				liveError(w, r, listErr)
+				return
+			}
+		}
 		grant, err := media.Join(r.Context(), room, actor, role)
 		if err != nil {
 			liveError(w, r, err)

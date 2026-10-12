@@ -136,7 +136,13 @@ func (c *Client) capabilities(ctx context.Context, org string, capacity int, for
 	}
 	return nil
 }
+// Prepare materializes the canonical Owner and Group in UCR. No Call
+// exists before an invited attendee has a device: call_ready=false is a
+// legitimate scheduled event, not evidence of a broken conference.
 func (c *Client) Prepare(ctx context.Context, e liveevents.Event) (liveevents.MediaRoom, error) {
+	if strings.TrimSpace(e.OrganizerIdentityID) == "" {
+		return liveevents.MediaRoom{}, liveevents.ErrForbidden
+	}
 	if err := c.capabilities(ctx, e.OrganizationID, e.Capacity, e.Format); err != nil {
 		return liveevents.MediaRoom{}, err
 	}
@@ -147,37 +153,52 @@ func (c *Client) Prepare(ctx context.Context, e liveevents.Event) (liveevents.Me
 	result, err := c.request(ctx, "POST", "/v1/conferences", map[string]any{
 		"scope": c.scope(e.OrganizationID), "integration_id": c.integrationID,
 		"external_conference_id_b64": base64.StdEncoding.EncodeToString([]byte(e.ID)),
-		"idempotency_key":            "apgic-r9-conference-" + e.ID, "mode": mode,
-		"schedule": map[string]any{"starts_at_unix_ms": e.StartsAt.UnixMilli(), "planned_end_unix_ms": e.EndsAt.UnixMilli(), "join_before_seconds": 900, "join_after_seconds": 900},
+		"idempotency_key": "apgic-r9-conference-" + e.ID, "mode": mode,
+		"schedule": map[string]any{"starts_at_unix_ms": e.StartsAt.UnixMilli(),
+			"planned_end_unix_ms": e.EndsAt.UnixMilli(), "join_before_seconds": 900,
+			"join_after_seconds": 900},
 	})
 	if err != nil {
 		return liveevents.MediaRoom{}, err
 	}
-	room := child(result, "conference")
-	id := str(room, "conference_id")
-	if id == "" || (str(room, "lifecycle") != "scheduled" && str(room, "lifecycle") != "waiting" && !(e.State == liveevents.Live && str(room, "lifecycle") == "live")) {
+	conference := child(result, "conference")
+	id := str(conference, "conference_id")
+	if id == "" || (str(conference, "lifecycle") != "scheduled" &&
+		str(conference, "lifecycle") != "waiting" &&
+		!(e.State == liveevents.Live && str(conference, "lifecycle") == "live")) {
 		return liveevents.MediaRoom{}, liveevents.ErrUnavailable
 	}
-	// UCR runtime (not APGIC) must prove Group and Call preparation before
-	// APGIC binds and publishes the room. Conference existence alone is not
-	// evidence of usable media or admission.
-	runtimeRequest := map[string]any{
-		"scope":           c.scope(e.OrganizationID),
-		"integration_id":  c.integrationID,
-		"conference_id":   id,
-		"idempotency_key": "apgic-r9-runtime-" + e.ID,
-	}
-	prepared, err := c.request(ctx, "POST", "/v1/conferences/runtime", runtimeRequest)
-	if err != nil {
+	room := liveevents.MediaRoom{EventID: e.ID, OrganizationID: e.OrganizationID,
+		ProviderInstanceID: c.providerID, ConferenceID: id, IntegrationID: c.integrationID,
+		ProviderReadyAt: c.now().UTC(), StartsAt: e.StartsAt, EndsAt: e.EndsAt,
+		Capacity: e.Capacity, Format: e.Format, State: e.State}
+	if err := c.Enroll(ctx, room, e.OrganizerIdentityID, "owner"); err != nil {
 		return liveevents.MediaRoom{}, err
 	}
-	runtime := child(prepared, "runtime")
-	if !yes(runtime, "group_ready") || !yes(runtime, "call_ready") {
+	ready, err := c.prepareRuntime(ctx, room)
+	if err != nil || !yes(ready, "group_ready") {
 		return liveevents.MediaRoom{}, liveevents.ErrUnavailable
 	}
-	return liveevents.MediaRoom{EventID: e.ID, OrganizationID: e.OrganizationID, ProviderInstanceID: c.providerID,
-		ConferenceID: id, IntegrationID: c.integrationID, ProviderReadyAt: c.now().UTC(),
-		StartsAt: e.StartsAt, EndsAt: e.EndsAt, Capacity: e.Capacity, Format: e.Format, State: e.State}, nil
+	// A real Call is built later, once the owner and an attendee have
+	// device-ready UCR profiles. Never claim a live Call at publication.
+	return room, nil
+}
+func (c *Client) prepareRuntime(ctx context.Context, room liveevents.MediaRoom) (map[string]any, error) {
+	payload := c.context(room)
+	nonce := make([]byte, 16)
+	if _, err := rand.Read(nonce); err != nil {
+		return nil, liveevents.ErrUnavailable
+	}
+	payload["idempotency_key"] = "apgic-r9-runtime-" + room.EventID + "-" + hex.EncodeToString(nonce)
+	response, err := c.request(ctx, "POST", "/v1/conferences/runtime", payload)
+	if err != nil {
+		return nil, err
+	}
+	runtime := child(response, "runtime")
+	if runtime == nil {
+		return nil, liveevents.ErrUnavailable
+	}
+	return runtime, nil
 }
 func (c *Client) Change(ctx context.Context, room liveevents.MediaRoom, target liveevents.State) error {
 	if err := c.capabilities(ctx, room.OrganizationID, room.Capacity, room.Format); err != nil {
@@ -220,12 +241,12 @@ func (c *Client) Change(ctx context.Context, room liveevents.MediaRoom, target l
 	}
 	return nil
 }
-func (c *Client) Join(ctx context.Context, room liveevents.MediaRoom, identity, role string) (liveevents.MediaGrant, error) {
-	if role != "host" && role != "attendee" {
-		return liveevents.MediaGrant{}, liveevents.ErrForbidden
-	}
-	if err := c.capabilities(ctx, room.OrganizationID, room.Capacity, room.Format); err != nil {
-		return liveevents.MediaGrant{}, err
+// Enroll synchronizes provider participants/devices, with a single stable
+// owner identity. It never issues a join grant and cannot bypass APGIC's SQL
+// authorization; callers must first prove registration/owner eligibility.
+func (c *Client) Enroll(ctx context.Context, room liveevents.MediaRoom, identity, role string) error {
+	if identity == "" || (role != "owner" && role != "attendee") {
+		return liveevents.ErrForbidden
 	}
 	participant := c.context(room)
 	encoded := base64.StdEncoding.EncodeToString([]byte(identity))
@@ -233,22 +254,36 @@ func (c *Client) Join(ctx context.Context, room liveevents.MediaRoom, identity, 
 	participant["role"] = role
 	participant["idempotency_key"] = "apgic-r9-participant-" + room.EventID + "-" + identity
 	result, err := c.request(ctx, "POST", "/v1/participants", participant)
-	if err != nil {
-		return liveevents.MediaGrant{}, err
-	}
-	if !yes(child(result, "participant"), "active") {
-		return liveevents.MediaGrant{}, liveevents.ErrUnavailable
+	if err != nil { return err }
+	record := child(result, "participant")
+	if !yes(record, "active") || str(record, "role") != role {
+		return liveevents.ErrUnavailable
 	}
 	device := c.context(room)
 	device["external_user_id_b64"] = encoded
 	device["idempotency_key"] = "apgic-r9-device-" + room.EventID + "-" + identity
 	result, err = c.request(ctx, "POST", "/v1/participant-devices", device)
-	if err != nil {
+	if err != nil { return err }
+	if !yes(child(result, "device"), "active") { return liveevents.ErrUnavailable }
+	return nil
+}
+func (c *Client) Join(ctx context.Context, room liveevents.MediaRoom, identity, role string) (liveevents.MediaGrant, error) {
+	if role != "host" && role != "attendee" {
+		return liveevents.MediaGrant{}, liveevents.ErrForbidden
+	}
+	if err := c.capabilities(ctx, room.OrganizationID, room.Capacity, room.Format); err != nil {
 		return liveevents.MediaGrant{}, err
 	}
-	if !yes(child(result, "device"), "active") {
+	ucrRole := "attendee"
+	if role == "host" { ucrRole = "owner" }
+	if err := c.Enroll(ctx, room, identity, ucrRole); err != nil {
+		return liveevents.MediaGrant{}, err
+	}
+	runtime, err := c.prepareRuntime(ctx, room)
+	if err != nil || !yes(runtime, "group_ready") || !yes(runtime, "call_ready") {
 		return liveevents.MediaGrant{}, liveevents.ErrUnavailable
 	}
+	encoded := base64.StdEncoding.EncodeToString([]byte(identity))
 	request := c.context(room)
 	request["external_user_id_b64"] = encoded
 	request["ttl_seconds"] = 120
@@ -294,6 +329,9 @@ func (c *Client) Moderate(ctx context.Context, room liveevents.MediaRoom, identi
 		return err
 	}
 	if action == "mute" && !yes(child(result, "participant"), "audio_muted") {
+		return liveevents.ErrUnavailable
+	}
+	if action == "remove" && str(child(result, "acknowledgement"), "acknowledged_id") == "" {
 		return liveevents.ErrUnavailable
 	}
 	return nil

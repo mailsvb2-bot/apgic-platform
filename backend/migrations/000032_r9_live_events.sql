@@ -117,6 +117,12 @@ DECLARE
  event_capacity integer;
  occupied integer;
 BEGIN
+ -- Organizer is the UCR Owner, not a client seat. Prevent one identity
+ -- consuming both the Owner and attendee role in the same media conference.
+ IF EXISTS(SELECT 1 FROM live_events e WHERE e.id=NEW.event_id
+           AND e.organizer_identity_id=NEW.identity_id) THEN
+   RAISE EXCEPTION 'R9 organizer must not consume attendee capacity';
+ END IF;
  IF TG_OP='INSERT' THEN
    SELECT state,starts_at,capacity INTO event_state,event_starts,event_capacity
      FROM live_events WHERE id=NEW.event_id FOR UPDATE;

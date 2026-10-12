@@ -148,10 +148,19 @@ The canonical production journey is:
 
 ## Media runtime and rejoin correctness
 
-UCR room create is followed by authenticated `POST /v1/conferences/runtime`.
-The provider must report both `group_ready` and `call_ready` before APGIC
-persists its media binding. API-level conference creation alone is not counted
-as media readiness. Each single-use join grant uses a fresh cryptographically
+UCR room create is followed by `EnsureParticipant(role=owner)` and
+`EnsureParticipantDevice` for the validated APGIC organization owner.
+UCR then prepares the Group/MLS runtime: `group_ready=true` must be
+confirmed before APGIC persists a scheduled room, but `call_ready=false`
+is expected until at least one independent attendee has a ready device.
+Only after an attendee's APGIC registration has been authorized and their
+UCR participant/device materialized can a reconciled Group Call return
+`call_ready=true`. The host joining first can enroll an already REGISTERED,
+non-banned attendee to avoid the "no first Call" deadlock. The UCR role is
+**owner** (never host) for the canonical organizer and **attendee** for the
+client. The organizer cannot consume an attendee seat.
+
+Each single-use join grant uses a fresh cryptographically
 random idempotency identity so reconnecting clients do not reuse a redeemed
 token. APGIC validates the signed-grant URL origin/fragment and expiry, but
 UCR remains sole grant issuer/verifier. UCR contract tests exercise two distinct
@@ -185,3 +194,23 @@ The PostgreSQL media-ready CHECK has an explicit stable name
 `r9_media_ready_count_check`. The negative test matches the named
 constraint; generated PostgreSQL relation-based constraint names are not
 accepted as stable domain evidence.
+
+## Integration choreography contract (not a media deployment certificate)
+
+- DRAFT → Create UCR conference → ensure exactly one `owner` and owner device
+  → Group/MLS ready (Call may remain uninitialized) → durable SQL bind
+  → PUBLISHED/entry-open.
+- REGISTERED attendee → validate owner/tenant/capacity → ensure attendee and
+  attendee device → reconcile UCR Group/Call → verify `call_ready` →
+  issue signed, single-use join grant.
+- Host join → verify at least one non-banned REGISTERED attendee → enroll
+  that attendee in UCR without issuing their grant → reconcile Call →
+  grant owner access. Without a registrant, return truthful 409; never
+  fabricate the first Call.
+- Disconnect, reconnect and new devices must use fresh grant idempotency
+  keys; UCR is the authoritative grant store. A removed participant is
+  banned in APGIC before attempting provider removal; if UCR fails the
+  HTTP request fails but rejoin stays denied and provider removal needs retry.
+- Current contract tests use an in-process UCR mock, PostgreSQL CI verifies
+  attendee capacity and organizer exclusion, but no two-device live WebRTC
+  deployment evidence has been collected. `VERIFIED` is not `RELEASED`.

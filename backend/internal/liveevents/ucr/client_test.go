@@ -16,7 +16,7 @@ import (
 func mockEvent(now time.Time) liveevents.Event {
 	return liveevents.Event{ID: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", OrganizationID: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
 		Title: "Занятие в группе", StartsAt: now.Add(time.Hour), EndsAt: now.Add(2 * time.Hour),
-		Capacity: 12, Format: liveevents.Group, State: liveevents.Draft}
+		Capacity: 12, Format: liveevents.Group, State: liveevents.Draft, OrganizerIdentityID: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaab"}
 }
 func TestUCRRealCapabilityGateAndNoFakeMediaGrant(t *testing.T) {
 	now := time.Date(2026, 10, 12, 11, 0, 0, 0, time.UTC)
@@ -47,6 +47,8 @@ func TestUCRServerOwnedConferenceJoinAndModeration(t *testing.T) {
 	var grantKeys []string
 	var conferenceRefs []string
 	var externalUsers []string
+	ownerReady := false
+	attendeeReady := false
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
 		requests[r.URL.Path]++
@@ -73,18 +75,28 @@ func TestUCRServerOwnedConferenceJoinAndModeration(t *testing.T) {
 			}
 			w.Write([]byte(`{"conference":{"conference_id":"ucr-room-101","lifecycle":"scheduled"}}`))
 		case "/v1/conferences/runtime":
-			w.Write([]byte(`{"runtime":{"group_ready":true,"call_ready":true,"admitted_participant_count":0}}`))
+			mu.Lock()
+			ready := ownerReady && attendeeReady
+			mu.Unlock()
+			json.NewEncoder(w).Encode(map[string]any{"runtime":map[string]any{
+				"group_ready":true,"call_ready":ready,"admitted_participant_count":0}})
+
 		case "/v1/conferences/lifecycle":
 			v, _ := request["target"].(string)
 			json.NewEncoder(w).Encode(map[string]any{"conference": map[string]any{"lifecycle": v}})
 		case "/v1/conferences/entry":
 			w.Write([]byte(`{"conference":{"entry_open":true}}`))
 		case "/v1/participants":
-			if request["role"] != "attendee" && request["role"] != "host" {
+			role,_ := request["role"].(string)
+			if role != "attendee" && role != "owner" {
 				w.WriteHeader(403)
 				return
 			}
-			w.Write([]byte(`{"participant":{"active":true}}`))
+			mu.Lock()
+			if role=="owner" {ownerReady=true} else {attendeeReady=true}
+			mu.Unlock()
+			json.NewEncoder(w).Encode(map[string]any{"participant":map[string]any{"active":true,"role":role}})
+
 		case "/v1/participant-devices":
 			w.Write([]byte(`{"device":{"active":true}}`))
 		case "/v1/join-grants":
@@ -154,9 +166,11 @@ func TestUCRRejectsUntrustedGrantOrigin(t *testing.T) {
 		case "/v1/capabilities":
 			w.Write([]byte(`{"capabilities":{"max_participants":100,"browser_realtime_gateway":true,"production_webrtc":true,"turn":true,"video":true}}`))
 		case "/v1/participants":
-			w.Write([]byte(`{"participant":{"active":true}}`))
+			w.Write([]byte(`{"participant":{"active":true,"role":"attendee"}}`))
 		case "/v1/participant-devices":
 			w.Write([]byte(`{"device":{"active":true}}`))
+		case "/v1/conferences/runtime":
+			w.Write([]byte(`{"runtime":{"group_ready":true,"call_ready":true}}`))
 		case "/v1/join-grants":
 			json.NewEncoder(w).Encode(map[string]any{"grant": map[string]any{
 				"join_url":           "https://attacker.example/room#ucr_join=fake",
@@ -213,6 +227,7 @@ func TestUCRWaitingRoomAdmissionIsNotRealMediaAttendance(t *testing.T) {
 }
 func TestUCRRejectsUnpreparedRuntimeEvenWhenAPIConferenceExists(t *testing.T) {
 	now := time.Date(2026, 10, 12, 11, 0, 0, 0, time.UTC)
+	preparedRuntimeCalls:=0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
@@ -220,8 +235,13 @@ func TestUCRRejectsUnpreparedRuntimeEvenWhenAPIConferenceExists(t *testing.T) {
 			_, _ = w.Write([]byte(`{"capabilities":{"max_participants":300,"browser_realtime_gateway":true,"production_webrtc":true,"turn":true,"video":true}}`))
 		case "/v1/conferences":
 			_, _ = w.Write([]byte(`{"conference":{"conference_id":"ucr-room-101","lifecycle":"scheduled"}}`))
+		case "/v1/participants":
+			_, _ = w.Write([]byte(`{"participant":{"active":true,"role":"owner"}}`))
+		case "/v1/participant-devices":
+			_, _ = w.Write([]byte(`{"device":{"active":true}}`))
 		case "/v1/conferences/runtime":
-			_, _ = w.Write([]byte(`{"runtime":{"group_ready":true,"call_ready":false}}`))
+			preparedRuntimeCalls++
+			_, _ = w.Write([]byte(`{"runtime":{"group_ready":false,"call_ready":false}}`))
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -230,5 +250,7 @@ func TestUCRRejectsUnpreparedRuntimeEvenWhenAPIConferenceExists(t *testing.T) {
 	c, err := NewClient(server.URL, "machine-test-credential", "integration-id", "provider-id", "https://join.example", server.Client(), func() time.Time { return now })
 	if err != nil { t.Fatal(err) }
 	_, err = c.Prepare(context.Background(), mockEvent(now))
-	if err != liveevents.ErrUnavailable { t.Fatalf("UCR not-media-ready room was certified: %v",err) }
+	if err != liveevents.ErrUnavailable || preparedRuntimeCalls!=1 {
+		t.Fatalf("UCR Group not prepared was certified: %v, runtime_calls=%d",err,preparedRuntimeCalls)
+	}
 }

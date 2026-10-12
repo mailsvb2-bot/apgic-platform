@@ -30,7 +30,14 @@ func (c *Checker) LiveMediaSetupEvent(ctx context.Context, actor, eventID string
 	if !owner {
 		return liveevents.Event{}, liveevents.ErrForbidden
 	}
-	return c.LiveEvent(ctx, eventID, actor)
+	event, err := c.LiveEvent(ctx, eventID, actor)
+	if err != nil {
+		return liveevents.Event{}, err
+	}
+	// Organizer identity must never appear in public API responses. This
+	// internal owner-scoped request is solely for UCR Owner materialization.
+	event.OrganizerIdentityID = actor
+	return event, nil
 }
 func (c *Checker) BindLiveMedia(ctx context.Context, actor, eventID string, room liveevents.MediaRoom) (liveevents.MediaRoom, error) {
 	if c == nil || c.db == nil {
@@ -181,7 +188,10 @@ func (c *Checker) LiveMediaRegistered(ctx context.Context, actor, eventID string
 		return nil, err
 	}
 	rows, err := c.db.QueryContext(ctx, `SELECT identity_id::text FROM live_event_registrations
- WHERE event_id=$1::uuid AND state='REGISTERED' ORDER BY identity_id`, eventID)
+ WHERE event_id=$1::uuid AND state='REGISTERED'
+ AND NOT EXISTS(SELECT 1 FROM live_event_bans b
+ WHERE b.event_id=$1::uuid AND b.identity_id=live_event_registrations.identity_id)
+ ORDER BY identity_id`, eventID)
 	if err != nil {
 		return nil, err
 	}
