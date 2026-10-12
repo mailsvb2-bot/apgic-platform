@@ -1,5 +1,6 @@
 import type {
  PublicSpecialist,
+ PublicBookableOfferList,
  PublicSpecialistDirectory as SpecialistDirectoryResponse,
 } from "../../../packages/contracts/src/generated/apgic-v1.ts";
 export type {PublicSpecialist,SpecialistDirectoryResponse};
@@ -36,4 +37,23 @@ export async function fetchNativePublicSpecialist(baseURL:string,id:string,signa
  const raw:unknown=await response.json();
  if(!isProfile(raw)||raw.id!==id)throw new Error("SPECIALIST_PROFILE_INVALID");
  return raw;
+}
+
+export async function fetchNativePublicOffers(baseURL:string,id:string,signal?:AbortSignal):Promise<PublicBookableOfferList|null>{
+ const response=await fetch(`${baseURL.replace(/\/$/,"")}/v1/specialists/${encodeURIComponent(id)}/offers`,{
+  method:"GET",headers:{accept:"application/json"},signal,cache:"no-store"});
+ if(response.status===404)return null;
+ if(!response.ok)throw new Error("SPECIALIST_OFFERS_UNAVAILABLE");
+ const raw:unknown=await response.json();
+ if(!raw || typeof raw!=="object")throw new Error("SPECIALIST_OFFERS_INVALID");
+ const list=raw as Partial<PublicBookableOfferList>;
+ if(list.specialist_id!==id || list.availability_rule!=="CURRENT_ELIGIBLE_UNHELD_SLOTS"||
+    !Array.isArray(list.offers) || list.offers.some(offer=>!offer||!offer.id||
+     offer.currency!=="RUB"||!Number.isSafeInteger(offer.price_minor) ||offer.price_minor<=0||
+     !Array.isArray(offer.slots)||offer.slots.length===0||
+     offer.slots.some(slot=>!slot.slot_id|| !Number.isFinite(Date.parse(slot.starts_at))||
+      !Number.isFinite(Date.parse(slot.ends_at))||Date.parse(slot.ends_at)<=Date.parse(slot.starts_at)))) {
+  throw new Error("SPECIALIST_OFFERS_INVALID");
+ }
+ return list as PublicBookableOfferList;
 }

@@ -42,3 +42,22 @@ test("revoked publication cannot be viewed even with a bookmarked direct URL",as
  await expect(page.getByRole("heading",{name:"Анкета не опубликована"})).toBeVisible();
  await expect(page.getByText("Опора на навыки саморегуляции")).toHaveCount(0);
 });
+
+test("specialist page shows only real API-backed offers and unheld slots",async({page})=>{
+ const p={id:"00000000-0000-0000-0000-000000000011",display_name:"Мария Смирнова",
+  profession_code:"PSYCHOLOGIST",headline:"",about:"",experience_years:1,
+  published_topics:["anxiety"],languages:["ru"],limitations:[]};
+ await page.route("**/v1/specialists/00000000-0000-0000-0000-000000000011",async r=>r.fulfill({json:p}));
+ await page.route("**/v1/specialists/00000000-0000-0000-0000-000000000011/offers",async r=>r.fulfill({
+  json:{specialist_id:p.id,availability_rule:"CURRENT_ELIGIBLE_UNHELD_SLOTS",offers:[{
+   id:"offer-live",topic_id:"anxiety",price_minor:230000,currency:"RUB",
+   slots:[{slot_id:"slot-live",starts_at:"2026-12-14T11:00:00Z",ends_at:"2026-12-14T12:00:00Z"}]
+  }]}
+ }));
+ await page.goto("/specialist/"+p.id);
+ await expect(page.getByRole("heading",{name:"Что можно получить у этого специалиста"})).toBeVisible();
+ await expect(page.getByText(/2.*300,00.*₽/)).toBeVisible();
+ await expect(page.getByText(/Свободное время не резервируется при просмотре/)).toBeVisible();
+ await expect(page.getByRole("link",{name:"Уточнить запрос и записаться"})).toHaveAttribute("href",`/?specialist_id=${p.id}#start`);
+ await expect(page.getByRole("button",{name:"Забронировать"})).toHaveCount(0);
+});

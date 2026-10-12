@@ -2,12 +2,14 @@
 
 import {useEffect,useState} from "react";
 
-import type {PublicSpecialist as Profile} from "../../../../../packages/contracts/src/generated/apgic-v1";
+import type {PublicBookableOfferList,PublicSpecialist as Profile} from "../../../../../packages/contracts/src/generated/apgic-v1";
 
 const topics:Record<string,string>={anxiety:"Тревога и стресс",sleep:"Сон",relationships:"Отношения",career:"Карьера и работа"};
 const professions:Record<string,string>={PSYCHOLOGIST:"Психолог",CAREER_COACH:"Карьерный консультант"};
 export function PublicSpecialistProfile({id}:{id:string}){
  const [profile,setProfile]=useState<Profile|null>(null);
+ const [bookable,setBookable]=useState<PublicBookableOfferList|null>(null);
+ const [bookableError,setBookableError]=useState(false);
  const [state,setState]=useState<"LOADING"|"NOT_PUBLIC"|"ERROR"|"READY">("LOADING");
  useEffect(()=>{
   const ctrl=new AbortController();
@@ -22,6 +24,18 @@ export function PublicSpecialistProfile({id}:{id:string}){
    .catch(()=>{if(!ctrl.signal.aborted)setState("ERROR");});
   return ()=>ctrl.abort();
  },[id]);
+ useEffect(()=>{
+  if(!profile){setBookable(null);setBookableError(false);return;}
+  const ctrl=new AbortController();
+  setBookable(null);setBookableError(false);
+  void fetch(`/v1/specialists/${encodeURIComponent(profile.id)}/offers`,{cache:"no-store",signal:ctrl.signal})
+   .then(async res=>{
+    if(!res.ok)throw new Error("Bookable supply unavailable");
+    return await res.json() as PublicBookableOfferList;
+   }).then(data=>{if(!ctrl.signal.aborted)setBookable(data);})
+   .catch(()=>{if(!ctrl.signal.aborted)setBookableError(true);});
+  return ()=>ctrl.abort();
+ },[profile]);
  return <main className="site-shell marketplace-shell">
   <header className="site-header">
    <a href="/" className="brand"><span className="brand-mark" aria-hidden="true">A</span> APGIC</a>
@@ -48,6 +62,25 @@ export function PublicSpecialistProfile({id}:{id:string}){
     </section>
     {profile.languages.length>0?<p>Языки: {profile.languages.join(", ")}</p>:null}
     {profile.limitations.length>0?<section><h2>С чем не работает</h2><ul>{profile.limitations.map((x,i)=><li key={i}>{x}</li>)}</ul></section>:null}
+    <section aria-labelledby="specialist-capabilities">
+     <h2 id="specialist-capabilities">Что можно получить у этого специалиста</h2>
+     {bookableError?<p role="status">Проверить доступные предложения сейчас не удалось. Цена и время записи не подтверждены.</p>:null}
+     {!bookable&&!bookableError?<p>Проверяем актуальную стоимость и свободное время…</p>:null}
+     {bookable&&bookable.offers.length===0?<p>Подтверждённых свободных слотов сейчас нет. Это не означает, что консультация бесплатна или доступна немедленно.</p>:null}
+     {bookable&&bookable.offers.length>0?<ul className="marketplace-offers">
+      {bookable.offers.map(offer=><li key={offer.id} className="panel marketplace-offer-card">
+       <h3>Консультация: {topics[offer.topic_id]??offer.topic_id}</h3>
+       <p className="marketplace-offer-price">{new Intl.NumberFormat("ru-RU",{style:"currency",currency:offer.currency}).format(offer.price_minor/100)}</p>
+       <p>Доступное время на момент проверки:</p>
+       <ul>{offer.slots.map(slot=><li key={slot.slot_id}>
+        {new Intl.DateTimeFormat("ru-RU",{dateStyle:"medium",timeStyle:"short"}).format(new Date(slot.starts_at))}
+        {" · "}{Math.round((new Date(slot.ends_at).getTime()-new Date(slot.starts_at).getTime())/60000)} мин.
+       </li>)}</ul>
+       <a href={`/?specialist_id=${encodeURIComponent(profile.id)}#start`}>Уточнить запрос и записаться</a>
+       <p className="status-note">Свободное время не резервируется при просмотре. Доступность и стоимость перепроверяются при бронировании.</p>
+      </li>)}
+     </ul>:null}
+    </section>
     <div className="hero-actions"><a className="button-link primary-action" href={`/?specialist_id=${encodeURIComponent(profile.id)}#start`}>Уточнить запрос и выбрать время</a>
      <a className="button-link secondary-action" href="/specialists">Сравнить специалистов</a></div>
     <p className="status-note">Стоимость и свободное время подтверждаются отдельно при подборе. Анкета не является гарантией записи.</p>

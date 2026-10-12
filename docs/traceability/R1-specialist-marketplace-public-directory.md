@@ -34,3 +34,24 @@
 - Public pagination is bounded; unknown or unsupported filters are rejected rather than returning unauthorized profiles.
 - Operative verification is still executed only by the existing trusted review operator; publishing directly via the public specialist API is impossible without it.
 - A real production/staging release requires fully green CI, PostgreSQL migration deployment with existing migration ledger, and a live R1 end-to-end proof against actual persisted specialist data. Green local/unit results alone are not release proof.
+
+## Actual price and availability projection
+
+The public specialist page uses `GET /v1/specialists/{id}/offers`. The response is
+derived solely from active canonical `specialist_bookable_offers`, the current
+`apgic_live_offer_valid` PostgreSQL eligibility predicate, a published
+Organization/Product, and future exclusive slots without an active hold or
+booking. It is capped and does not expose client Identity, provider credentials,
+private verification files, or mutable booking entitlements.
+
+A slot disappearing from public results after a hold is an expected business
+invariant, not an error: the existing confirmed HelpIntent + authoritative hold
+path must be used to reserve a slot. The booking API revalidates availability;
+clicking a time in the catalogue never creates a reservation or confirms payment.
+
+**Proofs:** `TestLivePricedSpecialistToDurableHoldAfterRestart` now verifies
+public offer price, slot, and disappearance after hold. HTTP tests cover
+non-public 404, disabled caching and sensitive-field non-disclosure. Browser
+and native clients both use the versioned `PublicBookableOfferList` schema.
+
+This projection must never replace the canonical booking or PSP owner.

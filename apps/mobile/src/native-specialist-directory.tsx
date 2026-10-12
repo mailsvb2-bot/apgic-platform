@@ -2,9 +2,11 @@ import React, {useEffect, useState} from "react";
 import {Linking, Pressable, StyleSheet, Text, View} from "react-native";
 import {
  fetchNativePublicSpecialist,
+ fetchNativePublicOffers,
  fetchNativeSpecialistDirectory,
  type PublicSpecialist,
 } from "./mobile-specialist-directory.ts";
+import type {PublicBookableOfferList} from "../../../packages/contracts/src/generated/apgic-v1.ts";
 
 const topicNames: Record<string,string> = {
  anxiety:"Тревога и стресс", sleep:"Сон", relationships:"Отношения", career:"Карьера и работа",
@@ -13,13 +15,15 @@ const topicNames: Record<string,string> = {
 export function NativeSpecialistDirectory({baseURL,topic}:{baseURL:string;topic:string}) {
  const [profiles,setProfiles]=useState<PublicSpecialist[]>([]);
  const [selected,setSelected]=useState<PublicSpecialist|null>(null);
+ const [offers,setOffers]=useState<PublicBookableOfferList|null>(null);
+ const [offersUnavailable,setOffersUnavailable]=useState(false);
  const [loading,setLoading]=useState(true);
  const [error,setError]=useState("");
  const [notice,setNotice]=useState("");
  useEffect(()=>{
   let active=true;
   const controller=new AbortController();
-  setProfiles([]);setSelected(null);setLoading(true);setError("");setNotice("");
+  setProfiles([]);setSelected(null);setOffers(null);setLoading(true);setError("");setNotice("");
   void fetchNativeSpecialistDirectory(baseURL,topic,controller.signal)
    .then(payload=>{if(active){setProfiles(payload.profiles);setLoading(false);}})
    .catch(()=>{if(active){setError("Каталог временно недоступен или тема пока не поддерживается.");setLoading(false);}});
@@ -27,11 +31,17 @@ export function NativeSpecialistDirectory({baseURL,topic}:{baseURL:string;topic:
  },[baseURL,topic]);
  async function select(p:PublicSpecialist) {
   // Never trust a cached search card to remain published after review/revocation.
-  setError("");setNotice("");setSelected(null);
+  setError("");setNotice("");setSelected(null);setOffers(null);setOffersUnavailable(false);
   try {
    const fresh=await fetchNativePublicSpecialist(baseURL,p.id);
    if(!fresh){setNotice("Анкета больше не опубликована. Обновите каталог.");return;}
    setSelected(fresh);
+   try{
+    const current=await fetchNativePublicOffers(baseURL,fresh.id);
+    if(!current){setSelected(null);setNotice("Публикация отозвана. Обновите каталог.");return;}
+    setOffers(current);
+   }catch{setOffersUnavailable(true)}
+
   }catch{setError("Не удалось проверить актуальность анкеты.");}
  }
  return <View style={styles.directory} accessibilityLabel="Проверенный каталог специалистов">
@@ -55,7 +65,16 @@ export function NativeSpecialistDirectory({baseURL,topic}:{baseURL:string;topic:
    {selected.about?<Text>{selected.about}</Text>:null}
    {selected.experience_years>0?<Text>Заявленный опыт: {selected.experience_years} лет</Text>:null}
    {selected.limitations.length>0?<Text>Ограничения: {selected.limitations.join("; ")}</Text>:null}
-   <Text style={styles.note}>Стоимость и свободное время появятся только при подтверждённом предложении. Выбор анкеты не создаёт бронирование.</Text>
+   {offersUnavailable?<Text accessibilityRole="alert">Стоимость и доступность сейчас не подтверждены. Проверьте их при записи.</Text>:null}
+   {offers && offers.offers.length===0?<Text>Сейчас нет доступных платных слотов.</Text>:null}
+   {offers?.offers.map(offer=><View key={offer.id} style={styles.card}>
+    <Text style={styles.name}>{topicNames[offer.topic_id]??offer.topic_id}</Text>
+    <Text>{new Intl.NumberFormat("ru-RU").format(offer.price_minor/100)} ₽ / консультация</Text>
+    {offer.slots.map(slot=><Text key={slot.slot_id}>
+     {new Date(slot.starts_at).toLocaleString("ru-RU")} — {Math.round((new Date(slot.ends_at).getTime()-new Date(slot.starts_at).getTime())/60000)} минут
+    </Text>)}
+   </View>)}
+   <Text style={styles.note}>Цены и свободное время берутся из действующих предложений. Просмотр анкеты не резервирует слот и не создаёт оплату.</Text>
    <Pressable accessibilityRole="button" accessibilityLabel="Продолжить запись к выбранному специалисту"
      style={styles.action} onPress={()=>void Linking.openURL(`https://apgic.ru/?specialist_id=${encodeURIComponent(selected.id)}#start`)}>
     <Text style={styles.actionText}>Продолжить к записи</Text>

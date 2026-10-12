@@ -124,3 +124,37 @@ func TestPublicDetailsWriteRequiresSignedOwnerSession(t *testing.T) {
 		t.Fatalf("caller attempted review override = %d", w.Code)
 	}
 }
+
+type publicOffersSpy struct {
+	*publicSpecialistSpy
+	offers []specialist.PublicBookableOffer
+}
+func (s *publicOffersSpy) PublicOffers(_ context.Context, specialistID string) ([]specialist.PublicBookableOffer, error) {
+	if !s.found || specialistID != "00000000-0000-0000-0000-000000000001" {
+		return nil, specialist.ErrPublicProfileNotFound
+	}
+	return s.offers,nil
+}
+func TestPublicBookableOfferEndpointFailsClosedAndNeverLeaksPrivateTruth(t *testing.T) {
+	spy := &publicOffersSpy{
+		publicSpecialistSpy: &publicSpecialistSpy{specialistStoreSpy: &specialistStoreSpy{}, found:true},
+		offers: []specialist.PublicBookableOffer{{
+			ID:"offer-1", TopicID:"anxiety", PriceMinor:250000, Currency:"RUB",
+			Slots:[]specialist.PublicBookableSlot{},
+		}},
+	}
+	handler:=New(Options{Specialists:spy,ClientSessionKey:[]byte("public-offers-test-key-00000000")})
+	path:="/v1/specialists/00000000-0000-0000-0000-000000000001/offers"
+	ok:=httptest.NewRecorder()
+	handler.ServeHTTP(ok,httptest.NewRequest("GET",path,nil))
+	if ok.Code != 200 {t.Fatalf("public offer status %d: %s",ok.Code,ok.Body.String())}
+	if !strings.Contains(ok.Body.String(), "250000") || strings.Contains(ok.Body.String(),"identity_id") ||
+		strings.Contains(ok.Body.String(),"evidence_ref") || strings.Contains(ok.Body.String(),"product_id") {
+		t.Fatalf("public offers leaked private data or lost real price: %s",ok.Body.String())
+	}
+	if ok.Result().Header.Get("Cache-Control") != "no-store" {t.Fatalf("public response was cacheable")}
+	spy.found=false
+	revoked:=httptest.NewRecorder()
+	handler.ServeHTTP(revoked,httptest.NewRequest("GET",path,nil))
+	if revoked.Code!=404{t.Fatalf("withdrawn specialist still had public offers: %d",revoked.Code)}
+}

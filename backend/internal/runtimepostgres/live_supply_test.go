@@ -94,6 +94,12 @@ func TestLivePricedSpecialistToDurableHoldAfterRestart(t *testing.T) {
 	if _, err := store.AddBookableSlot("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", offer.ID, start.Add(time.Hour), end.Add(time.Hour)); !errors.Is(err, specialist.ErrOfferNotAuthorized) {
 		t.Fatalf("foreign identity mutated offer slot: %v", err)
 	}
+	publicBeforeHold, err := store.PublicOffers(context.Background(), created.ID)
+	if err != nil || len(publicBeforeHold) != 1 || publicBeforeHold[0].ID != offer.ID ||
+		publicBeforeHold[0].PriceMinor != 190000 || publicBeforeHold[0].Currency != "RUB" ||
+		len(publicBeforeHold[0].Slots) != 1 || publicBeforeHold[0].Slots[0].SlotID != slot.ID {
+		t.Fatalf("public directory fabricated or omitted live priced slot: %#v err=%v", publicBeforeHold, err)
+	}
 	offers, err := store.BookableOffers()
 	if err != nil {
 		t.Fatal(err)
@@ -150,6 +156,12 @@ func TestLivePricedSpecialistToDurableHoldAfterRestart(t *testing.T) {
 	hold, err := service.AcquireHold(intent.ID, slot.ID, clientIdentityID)
 	if err != nil {
 		t.Fatalf("real live slot hold failed: %v", err)
+	}
+	// Public price and availability are computed against the same canonical held
+	// slot state as the client journey. Once held, a slot cannot remain advertised.
+	publicAfterHold, err := store.PublicOffers(context.Background(), created.ID)
+	if err != nil || len(publicAfterHold) != 0 {
+		t.Fatalf("held slot remained in public availability: %#v err=%v", publicAfterHold, err)
 	}
 	// Simulate a new API process with the same PostgreSQL: readback cannot
 	// depend on a browser tab-local cache or the old in-memory service.
