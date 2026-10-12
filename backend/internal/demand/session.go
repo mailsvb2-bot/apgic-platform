@@ -110,6 +110,13 @@ func (s *Service) CompleteSession(bookingID, evidenceRef string) (*ConsultationV
 }
 
 func (s *Service) sessionLocked(bookingID string) (*consultation.Session, error) {
+	// Browser-originated conformance presence/recovery/completion is not
+	// an alternative to signed real-provider events in live supply. Even
+	// if a payment was captured, fixture lifecycle facts must never mint
+	// a production consultation or media-session state.
+	if s.liveSupplyMode {
+		return nil, ErrConsultNotReady
+	}
 	// Booking truth may have changed in PostgreSQL through another API instance.
 	// Consultations must not start from an obsolete cached confirmation.
 	if err := s.refreshJourneyLocked(); err != nil {

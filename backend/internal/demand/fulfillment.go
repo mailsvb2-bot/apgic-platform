@@ -61,7 +61,10 @@ func (s *Service) Fulfillment(bookingID, identityID string) (*BookingNotice, *Jo
 		return nil, nil, err
 	}
 	booked := s.bookings[bookingID]
-	if booked == nil {
+	// Booking IDs are identifiers, never bearer capabilities. A foreign
+	// authenticated user must not learn the appointment window, whether a
+	// booking exists, or any provider/entitlement details.
+	if booked == nil || identityID == "" || booked.ClientIdentityID != identityID {
 		return nil, nil, ErrOrderNotFound
 	}
 	notice := s.notices[bookingID]
@@ -75,6 +78,18 @@ func (s *Service) Fulfillment(bookingID, identityID string) (*BookingNotice, *Jo
 	slot, _ := s.slot(booked.SlotID)
 	specialistID := s.recipientLocked(slot.SpecialistID)
 	now := s.now().UTC()
+	// The embedded communication provider is a conformance fixture, not a
+	// provisioned room or credential issuer. Never return ALLOW or its
+	// provider identity on the real supply path. Signed provider lifecycle
+	// events and actual access credentials are owned by R3 integrations.
+	if s.liveSupplyMode {
+		return noticeCopy, &JoinResult{
+			Decision: "DENY", ReasonCode: communication.ReasonProviderUnavailable,
+			OpensAt: booked.StartsAt.Add(-joinLead),
+			ClosesAt: booked.EndsAt,
+			Notice: joinNotice(communication.ReasonProviderUnavailable),
+		}, nil
+	}
 	provider, err := connector.NewInstance("comm-external", connector.CapabilityCommunication, "EXTERNAL_COMMUNICATION_PROVIDER", "conformance:not-production-media")
 	if err != nil {
 		return nil, nil, err
@@ -137,6 +152,8 @@ func joinNotice(reason string) string {
 		return "Войти можно только в подтверждённую бронь."
 	case communication.ReasonRoleMismatch:
 		return "Эта бронь принадлежит другому клиенту."
+	case communication.ReasonProviderUnavailable:
+		return "Внешний провайдер консультаций ещё не подключён. Войти в комнату сейчас нельзя."
 	default:
 		return "Вход в консультацию закрыт."
 	}

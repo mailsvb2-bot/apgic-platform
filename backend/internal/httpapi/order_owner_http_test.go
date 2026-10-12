@@ -67,9 +67,16 @@ func TestAuthenticatedOrderReadbackAndCancellation(t *testing.T) {
 		if cookie != nil {
 			want = http.StatusNotFound
 		}
-		read := call("GET", "/v1/orders/"+ins.OrderID, "", cookie)
-		if read.Code != want {
-			t.Fatalf("foreign read=%d want=%d body=%s", read.Code, want, read.Body)
+		for _, endpoint := range []string{
+			"/v1/orders/" + ins.OrderID,
+			"/v1/bookings/" + hold.BookingID + "/fulfillment",
+		} {
+			read := call("GET", endpoint, "", cookie)
+			if read.Code != want || strings.Contains(read.Body.String(), hold.BookingID) ||
+				strings.Contains(read.Body.String(), "opens_at") ||
+				strings.Contains(read.Body.String(), "provider_instance_id") {
+				t.Fatalf("foreign read %s=%d want=%d body=%s", endpoint, read.Code, want, read.Body)
+			}
 		}
 	}
 	read := call("GET", "/v1/orders/"+ins.OrderID, "", owner)
