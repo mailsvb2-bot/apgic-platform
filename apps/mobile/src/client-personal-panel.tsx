@@ -1,7 +1,8 @@
 import React,{useCallback,useEffect,useState} from "react";
 import {Pressable,Text,TextInput,View} from "react-native";
 import {
-  parseClientPersonalView,personalBookingLabel,
+  parseClientPersonalView,personalBookingLabel,personalProgressLabel,
+  type ClientPersonalCheckInInput,
   type ClientPersonalView,type ClientPersonalPreferences,
 } from "../../../packages/contracts/src/client-personal.ts";
 
@@ -38,6 +39,19 @@ export default function ClientPersonalPanel({baseURL}:{baseURL:string}) {
     }catch{setMessage("Изменения не сохранены. Повторите попытку.");}
     finally{setBusy(false);}
   };
+  const checkIn=async(bookingID:string,progress:ClientPersonalCheckInInput["progress_code"])=>{
+    if(busy)return;
+    setBusy(true);setMessage("");
+    try{
+      const res=await fetch(new URL("/v1/client/personal/check-ins",baseURL).toString(),{
+        method:"POST",credentials:"include",headers:{"content-type":"application/json"},
+        body:JSON.stringify({booking_id:bookingID,progress_code:progress}),
+      });
+      if(!res.ok)throw new Error("CHECK_IN_NOT_SAVED");
+      await load();
+    }catch{setMessage("Ответ не сохранён. Проверьте статус консультации.");}
+    finally{setBusy(false);}
+  };
   return <View style={{gap:10,padding:14,borderWidth:1,borderColor:"#cbd5cf",borderRadius:14}} accessibilityLabel="Личный кабинет клиента">
     <Text style={{fontWeight:"700",fontSize:20}}>Мой кабинет</Text>
     {status==="loading"?<Text accessibilityRole="summary">Загружаем данные с сервера…</Text>:null}
@@ -51,6 +65,17 @@ export default function ClientPersonalPanel({baseURL}:{baseURL:string}) {
       <Text style={{fontWeight:"700"}}>История встреч</Text>
       {view.history.map(x=><View key={x.booking_id} style={{paddingVertical:7}}>
         <Text>{x.specialist_name} · {personalBookingLabel[x.state]}</Text>
+        {x.client_progress?<Text>{personalProgressLabel[x.client_progress]}</Text>:null}
+        {x.consultation_state==="COMPLETED"&&!x.client_progress?
+          <View style={{gap:8,paddingVertical:8}}>
+            <Text>Как вы сейчас себя чувствуете? Это не медицинский вывод.</Text>
+            {(["IMPROVED","UNCHANGED","WORSE","UNSURE"] as const).map(code=>
+              <Pressable key={code} accessibilityRole="button" disabled={busy}
+                onPress={()=>void checkIn(x.booking_id,code)}
+                style={{padding:12,minHeight:48,borderWidth:1,borderRadius:8}}>
+                <Text>{personalProgressLabel[code]}</Text>
+              </Pressable>)}
+          </View>:null}
       </View>)}
       <Text>Последние запросы: {view.requests.length}</Text>
       <TextInput accessibilityLabel="Как к вам обращаться" placeholder="Ваше имя"
