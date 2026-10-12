@@ -221,6 +221,7 @@ export function Journey() {
     return () => { active = false; };
   }, []);
   async function refreshPreviousHold() {
+    const requestVersion = selectedAvailabilityRequest.current;
     const id = sessionStorage.getItem("apgic:current-hold-id");
     if (!id) {
       setRestoredHold(null);
@@ -238,26 +239,32 @@ export function Journey() {
       }
       if (!response.ok) throw new Error("Hold status unavailable");
       const value = await response.json() as Hold;
+      if (requestVersion !== selectedAvailabilityRequest.current) return;
       if (value.id !== id || !value.booking_id || !value.booking_state || !value.expires_at) {
         throw new Error("Invalid hold status");
       }
       setRestoredHold(value);
       setRestoration("READY");
     } catch {
-      setRestoration("UNAVAILABLE");
+      if (requestVersion === selectedAvailabilityRequest.current) setRestoration("UNAVAILABLE");
     }
   }
   const [checkingActiveHold, setCheckingActiveHold] = useState(false);
   const [activeHoldUnverified, setActiveHoldUnverified] = useState(false);
   async function refreshActiveHold() {
     if (!hold || checkingActiveHold) return;
+    const requestVersion = selectedAvailabilityRequest.current;
+    const holdID = hold.id;
     setCheckingActiveHold(true);
     setError("");
     try {
       const response = await fetch(`/v1/slot-holds/${encodeURIComponent(hold.id)}`, { credentials: "include", cache: "no-store" });
       if (!response.ok) throw new Error("Не удалось проверить статус брони. Повторите попытку.");
       const fresh = await response.json() as Hold;
-      if (fresh.id !== hold.id || fresh.booking_id !== hold.booking_id ||
+      // Switching a specialist/slot or changing the help intent revokes
+      // this response's authority to update the visible booking.
+      if (requestVersion !== selectedAvailabilityRequest.current) return;
+      if (fresh.id !== holdID || fresh.booking_id !== hold.booking_id ||
           !fresh.booking_state || !fresh.expires_at) throw new Error("Сервер вернул несогласованное состояние брони.");
       setHold(fresh);
       setActiveHoldUnverified(false);
@@ -267,11 +274,12 @@ export function Journey() {
         setOptions([]);
       }
     } catch (cause) {
+      if (requestVersion !== selectedAvailabilityRequest.current) return;
       setActiveHoldUnverified(true);
       setOptions([]);
       setError(cause instanceof Error ? cause.message : "Статус брони недоступен.");
     } finally {
-      setCheckingActiveHold(false);
+      if (requestVersion === selectedAvailabilityRequest.current) setCheckingActiveHold(false);
     }
   }
   const [holdTimeExpired, setHoldTimeExpired] = useState(false);
@@ -333,6 +341,9 @@ export function Journey() {
     // HTTP response; the previous specialist may not be made bookable later.
     ++selectedAvailabilityRequest.current;
     setSlotAvailability("IDLE");
+    setCheckingActiveHold(false);
+    setCheckingOrderStatus(false);
+    setActiveHoldUnverified(false);
     setError("");
     setPending(true);
     sessionStorage.removeItem("apgic:current-hold-id");
@@ -374,6 +385,10 @@ export function Journey() {
     if (!intent) return;
     ++selectedAvailabilityRequest.current;
     setSlotAvailability("IDLE");
+    setCheckingActiveHold(false);
+    setCheckingOrderStatus(false);
+    setActiveHoldUnverified(false);
+    sessionStorage.removeItem("apgic:current-hold-id");
     setError("");
     setPending(true);
     // Never leave matches from the previous confirmation actionable while
@@ -469,6 +484,10 @@ export function Journey() {
     const requestVersion = ++selectedAvailabilityRequest.current;
     setError("");
     setSlotAvailability("CHECKING");
+    setCheckingActiveHold(false);
+    setCheckingOrderStatus(false);
+    setActiveHoldUnverified(false);
+    sessionStorage.removeItem("apgic:current-hold-id");
     // Always discard stale booking and payment data before loading a different
     // provider's availability. A failed fetch cannot leave old checkout actions.
     setSpecialist(null);
@@ -523,6 +542,12 @@ export function Journey() {
   async function acquire(slot: Slot) {
     // Never create a hold from a stale or unverified specialist slot card.
     if (!intent || slotAvailability !== "AVAILABLE" || !slots.some((item) => item.id === slot.id)) return;
+    // Invalidate all in-flight reads associated with a previous booking
+    // even when the selected specialist did not change.
+    ++selectedAvailabilityRequest.current;
+    setCheckingActiveHold(false);
+    setCheckingOrderStatus(false);
+    setActiveHoldUnverified(false);
     setError("");
     setPending(true);
     sessionStorage.removeItem("apgic:current-hold-id");
@@ -564,6 +589,7 @@ export function Journey() {
   }
 
   async function refreshOrderStatus(order: CheckoutInstruction) {
+    const requestVersion = selectedAvailabilityRequest.current;
     setCheckingOrderStatus(true);
     try {
       const response = await fetch(`/v1/orders/${encodeURIComponent(order.order_id)}`, {
@@ -571,6 +597,7 @@ export function Journey() {
       });
       if (!response.ok) throw new Error("Проверка заказа у сервера недоступна.");
       const status = await response.json() as OrderStatus;
+      if (requestVersion !== selectedAvailabilityRequest.current) return;
       if (status.order_id !== order.order_id ||
           status.booking_id !== hold?.booking_id ||
           status.provider_id !== order.provider_id ||
@@ -583,10 +610,11 @@ export function Journey() {
       }
       setOrderStatus(status);
     } catch (cause) {
+      if (requestVersion !== selectedAvailabilityRequest.current) return;
       setOrderStatus(null);
       throw cause;
     } finally {
-      setCheckingOrderStatus(false);
+      if (requestVersion === selectedAvailabilityRequest.current) setCheckingOrderStatus(false);
     }
   }
 

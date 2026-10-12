@@ -85,9 +85,9 @@ func (s *Service) Fulfillment(bookingID, identityID string) (*BookingNotice, *Jo
 	if s.liveSupplyMode {
 		return noticeCopy, &JoinResult{
 			Decision: "DENY", ReasonCode: communication.ReasonProviderUnavailable,
-			OpensAt: booked.StartsAt.Add(-joinLead),
+			OpensAt:  booked.StartsAt.Add(-joinLead),
 			ClosesAt: booked.EndsAt,
-			Notice: joinNotice(communication.ReasonProviderUnavailable),
+			Notice:   joinNotice(communication.ReasonProviderUnavailable),
 		}, nil
 	}
 	provider, err := connector.NewInstance("comm-external", connector.CapabilityCommunication, "EXTERNAL_COMMUNICATION_PROVIDER", "conformance:not-production-media")

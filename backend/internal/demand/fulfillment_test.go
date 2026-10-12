@@ -136,7 +136,6 @@ func TestConsultationRefusesStaleConfirmedBookingAfterRemoteCancellation(t *test
 	}
 }
 
-	
 // This is a separate production/conformance boundary test, not merely an
 // HTTP flag check: no caller may bypass the transport guard by invoking the
 // service directly after live supply has been selected.
