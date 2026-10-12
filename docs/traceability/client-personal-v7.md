@@ -36,3 +36,12 @@ An empty response means there are no facts yet, not a made-up history.
 AI concierge, entitlement delivery, recommendations, subscription accounting,
 rematch, notification preferences and recorded notes require their canonical
 service owners and policies; no UI placeholders are evidence of production readiness.
+
+## Signed-session navigation and visual regression
+The anonymous landing page retains its approved visual baseline: no false
+"logged in" badge/link or untrusted local account state. A signed client
+session receives the "Мой кабинет" navigation entry after the owner-scoped
+GET succeeds. After creating the first request, the journey emits a
+presentation-only refresh event; the server always remains the sole authority.
+Playwright tests cover anonymous and authenticated cross-page navigation.
+Visual baselines are never weakened, skipped or automatically overwritten.

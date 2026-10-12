@@ -33,6 +33,22 @@ test("personal workspace loads owner snapshot, saves preferences and advances hi
 test("personal workspace fails closed without signed session",async({page})=>{
   await page.route("**/v1/client/personal",r=>r.fulfill({status:401,body:'{"code":"CLIENT_SESSION_REQUIRED"}'}));
   await page.goto("/personal");
-  await expect(page.getByRole("alert")).toContainText("Нет подтверждённой сессии");
+  await expect(page.getByRole("alert").filter({hasText:"Нет подтверждённой сессии"})).toContainText("Нет подтверждённой сессии");
   await expect(page.getByRole("heading",{name:"Предстоящие записи"})).toHaveCount(0);
+});
+
+test("anonymous acquisition stays stable and exposes no untrusted account entry",async({page})=>{
+  await page.route("**/v1/client/personal",r=>r.fulfill({status:401,body:'{"code":"CLIENT_SESSION_REQUIRED"}'}));
+  await page.goto("/");
+  await expect(page.getByRole("heading",{level:1})).toBeVisible();
+  await expect(page.getByRole("link",{name:"Мой кабинет"})).toHaveCount(0);
+});
+test("signed client can enter personal workspace from the same public landing page",async({page})=>{
+  await page.route("**/v1/client/personal",r=>r.fulfill({
+    status:200,contentType:"application/json",body:JSON.stringify(makeView()),
+  }));
+  await page.goto("/");
+  await page.getByRole("link",{name:"Мой кабинет"}).click();
+  await expect(page).toHaveURL(/\/personal$/);
+  await expect(page.getByRole("heading",{name:"Предстоящие записи"})).toBeVisible();
 });

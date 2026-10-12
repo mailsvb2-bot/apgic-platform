@@ -345,6 +345,8 @@ export function Journey() {
       const created = await postJSON<Intent>("/v1/help-intents", { free_text: text });
       setIntent(created);
       setTopics(created.topics);
+      // Refresh the signed-session-aware navigation after the server issues the cookie.
+      window.dispatchEvent(new Event("apgic:client-session-established"));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Не удалось разобрать запрос.");
     } finally {
