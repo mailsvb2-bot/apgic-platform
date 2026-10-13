@@ -46,7 +46,7 @@ test("professional owner resumes, reuses and revokes a signed distribution link"
   await expect(page.locator(`a[href="${path}"]`)).toBeVisible();
   await expect(page.getByRole("button", { name: "Поделиться" })).toBeVisible();
   await page.getByRole("button", { name: "Отозвать" }).click();
-  await expect(page.getByText("Отозвана", { exact: false })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Мои ссылки распространения" }).getByText(/^Статус: Отозвана ·/)).toBeVisible();
   await expect(page.locator(`a[href="${path}"]`)).toHaveCount(0);
   await page.reload();
   await expect(page.locator(`a[href="${path}"]`)).toHaveCount(0);
@@ -65,6 +65,6 @@ test("failed storage does not expose stale specialist links", async ({ page }) =
     await route.fulfill({ json: { items: [] } });
   });
   await page.goto("/specialist/growth");
-  await expect(page.getByRole("alert")).toContainText("Не удалось получить проверенные ссылки.");
+  await expect(page.getByRole("alert", { name: "Не удалось получить проверенные ссылки." })).toBeVisible();
   await expect(page.locator('a[href^="/g/"]')).toHaveCount(0);
 });
