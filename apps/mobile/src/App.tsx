@@ -1001,6 +1001,7 @@ export default function App({
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView
+        style={styles.demandScroll}
         contentContainerStyle={styles.card}
         keyboardShouldPersistTaps="always"
         keyboardDismissMode="on-drag"
@@ -1605,6 +1606,9 @@ export default function App({
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
+  // The form scrolls inside its own constrained area; the fixed confirmation
+  // footer must remain a sibling hit target, never overlap the ScrollView.
+  demandScroll: { flex: 1, flexShrink: 1 },
   card: { gap: 12, padding: 24, paddingBottom: 48 },
   eyebrow: { fontWeight: "700", textTransform: "uppercase", letterSpacing: 1.2 },
   title: { fontWeight: "800", fontSize: 48 },
