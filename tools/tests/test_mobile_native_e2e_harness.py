@@ -129,6 +129,7 @@ class MobileNativeE2EHarnessTest(unittest.TestCase):
 
     def test_production_demand_mutations_fail_closed_and_allow_topic_replacement(self) -> None:
         app = (ROOT / "apps/mobile/src/App.tsx").read_text(encoding="utf-8")
+        android = self._read("mobile_android_capability_e2e.sh")
 
         analyze_start = app.index("  const analyzeDemand = useCallback")
         analyze_end = app.index("  const toggleDemandTopic", analyze_start)
