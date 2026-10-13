@@ -399,9 +399,6 @@ export default function App({
   }, [demandCustomTopic]);
 
   const confirmDemand = useCallback(async () => {
-    // Give the native screen immediate, observable feedback from the real press.
-    // A disabled or swallowed gesture must not be mistaken for a backend failure.
-    setDemandStatus("RUNNING");
     if (!compatibilityAllowsRuntime) {
       setDemandError("Сначала завершите проверку совместимости или обновите приложение.");
       return;
