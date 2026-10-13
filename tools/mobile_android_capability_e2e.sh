@@ -1006,8 +1006,23 @@ assert_help_intent_confirmation() {
     fail "Android correction did not actually uncheck anxiety topic"
   seek_demand_accessibility_node 'Тема sleep' true observe "$remote" "$output" ||
     fail "Android correction inadvertently unchecked chosen sleep topic"
-  seek_demand_accessibility_node "Подтвердить темы запроса" "" tap "$remote" "$output" ||
-    fail "Android confirmed-topic action inaccessible after scrolling"
+  # Android ScrollView can consume the first touch immediately after a scroll.
+  # Require a real state transition from DRAFT before accepting the press.
+  # Retry the actual accessible button, never synthesize confirmation.
+  local press_accepted=false
+  for _ in 1 2 3; do
+    seek_demand_accessibility_node "Подтвердить темы запроса" "" tap "$remote" "$output" ||
+      fail "Android confirmed-topic action inaccessible after scrolling"
+    sleep 1
+    if seek_demand_accessibility_node 'native-demand-status:RUNNING' "" observe "$remote" "$output" ||
+       seek_demand_accessibility_node 'native-demand-status:CONFIRMED' "" observe "$remote" "$output" ||
+       seek_demand_accessibility_node 'native-demand-status:FAIL' "" observe "$remote" "$output"; then
+      press_accepted=true
+      break
+    fi
+  done
+  [[ "$press_accepted" == true ]] ||
+    fail "Android confirmation button did not dispatch onPress: status remained DRAFT after three actual touch attempts"
 
   # Confirmation is above the bottom action button in a long ScrollView.
   # UiAutomator includes only the visible viewport; checking the stationary
