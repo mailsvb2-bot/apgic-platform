@@ -151,7 +151,7 @@ class MobileNativeE2EHarnessTest(unittest.TestCase):
         self.assertIn("!demandIntent ? (", app)
         self.assertIn("setDemandSuggestedTopics([...intent.topics])", app)
         self.assertIn("...demandSuggestedTopics", app)
-        self.assertIn('disabled={demandStatus === "CONFIRMED"}', app)
+        self.assertIn('disabled={demandStatus === "CONFIRMED" || demandStatus === "RUNNING"}', app)
         self.assertIn("setDemandCustomTopicEditing((value) => !value)", app)
         self.assertIn('disabled={demandStatus === "CONFIRMED" || demandStatus === "RUNNING"}', app)
         self.assertIn('disabled={!demandCustomTopic.trim() || demandStatus === "RUNNING"}', app)
@@ -159,6 +159,8 @@ class MobileNativeE2EHarnessTest(unittest.TestCase):
         self.assertIn("shell input swipe 300 180 300 540 230", android)
         self.assertNotIn("shell input swipe 160 120 160 555 95", android)
         self.assertIn('sleep 0.4', android)
+        self.assertIn('confirm_count_after > confirm_count_before', android)
+        self.assertIn('session_cookie_present=true', android)
         self.assertIn('accessibilityLabel="Создать новый запрос"', app)
 
     def test_demand_and_deletion_e2e_use_local_compatibility_gate(self) -> None:

@@ -970,6 +970,8 @@ PY
 assert_help_intent_confirmation() {
   local output="$EVIDENCE_DIR/android-demand-e2e.xml"
   local remote="/sdcard/apgic-demand-e2e.xml"
+  local confirm_count_before
+  confirm_count_before="$(grep -c 'APGIC native UI HelpIntent HTTP CONFIRM status=200 session_cookie_present=true' "$SERVER_LOG" 2>/dev/null || true)"
 
   "$ADB" shell am force-stop com.apgic.ci
   "$ADB" shell am start -W \
@@ -1040,6 +1042,14 @@ PY
   done
   [[ "$confirm_state" == "CONFIRMED" ]] ||
     fail "Android confirmation did not reach server-acknowledged state (last native status: ${confirm_state:-NOT_VISIBLE}); inspect HelpIntent HTTP outcomes"
+  # A visible confirmation alone is not evidence that the canonical server
+  # accepted a NEW request. Previous checkout tests may already have issued
+  # successful confirmations, so demand an incremental owner-session HTTP
+  # success within this actual installed-app journey.
+  local confirm_count_after
+  confirm_count_after="$(grep -c 'APGIC native UI HelpIntent HTTP CONFIRM status=200 session_cookie_present=true' "$SERVER_LOG" 2>/dev/null || true)"
+  (( confirm_count_after > confirm_count_before )) ||
+    fail "Android user-visible confirmation lacked a new authenticated HTTP 200 server outcome"
 
   seek_demand_accessibility_node 'native-demand-confirmed' "" observe "$remote" "$output" ||
     fail "Android canonical HelpIntent did not confirm after user correction"
