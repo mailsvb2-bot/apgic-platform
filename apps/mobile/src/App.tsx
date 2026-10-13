@@ -14,6 +14,7 @@ import {
 
 import {InstantNowSurface} from "./instant-now-surface.tsx";
 import {apiContractVersion} from "./api-contract.ts";
+import {NativeSpecialistDirectory} from "./native-specialist-directory.tsx";
 import {
   decideCapability,
   type CapabilityState,
@@ -249,8 +250,7 @@ export default function App({
     "IDLE" | "RUNNING" | "DRAFT" | "CONFIRMED" | "FAIL"
   >("IDLE");
   const [demandError, setDemandError] = useState("");
-  // Keep the primary HelpIntent flow fully accessible on smaller devices.
-  // Duty/Now mounts only after an explicit navigation action.
+  // Role-aware Duty/Now is explicit, never displaced over primary HelpIntent.
   const [instantPanelMode, setInstantPanelMode] = useState<"client" | "specialist" | null>(null);
   const [demandE2E, setDemandE2E] = useState<
     | {status: "IDLE" | "RUNNING"}
@@ -1090,6 +1090,9 @@ export default function App({
                       <Text>Поговорить со специалистом сейчас</Text>
                     </Pressable>
                   </View>
+                ) : null}
+                {demandStatus === "CONFIRMED" && demandTopics.length>0 ? (
+                  <NativeSpecialistDirectory baseURL={demandAPIBaseURL} topic={demandTopics[0]} />
                 ) : null}
               </View>
             ) : null}

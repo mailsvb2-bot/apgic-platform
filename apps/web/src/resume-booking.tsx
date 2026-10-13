@@ -22,7 +22,7 @@ export default function ResumeBooking({ restoration, booking, onRetry }: Props) 
         ) : null}
         {restoration === "READY" && booking ? (
           <p role="status">
-            {booking.booking_state === "CONFIRMED" ? "Запись подтверждена сервером." :
+            {booking.booking_state === "CONFIRMED" ? "Сервер подтверждает статус брони. Платёж и доступ к консультации проверяются отдельно." :
               booking.booking_state === "HELD" || booking.booking_state === "PENDING_PAYMENT" ?
                 "Время удерживалось временно. Это не подтверждённая запись — проверьте актуальный статус." :
                 `Сервер сообщает о состоянии ${booking.booking_state}. Проверьте подробности перед дальнейшими действиями.`}

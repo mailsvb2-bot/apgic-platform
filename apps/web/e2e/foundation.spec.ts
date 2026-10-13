@@ -120,10 +120,10 @@ test("help intent journey stays usable and accessible", async ({ page }) => {
   await page.getByRole("button", { name: "Выбрать Карта через внешнего провайдера" }).click();
   await expect(page.getByRole("heading", { name: "Поручение на оплату создано" })).toBeVisible();
   await expect(page.getByText("APGIC принимает деньги: нет.")).toBeVisible();
-  await expect(page.getByText("PENDING_PAYMENT")).toBeVisible();
+  await expect(page.getByText("PENDING_PAYMENT", {exact: true})).toBeVisible();
   await page.getByRole("button", { name: "Зафиксировать подтверждение внешнего провайдера" }).click();
   await expect(page.getByRole("heading", { name: "Бронь подтверждена провайдером" })).toBeVisible();
-  await expect(page.getByText("CONFIRMED")).toBeVisible();
+  await expect(page.locator(".consultation-stage .booking-summary").getByText("CONFIRMED", {exact: true})).toBeVisible();
   await page.getByRole("button", { name: "Зафиксировать подтверждение внешнего провайдера" }).click();
   await expect(page.getByText("Повтор: уже учтён.")).toBeVisible();
   await expect(page.getByText("Служебное уведомление о брони отправлено без маркетингового согласия.")).toBeVisible();
@@ -148,7 +148,13 @@ test("help intent journey stays usable and accessible", async ({ page }) => {
   await expect(page.locator(".alert")).toContainText("согласия");
   await page.getByRole("button", { name: "Отменить бронь через внешнего провайдера" }).click();
   await expect(page.getByRole("heading", { name: "Бронь отменена" })).toBeVisible();
-  await expect(page.getByText("CANCELLED")).toBeVisible();
+  // The booking and financial projections may both legitimately display
+  // CANCELLED. Assert the canonical cancellation outcome, not an ambiguous
+  // text match across two independent server-owned read models.
+  const cancellation = page.locator(".cancellation-result .booking-summary");
+  await expect(cancellation.getByText("CANCELLED", {exact: true})).toBeVisible();
+  await expect(cancellation.getByText("SUCCEEDED", {exact: true})).toBeVisible();
+  await expect(page.getByRole("region", {name: "Результат консультации"})).toHaveCount(0);
   await expect(page.getByText("APGIC возвращает деньги: нет.")).toBeVisible();
   await page.getByRole("button", { name: "Отменить бронь через внешнего провайдера" }).click();
   await expect(page.getByText("Повтор: уже учтён.").last()).toBeVisible();
@@ -765,3 +771,45 @@ test("mobile forced-update destination is safe and does not invent store availab
   await expect(page.getByText("официальный магазин или канал", { exact: false })).toBeVisible();
   await expect(page.getByRole("link", { name: "Вернуться на сайт" })).toHaveAttribute("href", "/");
 });
+
+
+test("specialist schedule distinguishes provider outage from no availability and retries without invented booking", async ({ page }) => {
+  await page.goto("/");
+  await page.getByLabel("С чем нужна помощь").fill("Бессонница");
+  await page.getByRole("button", { name: "Разобрать запрос" }).click();
+  await page.getByRole("button", { name: "Подтвердить и показать специалистов" }).click();
+  await expect(page.getByRole("button", { name: "Выбрать время у Марина Лебедева" })).toBeVisible();
+
+  let scenario: "outage" | "empty" | "live" = "outage";
+  await page.route("**/v1/specialists/spec-lebedeva/slots**", async (route) => {
+    if (scenario === "outage") {
+      await route.fulfill({
+        status: 503, contentType: "application/json",
+        body: JSON.stringify({message_safe: "Временная ошибка расписания"}),
+      });
+      return;
+    }
+    if (scenario === "empty") {
+      await route.fulfill({
+        status: 200, contentType: "application/json",
+        body: JSON.stringify({specialist_id: "spec-lebedeva", slots: []}),
+      });
+      return;
+    }
+    await route.continue();
+  });
+
+  await page.getByRole("button", { name: "Выбрать время у Марина Лебедева" }).click();
+  await expect(page.getByRole("alert").filter({hasText: "Не удалось подтвердить свободное время"})).toBeVisible();
+  await expect(page.getByRole("button", {name: /Удержать слот/})).toHaveCount(0);
+  await expect(page.getByRole("button", {name: "Повторить загрузку расписания"})).toBeVisible();
+  scenario = "empty";
+  await page.getByRole("button", {name: "Повторить загрузку расписания"}).click();
+  await expect(page.getByRole("status").filter({hasText: "Сейчас нет свободных временных слотов"})).toBeVisible();
+  await expect(page.getByRole("button", {name: /Удержать слот/})).toHaveCount(0);
+  scenario = "live";
+  await page.getByRole("button", {name: "Повторить загрузку расписания"}).click();
+  await expect(page.getByRole("button", {name: /Удержать слот/}).first()).toBeVisible();
+  await expect(page.getByRole("button", {name: "Повторить загрузку расписания"})).toHaveCount(0);
+});
+

@@ -96,6 +96,10 @@ const (
                 "/v1/legal-acceptances": {"post": {"security": [{"ClientSession": []}]}},
                 "/v1/legal-acceptances/{documentID}/{documentVersion}": {"get": {"security": [{"ClientSession": []}]}},
                 "/v1/account-deletions": {"post": {"security": [{"ClientSession": []}]}},
+                "/v1/cancellations": {"post": {"security": [{"ClientSession": []}]}},
+                "/v1/bookings/{id}": {"get": {"security": [{"ClientSession": []}]}},
+                "/v1/bookings/{id}/order": {"get": {"security": [{"ClientSession": []}]}},
+                "/v1/orders/{id}": {"get": {"security": [{"ClientSession": []}]}},
                 "/v1/bookings/{id}/fulfillment": {
                     "get": {
                         "security": [{"ClientSession": []}],
@@ -151,6 +155,10 @@ const (
                 "/v1/legal-acceptances": {"post": {}},
                 "/v1/legal-acceptances/{documentID}/{documentVersion}": {"get": {}},
                 "/v1/account-deletions": {"post": {}},
+                "/v1/cancellations": {"post": {}},
+                "/v1/bookings/{id}": {"get": {}},
+                "/v1/bookings/{id}/order": {"get": {}},
+                "/v1/orders/{id}": {"get": {}},
                 "/v1/bookings/{id}/fulfillment": {
                     "get": {
                         "parameters": [
@@ -166,7 +174,13 @@ const (
         }
         errors = validate_client_session_contract(document)
         self.assertGreaterEqual(len(errors), 12)
-        self.assertTrue(any("must require ClientSession" in error for error in errors))
+        for path in [
+            "/v1/cancellations",
+            "/v1/bookings/{id}",
+            "/v1/bookings/{id}/order",
+            "/v1/orders/{id}",
+        ]:
+            self.assertTrue(any(path in error and "must require ClientSession" in error for error in errors), path)
         self.assertTrue(any("must be optional compatibility input" in error for error in errors))
 
     def test_rejects_schema_risk_drift(self) -> None:

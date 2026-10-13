@@ -5,7 +5,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mailsvb2-bot/apgic-platform/backend/internal/booking"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/consultation"
 )
 
@@ -111,6 +110,13 @@ func (s *Service) CompleteSession(bookingID, evidenceRef string) (*ConsultationV
 }
 
 func (s *Service) sessionLocked(bookingID string) (*consultation.Session, error) {
+	// Browser-originated conformance presence/recovery/completion is not
+	// an alternative to signed real-provider events in live supply. Even
+	// if a payment was captured, fixture lifecycle facts must never mint
+	// a production consultation or media-session state.
+	if s.liveSupplyMode {
+		return nil, ErrConsultNotReady
+	}
 	// Booking truth may have changed in PostgreSQL through another API instance.
 	// Consultations must not start from an obsolete cached confirmation.
 	if err := s.refreshJourneyLocked(); err != nil {
@@ -120,7 +126,9 @@ func (s *Service) sessionLocked(bookingID string) (*consultation.Session, error)
 	if booked == nil {
 		return nil, ErrOrderNotFound
 	}
-	if booked.State != booking.StateConfirmed && s.sessions[bookingID] == nil {
+	// Every session mutation requires *current* paid entitlement. A stale
+	// CONFIRMED booking flag or a previously created session cannot grant access.
+	if _, authorized := s.capturedPaymentForBookingLocked(booked); !authorized {
 		return nil, ErrConsultNotReady
 	}
 	if existing := s.sessions[bookingID]; existing != nil {
