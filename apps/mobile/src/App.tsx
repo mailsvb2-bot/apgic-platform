@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useState} from "react";
+import React, {useCallback, useEffect, useRef, useState} from "react";
 import {
   AccessibilityInfo,
   Linking,
@@ -252,6 +252,7 @@ export default function App({
     "IDLE" | "RUNNING" | "DRAFT" | "CONFIRMED" | "FAIL"
   >("IDLE");
   const [demandError, setDemandError] = useState("");
+  const demandConfirmationInFlight = useRef(false);
   const [demandE2E, setDemandE2E] = useState<
     | {status: "IDLE" | "RUNNING"}
     | ({status: "PASS"} & MobileDemandE2EResult)
@@ -407,6 +408,8 @@ export default function App({
       setDemandError("Оставьте хотя бы одну подходящую тему.");
       return;
     }
+    if (demandConfirmationInFlight.current) return;
+    demandConfirmationInFlight.current = true;
     setDemandError("");
     setDemandStatus("RUNNING");
     try {
@@ -433,6 +436,8 @@ export default function App({
       setDemandError(
         error instanceof Error ? error.message : "Не удалось подтвердить запрос.",
       );
+    } finally {
+      demandConfirmationInFlight.current = false;
     }
   }, [compatibilityAllowsRuntime, demandAPIBaseURL, demandE2ESessionCookie, demandIntent, demandTopics]);
 
@@ -1587,7 +1592,7 @@ export default function App({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Подтвердить темы запроса"
-            onPressIn={() => { if (demandStatus !== "RUNNING") setDemandError(""); }}
+            onPressIn={() => void confirmDemand()}
             disabled={demandStatus === "RUNNING" || demandTopics.length === 0 || !compatibilityAllowsRuntime}
             onPress={() => void confirmDemand()}
             style={styles.demandConfirmPrimary}
