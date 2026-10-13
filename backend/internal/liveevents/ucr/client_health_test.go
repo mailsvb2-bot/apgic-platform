@@ -18,7 +18,7 @@ func TestTransportReadinessRejectsUnconfiguredAndUnhealthyUCR(t *testing.T) {
 	}
 	now := time.Now
 	for name, status := range map[string]int{
-		"healthy": http.StatusOK,
+		"healthy":     http.StatusOK,
 		"unavailable": http.StatusServiceUnavailable,
 	} {
 		t.Run(name, func(t *testing.T) {
