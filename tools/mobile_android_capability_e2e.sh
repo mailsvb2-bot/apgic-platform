@@ -151,11 +151,28 @@ except (ET.ParseError, OSError):
     sys.exit(0)
 for node in root.iter("node"):
     attributes = node.attrib
-    if attributes.get("content-desc") != label:
+    desc = attributes.get("content-desc", "")
+    visible_text = attributes.get("text", "")
+    match = desc == label
+    # Native Text can expose its actual human-facing text instead of its
+    # React accessibilityLabel when the framework merges accessibility nodes.
+    # This fallback is semantic evidence from the actual on-screen UI, never
+    # generated success data or a substring of an unrelated control.
+    if not match and label == "native-demand-diagnosis:false":
+        match = (
+            "Это не диагноз." in visible_text
+            and "Диагноз поставлен: нет." in visible_text
+        ) or (
+            "Это не диагноз." in desc
+            and "Диагноз поставлен: нет." in desc
+        )
+    if not match and label == "native-demand-confirmed":
+        match = "Запрос подтверждён пользователем." in (visible_text, desc)
+    if not match:
         continue
     if attributes.get("enabled") != "true":
         continue
-    if checked and attributes.get("checked") != checked:
+    if checked and (attributes.get("checkable") != "true" or attributes.get("checked") != checked):
         continue
     if action == "tap" and attributes.get("clickable") != "true":
         continue
@@ -181,6 +198,31 @@ PY
     done
     sleep 1
   done
+  # Report bounded, real accessibility evidence on failure. The root cause
+  # may be a missing UI semantic, a failed API request, wrong checkbox state
+  # or a native scroll regression; don't merely report a generic timeout.
+  if [[ -s "$output" ]]; then
+    python3 - "$output" "$label" "$checked" <<'PY'
+import sys
+import xml.etree.ElementTree as ET
+path, expected, checked = sys.argv[1:]
+try:
+    root = ET.parse(path).getroot()
+except (OSError, ET.ParseError) as exc:
+    print(f"Android semantic lookup failed: {expected!r}, unreadable UI tree: {exc}", file=sys.stderr)
+    sys.exit(0)
+nodes = list(root.iter("node"))
+visible = [(n.attrib.get("content-desc", ""), n.attrib.get("text", ""),
+            n.attrib.get("checked", ""), n.attrib.get("bounds", ""))
+           for n in nodes]
+relevant = [n for n in visible if any(
+    term in (n[0] + " " + n[1]).lower()
+    for term in ("тема", "диагноз", "запрос", "ошиб", "anxiety", "sleep", "confirm", "demand")
+)]
+print(f"Android UI semantic mismatch: expected={expected!r}, checked={checked!r}; "
+      f"nodes={len(nodes)}, relevant_visible_nodes={relevant[:18]!r}", file=sys.stderr)
+PY
+  fi
   return 1
 }
 
