@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import { SpecialistPublicEditor } from "./public-editor";
 
 type Capability = {
   topic_id: string;
@@ -363,6 +364,7 @@ export function SpecialistOnboarding() {
 
         {profile && (
           <>
+            <SpecialistPublicEditor />
             <section className="panel specialist-form" aria-labelledby="capability-title">
               <h3 id="capability-title">2. Направления работы</h3>
               <label htmlFor="specialist-topic">Направление</label>

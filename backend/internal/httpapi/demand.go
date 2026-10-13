@@ -432,6 +432,59 @@ func registerDemand(
 		writeJSON(w, status, evidence)
 	})
 
+	// No client-supplied identity or cached UI state is trusted here.
+	mux.HandleFunc("GET /v1/orders/{id}", func(w http.ResponseWriter, r *http.Request) {
+		if service == nil {
+			writeDemandError(w, r, http.StatusServiceUnavailable, "DEMAND_CATALOG_UNAVAILABLE", "Каталог недоступен.", true, nil)
+			return
+		}
+		identityID, ok := trustedClientIdentity(w, r, sessions, sessionConfigErr, "")
+		if !ok || strings.TrimSpace(identityID) == "" {
+			if ok {
+				writeDemandError(w, r, http.StatusUnauthorized, "CLIENT_SESSION_REQUIRED", "Требуется сессия клиента.", false, nil)
+			}
+			return
+		}
+		status, err := service.ReadOrderStatus(r.PathValue("id"), identityID)
+		if err != nil {
+			if errors.Is(err, demand.ErrOrderNotFound) {
+				writeDemandFailure(w, r, err)
+			} else {
+				writeDemandError(w, r, http.StatusServiceUnavailable, "ORDER_STATUS_UNAVAILABLE", "Не удалось проверить финансовое состояние заказа.", true, nil)
+			}
+			return
+		}
+		w.Header().Set("Cache-Control", "no-store")
+		writeJSON(w, http.StatusOK, status)
+	})
+
+	// Booking deep-links recover the owner-scoped financial state without
+	// trusting a saved checkout/order ID in the browser.
+	mux.HandleFunc("GET /v1/bookings/{id}/order", func(w http.ResponseWriter, r *http.Request) {
+		if service == nil {
+			writeDemandError(w, r, http.StatusServiceUnavailable, "DEMAND_CATALOG_UNAVAILABLE", "Каталог недоступен.", true, nil)
+			return
+		}
+		identityID, ok := trustedClientIdentity(w, r, sessions, sessionConfigErr, "")
+		if !ok || strings.TrimSpace(identityID) == "" {
+			if ok {
+				writeDemandError(w, r, http.StatusUnauthorized, "CLIENT_SESSION_REQUIRED", "Требуется сессия клиента.", false, nil)
+			}
+			return
+		}
+		status, err := service.ReadOrderForBooking(r.PathValue("id"), identityID)
+		if err != nil {
+			if errors.Is(err, demand.ErrOrderNotFound) {
+				writeDemandFailure(w, r, err)
+			} else {
+				writeDemandError(w, r, http.StatusServiceUnavailable, "ORDER_STATUS_UNAVAILABLE", "Не удалось проверить состояние оплаты.", true, nil)
+			}
+			return
+		}
+		w.Header().Set("Cache-Control", "no-store")
+		writeJSON(w, http.StatusOK, status)
+	})
+
 	mux.HandleFunc("GET /v1/bookings/{id}", func(w http.ResponseWriter, r *http.Request) {
 		if service == nil {
 			writeDemandError(w, r, http.StatusServiceUnavailable, "DEMAND_CATALOG_UNAVAILABLE", "Каталог недоступен.", true, nil)
@@ -668,7 +721,14 @@ func registerDemand(
 			writeDemandError(w, r, http.StatusBadRequest, "CANCEL_INVALID", "Запрос отмены не удалось прочитать.", false, nil)
 			return
 		}
-		cancellation, err := service.CancelOrder(body.OrderID, body.ReasonCode)
+		clientIdentityID, ok := trustedClientIdentity(w, r, sessions, sessionConfigErr, "")
+		if !ok || strings.TrimSpace(clientIdentityID) == "" {
+			if ok {
+				writeDemandError(w, r, http.StatusUnauthorized, "CLIENT_SESSION_REQUIRED", "Требуется сессия клиента.", false, nil)
+			}
+			return
+		}
+		cancellation, err := service.CancelOrderForClient(body.OrderID, clientIdentityID, body.ReasonCode)
 		if err != nil {
 			writeDemandFailure(w, r, err)
 			return

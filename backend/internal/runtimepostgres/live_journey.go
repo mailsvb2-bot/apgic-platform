@@ -28,7 +28,8 @@ func (c *Checker) LoadLiveJourney() (demand.JourneySnapshot, error) {
 
 	holds, err := tx.QueryContext(ctx, `
       SELECT h.id::text,offer.specialist_id::text,s.starts_at,
-             h.client_identity_id::text,h.state,h.expires_at
+             h.client_identity_id::text,h.state,h.expires_at,
+             COALESCE(h.help_intent_id::text,''), COALESCE(h.specialist_offer_id::text,'')
         FROM booking_holds h
         JOIN booking_slots s ON s.id=h.slot_id
         JOIN specialist_bookable_offers offer ON offer.id=s.specialist_offer_id
@@ -41,7 +42,8 @@ func (c *Checker) LoadLiveJourney() (demand.JourneySnapshot, error) {
 		var hold demand.Hold
 		var specialistID string
 		var start time.Time
-		if err := holds.Scan(&hold.ID, &specialistID, &start, &hold.ClientIdentityID, &hold.State, &hold.ExpiresAt); err != nil {
+		if err := holds.Scan(&hold.ID, &specialistID, &start, &hold.ClientIdentityID, &hold.State, &hold.ExpiresAt,
+			&hold.IntentID, &hold.OfferID); err != nil {
 			holds.Close()
 			return snapshot, err
 		}

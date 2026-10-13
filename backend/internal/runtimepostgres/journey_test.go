@@ -296,6 +296,17 @@ func TestJourneyStoreSurvivesServiceRestart(t *testing.T) {
 	if replayedInstruction.ID != instruction.ID || replayedInstruction.OrderID != instruction.OrderID {
 		t.Fatalf("checkout replay changed durable identity: got=%#v want=%#v", replayedInstruction, instruction)
 	}
+	// The order state is a PostgreSQL-derived projection, not a UI session
+	// or the memory of the process that created the checkout.
+	pending, err := third.ReadOrderForBooking(hold.BookingID, intent.ClientIdentityID)
+	if err != nil || pending == nil || pending.OrderID != instruction.OrderID ||
+		pending.BookingState != "PENDING_PAYMENT" || pending.PaymentState != "PENDING_PROVIDER" ||
+		pending.RefundState != "" {
+		t.Fatalf("unpaid order recovered incorrectly from postgres: %#v err=%v", pending, err)
+	}
+	if leaked, err := third.ReadOrderForBooking(hold.BookingID, "foreign-client"); !errors.Is(err, demand.ErrOrderNotFound) || leaked != nil {
+		t.Fatalf("foreign owner read postgres order: %#v err=%v", leaked, err)
+	}
 
 	var productID, directionID, productOwnerRef, firstAuthorRef, commercialOwnerRef, payoutBeneficiaryRef string
 	var authorCount int
@@ -667,6 +678,11 @@ func TestJourneyStoreSurvivesServiceRestart(t *testing.T) {
 	if !replayedCapture.Idempotent || replayedCapture.LedgerEntryID != captured.LedgerEntryID || replayedCapture.ID != captured.ID {
 		t.Fatalf("provider replay changed durable effect: got=%#v want=%#v", replayedCapture, captured)
 	}
+	afterCapture, err := fourth.ReadOrderStatus(instruction.OrderID, intent.ClientIdentityID)
+	if err != nil || afterCapture == nil || afterCapture.BookingState != "CONFIRMED" ||
+		afterCapture.PaymentState != "CAPTURED" || afterCapture.RefundState != "" {
+		t.Fatalf("persisted capture cannot be recovered: %#v err=%v", afterCapture, err)
+	}
 	var outboxCount int
 	if err := store.db.QueryRow(
 		`SELECT count(*)
@@ -701,6 +717,29 @@ func TestJourneyStoreSurvivesServiceRestart(t *testing.T) {
 		replayedCancel.OriginalLedgerID != cancelled.OriginalLedgerID ||
 		replayedCancel.ID != cancelled.ID {
 		t.Fatalf("cancel replay changed durable reversal: got=%#v want=%#v", replayedCancel, cancelled)
+	}
+	afterRefund, err := fifth.ReadOrderForBooking(hold.BookingID, intent.ClientIdentityID)
+	if err != nil || afterRefund == nil || afterRefund.BookingState != "CANCELLED" ||
+		afterRefund.PaymentState != "CAPTURED" || afterRefund.RefundState != "SUCCEEDED" {
+		t.Fatalf("persisted cancellation/refund cannot be recovered: %#v err=%v", afterRefund, err)
+	}
+	// Provider event duplication must not insert a second monetary effect
+	// even when both the capture and reversal have been rehydrated.
+	postRefundLedger, err := store.LedgerEntries()
+	if err != nil {
+		t.Fatal(err)
+	}
+	captureCount, reversalCount := 0, 0
+	for _, entry := range postRefundLedger {
+		if entry.EconomicEventRef == instruction.OrderID {
+			captureCount++
+		}
+		if entry.EconomicEventRef == "reversal:"+instruction.OrderID {
+			reversalCount++
+		}
+	}
+	if captureCount != 1 || reversalCount != 1 {
+		t.Fatalf("duplicate economic effects after restart: captures=%d reversals=%d", captureCount, reversalCount)
 	}
 
 	futureNow := now.AddDate(0, 0, 10)
