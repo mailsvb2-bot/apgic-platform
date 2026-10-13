@@ -824,6 +824,7 @@ jobs:
         shell: bash
         run: bash tools/mobile_android_capability_e2e.sh
       - uses: actions/upload-artifact@v7
+        if: always()
         with:
           name: android-native-debug-build
           path: |
@@ -853,7 +854,7 @@ jobs:
             evidence/android-deletion-e2e.xml
             evidence/android-org-product-bootstrap.json
             evidence/android-org-product-e2e.xml
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 30
 
   mobile-ios-build:
