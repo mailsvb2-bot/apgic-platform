@@ -112,6 +112,78 @@ PY
   return 1
 }
 
+
+# Android UiAutomator exposes only the current ScrollView viewport. A real
+# participant can scroll through the screen, so a multi-stage user journey
+# must verify each control by its actual visible accessibility state rather
+# than requiring distant controls to coexist in one 320x640 XML snapshot.
+# Never synthesize missing labels, ignore disabled controls, or accept a
+# cropped offscreen node as a tappable target.
+seek_demand_accessibility_node() {
+  local label="$1"
+  local checked="$2"       # "true"/"false" for checkbox, "" for any
+  local action="$3"        # "tap" or "observe"
+  local remote="$4"
+  local output="$5"
+  local cycle page position
+  [[ "$action" == "tap" || "$action" == "observe" ]] || return 1
+
+  for cycle in 1 2 3; do
+    # Normalize navigation to the beginning even if the previous check
+    # scrolled to a very different location. Fresh snapshots from THIS
+    # launch/phase are the only source of truth.
+    for _ in $(seq 1 18); do
+      "$ADB" shell input swipe 160 120 160 555 95 >/dev/null 2>&1 || return 1
+    done
+    for page in $(seq 1 35); do
+      position=""
+      if "$ADB" shell uiautomator dump "$remote" >/dev/null 2>&1 &&
+         "$ADB" pull "$remote" "$output" >/dev/null 2>&1; then
+        position="$(python3 - "$output" "$label" "$checked" "$action" <<'PY'
+import re
+import sys
+import xml.etree.ElementTree as ET
+
+path, label, checked, action = sys.argv[1:]
+try:
+    root = ET.parse(path).getroot()
+except (ET.ParseError, OSError):
+    sys.exit(0)
+for node in root.iter("node"):
+    attributes = node.attrib
+    if attributes.get("content-desc") != label:
+        continue
+    if attributes.get("enabled") != "true":
+        continue
+    if checked and attributes.get("checked") != checked:
+        continue
+    if action == "tap" and attributes.get("clickable") != "true":
+        continue
+    bounds = re.fullmatch(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]", attributes.get("bounds", ""))
+    if not bounds:
+        continue
+    x1, y1, x2, y2 = map(int, bounds.groups())
+    x, y = (x1 + x2) // 2, (y1 + y2) // 2
+    if x1 >= x2 or y1 >= y2 or not (10 <= x <= 310 and 30 <= y <= 610):
+        continue
+    print(f"{x} {y}")
+    break
+PY
+)"
+        if [[ -n "$position" ]]; then
+          if [[ "$action" == "tap" ]]; then
+            "$ADB" shell input tap $position >/dev/null 2>&1 || return 1
+          fi
+          return 0
+        fi
+      fi
+      "$ADB" shell input swipe 160 545 160 175 180 >/dev/null 2>&1 || return 1
+    done
+    sleep 1
+  done
+  return 1
+}
+
 cleanup() {
   local status=$?
   trap - EXIT
@@ -902,39 +974,42 @@ assert_help_intent_confirmation() {
     --es APGIC_E2E_DEMAND_SESSION_COOKIE "$SESSION_COOKIE" \
     >/dev/null
 
-  tap_accessibility_label "С чем нужна помощь" "$remote" "$output" ||
-    fail "Android production HelpIntent input was not operable"
+  seek_demand_accessibility_node "С чем нужна помощь" "" tap "$remote" "$output" ||
+    fail "Android HelpIntent text input not operable in scrollable app"
   "$ADB" shell input text 'anxiety%ssleep' >/dev/null
   "$ADB" shell input keyevent 4 >/dev/null
   sleep 1
+  seek_demand_accessibility_node "Разобрать запрос" "" tap "$remote" "$output" ||
+    fail "Android HelpIntent interpret button not operable"
 
-  tap_accessibility_label "Разобрать запрос" "$remote" "$output" ||
-    fail "Android production HelpIntent analyze action was not operable"
+  # Each observation is the real accessibility tree, not a synthetic marker.
+  # Diagnosis and checkboxes need not fit in ONE viewport.
+  seek_demand_accessibility_node 'native-demand-diagnosis:false' "" observe "$remote" "$output" ||
+    fail "Android interpretation did not clearly reject automated diagnosis"
+  seek_demand_accessibility_node 'Тема anxiety' true observe "$remote" "$output" ||
+    fail "Android interpretation did not offer selected anxiety topic"
+  seek_demand_accessibility_node 'Тема sleep' true observe "$remote" "$output" ||
+    fail "Android interpretation did not offer selected sleep topic"
 
-  if ! dump_until_labels_visible "$remote" "$output" \
-       'native-demand-diagnosis:false' \
-       'Тема anxiety' \
-       'Тема sleep'; then
-    [[ -f "$output" ]] && cat "$output" >&2 || true
-    fail "Android production HelpIntent interpretation/no-diagnosis state was not visible"
+  seek_demand_accessibility_node 'Тема anxiety' true tap "$remote" "$output" ||
+    fail "Android suggested anxiety topic not correctable by touch"
+  seek_demand_accessibility_node 'Тема anxiety' false observe "$remote" "$output" ||
+    fail "Android correction did not actually uncheck anxiety topic"
+  seek_demand_accessibility_node 'Тема sleep' true observe "$remote" "$output" ||
+    fail "Android correction inadvertently unchecked chosen sleep topic"
+  seek_demand_accessibility_node "Подтвердить темы запроса" "" tap "$remote" "$output" ||
+    fail "Android confirmed-topic action inaccessible after scrolling"
+
+  seek_demand_accessibility_node 'native-demand-confirmed' "" observe "$remote" "$output" ||
+    fail "Android canonical HelpIntent did not confirm after user correction"
+  seek_demand_accessibility_node 'native-demand-diagnosis:false' "" observe "$remote" "$output" ||
+    fail "Android confirmed HelpIntent lost no-diagnosis safeguard"
+  seek_demand_accessibility_node 'Тема sleep' true observe "$remote" "$output" ||
+    fail "Android canonical confirmed HelpIntent lost the remaining topic"
+  if seek_demand_accessibility_node 'Тема anxiety' true observe "$remote" "$output"; then
+    fail "Android confirmed HelpIntent silently reselected explicitly removed anxiety topic"
   fi
-
-  tap_accessibility_label "Тема anxiety" "$remote" "$output" ||
-    fail "Android production HelpIntent suggested topic could not be corrected"
-  tap_accessibility_label "Подтвердить темы запроса" "$remote" "$output" ||
-    fail "Android production HelpIntent confirmation action was not operable"
-
-  if dump_until_labels_visible "$remote" "$output" \
-       'native-demand-confirmed' \
-       'native-demand-diagnosis:false' \
-       'Тема sleep' &&
-     ! grep -Fq 'Тема anxiety' "$output"; then
-    echo "Android installed-app production HelpIntent interpretation/correction/no-diagnosis: PASS"
-    return 0
-  fi
-
-  [[ -f "$output" ]] && cat "$output" >&2 || true
-  fail "installed Android production UI did not prove HelpIntent correction/no-diagnosis flow"
+  echo "Android installed-app production HelpIntent interpretation/correction/no-diagnosis: PASS"
 }
 
 assert_tenant_isolation() {
