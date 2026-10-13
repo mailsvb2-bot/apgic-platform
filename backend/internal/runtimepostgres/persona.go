@@ -1,0 +1,331 @@
+package runtimepostgres
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/persistentid"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/persona"
+)
+
+func (c *Checker) ListPersonas(ctx context.Context, providerID, policyVersion string) ([]persona.CatalogItem, error) {
+	if c == nil || c.db == nil {
+		return nil, persona.ErrUnavailable
+	}
+	rows, err := c.db.QueryContext(ctx, `SELECT p.id::text,p.label,p.language,p.voice_profile,p.visual_profile,
+ (p.supports_video AND rr.voice_use AND rr.appearance_use),
+ (p.supports_voice AND rr.voice_use),
+ (p.supports_text AND rr.text_use)
+ FROM persona_catalog p
+ JOIN persona_rights_reviews rr ON rr.persona_id=p.id
+ WHERE p.state='PUBLISHED' AND rr.valid_until>now()
+ AND NOT EXISTS (SELECT 1 FROM persona_rights_revocations rv WHERE rv.persona_id=rr.persona_id)
+ AND ((p.supports_text AND rr.text_use) OR (p.supports_voice AND rr.voice_use)
+   OR (p.supports_video AND rr.voice_use AND rr.appearance_use))
+ AND EXISTS (SELECT 1 FROM persona_model_deployments md JOIN connector_instances ci
+ ON ci.id=md.connector_instance_id WHERE md.policy_version=$2
+ AND md.connector_instance_id=$1::uuid AND md.state='ACTIVE'
+ AND ci.capability_class='PERSONA_PROVIDER' AND ci.status='ACTIVE'
+ AND NOT EXISTS (SELECT 1 FROM persona_model_disable_decisions d WHERE d.policy_version=md.policy_version))
+ ORDER BY p.label,p.id LIMIT 100`, providerID, policyVersion)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []persona.CatalogItem{}
+	for rows.Next() {
+		var p persona.CatalogItem
+		if err := rows.Scan(&p.ID, &p.Label, &p.Language, &p.VoiceProfile, &p.VisualProfile,
+			&p.SupportsVideo, &p.SupportsVoice, &p.SupportsText); err != nil {
+			return nil, err
+		}
+		items = append(items, p)
+	}
+	return items, rows.Err()
+}
+func (c *Checker) BeginAvatar(ctx context.Context, userID, providerID, idempotencyKey, policyVersion string, s persona.Start) (persona.Session, error) {
+	if c == nil || c.db == nil {
+		return persona.Session{}, persona.ErrUnavailable
+	}
+	if err := s.Validate(); err != nil {
+		return persona.Session{}, err
+	}
+	if strings.TrimSpace(userID) == "" || strings.TrimSpace(providerID) == "" ||
+		len(idempotencyKey) < 8 || len(idempotencyKey) > 128 || strings.TrimSpace(policyVersion) == "" {
+		return persona.Session{}, persona.ErrInvalidRequest
+	}
+	id, err := persistentid.New()
+	if err != nil {
+		return persona.Session{}, err
+	}
+	tx, err := c.db.BeginTx(ctx, nil)
+	if err != nil {
+		return persona.Session{}, err
+	}
+	defer tx.Rollback()
+	// The APGIC browser cookie owns identity; an arbitrary request body does not.
+	if _, err := tx.ExecContext(ctx, `INSERT INTO identities(id) VALUES ($1::uuid) ON CONFLICT DO NOTHING`, userID); err != nil {
+		return persona.Session{}, err
+	}
+	var catalog persona.CatalogItem
+	err = tx.QueryRowContext(ctx, `SELECT id::text,label,language,voice_profile,visual_profile,
+ supports_video,supports_voice,supports_text FROM persona_catalog WHERE id=$1::uuid AND state='PUBLISHED'
+ AND EXISTS (SELECT 1 FROM persona_rights_reviews rr WHERE rr.persona_id=persona_catalog.id AND rr.valid_until>now()
+ AND NOT EXISTS (SELECT 1 FROM persona_rights_revocations rev WHERE rev.persona_id=rr.persona_id)
+ AND (CASE WHEN $2='VIDEO' THEN rr.voice_use AND rr.appearance_use WHEN $2='VOICE' THEN rr.voice_use ELSE rr.text_use END))`, s.PersonaID, s.Mode).
+		Scan(&catalog.ID, &catalog.Label, &catalog.Language, &catalog.VoiceProfile, &catalog.VisualProfile,
+			&catalog.SupportsVideo, &catalog.SupportsVoice, &catalog.SupportsText)
+	if errors.Is(err, sql.ErrNoRows) {
+		return persona.Session{}, persona.ErrNotFound
+	}
+	if err != nil {
+		return persona.Session{}, err
+	}
+	if catalog.Language != s.Language || (s.Mode == "VIDEO" && !catalog.SupportsVideo) ||
+		(s.Mode == "VOICE" && !catalog.SupportsVoice) || (s.Mode == "TEXT" && !catalog.SupportsText) {
+		return persona.Session{}, persona.ErrInvalidRequest
+	}
+	var active bool
+	if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM connector_instances WHERE id=$1::uuid
+ AND capability_class='PERSONA_PROVIDER' AND status='ACTIVE')`, providerID).Scan(&active); err != nil {
+		return persona.Session{}, err
+	}
+	if !active {
+		return persona.Session{}, persona.ErrUnavailable
+	}
+	// A per-identity transactional advisory lock makes budget and concurrent
+	// admission deterministic under concurrent POSTs, without cache truth.
+	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, "persona/"+userID); err != nil {
+		return persona.Session{}, err
+	}
+	var startsPerHour, activeLimit int
+	err = tx.QueryRowContext(ctx, `SELECT starts_per_identity_hour,max_concurrent_per_identity
+	FROM persona_model_deployments md WHERE md.policy_version=$1
+	AND md.connector_instance_id=$2::uuid AND md.state='ACTIVE'
+	AND NOT EXISTS (SELECT 1 FROM persona_model_disable_decisions d WHERE d.policy_version=md.policy_version)`,
+		policyVersion, providerID).Scan(&startsPerHour, &activeLimit)
+	if errors.Is(err, sql.ErrNoRows) {
+		return persona.Session{}, persona.ErrUnavailable
+	}
+	if err != nil {
+		return persona.Session{}, err
+	}
+	var hourlyCount, activeCount int
+	err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FILTER (WHERE created_at > now()-interval '1 hour'),
+	COUNT(*) FILTER (WHERE (state='PENDING' AND created_at>now()-interval '2 minutes') OR
+ (state='ACTIVE' AND started_at>now()-interval '12 minutes'))
+	FROM avatar_sessions WHERE user_id=$1::uuid`, userID).Scan(&hourlyCount, &activeCount)
+	if err != nil {
+		return persona.Session{}, err
+	}
+	if hourlyCount >= startsPerHour {
+		return persona.Session{}, persona.ErrBudgetExceeded
+	}
+	if activeCount >= activeLimit {
+		return persona.Session{}, persona.ErrConcurrencyExceeded
+	}
+	var inserted string
+	err = tx.QueryRowContext(ctx, `INSERT INTO avatar_sessions
+ (id,user_id,persona_id,provider_instance_id,idempotency_key,session_purpose,privacy_mode,
+ mode,style,language,voice_profile,visual_profile,state,safety_state,policy_version)
+ VALUES($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5,$6,$7,$8,$9,$10,$11,$12,'PENDING','NORMAL',$13)
+ ON CONFLICT (user_id,idempotency_key) DO NOTHING RETURNING id::text`,
+		id, userID, s.PersonaID, providerID, idempotencyKey, s.Purpose, s.PrivacyMode, s.Mode, s.Style, s.Language,
+		catalog.VoiceProfile, catalog.VisualProfile, policyVersion).Scan(&inserted)
+	if errors.Is(err, sql.ErrNoRows) {
+		return persona.Session{}, persona.ErrIdempotency
+	}
+	if err != nil {
+		return persona.Session{}, err
+	}
+	if err := insertAvatarFact(ctx, tx, id, userID, "CREATED", "CLIENT_REQUEST", policyVersion); err != nil {
+		return persona.Session{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return persona.Session{}, err
+	}
+	// Read durable committed truth, including the actual creation timestamp.
+	return c.ReadAvatar(ctx, id, userID)
+}
+func insertAvatarFact(ctx context.Context, tx *sql.Tx, id, actor, event, reason, policy string) error {
+	factID, err := persistentid.New()
+	if err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, `INSERT INTO avatar_session_facts
+ (id,session_id,actor_id,event_type,reason_code,policy_version)
+ VALUES($1::uuid,$2::uuid,NULLIF($3,'')::uuid,$4,$5,$6)`, factID, id, actor, event, reason, policy)
+	return err
+}
+func (c *Checker) personaChange(ctx context.Context, id, owner, event, reason, reference, mode string) error {
+	if c == nil || c.db == nil {
+		return persona.ErrUnavailable
+	}
+	tx, err := c.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	var policy string
+	switch event {
+	case "ACTIVATED":
+		err = tx.QueryRowContext(ctx, `UPDATE avatar_sessions SET state='ACTIVE',started_at=now(),mode=$3,
+ provider_session_ref=$4 WHERE id=$1::uuid AND user_id=$2::uuid AND state='PENDING'
+ RETURNING policy_version`, id, owner, mode, reference).Scan(&policy)
+	case "FAILED":
+		err = tx.QueryRowContext(ctx, `UPDATE avatar_sessions SET state='FAILED' WHERE id=$1::uuid
+ AND user_id=$2::uuid AND state='PENDING' RETURNING policy_version`, id, owner).Scan(&policy)
+	case "CLOSED":
+		err = tx.QueryRowContext(ctx, `UPDATE avatar_sessions SET state='ENDED',ended_at=now()
+ WHERE id=$1::uuid AND user_id=$2::uuid AND state='ACTIVE'
+ RETURNING policy_version`, id, owner).Scan(&policy)
+	case "HANDOFF_REQUESTED":
+		err = tx.QueryRowContext(ctx, `UPDATE avatar_sessions SET handoff_requested_at=now()
+ WHERE id=$1::uuid AND user_id=$2::uuid AND state IN ('ACTIVE','ENDED')
+ AND handoff_requested_at IS NULL RETURNING policy_version`, id, owner).Scan(&policy)
+	case "SAFETY_ESCALATED":
+		err = tx.QueryRowContext(ctx, `UPDATE avatar_sessions SET safety_state='ESCALATED'
+ WHERE id=$1::uuid AND user_id=$2::uuid AND state IN ('ACTIVE','ENDED')
+ AND safety_state='NORMAL' RETURNING policy_version`, id, owner).Scan(&policy)
+	default:
+		return persona.ErrInvalidRequest
+	}
+	if errors.Is(err, sql.ErrNoRows) {
+		return persona.ErrConflict
+	}
+	if err != nil {
+		return err
+	}
+	if err := insertAvatarFact(ctx, tx, id, owner, event, reason, policy); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+func (c *Checker) ActivateAvatar(ctx context.Context, id, owner, reference, mode string) error {
+	if strings.TrimSpace(reference) == "" || !(mode == "VIDEO" || mode == "VOICE" || mode == "TEXT") {
+		return persona.ErrInvalidRequest
+	}
+	return c.personaChange(ctx, id, owner, "ACTIVATED", "PROVIDER_OPEN_CONFIRMED", reference, mode)
+}
+func (c *Checker) FailAvatar(ctx context.Context, id, owner string) error {
+	return c.personaChange(ctx, id, owner, "FAILED", persona.ReasonProviderUnavailable, "", "")
+}
+func (c *Checker) EndAvatar(ctx context.Context, id, owner string) error {
+	return c.personaChange(ctx, id, owner, "CLOSED", "CLIENT_ENDED", "", "")
+}
+func (c *Checker) HandoffAvatar(ctx context.Context, id, owner string) error {
+	return c.personaChange(ctx, id, owner, "HANDOFF_REQUESTED", "CLIENT_REQUESTED_HUMAN", "", "")
+}
+func (c *Checker) EscalateAvatar(ctx context.Context, id, owner string) error {
+	return c.personaChange(ctx, id, owner, "SAFETY_ESCALATED", "CLIENT_REQUESTED_SAFETY", "", "")
+}
+func (c *Checker) ReadAvatar(ctx context.Context, id, owner string) (persona.Session, error) {
+	if c == nil || c.db == nil {
+		return persona.Session{}, persona.ErrUnavailable
+	}
+	var s persona.Session
+	var started, ended, handoff, waitlist sql.NullTime
+	var ref sql.NullString
+	err := c.db.QueryRowContext(ctx, `SELECT id::text,user_id::text,persona_id::text,provider_instance_id::text,
+ provider_session_ref,session_purpose,privacy_mode,mode,style,language,voice_profile,visual_profile,state,safety_state,
+ created_at,started_at,ended_at,handoff_requested_at,waitlist_requested_at,policy_version
+ FROM avatar_sessions WHERE id=$1::uuid AND user_id=$2::uuid`, id, owner).
+		Scan(&s.ID, &s.UserID, &s.PersonaID, &s.ProviderInstanceID, &ref, &s.Purpose, &s.PrivacyMode,
+			&s.Mode, &s.Style, &s.Language, &s.VoiceProfile, &s.VisualProfile, &s.State, &s.SafetyState,
+			&s.CreatedAt, &started, &ended, &handoff, &waitlist, &s.PolicyVersion)
+	if errors.Is(err, sql.ErrNoRows) {
+		return persona.Session{}, persona.ErrNotFound
+	}
+	if err != nil {
+		return persona.Session{}, fmt.Errorf("read avatar: %w", err)
+	}
+	if ref.Valid {
+		s.ProviderSessionRef = ref.String
+	}
+	if started.Valid {
+		t := started.Time
+		s.StartedAt = &t
+	}
+	if ended.Valid {
+		t := ended.Time
+		s.EndedAt = &t
+	}
+	if handoff.Valid {
+		t := handoff.Time
+		s.HandoffRequestedAt = &t
+	}
+	if waitlist.Valid {
+		t := waitlist.Time
+		s.WaitlistRequestedAt = &t
+	}
+
+	// Reconcile the ephemeral provider's bounded 12-minute lease into durable
+	// APGIC lifecycle truth. No stale ACTIVE state is shown or reused forever.
+	if s.State == persona.StateActive && s.StartedAt != nil && time.Since(*s.StartedAt) >= 12*time.Minute {
+		e := c.personaChange(ctx, id, owner, "CLOSED", "PROVIDER_LEASE_EXPIRED", "", "")
+		if e != nil && !errors.Is(e, persona.ErrConflict) {
+			return persona.Session{}, e
+		}
+		return c.ReadAvatar(ctx, id, owner)
+	}
+	return s, nil
+}
+
+// AuthorizeAvatarTurn rechecks every gate on every reply, including immediate
+// kill-switch activation and removal of persona publication or provider authority.
+func (c *Checker) AuthorizeAvatarTurn(ctx context.Context, id, owner string) error {
+	if c == nil || c.db == nil {
+		return persona.ErrUnavailable
+	}
+	if !persona.ValidID(id) || !persona.ValidID(owner) {
+		return persona.ErrInvalidRequest
+	}
+	var permitted bool
+	err := c.db.QueryRowContext(ctx, `SELECT EXISTS (
+ SELECT 1 FROM avatar_sessions s
+ JOIN persona_catalog p ON p.id=s.persona_id AND p.state='PUBLISHED'
+ JOIN persona_rights_reviews rr ON rr.persona_id=p.id AND rr.valid_until>now()
+ AND (s.mode='TEXT' AND rr.text_use OR s.mode='VOICE' AND rr.voice_use OR s.mode='VIDEO' AND rr.voice_use AND rr.appearance_use)
+ JOIN connector_instances ci ON ci.id=s.provider_instance_id AND ci.status='ACTIVE' AND ci.capability_class='PERSONA_PROVIDER'
+ JOIN persona_model_deployments md ON md.policy_version=s.policy_version AND md.connector_instance_id=ci.id AND md.state='ACTIVE'
+ WHERE s.id=$1::uuid AND s.user_id=$2::uuid AND s.state='ACTIVE'
+ AND s.started_at > now()-interval '12 minutes'
+ AND s.handoff_requested_at IS NULL AND s.safety_state='NORMAL'
+ AND NOT EXISTS (SELECT 1 FROM persona_model_disable_decisions d WHERE d.policy_version=s.policy_version)
+ AND NOT EXISTS (SELECT 1 FROM persona_rights_revocations rev WHERE rev.persona_id=rr.persona_id)
+ )`, id, owner).Scan(&permitted)
+	if err != nil {
+		return err
+	}
+	if !permitted {
+		return persona.ErrConflict
+	}
+	return nil
+}
+
+// ReadActiveAvatar restores ONLY the owner's current, time-bounded canonical
+// session. It never returns provider secret credentials or conversation data.
+func (c *Checker) ReadActiveAvatar(ctx context.Context, owner, provider, policy string) (persona.Session, error) {
+	if c == nil || c.db == nil {
+		return persona.Session{}, persona.ErrUnavailable
+	}
+	if !persona.ValidID(owner) || !persona.ValidID(provider) || strings.TrimSpace(policy) == "" {
+		return persona.Session{}, persona.ErrInvalidRequest
+	}
+	var id string
+	err := c.db.QueryRowContext(ctx, `SELECT id::text FROM avatar_sessions
+ WHERE user_id=$1::uuid AND provider_instance_id=$2::uuid AND policy_version=$3
+ AND state='ACTIVE' AND started_at>now()-interval '12 minutes'
+ ORDER BY started_at DESC,id DESC LIMIT 1`, owner, provider, policy).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return persona.Session{}, persona.ErrNotFound
+	}
+	if err != nil {
+		return persona.Session{}, err
+	}
+	return c.ReadAvatar(ctx, id, owner)
+}

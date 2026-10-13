@@ -47,4 +47,3 @@ RETURNS boolean LANGUAGE sql VOLATILE AS $$
        AND (cap.expires_at IS NULL OR cap.expires_at > clock_timestamp())
   )
 $$;
-

@@ -43,6 +43,11 @@ type Options struct {
 	ConformanceProviderEvents   bool
 	ProviderWebhookKeys         connector.WebhookPublicKeyResolver
 	ConsultationProvider        ConsultationProviderStore
+	PersonaStore                PersonaStore
+	PersonaProvider             connector.PersonaRuntime
+	PersonaEnabled              bool
+	PersonaProviderInstanceID   string
+	PersonaPolicyVersion        string
 	ClientSessionKey            []byte
 	ClientCompatibilityPolicies map[clientcompat.Platform]clientcompat.Policy
 	RemoteConfigProvider        func(time.Time) (remoteconfig.SignedEnvelope, error)
@@ -144,6 +149,7 @@ func New(options Options) http.Handler {
 		deepLinkTokens, deepLinkTokenConfigErr = mobile.NewDeepLinkTokenManager(options.DeepLinkSigningKey)
 	}
 	registerMobileDeepLinks(mux, options.DeepLinks, options.MobileWorkspaces, deepLinkTokens, deepLinkTokenConfigErr, sessions, sessionConfigErr, options.Now)
+	registerPersona(mux, options.PersonaStore, options.PersonaProvider, personaAPIConfig{Enabled: options.PersonaEnabled, ProviderInstanceID: options.PersonaProviderInstanceID, PolicyVersion: options.PersonaPolicyVersion}, sessions, sessionConfigErr)
 	registerSpecialist(mux, options.Specialists, sessions, sessionConfigErr)
 	registerPublicSpecialists(mux, options.Specialists, sessions, sessionConfigErr)
 	registerPublicSpecialistOffers(mux, options.Specialists)

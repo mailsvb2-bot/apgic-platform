@@ -1,4 +1,5 @@
 import { Journey } from "./journey";
+import { AvatarEntry } from "./avatar-entry";
 
 // Public HTML must not be served with Next's immutable static-page cache.
 export const dynamic = "force-dynamic";
@@ -46,10 +47,7 @@ export default function Home() {
               <a className="button-link primary-action" href="#start">
                 Подобрать специалиста
               </a>
-              <button className="secondary-action" type="button" disabled aria-describedby="avatar-status">
-                Поговорить с аватаром
-                <span className="coming-soon" id="avatar-status">скоро</span>
-              </button>
+              <AvatarEntry />
             </div>
 
             <ul className="trust-list" aria-label="Что важно">
