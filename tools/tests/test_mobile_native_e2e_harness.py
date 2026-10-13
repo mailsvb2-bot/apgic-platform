@@ -85,9 +85,24 @@ class MobileNativeE2EHarnessTest(unittest.TestCase):
             self.assertEqual(android.count("dump_until_labels_visible " + path), 1)
         self.assertIn('local remote="/sdcard/apgic-demand-e2e.xml"', android)
         self.assertIn('APGIC_E2E_DEMAND_SESSION_COOKIE "$SESSION_COOKIE"', android)
-        self.assertIn('tap_accessibility_label "С чем нужна помощь"', android)
-        self.assertIn('tap_accessibility_label "Тема anxiety"', android)
-        self.assertIn('tap_accessibility_label "Подтвердить темы запроса"', android)
+        # Mobile v0.87 renders a long, scrollable user journey. Assert the
+        # native automation checks actual on-screen accessibility nodes and
+        # both states of each checkbox, rather than relying on an obsolete
+        # direct-tap helper that could tap an off-screen coordinate.
+        self.assertIn("seek_demand_accessibility_node() {", android)
+        self.assertIn('"$ADB" shell uiautomator dump "$remote"', android)
+        self.assertIn('attributes.get("content-desc") != label', android)
+        self.assertIn('attributes.get("checked") != checked', android)
+        self.assertIn('attributes.get("enabled") != "true"', android)
+        self.assertIn('attributes.get("clickable") != "true"', android)
+        self.assertIn('seek_demand_accessibility_node "С чем нужна помощь" "" tap', android)
+        self.assertIn("seek_demand_accessibility_node 'native-demand-diagnosis:false' \"\" observe", android)
+        self.assertIn("seek_demand_accessibility_node 'Тема anxiety' true tap", android)
+        self.assertIn("seek_demand_accessibility_node 'Тема anxiety' false observe", android)
+        self.assertIn("seek_demand_accessibility_node 'Тема sleep' true observe", android)
+        self.assertIn('seek_demand_accessibility_node "Подтвердить темы запроса" "" tap', android)
+        self.assertIn("seek_demand_accessibility_node 'native-demand-confirmed' \"\" observe", android)
+        self.assertIn('fail "Android confirmed HelpIntent silently reselected', android)
 
     def test_demand_e2e_matches_user_help_intent_execution_path(self) -> None:
         app = (ROOT / "apps/mobile/src/App.tsx").read_text(encoding="utf-8")
