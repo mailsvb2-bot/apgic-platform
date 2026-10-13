@@ -128,28 +128,40 @@ seek_demand_accessibility_node() {
   local cycle page position
   [[ "$action" == "tap" || "$action" == "observe" ]] || return 1
 
-  for cycle in 1 2 3; do
-    # Normalize navigation to the beginning even if the previous check
-    # scrolled to a very different location. Fresh snapshots from THIS
-    # launch/phase are the only source of truth.
-    for _ in $(seq 1 18); do
-      "$ADB" shell input swipe 160 120 160 555 95 >/dev/null 2>&1 || return 1
-    done
-    for page in $(seq 1 35); do
+  # Check the current viewport BEFORE moving it. Earlier automation ran 18
+  # unconditional upward swipes ending directly ON the primary confirmation
+  # button, so Android's ScrollView touch responder could still own the
+  # pointer when the following tap arrived. Every navigation gesture now
+  # runs in the x=300 gutter, outside all x=24..296 interactive controls.
+  # After scrolling, require a fresh snapshot after motion settles before
+  # tapping any action.
+  for cycle in 1 2; do
+    for page in $(seq 1 14); do
       position=""
       if "$ADB" shell uiautomator dump "$remote" >/dev/null 2>&1 &&
          "$ADB" pull "$remote" "$output" >/dev/null 2>&1; then
         position="$(python3 "$ROOT/tools/android_ui_accessibility.py" "$output" "$label" "$checked" "$action")"
         if [[ -n "$position" ]]; then
           if [[ "$action" == "tap" ]]; then
+            # A click must act on settled, still visible native accessibility
+            # state; stale coordinates from a moving viewport are rejected.
+            sleep 0.4
+            "$ADB" shell uiautomator dump "$remote" >/dev/null 2>&1 || return 1
+            "$ADB" pull "$remote" "$output" >/dev/null 2>&1 || return 1
+            position="$(python3 "$ROOT/tools/android_ui_accessibility.py" "$output" "$label" "$checked" "$action")"
+            [[ -n "$position" ]] || continue
             "$ADB" shell input tap $position >/dev/null 2>&1 || return 1
           fi
           return 0
         fi
       fi
-      "$ADB" shell input swipe 160 545 160 175 180 >/dev/null 2>&1 || return 1
+      "$ADB" shell input swipe 300 540 300 180 230 >/dev/null 2>&1 || return 1
+      sleep 0.25
     done
-    sleep 1
+    for _ in $(seq 1 14); do
+      "$ADB" shell input swipe 300 180 300 540 230 >/dev/null 2>&1 || return 1
+      sleep 0.25
+    done
   done
   # Report bounded, real accessibility evidence on failure. The root cause
   # may be a missing UI semantic, a failed API request, wrong checkbox state

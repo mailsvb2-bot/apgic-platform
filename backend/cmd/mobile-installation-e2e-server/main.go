@@ -435,42 +435,44 @@ func (h *loseFirstCheckoutResponse) ServeHTTP(w http.ResponseWriter, r *http.Req
 // They record HTTP outcome and presence of session credentials but never
 // the cookie, request text, identity, intent ID or response body.
 type helpIntentOutcomeWriter struct {
-  http.ResponseWriter
-  code int
+	http.ResponseWriter
+	code int
 }
 
 func (w *helpIntentOutcomeWriter) WriteHeader(code int) {
-  w.code = code
-  w.ResponseWriter.WriteHeader(code)
+	w.code = code
+	w.ResponseWriter.WriteHeader(code)
 }
 func (w *helpIntentOutcomeWriter) Write(body []byte) (int, error) {
-  if w.code == 0 {
-    w.code = http.StatusOK
-  }
-  return w.ResponseWriter.Write(body)
+	if w.code == 0 {
+		w.code = http.StatusOK
+	}
+	return w.ResponseWriter.Write(body)
 }
 
 func withHelpIntentOutcomeEvidence(next http.Handler) http.Handler {
-  return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-    kind := ""
-    if r.Method == http.MethodPost && r.URL.Path == "/v1/help-intents" {
-      kind = "CREATE"
-    } else if r.Method == http.MethodPost &&
-      strings.HasPrefix(r.URL.Path, "/v1/help-intents/") &&
-      strings.HasSuffix(r.URL.Path, "/confirm") {
-      kind = "CONFIRM"
-    }
-    if kind == "" {
-      next.ServeHTTP(w, r)
-      return
-    }
-    outcome := &helpIntentOutcomeWriter{ResponseWriter: w}
-    next.ServeHTTP(outcome, r)
-    status := outcome.code
-    if status == 0 { status = http.StatusOK }
-    log.Printf("APGIC native UI HelpIntent HTTP %s status=%d session_cookie_present=%t",
-      kind, status, r.Header.Get("Cookie") != "")
-  })
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		kind := ""
+		if r.Method == http.MethodPost && r.URL.Path == "/v1/help-intents" {
+			kind = "CREATE"
+		} else if r.Method == http.MethodPost &&
+			strings.HasPrefix(r.URL.Path, "/v1/help-intents/") &&
+			strings.HasSuffix(r.URL.Path, "/confirm") {
+			kind = "CONFIRM"
+		}
+		if kind == "" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		outcome := &helpIntentOutcomeWriter{ResponseWriter: w}
+		next.ServeHTTP(outcome, r)
+		status := outcome.code
+		if status == 0 {
+			status = http.StatusOK
+		}
+		log.Printf("APGIC native UI HelpIntent HTTP %s status=%d session_cookie_present=%t",
+			kind, status, r.Header.Get("Cookie") != "")
+	})
 }
 
 func main() {

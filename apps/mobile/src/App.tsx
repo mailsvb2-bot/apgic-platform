@@ -1064,7 +1064,7 @@ export default function App({
                       accessibilityRole="checkbox"
                       accessibilityState={{checked: selected}}
                       accessibilityLabel={`Тема ${topic}`}
-                      disabled={demandStatus === "CONFIRMED"}
+                      disabled={demandStatus === "CONFIRMED" || demandStatus === "RUNNING"}
                       onPress={() => toggleDemandTopic(topic)}
                       style={styles.demandTopic}
                     >
@@ -1076,7 +1076,22 @@ export default function App({
                   <>
                     <Pressable
                       accessibilityRole="button"
+                      accessibilityLabel="Подтвердить темы запроса"
+                      disabled={demandStatus === "RUNNING" || demandTopics.length === 0 || !compatibilityAllowsRuntime}
+                      onPress={() => void confirmDemand()}
+                      style={styles.demandAction}
+                    >
+                      <Text>Подтвердить темы</Text>
+                    </Pressable>
+                    {demandError ? (
+                      <Text accessibilityRole="alert" accessibilityLabel="native-demand-error">
+                        {demandError}
+                      </Text>
+                    ) : null}
+                    <Pressable
+                      accessibilityRole="button"
                       accessibilityLabel="Изменить или добавить тему запроса"
+                      disabled={demandStatus === "RUNNING"}
                       onPress={() => setDemandCustomTopicEditing((value) => !value)}
                       style={styles.demandAction}
                     >
@@ -1095,27 +1110,13 @@ export default function App({
                         <Pressable
                           accessibilityRole="button"
                           accessibilityLabel="Добавить свою тему запроса"
-                          disabled={!demandCustomTopic.trim()}
+                          disabled={!demandCustomTopic.trim() || demandStatus === "RUNNING"}
                           onPress={addDemandTopic}
                           style={styles.demandAction}
                         >
                           <Text>Добавить тему</Text>
                         </Pressable>
                       </>
-                    ) : null}
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel="Подтвердить темы запроса"
-                      disabled={demandStatus === "RUNNING" || demandTopics.length === 0 || !compatibilityAllowsRuntime}
-                      onPress={() => void confirmDemand()}
-                      style={styles.demandAction}
-                    >
-                      <Text>Подтвердить темы</Text>
-                    </Pressable>
-                    {demandError ? (
-                      <Text accessibilityRole="alert" accessibilityLabel="native-demand-error">
-                        {demandError}
-                      </Text>
                     ) : null}
                   </>
                 ) : null}
