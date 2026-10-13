@@ -399,6 +399,9 @@ export default function App({
   }, [demandCustomTopic]);
 
   const confirmDemand = useCallback(async () => {
+    // Give the native screen immediate, observable feedback from the real press.
+    // A disabled or swallowed gesture must not be mistaken for a backend failure.
+    setDemandStatus("RUNNING");
     if (!compatibilityAllowsRuntime) {
       setDemandError("Сначала завершите проверку совместимости или обновите приложение.");
       return;
@@ -1001,6 +1004,7 @@ export default function App({
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView
+        keyboardShouldPersistTaps="always"
         style={styles.demandScroll}
         contentContainerStyle={styles.card}
         keyboardShouldPersistTaps="always"
@@ -1587,6 +1591,7 @@ export default function App({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Подтвердить темы запроса"
+            onPressIn={() => { if (demandStatus !== "RUNNING") setDemandError(""); }}
             disabled={demandStatus === "RUNNING" || demandTopics.length === 0 || !compatibilityAllowsRuntime}
             onPress={() => void confirmDemand()}
             style={styles.demandConfirmPrimary}
