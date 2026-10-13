@@ -9,6 +9,7 @@ import (
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/clientcompat"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/connector"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/demand"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/instant"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/launchconfig"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/legal"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/mobile"
@@ -26,6 +27,8 @@ type Options struct {
 	LaunchConfig                launchconfig.Config
 	ReadinessCheck              func(context.Context) error
 	Demand                      *demand.Service
+	Instant                     instant.Store
+	InstantEnabled              bool
 	LegalAcceptances            legal.AcceptanceStore
 	Consents                    privacy.ConsentStore
 	ConsentPolicies             map[string]privacy.ConsentPolicy
@@ -129,6 +132,7 @@ func New(options Options) http.Handler {
 		}
 	}
 	registerDemand(mux, options.Demand, options.Consents, options.ConsentPolicies, sessions, sessionConfigErr, options.ConformanceProviderEvents, options.ProviderWebhookKeys, options.Now)
+	registerInstant(mux, options.Instant, sessions, sessionConfigErr, options.InstantEnabled)
 	registerConsultationProvider(mux, options.ConsultationProvider, options.ProviderWebhookKeys, sessions, sessionConfigErr)
 	registerLegalAcceptance(mux, options.LegalAcceptances, sessions, sessionConfigErr, options.Now)
 	registerConsents(mux, options.Consents, options.ConsentPolicies, sessions, sessionConfigErr, options.Now)

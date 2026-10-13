@@ -28,6 +28,7 @@ export default function Home() {
           <nav className="top-nav" aria-label="Разделы">
             <a href="#how">Как это работает</a>
             <a href="#start">Подобрать специалиста</a>
+            <a href="/now">Поговорить сейчас</a>
             <a className="organization-nav-link" href="/organization">Организация</a>
             <a className="pro-nav-link" href="/specialist">Для специалистов</a>
           </nav>
@@ -46,6 +47,7 @@ export default function Home() {
               <a className="button-link primary-action" href="#start">
                 Подобрать специалиста
               </a>
+              <a className="button-link secondary-action" href="/now">Поговорить сейчас</a>
               <button className="secondary-action" type="button" disabled aria-describedby="avatar-status">
                 Поговорить с аватаром
                 <span className="coming-soon" id="avatar-status">скоро</span>

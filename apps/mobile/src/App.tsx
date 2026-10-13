@@ -12,6 +12,7 @@ import {
   View,
 } from "react-native";
 
+import {InstantNowSurface} from "./instant-now-surface.tsx";
 import {apiContractVersion} from "./api-contract.ts";
 import {NativeSpecialistDirectory} from "./native-specialist-directory.tsx";
 import {
@@ -249,6 +250,8 @@ export default function App({
     "IDLE" | "RUNNING" | "DRAFT" | "CONFIRMED" | "FAIL"
   >("IDLE");
   const [demandError, setDemandError] = useState("");
+  // Role-aware Duty/Now is explicit, never displaced over primary HelpIntent.
+  const [instantPanelMode, setInstantPanelMode] = useState<"client" | "specialist" | null>(null);
   const [demandE2E, setDemandE2E] = useState<
     | {status: "IDLE" | "RUNNING"}
     | ({status: "PASS"} & MobileDemandE2EResult)
@@ -1074,9 +1077,19 @@ export default function App({
                   <Text>Подтвердить темы</Text>
                 </Pressable>
                 {demandStatus === "CONFIRMED" ? (
-                  <Text accessibilityLabel="native-demand-confirmed">
-                    Запрос подтверждён пользователем.
-                  </Text>
+                  <View>
+                    <Text accessibilityLabel="native-demand-confirmed">
+                      Запрос подтверждён пользователем.
+                    </Text>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Консультация сейчас после подтверждения запроса"
+                      style={styles.demandAction}
+                      onPress={() => setInstantPanelMode("client")}
+                    >
+                      <Text>Поговорить со специалистом сейчас</Text>
+                    </Pressable>
+                  </View>
                 ) : null}
                 {demandStatus === "CONFIRMED" && demandTopics.length>0 ? (
                   <NativeSpecialistDirectory baseURL={demandAPIBaseURL} topic={demandTopics[0]} />
@@ -1087,6 +1100,39 @@ export default function App({
               <Text accessibilityRole="alert" accessibilityLabel="native-demand-error">
                 {demandError}
               </Text>
+            ) : null}
+          </View>
+        ) : null}
+
+        {!infrastructureE2EActive ? (
+          <View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Открыть дежурство специалиста"
+              style={styles.demandAction}
+              onPress={() => setInstantPanelMode((current) =>
+                current === "specialist" ? null : "specialist")}
+            >
+              <Text>Для специалистов: дежурство</Text>
+            </Pressable>
+            {instantPanelMode ? (
+              <View>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Закрыть консультацию сейчас"
+                  style={styles.demandAction}
+                  onPress={() => setInstantPanelMode(null)}
+                >
+                  <Text>Закрыть раздел дежурства</Text>
+                </Pressable>
+                <InstantNowSurface
+                  key={instantPanelMode}
+                  initialMode={instantPanelMode}
+                  intentID={demandStatus === "CONFIRMED" ? demandIntent?.id : undefined}
+                  options={{baseURL: demandAPIBaseURL, sessionCookie: demandE2ESessionCookie}}
+                  enabled={compatibilityAllowsRuntime}
+                />
+              </View>
             ) : null}
           </View>
         ) : null}
