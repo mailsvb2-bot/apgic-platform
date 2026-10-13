@@ -50,7 +50,7 @@ INSERT INTO qualification_evaluations (
 ) VALUES (
  '00000000-0000-0000-0000-00000000a915',
  '00000000-0000-0000-0000-00000000a914',
- 'anxiety','RU','ONLINE','ADULT','ELIGIBLE','duty-r6-ci-v1',
+ 'anxiety','RU','ONLINE','ADULT','ELIGIBLE','qualification-v1',
  ARRAY['QUAL_ELIGIBLE'],ARRAY['evidence:r6'],
  'APGIC_VERIFIED','ACTIVE',now()
 );
@@ -243,7 +243,7 @@ BEGIN
   ) VALUES (
    '00000000-0000-0000-0000-00000000a918',
    '00000000-0000-0000-0000-00000000a914',
-   'anxiety','RU','ONLINE','ADULT','MANUAL_REVIEW','duty-r6-ci-v2',
+   'anxiety','RU','ONLINE','ADULT','MANUAL_REVIEW','qualification-v1',
    ARRAY['QUAL_MANUAL_REVIEW_REQUIRED'],ARRAY['evidence:r6'],
    'APGIC_VERIFIED','ACTIVE',now()+interval '1 second'
   );
