@@ -97,7 +97,7 @@ class MobileNativeE2EHarnessTest(unittest.TestCase):
         locator = self._read("android_ui_accessibility.py")
         self.assertIn('matches_semantics(attributes, label)', locator)
         self.assertIn('attributes.get("checked") == checked', locator)
-        self.assertIn('attributes.get("enabled") == "true"', locator)
+        self.assertIn('action == "observe" or attributes.get("enabled") == "true"', locator)
         self.assertIn('attributes.get("clickable") == "true"', locator)
         self.assertIn('minimum_height = 28 if action == "tap" else 12', locator)
         self.assertIn('intersection(rectangle, viewport)', locator)
@@ -142,6 +142,12 @@ class MobileNativeE2EHarnessTest(unittest.TestCase):
         self.assertIn("const addDemandTopic = useCallback", app)
         self.assertIn("current.includes(topic) ? current : [...current, topic]", app)
         self.assertIn("...demandTopics", app)
+        self.assertIn("!demandIntent ? (", app)
+        self.assertIn("setDemandSuggestedTopics([...intent.topics])", app)
+        self.assertIn("...demandSuggestedTopics", app)
+        self.assertIn('disabled={demandStatus === "CONFIRMED"}', app)
+        self.assertIn("setDemandCustomTopicEditing((value) => !value)", app)
+        self.assertIn('accessibilityLabel="Создать новый запрос"', app)
 
     def test_demand_and_deletion_e2e_use_local_compatibility_gate(self) -> None:
         android = self._read("mobile_android_capability_e2e.sh")

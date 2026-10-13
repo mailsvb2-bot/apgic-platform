@@ -75,7 +75,7 @@ def find_accessible_point(
         if visible_rectangle is None:
             return None
 
-        if matches_semantics(attributes, label) and attributes.get("enabled") == "true":
+        if matches_semantics(attributes, label) and (action == "observe" or attributes.get("enabled") == "true"):
             checkable = attributes.get("checkable") == "true"
             if not checked or (checkable and attributes.get("checked") == checked):
                 if action != "tap" or attributes.get("clickable") == "true":

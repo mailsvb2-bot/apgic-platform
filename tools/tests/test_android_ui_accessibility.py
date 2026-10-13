@@ -53,6 +53,12 @@ class AndroidUIAccessibilityTest(unittest.TestCase):
         self.assertEqual(find_accessible_point(xml, "Тема anxiety", "true", "tap"), (160, 554))
         self.assertIsNone(find_accessible_point(xml, "Тема anxiety", "false", "observe"))
 
+    def test_confirmed_readonly_checkbox_is_visible_but_not_tappable(self) -> None:
+        xml = ui(node("Тема anxiety", "[24,380][296,426]",
+                      checked="false", checkable="true", clickable="true", enabled="false"))
+        self.assertEqual(find_accessible_point(xml, "Тема anxiety", "false", "observe"), (160, 403))
+        self.assertIsNone(find_accessible_point(xml, "Тема anxiety", "false", "tap"))
+
     def test_rejects_disabled_and_nonclickable_controls(self) -> None:
         self.assertIsNone(find_accessible_point(
             ui(node("Подтвердить темы запроса", "[24,400][296,448]",

@@ -246,6 +246,8 @@ export default function App({
   const [demandIntent, setDemandIntent] = useState<HelpIntent | null>(null);
   const [demandTopics, setDemandTopics] = useState<string[]>([]);
   const [demandCustomTopic, setDemandCustomTopic] = useState("");
+  const [demandCustomTopicEditing, setDemandCustomTopicEditing] = useState(false);
+  const [demandSuggestedTopics, setDemandSuggestedTopics] = useState<string[]>([]);
   const [demandStatus, setDemandStatus] = useState<
     "IDLE" | "RUNNING" | "DRAFT" | "CONFIRMED" | "FAIL"
   >("IDLE");
@@ -369,6 +371,8 @@ export default function App({
       });
       setDemandIntent(intent);
       setDemandTopics([...intent.topics]);
+      setDemandSuggestedTopics([...intent.topics]);
+      setDemandCustomTopicEditing(false);
       setDemandStatus("DRAFT");
     } catch (error: unknown) {
       setDemandStatus("FAIL");
@@ -391,6 +395,7 @@ export default function App({
     if (!topic) return;
     setDemandTopics((current) => current.includes(topic) ? current : [...current, topic]);
     setDemandCustomTopic("");
+    setDemandCustomTopicEditing(false);
   }, [demandCustomTopic]);
 
   const confirmDemand = useCallback(async () => {
@@ -1005,27 +1010,33 @@ export default function App({
 
         {!infrastructureE2EActive ? (
           <View style={styles.demandCard} accessibilityRole="summary">
-            <Text style={styles.capabilityTitle}>С чем нужна помощь</Text>
-            <Text style={styles.body}>
-              Опишите ситуацию своими словами. APGIC предложит темы, а вы сможете исправить их перед подтверждением.
+            <Text style={styles.capabilityTitle}>
+              {demandIntent ? "Проверьте темы запроса" : "С чем нужна помощь"}
             </Text>
-            <TextInput
-              accessibilityLabel="С чем нужна помощь"
-              multiline
-              value={demandText}
-              onChangeText={setDemandText}
-              placeholder="Например: тревожно перед выступлениями и плохо сплю"
-              style={styles.demandInput}
-            />
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Разобрать запрос"
-              disabled={demandStatus === "RUNNING" || !compatibilityAllowsRuntime}
-              onPress={() => void analyzeDemand()}
-              style={styles.demandAction}
-            >
-              <Text>Разобрать запрос</Text>
-            </Pressable>
+            {!demandIntent ? (
+              <>
+                <Text style={styles.body}>
+                  Опишите ситуацию своими словами. APGIC предложит темы, а вы сможете исправить их перед подтверждением.
+                </Text>
+                <TextInput
+                  accessibilityLabel="С чем нужна помощь"
+                  multiline
+                  value={demandText}
+                  onChangeText={setDemandText}
+                  placeholder="Например: тревожно перед выступлениями и плохо сплю"
+                  style={styles.demandInput}
+                />
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Разобрать запрос"
+                  disabled={demandStatus === "RUNNING" || !compatibilityAllowsRuntime}
+                  onPress={() => void analyzeDemand()}
+                  style={styles.demandAction}
+                >
+                  <Text>Разобрать запрос</Text>
+                </Pressable>
+              </>
+            ) : null}
             {demandIntent ? (
               <View style={styles.capability}>
                 <Text accessibilityLabel="native-demand-notice">{demandIntent.notice}</Text>
@@ -1033,7 +1044,7 @@ export default function App({
                   Это не диагноз. Диагноз поставлен: {demandIntent.diagnosis_asserted ? "да" : "нет"}.
                 </Text>
                 <Text>Уточните темы запроса:</Text>
-                {Array.from(new Set([...demandIntent.topics, ...demandTopics])).map((topic) => {
+                {Array.from(new Set([...demandSuggestedTopics, ...demandIntent.topics, ...demandTopics])).map((topic) => {
                   const selected = demandTopics.includes(topic);
                   return (
                     <Pressable
@@ -1041,6 +1052,7 @@ export default function App({
                       accessibilityRole="checkbox"
                       accessibilityState={{checked: selected}}
                       accessibilityLabel={`Тема ${topic}`}
+                      disabled={demandStatus === "CONFIRMED"}
                       onPress={() => toggleDemandTopic(topic)}
                       style={styles.demandTopic}
                     >
@@ -1048,31 +1060,64 @@ export default function App({
                     </Pressable>
                   );
                 })}
-                <TextInput
-                  accessibilityLabel="Добавить свою тему запроса"
-                  value={demandCustomTopic}
-                  onChangeText={setDemandCustomTopic}
-                  onSubmitEditing={addDemandTopic}
-                  placeholder="Добавить или заменить тему"
-                  style={styles.demandInput}
-                />
+                {demandStatus !== "CONFIRMED" ? (
+                  <>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Изменить или добавить тему запроса"
+                      onPress={() => setDemandCustomTopicEditing((value) => !value)}
+                      style={styles.demandAction}
+                    >
+                      <Text>{demandCustomTopicEditing ? "Скрыть добавление темы" : "Добавить свою тему"}</Text>
+                    </Pressable>
+                    {demandCustomTopicEditing ? (
+                      <>
+                        <TextInput
+                          accessibilityLabel="Добавить свою тему запроса"
+                          value={demandCustomTopic}
+                          onChangeText={setDemandCustomTopic}
+                          onSubmitEditing={addDemandTopic}
+                          placeholder="Добавить или заменить тему"
+                          style={styles.demandSingleLineInput}
+                        />
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel="Добавить свою тему запроса"
+                          disabled={!demandCustomTopic.trim()}
+                          onPress={addDemandTopic}
+                          style={styles.demandAction}
+                        >
+                          <Text>Добавить тему</Text>
+                        </Pressable>
+                      </>
+                    ) : null}
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Подтвердить темы запроса"
+                      disabled={demandStatus === "RUNNING" || demandTopics.length === 0 || !compatibilityAllowsRuntime}
+                      onPress={() => void confirmDemand()}
+                      style={styles.demandAction}
+                    >
+                      <Text>Подтвердить темы</Text>
+                    </Pressable>
+                  </>
+                ) : null}
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel="Добавить свою тему запроса"
-                  disabled={!demandCustomTopic.trim()}
-                  onPress={addDemandTopic}
+                  accessibilityLabel="Создать новый запрос"
+                  disabled={demandStatus === "RUNNING"}
+                  onPress={() => {
+                    setDemandIntent(null);
+                    setDemandSuggestedTopics([]);
+                    setDemandTopics([]);
+                    setDemandStatus("IDLE");
+                    setDemandError("");
+                    setDemandCustomTopic("");
+                    setDemandCustomTopicEditing(false);
+                  }}
                   style={styles.demandAction}
                 >
-                  <Text>Добавить тему</Text>
-                </Pressable>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Подтвердить темы запроса"
-                  disabled={demandStatus === "RUNNING" || demandTopics.length === 0 || !compatibilityAllowsRuntime}
-                  onPress={() => void confirmDemand()}
-                  style={styles.demandAction}
-                >
-                  <Text>Подтвердить темы</Text>
+                  <Text>Изменить описание или создать новый запрос</Text>
                 </Pressable>
                 {demandStatus === "CONFIRMED" ? (
                   <Text accessibilityLabel="native-demand-confirmed">
@@ -1543,6 +1588,7 @@ const styles = StyleSheet.create({
   capabilityTitle: { fontSize: 20, fontWeight: "700" },
   demandCard: { gap: 10, marginTop: 12 },
   demandInput: { minHeight: 96, borderWidth: 1, borderRadius: 8, padding: 12, textAlignVertical: "top" },
+  demandSingleLineInput: { minHeight: 48, borderWidth: 1, borderRadius: 8, padding: 12 },
   demandAction: { minHeight: 48, justifyContent: "center", paddingHorizontal: 12, borderWidth: 1, borderRadius: 8 },
   demandTopic: { minHeight: 44, justifyContent: "center", paddingHorizontal: 12, borderWidth: 1, borderRadius: 8 },
   accessibilityProbe: { gap: 8, marginTop: 12 },
