@@ -1001,7 +1001,6 @@ export default function App({
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView
-        keyboardShouldPersistTaps="always"
         style={styles.demandScroll}
         contentContainerStyle={styles.card}
         keyboardShouldPersistTaps="always"
