@@ -1002,8 +1002,8 @@ export default function App({
     <SafeAreaView style={styles.safe}>
       <ScrollView
         contentContainerStyle={styles.card}
-        keyboardShouldPersistTaps="handled"
-        accessibilityRole="summary"
+        keyboardShouldPersistTaps="always"
+        keyboardDismissMode="on-drag"
       >
         <Text style={styles.eyebrow}>R0 · Foundation</Text>
         <Text style={styles.title}>APGIC</Text>
@@ -1074,20 +1074,6 @@ export default function App({
                 })}
                 {demandStatus !== "CONFIRMED" ? (
                   <>
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel="Подтвердить темы запроса"
-                      disabled={demandStatus === "RUNNING" || demandTopics.length === 0 || !compatibilityAllowsRuntime}
-                      onPress={() => void confirmDemand()}
-                      style={styles.demandAction}
-                    >
-                      <Text>Подтвердить темы</Text>
-                    </Pressable>
-                    {demandError ? (
-                      <Text accessibilityRole="alert" accessibilityLabel="native-demand-error">
-                        {demandError}
-                      </Text>
-                    ) : null}
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel="Изменить или добавить тему запроса"
@@ -1592,6 +1578,27 @@ export default function App({
           </View>
         ) : null}
       </ScrollView>
+      {/* The primary submit action belongs outside the scrolling text form:
+          Android's ScrollView/keyboard responder must never consume a
+          confirmation tap. The button stays visible at all font scales. */}
+      {!infrastructureE2EActive && demandIntent && demandStatus !== "CONFIRMED" ? (
+        <View style={styles.demandStickyFooter}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Подтвердить темы запроса"
+            disabled={demandStatus === "RUNNING" || demandTopics.length === 0 || !compatibilityAllowsRuntime}
+            onPress={() => void confirmDemand()}
+            style={styles.demandConfirmPrimary}
+          >
+            <Text>{demandStatus === "RUNNING" ? "Сохраняем…" : "Подтвердить выбранные темы"}</Text>
+          </Pressable>
+          {demandError ? (
+            <Text accessibilityRole="alert" accessibilityLabel="native-demand-error">
+              {demandError}
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -1608,6 +1615,14 @@ const styles = StyleSheet.create({
   demandInput: { minHeight: 96, borderWidth: 1, borderRadius: 8, padding: 12, textAlignVertical: "top" },
   demandSingleLineInput: { minHeight: 48, borderWidth: 1, borderRadius: 8, padding: 12 },
   demandAction: { minHeight: 48, justifyContent: "center", paddingHorizontal: 12, borderWidth: 1, borderRadius: 8 },
+  demandStickyFooter: {
+    paddingHorizontal: 24, paddingTop: 12, paddingBottom: 32,
+    borderTopWidth: 1, backgroundColor: "#fff", gap: 8,
+  },
+  demandConfirmPrimary: {
+    minHeight: 56, justifyContent: "center", alignItems: "center",
+    paddingHorizontal: 16, borderWidth: 1, borderRadius: 8,
+  },
   demandTopic: { minHeight: 44, justifyContent: "center", paddingHorizontal: 12, borderWidth: 1, borderRadius: 8 },
   accessibilityProbe: { gap: 8, marginTop: 12 },
   accessibilityAction: {

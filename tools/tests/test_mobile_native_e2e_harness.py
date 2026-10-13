@@ -162,6 +162,12 @@ class MobileNativeE2EHarnessTest(unittest.TestCase):
         self.assertIn('confirm_count_after > confirm_count_before', android)
         self.assertIn('session_cookie_present=true', android)
         self.assertIn('accessibilityLabel="Создать новый запрос"', app)
+        self.assertIn('keyboardShouldPersistTaps="always"', app)
+        self.assertIn('keyboardDismissMode="on-drag"', app)
+        self.assertIn('style={styles.demandStickyFooter}', app)
+        self.assertIn('style={styles.demandConfirmPrimary}', app)
+        self.assertNotIn('keyboardShouldPersistTaps="handled"', app)
+        self.assertEqual(app.count('accessibilityLabel="Подтвердить темы запроса"'), 1)
 
     def test_demand_and_deletion_e2e_use_local_compatibility_gate(self) -> None:
         android = self._read("mobile_android_capability_e2e.sh")
