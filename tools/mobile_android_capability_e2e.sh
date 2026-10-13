@@ -139,54 +139,7 @@ seek_demand_accessibility_node() {
       position=""
       if "$ADB" shell uiautomator dump "$remote" >/dev/null 2>&1 &&
          "$ADB" pull "$remote" "$output" >/dev/null 2>&1; then
-        position="$(python3 - "$output" "$label" "$checked" "$action" <<'PY'
-import re
-import sys
-import xml.etree.ElementTree as ET
-
-path, label, checked, action = sys.argv[1:]
-try:
-    root = ET.parse(path).getroot()
-except (ET.ParseError, OSError):
-    sys.exit(0)
-for node in root.iter("node"):
-    attributes = node.attrib
-    desc = attributes.get("content-desc", "")
-    visible_text = attributes.get("text", "")
-    match = desc == label
-    # Native Text can expose its actual human-facing text instead of its
-    # React accessibilityLabel when the framework merges accessibility nodes.
-    # This fallback is semantic evidence from the actual on-screen UI, never
-    # generated success data or a substring of an unrelated control.
-    if not match and label == "native-demand-diagnosis:false":
-        match = (
-            "Это не диагноз." in visible_text
-            and "Диагноз поставлен: нет." in visible_text
-        ) or (
-            "Это не диагноз." in desc
-            and "Диагноз поставлен: нет." in desc
-        )
-    if not match and label == "native-demand-confirmed":
-        match = "Запрос подтверждён пользователем." in (visible_text, desc)
-    if not match:
-        continue
-    if attributes.get("enabled") != "true":
-        continue
-    if checked and (attributes.get("checkable") != "true" or attributes.get("checked") != checked):
-        continue
-    if action == "tap" and attributes.get("clickable") != "true":
-        continue
-    bounds = re.fullmatch(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]", attributes.get("bounds", ""))
-    if not bounds:
-        continue
-    x1, y1, x2, y2 = map(int, bounds.groups())
-    x, y = (x1 + x2) // 2, (y1 + y2) // 2
-    if x1 >= x2 or y1 >= y2 or not (10 <= x <= 310 and 30 <= y <= 610):
-        continue
-    print(f"{x} {y}")
-    break
-PY
-)"
+        position="$(python3 "$ROOT/tools/android_ui_accessibility.py" "$output" "$label" "$checked" "$action")"
         if [[ -n "$position" ]]; then
           if [[ "$action" == "tap" ]]; then
             "$ADB" shell input tap $position >/dev/null 2>&1 || return 1
@@ -1048,9 +1001,11 @@ assert_help_intent_confirmation() {
     fail "Android confirmed HelpIntent lost no-diagnosis safeguard"
   seek_demand_accessibility_node 'Тема sleep' true observe "$remote" "$output" ||
     fail "Android canonical confirmed HelpIntent lost the remaining topic"
-  if seek_demand_accessibility_node 'Тема anxiety' true observe "$remote" "$output"; then
-    fail "Android confirmed HelpIntent silently reselected explicitly removed anxiety topic"
-  fi
+  # Suggested topics remain rendered after correction: require a checked=false
+  # UI checkbox, which proves the user's exclusion persisted without treating
+  # missing accessibility data as evidence of success.
+  seek_demand_accessibility_node 'Тема anxiety' false observe "$remote" "$output" ||
+    fail "Android confirmed HelpIntent silently reselected or hid explicitly removed anxiety topic"
   echo "Android installed-app production HelpIntent interpretation/correction/no-diagnosis: PASS"
 }
 

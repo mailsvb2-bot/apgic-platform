@@ -91,17 +91,17 @@ class MobileNativeE2EHarnessTest(unittest.TestCase):
         # direct-tap helper that could tap an off-screen coordinate.
         self.assertIn("seek_demand_accessibility_node() {", android)
         self.assertIn('"$ADB" shell uiautomator dump "$remote"', android)
-        # Equality against the exact accessibility label comes first; the
-        # RN 0.87 merged-text fallback is accepted only for the two
-        # explicit, human-visible diagnosis/confirmation statements.
-        self.assertIn('desc = attributes.get("content-desc", "")', android)
-        self.assertIn('match = desc == label', android)
-        self.assertIn('if not match and label == "native-demand-diagnosis:false":', android)
-        self.assertIn('if not match and label == "native-demand-confirmed":', android)
-        self.assertIn('if not match:', android)
-        self.assertIn('attributes.get("checked") != checked', android)
-        self.assertIn('attributes.get("enabled") != "true"', android)
-        self.assertIn('attributes.get("clickable") != "true"', android)
+        # The parser exercises actual on-screen bounds, state and visible
+        # human-facing evidence. It must reject clipped/outside-view nodes
+        # while accepting the real lower-edge Android diagnosis node.
+        locator = self._read("android_ui_accessibility.py")
+        self.assertIn('matches_semantics(attributes, label)', locator)
+        self.assertIn('attributes.get("checked") == checked', locator)
+        self.assertIn('attributes.get("enabled") == "true"', locator)
+        self.assertIn('attributes.get("clickable") == "true"', locator)
+        self.assertIn('minimum_height = 28 if action == "tap" else 12', locator)
+        self.assertIn('intersection(rectangle, viewport)', locator)
+        self.assertIn('android_ui_accessibility.py" "$output" "$label" "$checked" "$action"', android)
         self.assertIn('seek_demand_accessibility_node "С чем нужна помощь" "" tap', android)
         self.assertIn("seek_demand_accessibility_node 'native-demand-diagnosis:false' \"\" observe", android)
         self.assertIn("seek_demand_accessibility_node 'Тема anxiety' true tap", android)
@@ -109,6 +109,7 @@ class MobileNativeE2EHarnessTest(unittest.TestCase):
         self.assertIn("seek_demand_accessibility_node 'Тема sleep' true observe", android)
         self.assertIn('seek_demand_accessibility_node "Подтвердить темы запроса" "" tap', android)
         self.assertIn("seek_demand_accessibility_node 'native-demand-confirmed' \"\" observe", android)
+        self.assertIn("seek_demand_accessibility_node 'Тема anxiety' false observe", android)
         self.assertIn('fail "Android confirmed HelpIntent silently reselected', android)
 
     def test_demand_e2e_matches_user_help_intent_execution_path(self) -> None:
