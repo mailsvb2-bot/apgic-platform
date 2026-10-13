@@ -91,7 +91,14 @@ class MobileNativeE2EHarnessTest(unittest.TestCase):
         # direct-tap helper that could tap an off-screen coordinate.
         self.assertIn("seek_demand_accessibility_node() {", android)
         self.assertIn('"$ADB" shell uiautomator dump "$remote"', android)
-        self.assertIn('attributes.get("content-desc") != label', android)
+        # Equality against the exact accessibility label comes first; the
+        # RN 0.87 merged-text fallback is accepted only for the two
+        # explicit, human-visible diagnosis/confirmation statements.
+        self.assertIn('desc = attributes.get("content-desc", "")', android)
+        self.assertIn('match = desc == label', android)
+        self.assertIn('if not match and label == "native-demand-diagnosis:false":', android)
+        self.assertIn('if not match and label == "native-demand-confirmed":', android)
+        self.assertIn('if not match:', android)
         self.assertIn('attributes.get("checked") != checked', android)
         self.assertIn('attributes.get("enabled") != "true"', android)
         self.assertIn('attributes.get("clickable") != "true"', android)
