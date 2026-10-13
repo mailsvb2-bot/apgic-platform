@@ -3,27 +3,131 @@
   "repository": "mailsvb2-bot/apgic-platform",
   "baseline": "main",
   "control_branch": "feat/platform-readiness",
-  "launch_cut": ["R0", "R1", "R2", "R3", "R4"],
+  "launch_cut": [
+    "R0",
+    "R1",
+    "R2",
+    "R3",
+    "R4"
+  ],
   "merge_strategy": "NO_AUTOMATIC_MERGES; synthesize an isolated integration candidate, keep main unchanged until authorized",
   "lanes": [
-    {"order": 0, "branch": "feat/platform-readiness", "owner": "platform-readiness", "profile": "R0-R4-CONTROL", "launch_dependency": true, "dependencies": [], "purpose": "Single owner of release decision, blockers, and exact-SHA evidence; integrate control gate last"},
-    {"order": 1, "branch": "feat/specialist-marketplace", "owner": "specialist-marketplace", "profile": "R1", "launch_dependency": true, "dependencies": [], "purpose": "Verified supply and discovery; qualification precedes ranking"},
-    {"order": 2, "branch": "feat/booking-complete", "owner": "booking-complete", "profile": "R2", "launch_dependency": true, "dependencies": ["feat/specialist-marketplace"], "purpose": "Availability -> hold -> booking -> payment/order -> compensation"},
-    {"order": 3, "branch": "feat/consultation-runtime", "owner": "consultation-runtime", "profile": "R3", "launch_dependency": true, "dependencies": ["feat/booking-complete"], "purpose": "Authorization -> ready/join -> provider lifecycle -> completion and recovery"},
-    {"order": 4, "branch": "feat/client-personal", "owner": "client-personal", "profile": "POST-LAUNCH", "launch_dependency": false, "dependencies": ["feat/booking-complete"], "purpose": "Client-owned history and preferences; R5-type extension, not R0-R4 launch condition"},
-    {"order": 5, "branch": "feat/ai-persona", "owner": "ai-persona", "profile": "POST-LAUNCH", "launch_dependency": false, "dependencies": ["feat/consultation-runtime"], "purpose": "Replaceable PersonaProvider and consent/privacy separation"},
-    {"order": 6, "branch": "feat/instant-consultation", "owner": "instant-consultation", "profile": "R6", "launch_dependency": false, "dependencies": ["feat/consultation-runtime"], "purpose": "Duty/Now, no phantom booking/payment shortcut"},
-    {"order": 7, "branch": "feat/academy-edtech", "owner": "academy-edtech", "profile": "R8", "launch_dependency": false, "dependencies": ["feat/booking-complete"], "purpose": "Course content, entitlements and durable learning state"},
-    {"order": 8, "branch": "feat/groups-live-events", "owner": "groups-live-events", "profile": "R9", "launch_dependency": false, "dependencies": ["feat/booking-complete", "feat/consultation-runtime"], "purpose": "Capacity, group entitlements, attendance and provider room access"},
-    {"order": 9, "branch": "feat/growth-distribution", "owner": "growth-distribution", "profile": "POST-LAUNCH", "launch_dependency": false, "dependencies": ["feat/specialist-marketplace", "feat/booking-complete"], "purpose": "Source attribution through canonical conversion/outcome; no second booking truth"}
+    {
+      "order": 0,
+      "branch": "feat/platform-readiness",
+      "owner": "platform-readiness",
+      "profile": "R0-R4-CONTROL",
+      "launch_dependency": true,
+      "dependencies": [],
+      "purpose": "Single owner of release decision, blockers, and exact-SHA evidence; integrate control gate last"
+    },
+    {
+      "order": 3,
+      "branch": "feat/consultation-runtime",
+      "owner": "consultation-runtime",
+      "profile": "R3",
+      "launch_dependency": true,
+      "dependencies": [],
+      "purpose": "Authorization -> ready/join -> provider lifecycle -> completion and recovery"
+    },
+    {
+      "order": 4,
+      "branch": "feat/client-personal",
+      "owner": "client-personal",
+      "profile": "POST-LAUNCH",
+      "launch_dependency": false,
+      "dependencies": [],
+      "purpose": "Client-owned history and preferences; R5-type extension, not R0-R4 launch condition"
+    },
+    {
+      "order": 5,
+      "branch": "feat/ai-persona",
+      "owner": "ai-persona",
+      "profile": "POST-LAUNCH",
+      "launch_dependency": false,
+      "dependencies": [
+        "feat/consultation-runtime"
+      ],
+      "purpose": "Replaceable PersonaProvider and consent/privacy separation"
+    },
+    {
+      "order": 6,
+      "branch": "feat/instant-consultation",
+      "owner": "instant-consultation",
+      "profile": "R6",
+      "launch_dependency": false,
+      "dependencies": [
+        "feat/consultation-runtime"
+      ],
+      "purpose": "Duty/Now, no phantom booking/payment shortcut"
+    },
+    {
+      "order": 7,
+      "branch": "feat/academy-edtech",
+      "owner": "academy-edtech",
+      "profile": "R8",
+      "launch_dependency": false,
+      "dependencies": [],
+      "purpose": "Course content, entitlements and durable learning state"
+    },
+    {
+      "order": 8,
+      "branch": "feat/groups-live-events",
+      "owner": "groups-live-events",
+      "profile": "R9",
+      "launch_dependency": false,
+      "dependencies": [
+        "feat/consultation-runtime"
+      ],
+      "purpose": "Capacity, group entitlements, attendance and provider room access"
+    },
+    {
+      "order": 9,
+      "branch": "feat/growth-distribution",
+      "owner": "growth-distribution",
+      "profile": "POST-LAUNCH",
+      "launch_dependency": false,
+      "dependencies": [],
+      "purpose": "Source attribution through canonical conversion/outcome; no second booking truth"
+    }
   ],
   "integration_stages": [
-    {"phase": "R0", "owner": "platform-core", "input": "main", "proof": "identity, tenant denial, outbox retry and isolated PostgreSQL restore"},
-    {"phase": "R1", "owner": "specialist-marketplace", "input": "feat/specialist-marketplace", "proof": "qualified public specialist -> available offer; revocation and privacy denial"},
-    {"phase": "R2", "owner": "booking-complete", "input": "feat/booking-complete", "proof": "slot hold -> order -> provider callback -> entitlement; retry, race, cancellation and refund"},
-    {"phase": "R3", "owner": "consultation-runtime", "input": "feat/consultation-runtime", "proof": "entitled user ready/join -> signed provider result -> completion; reconnect and failure recovery"},
-    {"phase": "R4", "owner": "platform-readiness", "input": "platform financial/payment core + providers", "proof": "commission -> signed payout/settlement -> ledger/reconciliation and native release evidence"},
-    {"phase": "POST-LAUNCH", "owner": "respective-lane-owners", "input": "R5/R6/R8/R9/Growth lanes", "proof": "own scoped production journeys, do not expand Launch v1"}
+    {
+      "phase": "R0",
+      "owner": "platform-core",
+      "input": "main",
+      "proof": "identity, tenant denial, outbox retry and isolated PostgreSQL restore"
+    },
+    {
+      "phase": "R1",
+      "owner": "specialist-marketplace",
+      "input": "main",
+      "proof": "qualified public specialist -> available offer; revocation and privacy denial"
+    },
+    {
+      "phase": "R2",
+      "owner": "booking-complete",
+      "input": "main",
+      "proof": "slot hold -> order -> provider callback -> entitlement; retry, race, cancellation and refund"
+    },
+    {
+      "phase": "R3",
+      "owner": "consultation-runtime",
+      "input": "feat/consultation-runtime",
+      "proof": "entitled user ready/join -> signed provider result -> completion; reconnect and failure recovery"
+    },
+    {
+      "phase": "R4",
+      "owner": "platform-readiness",
+      "input": "platform financial/payment core + providers",
+      "proof": "commission -> signed payout/settlement -> ledger/reconciliation and native release evidence"
+    },
+    {
+      "phase": "POST-LAUNCH",
+      "owner": "respective-lane-owners",
+      "input": "R5/R6/R8/R9/Growth lanes",
+      "proof": "own scoped production journeys, do not expand Launch v1"
+    }
   ],
   "canonical_contract_owners": {
     "contracts/openapi/apgic-v1.yaml": "api-contract-owner",
@@ -36,27 +140,92 @@
     "apps/mobile/src/App.tsx": "native-shell-owner"
   },
   "migration_sequence_proposal": [
-    {"allocated": "000032", "source": "feat/specialist-marketplace", "original": "backend/migrations/000032_r1_specialist_public_directory.sql"},
-    {"allocated": "000033", "source": "feat/consultation-runtime", "original": "backend/migrations/000032_r3_consultation_readiness_outcome.sql"},
-    {"allocated": "000034", "source": "feat/client-personal", "original": "backend/migrations/000032_client_personal_preferences.sql"},
-    {"allocated": "000035", "source": "feat/client-personal", "original": "backend/migrations/000033_client_personal_checkins.sql"},
-    {"allocated": "000036", "source": "feat/ai-persona", "original": "backend/migrations/000032_persona_companion.sql"},
-    {"allocated": "000037", "source": "feat/instant-consultation", "original": "backend/migrations/000032_r6_instant_duty_dispatch.sql"},
-    {"allocated": "000038", "source": "feat/academy-edtech", "original": "backend/migrations/000032_r8_academy_learning.sql"},
-    {"allocated": "000039", "source": "feat/groups-live-events", "original": "backend/migrations/000032_r9_live_events.sql"},
-    {"allocated": "000040", "source": "feat/growth-distribution", "original": "backend/migrations/000032_growth_first_party_attribution.sql"},
-    {"allocated": "000041", "source": "feat/growth-distribution", "original": "backend/migrations/000033_growth_integrity_guards.sql"},
-    {"allocated": "000042", "source": "feat/growth-distribution", "original": "backend/migrations/000034_growth_verified_conversion_bridge.sql"}
+    {
+      "allocated": "000032–000036",
+      "source": "main",
+      "original": "R1 specialist marketplace + R2 booking (already merged)"
+    },
+    {
+      "allocated": "000037–000038",
+      "source": "feat/consultation-runtime",
+      "original": "R3 readiness and outcome"
+    },
+    {
+      "allocated": "000039",
+      "source": "feat/instant-consultation",
+      "original": "R6 duty dispatch"
+    },
+    {
+      "allocated": "000040–000041",
+      "source": "feat/client-personal",
+      "original": "R5 personal preferences and check-ins"
+    },
+    {
+      "allocated": "000042–000043",
+      "source": "feat/ai-persona",
+      "original": "licensed Persona"
+    },
+    {
+      "allocated": "000044",
+      "source": "feat/groups-live-events",
+      "original": "R9 live events"
+    },
+    {
+      "allocated": "000045–000048",
+      "source": "feat/growth-distribution",
+      "original": "Growth attribution"
+    },
+    {
+      "allocated": "000049",
+      "source": "feat/academy-edtech",
+      "original": "R8 learning"
+    }
   ],
   "required_journeys": [
-    {"id":"r0-tenant-denial","profile":"R0","owner":"platform-core"},
-    {"id":"r0-outbox-recovery","profile":"R0","owner":"platform-core"},
-    {"id":"r0-isolated-restore","profile":"R0","owner":"platform-operations"},
-    {"id":"r1-eligible-discovery","profile":"R1","owner":"specialist-marketplace"},
-    {"id":"r2-booking-payment-entitlement","profile":"R2","owner":"booking-complete"},
-    {"id":"r2-refund-reversal","profile":"R2","owner":"booking-complete"},
-    {"id":"r3-consultation-outcome","profile":"R3","owner":"consultation-runtime"},
-    {"id":"r4-provider-settlement","profile":"R4","owner":"finance-provider-integrations"},
-    {"id":"r4-native-store","profile":"R4","owner":"mobile-release-operations"}
+    {
+      "id": "r0-tenant-denial",
+      "profile": "R0",
+      "owner": "platform-core"
+    },
+    {
+      "id": "r0-outbox-recovery",
+      "profile": "R0",
+      "owner": "platform-core"
+    },
+    {
+      "id": "r0-isolated-restore",
+      "profile": "R0",
+      "owner": "platform-operations"
+    },
+    {
+      "id": "r1-eligible-discovery",
+      "profile": "R1",
+      "owner": "specialist-marketplace"
+    },
+    {
+      "id": "r2-booking-payment-entitlement",
+      "profile": "R2",
+      "owner": "booking-complete"
+    },
+    {
+      "id": "r2-refund-reversal",
+      "profile": "R2",
+      "owner": "booking-complete"
+    },
+    {
+      "id": "r3-consultation-outcome",
+      "profile": "R3",
+      "owner": "consultation-runtime"
+    },
+    {
+      "id": "r4-provider-settlement",
+      "profile": "R4",
+      "owner": "finance-provider-integrations"
+    },
+    {
+      "id": "r4-native-store",
+      "profile": "R4",
+      "owner": "mobile-release-operations"
+    }
   ]
 }
