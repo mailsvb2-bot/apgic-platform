@@ -1614,7 +1614,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1 },
   // The form scrolls inside its own constrained area; the fixed confirmation
   // footer must remain a sibling hit target, never overlap the ScrollView.
-  demandScroll: { flex: 1, flexShrink: 1 },
+  demandScroll: { flex: 1, flexGrow: 0, flexShrink: 1, minHeight: 0 },
   card: { gap: 12, padding: 24, paddingBottom: 48 },
   eyebrow: { fontWeight: "700", textTransform: "uppercase", letterSpacing: 1.2 },
   title: { fontWeight: "800", fontSize: 48 },
@@ -1628,10 +1628,14 @@ const styles = StyleSheet.create({
   demandStickyFooter: {
     paddingHorizontal: 24, paddingTop: 12, paddingBottom: 32,
     borderTopWidth: 1, backgroundColor: "#fff", gap: 8,
+    // Android ScrollView content may visually extend beneath its sibling.
+    // Keep the primary action in a separate topmost native hit-test layer.
+    position: "relative", zIndex: 10, elevation: 10,
   },
   demandConfirmPrimary: {
     minHeight: 56, justifyContent: "center", alignItems: "center",
     paddingHorizontal: 16, borderWidth: 1, borderRadius: 8,
+    backgroundColor: "#fff",
   },
   demandTopic: { minHeight: 44, justifyContent: "center", paddingHorizontal: 12, borderWidth: 1, borderRadius: 8 },
   accessibilityProbe: { gap: 8, marginTop: 12 },
