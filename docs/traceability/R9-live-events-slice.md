@@ -51,7 +51,7 @@ No checkbox above means production completion without the corresponding external
 ## Code and CI evidence
 
 - API handlers and Postgres-backed domain: `backend/internal/httpapi/live_events.go`, `backend/internal/runtimepostgres/live_events*.go`.
-- SQL migration and isolated invariant checks: `backend/migrations/000032_r9_live_events.sql`, `backend/migrations/ci_r9_live_events_invariants.sql` (wired into CI).
+- SQL migration and isolated invariant checks: `backend/migrations/000044_r9_live_events.sql`, `backend/migrations/ci_r9_live_events_invariants.sql` (wired into CI).
 - Web: `apps/web/app/live-events/`, `apps/web/app/organization/live-events/`; native: `apps/mobile/src/r9-live-events.tsx`.
 - Run `go test -race ./...` and GitHub Actions CI for exact final branch SHA; green job on an earlier SHA is not release evidence for later commits.
 - Provider room/ticket/scheduled reminders/payment/recording are explicit release blockers and must not be marked complete from mocks or signed capability heartbeat alone.

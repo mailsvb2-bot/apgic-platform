@@ -11,7 +11,7 @@ import re
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-MIGRATION = ROOT / "backend/migrations/000032_r9_live_events.sql"
+MIGRATION = ROOT / "backend/migrations/000044_r9_live_events.sql"
 PROOF = ROOT / "backend/migrations/ci_r9_live_events_invariants.sql"
 CONCURRENCY = ROOT / "backend/ci/r9_registration_concurrency.sh"
 WORKFLOW = ROOT / ".github/workflows/ci.yml"
