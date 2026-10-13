@@ -50,7 +50,7 @@ CREATE INDEX instant_dispatch_specialist_inbox ON instant_dispatches(specialist_
 -- online, Russian jurisdiction, adult clients. A historic ELIGIBLE verdict
 -- is insufficient if a later decision is MANUAL_REVIEW or INELIGIBLE.
 CREATE FUNCTION apgic_instant_supply_eligible(p_offer_id uuid)
-RETURNS boolean LANGUAGE sql VOLATILE AS $
+RETURNS boolean LANGUAGE sql VOLATILE AS $$
   SELECT EXISTS (
     SELECT 1 FROM specialist_bookable_offers o
     JOIN LATERAL (
@@ -62,7 +62,7 @@ RETURNS boolean LANGUAGE sql VOLATILE AS $
     ) qualification ON qualification.decision='ELIGIBLE'
     WHERE o.id=p_offer_id AND apgic_live_offer_valid(o.id)
   )
-$;
+$$;
 
 -- At all entrypoints, release timed-out offers; never leave a busy specialist
 -- forever or expose an expired offer as available. An ACCEPTED dispatch is a
