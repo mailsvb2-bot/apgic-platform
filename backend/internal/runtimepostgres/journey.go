@@ -727,6 +727,45 @@ func (c *Checker) AcquireHold(hold *demand.Hold, slot demand.Slot, now time.Time
 	defer cancel()
 	var acquired bool
 	var reason string
+	// Live holds must be acquired and stamped with immutable intent/offer
+	// provenance in ONE database transaction. If the provenance guard fails,
+	// rollback also releases the newly acquired slot; no orphaned hold remains.
+	// Conformance slots are unaffected and retain their original SQL function.
+	if slot.OfferID != "" {
+		if hold.IntentID == "" || hold.OfferID != slot.OfferID {
+			return "", errors.New("live hold missing matching intent/offer provenance")
+		}
+		tx, err := c.db.BeginTx(ctx, nil)
+		if err != nil {
+			return "", fmt.Errorf("begin live hold acquisition: %w", err)
+		}
+		defer tx.Rollback()
+		err = tx.QueryRowContext(ctx,
+			`SELECT acquired, reason_code
+			 FROM apgic_acquire_slot_hold($1::uuid, $2::uuid, $3::uuid, $4, $5)`,
+			hold.ID, slotID, hold.ClientIdentityID, hold.ExpiresAt, now,
+		).Scan(&acquired, &reason)
+		if err != nil {
+			if strings.Contains(err.Error(), "live booking offer no longer eligible") {
+				return "BOOK_SLOT_NOT_AVAILABLE", nil
+			}
+			return "", fmt.Errorf("acquire live slot hold: %w", err)
+		}
+		if !acquired {
+			return reason, nil
+		}
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE booking_holds
+			 SET help_intent_id = $2::uuid, specialist_offer_id = $3::uuid
+			 WHERE id = $1::uuid AND state = 'ACTIVE'`,
+			hold.ID, hold.IntentID, hold.OfferID); err != nil {
+			return "", fmt.Errorf("stamp immutable live booking intent/offer: %w", err)
+		}
+		if err := tx.Commit(); err != nil {
+			return "", fmt.Errorf("commit canonical live booking hold: %w", err)
+		}
+		return "BOOK_HOLD_ACQUIRED", nil
+	}
 	if err := c.db.QueryRowContext(ctx,
 		`SELECT acquired, reason_code
 		 FROM apgic_acquire_slot_hold($1::uuid, $2::uuid, $3::uuid, $4, $5)`,

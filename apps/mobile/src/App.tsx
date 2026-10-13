@@ -1,4 +1,3 @@
-import ClientPersonalPanel from "./client-personal-panel.tsx";
 import React, {useCallback, useEffect, useState} from "react";
 import {
   AccessibilityInfo,
@@ -14,6 +13,7 @@ import {
 } from "react-native";
 
 import {apiContractVersion} from "./api-contract.ts";
+import {NativeSpecialistDirectory} from "./native-specialist-directory.tsx";
 import {
   decideCapability,
   type CapabilityState,
@@ -1002,8 +1002,6 @@ export default function App({
           Одна Identity и одна server truth для iOS, Android, Web и PWA.
         </Text>
 
-        {!infrastructureE2EActive ? <ClientPersonalPanel baseURL={demandAPIBaseURL} /> : null}
-
         {!infrastructureE2EActive ? (
           <View style={styles.demandCard} accessibilityRole="summary">
             <Text style={styles.capabilityTitle}>С чем нужна помощь</Text>
@@ -1079,6 +1077,9 @@ export default function App({
                   <Text accessibilityLabel="native-demand-confirmed">
                     Запрос подтверждён пользователем.
                   </Text>
+                ) : null}
+                {demandStatus === "CONFIRMED" && demandTopics.length>0 ? (
+                  <NativeSpecialistDirectory baseURL={demandAPIBaseURL} topic={demandTopics[0]} />
                 ) : null}
               </View>
             ) : null}
