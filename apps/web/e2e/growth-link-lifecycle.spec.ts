@@ -65,6 +65,6 @@ test("failed storage does not expose stale specialist links", async ({ page }) =
     await route.fulfill({ json: { items: [] } });
   });
   await page.goto("/specialist/growth");
-  await expect(page.getByRole("alert", { name: "Не удалось получить проверенные ссылки." })).toBeVisible();
+  await expect(page.getByRole("alert").filter({ hasText: "Не удалось получить проверенные ссылки." }).first()).toBeVisible();
   await expect(page.locator('a[href^="/g/"]')).toHaveCount(0);
 });

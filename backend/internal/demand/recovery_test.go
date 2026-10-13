@@ -74,8 +74,15 @@ func TestUnrecoverableFailureOpensExternalRefundAndDoesNotComplete(t *testing.T)
 		t.Fatalf("false completion err = %v", err)
 	}
 	again, err := service.ReportProviderFailure(bookingID, "ROOM_FAILURE", "provider-evidence/room-1", false)
-	if err != nil || !again.Idempotent || again.State != "TECHNICAL_FAILURE" || again.APGICReturnsFunds {
+	if err != nil || !again.Idempotent || again.State != "TECHNICAL_FAILURE" || again.APGICReturnsFunds ||
+		again.RecoveryAction != "REFUND" || !again.RefundPathOpened {
 		t.Fatalf("replay = %#v err=%v", again, err)
+	}
+	if incorrect, err := service.ReportProviderFailure(bookingID, "ROOM_FAILURE", "provider-evidence/forged", false); !errors.Is(err, ErrConsultEvidence) || incorrect != nil {
+		t.Fatalf("terminal refund accepted mismatched evidence: %#v err=%v", incorrect, err)
+	}
+	if view, err := service.RecordSessionPresence(bookingID); !errors.Is(err, ErrConsultNotReady) || view != nil {
+		t.Fatalf("cancelled session reopened after refund: %#v err=%v", view, err)
 	}
 }
 

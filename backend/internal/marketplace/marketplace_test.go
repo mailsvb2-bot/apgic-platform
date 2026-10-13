@@ -214,9 +214,9 @@ func TestMatchingNeverReturnsIneligibleCandidate(t *testing.T) {
 
 func TestRankingIsDeterministicAndSponsoredCannotBypassProtectedBand(t *testing.T) {
 	matches := []Match{
-		{SpecialistID: "sponsored-low", RelevanceTier: 2, ExpertiseTier: 5, ReliabilityTier: 5, ReputationTier: 5, AvailabilityResponseTier: 5, PlatformExperienceTier: 5, CommercialBoostTier: 100},
-		{SpecialistID: "organic-high", RelevanceTier: 3, ExpertiseTier: 1, ReliabilityTier: 1, ReputationTier: 1, AvailabilityResponseTier: 1, PlatformExperienceTier: 1, CommercialBoostTier: 0},
-		{SpecialistID: "sponsored-peer", RelevanceTier: 3, ExpertiseTier: 1, ReliabilityTier: 1, ReputationTier: 1, AvailabilityResponseTier: 1, PlatformExperienceTier: 1, CommercialBoostTier: 1},
+		{SpecialistID: "sponsored-low", Qualification: QualificationResult{Decision: EligibilityEligible}, RelevanceTier: 2, ExpertiseTier: 5, ReliabilityTier: 5, ReputationTier: 5, AvailabilityResponseTier: 5, PlatformExperienceTier: 5, CommercialBoostTier: 100},
+		{SpecialistID: "organic-high", Qualification: QualificationResult{Decision: EligibilityEligible}, RelevanceTier: 3, ExpertiseTier: 1, ReliabilityTier: 1, ReputationTier: 1, AvailabilityResponseTier: 1, PlatformExperienceTier: 1, CommercialBoostTier: 0},
+		{SpecialistID: "sponsored-peer", Qualification: QualificationResult{Decision: EligibilityEligible}, RelevanceTier: 3, ExpertiseTier: 1, ReliabilityTier: 1, ReputationTier: 1, AvailabilityResponseTier: 1, PlatformExperienceTier: 1, CommercialBoostTier: 1},
 	}
 	ranked := Rank(RankingPolicy{Version: "ranking-v1"}, matches)
 	if len(ranked) != 3 {
@@ -259,5 +259,17 @@ func TestSearchProjectionRebuildsFromCanonicalPublishedProfiles(t *testing.T) {
 	rebuilt := RebuildSearchProjection("search-v2", []SpecialistProfile{profile})
 	if got := rebuilt.SearchTopic("anxiety"); len(got) != 1 {
 		t.Fatalf("rebuild did not recover canonical projection: %#v", got)
+	}
+}
+
+func TestSponsoredRankingNeverIncludesUnqualifiedOrManualReview(t *testing.T) {
+	matches := []Match{
+		{SpecialistID: "revoked", Qualification: QualificationResult{Decision: EligibilityIneligible}, RelevanceTier: 99, CommercialBoostTier: 999},
+		{SpecialistID: "manual", Qualification: QualificationResult{Decision: EligibilityManualReview}, RelevanceTier: 99, CommercialBoostTier: 999},
+		{SpecialistID: "eligible", Qualification: QualificationResult{Decision: EligibilityEligible}, RelevanceTier: 1},
+	}
+	ranked := Rank(RankingPolicy{Version: "ranking-v1"}, matches)
+	if len(ranked) != 1 || ranked[0].SpecialistID != "eligible" || ranked[0].Sponsored {
+		t.Fatalf("commercial boost bypassed qualification: %#v", ranked)
 	}
 }

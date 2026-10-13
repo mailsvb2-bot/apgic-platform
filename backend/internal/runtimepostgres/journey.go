@@ -712,6 +712,9 @@ func (c *Checker) ConfirmIntent(intent *demand.Intent, confirmedAt time.Time) er
 	return nil
 }
 
+// AcquireHold persists the canonical exclusive hold, live offer provenance and
+// verified growth conversion in one transaction. No second booking/ledger owner
+// or independent attribution commit can manufacture a payable reservation.
 func (c *Checker) AcquireHold(hold *demand.Hold, slot demand.Slot, now time.Time) (string, error) {
 	if c == nil || c.db == nil {
 		return "", errors.New("postgres checker is not initialized")
@@ -723,21 +726,25 @@ func (c *Checker) AcquireHold(hold *demand.Hold, slot demand.Slot, now time.Time
 	if err != nil {
 		return "", err
 	}
+	if slot.OfferID != "" && (hold.IntentID == "" || hold.OfferID != slot.OfferID) {
+		return "", errors.New("live hold missing matching intent/offer provenance")
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), journeyWriteTimeout)
 	defer cancel()
-	// The canonical slot hold and its attributed source must commit together.
 	tx, err := c.db.BeginTx(ctx, nil)
 	if err != nil {
-		return "", fmt.Errorf("begin source-attributed hold: %w", err)
+		return "", fmt.Errorf("begin canonical attributed hold: %w", err)
 	}
 	defer tx.Rollback()
+
 	var acquired bool
 	var reason string
-	if err := tx.QueryRowContext(ctx,
+	err = tx.QueryRowContext(ctx,
 		`SELECT acquired, reason_code
 		 FROM apgic_acquire_slot_hold($1::uuid, $2::uuid, $3::uuid, $4, $5)`,
 		hold.ID, slotID, hold.ClientIdentityID, hold.ExpiresAt, now,
-	).Scan(&acquired, &reason); err != nil {
+	).Scan(&acquired, &reason)
+	if err != nil {
 		if strings.Contains(err.Error(), "live booking offer no longer eligible") {
 			return "BOOK_SLOT_NOT_AVAILABLE", nil
 		}
@@ -746,7 +753,24 @@ func (c *Checker) AcquireHold(hold *demand.Hold, slot demand.Slot, now time.Time
 	if !acquired {
 		return reason, nil
 	}
-	if hold.HelpIntentID != "" {
+	if slot.OfferID != "" {
+		result, err := tx.ExecContext(ctx,
+			`UPDATE booking_holds
+			 SET help_intent_id = $2::uuid, specialist_offer_id = $3::uuid
+			 WHERE id = $1::uuid AND state = 'ACTIVE'`,
+			hold.ID, hold.IntentID, hold.OfferID)
+		if err != nil {
+			return "", fmt.Errorf("stamp immutable live booking intent/offer: %w", err)
+		}
+		rows, err := result.RowsAffected()
+		if err != nil {
+			return "", fmt.Errorf("count canonical live booking provenance rows: %w", err)
+		}
+		if rows != 1 {
+			return "", fmt.Errorf("canonical live booking provenance not persisted: rows=%d", rows)
+		}
+	}
+	if hold.IntentID != "" {
 		if _, err := tx.ExecContext(ctx,
 			`INSERT INTO growth_hold_attribution (
 				hold_id,intent_id,touch_id,link_id,source,recorded_at
@@ -762,13 +786,13 @@ func (c *Checker) AcquireHold(hold *demand.Hold, slot demand.Slot, now time.Time
 			   AND slot.tenant_scope='specialist/live'
 			   AND slot.specialist_offer_id=l.specialist_offer_id
 			 ON CONFLICT (hold_id) DO NOTHING`,
-			hold.ID, slotID, hold.HelpIntentID, hold.ClientIdentityID, now.UTC(),
+			hold.ID, slotID, hold.IntentID, hold.ClientIdentityID, now.UTC(),
 		); err != nil {
 			return "", fmt.Errorf("persist verified booking attribution: %w", err)
 		}
 	}
 	if err := tx.Commit(); err != nil {
-		return "", fmt.Errorf("commit source-attributed hold: %w", err)
+		return "", fmt.Errorf("commit canonical source-attributed hold: %w", err)
 	}
 	return "BOOK_HOLD_ACQUIRED", nil
 }

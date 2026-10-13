@@ -53,6 +53,14 @@ func liveCatalog() catalog {
 	return catalog{policy: qualificationPolicy(), names: map[string]string{}}
 }
 
+// Conformance booking capacity is deliberately sufficient for a shared,
+// multi-surface end-to-end suite. These synthetic slots are NEVER loaded into
+// the LIVE catalog, which must receive priced supply from PostgreSQL owners.
+const (
+	conformanceDays        = 14
+	conformanceSlotsPerDay = 3
+)
+
 func conformanceCatalog(now time.Time) catalog {
 	policy := qualificationPolicy()
 	context := marketplace.PublishContext{
@@ -84,22 +92,27 @@ func conformanceCatalog(now time.Time) catalog {
 		candidate(volkova, 390000, 4, 4, 5, 0),
 		{Profile: draft, Formats: []string{FormatOnline}, Languages: []string{LanguageRU}, PriceMinor: 100000, Available: true},
 	}
-	slots := make([]Slot, 0, len(published)*8)
+	slots := make([]Slot, 0, len(published)*conformanceDays*conformanceSlotsPerDay)
 	now = now.UTC()
 	first := time.Date(now.Year(), now.Month(), now.Day(), 10, 0, 0, 0, time.UTC)
 	if !first.After(now.Add(holdTTL)) {
 		first = first.AddDate(0, 0, 1)
 	}
 	for _, profile := range published {
-		for n := 0; n < 8; n++ {
-			start := first.AddDate(0, 0, n)
-			slots = append(slots, Slot{
-				ID:           fmt.Sprintf("%s-slot-%s", profile.ID, start.Format("20060102T1504Z")),
-				SpecialistID: profile.ID,
-				StartsAt:     start,
-				EndsAt:       start.Add(50 * time.Minute),
-				Exclusive:    true,
-			})
+		for day := 0; day < conformanceDays; day++ {
+			for index := 0; index < conformanceSlotsPerDay; index++ {
+				// 10:00, 13:00 and 16:00 UTC. IDs are stable across process
+				// restarts and refreshes; a booking cannot be duplicated by
+				// a rolling catalog projection.
+				start := first.AddDate(0, 0, day).Add(time.Duration(index) * 3 * time.Hour)
+				slots = append(slots, Slot{
+					ID:           fmt.Sprintf("%s-slot-%s", profile.ID, start.Format("20060102T1504Z")),
+					SpecialistID: profile.ID,
+					StartsAt:     start,
+					EndsAt:       start.Add(50 * time.Minute),
+					Exclusive:    true,
+				})
+			}
 		}
 	}
 	names := map[string]string{}
