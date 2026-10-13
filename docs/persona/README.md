@@ -7,7 +7,7 @@ AvatarSession business lifecycle and explicit human handoff facts.
 External PersonaProvider owns inference/avatar/voice/media runtime.
 No VPR code or donor DB may be copied as APGIC canonical business truth.
 
-**Default OFF.** Migration 000032 must run before enabling the feature.
+**Default OFF.** Migration 000042 must run before enabling the feature.
 Provision all settings together:
 `APGIC_PERSONA_ENABLED=1`,
 `APGIC_PERSONA_PROVIDER_ORIGIN=https://<certified-provider>`,
@@ -110,7 +110,7 @@ certified transport is available. Native microphone/TTS is **not** claimed.
 
 ### External image/voice rights
 
-Migration 000033 introduces an append-only reviewed license record per
+Migration 000043 introduces an append-only reviewed license record per
 persona, storing its rights holder reference, SHA-256 evidence digest,
 reviewer, permitted TEXT/VOICE/appearance uses and validity deadline.
 A non-empty original `rights_evidence_ref` alone is **not** approval.
