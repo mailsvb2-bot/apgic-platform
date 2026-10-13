@@ -18,6 +18,7 @@ import (
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/demand"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/httpapi"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/launchconfig"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/liveevents/ucr"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/mobile"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/privacy"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/remoteconfig"
@@ -49,6 +50,17 @@ func main() {
 	if err != nil {
 		log.Fatalf("APGIC remote config configuration failed: %v", err)
 	}
+	liveEventsEnabled := os.Getenv("APGIC_LIVE_EVENTS_ENABLED") == "1"
+	if liveEventsEnabled && !runtimepostgres.RequiresDatabase(environment) {
+		log.Fatal("R9 live events require canonical PostgreSQL storage")
+	}
+	ucrMedia, err := ucr.NewFromEnvironment()
+	if err != nil {
+		log.Fatalf("APGIC UCR provider configuration invalid: %v", err)
+	}
+	if liveEventsEnabled && ucrMedia == nil {
+		log.Fatal("R9 live events cannot start without an authenticated UCR communication provider")
+	}
 	providerWebhookKeys, err := providerWebhookKeysFromEnvironment()
 	if err != nil {
 		log.Fatalf("APGIC provider webhook public-key configuration failed: %v", err)
@@ -73,6 +85,18 @@ func main() {
 		}
 		defer storage.Close()
 		readinessCheck = storage.Ready
+		if liveEventsEnabled {
+			baseReady := readinessCheck
+			readinessCheck = func(ctx context.Context) error {
+				if err := baseReady(ctx); err != nil {
+					return err
+				}
+				if err := storage.LiveEventsReady(ctx); err != nil {
+					return err
+				}
+				return ucrMedia.TransportReady(ctx)
+			}
+		}
 		ledgerStore = storage
 		journeyStore = storage
 	}
@@ -97,6 +121,9 @@ func main() {
 		ConformanceProviderEvents:   !runtimepostgres.RequiresDatabase(environment) && os.Getenv("APGIC_CONFORMANCE_PROVIDER_EVENTS") == "1",
 		ProviderWebhookKeys:         providerWebhookKeys,
 		ConsultationProvider:        storage,
+		LiveEvents:                  storage,
+		LiveMedia:                   ucrMedia,
+		LiveEventsEnabled:           liveEventsEnabled,
 		ReleaseTrack:                releaseTrack,
 		Demand:                      demandService,
 		ClientSessionKey:            clientSessionKey,

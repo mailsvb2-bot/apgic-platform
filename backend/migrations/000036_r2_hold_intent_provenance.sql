@@ -67,4 +67,3 @@ $$;
 CREATE TRIGGER booking_holds_live_origin_guard
 BEFORE UPDATE ON booking_holds
 FOR EACH ROW EXECUTE FUNCTION apgic_live_hold_origin_guard();
-
