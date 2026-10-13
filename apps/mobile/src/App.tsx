@@ -422,6 +422,9 @@ export default function App({
           sessionCookie: demandE2ESessionCookie,
         },
       );
+      if (confirmed.id !== demandIntent.id || confirmed.client_identity_id !== demandIntent.client_identity_id) {
+        throw new Error("Подтверждённый запрос не соответствует вашей сессии.");
+      }
       setDemandIntent(confirmed);
       setDemandTopics([...confirmed.topics]);
       setDemandStatus("CONFIRMED");
@@ -1039,6 +1042,15 @@ export default function App({
             ) : null}
             {demandIntent ? (
               <View style={styles.capability}>
+                <Text accessibilityLabel={`native-demand-status:${demandStatus}`}>
+                  {demandStatus === "CONFIRMED"
+                    ? "Темы сохранены и подтверждены сервером."
+                    : demandStatus === "RUNNING"
+                      ? "Сохраняем выбранные темы…"
+                      : demandStatus === "FAIL"
+                        ? "Подтверждение не выполнено. Исправьте ошибку и повторите."
+                        : "Проверьте темы перед подтверждением."}
+                </Text>
                 <Text accessibilityLabel="native-demand-notice">{demandIntent.notice}</Text>
                 <Text accessibilityLabel={`native-demand-diagnosis:${demandIntent.diagnosis_asserted}`}>
                   Это не диагноз. Диагноз поставлен: {demandIntent.diagnosis_asserted ? "да" : "нет"}.
@@ -1100,6 +1112,11 @@ export default function App({
                     >
                       <Text>Подтвердить темы</Text>
                     </Pressable>
+                    {demandError ? (
+                      <Text accessibilityRole="alert" accessibilityLabel="native-demand-error">
+                        {demandError}
+                      </Text>
+                    ) : null}
                   </>
                 ) : null}
                 <Pressable

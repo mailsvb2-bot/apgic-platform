@@ -995,6 +995,40 @@ assert_help_intent_confirmation() {
   seek_demand_accessibility_node "Подтвердить темы запроса" "" tap "$remote" "$output" ||
     fail "Android confirmed-topic action inaccessible after scrolling"
 
+  # Inspect the user's ACTUAL result promptly, rather than spending minutes
+  # blindly swiping and hiding whether a native press, HTTP request, or
+  # authorization/server response failed. All labels are real rendered UI.
+  local confirm_state=""
+  for _ in $(seq 1 18); do
+    if "$ADB" shell uiautomator dump "$remote" >/dev/null 2>&1 &&
+       "$ADB" pull "$remote" "$output" >/dev/null 2>&1; then
+      confirm_state="$(python3 - "$output" <<'PY'
+import sys
+import xml.etree.ElementTree as ET
+try:
+    root = ET.parse(sys.argv[1]).getroot()
+except (ET.ParseError, OSError):
+    sys.exit(0)
+for item in root.iter("node"):
+    name = item.attrib.get("content-desc", "")
+    if name.startswith("native-demand-status:"):
+        print(name.removeprefix("native-demand-status:"))
+        break
+PY
+)"
+      if [[ "$confirm_state" == "CONFIRMED" ]]; then
+        break
+      fi
+      if [[ "$confirm_state" == "FAIL" ]]; then
+        [[ -f "$output" ]] && grep -oE 'content-desc="native-demand-error"[^>]*|text="[^"]*"' "$output" | tail -n 12 >&2 || true
+        fail "Android real confirmation failed; inspect backend HTTP outcome and native user-visible error"
+      fi
+    fi
+    sleep 1
+  done
+  [[ "$confirm_state" == "CONFIRMED" ]] ||
+    fail "Android confirmation did not reach server-acknowledged state (last native status: ${confirm_state:-NOT_VISIBLE}); inspect HelpIntent HTTP outcomes"
+
   seek_demand_accessibility_node 'native-demand-confirmed' "" observe "$remote" "$output" ||
     fail "Android canonical HelpIntent did not confirm after user correction"
   seek_demand_accessibility_node 'native-demand-diagnosis:false' "" observe "$remote" "$output" ||

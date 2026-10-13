@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   assertHelpIntentSafety,
   createMobileHelpIntent,
+  confirmMobileHelpIntent,
   runMobileDemandE2E,
 } from "./mobile-demand-client.ts";
 
@@ -114,5 +115,32 @@ test("native HelpIntent create surfaces safe backend errors", async () => {
     );
   } finally {
     globalThis.fetch = originalFetch;
+  }
+});
+
+test("native HelpIntent confirmation never accepts altered server topic or intent ID", async () => {
+  const original = globalThis.fetch;
+  const confirmed = {
+    id: "intent-incorrect", client_identity_id: "identity-1",
+    free_text: "anxiety sleep", topics: ["anxiety"], goals: [], context: {},
+    status: "CONFIRMED", reason_codes: ["HELP_INTENT_CONFIRMED"],
+    notice: "Не диагноз", diagnosis_asserted: false,
+    catalog_mode: "CONFORMANCE",
+  };
+  try {
+    globalThis.fetch = async () => response(confirmed);
+    await assert.rejects(
+      confirmMobileHelpIntent("intent-1", {topics: ["sleep"], goals: [], context: {}},
+        {baseURL: "https://example.invalid"}),
+      /HELP_INTENT_CONFIRMED_ID_MISMATCH/,
+    );
+    globalThis.fetch = async () => response({...confirmed, id: "intent-1"});
+    await assert.rejects(
+      confirmMobileHelpIntent("intent-1", {topics: ["sleep"], goals: [], context: {}},
+        {baseURL: "https://example.invalid"}),
+      /HELP_INTENT_CONFIRMED_TOPICS_MISMATCH/,
+    );
+  } finally {
+    globalThis.fetch = original;
   }
 });
