@@ -1003,10 +1003,17 @@ export default function App({
     deletionE2EPlatform,
   ]);
 
+  // The confirmation control is an absolute footer. Reserve exactly its
+  // height on the ScrollView so Android's scroll viewport cannot share a
+  // hit rectangle with the button. flexGrow:0 collapsed that viewport to
+  // zero and hid every native proof label.
+  const showDemandConfirmFooter =
+    !infrastructureE2EActive && demandIntent !== null && demandStatus !== "CONFIRMED";
+
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView
-        style={styles.demandScroll}
+        style={[styles.demandScroll, showDemandConfirmFooter ? styles.demandScrollAboveFooter : null]}
         contentContainerStyle={styles.card}
         keyboardShouldPersistTaps="always"
         keyboardDismissMode="on-drag"
@@ -1584,15 +1591,14 @@ export default function App({
           </View>
         ) : null}
       </ScrollView>
-      {/* The primary submit action belongs outside the scrolling text form:
-          Android's ScrollView/keyboard responder must never consume a
-          confirmation tap. The button stays visible at all font scales. */}
-      {!infrastructureE2EActive && demandIntent && demandStatus !== "CONFIRMED" ? (
-        <View style={styles.demandStickyFooter}>
+      {/* The primary submit action belongs outside the scrolling text form.
+          Its box is reserved with marginBottom so a tap cannot land on the
+          form controls that previously shared this rectangle. */}
+      {showDemandConfirmFooter ? (
+        <View style={styles.demandStickyFooter} collapsable={false}>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Подтвердить темы запроса"
-            onPressIn={() => void confirmDemand()}
             disabled={demandStatus === "RUNNING" || demandTopics.length === 0 || !compatibilityAllowsRuntime}
             onPress={() => void confirmDemand()}
             style={styles.demandConfirmPrimary}
@@ -1612,9 +1618,10 @@ export default function App({
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  // The form scrolls inside its own constrained area; the fixed confirmation
-  // footer must remain a sibling hit target, never overlap the ScrollView.
-  demandScroll: { flex: 1, flexGrow: 0, flexShrink: 1, minHeight: 0 },
+  // flex:1 keeps flexGrow at 1. Do not override flexGrow to 0: together with
+  // flexBasis 0 that collapses the form and the native proof labels.
+  demandScroll: { flex: 1 },
+  demandScrollAboveFooter: { marginBottom: 120 },
   card: { gap: 12, padding: 24, paddingBottom: 48 },
   eyebrow: { fontWeight: "700", textTransform: "uppercase", letterSpacing: 1.2 },
   title: { fontWeight: "800", fontSize: 48 },
@@ -1626,11 +1633,9 @@ const styles = StyleSheet.create({
   demandSingleLineInput: { minHeight: 48, borderWidth: 1, borderRadius: 8, padding: 12 },
   demandAction: { minHeight: 48, justifyContent: "center", paddingHorizontal: 12, borderWidth: 1, borderRadius: 8 },
   demandStickyFooter: {
-    paddingHorizontal: 24, paddingTop: 12, paddingBottom: 32,
+    position: "absolute", left: 0, right: 0, bottom: 0, height: 120,
+    paddingHorizontal: 24, paddingTop: 12, paddingBottom: 16,
     borderTopWidth: 1, backgroundColor: "#fff", gap: 8,
-    // Android ScrollView content may visually extend beneath its sibling.
-    // Keep the primary action in a separate topmost native hit-test layer.
-    position: "relative", zIndex: 10, elevation: 10,
   },
   demandConfirmPrimary: {
     minHeight: 56, justifyContent: "center", alignItems: "center",

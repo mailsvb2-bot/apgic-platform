@@ -169,6 +169,11 @@ class MobileNativeE2EHarnessTest(unittest.TestCase):
         self.assertIn('keyboardDismissMode="on-drag"', app)
         self.assertIn('style={styles.demandStickyFooter}', app)
         self.assertIn('style={styles.demandConfirmPrimary}', app)
+        self.assertIn("demandScrollAboveFooter", app)
+        self.assertIn("marginBottom: 120", app)
+        self.assertIn("height: 120", app)
+        self.assertNotIn("flexGrow: 0", app)
+        self.assertNotIn("onPressIn={() => void confirmDemand()}", app)
         self.assertNotIn('keyboardShouldPersistTaps="handled"', app)
         self.assertEqual(app.count('accessibilityLabel="Подтвердить темы запроса"'), 1)
 
