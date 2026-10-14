@@ -123,6 +123,13 @@ class MobileNativeE2EHarnessTest(unittest.TestCase):
         self.assertIn('android-confirm-failure.xml', android)
         self.assertIn('android-confirm-before-tap.xml', android)
         self.assertIn('android-confirm-before-tap.png', android)
+        # Real RN debug builds can draw an accessible warning over a clickable
+        # button; the native close control must be dismissed and verified gone.
+        self.assertIn('dismiss_android_debug_warning_overlay() {', android)
+        self.assertIn('Open debugger to view warnings.', android)
+        self.assertIn('shell input touchscreen tap $close_position', android)
+        self.assertIn('dismiss_android_debug_warning_overlay "$remote" "$output" || fail', android)
+
         self.assertIn('shell input touchscreen tap $position', android)
         self.assertIn('setDemandTouchEvidence(v => ({...v, down: v.down + 1}))', app)
         self.assertIn('native-demand-touch:down:', app)
