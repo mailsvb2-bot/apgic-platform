@@ -1012,7 +1012,7 @@ for node in root.iter("node"):
     attrs = node.attrib
     if "Open debugger to view warnings." not in attrs.get("content-desc", ""):
         continue
-    match = re.fullmatch(r"\\[(\\d+),(\\d+)\\]\\[(\\d+),(\\d+)\\]", attrs.get("bounds", ""))
+    match = re.fullmatch(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]", attrs.get("bounds", ""))
     if match is None:
         raise SystemExit("Android warning overlay has invalid native bounds")
     x1, y1, x2, y2 = map(int, match.groups())
