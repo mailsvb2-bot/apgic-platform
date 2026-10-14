@@ -143,13 +143,22 @@ seek_demand_accessibility_node() {
         position="$(python3 "$ROOT/tools/android_ui_accessibility.py" "$output" "$label" "$checked" "$action")"
         if [[ -n "$position" ]]; then
           if [[ "$action" == "tap" ]]; then
-            # A click must act on settled, still visible native accessibility
-            # state; stale coordinates from a moving viewport are rejected.
-            sleep 0.4
-            "$ADB" shell uiautomator dump "$remote" >/dev/null 2>&1 || return 1
-            "$ADB" pull "$remote" "$output" >/dev/null 2>&1 || return 1
-            position="$(python3 "$ROOT/tools/android_ui_accessibility.py" "$output" "$label" "$checked" "$action")"
-            [[ -n "$position" ]] || continue
+            # Require a stable position in two consecutive fresh accessibility
+            # snapshots before dispatching the real tap.
+            local previous_position="$position" stable=false settle
+            for settle in 1 2 3 4 5; do
+              sleep 0.5
+              "$ADB" shell uiautomator dump "$remote" >/dev/null 2>&1 || return 1
+              "$ADB" pull "$remote" "$output" >/dev/null 2>&1 || return 1
+              position="$(python3 "$ROOT/tools/android_ui_accessibility.py" "$output" "$label" "$checked" "$action")"
+              [[ -n "$position" ]] || break
+              if [[ "$position" == "$previous_position" ]]; then
+                stable=true
+                break
+              fi
+              previous_position="$position"
+            done
+            [[ "$stable" == true && -n "$position" ]] || continue
             # UiAutomator has just confirmed an enabled, clickable and
             # stationary native accessibility node. Dispatch a regular Android
             # tap rather than a 180-ms swipe gesture: ScrollView's native
@@ -161,12 +170,12 @@ seek_demand_accessibility_node() {
           return 0
         fi
       fi
-      "$ADB" shell input swipe 300 540 300 180 230 >/dev/null 2>&1 || return 1
-      sleep 0.25
+      "$ADB" shell input swipe 300 540 300 180 600 >/dev/null 2>&1 || return 1
+      sleep 0.6
     done
     for _ in $(seq 1 14); do
-      "$ADB" shell input swipe 300 180 300 540 230 >/dev/null 2>&1 || return 1
-      sleep 0.25
+      "$ADB" shell input swipe 300 180 300 540 600 >/dev/null 2>&1 || return 1
+      sleep 0.6
     done
   done
   # Report bounded, real accessibility evidence on failure. The root cause
@@ -1016,6 +1025,8 @@ assert_help_intent_confirmation() {
   # Require a real state transition from DRAFT before accepting the press.
   # Retry the actual accessible button, never synthesize confirmation.
   local press_accepted=false
+  # Clear logs: only onPress events from this specific journey count.
+  "$ADB" logcat -c >/dev/null 2>&1 || true
   for _ in 1 2 3; do
     seek_demand_accessibility_node "Подтвердить темы запроса" "" tap "$remote" "$output" ||
       fail "Android confirmed-topic action inaccessible after scrolling"
@@ -1027,8 +1038,14 @@ assert_help_intent_confirmation() {
       break
     fi
   done
-  [[ "$press_accepted" == true ]] ||
-    fail "Android confirmation button did not dispatch onPress: status remained DRAFT after three actual touch attempts"
+  if [[ "$press_accepted" != true ]]; then
+    local press_log_count
+    press_log_count="$("$ADB" logcat -d -s ReactNativeJS:V 2>/dev/null | grep -c 'APGIC_CONFIRM_PRESS' || true)"
+    echo "Android APGIC_CONFIRM_PRESS logcat count: ${press_log_count:-0}" >&2
+    "$ADB" logcat -d -s ReactNativeJS:V 2>/dev/null | tail -n 40 >&2 || true
+    [[ -f "$output" ]] && grep -oE 'content-desc="native-demand-error"[^>]*|text="[^"]*"' "$output" | tail -n 12 >&2 || true
+    fail "Android confirmation did not leave DRAFT after three real taps (onPress count=${press_log_count:-0})"
+  fi
 
   # Confirmation is above the bottom action button in a long ScrollView.
   # UiAutomator includes only the visible viewport; checking the stationary
