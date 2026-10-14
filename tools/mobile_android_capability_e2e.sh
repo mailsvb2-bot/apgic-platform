@@ -150,7 +150,9 @@ seek_demand_accessibility_node() {
             "$ADB" pull "$remote" "$output" >/dev/null 2>&1 || return 1
             position="$(python3 "$ROOT/tools/android_ui_accessibility.py" "$output" "$label" "$checked" "$action")"
             [[ -n "$position" ]] || continue
-            "$ADB" shell input tap $position >/dev/null 2>&1 || return 1
+            # A stationary press, not a zero-length tap. React Native drops
+            # some instantaneous taps on a control that was just scrolled.
+            "$ADB" shell input swipe $position $position 180 >/dev/null 2>&1 || return 1
           fi
           return 0
         fi

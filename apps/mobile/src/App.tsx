@@ -1012,8 +1012,12 @@ export default function App({
 
   return (
     <SafeAreaView style={styles.safe}>
-      <ScrollView
+      <View
         style={[styles.demandScroll, showDemandConfirmFooter ? styles.demandScrollAboveFooter : null]}
+        collapsable={false}
+      >
+      <ScrollView
+        style={styles.demandScrollFill}
         contentContainerStyle={styles.card}
         keyboardShouldPersistTaps="always"
         keyboardDismissMode="on-drag"
@@ -1591,6 +1595,7 @@ export default function App({
           </View>
         ) : null}
       </ScrollView>
+      </View>
       {/* The primary submit action belongs outside the scrolling text form.
           Its box is reserved with marginBottom so a tap cannot land on the
           form controls that previously shared this rectangle. */}
@@ -1620,7 +1625,10 @@ const styles = StyleSheet.create({
   safe: { flex: 1 },
   // flex:1 keeps flexGrow at 1. Do not override flexGrow to 0: together with
   // flexBasis 0 that collapses the form and the native proof labels.
-  demandScroll: { flex: 1 },
+  // Clip the form. Without this, the last in-scroll control draws through
+  // the footer and swallows the confirmation tap without running onPress.
+  demandScroll: { flex: 1, overflow: "hidden" },
+  demandScrollFill: { flex: 1 },
   demandScrollAboveFooter: { marginBottom: 120 },
   card: { gap: 12, padding: 24, paddingBottom: 48 },
   eyebrow: { fontWeight: "700", textTransform: "uppercase", letterSpacing: 1.2 },
@@ -1638,7 +1646,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1, backgroundColor: "#fff", gap: 8,
   },
   demandConfirmPrimary: {
-    minHeight: 56, justifyContent: "center", alignItems: "center",
+    flex: 1, minHeight: 56, justifyContent: "center", alignItems: "center",
     paddingHorizontal: 16, borderWidth: 1, borderRadius: 8,
     backgroundColor: "#fff",
   },
