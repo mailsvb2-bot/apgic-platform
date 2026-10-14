@@ -1075,6 +1075,8 @@ assert_help_intent_confirmation() {
     echo "Android APGIC_CONFIRM_PRESS_IN count: $("$ADB" logcat -d -s ReactNativeJS:V 2>/dev/null | grep -c 'APGIC_CONFIRM_PRESS_IN' || true)" >&2
     echo "Android APGIC_CONFIRM_PRESS_OUT count: $("$ADB" logcat -d -s ReactNativeJS:V 2>/dev/null | grep -c 'APGIC_CONFIRM_PRESS_OUT' || true)" >&2
     echo "Android ReactNativeJS lines: $("$ADB" logcat -d -s ReactNativeJS:V 2>/dev/null | grep -c . || true)" >&2
+    echo "Android UI-visible touch evidence:" >&2
+    grep -oE 'native-demand-touch:down:[0-9]+:up:[0-9]+:press:[0-9]+' "$output" | tail -n 1 >&2 || true
     cp "$output" "$EVIDENCE_DIR/android-confirm-failure.xml" 2>/dev/null || true
     "$ADB" exec-out screencap -p > "$EVIDENCE_DIR/android-confirm-failure.png" 2>/dev/null || true
     "$ADB" shell dumpsys input_method 2>/dev/null | grep -E 'mInputShown|isInputViewShown' >&2 || true
