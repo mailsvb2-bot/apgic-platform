@@ -253,6 +253,7 @@ export default function App({
   >("IDLE");
   const [demandError, setDemandError] = useState("");
   const demandConfirmationInFlight = useRef(false);
+  const [demandTouchEvidence, setDemandTouchEvidence] = useState({down: 0, up: 0, press: 0});
   const [demandE2E, setDemandE2E] = useState<
     | {status: "IDLE" | "RUNNING"}
     | ({status: "PASS"} & MobileDemandE2EResult)
@@ -1121,16 +1122,28 @@ export default function App({
                     accessibilityRole="button"
                     accessibilityLabel="Подтвердить темы запроса"
                     disabled={demandStatus === "RUNNING" || demandTopics.length === 0 || !compatibilityAllowsRuntime}
-                    onPressIn={() => console.log("APGIC_CONFIRM_PRESS_IN")}
-                    onPressOut={() => console.log("APGIC_CONFIRM_PRESS_OUT")}
+                    onPressIn={() => {
+                      if (demandE2ESessionCookie) setDemandTouchEvidence(v => ({...v, down: v.down + 1}));
+                      console.log("APGIC_CONFIRM_PRESS_IN");
+                    }}
+                    onPressOut={() => {
+                      if (demandE2ESessionCookie) setDemandTouchEvidence(v => ({...v, up: v.up + 1}));
+                      console.log("APGIC_CONFIRM_PRESS_OUT");
+                    }}
                     onPress={() => {
+                      if (demandE2ESessionCookie) setDemandTouchEvidence(v => ({...v, press: v.press + 1}));
                       console.log("APGIC_CONFIRM_PRESS");
                       void confirmDemand();
                     }}
                     style={styles.demandAction}
                   >
-                    <Text>{demandStatus === "RUNNING" ? "Сохраняем…" : "Подтвердить темы"}</Text>
+                    <Text>{demandStatus === "RUNNING" ? "Сохраняем…" : "Подтвердить темы"}{demandE2ESessionCookie ? ` [касания: ${demandTouchEvidence.down}/${demandTouchEvidence.up}/${demandTouchEvidence.press}]` : ""}</Text>
                   </Pressable>
+                ) : null}
+                {demandReviewPending && demandE2ESessionCookie ? (
+                  <Text accessibilityLabel={`native-demand-touch:down:${demandTouchEvidence.down}:up:${demandTouchEvidence.up}:press:${demandTouchEvidence.press}`}>
+                    {`Нажатия: ${demandTouchEvidence.down}/${demandTouchEvidence.up}/${demandTouchEvidence.press}`}
+                  </Text>
                 ) : null}
                 {!demandReviewPending ? (
                   <Pressable
