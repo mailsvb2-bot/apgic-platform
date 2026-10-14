@@ -9,7 +9,6 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  TouchableOpacity,
   View,
 } from "react-native";
 
@@ -1004,18 +1003,14 @@ export default function App({
     deletionE2EPlatform,
   ]);
 
-  // The primary confirmation action must be a real, independently laid-out
-  // sibling BELOW the scrolling viewport. Accessibility visibility alone does
-  // not guarantee touch delivery when a Pressable is inside a ScrollView:
-  // the scroll responder can consume its down/up gesture after navigation.
-  const showDemandConfirmFooter =
+  // During topic review, show one primary action in the same vertical flow.
+  // No overlay/footer obscures the native hit target during emulator scrolling.
+  const demandReviewPending =
     !infrastructureE2EActive && demandIntent !== null && demandStatus !== "CONFIRMED";
 
   return (
     <SafeAreaView style={styles.safe}>
-      <View style={styles.demandScroll} collapsable={false}>
       <ScrollView
-        style={styles.demandScrollFill}
         contentContainerStyle={styles.card}
         keyboardShouldPersistTaps="always"
         keyboardDismissMode="on-drag"
@@ -1087,7 +1082,7 @@ export default function App({
                     </Pressable>
                   );
                 })}
-                {!showDemandConfirmFooter && demandStatus !== "CONFIRMED" ? (
+                {!demandReviewPending && demandStatus !== "CONFIRMED" ? (
                   <>
                     <Pressable
                       accessibilityRole="button"
@@ -1121,7 +1116,21 @@ export default function App({
                     ) : null}
                   </>
                 ) : null}
-                {!showDemandConfirmFooter ? (
+                {demandReviewPending ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Подтвердить темы запроса"
+                    disabled={demandStatus === "RUNNING" || demandTopics.length === 0 || !compatibilityAllowsRuntime}
+                    onPress={() => {
+                      console.log("APGIC_CONFIRM_PRESS");
+                      void confirmDemand();
+                    }}
+                    style={styles.demandAction}
+                  >
+                    <Text>{demandStatus === "RUNNING" ? "Сохраняем…" : "Подтвердить темы"}</Text>
+                  </Pressable>
+                ) : null}
+                {!demandReviewPending ? (
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel="Создать новый запрос"
@@ -1158,7 +1167,7 @@ export default function App({
           </View>
         ) : null}
 
-        {!infrastructureE2EActive && !showDemandConfirmFooter ? (
+        {!infrastructureE2EActive && !demandReviewPending ? (
           <NativeConsultationAccess
             baseURL={demandAPIBaseURL}
             sessionCookie={demandE2ESessionCookie}
@@ -1595,31 +1604,12 @@ export default function App({
           </View>
         ) : null}
       </ScrollView>
-      {showDemandConfirmFooter ? (
-        <View style={styles.demandStickyFooter} collapsable={false}>
-          <TouchableOpacity
-            accessibilityRole="button"
-            accessibilityLabel="Подтвердить темы запроса"
-            disabled={demandStatus === "RUNNING" || demandTopics.length === 0 || !compatibilityAllowsRuntime}
-            onPress={() => void confirmDemand()}
-            style={styles.demandConfirmPrimary}
-          >
-            <Text>{demandStatus === "RUNNING" ? "Сохраняем…" : "Подтвердить выбранные темы"}</Text>
-          </TouchableOpacity>
-        </View>
-      ) : null}
-      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  // flex:1 keeps flexGrow at 1. Do not override flexGrow to 0: together with
-  // flexBasis 0 that collapses the form and the native proof labels.
-  demandScroll: { flex: 1, overflow: "hidden" },
-  demandScrollFill: { flex: 1 },
-  demandScrollAboveFooter: { marginBottom: 120 },
   card: { gap: 12, padding: 24, paddingBottom: 48 },
   eyebrow: { fontWeight: "700", textTransform: "uppercase", letterSpacing: 1.2 },
   title: { fontWeight: "800", fontSize: 48 },
@@ -1630,17 +1620,6 @@ const styles = StyleSheet.create({
   demandInput: { minHeight: 96, borderWidth: 1, borderRadius: 8, padding: 12, textAlignVertical: "top" },
   demandSingleLineInput: { minHeight: 48, borderWidth: 1, borderRadius: 8, padding: 12 },
   demandAction: { minHeight: 48, justifyContent: "center", paddingHorizontal: 12, borderWidth: 1, borderRadius: 8 },
-  demandStickyFooter: {
-    height: 120,
-    paddingHorizontal: 24, paddingTop: 12, paddingBottom: 16,
-    borderTopWidth: 1, backgroundColor: "#fff", gap: 8,
-    flexShrink: 0,
-  },
-  demandConfirmPrimary: {
-    flex: 1, minHeight: 56, justifyContent: "center", alignItems: "center",
-    paddingHorizontal: 16, borderWidth: 1, borderRadius: 8,
-    backgroundColor: "#fff",
-  },
   demandTopic: { minHeight: 44, justifyContent: "center", paddingHorizontal: 12, borderWidth: 1, borderRadius: 8 },
   accessibilityProbe: { gap: 8, marginTop: 12 },
   accessibilityAction: {
