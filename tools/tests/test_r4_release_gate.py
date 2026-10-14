@@ -237,5 +237,24 @@ class R4ReleaseGateTests(unittest.TestCase):
         )
 
 
+    def test_finance_release_requires_all_five_independent_proofs(self) -> None:
+        document = valid_ci()
+        for evidence_type in gate.FINANCE_REQUIRED:
+            incomplete = dict(document)
+            incomplete["evidence"] = dict(document["evidence"])
+            incomplete["evidence"].pop(evidence_type)
+            passed, blockers = gate.evaluate(incomplete, "finance", "ci")
+            self.assertFalse(passed)
+            self.assertTrue(any(evidence_type in reason for reason in blockers), blockers)
+
+    def test_finance_ci_evidence_never_claims_production_readiness(self) -> None:
+        document = valid_ci()
+        passed, blockers = gate.evaluate(document, "finance", "ci")
+        self.assertTrue(passed, blockers)
+        passed, blockers = gate.evaluate(document, "finance", "production")
+        self.assertFalse(passed)
+        self.assertTrue(blockers)
+
+
 if __name__ == "__main__":
     unittest.main()
