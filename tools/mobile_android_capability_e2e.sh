@@ -992,6 +992,51 @@ PY
 
 # An IME window can cover a visually accessible React Native button. Dismiss
 # it before tapping; preserve fail-closed verification of server confirmation.
+# React Native debug builds can show a developer warning banner above the
+# application. UiAutomator still reports the underlying button as clickable
+# although the banner consumes its touch (proven by archived screenshot).
+# Dismiss the actual native banner close control, then verify it is absent.
+# This does not suppress warnings or change confirmation/server assertions.
+dismiss_android_debug_warning_overlay() {
+  local remote="$1" output="$2" close_position attempt
+  for attempt in 1 2 3; do
+    "$ADB" shell uiautomator dump "$remote" >/dev/null 2>&1 || return 1
+    "$ADB" pull "$remote" "$output" >/dev/null 2>&1 || return 1
+    close_position="$(python3 - "$output" <<'PY'
+import re
+import sys
+import xml.etree.ElementTree as ET
+
+root = ET.parse(sys.argv[1]).getroot()
+for node in root.iter("node"):
+    attrs = node.attrib
+    if "Open debugger to view warnings." not in attrs.get("content-desc", ""):
+        continue
+    match = re.fullmatch(r"\\[(\\d+),(\\d+)\\]\\[(\\d+),(\\d+)\\]", attrs.get("bounds", ""))
+    if match is None:
+        raise SystemExit("Android warning overlay has invalid native bounds")
+    x1, y1, x2, y2 = map(int, match.groups())
+    if x2 - x1 < 100 or y2 - y1 < 30:
+        raise SystemExit("Android warning overlay has invalid native hit target")
+    print(x2 - 20, (y1 + y2) // 2)
+    break
+PY
+)"
+    if [[ -z "$close_position" ]]; then
+      return 0
+    fi
+    echo "Android debug warning overlay covers native touch target; dismissing its actual close control at $close_position" >&2
+    "$ADB" shell input touchscreen tap $close_position >/dev/null 2>&1 || return 1
+    sleep 0.6
+  done
+  "$ADB" shell uiautomator dump "$remote" >/dev/null 2>&1 || return 1
+  "$ADB" pull "$remote" "$output" >/dev/null 2>&1 || return 1
+  if grep -q 'Open debugger to view warnings.' "$output"; then
+    echo "Android debug warning overlay still intercepts native touches" >&2
+    return 1
+  fi
+}
+
 dismiss_android_ime() {
   local state i
   for i in 1 2 3; do
@@ -1058,6 +1103,7 @@ assert_help_intent_confirmation() {
   "$ADB" logcat -c >/dev/null 2>&1 || true
   for attempt in 1 2 3; do
     dismiss_android_ime || fail "Android IME still intercepts confirmation taps"
+    dismiss_android_debug_warning_overlay "$remote" "$output" || fail "Android native debug warning overlay blocks confirmation button"
     seek_demand_accessibility_node "Подтвердить темы запроса" "" tap "$remote" "$output" ||
       fail "Android confirmed-topic action inaccessible after scrolling"
     for tick in $(seq 1 12); do
