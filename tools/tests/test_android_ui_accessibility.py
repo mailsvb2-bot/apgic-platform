@@ -90,6 +90,16 @@ class AndroidUIAccessibilityTest(unittest.TestCase):
                       clickable="true"), width=480, height=900)
         self.assertEqual(find_accessible_point(xml, "Разобрать запрос", action="tap"), (240, 782))
 
+    def test_confirmation_tap_uses_the_lower_edge_not_the_overlapped_center(self) -> None:
+        xml = ui(node(
+            "Подтвердить темы запроса", "[24,533][296,624]",
+            clickable="true",
+        ))
+        self.assertEqual(
+            find_accessible_point(xml, "Подтвердить темы запроса", action="tap"),
+            (160, 608),
+        )
+
     def test_rejects_node_outside_the_viewport(self) -> None:
         xml = ui(node("Тема sleep", "[24,700][296,748]",
                       checked="true", checkable="true", clickable="true"))

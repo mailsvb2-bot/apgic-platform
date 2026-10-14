@@ -253,6 +253,7 @@ export default function App({
   >("IDLE");
   const [demandError, setDemandError] = useState("");
   const demandConfirmationInFlight = useRef(false);
+  const [shellHeight, setShellHeight] = useState(0);
   const [demandE2E, setDemandE2E] = useState<
     | {status: "IDLE" | "RUNNING"}
     | ({status: "PASS"} & MobileDemandE2EResult)
@@ -1003,17 +1004,28 @@ export default function App({
     deletionE2EPlatform,
   ]);
 
-  // The confirmation control is an absolute footer. Reserve exactly its
-  // height on the ScrollView so Android's scroll viewport cannot share a
-  // hit rectangle with the button. flexGrow:0 collapsed that viewport to
-  // zero and hid every native proof label.
+  // Give the form an explicit height above the in-flow confirmation bar.
+  // A flex sibling still let the last scrolled control cover the button,
+  // so UiAutomator saw it while the tap never reached onPress.
   const showDemandConfirmFooter =
     !infrastructureE2EActive && demandIntent !== null && demandStatus !== "CONFIRMED";
 
+  const confirmFooterHeight = 120;
+  const formHeight =
+    showDemandConfirmFooter && shellHeight > confirmFooterHeight + 160
+      ? shellHeight - confirmFooterHeight
+      : 0;
+
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView
+      style={styles.safe}
+      onLayout={(event) => {
+        const next = Math.round(event.nativeEvent.layout.height);
+        setShellHeight((current) => (current === next ? current : next));
+      }}
+    >
       <View
-        style={[styles.demandScroll, showDemandConfirmFooter ? styles.demandScrollAboveFooter : null]}
+        style={formHeight > 0 ? [styles.demandScrollClipped, {height: formHeight}] : styles.demandScroll}
         collapsable={false}
       >
       <ScrollView
@@ -1628,6 +1640,7 @@ const styles = StyleSheet.create({
   // Clip the form. Without this, the last in-scroll control draws through
   // the footer and swallows the confirmation tap without running onPress.
   demandScroll: { flex: 1, overflow: "hidden" },
+  demandScrollClipped: { overflow: "hidden" },
   demandScrollFill: { flex: 1 },
   demandScrollAboveFooter: { marginBottom: 120 },
   card: { gap: 12, padding: 24, paddingBottom: 48 },
@@ -1641,7 +1654,7 @@ const styles = StyleSheet.create({
   demandSingleLineInput: { minHeight: 48, borderWidth: 1, borderRadius: 8, padding: 12 },
   demandAction: { minHeight: 48, justifyContent: "center", paddingHorizontal: 12, borderWidth: 1, borderRadius: 8 },
   demandStickyFooter: {
-    position: "absolute", left: 0, right: 0, bottom: 0, height: 120,
+    height: 120,
     paddingHorizontal: 24, paddingTop: 12, paddingBottom: 16,
     borderTopWidth: 1, backgroundColor: "#fff", gap: 8,
   },
