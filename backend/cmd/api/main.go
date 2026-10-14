@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/clientcompat"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/communication"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/connector"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/demand"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/httpapi"
@@ -92,11 +93,29 @@ func main() {
 	} else {
 		demandService = demand.NewConformanceServiceWithLedgerStore(nil, ledgerStore)
 	}
+
+	var roomIssuer communication.RoomIssuer
+	joinURL := strings.TrimSpace(os.Getenv("APGIC_COMM_ISSUER_URL"))
+	joinToken := os.Getenv("APGIC_COMM_ISSUER_TOKEN")
+	joinOrigin := strings.TrimSpace(os.Getenv("APGIC_COMM_JOIN_ORIGIN"))
+	if joinURL != "" || joinToken != "" || joinOrigin != "" {
+		roomIssuerConfig, err := communication.NewHTTPRoomIssuer(joinURL, joinToken, joinOrigin)
+		if err != nil {
+			log.Fatalf("APGIC communication provider connector configuration invalid: %v", err)
+		}
+		roomIssuer = roomIssuerConfig
+	}
 	handler := httpapi.New(httpapi.Options{
-		CommitSHA:                   os.Getenv("APGIC_COMMIT_SHA"),
-		ConformanceProviderEvents:   !runtimepostgres.RequiresDatabase(environment) && os.Getenv("APGIC_CONFORMANCE_PROVIDER_EVENTS") == "1",
-		ProviderWebhookKeys:         providerWebhookKeys,
-		ConsultationProvider:        storage,
+		CommitSHA:                 os.Getenv("APGIC_COMMIT_SHA"),
+		ConformanceProviderEvents: !runtimepostgres.RequiresDatabase(environment) && os.Getenv("APGIC_CONFORMANCE_PROVIDER_EVENTS") == "1",
+		ProviderWebhookKeys:       providerWebhookKeys,
+		ConsultationProvider:      storage,
+		ConsultationJourney:       storage,
+		ConsultationJoin: httpapi.ConsultationJoinOptions{
+			Store: storage, Issuer: roomIssuer,
+			ProviderInstanceID: os.Getenv("APGIC_COMM_JOIN_PROVIDER_INSTANCE_ID"),
+			PolicyVersion:      os.Getenv("APGIC_COMM_JOIN_POLICY_VERSION"),
+		},
 		ReleaseTrack:                releaseTrack,
 		Demand:                      demandService,
 		ClientSessionKey:            clientSessionKey,

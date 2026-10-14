@@ -2,7 +2,7 @@
 // DO NOT EDIT.
 export const apiContractVersion = "0.10.0-r0-remote-config" as const;
 
-export type ApiOperationId = "acquireSlotHold" | "applyProviderEvent" | "applyTrustedProviderWebhook" | "archiveOrganizationDirection" | "cancelOrder" | "completeConsultation" | "confirmHelpIntent" | "createCheckoutInstruction" | "createHelpIntent" | "createMobileCheckoutInstruction" | "createOrganization" | "createOrganizationDirection" | "createOrganizationProduct" | "createSpecialistBookableOffer" | "createSpecialistBookableSlot" | "declareSpecialistCapability" | "deleteAccount" | "exportConsultationToGrowth" | "getBookingFulfillment" | "getBookingStatus" | "getConsultationResult" | "getLegalAcceptanceStatus" | "getMeta" | "getMobileCompatibility" | "getMobileNotificationDelivery" | "getMobileRemoteConfig" | "getMySpecialistPublicDetails" | "getOrderForBooking" | "getOrderStatus" | "getOrganization" | "getPrivateOrganizationProfile" | "getPublicSpecialist" | "getSpecialistProfile" | "health" | "issueMobileDeepLink" | "listCheckoutOptions" | "listHelpIntentMatches" | "listMobileInstallations" | "listMobileWorkspaces" | "listMySpecialistBookableOffers" | "listOrganizationProducts" | "listOrganizations" | "listPublicBookableOffers" | "listPublicSpecialists" | "listSpecialistSlots" | "markSearchProjectionStale" | "pauseSpecialistBookableOffer" | "publishOrganizationProduct" | "publishSpecialistCapability" | "readiness" | "rebuildSearchProjection" | "recordConsent" | "recordConsultationPresence" | "recordLegalAcceptance" | "registerMobileInstallation" | "reportConsultationFailure" | "resolveMobileDeepLink" | "resolveMobileWorkspace" | "revokeConsent" | "revokeMobileInstallation" | "rotateMobilePushEndpoint" | "searchProjection" | "submitSpecialistEvidence" | "submitVerifiedSpecialistFeedback" | "succeedConsultationRecovery" | "unpublishSpecialistCapability" | "updateMySpecialistPublicDetails" | "updateProductCommercialOwner" | "upsertSpecialistProfile";
+export type ApiOperationId = "acquireSlotHold" | "applyProviderEvent" | "applyTrustedProviderWebhook" | "archiveOrganizationDirection" | "cancelOrder" | "completeConsultation" | "confirmConsultationReadiness" | "confirmHelpIntent" | "createCheckoutInstruction" | "createHelpIntent" | "createMobileCheckoutInstruction" | "createOrganization" | "createOrganizationDirection" | "createOrganizationProduct" | "createSpecialistBookableOffer" | "createSpecialistBookableSlot" | "declareSpecialistCapability" | "deleteAccount" | "exportConsultationToGrowth" | "getBookingFulfillment" | "getBookingStatus" | "getConsultationClientOutcome" | "getConsultationReadiness" | "getConsultationResult" | "getConsultationTimeline" | "getLegalAcceptanceStatus" | "getMeta" | "getMobileCompatibility" | "getMobileNotificationDelivery" | "getMobileRemoteConfig" | "getMySpecialistPublicDetails" | "getOrderForBooking" | "getOrderStatus" | "getOrganization" | "getPrivateOrganizationProfile" | "getPublicSpecialist" | "getSpecialistProfile" | "health" | "issueConsultationRoomJoin" | "issueMobileDeepLink" | "listCheckoutOptions" | "listHelpIntentMatches" | "listMobileInstallations" | "listMobileWorkspaces" | "listMySpecialistBookableOffers" | "listOrganizationProducts" | "listOrganizations" | "listPublicBookableOffers" | "listPublicSpecialists" | "listSpecialistSlots" | "markSearchProjectionStale" | "pauseSpecialistBookableOffer" | "publishOrganizationProduct" | "publishSpecialistCapability" | "readiness" | "rebuildSearchProjection" | "recordConsent" | "recordConsultationPresence" | "recordLegalAcceptance" | "registerMobileInstallation" | "reportConsultationFailure" | "resolveMobileDeepLink" | "resolveMobileWorkspace" | "revokeConsent" | "revokeMobileInstallation" | "rotateMobilePushEndpoint" | "searchProjection" | "submitConsultationClientOutcome" | "submitSpecialistEvidence" | "submitVerifiedSpecialistFeedback" | "succeedConsultationRecovery" | "unpublishSpecialistCapability" | "updateMySpecialistPublicDetails" | "updateProductCommercialOwner" | "upsertSpecialistProfile";
 
 export interface AccountDeletion {
   apgic_deletes_ledger: boolean;
@@ -162,10 +162,51 @@ export interface ConsentRecord {
   text_hash_or_version: string;
 }
 
+export interface ConsultationClientOutcome {
+  booking_id: string;
+  idempotent: boolean;
+  match_satisfaction: number;
+  progress: number;
+  reported_at: string;
+}
+
+export interface ConsultationClientOutcomeRequest {
+  idempotency_key: string;
+  match_satisfaction: number;
+  progress: number;
+}
+
 export interface ConsultationFailureRequest {
   evidence_ref: string;
   kind: string;
   recoverable: boolean;
+}
+
+export interface ConsultationJoinGrant {
+  booking_id: string;
+  credential_expires_at: string;
+  credential_scope: "ROOM_JOIN";
+  join_uri: string;
+  provider_instance_id: string;
+  reason_code: string;
+}
+
+export interface ConsultationReadySnapshot {
+  booking_id: string;
+  booking_state: string;
+  client_ready_at?: string;
+  closes_at: string;
+  consultation_state?: string;
+  opens_at: string;
+  role: "CLIENT" | "SPECIALIST";
+  specialist_ready_at?: string;
+}
+
+export interface ConsultationRecoveryFact {
+  action: string;
+  decided_at: string;
+  followup_path_ref?: string;
+  reason_code: string;
 }
 
 export interface ConsultationRecoveryRequest {
@@ -177,6 +218,22 @@ export interface ConsultationResult {
   completion_evidence_ref?: string;
   provider_instance_id: string;
   state: "SCHEDULED" | "READY" | "IN_PROGRESS" | "RECOVERING" | "TECHNICAL_FAILURE" | "COMPLETED";
+}
+
+export interface ConsultationTimeline {
+  booking_id: string;
+  booking_state: string;
+  consultation_state: string;
+  facts: Array<ConsultationTimelineFact>;
+  recovery: Array<ConsultationRecoveryFact>;
+  requires_followup: boolean;
+}
+
+export interface ConsultationTimelineFact {
+  evidence_ref: string;
+  fact_type: string;
+  occurred_at: string;
+  role: string;
 }
 
 export interface ConsultationView {

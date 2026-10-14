@@ -146,6 +146,11 @@ func AuthorizeJoin(
 	if expiresAt.After(window.ClosesAt) {
 		expiresAt = window.ClosesAt
 	}
+	// A short-lived join credential must never outlive the actual right to
+	// enter the session, even when the booking policy allows a longer TTL.
+	if expiresAt.After(entitlement.ExpiresAt) {
+		expiresAt = entitlement.ExpiresAt
+	}
 
 	base.Decision = Allow
 	base.ReasonCode = ReasonAllowed

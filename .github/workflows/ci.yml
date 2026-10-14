@@ -242,6 +242,42 @@ jobs:
         working-directory: backend
         run: go test ./internal/remoteconfig -run TestEmergencyKillSwitchDrill -count=1 -v
 
+  communication-reference:
+    name: R3 real-media reference adapter / room issuer / durable webhook bridge
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.27.1'
+          cache-dependency-path: services/communication-reference/go.mod
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Validate the isolated replaceable media-provider boundary
+        working-directory: services/communication-reference
+        shell: bash
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "Reference media provider requires gofmt:"
+            printf '%s\n' "$unformatted"
+            gofmt -d $unformatted
+            exit 1
+          fi
+          go vet ./...
+          go test -race -count=1 ./...
+          node --check static/room.js
+          test -s static/room.html
+          test -s static/room.css
+      - name: Build deployable LiveKit CommunicationProvider image
+        shell: bash
+        run: |
+          # Go tests alone do not prove the supplied SDK asset actually exists
+          # or that the production container builds with its declared entrypoint.
+          docker build --pull --tag apgic-r3-media-reference:ci \
+            services/communication-reference
+
   postgres-invariants:
     name: PostgreSQL migration / invariant proof
     runs-on: ubuntu-latest
@@ -283,6 +319,7 @@ jobs:
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r2_payment_governance_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r2_mobile_store_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r3_communication_consultation_invariants.sql
+          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r3_consultation_outcome_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r4_store_lifecycle_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r2_refund_invariants.sql
           APGIC_DATABASE_URL='postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable' \
@@ -787,6 +824,7 @@ jobs:
         shell: bash
         run: bash tools/mobile_android_capability_e2e.sh
       - uses: actions/upload-artifact@v7
+        if: always()
         with:
           name: android-native-debug-build
           path: |
@@ -813,10 +851,14 @@ jobs:
             evidence/android-a11y-*.xml
             evidence/android-device-matrix.json
             evidence/android-demand-e2e.xml
+            evidence/android-confirm-failure.xml
+            evidence/android-confirm-before-tap.xml
+            evidence/android-confirm-before-tap.png
+            evidence/android-confirm-failure.png
             evidence/android-deletion-e2e.xml
             evidence/android-org-product-bootstrap.json
             evidence/android-org-product-e2e.xml
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 30
 
   mobile-ios-build:
@@ -836,8 +878,29 @@ jobs:
         run: npm install --ignore-scripts --no-audit --no-fund
       - name: Reject service credentials from iOS client source
         run: python3 tools/client_credential_guard.py --surface IOS
-      - working-directory: apps/mobile/ios
-        run: pod install
+      - name: Install iOS pods with network-only retry, never hide podspec failures
+        working-directory: apps/mobile/ios
+        shell: bash
+        run: |
+          set -euo pipefail
+          log_file="$(mktemp)"
+          trap 'rm -f "$log_file"' EXIT
+          for attempt in 1 2 3; do
+            echo "Installing pinned iOS pods, attempt $attempt/3"
+            if pod install 2>&1 | tee "$log_file"; then
+              exit 0
+            fi
+            # Upstream React Native artifacts are fetched from Maven Central.
+            # Retry only proven transient transport errors; a malformed
+            # Podfile, checksum mismatch or compile error must fail immediately.
+            if ! grep -Eiq 'Connection reset by peer|curl: \\(56\\)|curl: \\(28\\)|Operation timed out|Read timed out|Could not resolve host|503 Service Unavailable|502 Bad Gateway|network is unreachable' "$log_file"; then
+              echo "Non-network CocoaPods failure; refusing retry." >&2
+              exit 1
+            fi
+            if [ "$attempt" -lt 3 ]; then sleep $((attempt * 8)); fi
+          done
+          echo "Transient CocoaPods dependency download failed after 3 attempts." >&2
+          exit 1
       - working-directory: apps/mobile/ios
         env:
           FORCE_BUNDLING: "1"

@@ -43,6 +43,8 @@ type Options struct {
 	ConformanceProviderEvents   bool
 	ProviderWebhookKeys         connector.WebhookPublicKeyResolver
 	ConsultationProvider        ConsultationProviderStore
+	ConsultationJourney         ConsultationJourneyStore
+	ConsultationJoin            ConsultationJoinOptions
 	ClientSessionKey            []byte
 	ClientCompatibilityPolicies map[clientcompat.Platform]clientcompat.Policy
 	RemoteConfigProvider        func(time.Time) (remoteconfig.SignedEnvelope, error)
@@ -130,6 +132,8 @@ func New(options Options) http.Handler {
 	}
 	registerDemand(mux, options.Demand, options.Consents, options.ConsentPolicies, sessions, sessionConfigErr, options.ConformanceProviderEvents, options.ProviderWebhookKeys, options.Now)
 	registerConsultationProvider(mux, options.ConsultationProvider, options.ProviderWebhookKeys, sessions, sessionConfigErr)
+	registerConsultationJourney(mux, options.ConsultationJourney, sessions, sessionConfigErr, options.Now)
+	registerConsultationJoin(mux, options.ConsultationJoin, sessions, sessionConfigErr, options.Now)
 	registerLegalAcceptance(mux, options.LegalAcceptances, sessions, sessionConfigErr, options.Now)
 	registerConsents(mux, options.Consents, options.ConsentPolicies, sessions, sessionConfigErr, options.Now)
 	registerMobileCompatibility(mux, options.ClientCompatibilityPolicies)

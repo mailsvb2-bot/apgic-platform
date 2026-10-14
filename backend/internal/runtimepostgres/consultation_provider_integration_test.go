@@ -160,6 +160,20 @@ func TestSignedConsultationPersistsAcrossAPIStoreRestart(t *testing.T) {
 	if canonicalState != string(booking.StateConfirmed) {
 		t.Fatalf("PostgreSQL booking state=%s, expected CONFIRMED", canonicalState)
 	}
+	// The conformance PSP can prove an end-to-end signed webhook in CI,
+	// but it is NEVER a live source of entitlement for a real media room.
+	// Only the specialist/live owner with an exact matching immutable
+	// economic ledger capture may issue that privilege.
+	var conformanceGrants int
+	if err := store.db.QueryRowContext(ctx, `
+		SELECT count(*) FROM booking_access_entitlement_versions
+		WHERE booking_id=$1::uuid AND policy_version='signed-psp-capture-r3-v1'
+	`, hold.BookingID).Scan(&conformanceGrants); err != nil {
+		t.Fatal(err)
+	}
+	if conformanceGrants != 0 {
+		t.Fatalf("conformance PSP minted %d production room entitlements", conformanceGrants)
+	}
 	connectorID, err := persistentid.New()
 	if err != nil {
 		t.Fatal(err)
@@ -289,6 +303,18 @@ func TestSignedConsultationPersistsAcrossAPIStoreRestart(t *testing.T) {
 	if status, _ := postSigned(forgedEntitlement); status != http.StatusConflict {
 		t.Fatalf("replayed unpaid signed event was accepted: HTTP %d", status)
 	}
+	// Even a manually forged CONFIRMED booking plus correctly signed
+	// communication event cannot mint payment-backed entitlement versions.
+	var forgedMediaGrants int
+	if err := store.db.QueryRowContext(ctx, `
+		SELECT count(*) FROM booking_access_entitlement_versions
+		WHERE booking_id=$1::uuid AND policy_version='signed-psp-capture-r3-v1'
+	`, unpaidHold.BookingID).Scan(&forgedMediaGrants); err != nil {
+		t.Fatal(err)
+	}
+	if forgedMediaGrants != 0 {
+		t.Fatalf("unpaid forged booking minted %d provider-backed media entitlements", forgedMediaGrants)
+	}
 	unpaidOrder, err := service.ReadOrderForBooking(unpaidHold.BookingID, unpaidIntent.ClientIdentityID)
 	if err != nil || unpaidOrder == nil || unpaidOrder.BookingState != booking.StateConfirmed ||
 		unpaidOrder.PaymentState != "PENDING_PROVIDER" || unpaidOrder.RefundState != "" {
@@ -412,6 +438,11 @@ func TestSignedConsultationPersistsAcrossAPIStoreRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer restarted.Close()
+	timeline, timelineErr := restarted.ReadConsultationTimeline(ctx, hold.BookingID, intent.ClientIdentityID)
+	if timelineErr != nil || timeline == nil || timeline.BookingState != "COMPLETED" ||
+		timeline.ConsultationState != "COMPLETED" || len(timeline.Facts) < 8 {
+		t.Fatalf("restart lost immutable consultation history: timeline=%+v error=%v", timeline, timelineErr)
+	}
 	result, err := restarted.ReadConsultationResult(ctx, hold.BookingID, intent.ClientIdentityID)
 	if err != nil || result == nil || result.State != "COMPLETED" || result.ProviderInstanceID != fallbackID || result.CompletionEvidenceRef != "provider-evidence/ENDED/SYSTEM" {
 		t.Fatalf("restart result=%#v err=%v", result, err)
@@ -439,14 +470,14 @@ func TestSignedConsultationPersistsAcrossAPIStoreRestart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reopened canonical journey after API restart: %v", err)
 	}
-	secondAPI := httpapi.New(httpapi.Options{Demand: restartedDemand, ConsultationProvider: restarted, ClientSessionKey: sessionKey})
+	secondAPI := httpapi.New(httpapi.Options{Demand: restartedDemand, ConsultationProvider: restarted, ConsultationJourney: restarted, ClientSessionKey: sessionKey})
 	// The authenticated owner must recover the exact captured financial truth
 	// after creating a *new* API instance, rather than trusting a booking flag.
 	persistedOrder, err := restartedDemand.ReadOrderForBooking(hold.BookingID, intent.ClientIdentityID)
 	if err != nil || persistedOrder == nil || persistedOrder.BookingID != hold.BookingID ||
 		persistedOrder.OrderID != checkout.OrderID || persistedOrder.PaymentState != "CAPTURED" ||
-		persistedOrder.BookingState != booking.StateConfirmed || persistedOrder.RefundState != "" {
-		t.Fatalf("restarted signed payment chain did not retain capture: %#v err=%v", persistedOrder, err)
+		persistedOrder.BookingState != booking.StateCompleted || persistedOrder.RefundState != "" {
+		t.Fatalf("restarted signed provider ENDED must preserve CAPTURED payment with COMPLETED booking: %#v err=%v", persistedOrder, err)
 	}
 	if outsider, err := restartedDemand.ReadOrderForBooking(hold.BookingID, "foreign-client"); !errors.Is(err, demand.ErrOrderNotFound) || outsider != nil {
 		t.Fatalf("foreign account recovered signed payment chain: %#v err=%v", outsider, err)
@@ -464,7 +495,7 @@ func TestSignedConsultationPersistsAcrossAPIStoreRestart(t *testing.T) {
 	if err := json.Unmarshal(bookingResponse.Body.Bytes(), &persistedBooking); err != nil {
 		t.Fatal(err)
 	}
-	if persistedBooking.BookingID != hold.BookingID || persistedBooking.State != booking.StateConfirmed ||
+	if persistedBooking.BookingID != hold.BookingID || persistedBooking.State != booking.StateCompleted ||
 		persistedBooking.StartsAt == nil || persistedBooking.EndsAt == nil {
 		t.Fatalf("restarted booking projection lost confirmed economic journey: %#v", persistedBooking)
 	}
@@ -483,6 +514,15 @@ func TestSignedConsultationPersistsAcrossAPIStoreRestart(t *testing.T) {
 	var apiResult connector.ConsultationResult
 	if err := json.Unmarshal(readback.Body.Bytes(), &apiResult); err != nil {
 		t.Fatal(err)
+	}
+	// Full timeline is also available from an entirely new HTTP API process
+	// with the same signed owner session after PostgreSQL reconnection.
+	timelineRequest := httptest.NewRequest(http.MethodGet, "/v1/consultations/"+hold.BookingID+"/timeline", nil)
+	timelineRequest.AddCookie(sessionCookie)
+	timelineResponse := httptest.NewRecorder()
+	secondAPI.ServeHTTP(timelineResponse, timelineRequest)
+	if timelineResponse.Code != http.StatusOK || timelineResponse.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("post-restart owner consultation history unreadable: HTTP=%d %s", timelineResponse.Code, timelineResponse.Body.String())
 	}
 	if apiResult.State != "COMPLETED" || apiResult.ProviderInstanceID != fallbackID || apiResult.CompletionEvidenceRef != "provider-evidence/ENDED/SYSTEM" {
 		t.Fatalf("wrong HTTP restart result: %#v", apiResult)

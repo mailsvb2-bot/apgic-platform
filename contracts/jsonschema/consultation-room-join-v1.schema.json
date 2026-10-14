@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apgic.ru/contracts/consultation-room-join-v1.schema.json",
+  "title": "APGIC provider-neutral scoped room join",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "booking_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "provider_instance_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "join_uri": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https://"
+    },
+    "credential_scope": {
+      "const": "ROOM_JOIN"
+    },
+    "credential_expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "reason_code": {
+      "const": "COMM_JOIN_ALLOWED"
+    }
+  },
+  "required": [
+    "booking_id",
+    "provider_instance_id",
+    "join_uri",
+    "credential_scope",
+    "credential_expires_at",
+    "reason_code"
+  ]
+}

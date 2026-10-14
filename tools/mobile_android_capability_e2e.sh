@@ -112,6 +112,108 @@ PY
   return 1
 }
 
+
+# Android UiAutomator exposes only the current ScrollView viewport. A real
+# participant can scroll through the screen, so a multi-stage user journey
+# must verify each control by its actual visible accessibility state rather
+# than requiring distant controls to coexist in one 320x640 XML snapshot.
+# Never synthesize missing labels, ignore disabled controls, or accept a
+# cropped offscreen node as a tappable target.
+seek_demand_accessibility_node() {
+  local label="$1"
+  local checked="$2"       # "true"/"false" for checkbox, "" for any
+  local action="$3"        # "tap" or "observe"
+  local remote="$4"
+  local output="$5"
+  local cycle page position
+  [[ "$action" == "tap" || "$action" == "observe" ]] || return 1
+
+  # Check the current viewport BEFORE moving it. Earlier automation ran 18
+  # unconditional upward swipes ending directly ON the primary confirmation
+  # button, so Android's ScrollView touch responder could still own the
+  # pointer when the following tap arrived. Every navigation gesture now
+  # runs in the x=300 gutter, outside all x=24..296 interactive controls.
+  # After scrolling, require a fresh snapshot after motion settles before
+  # tapping any action.
+  for cycle in 1 2; do
+    for page in $(seq 1 14); do
+      position=""
+      if "$ADB" shell uiautomator dump "$remote" >/dev/null 2>&1 &&
+         "$ADB" pull "$remote" "$output" >/dev/null 2>&1; then
+        position="$(python3 "$ROOT/tools/android_ui_accessibility.py" "$output" "$label" "$checked" "$action")"
+        if [[ -n "$position" ]]; then
+          if [[ "$action" == "tap" ]]; then
+            # Require a stable position in two consecutive fresh accessibility
+            # snapshots before dispatching the real tap.
+            local previous_position="$position" stable=false settle
+            for settle in 1 2 3 4 5; do
+              sleep 0.5
+              "$ADB" shell uiautomator dump "$remote" >/dev/null 2>&1 || return 1
+              "$ADB" pull "$remote" "$output" >/dev/null 2>&1 || return 1
+              position="$(python3 "$ROOT/tools/android_ui_accessibility.py" "$output" "$label" "$checked" "$action")"
+              [[ -n "$position" ]] || break
+              if [[ "$position" == "$previous_position" ]]; then
+                stable=true
+                break
+              fi
+              previous_position="$position"
+            done
+            [[ "$stable" == true && -n "$position" ]] || continue
+            # UiAutomator has just confirmed an enabled, clickable and
+            # stationary native accessibility node. Dispatch a regular Android
+            # tap rather than a 180-ms swipe gesture: ScrollView's native
+            # responder can classify swipe injection as scrolling and swallow
+            # Pressable.onPress even if the start and end coordinates match.
+            sleep 0.8
+            # Capture the exact interactive viewport and the coordinates we
+            # actually inject. A11y clickability does not guarantee hit testing.
+            if [[ "$label" == "Подтвердить темы запроса" ]]; then
+              echo "Android confirmation tap target (screen px): $position" >&2
+              cp "$output" "$EVIDENCE_DIR/android-confirm-before-tap.xml" 2>/dev/null || true
+              "$ADB" exec-out screencap -p > "$EVIDENCE_DIR/android-confirm-before-tap.png" 2>/dev/null || true
+              "$ADB" shell dumpsys window 2>/dev/null | grep -E 'mCurrentFocus|mFocusedWindow' >&2 || true
+            fi
+            "$ADB" shell input touchscreen tap $position >/dev/null 2>&1 || return 1
+          fi
+          return 0
+        fi
+      fi
+      "$ADB" shell input swipe 300 540 300 180 600 >/dev/null 2>&1 || return 1
+      sleep 0.6
+    done
+    for _ in $(seq 1 14); do
+      "$ADB" shell input swipe 300 180 300 540 600 >/dev/null 2>&1 || return 1
+      sleep 0.6
+    done
+  done
+  # Report bounded, real accessibility evidence on failure. The root cause
+  # may be a missing UI semantic, a failed API request, wrong checkbox state
+  # or a native scroll regression; don't merely report a generic timeout.
+  if [[ -s "$output" ]]; then
+    python3 - "$output" "$label" "$checked" <<'PY'
+import sys
+import xml.etree.ElementTree as ET
+path, expected, checked = sys.argv[1:]
+try:
+    root = ET.parse(path).getroot()
+except (OSError, ET.ParseError) as exc:
+    print(f"Android semantic lookup failed: {expected!r}, unreadable UI tree: {exc}", file=sys.stderr)
+    sys.exit(0)
+nodes = list(root.iter("node"))
+visible = [(n.attrib.get("content-desc", ""), n.attrib.get("text", ""),
+            n.attrib.get("checked", ""), n.attrib.get("bounds", ""))
+           for n in nodes]
+relevant = [n for n in visible if any(
+    term in (n[0] + " " + n[1]).lower()
+    for term in ("тема", "диагноз", "запрос", "ошиб", "anxiety", "sleep", "confirm", "demand")
+)]
+print(f"Android UI semantic mismatch: expected={expected!r}, checked={checked!r}; "
+      f"nodes={len(nodes)}, relevant_visible_nodes={relevant[:18]!r}", file=sys.stderr)
+PY
+  fi
+  return 1
+}
+
 cleanup() {
   local status=$?
   trap - EXIT
@@ -888,9 +990,73 @@ PY
   echo "Android accessibility semantics + text scaling + device matrix: PASS"
 }
 
+# An IME window can cover a visually accessible React Native button. Dismiss
+# it before tapping; preserve fail-closed verification of server confirmation.
+# React Native debug builds can show a developer warning banner above the
+# application. UiAutomator still reports the underlying button as clickable
+# although the banner consumes its touch (proven by archived screenshot).
+# Dismiss the actual native banner close control, then verify it is absent.
+# This does not suppress warnings or change confirmation/server assertions.
+dismiss_android_debug_warning_overlay() {
+  local remote="$1" output="$2" close_position attempt
+  for attempt in 1 2 3; do
+    "$ADB" shell uiautomator dump "$remote" >/dev/null 2>&1 || return 1
+    "$ADB" pull "$remote" "$output" >/dev/null 2>&1 || return 1
+    close_position="$(python3 - "$output" <<'PY'
+import re
+import sys
+import xml.etree.ElementTree as ET
+
+root = ET.parse(sys.argv[1]).getroot()
+for node in root.iter("node"):
+    attrs = node.attrib
+    if "Open debugger to view warnings." not in attrs.get("content-desc", ""):
+        continue
+    match = re.fullmatch(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]", attrs.get("bounds", ""))
+    if match is None:
+        raise SystemExit("Android warning overlay has invalid native bounds")
+    x1, y1, x2, y2 = map(int, match.groups())
+    if x2 - x1 < 100 or y2 - y1 < 30:
+        raise SystemExit("Android warning overlay has invalid native hit target")
+    print(x2 - 20, (y1 + y2) // 2)
+    break
+PY
+)"
+    if [[ -z "$close_position" ]]; then
+      return 0
+    fi
+    echo "Android debug warning overlay covers native touch target; dismissing its actual close control at $close_position" >&2
+    "$ADB" shell input touchscreen tap $close_position >/dev/null 2>&1 || return 1
+    sleep 0.6
+  done
+  "$ADB" shell uiautomator dump "$remote" >/dev/null 2>&1 || return 1
+  "$ADB" pull "$remote" "$output" >/dev/null 2>&1 || return 1
+  if grep -q 'Open debugger to view warnings.' "$output"; then
+    echo "Android debug warning overlay still intercepts native touches" >&2
+    return 1
+  fi
+}
+
+dismiss_android_ime() {
+  local state i
+  for i in 1 2 3; do
+    state="$("$ADB" shell dumpsys input_method 2>/dev/null || true)"
+    if ! grep -qE 'mInputShown=true|isInputViewShown=true' <<<"$state"; then
+      return 0
+    fi
+    "$ADB" shell input keyevent KEYCODE_BACK >/dev/null 2>&1 || true
+    sleep 0.8
+  done
+  "$ADB" shell dumpsys input_method 2>/dev/null | grep -E 'mInputShown|isInputViewShown' >&2 || true
+  echo "Android IME remains visible before confirmation" >&2
+  return 1
+}
+
 assert_help_intent_confirmation() {
   local output="$EVIDENCE_DIR/android-demand-e2e.xml"
   local remote="/sdcard/apgic-demand-e2e.xml"
+  local confirm_count_before
+  confirm_count_before="$(grep -c 'APGIC native UI HelpIntent HTTP CONFIRM status=200 session_cookie_present=true' "$SERVER_LOG" 2>/dev/null || true)"
 
   "$ADB" shell am force-stop com.apgic.ci
   "$ADB" shell am start -W \
@@ -902,39 +1068,122 @@ assert_help_intent_confirmation() {
     --es APGIC_E2E_DEMAND_SESSION_COOKIE "$SESSION_COOKIE" \
     >/dev/null
 
-  tap_accessibility_label "С чем нужна помощь" "$remote" "$output" ||
-    fail "Android production HelpIntent input was not operable"
+  seek_demand_accessibility_node "С чем нужна помощь" "" tap "$remote" "$output" ||
+    fail "Android HelpIntent text input not operable in scrollable app"
   "$ADB" shell input text 'anxiety%ssleep' >/dev/null
   "$ADB" shell input keyevent 4 >/dev/null
   sleep 1
+  seek_demand_accessibility_node "Разобрать запрос" "" tap "$remote" "$output" ||
+    fail "Android HelpIntent interpret button not operable"
 
-  tap_accessibility_label "Разобрать запрос" "$remote" "$output" ||
-    fail "Android production HelpIntent analyze action was not operable"
+  # Each observation is the real accessibility tree, not a synthetic marker.
+  # Diagnosis and checkboxes need not fit in ONE viewport.
+  seek_demand_accessibility_node 'native-demand-diagnosis:false' "" observe "$remote" "$output" ||
+    fail "Android interpretation did not clearly reject automated diagnosis"
+  seek_demand_accessibility_node 'Тема anxiety' true observe "$remote" "$output" ||
+    fail "Android interpretation did not offer selected anxiety topic"
+  seek_demand_accessibility_node 'Тема sleep' true observe "$remote" "$output" ||
+    fail "Android interpretation did not offer selected sleep topic"
 
-  if ! dump_until_labels_visible "$remote" "$output" \
-       'native-demand-diagnosis:false' \
-       'Тема anxiety' \
-       'Тема sleep'; then
-    [[ -f "$output" ]] && cat "$output" >&2 || true
-    fail "Android production HelpIntent interpretation/no-diagnosis state was not visible"
+  seek_demand_accessibility_node 'Тема anxiety' true tap "$remote" "$output" ||
+    fail "Android suggested anxiety topic not correctable by touch"
+  seek_demand_accessibility_node 'Тема anxiety' false observe "$remote" "$output" ||
+    fail "Android correction did not actually uncheck anxiety topic"
+  seek_demand_accessibility_node 'Тема sleep' true observe "$remote" "$output" ||
+    fail "Android correction inadvertently unchecked chosen sleep topic"
+  # Android ScrollView can consume the first touch immediately after a scroll.
+  # Require a real state transition from DRAFT before accepting the press.
+  # Retry the actual accessible button, never synthesize confirmation.
+  # A fresh coordinate is obtained by the accessibility locator. After the
+  # tap, DO NOT sweep the ScrollView while waiting for React Native to deliver
+  # its press: such sweeps can reclaim the responder and mask the transition.
+  # Observe this action in place, then independently verify the server result.
+  local press_accepted=false
+  local attempt tick press_log_count confirm_http_count
+  "$ADB" logcat -c >/dev/null 2>&1 || true
+  for attempt in 1 2 3; do
+    dismiss_android_ime || fail "Android IME still intercepts confirmation taps"
+    dismiss_android_debug_warning_overlay "$remote" "$output" || fail "Android native debug warning overlay blocks confirmation button"
+    seek_demand_accessibility_node "Подтвердить темы запроса" "" tap "$remote" "$output" ||
+      fail "Android confirmed-topic action inaccessible after scrolling"
+    for tick in $(seq 1 12); do
+      sleep 1
+      "$ADB" shell uiautomator dump "$remote" >/dev/null 2>&1 || true
+      "$ADB" pull "$remote" "$output" >/dev/null 2>&1 || true
+      if grep -qE 'native-demand-status:(RUNNING|CONFIRMED|FAIL)' "$output"; then
+        press_accepted=true
+        break
+      fi
+      # A native onPress may finish the server round-trip between UI dumps.
+      # The authenticated incremental HTTP outcome is checked separately.
+      confirm_http_count="$(grep -c 'APGIC native UI HelpIntent HTTP CONFIRM status=200 session_cookie_present=true' "$SERVER_LOG" 2>/dev/null || true)"
+      if (( confirm_http_count > confirm_count_before )); then
+        press_accepted=true
+        break
+      fi
+    done
+    [[ "$press_accepted" == true ]] && break
+  done
+  if [[ "$press_accepted" != true ]]; then
+    press_log_count="$("$ADB" logcat -d -s ReactNativeJS:V 2>/dev/null | grep -c 'APGIC_CONFIRM_PRESS$' || true)"
+    echo "Android APGIC_CONFIRM_PRESS_IN count: $("$ADB" logcat -d -s ReactNativeJS:V 2>/dev/null | grep -c 'APGIC_CONFIRM_PRESS_IN' || true)" >&2
+    echo "Android APGIC_CONFIRM_PRESS_OUT count: $("$ADB" logcat -d -s ReactNativeJS:V 2>/dev/null | grep -c 'APGIC_CONFIRM_PRESS_OUT' || true)" >&2
+    echo "Android ReactNativeJS lines: $("$ADB" logcat -d -s ReactNativeJS:V 2>/dev/null | grep -c . || true)" >&2
+    echo "Android UI-visible touch evidence:" >&2
+    grep -oE 'native-demand-touch:down:[0-9]+:up:[0-9]+:press:[0-9]+' "$output" | tail -n 1 >&2 || true
+    cp "$output" "$EVIDENCE_DIR/android-confirm-failure.xml" 2>/dev/null || true
+    "$ADB" exec-out screencap -p > "$EVIDENCE_DIR/android-confirm-failure.png" 2>/dev/null || true
+    "$ADB" shell dumpsys input_method 2>/dev/null | grep -E 'mInputShown|isInputViewShown' >&2 || true
+    "$ADB" shell dumpsys window 2>/dev/null | grep -E 'mCurrentFocus|mFocusedWindow' >&2 || true
+    echo "Android APGIC_CONFIRM_PRESS logcat count: ${press_log_count:-0}" >&2
+    "$ADB" logcat -d -s ReactNativeJS:V 2>/dev/null | tail -n 40 >&2 || true
+    fail "Android confirmation did not leave DRAFT after three actual taps (onPress count=${press_log_count:-0})"
   fi
 
-  tap_accessibility_label "Тема anxiety" "$remote" "$output" ||
-    fail "Android production HelpIntent suggested topic could not be corrected"
-  tap_accessibility_label "Подтвердить темы запроса" "$remote" "$output" ||
-    fail "Android production HelpIntent confirmation action was not operable"
+  # Confirmation is above the bottom action button in a long ScrollView.
+  # UiAutomator includes only the visible viewport; checking the stationary
+  # bottom viewport reports NOT_VISIBLE even after a successful server response.
+  # Follow the actual accessibility node into view before reading its state.
+  # Never infer success from HTTP logs or from a missing/hidden UI node.
+  local confirm_state=""
+  local confirm_attempt
+  for confirm_attempt in $(seq 1 3); do
+    if seek_demand_accessibility_node 'native-demand-status:CONFIRMED' "" observe "$remote" "$output"; then
+      confirm_state="CONFIRMED"
+      break
+    fi
+    if seek_demand_accessibility_node 'native-demand-status:FAIL' "" observe "$remote" "$output"; then
+      confirm_state="FAIL"
+      seek_demand_accessibility_node 'native-demand-error' "" observe "$remote" "$output" || true
+      [[ -f "$output" ]] && grep -oE 'content-desc="native-demand-error"[^>]*|text="[^"]*"' "$output" | tail -n 12 >&2 || true
+      fail "Android real confirmation failed; inspect backend HTTP outcome and native user-visible error"
+    fi
+    # RUNNING is not completion. An absent label must never count as a pass.
+    sleep 1
+  done
+  [[ "$confirm_state" == "CONFIRMED" ]] ||
+    fail "Android confirmation did not reach a visible server-acknowledged state; inspect HelpIntent HTTP outcomes and accessibility evidence"
+  # A visible confirmation alone is not evidence that the canonical server
+  # accepted a NEW request. Previous checkout tests may already have issued
+  # successful confirmations, so demand an incremental owner-session HTTP
+  # success within this actual installed-app journey.
+  local confirm_count_after
+  confirm_count_after="$(grep -c 'APGIC native UI HelpIntent HTTP CONFIRM status=200 session_cookie_present=true' "$SERVER_LOG" 2>/dev/null || true)"
+  (( confirm_count_after > confirm_count_before )) ||
+    fail "Android user-visible confirmation lacked a new authenticated HTTP 200 server outcome"
 
-  if dump_until_labels_visible "$remote" "$output" \
-       'native-demand-confirmed' \
-       'native-demand-diagnosis:false' \
-       'Тема sleep' &&
-     ! grep -Fq 'Тема anxiety' "$output"; then
-    echo "Android installed-app production HelpIntent interpretation/correction/no-diagnosis: PASS"
-    return 0
-  fi
-
-  [[ -f "$output" ]] && cat "$output" >&2 || true
-  fail "installed Android production UI did not prove HelpIntent correction/no-diagnosis flow"
+  seek_demand_accessibility_node 'native-demand-confirmed' "" observe "$remote" "$output" ||
+    fail "Android canonical HelpIntent did not confirm after user correction"
+  seek_demand_accessibility_node 'native-demand-diagnosis:false' "" observe "$remote" "$output" ||
+    fail "Android confirmed HelpIntent lost no-diagnosis safeguard"
+  seek_demand_accessibility_node 'Тема sleep' true observe "$remote" "$output" ||
+    fail "Android canonical confirmed HelpIntent lost the remaining topic"
+  # Suggested topics remain rendered after correction: require a checked=false
+  # UI checkbox, which proves the user's exclusion persisted without treating
+  # missing accessibility data as evidence of success.
+  seek_demand_accessibility_node 'Тема anxiety' false observe "$remote" "$output" ||
+    fail "Android confirmed HelpIntent silently reselected or hid explicitly removed anxiety topic"
+  echo "Android installed-app production HelpIntent interpretation/correction/no-diagnosis: PASS"
 }
 
 assert_tenant_isolation() {

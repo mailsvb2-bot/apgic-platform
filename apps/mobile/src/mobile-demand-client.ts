@@ -71,6 +71,13 @@ export async function confirmMobileHelpIntent(
   }
   const intent = (await response.json()) as HelpIntent;
   assertHelpIntentSafety(intent, "CONFIRMED");
+  if (intent.id !== intentID) {
+    throw new Error("HELP_INTENT_CONFIRMED_ID_MISMATCH");
+  }
+  if (intent.topics.length !== request.topics.length ||
+      intent.topics.some((value, i) => value !== request.topics[i])) {
+    throw new Error("HELP_INTENT_CONFIRMED_TOPICS_MISMATCH");
+  }
   return intent;
 }
 
