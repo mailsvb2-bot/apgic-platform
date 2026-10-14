@@ -1121,6 +1121,8 @@ export default function App({
                     accessibilityRole="button"
                     accessibilityLabel="Подтвердить темы запроса"
                     disabled={demandStatus === "RUNNING" || demandTopics.length === 0 || !compatibilityAllowsRuntime}
+                    onPressIn={() => console.log("APGIC_CONFIRM_PRESS_IN")}
+                    onPressOut={() => console.log("APGIC_CONFIRM_PRESS_OUT")}
                     onPress={() => {
                       console.log("APGIC_CONFIRM_PRESS");
                       void confirmDemand();
