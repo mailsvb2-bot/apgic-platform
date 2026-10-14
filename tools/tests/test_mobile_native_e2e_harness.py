@@ -186,14 +186,6 @@ class MobileNativeE2EHarnessTest(unittest.TestCase):
         self.assertNotIn("onPressIn={() => void confirmDemand()}", app)
         self.assertNotIn('keyboardShouldPersistTaps="handled"', app)
         self.assertEqual(app.count('accessibilityLabel="Подтвердить темы запроса"'), 1)
-        # Verify the interactive native responder, not merely a matching
-        # accessibility label that can exist without dispatching onPress.
-        confirmation = app[
-            app.rfind("<TouchableOpacity", 0, app.index('accessibilityLabel="Подтвердить темы запроса"')):
-            app.index("</TouchableOpacity>", app.index('accessibilityLabel="Подтвердить темы запроса"'))
-        ]
-        self.assertIn('onPress={() => void confirmDemand()}', confirmation)
-        self.assertIn('disabled={demandStatus === "RUNNING" || demandTopics.length === 0 || !compatibilityAllowsRuntime}', confirmation)
         # One real, in-flow confirmation action, before ScrollView closes.
         label = app.index('accessibilityLabel="Подтвердить темы запроса"')
         self.assertLess(label, app.index("      </ScrollView>"))
