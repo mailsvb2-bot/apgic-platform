@@ -982,6 +982,23 @@ PY
   echo "Android accessibility semantics + text scaling + device matrix: PASS"
 }
 
+# An IME window can cover a visually accessible React Native button. Dismiss
+# it before tapping; preserve fail-closed verification of server confirmation.
+dismiss_android_ime() {
+  local state i
+  for i in 1 2 3; do
+    state="$("$ADB" shell dumpsys input_method 2>/dev/null || true)"
+    if ! grep -qE 'mInputShown=true|isInputViewShown=true' <<<"$state"; then
+      return 0
+    fi
+    "$ADB" shell input keyevent KEYCODE_BACK >/dev/null 2>&1 || true
+    sleep 0.8
+  done
+  "$ADB" shell dumpsys input_method 2>/dev/null | grep -E 'mInputShown|isInputViewShown' >&2 || true
+  echo "Android IME remains visible before confirmation" >&2
+  return 1
+}
+
 assert_help_intent_confirmation() {
   local output="$EVIDENCE_DIR/android-demand-e2e.xml"
   local remote="/sdcard/apgic-demand-e2e.xml"
@@ -1032,6 +1049,7 @@ assert_help_intent_confirmation() {
   local attempt tick press_log_count confirm_http_count
   "$ADB" logcat -c >/dev/null 2>&1 || true
   for attempt in 1 2 3; do
+    dismiss_android_ime || fail "Android IME still intercepts confirmation taps"
     seek_demand_accessibility_node "Подтвердить темы запроса" "" tap "$remote" "$output" ||
       fail "Android confirmed-topic action inaccessible after scrolling"
     for tick in $(seq 1 12); do
@@ -1053,7 +1071,211 @@ assert_help_intent_confirmation() {
     [[ "$press_accepted" == true ]] && break
   done
   if [[ "$press_accepted" != true ]]; then
-    press_log_count="$("$ADB" logcat -d -s ReactNativeJS:V 2>/dev/null | grep -c 'APGIC_CONFIRM_PRESS' || true)"
+    press_log_count="$("$ADB" logcat -d -s ReactNativeJS:V 2>/dev/null | grep -c 'APGIC_CONFIRM_PRESS
+    echo "Android APGIC_CONFIRM_PRESS logcat count: ${press_log_count:-0}" >&2
+    "$ADB" logcat -d -s ReactNativeJS:V 2>/dev/null | tail -n 40 >&2 || true
+    fail "Android confirmation did not leave DRAFT after three actual taps (onPress count=${press_log_count:-0})"
+  fi
+
+  # Confirmation is above the bottom action button in a long ScrollView.
+  # UiAutomator includes only the visible viewport; checking the stationary
+  # bottom viewport reports NOT_VISIBLE even after a successful server response.
+  # Follow the actual accessibility node into view before reading its state.
+  # Never infer success from HTTP logs or from a missing/hidden UI node.
+  local confirm_state=""
+  local confirm_attempt
+  for confirm_attempt in $(seq 1 3); do
+    if seek_demand_accessibility_node 'native-demand-status:CONFIRMED' "" observe "$remote" "$output"; then
+      confirm_state="CONFIRMED"
+      break
+    fi
+    if seek_demand_accessibility_node 'native-demand-status:FAIL' "" observe "$remote" "$output"; then
+      confirm_state="FAIL"
+      seek_demand_accessibility_node 'native-demand-error' "" observe "$remote" "$output" || true
+      [[ -f "$output" ]] && grep -oE 'content-desc="native-demand-error"[^>]*|text="[^"]*"' "$output" | tail -n 12 >&2 || true
+      fail "Android real confirmation failed; inspect backend HTTP outcome and native user-visible error"
+    fi
+    # RUNNING is not completion. An absent label must never count as a pass.
+    sleep 1
+  done
+  [[ "$confirm_state" == "CONFIRMED" ]] ||
+    fail "Android confirmation did not reach a visible server-acknowledged state; inspect HelpIntent HTTP outcomes and accessibility evidence"
+  # A visible confirmation alone is not evidence that the canonical server
+  # accepted a NEW request. Previous checkout tests may already have issued
+  # successful confirmations, so demand an incremental owner-session HTTP
+  # success within this actual installed-app journey.
+  local confirm_count_after
+  confirm_count_after="$(grep -c 'APGIC native UI HelpIntent HTTP CONFIRM status=200 session_cookie_present=true' "$SERVER_LOG" 2>/dev/null || true)"
+  (( confirm_count_after > confirm_count_before )) ||
+    fail "Android user-visible confirmation lacked a new authenticated HTTP 200 server outcome"
+
+  seek_demand_accessibility_node 'native-demand-confirmed' "" observe "$remote" "$output" ||
+    fail "Android canonical HelpIntent did not confirm after user correction"
+  seek_demand_accessibility_node 'native-demand-diagnosis:false' "" observe "$remote" "$output" ||
+    fail "Android confirmed HelpIntent lost no-diagnosis safeguard"
+  seek_demand_accessibility_node 'Тема sleep' true observe "$remote" "$output" ||
+    fail "Android canonical confirmed HelpIntent lost the remaining topic"
+  # Suggested topics remain rendered after correction: require a checked=false
+  # UI checkbox, which proves the user's exclusion persisted without treating
+  # missing accessibility data as evidence of success.
+  seek_demand_accessibility_node 'Тема anxiety' false observe "$remote" "$output" ||
+    fail "Android confirmed HelpIntent silently reselected or hid explicitly removed anxiety topic"
+  echo "Android installed-app production HelpIntent interpretation/correction/no-diagnosis: PASS"
+}
+
+assert_tenant_isolation() {
+  local output="$EVIDENCE_DIR/android-capability-e2e-auth001.xml"
+
+  "$ADB" shell am force-stop com.apgic.ci
+  "$ADB" shell am start -W \
+    -n com.apgic.ci/.MainActivity \
+    --es APGIC_E2E_CAPABILITY_STATE GRANTED \
+    --es APGIC_E2E_COMPATIBILITY_BASE_URL "$COMPATIBILITY_BASE_URL" \
+    --es APGIC_E2E_CONTRACT_VERSION "$COMPATIBILITY_CONTRACT_VERSION" \
+    --es APGIC_E2E_AUTHZ_BASE_URL http://127.0.0.1:43113 \
+    --es APGIC_E2E_AUTHZ_SESSION_COOKIE "$SESSION_COOKIE" \
+    --es APGIC_E2E_AUTHZ_OWN_ORGANIZATION_ID 00000000-0000-0000-0000-00000000a001 \
+    --es APGIC_E2E_AUTHZ_FOREIGN_ORGANIZATION_ID 00000000-0000-0000-0000-00000000b001 \
+    --es APGIC_E2E_AUTHZ_FOREIGN_PRIVATE_MARKER "AUTH001_FOREIGN_PRIVATE_SENTINEL_7F4A9C" \
+    --es APGIC_E2E_AUTHZ_SURFACE ANDROID \
+    >/dev/null
+
+  if dump_until_labels_visible /sdcard/apgic-auth001-e2e.xml "$output" \
+       'authz-e2e:PASS' \
+       'authz-e2e-own-allowed:true' \
+       'authz-e2e-cross-denied:true' \
+       'authz-e2e-forged-denied:true' \
+       'authz-e2e-disclosure-blocked:true' \
+       'authz-e2e-cross-audit:true' \
+       'authz-e2e-forged-audit:true'; then
+    if grep -Fq 'AUTH001_FOREIGN_PRIVATE_SENTINEL_7F4A9C' "$output"; then
+      fail "installed Android AUTH-001 proof disclosed foreign private marker"
+    fi
+    echo "Android installed-app AUTH-001 tenant isolation + audit: PASS"
+    return 0
+  fi
+
+  [[ -f "$output" ]] && cat "$output" >&2 || true
+  fail "installed Android app did not prove AUTH-001 tenant isolation"
+}
+
+
+assert_organization_product_lifecycle() {
+  local headers
+  local staging_session_cookie
+  local output="$EVIDENCE_DIR/android-org-product-e2e.xml"
+  headers="$(mktemp)"
+  curl -fsS -D "$headers" -o "$EVIDENCE_DIR/android-org-product-bootstrap.json" \
+    -H 'content-type: application/json' \
+    --data '{"free_text":"android native organization product staging proof"}' \
+    https://apgic.ru/v1/help-intents >/dev/null
+  staging_session_cookie="$(
+    python3 - "$headers" <<'PY'
+import sys
+for raw in open(sys.argv[1], encoding="utf-8", errors="ignore"):
+    if raw.lower().startswith("set-cookie:"):
+        cookie = raw.split(":", 1)[1].strip().split(";", 1)[0]
+        if cookie.startswith("__Host-apgic_session="):
+            print(cookie)
+            break
+PY
+  )"
+  rm -f "$headers"
+  [[ -n "$staging_session_cookie" ]] || fail "staging client session cookie was not issued for native Organization/Product proof"
+
+  "$ADB" shell am force-stop com.apgic.ci
+  "$ADB" shell am start -W \
+    -n com.apgic.ci/.MainActivity \
+    --es APGIC_E2E_CAPABILITY_STATE GRANTED \
+    --es APGIC_E2E_ORG_PRODUCT_BASE_URL https://apgic.ru \
+    --es APGIC_E2E_ORG_PRODUCT_SESSION_COOKIE "$staging_session_cookie" \
+    --es APGIC_E2E_ORG_PRODUCT_SURFACE ANDROID \
+    >/dev/null
+
+  if dump_until_labels_visible /sdcard/apgic-org-product-e2e.xml "$output" \
+       'org-product-e2e:PASS' \
+       'org-product-e2e-created:true' \
+       'org-product-e2e-direction-created:true' \
+       'org-product-e2e-product-published:true' \
+       'org-product-e2e-direction-archived:true' \
+       'org-product-e2e-product-preserved:true' \
+       'org-product-e2e-explicit-roles:true'; then
+    echo "Android installed-app staging Organization/Product lifecycle: PASS"
+    return 0
+  fi
+
+  [[ -f "$output" ]] && cat "$output" >&2 || true
+  fail "installed Android app did not complete staging Organization/Product lifecycle"
+}
+
+assert_account_deletion() {
+  local output="$EVIDENCE_DIR/android-deletion-e2e.xml"
+  local identity_id
+  local request_id="android-deletion-e2e-request"
+
+  identity_id="$(
+    python3 - /tmp/apgic-installation-bootstrap-android.json <<'PY'
+import json
+import sys
+payload = json.load(open(sys.argv[1], encoding="utf-8"))
+value = payload.get("client_identity_id", "")
+if not value:
+    raise SystemExit("bootstrap identity id missing")
+print(value)
+PY
+  )"
+
+  "$ADB" shell am force-stop com.apgic.ci
+  "$ADB" shell am start -W \
+    -n com.apgic.ci/.MainActivity \
+    --es APGIC_E2E_CAPABILITY_STATE GRANTED \
+    --es APGIC_E2E_COMPATIBILITY_BASE_URL "$COMPATIBILITY_BASE_URL" \
+    --es APGIC_E2E_CONTRACT_VERSION "$COMPATIBILITY_CONTRACT_VERSION" \
+    --es APGIC_E2E_DELETION_BASE_URL http://127.0.0.1:43113 \
+    --es APGIC_E2E_DELETION_SESSION_COOKIE "$SESSION_COOKIE" \
+    --es APGIC_E2E_DELETION_IDENTITY_ID "$identity_id" \
+    --es APGIC_E2E_DELETION_REQUEST_ID "$request_id" \
+    --es APGIC_E2E_DELETION_PLATFORM ANDROID \
+    >/dev/null
+
+  if dump_until_labels_visible /sdcard/apgic-deletion-e2e.xml "$output" \
+       'deletion-e2e:PASS' \
+       'deletion-e2e-state:PARTIALLY_RETAINED_WITH_REASON' \
+       'deletion-e2e-deactivation:false' \
+       'deletion-e2e-profile-erased:true' \
+       'deletion-e2e-ledger-retained:true' \
+       'deletion-e2e-idempotent:true'; then
+    echo "Android installed-app canonical account deletion + idempotent replay: PASS"
+    return 0
+  fi
+
+  [[ -f "$output" ]] && cat "$output" >&2 || true
+  fail "installed Android app did not complete canonical account deletion"
+}
+
+assert_compatibility_policy
+assert_remote_config_kill_switch
+assert_installation_lifecycle
+assert_workspace_switch
+assert_tenant_isolation
+assert_deep_link_runtime
+assert_notification_runtime
+assert_offline_mutation_restart
+assert_realtime_lifecycle
+assert_accessibility_and_device_matrix
+assert_help_intent_confirmation
+assert_account_deletion
+assert_organization_product_lifecycle
+
+echo "ANDROID CAPABILITY + COMPATIBILITY + INSTALLATION + AUTHZ + DEMAND + DELETION + ORG-PRODUCT + DEEP-LINK + NOTIFICATION + OFFLINE-SYNC + REALTIME + ACCESSIBILITY NATIVE E2E: PASS"
+ || true)"
+    echo "Android APGIC_CONFIRM_PRESS_IN count: $("$ADB" logcat -d -s ReactNativeJS:V 2>/dev/null | grep -c 'APGIC_CONFIRM_PRESS_IN' || true)" >&2
+    echo "Android APGIC_CONFIRM_PRESS_OUT count: $("$ADB" logcat -d -s ReactNativeJS:V 2>/dev/null | grep -c 'APGIC_CONFIRM_PRESS_OUT' || true)" >&2
+    echo "Android ReactNativeJS lines: $("$ADB" logcat -d -s ReactNativeJS:V 2>/dev/null | grep -c . || true)" >&2
+    cp "$output" "$EVIDENCE_DIR/android-confirm-failure.xml" 2>/dev/null || true
+    "$ADB" exec-out screencap -p > "$EVIDENCE_DIR/android-confirm-failure.png" 2>/dev/null || true
+    "$ADB" shell dumpsys input_method 2>/dev/null | grep -E 'mInputShown|isInputViewShown' >&2 || true
+    "$ADB" shell dumpsys window 2>/dev/null | grep -E 'mCurrentFocus|mFocusedWindow' >&2 || true
     echo "Android APGIC_CONFIRM_PRESS logcat count: ${press_log_count:-0}" >&2
     "$ADB" logcat -d -s ReactNativeJS:V 2>/dev/null | tail -n 40 >&2 || true
     fail "Android confirmation did not leave DRAFT after three actual taps (onPress count=${press_log_count:-0})"
