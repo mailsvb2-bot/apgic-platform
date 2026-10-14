@@ -110,7 +110,11 @@ class MobileNativeE2EHarnessTest(unittest.TestCase):
         self.assertIn('seek_demand_accessibility_node "Подтвердить темы запроса" "" tap', android)
         self.assertIn("seek_demand_accessibility_node 'native-demand-status:FAIL'", android)
         self.assertIn("press_accepted", android)
-        self.assertIn('fail "Android confirmation button did not dispatch onPress', android)
+        # The script must report failure when no real UI status transition
+        # occurs, including the observed native onPress count.
+        self.assertIn('if [[ "$press_accepted" != true ]]; then', android)
+        self.assertIn('fail "Android confirmation did not leave DRAFT', android)
+        self.assertIn('APGIC_CONFIRM_PRESS', android)
         self.assertIn('[[ "$confirm_state" == "CONFIRMED" ]]', android)
         self.assertIn("seek_demand_accessibility_node 'native-demand-confirmed' \"\" observe", android)
         self.assertIn("seek_demand_accessibility_node 'Тема anxiety' false observe", android)
@@ -161,7 +165,11 @@ class MobileNativeE2EHarnessTest(unittest.TestCase):
         self.assertIn("shell input swipe 300 540 300 180 600", android)
         self.assertIn("shell input swipe 300 180 300 540 600", android)
         self.assertNotIn("shell input swipe 160 120 160 555 95", android)
-        self.assertIn('sleep 0.4', android)
+        # The locator must observe settled native coordinates rather than
+        # relying on a hardcoded legacy sleep interval.
+        self.assertIn('local previous_position="$position" stable=false settle', android)
+        self.assertIn('[[ "$position" == "$previous_position" ]]', android)
+        self.assertIn('[[ "$stable" == true && -n "$position" ]] || continue', android)
         self.assertIn('confirm_count_after > confirm_count_before', android)
         self.assertIn('session_cookie_present=true', android)
         self.assertIn('accessibilityLabel="Создать новый запрос"', app)
