@@ -165,7 +165,15 @@ seek_demand_accessibility_node() {
             # responder can classify swipe injection as scrolling and swallow
             # Pressable.onPress even if the start and end coordinates match.
             sleep 0.8
-            "$ADB" shell input tap $position >/dev/null 2>&1 || return 1
+            # Capture the exact interactive viewport and the coordinates we
+            # actually inject. A11y clickability does not guarantee hit testing.
+            if [[ "$label" == "Подтвердить темы запроса" ]]; then
+              echo "Android confirmation tap target (screen px): $position" >&2
+              cp "$output" "$EVIDENCE_DIR/android-confirm-before-tap.xml" 2>/dev/null || true
+              "$ADB" exec-out screencap -p > "$EVIDENCE_DIR/android-confirm-before-tap.png" 2>/dev/null || true
+              "$ADB" shell dumpsys window 2>/dev/null | grep -E 'mCurrentFocus|mFocusedWindow' >&2 || true
+            fi
+            "$ADB" shell input touchscreen tap $position >/dev/null 2>&1 || return 1
           fi
           return 0
         fi
