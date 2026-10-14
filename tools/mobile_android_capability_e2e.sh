@@ -150,9 +150,13 @@ seek_demand_accessibility_node() {
             "$ADB" pull "$remote" "$output" >/dev/null 2>&1 || return 1
             position="$(python3 "$ROOT/tools/android_ui_accessibility.py" "$output" "$label" "$checked" "$action")"
             [[ -n "$position" ]] || continue
-            # A stationary press, not a zero-length tap. React Native drops
-            # some instantaneous taps on a control that was just scrolled.
-            "$ADB" shell input swipe $position $position 180 >/dev/null 2>&1 || return 1
+            # UiAutomator has just confirmed an enabled, clickable and
+            # stationary native accessibility node. Dispatch a regular Android
+            # tap rather than a 180-ms swipe gesture: ScrollView's native
+            # responder can classify swipe injection as scrolling and swallow
+            # Pressable.onPress even if the start and end coordinates match.
+            sleep 0.8
+            "$ADB" shell input tap $position >/dev/null 2>&1 || return 1
           fi
           return 0
         fi
