@@ -851,6 +851,8 @@ jobs:
             evidence/android-a11y-*.xml
             evidence/android-device-matrix.json
             evidence/android-demand-e2e.xml
+            evidence/android-confirm-failure.xml
+            evidence/android-confirm-failure.png
             evidence/android-deletion-e2e.xml
             evidence/android-org-product-bootstrap.json
             evidence/android-org-product-e2e.xml
