@@ -158,8 +158,8 @@ class MobileNativeE2EHarnessTest(unittest.TestCase):
         self.assertIn("setDemandCustomTopicEditing((value) => !value)", app)
         self.assertIn('disabled={demandStatus === "CONFIRMED" || demandStatus === "RUNNING"}', app)
         self.assertIn('disabled={!demandCustomTopic.trim() || demandStatus === "RUNNING"}', app)
-        self.assertIn("shell input swipe 300 540 300 180 230", android)
-        self.assertIn("shell input swipe 300 180 300 540 230", android)
+        self.assertIn("shell input swipe 300 540 300 180 600", android)
+        self.assertIn("shell input swipe 300 180 300 540 600", android)
         self.assertNotIn("shell input swipe 160 120 160 555 95", android)
         self.assertIn('sleep 0.4', android)
         self.assertIn('confirm_count_after > confirm_count_before', android)
@@ -167,11 +167,13 @@ class MobileNativeE2EHarnessTest(unittest.TestCase):
         self.assertIn('accessibilityLabel="Создать новый запрос"', app)
         self.assertIn('keyboardShouldPersistTaps="always"', app)
         self.assertIn('keyboardDismissMode="on-drag"', app)
-        self.assertIn('style={styles.demandStickyFooter}', app)
-        self.assertIn('style={styles.demandConfirmPrimary}', app)
-        self.assertIn("demandScrollAboveFooter", app)
-        self.assertIn("marginBottom: 120", app)
-        self.assertIn("height: 120", app)
+        self.assertIn('style={styles.demandAction}', app)
+        self.assertNotIn('style={styles.demandStickyFooter}', app)
+        self.assertNotIn('demandScrollAboveFooter', app)
+        self.assertIn('APGIC_CONFIRM_PRESS', app)
+        self.assertIn('logcat -c', android)
+        self.assertIn('APGIC_CONFIRM_PRESS', android)
+        self.assertIn('previous_position', android)
         self.assertNotIn("flexGrow: 0", app)
         self.assertNotIn("onPressIn={() => void confirmDemand()}", app)
         self.assertNotIn('keyboardShouldPersistTaps="handled"', app)
@@ -184,17 +186,12 @@ class MobileNativeE2EHarnessTest(unittest.TestCase):
         ]
         self.assertIn('onPress={() => void confirmDemand()}', confirmation)
         self.assertIn('disabled={demandStatus === "RUNNING" || demandTopics.length === 0 || !compatibilityAllowsRuntime}', confirmation)
-        # The Pressable must occupy a dedicated sibling below ScrollView:
-        # an accessible control inside the scroll responder is not reliably
-        # touchable on a real Android emulator after swiping through topics.
-        self.assertLess(
-            app.index("      </ScrollView>"),
-            app.index('accessibilityLabel="Подтвердить темы запроса"'),
-        )
-        self.assertLess(
-            app.index('accessibilityLabel="Подтвердить темы запроса"'),
-            app.index("      </View>\n    </SafeAreaView>"),
-        )
+        # One real, in-flow confirmation action, before ScrollView closes.
+        label = app.index('accessibilityLabel="Подтвердить темы запроса"')
+        self.assertLess(label, app.index("      </ScrollView>"))
+        control = app[app.rfind("<Pressable", 0, label):app.index("</Pressable>", label)]
+        self.assertIn('void confirmDemand()', control)
+        self.assertIn('disabled={demandStatus === "RUNNING" || demandTopics.length === 0 || !compatibilityAllowsRuntime}', control)
 
     def test_demand_and_deletion_e2e_use_local_compatibility_gate(self) -> None:
         android = self._read("mobile_android_capability_e2e.sh")
