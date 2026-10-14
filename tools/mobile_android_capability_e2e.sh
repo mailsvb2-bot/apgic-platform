@@ -1024,27 +1024,39 @@ assert_help_intent_confirmation() {
   # Android ScrollView can consume the first touch immediately after a scroll.
   # Require a real state transition from DRAFT before accepting the press.
   # Retry the actual accessible button, never synthesize confirmation.
+  # A fresh coordinate is obtained by the accessibility locator. After the
+  # tap, DO NOT sweep the ScrollView while waiting for React Native to deliver
+  # its press: such sweeps can reclaim the responder and mask the transition.
+  # Observe this action in place, then independently verify the server result.
   local press_accepted=false
-  # Clear logs: only onPress events from this specific journey count.
+  local attempt tick press_log_count confirm_http_count
   "$ADB" logcat -c >/dev/null 2>&1 || true
-  for _ in 1 2 3; do
+  for attempt in 1 2 3; do
     seek_demand_accessibility_node "Подтвердить темы запроса" "" tap "$remote" "$output" ||
       fail "Android confirmed-topic action inaccessible after scrolling"
-    sleep 1
-    if seek_demand_accessibility_node 'native-demand-status:RUNNING' "" observe "$remote" "$output" ||
-       seek_demand_accessibility_node 'native-demand-status:CONFIRMED' "" observe "$remote" "$output" ||
-       seek_demand_accessibility_node 'native-demand-status:FAIL' "" observe "$remote" "$output"; then
-      press_accepted=true
-      break
-    fi
+    for tick in $(seq 1 12); do
+      sleep 1
+      "$ADB" shell uiautomator dump "$remote" >/dev/null 2>&1 || true
+      "$ADB" pull "$remote" "$output" >/dev/null 2>&1 || true
+      if grep -qE 'native-demand-status:(RUNNING|CONFIRMED|FAIL)' "$output"; then
+        press_accepted=true
+        break
+      fi
+      # A native onPress may finish the server round-trip between UI dumps.
+      # The authenticated incremental HTTP outcome is checked separately.
+      confirm_http_count="$(grep -c 'APGIC native UI HelpIntent HTTP CONFIRM status=200 session_cookie_present=true' "$SERVER_LOG" 2>/dev/null || true)"
+      if (( confirm_http_count > confirm_count_before )); then
+        press_accepted=true
+        break
+      fi
+    done
+    [[ "$press_accepted" == true ]] && break
   done
   if [[ "$press_accepted" != true ]]; then
-    local press_log_count
     press_log_count="$("$ADB" logcat -d -s ReactNativeJS:V 2>/dev/null | grep -c 'APGIC_CONFIRM_PRESS' || true)"
     echo "Android APGIC_CONFIRM_PRESS logcat count: ${press_log_count:-0}" >&2
     "$ADB" logcat -d -s ReactNativeJS:V 2>/dev/null | tail -n 40 >&2 || true
-    [[ -f "$output" ]] && grep -oE 'content-desc="native-demand-error"[^>]*|text="[^"]*"' "$output" | tail -n 12 >&2 || true
-    fail "Android confirmation did not leave DRAFT after three real taps (onPress count=${press_log_count:-0})"
+    fail "Android confirmation did not leave DRAFT after three actual taps (onPress count=${press_log_count:-0})"
   fi
 
   # Confirmation is above the bottom action button in a long ScrollView.
