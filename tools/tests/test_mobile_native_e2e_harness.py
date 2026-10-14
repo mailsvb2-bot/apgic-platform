@@ -121,8 +121,11 @@ class MobileNativeE2EHarnessTest(unittest.TestCase):
         self.assertIn('APGIC_CONFIRM_PRESS_OUT', android)
         self.assertIn('android-confirm-failure.png', android)
         self.assertIn('android-confirm-failure.xml', android)
-        self.assertIn('onPressIn={() => console.log("APGIC_CONFIRM_PRESS_IN")}', app)
-        self.assertIn('onPressOut={() => console.log("APGIC_CONFIRM_PRESS_OUT")}', app)
+        self.assertIn('setDemandTouchEvidence(v => ({...v, down: v.down + 1}))', app)
+        self.assertIn('native-demand-touch:down:', app)
+        self.assertIn('setDemandTouchEvidence(v => ({...v, up: v.up + 1}))', app)
+        self.assertIn('setDemandTouchEvidence(v => ({...v, press: v.press + 1}))', app)
+        self.assertIn('Android UI-visible touch evidence:', android)
 
         self.assertIn('[[ "$confirm_state" == "CONFIRMED" ]]', android)
         self.assertIn("seek_demand_accessibility_node 'native-demand-confirmed' \"\" observe", android)
