@@ -9,6 +9,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  TouchableOpacity,
   View,
 } from "react-native";
 
@@ -1596,7 +1597,7 @@ export default function App({
       </ScrollView>
       {showDemandConfirmFooter ? (
         <View style={styles.demandStickyFooter} collapsable={false}>
-          <Pressable
+          <TouchableOpacity
             accessibilityRole="button"
             accessibilityLabel="Подтвердить темы запроса"
             disabled={demandStatus === "RUNNING" || demandTopics.length === 0 || !compatibilityAllowsRuntime}
@@ -1604,7 +1605,7 @@ export default function App({
             style={styles.demandConfirmPrimary}
           >
             <Text>{demandStatus === "RUNNING" ? "Сохраняем…" : "Подтвердить выбранные темы"}</Text>
-          </Pressable>
+          </TouchableOpacity>
         </View>
       ) : null}
       </View>
