@@ -66,6 +66,7 @@ class MobileNativeE2EHarnessTest(unittest.TestCase):
         )
 
     def test_android_e2e_budget_and_new_evidence_are_bounded(self) -> None:
+        app = (ROOT / "apps/mobile/src/App.tsx").read_text(encoding="utf-8")
         workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
         android = self._read("mobile_android_capability_e2e.sh")
 
