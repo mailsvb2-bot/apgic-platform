@@ -86,12 +86,10 @@ def find_accessible_point(
                     minimum_height = 28 if action == "tap" else 12
                     minimum_width = 32 if action == "tap" else 12
                     if y2 - y1 >= minimum_height and x2 - x1 >= minimum_width:
-                        # A clipped form control can cover the top of the
-                        # confirmation button. Press its lower edge instead.
-                        if action == "tap" and label == "Подтвердить темы запроса" and y2 - y1 >= 72:
-                            y = y2 - 16
-                        else:
-                            y = (y1 + y2) // 2
+                        # Press the visible center. The confirmation control is
+                        # the last review row, so this point is the button
+                        # itself rather than a control clipped across it.
+                        y = (y1 + y2) // 2
                         x = (x1 + x2) // 2
                         if (screen[0] + 8 <= x <= screen[2] - 8
                                 and screen[1] + 8 <= y <= screen[3] - 8):

@@ -253,7 +253,6 @@ export default function App({
   >("IDLE");
   const [demandError, setDemandError] = useState("");
   const demandConfirmationInFlight = useRef(false);
-  const [shellHeight, setShellHeight] = useState(0);
   const [demandE2E, setDemandE2E] = useState<
     | {status: "IDLE" | "RUNNING"}
     | ({status: "PASS"} & MobileDemandE2EResult)
@@ -1004,30 +1003,15 @@ export default function App({
     deletionE2EPlatform,
   ]);
 
-  // Give the form an explicit height above the in-flow confirmation bar.
-  // A flex sibling still let the last scrolled control cover the button,
-  // so UiAutomator saw it while the tap never reached onPress.
+  // Confirmation stays in the same ScrollView as the topic checkboxes.
+  // A sibling bar under the form stayed visible to UiAutomator while the
+  // last scrolled control was drawn through it and swallowed the press.
   const showDemandConfirmFooter =
     !infrastructureE2EActive && demandIntent !== null && demandStatus !== "CONFIRMED";
 
-  const confirmFooterHeight = 120;
-  const formHeight =
-    showDemandConfirmFooter && shellHeight > confirmFooterHeight + 160
-      ? shellHeight - confirmFooterHeight
-      : 0;
-
   return (
-    <SafeAreaView
-      style={styles.safe}
-      onLayout={(event) => {
-        const next = Math.round(event.nativeEvent.layout.height);
-        setShellHeight((current) => (current === next ? current : next));
-      }}
-    >
-      <View
-        style={formHeight > 0 ? [styles.demandScrollClipped, {height: formHeight}] : styles.demandScroll}
-        collapsable={false}
-      >
+    <SafeAreaView style={styles.safe}>
+      <View style={styles.demandScroll} collapsable={false}>
       <ScrollView
         style={styles.demandScrollFill}
         contentContainerStyle={styles.card}
@@ -1101,7 +1085,20 @@ export default function App({
                     </Pressable>
                   );
                 })}
-                {demandStatus !== "CONFIRMED" ? (
+                {showDemandConfirmFooter ? (
+                  <View style={styles.demandStickyFooter} collapsable={false}>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Подтвердить темы запроса"
+                      disabled={demandStatus === "RUNNING" || demandTopics.length === 0 || !compatibilityAllowsRuntime}
+                      onPress={() => void confirmDemand()}
+                      style={styles.demandConfirmPrimary}
+                    >
+                      <Text>{demandStatus === "RUNNING" ? "Сохраняем…" : "Подтвердить выбранные темы"}</Text>
+                    </Pressable>
+                  </View>
+                ) : null}
+                {!showDemandConfirmFooter && demandStatus !== "CONFIRMED" ? (
                   <>
                     <Pressable
                       accessibilityRole="button"
@@ -1135,23 +1132,25 @@ export default function App({
                     ) : null}
                   </>
                 ) : null}
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Создать новый запрос"
-                  disabled={demandStatus === "RUNNING"}
-                  onPress={() => {
-                    setDemandIntent(null);
-                    setDemandSuggestedTopics([]);
-                    setDemandTopics([]);
-                    setDemandStatus("IDLE");
-                    setDemandError("");
-                    setDemandCustomTopic("");
-                    setDemandCustomTopicEditing(false);
-                  }}
-                  style={styles.demandAction}
-                >
-                  <Text>Изменить описание или создать новый запрос</Text>
-                </Pressable>
+                {!showDemandConfirmFooter ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Создать новый запрос"
+                    disabled={demandStatus === "RUNNING"}
+                    onPress={() => {
+                      setDemandIntent(null);
+                      setDemandSuggestedTopics([]);
+                      setDemandTopics([]);
+                      setDemandStatus("IDLE");
+                      setDemandError("");
+                      setDemandCustomTopic("");
+                      setDemandCustomTopicEditing(false);
+                    }}
+                    style={styles.demandAction}
+                  >
+                    <Text>Изменить описание или создать новый запрос</Text>
+                  </Pressable>
+                ) : null}
                 {demandStatus === "CONFIRMED" ? (
                   <Text accessibilityLabel="native-demand-confirmed">
                     Запрос подтверждён пользователем.
@@ -1170,7 +1169,7 @@ export default function App({
           </View>
         ) : null}
 
-        {!infrastructureE2EActive ? (
+        {!infrastructureE2EActive && !showDemandConfirmFooter ? (
           <NativeConsultationAccess
             baseURL={demandAPIBaseURL}
             sessionCookie={demandE2ESessionCookie}
@@ -1608,27 +1607,6 @@ export default function App({
         ) : null}
       </ScrollView>
       </View>
-      {/* The primary submit action belongs outside the scrolling text form.
-          Its box is reserved with marginBottom so a tap cannot land on the
-          form controls that previously shared this rectangle. */}
-      {showDemandConfirmFooter ? (
-        <View style={styles.demandStickyFooter} collapsable={false}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Подтвердить темы запроса"
-            disabled={demandStatus === "RUNNING" || demandTopics.length === 0 || !compatibilityAllowsRuntime}
-            onPress={() => void confirmDemand()}
-            style={styles.demandConfirmPrimary}
-          >
-            <Text>{demandStatus === "RUNNING" ? "Сохраняем…" : "Подтвердить выбранные темы"}</Text>
-          </Pressable>
-          {demandError ? (
-            <Text accessibilityRole="alert" accessibilityLabel="native-demand-error">
-              {demandError}
-            </Text>
-          ) : null}
-        </View>
-      ) : null}
     </SafeAreaView>
   );
 }
@@ -1637,10 +1615,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1 },
   // flex:1 keeps flexGrow at 1. Do not override flexGrow to 0: together with
   // flexBasis 0 that collapses the form and the native proof labels.
-  // Clip the form. Without this, the last in-scroll control draws through
-  // the footer and swallows the confirmation tap without running onPress.
   demandScroll: { flex: 1, overflow: "hidden" },
-  demandScrollClipped: { overflow: "hidden" },
   demandScrollFill: { flex: 1 },
   demandScrollAboveFooter: { marginBottom: 120 },
   card: { gap: 12, padding: 24, paddingBottom: 48 },
@@ -1657,6 +1632,7 @@ const styles = StyleSheet.create({
     height: 120,
     paddingHorizontal: 24, paddingTop: 12, paddingBottom: 16,
     borderTopWidth: 1, backgroundColor: "#fff", gap: 8,
+    zIndex: 8, elevation: 12,
   },
   demandConfirmPrimary: {
     flex: 1, minHeight: 56, justifyContent: "center", alignItems: "center",
