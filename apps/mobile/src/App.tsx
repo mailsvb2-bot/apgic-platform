@@ -1003,9 +1003,9 @@ export default function App({
     deletionE2EPlatform,
   ]);
 
-  // The confirmation action occupies its own flex sibling below the scroll
-  // viewport. It must never overlap or scroll underneath the form: Android
-  // can expose such a button to accessibility while consuming its touch.
+  // Confirmation stays in the same ScrollView as the topic checkboxes.
+  // A sibling bar under the form stayed visible to UiAutomator while the
+  // last scrolled control was drawn through it and swallowed the press.
   const showDemandConfirmFooter =
     !infrastructureE2EActive && demandIntent !== null && demandStatus !== "CONFIRMED";
 
@@ -1085,6 +1085,19 @@ export default function App({
                     </Pressable>
                   );
                 })}
+                {showDemandConfirmFooter ? (
+                  <View style={styles.demandStickyFooter} collapsable={false}>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Подтвердить темы запроса"
+                      disabled={demandStatus === "RUNNING" || demandTopics.length === 0 || !compatibilityAllowsRuntime}
+                      onPress={() => void confirmDemand()}
+                      style={styles.demandConfirmPrimary}
+                    >
+                      <Text>{demandStatus === "RUNNING" ? "Сохраняем…" : "Подтвердить выбранные темы"}</Text>
+                    </Pressable>
+                  </View>
+                ) : null}
                 {!showDemandConfirmFooter && demandStatus !== "CONFIRMED" ? (
                   <>
                     <Pressable
@@ -1593,19 +1606,6 @@ export default function App({
           </View>
         ) : null}
       </ScrollView>
-      {showDemandConfirmFooter ? (
-        <View style={styles.demandStickyFooter} collapsable={false}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Подтвердить темы запроса"
-            disabled={demandStatus === "RUNNING" || demandTopics.length === 0 || !compatibilityAllowsRuntime}
-            onPress={() => void confirmDemand()}
-            style={styles.demandConfirmPrimary}
-          >
-            <Text>{demandStatus === "RUNNING" ? "Сохраняем…" : "Подтвердить выбранные темы"}</Text>
-          </Pressable>
-        </View>
-      ) : null}
       </View>
     </SafeAreaView>
   );
@@ -1629,12 +1629,13 @@ const styles = StyleSheet.create({
   demandSingleLineInput: { minHeight: 48, borderWidth: 1, borderRadius: 8, padding: 12 },
   demandAction: { minHeight: 48, justifyContent: "center", paddingHorizontal: 12, borderWidth: 1, borderRadius: 8 },
   demandStickyFooter: {
-    flexShrink: 0, height: 88,
-    paddingHorizontal: 24, paddingTop: 12, paddingBottom: 12,
-    borderTopWidth: 1, backgroundColor: "#fff",
+    height: 120,
+    paddingHorizontal: 24, paddingTop: 12, paddingBottom: 16,
+    borderTopWidth: 1, backgroundColor: "#fff", gap: 8,
+    zIndex: 8, elevation: 12,
   },
   demandConfirmPrimary: {
-    minHeight: 56, justifyContent: "center", alignItems: "center",
+    flex: 1, minHeight: 56, justifyContent: "center", alignItems: "center",
     paddingHorizontal: 16, borderWidth: 1, borderRadius: 8,
     backgroundColor: "#fff",
   },
