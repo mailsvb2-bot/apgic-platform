@@ -1003,9 +1003,10 @@ export default function App({
     deletionE2EPlatform,
   ]);
 
-  // Confirmation stays in the same ScrollView as the topic checkboxes.
-  // A sibling bar under the form stayed visible to UiAutomator while the
-  // last scrolled control was drawn through it and swallowed the press.
+  // The primary confirmation action must be a real, independently laid-out
+  // sibling BELOW the scrolling viewport. Accessibility visibility alone does
+  // not guarantee touch delivery when a Pressable is inside a ScrollView:
+  // the scroll responder can consume its down/up gesture after navigation.
   const showDemandConfirmFooter =
     !infrastructureE2EActive && demandIntent !== null && demandStatus !== "CONFIRMED";
 
@@ -1085,19 +1086,6 @@ export default function App({
                     </Pressable>
                   );
                 })}
-                {showDemandConfirmFooter ? (
-                  <View style={styles.demandStickyFooter} collapsable={false}>
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel="Подтвердить темы запроса"
-                      disabled={demandStatus === "RUNNING" || demandTopics.length === 0 || !compatibilityAllowsRuntime}
-                      onPress={() => void confirmDemand()}
-                      style={styles.demandConfirmPrimary}
-                    >
-                      <Text>{demandStatus === "RUNNING" ? "Сохраняем…" : "Подтвердить выбранные темы"}</Text>
-                    </Pressable>
-                  </View>
-                ) : null}
                 {!showDemandConfirmFooter && demandStatus !== "CONFIRMED" ? (
                   <>
                     <Pressable
@@ -1606,6 +1594,19 @@ export default function App({
           </View>
         ) : null}
       </ScrollView>
+      {showDemandConfirmFooter ? (
+        <View style={styles.demandStickyFooter} collapsable={false}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Подтвердить темы запроса"
+            disabled={demandStatus === "RUNNING" || demandTopics.length === 0 || !compatibilityAllowsRuntime}
+            onPress={() => void confirmDemand()}
+            style={styles.demandConfirmPrimary}
+          >
+            <Text>{demandStatus === "RUNNING" ? "Сохраняем…" : "Подтвердить выбранные темы"}</Text>
+          </Pressable>
+        </View>
+      ) : null}
       </View>
     </SafeAreaView>
   );
@@ -1632,7 +1633,7 @@ const styles = StyleSheet.create({
     height: 120,
     paddingHorizontal: 24, paddingTop: 12, paddingBottom: 16,
     borderTopWidth: 1, backgroundColor: "#fff", gap: 8,
-    zIndex: 8, elevation: 12,
+    flexShrink: 0,
   },
   demandConfirmPrimary: {
     flex: 1, minHeight: 56, justifyContent: "center", alignItems: "center",
