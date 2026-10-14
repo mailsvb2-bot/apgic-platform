@@ -176,6 +176,17 @@ class MobileNativeE2EHarnessTest(unittest.TestCase):
         self.assertNotIn("onPressIn={() => void confirmDemand()}", app)
         self.assertNotIn('keyboardShouldPersistTaps="handled"', app)
         self.assertEqual(app.count('accessibilityLabel="Подтвердить темы запроса"'), 1)
+        # The Pressable must occupy a dedicated sibling below ScrollView:
+        # an accessible control inside the scroll responder is not reliably
+        # touchable on a real Android emulator after swiping through topics.
+        self.assertLess(
+            app.index("      </ScrollView>"),
+            app.index('accessibilityLabel="Подтвердить темы запроса"'),
+        )
+        self.assertLess(
+            app.index('accessibilityLabel="Подтвердить темы запроса"'),
+            app.index("      </View>\n    </SafeAreaView>"),
+        )
 
     def test_demand_and_deletion_e2e_use_local_compatibility_gate(self) -> None:
         android = self._read("mobile_android_capability_e2e.sh")
