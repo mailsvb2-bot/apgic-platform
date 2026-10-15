@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { FinanceOpenDiscrepancy, FinanceOpenDiscrepancyList } from "../../../packages/contracts/src/generated/apgic-v1";
 
 const KIND_LABELS: Record<FinanceOpenDiscrepancy["kind"], string> = {
@@ -19,6 +19,8 @@ function isDiscrepancy(value: unknown): value is FinanceOpenDiscrepancy {
     typeof row.expected_gross_minor === "number" &&
     typeof row.provider_gross_minor === "number" &&
     typeof row.created_at === "string" &&
+    typeof row.provider_instance_id === "string" &&
+    typeof row.settlement_instruction_id === "string" &&
     Array.isArray(row.evidence_refs) &&
     row.evidence_refs.every((item) => typeof item === "string");
 }
@@ -37,7 +39,7 @@ export default function FinanceOperationsQueue() {
   const [items, setItems] = useState<FinanceOpenDiscrepancy[]>([]);
   const [state, setState] = useState<"IDLE" | "LOADING" | "READY" | "DENIED" | "ERROR">("IDLE");
 
-  async function refresh() {
+  const refresh = useCallback(async () => {
     setState("LOADING");
     try {
       const response = await fetch("/v1/finance/operations/discrepancies?limit=100", {
@@ -60,9 +62,9 @@ export default function FinanceOperationsQueue() {
       setItems([]);
       setState("ERROR");
     }
-  }
+  }, []);
 
-  useEffect(() => { void refresh(); }, []);
+  useEffect(() => { void refresh(); }, [refresh]);
 
   return (
     <main className="journey-stage" aria-label="Финансовые расхождения">
