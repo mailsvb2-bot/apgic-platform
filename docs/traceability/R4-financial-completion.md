@@ -33,3 +33,8 @@ Source: user-provided `apgic-r4-patches.tar(1).gz` (five ordered patches; origin
 - Postgres invariant probes and integration tests cover missing/revoked grants, stale evidence, invalid kind, duplicate/conflicting resolution, append-only rejection and successful resolution.
 
 The requirements remain **IN_PROGRESS**. Still absent: provider certification, staging finance-worker deployment, grant provisioning/admin UI, native deep-link and native E2E, HTTP/PostgreSQL end-to-end finance operations test, webhook sequencing and production evidence.
+
+
+## Operator grant provisioning
+
+`backend/cmd/finance-operator-admin` now provisions and revokes `FINANCE_DISCREPANCY_RESOLVE` grants through explicit CLI commands. Grant/revocation and audit evidence are written atomically; the tool requires approval metadata and refuses duplicate active grants. See `docs/operations/finance-operator-grants.md`. The web discrepancy queue is read-only until the production step-up ceremony is connected.
