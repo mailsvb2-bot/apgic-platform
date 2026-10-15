@@ -113,7 +113,7 @@ func TestR4RevenueConvergenceIsNonCustodialIdempotentAndReconciled(t *testing.T)
 	})
 
 	// 4. Provider stream sequencing is durable: exact replay is idempotent,
-// gaps and stale events are rejected before any financial fact is written.
+	// gaps and stale events are rejected before any financial fact is written.
 	streamPayload := ev("PAYOUT_FAILED", 0, 0)
 	if d, err := recordSequencedFinanceEvidenceTx(ctx, tx, financeTestProviderB, "b-stream-1", "ci-stream", 1, digest("a"), streamPayload, now, now); err != nil || !d.Accepted {
 		t.Fatalf("sequence 1 not accepted: %+v %v", d, err)

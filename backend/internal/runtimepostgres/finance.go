@@ -490,7 +490,9 @@ func recordSequencedFinanceEvidenceTx(ctx context.Context, tx *sql.Tx, providerI
 			return FinanceEvidenceDecision{}, ErrFinanceEvidenceConflict
 		}
 		id, idErr := persistentid.FromRef("finance-evidence", providerInstanceID+"/"+externalEventID)
-		if idErr != nil { return FinanceEvidenceDecision{}, idErr }
+		if idErr != nil {
+			return FinanceEvidenceDecision{}, idErr
+		}
 		return FinanceEvidenceDecision{EvidenceID:id, Accepted:false, ReasonCode:"FINANCE_EVIDENCE_DUPLICATE"}, nil
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
@@ -512,7 +514,9 @@ func recordSequencedFinanceEvidenceTx(ctx context.Context, tx *sql.Tx, providerI
 	}
 	decision, err := recordFinanceEvidenceInStreamTx(ctx, tx, providerInstanceID, externalEventID,
 		streamID, sequence, digest, payload, occurredAt, now)
-	if err != nil { return FinanceEvidenceDecision{}, err }
+	if err != nil {
+		return FinanceEvidenceDecision{}, err
+	}
 	_, err = tx.ExecContext(ctx, `INSERT INTO finance_provider_stream_cursors
 		(provider_instance_id, stream_id, last_sequence, last_external_event_id, updated_at)
 		VALUES ($1::uuid,$2,$3,$4,$5)
@@ -521,7 +525,9 @@ func recordSequencedFinanceEvidenceTx(ctx context.Context, tx *sql.Tx, providerI
 		    last_external_event_id=EXCLUDED.last_external_event_id,
 		    updated_at=EXCLUDED.updated_at`,
 		providerInstanceID, streamID, int64(sequence), externalEventID, now)
-	if err != nil { return FinanceEvidenceDecision{}, fmt.Errorf("advance finance provider stream cursor: %w", err) }
+	if err != nil {
+		return FinanceEvidenceDecision{}, fmt.Errorf("advance finance provider stream cursor: %w", err)
+	}
 	return decision, nil
 }
 
