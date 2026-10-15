@@ -67,6 +67,23 @@ func TestFinanceWebhookRequiresSignatureAndStatusIsOwnerScoped(t *testing.T) {
 	if rec := post(signed); rec.Code != http.StatusOK || store.applied != 1 {
 		t.Fatalf("signed finance evidence rejected: %d %s", rec.Code, rec.Body.String())
 	}
+	// A signed first document must not conceal additional unverified events
+	// or trailing bytes. No additional finance mutation may occur.
+	validBody, err := json.Marshal(signed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, malformed := range []string{
+		string(validBody) + `{"external_event_id":"hidden"}`,
+		string(validBody) + " trailing-garbage",
+		string(validBody) + strings.Repeat(" ", 2) + "null",
+	} {
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/v1/finance-provider-webhooks", strings.NewReader(malformed)))
+		if rec.Code != http.StatusUnauthorized || store.applied != 1 {
+			t.Fatalf("multi-document finance webhook accepted: status=%d applied=%d", rec.Code, store.applied)
+		}
+	}
 
 	sessions, err := newClientSessionManager(sessionKey, time.Now)
 	if err != nil {
