@@ -173,4 +173,98 @@ BEGIN
 END
 $$;
 
+
+-- Discrepancy resolution (000040): typed, append-only, operator-granted.
+INSERT INTO identities (id) VALUES ('00000000-0000-0000-0000-0000000f4700'), ('00000000-0000-0000-0000-0000000f4701');
+INSERT INTO finance_operator_grants VALUES ('00000000-0000-0000-0000-0000000f4710',
+  '00000000-0000-0000-0000-0000000f4700','FINANCE_DISCREPANCY_RESOLVE','ci-ops','ci://grant',now() - interval '1 day');
+
+DO $$
+DECLARE blocked boolean;
+BEGIN
+  -- resolver without grant (grant belongs to another identity)
+  blocked := false;
+  BEGIN
+    INSERT INTO finance_discrepancy_resolutions VALUES ('00000000-0000-0000-0000-0000000f4720','ci-res-x',
+      '00000000-0000-0000-0000-0000000f4651','OPERATIONAL_EXCEPTION_ACCEPTED',NULL,NULL,
+      '00000000-0000-0000-0000-0000000f4701','00000000-0000-0000-0000-0000000f4710',
+      'accepted by finance ops','{ci://ticket}','session:ci','audit:ci',now() + interval '1 hour');
+  EXCEPTION WHEN raise_exception THEN blocked := true; END;
+  IF NOT blocked THEN RAISE EXCEPTION 'resolution without operator grant accepted'; END IF;
+
+  -- provider correction without provider evidence
+  blocked := false;
+  BEGIN
+    INSERT INTO finance_discrepancy_resolutions VALUES ('00000000-0000-0000-0000-0000000f4721','ci-res-y',
+      '00000000-0000-0000-0000-0000000f4651','PROVIDER_CORRECTION_CONFIRMED',NULL,NULL,
+      '00000000-0000-0000-0000-0000000f4700','00000000-0000-0000-0000-0000000f4710',
+      'provider corrected statement','{ci://ticket}','session:ci','audit:ci',now() + interval '1 hour');
+  EXCEPTION WHEN check_violation THEN blocked := true; END;
+  IF NOT blocked THEN RAISE EXCEPTION 'untyped provider correction accepted'; END IF;
+
+  -- provider correction reusing the mismatching statement line
+  blocked := false;
+  BEGIN
+    INSERT INTO finance_discrepancy_resolutions VALUES ('00000000-0000-0000-0000-0000000f4722','ci-res-z',
+      '00000000-0000-0000-0000-0000000f4651','PROVIDER_CORRECTION_CONFIRMED','00000000-0000-0000-0000-0000000f4633',NULL,
+      '00000000-0000-0000-0000-0000000f4700','00000000-0000-0000-0000-0000000f4710',
+      'provider corrected statement','{ci://ticket}','session:ci','audit:ci',now() + interval '1 hour');
+  EXCEPTION WHEN raise_exception THEN blocked := true; END;
+  IF NOT blocked THEN RAISE EXCEPTION 'correction reusing mismatching evidence accepted'; END IF;
+
+  -- superseded by a MISMATCH result (itself)
+  blocked := false;
+  BEGIN
+    INSERT INTO finance_discrepancy_resolutions VALUES ('00000000-0000-0000-0000-0000000f4723','ci-res-w',
+      '00000000-0000-0000-0000-0000000f4651','SUPERSEDED_BY_MATCHED_RECONCILIATION',NULL,'00000000-0000-0000-0000-0000000f4650',
+      '00000000-0000-0000-0000-0000000f4700','00000000-0000-0000-0000-0000000f4710',
+      'superseded by later run','{ci://ticket}','session:ci','audit:ci',now() + interval '1 hour');
+  EXCEPTION WHEN raise_exception THEN blocked := true; END;
+  IF NOT blocked THEN RAISE EXCEPTION 'supersession by non-MATCHED result accepted'; END IF;
+
+  -- blank reason
+  blocked := false;
+  BEGIN
+    INSERT INTO finance_discrepancy_resolutions VALUES ('00000000-0000-0000-0000-0000000f4724','ci-res-v',
+      '00000000-0000-0000-0000-0000000f4651','OPERATIONAL_EXCEPTION_ACCEPTED',NULL,NULL,
+      '00000000-0000-0000-0000-0000000f4700','00000000-0000-0000-0000-0000000f4710',
+      '  ','{ci://ticket}','session:ci','audit:ci',now() + interval '1 hour');
+  EXCEPTION WHEN check_violation THEN blocked := true; END;
+  IF NOT blocked THEN RAISE EXCEPTION 'resolution without reason accepted'; END IF;
+END
+$$;
+
+INSERT INTO finance_discrepancy_resolutions VALUES ('00000000-0000-0000-0000-0000000f4725','ci-res-ok',
+  '00000000-0000-0000-0000-0000000f4651','OPERATIONAL_EXCEPTION_ACCEPTED',NULL,NULL,
+  '00000000-0000-0000-0000-0000000f4700','00000000-0000-0000-0000-0000000f4710',
+  'accepted by finance ops','{ci://ticket}','session:ci','audit:ci',now() + interval '1 hour');
+
+DO $$
+DECLARE blocked boolean;
+BEGIN
+  blocked := false;
+  BEGIN
+    UPDATE finance_discrepancy_resolutions SET reason = 'rewritten history' WHERE id = '00000000-0000-0000-0000-0000000f4725';
+  EXCEPTION WHEN OTHERS THEN blocked := true; END;
+  IF NOT blocked THEN RAISE EXCEPTION 'resolution history mutated'; END IF;
+
+  blocked := false;
+  BEGIN
+    INSERT INTO finance_discrepancy_resolutions VALUES ('00000000-0000-0000-0000-0000000f4726','ci-res-dup',
+      '00000000-0000-0000-0000-0000000f4651','OPERATIONAL_EXCEPTION_ACCEPTED',NULL,NULL,
+      '00000000-0000-0000-0000-0000000f4700','00000000-0000-0000-0000-0000000f4710',
+      'second resolution attempt','{ci://ticket}','session:ci','audit:ci',now() + interval '2 hour');
+  EXCEPTION WHEN unique_violation THEN blocked := true; END;
+  IF NOT blocked THEN RAISE EXCEPTION 'discrepancy resolved twice'; END IF;
+
+  INSERT INTO finance_operator_grant_revocations VALUES ('00000000-0000-0000-0000-0000000f4711',
+    '00000000-0000-0000-0000-0000000f4710','ci-ops','rotation',now());
+  blocked := false;
+  BEGIN
+    DELETE FROM finance_operator_grants WHERE id = '00000000-0000-0000-0000-0000000f4710';
+  EXCEPTION WHEN OTHERS THEN blocked := true; END;
+  IF NOT blocked THEN RAISE EXCEPTION 'operator grant deleted'; END IF;
+END
+$$;
+
 ROLLBACK;
