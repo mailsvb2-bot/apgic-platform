@@ -22,3 +22,14 @@ Source: user-provided `apgic-r4-patches.tar(1).gz` (five ordered patches; origin
 
 ## Decision
 **Development integration is not a production release.** CI and PostgreSQL proof must pass on the exact branch head. Do not mark finance requirements VERIFIED/RELEASED or merge on the basis of synthetic CI gates.
+
+## R4 Part 2 — discrepancy resolution and native financial status
+
+- `backend/migrations/000040_r4_finance_discrepancy_resolution.sql`: append-only operator grants and revocations, typed single-resolution records, same-provider correction evidence and later matched reconciliation safeguards.
+- `backend/internal/runtimepostgres/finance_resolution.go`: idempotent discrepancy resolution, open queue, canonical audit/outbox events and order-status projection.
+- `backend/internal/httpapi/finance_operations.go`: audited, step-up-protected operator endpoints (queue and resolution), server-bound identity and session.
+- `contracts/openapi/apgic-v1.yaml` and generated TypeScript: financial operations contracts and resolution status.
+- `apps/mobile/src/native-finance-status.tsx`, `mobile-finance-status-client.ts` and tests: fail-closed, non-cached owner-scoped financial status.
+- Postgres invariant probes and integration tests cover missing/revoked grants, stale evidence, invalid kind, duplicate/conflicting resolution, append-only rejection and successful resolution.
+
+The requirements remain **IN_PROGRESS**. Still absent: provider certification, staging finance-worker deployment, grant provisioning/admin UI, native deep-link and native E2E, HTTP/PostgreSQL end-to-end finance operations test, webhook sequencing and production evidence.
