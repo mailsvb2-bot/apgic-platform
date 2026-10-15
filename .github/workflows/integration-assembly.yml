@@ -1,0 +1,201 @@
+name: Isolated cross-lane assembly and user journeys
+
+on:
+  push:
+    branches:
+      - feat/platform-readiness
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: apgic-isolated-assembly-${{ github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  synthesize-and-exercise:
+    name: Real Git composition / PostgreSQL / web and native critical routes
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: apgic
+          POSTGRES_PASSWORD: apgic
+          POSTGRES_DB: apgic_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U apgic -d apgic_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 8
+    env:
+      PGPASSWORD: apgic
+      APGIC_TEST_DB: postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: backend/go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install real API contract parser before synthesizing generated clients
+        run: python -m pip install -r requirements-dev.txt
+      - name: Exercise real three-way merges, SQL duplicates and branch immutability
+        run: python -m unittest discover -s tools/tests -p test_integration_candidate.py -v
+      - name: Fetch exact branch heads and synthesize ephemeral launch composition
+        id: assemble
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY' > /tmp/apgic-refs
+          import json
+          plan = json.load(open('config/release/integration-plan-v1.json'))
+          for name in [plan['baseline'], *(row['branch'] for row in plan['lanes'])]:
+              print(f'+refs/heads/{name}:refs/remotes/origin/{name}')
+          PY
+          git fetch --no-tags origin $(cat /tmp/apgic-refs)
+          set +e
+          python tools/integration_candidate.py \
+            --scope launch \
+            --retain-worktree "$RUNNER_TEMP/apgic-launch-candidate" \
+            --output evidence/isolated-launch-assembly.json \
+            --summary "$GITHUB_STEP_SUMMARY"
+          result=$?
+          set -e
+          if [ "$result" -gt 2 ]; then exit "$result"; fi
+          if [ "$result" -eq 0 ]; then
+            echo 'composition_complete=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'composition_complete=false' >> "$GITHUB_OUTPUT"
+          fi
+          test -d "$RUNNER_TEMP/apgic-launch-candidate/backend"
+      - name: Go compiled runtime and domain tests on genuinely merged prefix
+        if: always() && steps.assemble.outcome == 'success'
+        working-directory: ${{ runner.temp }}/apgic-launch-candidate/backend
+        run: go test ./... -count=1
+      - name: Verify public API to generated-web/native client parity
+        if: always() && steps.assemble.outcome == 'success'
+        working-directory: ${{ runner.temp }}/apgic-launch-candidate
+        run: |
+          python -m pip install PyYAML
+          python tools/generate_client_contract.py --check
+      - name: Execute available composed schema migrations and invariants in PostgreSQL
+        id: migrations
+        working-directory: ${{ runner.temp }}/apgic-launch-candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          count=0
+          for sql in backend/migrations/[0-9][0-9][0-9][0-9][0-9][0-9]_*.sql; do
+            test -f "$sql"
+            count=$((count+1))
+            echo "Applying: $sql"
+            psql "$APGIC_TEST_DB" -v ON_ERROR_STOP=1 -f "$sql" > /tmp/last-migration.log
+          done
+          test "$count" -ge 31
+          for sql in backend/migrations/ci_invariants.sql backend/migrations/ci_r1_marketplace_invariants.sql; do
+            psql "$APGIC_TEST_DB" -v ON_ERROR_STOP=1 -f "$sql" > /tmp/last-invariant.log
+          done
+          echo 'Actual PostgreSQL migration chain executed on composed prefix.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Isolated PostgreSQL trials for tenant, booking, outbox and signed provider recovery
+        if: steps.migrations.outcome == 'success'
+        working-directory: ${{ runner.temp }}/apgic-launch-candidate/backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          tests=(
+            TestAuthorizationEvaluatorPersistsCrossTenantDenial
+            TestSpecialistSupplyPersistsEvidenceReviewAndPublishGate
+            TestLivePricedSpecialistToDurableHoldAfterRestart
+            TestJourneyStoreSurvivesServiceRestart
+            TestTransactionalOutboxSurvivesRollbackRestartAndRetry
+            TestConnectorWebhookAppliesBusinessEffectExactlyOnceAcrossOutOfOrderAndRetry
+            TestSignedConsultationPersistsAcrossAPIStoreRestart
+          )
+          trial=0
+          for name in "${tests[@]}"; do
+            trial=$((trial + 1))
+            db="apgic_assembly_case_$trial"
+            createdb -h 127.0.0.1 -U apgic "$db"
+            url="postgres://apgic:apgic@127.0.0.1:5432/$db?sslmode=disable"
+            for migration in migrations/[0-9][0-9][0-9][0-9][0-9][0-9]_*.sql; do
+              psql "$url" -v ON_ERROR_STOP=1 -f "$migration" > /tmp/last-case-migration.log
+            done
+            echo "Executing $name with its own PostgreSQL schema and migrated state"
+            APGIC_SPECIALIST_TEST_DATABASE_URL="$url" \
+            APGIC_AUTHZ_TEST_DATABASE_URL="$url" \
+            APGIC_JOURNEY_STORE_TEST_DATABASE_URL="$url" \
+            APGIC_OUTBOX_TEST_DATABASE_URL="$url" \
+            APGIC_CONNECTOR_DELIVERY_TEST_DATABASE_URL="$url" \
+              go test ./internal/runtimepostgres -run "^$name$" -count=1 -v
+          done
+          echo "Each durable outcome was replayed against an independent migrated PostgreSQL database." >> "$GITHUB_STEP_SUMMARY"
+      - name: Next.js production build against composed backend/OpenAPI
+        id: webbuild
+        if: always() && steps.assemble.outcome == 'success'
+        working-directory: ${{ runner.temp }}/apgic-launch-candidate/apps/web
+        run: |
+          npm install --ignore-scripts --no-audit --no-fund
+          npm run build
+      - name: React Native typecheck against composed contract
+        if: always() && steps.assemble.outcome == 'success'
+        working-directory: ${{ runner.temp }}/apgic-launch-candidate/apps/mobile
+        run: |
+          npm install --ignore-scripts --no-audit --no-fund
+          npx tsc --noEmit
+      - name: Exercise composed critical user routes for desktop, tablet and phone
+        if: always() && steps.assemble.outcome == 'success' && steps.webbuild.outcome == 'success'
+        working-directory: ${{ runner.temp }}/apgic-launch-candidate/apps/web
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx playwright install --with-deps chromium
+          specs=(e2e/foundation.spec.ts)
+          if test -f e2e/specialist-marketplace.spec.ts; then
+            specs+=(e2e/specialist-marketplace.spec.ts)
+          else
+            echo 'R1 marketplace route NOT EXECUTED: feature not present in assembled prefix' >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if test -f e2e/availability-race.spec.ts; then specs+=(e2e/availability-race.spec.ts); fi
+          if test -f e2e/consultation-runtime.spec.ts; then specs+=(e2e/consultation-runtime.spec.ts); fi
+          npx playwright test "${specs[@]}" --project=desktop --project=phone --project=tablet
+        env:
+          CI: 'true'
+      - name: Describe the actual evidence boundary and incomplete downstream journeys
+        if: always()
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          path = Path('evidence/isolated-launch-assembly.json')
+          with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f:
+              f.write('\n## End-to-end proof boundary\n')
+              if not path.exists():
+                  f.write('**BLOCKED: no integrated candidate evidence.**\n')
+              else:
+                  result = json.loads(path.read_text())
+                  f.write('Full source composition: **' + ('YES' if result.get('composition_complete') else 'BLOCKED') + '**\n')
+                  f.write('PostgreSQL+Go+web+native results: see preceding exact-job step conclusions.\n')
+                  f.write('External live PSP, provider media, native store, production DR: **NOT EXERCISED**.\n')
+                  f.write('Playwright tests may use conformance route mocks, never promotion evidence.\n')
+                  f.write('No main merge, remote candidate ref, payment processing or deployment.\n')
+          PY
+      - name: Preserve observed 3-way conflicts, pinned branch SHAs and SQL collisions
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: isolated-assembly-${{ github.sha }}-${{ github.run_id }}
+          path: evidence/isolated-launch-assembly.json
+          if-no-files-found: error
+          retention-days: 90

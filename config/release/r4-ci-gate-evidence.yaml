@@ -1,5 +1,5 @@
 schema_version: r4-release-gate-v1
-candidate_sha: ci-candidate-sha
+candidate_sha: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 synthetic: true
 production_candidate: false
 evidence:

@@ -5,6 +5,7 @@ import importlib.util
 import json
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 import yaml
@@ -25,6 +26,9 @@ class ProductionPreflightEvidenceTests(unittest.TestCase):
         self.original_root = module.ROOT
         module.ROOT = self.root
         self.addCleanup(setattr, module, "ROOT", self.original_root)
+        semantic_validator = patch.object(module.launch_config_guard, "validate_launch_configuration")
+        semantic_validator.start()
+        self.addCleanup(semantic_validator.stop)
 
     def write_yaml(self, rel: str, data: dict) -> None:
         path = self.root / rel
@@ -73,6 +77,20 @@ class ProductionPreflightEvidenceTests(unittest.TestCase):
             config[field] = rel
         return config
 
+    def test_semantic_policy_validation_always_invoked(self):
+        self.seed_canonical_binding()
+        self.write_yaml("config/launch.production.yaml", self.production_config())
+        module.build_evidence("a" * 40, "R0", "config/launch.production.yaml")
+        module.launch_config_guard.validate_launch_configuration.assert_called_once_with(
+            "config/launch.production.yaml", "production", "R0")
+
+    def test_semantic_policy_failure_does_not_issue_proof(self):
+        self.seed_canonical_binding()
+        self.write_yaml("config/launch.production.yaml", self.production_config())
+        module.launch_config_guard.validate_launch_configuration.side_effect = SystemExit(1)
+        with self.assertRaises(SystemExit):
+            module.build_evidence("a" * 40, "R0", "config/launch.production.yaml")
+
     def test_build_evidence_binds_exact_candidate_and_policy_hashes(self) -> None:
         self.seed_canonical_binding()
         self.write_yaml("config/launch.production.yaml", self.production_config())
@@ -86,7 +104,9 @@ class ProductionPreflightEvidenceTests(unittest.TestCase):
         self.assertEqual(evidence["schema_version"], "production-preflight-evidence-v1")
         self.assertEqual(evidence["candidate_sha"], "a" * 40)
         self.assertEqual(evidence["release_profile"], "R0")
-        self.assertTrue(evidence["production_promotion_eligible"])
+        self.assertFalse(evidence["production_promotion_eligible"])
+        self.assertEqual(evidence["gate_stage"], "CONFIG_PREFLIGHT_ONLY")
+        self.assertTrue(evidence["requires_launch_assurance"])
         self.assertFalse(evidence["production_release"])
         self.assertEqual(
             set(evidence["policy_artifacts"]),

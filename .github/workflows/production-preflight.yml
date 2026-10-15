@@ -13,6 +13,16 @@ on:
           - R2
           - R3
           - R4
+      production_evidence_manifest:
+        description: Required R4 external production evidence manifest (never CI/staging)
+        required: false
+        default: ''
+        type: string
+      critical_journey_manifest:
+        description: R0-R4 real production journey evidence manifest for R4 promotion
+        required: false
+        default: ''
+        type: string
       launch_config:
         description: Repository path to an approved PRODUCTION launch config
         required: true
@@ -63,6 +73,25 @@ jobs:
         run: |
           set -euo pipefail
           python tools/production_preflight_evidence.py             --candidate-sha "$GITHUB_SHA"             --profile "$APGIC_PROFILE"             --config "$APGIC_LAUNCH_CONFIG"             --output evidence/production-preflight.json
+      - name: Enforce full R0–R4 launch assurance for R4 candidates
+        if: ${{ inputs.profile == 'R4' }}
+        env:
+          APGIC_LAUNCH_CONFIG: ${{ inputs.launch_config }}
+          APGIC_MANIFEST: ${{ inputs.production_evidence_manifest }}
+          APGIC_JOURNEY_MANIFEST: ${{ inputs.critical_journey_manifest }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$APGIC_MANIFEST" || { echo "R4 production manifest is required" >&2; exit 1; }
+          test -n "$APGIC_JOURNEY_MANIFEST" || { echo "Production journey manifest is required" >&2; exit 1; }
+          python tools/launch_readiness.py \
+            --candidate-sha "$GITHUB_SHA" \
+            --config "$APGIC_LAUNCH_CONFIG" \
+            --manifest "$APGIC_MANIFEST" \
+            --journey-manifest "$APGIC_JOURNEY_MANIFEST" \
+            --output evidence/launch-readiness-production.json \
+            --summary "$GITHUB_STEP_SUMMARY" \
+            --strict
       - uses: actions/upload-artifact@v7
         with:
           name: production-preflight-${{ inputs.profile }}-${{ github.sha }}
