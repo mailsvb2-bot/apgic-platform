@@ -97,6 +97,13 @@ func TestR4RevenueConvergenceIsNonCustodialIdempotentAndReconciled(t *testing.T)
 		t.Fatalf("allocation does not converge with order snapshot: fee=%d beneficiary=%d", fee, beneficiary)
 	}
 	assertOutbox(t, tx, "finance-settlement-requested:"+instructionID)
+	// User-visible finance status must never anticipate provider execution.
+	if pending, err := readFinanceOrderStatusTx(ctx, tx, financeTestOrderID, financeTestClientID); err != nil ||
+		pending == nil || pending.SettlementStatus != "INSTRUCTED" ||
+		pending.PayoutStatus != "AWAITING_PROVIDER_ELIGIBILITY" ||
+		pending.ReconciliationOutcome != "NOT_RECONCILED" {
+		t.Fatalf("premature financial completion before provider evidence: %+v %v", pending, err)
+	}
 
 	ev := func(kind string, gross, feeMinor int64) FinanceEvidencePayload {
 		return FinanceEvidencePayload{EvidenceKind: kind, SettlementInstructionID: instructionID,
@@ -144,6 +151,13 @@ func TestR4RevenueConvergenceIsNonCustodialIdempotentAndReconciled(t *testing.T)
 		t.Fatalf("conflicting replay must be rejected: %v", err)
 	}
 
+	// Provider-executed settlement is not proof of a payout.
+	if settled, err := readFinanceOrderStatusTx(ctx, tx, financeTestOrderID, financeTestClientID); err != nil ||
+		settled == nil || settled.SettlementStatus != "PROVIDER_SETTLED" ||
+		settled.PayoutStatus == "PROVIDER_PAID_OUT" {
+		t.Fatalf("settlement evidence prematurely marked payout complete: %+v %v", settled, err)
+	}
+
 	// 5. Payout blocked without provider eligibility, then instructed once.
 	notEligible, eligible := false, true
 	blocked := ev("PAYOUT_ELIGIBILITY", 0, 0)
@@ -160,8 +174,20 @@ func TestR4RevenueConvergenceIsNonCustodialIdempotentAndReconciled(t *testing.T)
 		t.Fatalf("second payout instruction issued: %+v %v", d, err)
 	}
 	assertOutbox(t, tx, "finance-payout-requested:"+instructionID)
+	if awaiting, err := readFinanceOrderStatusTx(ctx, tx, financeTestOrderID, financeTestClientID); err != nil ||
+		awaiting == nil || awaiting.PayoutStatus != "INSTRUCTED" ||
+		awaiting.ReconciliationOutcome != "NOT_RECONCILED" {
+		t.Fatalf("payout instruction presented as completed payout: %+v %v", awaiting, err)
+	}
 	if _, err := record(financeTestProviderB, "b-paid-1", digest("6"), ev("PAYOUT_EXECUTED", 18000, 0)); err != nil {
 		t.Fatal(err)
+	}
+
+	// Payout confirmation alone cannot claim matched bank reconciliation.
+	if paid, err := readFinanceOrderStatusTx(ctx, tx, financeTestOrderID, financeTestClientID); err != nil ||
+		paid == nil || paid.PayoutStatus != "PROVIDER_PAID_OUT" ||
+		paid.ReconciliationOutcome != "NOT_RECONCILED" {
+		t.Fatalf("payout status did not preserve missing statement boundary: %+v %v", paid, err)
 	}
 
 	// 6. Reconciliation matches and is replay-safe.
