@@ -182,12 +182,11 @@ SELECT r.settlement_instruction_id::text
 		return out, err
 	}
 	if found {
-		var key, reason, evidenceJSON, sessionRef, auditRef, grantID string
+		var key, reason, evidenceJSON string
 		if err := tx.QueryRowContext(ctx, `
-SELECT idempotency_key, reason, array_to_json(evidence_refs)::text,
-       step_up_session_ref, audit_ref, operator_grant_id::text
+SELECT idempotency_key, reason, array_to_json(evidence_refs)::text
   FROM finance_discrepancy_resolutions WHERE id=$1::uuid`, existing.ResolutionID).
-			Scan(&key, &reason, &evidenceJSON, &sessionRef, &auditRef, &grantID); err != nil {
+			Scan(&key, &reason, &evidenceJSON); err != nil {
 			return out, err
 		}
 		if key != req.IdempotencyKey {
@@ -199,12 +198,10 @@ SELECT idempotency_key, reason, array_to_json(evidence_refs)::text,
 		}
 		// Idempotency represents an identical operator decision, not merely
 		// the same classification. A changed justification, signed evidence,
-		// grant or authorization session must never be disguised as a replay.
+		// or economic terms must never be disguised as a replay.
 		if existing.Kind != req.Kind || existing.ResolvedBy != req.OperatorID ||
 			existing.ProviderEvidenceID != req.ProviderEvidenceID || existing.SupersedingResultID != req.SupersedingResultID ||
-			reason != strings.TrimSpace(req.Reason) || !equalFinanceEvidenceRefs(evidenceRefs, req.EvidenceRefs) ||
-			sessionRef != req.StepUpSessionRef || auditRef != req.AuditRef ||
-			(req.OperatorGrantID != "" && grantID != req.OperatorGrantID) {
+			reason != strings.TrimSpace(req.Reason) || !equalFinanceEvidenceRefs(evidenceRefs, req.EvidenceRefs) {
 			return out, ErrFinanceResolutionConflict
 		}
 		existing.Replayed = true
