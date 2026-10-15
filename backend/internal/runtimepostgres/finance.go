@@ -472,6 +472,10 @@ func decodeFinanceProviderPayload(raw json.RawMessage) (FinanceEvidencePayload, 
 	if err := decoder.Decode(&trailing); err != io.EOF {
 		return FinanceEvidencePayload{}, ErrFinanceEvidenceInvalid
 	}
+	// A signed null or empty object must never become a financial event.
+	if strings.TrimSpace(payload.EvidenceKind) == "" {
+		return FinanceEvidencePayload{}, ErrFinanceEvidenceInvalid
+	}
 	return payload, nil
 }
 
