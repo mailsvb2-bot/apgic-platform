@@ -34,3 +34,39 @@ func TestReconciliationWindowIsBucketAlignedAndReplayable(t *testing.T) {
 		t.Fatal("restart inside one bucket must replay the same run window")
 	}
 }
+
+func TestFinanceReconciliationSchedulingNeverTreatsFailureAsSuccess(t *testing.T) {
+	now := time.Date(2026, 10, 16, 9, 13, 0, 0, time.UTC)
+	for _, tc := range []struct {
+		name       string
+		interval   time.Duration
+		successful bool
+		wantDelay  time.Duration
+	}{
+		{name: "provider unavailable", interval: time.Hour, wantDelay: time.Minute},
+		{name: "provider statement missing", interval: 5 * time.Minute, wantDelay: time.Minute},
+		{name: "complete reconciliation", interval: time.Hour, successful: true, wantDelay: time.Hour},
+		{name: "short configured interval", interval: 30 * time.Second, wantDelay: 30 * time.Second},
+		{name: "short successful interval", interval: 30 * time.Second, successful: true, wantDelay: 30 * time.Second},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			next := nextFinanceReconcileAttempt(now, tc.interval, tc.successful)
+			if want := now.Add(tc.wantDelay); !next.Equal(want) {
+				t.Fatalf("reconciliation retry=%s, want %s", next, want)
+			}
+			if next.Before(now) {
+				t.Fatalf("reconciliation attempted in the past: %s", next)
+			}
+		})
+	}
+}
+
+func TestFinanceReconciliationRetryUsesSameDurableBucket(t *testing.T) {
+	at := time.Date(2026, 10, 16, 9, 13, 0, 0, time.UTC)
+	start, end := reconciliationWindow(at, time.Hour)
+	retry := nextFinanceReconcileAttempt(at, time.Hour, false)
+	retryStart, retryEnd := reconciliationWindow(retry, time.Hour)
+	if !start.Equal(retryStart) || !end.Equal(retryEnd) {
+		t.Fatalf("retry must use same canonical reconciliation window: original=%s..%s retry=%s..%s", start, end, retryStart, retryEnd)
+	}
+}
