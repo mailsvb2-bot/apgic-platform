@@ -131,7 +131,22 @@ func registerFinanceOperations(
 			financeOpsActionList, authz.RiskNormal, "discrepancies"); !ok {
 			return
 		}
-		limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+		// Pagination bounds are part of the privileged operations contract.
+		// Never silently reinterpret malformed values as a default, and do
+		// not let callers request an unbounded financial evidence scan.
+		limit := 50
+		if values, supplied := r.URL.Query()["limit"]; supplied {
+			if len(values) != 1 || values[0] == "" {
+				writeDemandError(w, r, http.StatusBadRequest, "FINANCE_DISCREPANCY_LIMIT_INVALID", "Некорректный лимит списка расхождений.", false, nil)
+				return
+			}
+			parsed, err := strconv.Atoi(values[0])
+			if err != nil || parsed < 1 || parsed > 200 {
+				writeDemandError(w, r, http.StatusBadRequest, "FINANCE_DISCREPANCY_LIMIT_INVALID", "Лимит должен быть от 1 до 200.", false, nil)
+				return
+			}
+			limit = parsed
+		}
 		items, err := store.ListOpenFinanceDiscrepancies(r.Context(), limit)
 		if err != nil {
 			writeDemandError(w, r, http.StatusServiceUnavailable, "FINANCE_DISCREPANCIES_UNAVAILABLE", "Список расхождений временно недоступен.", true, nil)
