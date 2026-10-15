@@ -2,7 +2,7 @@
 // DO NOT EDIT.
 export const apiContractVersion = "0.10.0-r0-remote-config" as const;
 
-export type ApiOperationId = "acquireSlotHold" | "applyProviderEvent" | "applyTrustedProviderWebhook" | "archiveOrganizationDirection" | "cancelOrder" | "completeConsultation" | "confirmConsultationReadiness" | "confirmHelpIntent" | "createCheckoutInstruction" | "createHelpIntent" | "createMobileCheckoutInstruction" | "createOrganization" | "createOrganizationDirection" | "createOrganizationProduct" | "createSpecialistBookableOffer" | "createSpecialistBookableSlot" | "declareSpecialistCapability" | "deleteAccount" | "exportConsultationToGrowth" | "getBookingFulfillment" | "getBookingStatus" | "getConsultationClientOutcome" | "getConsultationReadiness" | "getConsultationResult" | "getConsultationTimeline" | "getFinanceOrderStatus" | "getLegalAcceptanceStatus" | "getMeta" | "getMobileCompatibility" | "getMobileNotificationDelivery" | "getMobileRemoteConfig" | "getMySpecialistPublicDetails" | "getOrderForBooking" | "getOrderStatus" | "getOrganization" | "getPrivateOrganizationProfile" | "getPublicSpecialist" | "getSpecialistProfile" | "health" | "issueConsultationRoomJoin" | "issueMobileDeepLink" | "listCheckoutOptions" | "listHelpIntentMatches" | "listMobileInstallations" | "listMobileWorkspaces" | "listMySpecialistBookableOffers" | "listOrganizationProducts" | "listOrganizations" | "listPublicBookableOffers" | "listPublicSpecialists" | "listSpecialistSlots" | "markSearchProjectionStale" | "pauseSpecialistBookableOffer" | "publishOrganizationProduct" | "publishSpecialistCapability" | "readiness" | "rebuildSearchProjection" | "recordConsent" | "recordConsultationPresence" | "recordLegalAcceptance" | "registerMobileInstallation" | "reportConsultationFailure" | "resolveMobileDeepLink" | "resolveMobileWorkspace" | "revokeConsent" | "revokeMobileInstallation" | "rotateMobilePushEndpoint" | "searchProjection" | "submitConsultationClientOutcome" | "submitSpecialistEvidence" | "submitVerifiedSpecialistFeedback" | "succeedConsultationRecovery" | "unpublishSpecialistCapability" | "updateMySpecialistPublicDetails" | "updateProductCommercialOwner" | "upsertSpecialistProfile";
+export type ApiOperationId = "acquireSlotHold" | "applyProviderEvent" | "applyTrustedProviderWebhook" | "archiveOrganizationDirection" | "cancelOrder" | "completeConsultation" | "confirmConsultationReadiness" | "confirmHelpIntent" | "createCheckoutInstruction" | "createHelpIntent" | "createMobileCheckoutInstruction" | "createOrganization" | "createOrganizationDirection" | "createOrganizationProduct" | "createSpecialistBookableOffer" | "createSpecialistBookableSlot" | "declareSpecialistCapability" | "deleteAccount" | "exportConsultationToGrowth" | "getBookingFulfillment" | "getBookingStatus" | "getConsultationClientOutcome" | "getConsultationReadiness" | "getConsultationResult" | "getConsultationTimeline" | "getFinanceOrderStatus" | "getLegalAcceptanceStatus" | "getMeta" | "getMobileCompatibility" | "getMobileNotificationDelivery" | "getMobileRemoteConfig" | "getMySpecialistPublicDetails" | "getOrderForBooking" | "getOrderStatus" | "getOrganization" | "getPrivateOrganizationProfile" | "getPublicSpecialist" | "getSpecialistProfile" | "health" | "issueConsultationRoomJoin" | "issueMobileDeepLink" | "listCheckoutOptions" | "listHelpIntentMatches" | "listMobileInstallations" | "listMobileWorkspaces" | "listMySpecialistBookableOffers" | "listOpenFinanceDiscrepancies" | "listOrganizationProducts" | "listOrganizations" | "listPublicBookableOffers" | "listPublicSpecialists" | "listSpecialistSlots" | "markSearchProjectionStale" | "pauseSpecialistBookableOffer" | "publishOrganizationProduct" | "publishSpecialistCapability" | "readiness" | "rebuildSearchProjection" | "recordConsent" | "recordConsultationPresence" | "recordLegalAcceptance" | "registerMobileInstallation" | "reportConsultationFailure" | "resolveFinanceDiscrepancy" | "resolveMobileDeepLink" | "resolveMobileWorkspace" | "revokeConsent" | "revokeMobileInstallation" | "rotateMobilePushEndpoint" | "searchProjection" | "submitConsultationClientOutcome" | "submitSpecialistEvidence" | "submitVerifiedSpecialistFeedback" | "succeedConsultationRecovery" | "unpublishSpecialistCapability" | "updateMySpecialistPublicDetails" | "updateProductCommercialOwner" | "upsertSpecialistProfile";
 
 export interface AccountDeletion {
   apgic_deletes_ledger: boolean;
@@ -306,10 +306,50 @@ export interface FeedbackSubmission {
   state: "PENDING";
 }
 
+export interface FinanceDiscrepancyResolution {
+  discrepancy_id: string;
+  kind: "PROVIDER_CORRECTION_CONFIRMED" | "SUPERSEDED_BY_MATCHED_RECONCILIATION" | "OPERATIONAL_EXCEPTION_ACCEPTED";
+  provider_evidence_id?: string;
+  replayed: boolean;
+  resolution_id: string;
+  resolved_at: string;
+  resolved_by: string;
+  superseding_result_id?: string;
+}
+
+export interface FinanceDiscrepancyResolutionRequest {
+  evidence_refs: Array<string>;
+  idempotency_key: string;
+  kind: "PROVIDER_CORRECTION_CONFIRMED" | "SUPERSEDED_BY_MATCHED_RECONCILIATION" | "OPERATIONAL_EXCEPTION_ACCEPTED";
+  provider_evidence_id?: string;
+  reason: string;
+  superseding_result_id?: string;
+}
+
+export interface FinanceOpenDiscrepancy {
+  created_at: string;
+  currency: string;
+  discrepancy_id: string;
+  evidence_refs: Array<string>;
+  expected_fee_minor: number;
+  expected_gross_minor: number;
+  kind: "PROVIDER_LEDGER_MISMATCH" | "STATEMENT_MISSING";
+  provider_fee_minor: number;
+  provider_gross_minor: number;
+  provider_instance_id: string;
+  settlement_instruction_id: string;
+}
+
+export interface FinanceOpenDiscrepancyList {
+  items: Array<FinanceOpenDiscrepancy>;
+}
+
 export interface FinanceOrderStatus {
   beneficiary_amount_minor?: number;
   commission_policy_version?: string;
   currency: string;
+  discrepancy_resolution_kind?: "PROVIDER_CORRECTION_CONFIRMED" | "SUPERSEDED_BY_MATCHED_RECONCILIATION" | "OPERATIONAL_EXCEPTION_ACCEPTED";
+  discrepancy_status: "NONE" | "OPEN" | "RESOLVED";
   disputed_amount_minor: number;
   execution_owner: "EXTERNAL_PROVIDER";
   order_id: string;

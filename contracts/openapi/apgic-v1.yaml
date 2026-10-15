@@ -1816,6 +1816,130 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /v1/finance/operations/discrepancies:
+    get:
+      operationId: listOpenFinanceDiscrepancies
+      summary: Finance-operations queue of open, typed reconciliation discrepancies
+      description: Requires the signed client session of an identity holding an active, append-only FINANCE_DISCREPANCY_RESOLVE operator grant. Every authorization decision is audited.
+      security:
+        - ClientSession: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 200 }
+        - in: header
+          name: X-Correlation-Id
+          required: false
+          schema: { type: string }
+      responses:
+        '200':
+          description: No-store list of unresolved discrepancies
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FinanceOpenDiscrepancyList'
+        '401':
+          description: Trusted client session is required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Identity holds no active finance operator grant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '503':
+          description: Finance operations, session validation or audit evidence is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /v1/finance/operations/discrepancies/{discrepancyID}/resolutions:
+    post:
+      operationId: resolveFinanceDiscrepancy
+      summary: Append exactly one typed resolution to a reconciliation discrepancy
+      description: HIGH_RISK finance-operations mutation. Requires an active operator grant and a fresh signed step-up assertion bound to the signed Identity and current session. Operator, step-up session, audit reference and time are bound by the server, never by the body. The discrepancy itself is never mutated.
+      security:
+        - ClientSession: []
+      parameters:
+        - name: discrepancyID
+          in: path
+          required: true
+          schema: { type: string }
+        - in: header
+          name: X-Correlation-Id
+          required: false
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FinanceDiscrepancyResolutionRequest'
+      responses:
+        '200':
+          description: Idempotent replay of the original resolution
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FinanceDiscrepancyResolution'
+        '201':
+          description: Resolution appended
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FinanceDiscrepancyResolution'
+        '400':
+          description: Malformed request or caller-supplied server-bound field
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Trusted client session is required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Identity holds no active finance operator grant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Discrepancy not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Discrepancy already resolved or idempotency key reused with different content
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '422':
+          description: Resolution kind and evidence do not satisfy the typed invariants
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '428':
+          description: Fresh step-up assertion is required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '503':
+          description: Finance operations, session validation or audit evidence is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /v1/consultations/{bookingID}/presence:
     post:
       operationId: recordConsultationPresence
@@ -3081,7 +3205,7 @@ components:
     FinanceOrderStatus:
       type: object
       additionalProperties: false
-      required: [order_id, currency, total_amount_minor, settlement_status, payout_status, reconciliation_outcome, disputed_amount_minor, revenue_assurance, revenue_reason_code, execution_owner]
+      required: [order_id, currency, total_amount_minor, settlement_status, payout_status, reconciliation_outcome, discrepancy_status, disputed_amount_minor, revenue_assurance, revenue_reason_code, execution_owner]
       properties:
         order_id: { type: string }
         currency: { type: string }
@@ -3102,6 +3226,12 @@ components:
         reconciliation_outcome:
           type: string
           enum: [NOT_RECONCILED, MATCHED, MISMATCH]
+        discrepancy_status:
+          type: string
+          enum: [NONE, OPEN, RESOLVED]
+        discrepancy_resolution_kind:
+          type: string
+          enum: [PROVIDER_CORRECTION_CONFIRMED, SUPERSEDED_BY_MATCHED_RECONCILIATION, OPERATIONAL_EXCEPTION_ACCEPTED]
         disputed_amount_minor: { type: integer }
         revenue_assurance:
           type: string
@@ -3110,6 +3240,70 @@ components:
         execution_owner:
           type: string
           enum: [EXTERNAL_PROVIDER]
+    FinanceDiscrepancyResolutionRequest:
+      type: object
+      additionalProperties: false
+      required: [idempotency_key, kind, reason, evidence_refs]
+      properties:
+        idempotency_key: { type: string, minLength: 1 }
+        kind:
+          type: string
+          enum: [PROVIDER_CORRECTION_CONFIRMED, SUPERSEDED_BY_MATCHED_RECONCILIATION, OPERATIONAL_EXCEPTION_ACCEPTED]
+        provider_evidence_id:
+          type: string
+          description: Required iff kind is PROVIDER_CORRECTION_CONFIRMED; a new STATEMENT_LINE from the same provider for the same settlement.
+        superseding_result_id:
+          type: string
+          description: Required iff kind is SUPERSEDED_BY_MATCHED_RECONCILIATION; a later MATCHED result for the same settlement.
+        reason: { type: string, minLength: 10 }
+        evidence_refs:
+          type: array
+          minItems: 1
+          items: { type: string, minLength: 1 }
+    FinanceDiscrepancyResolution:
+      type: object
+      additionalProperties: false
+      required: [resolution_id, discrepancy_id, kind, resolved_by, resolved_at, replayed]
+      properties:
+        resolution_id: { type: string }
+        discrepancy_id: { type: string }
+        kind:
+          type: string
+          enum: [PROVIDER_CORRECTION_CONFIRMED, SUPERSEDED_BY_MATCHED_RECONCILIATION, OPERATIONAL_EXCEPTION_ACCEPTED]
+        resolved_by: { type: string }
+        resolved_at: { type: string, format: date-time }
+        provider_evidence_id: { type: string }
+        superseding_result_id: { type: string }
+        replayed: { type: boolean }
+    FinanceOpenDiscrepancy:
+      type: object
+      additionalProperties: false
+      required: [discrepancy_id, kind, settlement_instruction_id, provider_instance_id, expected_fee_minor, provider_fee_minor, expected_gross_minor, provider_gross_minor, currency, evidence_refs, created_at]
+      properties:
+        discrepancy_id: { type: string }
+        kind:
+          type: string
+          enum: [PROVIDER_LEDGER_MISMATCH, STATEMENT_MISSING]
+        settlement_instruction_id: { type: string }
+        provider_instance_id: { type: string }
+        expected_fee_minor: { type: integer }
+        provider_fee_minor: { type: integer }
+        expected_gross_minor: { type: integer }
+        provider_gross_minor: { type: integer }
+        currency: { type: string }
+        evidence_refs:
+          type: array
+          items: { type: string }
+        created_at: { type: string, format: date-time }
+    FinanceOpenDiscrepancyList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/FinanceOpenDiscrepancy'
     ConsultationView:
       type: object
       additionalProperties: false

@@ -27,6 +27,12 @@ const RECONCILIATION_LABELS: Record<FinanceOrderStatus["reconciliation_outcome"]
   MISMATCH: "Обнаружено расхождение; им занимается финансовая служба",
 };
 
+const DISCREPANCY_LABELS: Record<FinanceOrderStatus["discrepancy_status"], string> = {
+  NONE: "Расхождений нет",
+  OPEN: "Расхождение на разборе у финансовой службы",
+  RESOLVED: "Расхождение закрыто с подтверждением",
+};
+
 function isStatus(value: unknown, orderID: string): value is FinanceOrderStatus {
   if (!value || typeof value !== "object") return false;
   const data = value as Partial<FinanceOrderStatus>;
@@ -37,7 +43,8 @@ function isStatus(value: unknown, orderID: string): value is FinanceOrderStatus 
     typeof data.total_amount_minor === "number" &&
     typeof data.settlement_status === "string" && data.settlement_status in SETTLEMENT_LABELS &&
     typeof data.payout_status === "string" && data.payout_status in PAYOUT_LABELS &&
-    typeof data.reconciliation_outcome === "string" && data.reconciliation_outcome in RECONCILIATION_LABELS
+    typeof data.reconciliation_outcome === "string" && data.reconciliation_outcome in RECONCILIATION_LABELS &&
+    typeof data.discrepancy_status === "string" && data.discrepancy_status in DISCREPANCY_LABELS
   );
 }
 
@@ -102,6 +109,9 @@ export default function FinanceStatusView({ orderID }: { orderID: string }) {
           <dt>Расчёт</dt><dd>{SETTLEMENT_LABELS[status.settlement_status]}</dd>
           <dt>Выплата</dt><dd>{PAYOUT_LABELS[status.payout_status]}</dd>
           <dt>Сверка</dt><dd>{RECONCILIATION_LABELS[status.reconciliation_outcome]}</dd>
+          {status.discrepancy_status !== "NONE" ? (
+            <><dt>Расхождение</dt><dd>{DISCREPANCY_LABELS[status.discrepancy_status]}</dd></>
+          ) : null}
           {status.disputed_amount_minor > 0 ? (
             <><dt>Оспорено через провайдера</dt><dd>{money(status.disputed_amount_minor, status.currency)}</dd></>
           ) : null}
