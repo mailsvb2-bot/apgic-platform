@@ -1000,8 +1000,19 @@ PY
 dismiss_android_debug_warning_overlay() {
   local remote="$1" output="$2" close_position attempt
   for attempt in 1 2 3; do
-    "$ADB" shell uiautomator dump "$remote" >/dev/null 2>&1 || return 1
-    "$ADB" pull "$remote" "$output" >/dev/null 2>&1 || return 1
+    local dump_ok=false retry
+    for retry in 1 2 3 4; do
+      if "$ADB" shell uiautomator dump "$remote" >/dev/null 2>&1 &&
+         "$ADB" pull "$remote" "$output" >/dev/null 2>&1; then
+        dump_ok=true
+        break
+      fi
+      sleep 1
+    done
+    if [[ "$dump_ok" != true ]]; then
+      echo "Android UIAutomator hierarchy unavailable while checking native overlay" >&2
+      return 1
+    fi
     close_position="$(python3 - "$output" <<'PY'
 import re
 import sys
