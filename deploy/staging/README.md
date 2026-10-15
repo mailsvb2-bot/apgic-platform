@@ -29,6 +29,20 @@ The canonical public domain is apgic.ru with www.apgic.ru as an alias.
 DNS must resolve to the dedicated APGIC VPS before ACME certificate issuance.
 HTTP may be used as a bootstrap ingress before DNS propagation. After certificate issuance, Nginx should own 443 for apgic.ru/www.apgic.ru and redirect HTTP to HTTPS.
 
+## Growth activation gate
+
+Specialist-owned links are disabled until `APGIC_GROWTH_ENABLED=1` and
+`APGIC_GROWTH_SIGNING_KEY` contains an independently provisioned 32+ byte
+random signing secret. Never commit that secret or reuse the client-session key.
+Configure both in the protected `/etc/apgic/staging.env` before activation.
+A missing or too-short key causes startup refusal when Growth is enabled.
+The staging runtime watchdog checks that the unsigned, unauthenticated
+Growth-link history returns 401 when enabled (rather than 503), and that
+disabled Growth returns 503. This is configuration evidence, **not** a
+complete specialist → visitor → booking → provider payment release proof.
+Key rotation invalidates old tokens unless a governed backward-verification
+keyring is added; do not rotate without a corresponding distribution plan.
+
 ## Runtime database gate
 
 STAGING and PRODUCTION runtime modes require APGIC_DATABASE_URL.

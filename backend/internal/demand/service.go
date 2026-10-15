@@ -78,8 +78,8 @@ type Hold struct {
 	BookingID        string `json:"booking_id"`
 	SlotID           string `json:"slot_id"`
 	ClientIdentityID string `json:"client_identity_id"`
-	// Immutable hold provenance prevents one intent borrowing a different
-	// intent's paid offer; not exposed as client-controlled API fields.
+	// Canonical immutable provenance is shared by booking and growth attribution.
+	// It is derived from the validated HelpIntent/slot, never client-supplied.
 	IntentID     string        `json:"-"`
 	OfferID      string        `json:"-"`
 	State        string        `json:"state"`

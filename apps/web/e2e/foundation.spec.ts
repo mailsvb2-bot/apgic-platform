@@ -812,4 +812,3 @@ test("specialist schedule distinguishes provider outage from no availability and
   await expect(page.getByRole("button", {name: /Удержать слот/}).first()).toBeVisible();
   await expect(page.getByRole("button", {name: "Повторить загрузку расписания"})).toHaveCount(0);
 });
-
