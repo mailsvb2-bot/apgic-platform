@@ -458,7 +458,6 @@ func (c *Checker) ApplyFinanceProviderWebhook(ctx context.Context, envelope conn
 	return decision, nil
 }
 
-
 func decodeFinanceProviderPayload(raw json.RawMessage) (FinanceEvidencePayload, error) {
 	var payload FinanceEvidencePayload
 	decoder := json.NewDecoder(strings.NewReader(string(raw)))
