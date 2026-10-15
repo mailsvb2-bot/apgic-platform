@@ -1,4 +1,4 @@
-import React, {useRef, useState} from "react";
+import React, {useEffect, useRef, useState} from "react";
 import {Pressable, Text, TextInput, View} from "react-native";
 
 import {
@@ -13,7 +13,7 @@ import type {FinanceOrderStatus} from "../../../packages/contracts/src/generated
 
 const validOrderID = /^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$/;
 
-type Props = {baseURL: string; sessionCookie?: string; enabled: boolean};
+type Props = {baseURL: string; sessionCookie?: string; enabled: boolean; initialOrderID?: string};
 
 const errorText: Record<string, string> = {
   FINANCE_SESSION_REQUIRED: "Войдите, чтобы увидеть финансовый статус заказа.",
@@ -25,15 +25,15 @@ const errorText: Record<string, string> = {
  * reconciliation. Status is always re-read from APGIC; nothing is cached on
  * the device and no APGIC-held balance exists to display.
  */
-export default function NativeFinanceStatus({baseURL, sessionCookie, enabled}: Props) {
+export default function NativeFinanceStatus({baseURL, sessionCookie, enabled, initialOrderID}: Props) {
   const [inputID, setInputID] = useState("");
   const [status, setStatus] = useState<FinanceOrderStatus | null>(null);
   const [state, setState] = useState<"IDLE" | "LOADING" | "READY" | "ERROR">("IDLE");
   const [error, setError] = useState("");
   const epoch = useRef(0);
 
-  async function read() {
-    const orderID = inputID.trim();
+  async function read(requestedOrderID = inputID.trim()) {
+    const orderID = requestedOrderID.trim();
     if (!validOrderID.test(orderID)) {
       setState("ERROR"); setStatus(null); setError("Укажите идентификатор заказа.");
       return;
@@ -51,6 +51,14 @@ export default function NativeFinanceStatus({baseURL, sessionCookie, enabled}: P
       setError(errorText[code] ?? "Финансовый статус временно недоступен. Попробуйте позже.");
     }
   }
+
+  useEffect(() => {
+    if (!enabled || !initialOrderID) return;
+    const orderID = initialOrderID.trim();
+    if (!validOrderID.test(orderID)) return;
+    setInputID(orderID);
+    void read(orderID);
+  }, [initialOrderID, baseURL, sessionCookie, enabled]);
 
   if (!enabled) return null;
   return (

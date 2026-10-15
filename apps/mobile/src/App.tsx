@@ -261,6 +261,7 @@ export default function App({
     | {status: "FAIL"; reason: string}
   >({status: "IDLE"});
 
+  const [financeDeepLinkOrderID, setFinanceDeepLinkOrderID] = useState("");
   const [deepLinkState, setDeepLinkState] = useState<
     | {status: "IDLE" | "RESOLVING"}
     | {status: "OPEN"; target: string}
@@ -452,6 +453,8 @@ export default function App({
           sessionCookie: deepLinkE2ESessionCookie,
         });
         if (action.action === "OPEN_APP_PATH") {
+          const financeOrder = /^\\/orders\\/([0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12})\\/finance$/.exec(action.target);
+          if (financeOrder) setFinanceDeepLinkOrderID(financeOrder[1]);
           setDeepLinkState({status: "OPEN", target: action.target});
           return;
         }
@@ -1196,6 +1199,7 @@ export default function App({
             baseURL={demandAPIBaseURL}
             sessionCookie={demandE2ESessionCookie}
             enabled={compatibilityAllowsRuntime}
+            initialOrderID={financeDeepLinkOrderID}
           />
         ) : null}
 
