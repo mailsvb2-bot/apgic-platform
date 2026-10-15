@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"regexp"
 	"strconv"
 	"strings"
@@ -437,6 +438,13 @@ func (c *Checker) ApplyFinanceProviderWebhook(ctx context.Context, envelope conn
 	decoder := json.NewDecoder(strings.NewReader(string(envelope.Payload)))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&payload); err != nil {
+		return FinanceEvidenceDecision{}, ErrFinanceEvidenceInvalid
+	}
+	// Verification covers the entire signed payload, not just the first JSON
+	// object. Reject trailing JSON, garbage and unrelated instructions even
+	// when the caller bypasses the public HTTP handler and invokes the store.
+	var trailing json.RawMessage
+	if err := decoder.Decode(&trailing); err != io.EOF {
 		return FinanceEvidenceDecision{}, ErrFinanceEvidenceInvalid
 	}
 	digest := sha256.Sum256(envelope.Payload)
