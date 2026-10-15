@@ -268,3 +268,27 @@ END
 $$;
 
 ROLLBACK;
+
+
+-- The provider stream cursor is a monotonic projection; it cannot skip or rewind.
+DO $$
+DECLARE blocked boolean;
+BEGIN
+  INSERT INTO finance_provider_stream_cursors
+    (provider_instance_id, stream_id, last_sequence, last_external_event_id, updated_at)
+  VALUES ('00000000-0000-0000-0000-00000000d001', 'ci-cursor-guard', 1, 'ci-event-1', now());
+  blocked := false;
+  BEGIN
+    UPDATE finance_provider_stream_cursors SET last_sequence = 3, last_external_event_id = 'ci-event-3'
+     WHERE provider_instance_id = '00000000-0000-0000-0000-00000000d001' AND stream_id = 'ci-cursor-guard';
+  EXCEPTION WHEN raise_exception THEN blocked := true; END;
+  IF NOT blocked THEN RAISE EXCEPTION 'finance stream cursor skipped a sequence'; END IF;
+
+  blocked := false;
+  BEGIN
+    DELETE FROM finance_provider_stream_cursors
+     WHERE provider_instance_id = '00000000-0000-0000-0000-00000000d001' AND stream_id = 'ci-cursor-guard';
+  EXCEPTION WHEN raise_exception THEN blocked := true; END;
+  IF NOT blocked THEN RAISE EXCEPTION 'finance stream cursor deleted'; END IF;
+END
+$$;

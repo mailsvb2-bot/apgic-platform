@@ -112,7 +112,26 @@ func TestR4RevenueConvergenceIsNonCustodialIdempotentAndReconciled(t *testing.T)
 		return err
 	})
 
-	// 4. Idempotent provider intake.
+	// 4. Provider stream sequencing is durable: exact replay is idempotent,
+// gaps and stale events are rejected before any financial fact is written.
+	streamPayload := ev("PAYOUT_FAILED", 0, 0)
+	if d, err := recordSequencedFinanceEvidenceTx(ctx, tx, financeTestProviderB, "b-stream-1", "ci-stream", 1, digest("a"), streamPayload, now, now); err != nil || !d.Accepted {
+		t.Fatalf("sequence 1 not accepted: %+v %v", d, err)
+	}
+	if d, err := recordSequencedFinanceEvidenceTx(ctx, tx, financeTestProviderB, "b-stream-1", "ci-stream", 1, digest("a"), streamPayload, now, now); err != nil || d.Accepted || d.ReasonCode != "FINANCE_EVIDENCE_DUPLICATE" {
+		t.Fatalf("same sequenced event not idempotent: %+v %v", d, err)
+	}
+	if _, err := recordSequencedFinanceEvidenceTx(ctx, tx, financeTestProviderB, "b-stream-3", "ci-stream", 3, digest("c"), streamPayload, now, now); !errors.Is(err, finance.ErrProviderEventSequenceGap) {
+		t.Fatalf("sequence gap must be deferred: %v", err)
+	}
+	if d, err := recordSequencedFinanceEvidenceTx(ctx, tx, financeTestProviderB, "b-stream-2", "ci-stream", 2, digest("b"), streamPayload, now, now); err != nil || !d.Accepted {
+		t.Fatalf("sequence 2 not accepted after gap: %+v %v", d, err)
+	}
+	if _, err := recordSequencedFinanceEvidenceTx(ctx, tx, financeTestProviderB, "b-stream-stale", "ci-stream", 1, digest("d"), streamPayload, now, now); !errors.Is(err, finance.ErrProviderEventSequenceStale) {
+		t.Fatalf("stale sequence must be rejected: %v", err)
+	}
+
+	// 5. Idempotent provider intake.
 	if d, err := record(financeTestProviderB, "b-settled-1", digest("1"), ev("SETTLEMENT_EXECUTED", 20000, 300)); err != nil || !d.Accepted {
 		t.Fatalf("settlement evidence not accepted: %+v %v", d, err)
 	}

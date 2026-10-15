@@ -447,7 +447,8 @@ func (c *Checker) ApplyFinanceProviderWebhook(ctx context.Context, envelope conn
 		return FinanceEvidenceDecision{}, fmt.Errorf("begin finance evidence: %w", err)
 	}
 	defer tx.Rollback()
-	decision, err := recordFinanceEvidenceTx(txCtx, tx, envelope.ConnectorInstanceID, envelope.ExternalEventID,
+	decision, err := recordSequencedFinanceEvidenceTx(txCtx, tx, envelope.ConnectorInstanceID,
+		envelope.ExternalEventID, envelope.StreamID, envelope.Sequence,
 		"sha256:"+hex.EncodeToString(digest[:]), payload, envelope.OccurredAt.UTC(), time.Now().UTC())
 	if err != nil {
 		return FinanceEvidenceDecision{}, err
@@ -465,10 +466,71 @@ var financeEvidenceKinds = map[string]bool{
 }
 
 func recordFinanceEvidenceTx(ctx context.Context, tx *sql.Tx, providerInstanceID, externalEventID, digest string, payload FinanceEvidencePayload, occurredAt, now time.Time) (FinanceEvidenceDecision, error) {
+	// Repository-level tests and internal backfills have no provider stream
+	// envelope. Isolate each such event in a deterministic legacy stream; the
+	// externally callable webhook path always uses sequenced evidence below.
+	return recordFinanceEvidenceInStreamTx(ctx, tx, providerInstanceID, externalEventID,
+		"legacy/"+externalEventID, 1, digest, payload, occurredAt, now)
+}
+
+func recordSequencedFinanceEvidenceTx(ctx context.Context, tx *sql.Tx, providerInstanceID, externalEventID, streamID string, sequence uint64, digest string, payload FinanceEvidencePayload, occurredAt, now time.Time) (FinanceEvidenceDecision, error) {
+	if strings.TrimSpace(streamID) == "" || sequence == 0 || sequence > uint64(1<<63-1) {
+		return FinanceEvidenceDecision{}, ErrFinanceEvidenceInvalid
+	}
+	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtext('finance-stream:' || $1 || ':' || $2))`, providerInstanceID, streamID); err != nil {
+		return FinanceEvidenceDecision{}, fmt.Errorf("lock finance provider stream: %w", err)
+	}
+	var storedDigest, storedStream string
+	var storedSequence int64
+	err := tx.QueryRowContext(ctx, `SELECT payload_sha256, stream_id, stream_sequence
+		FROM finance_provider_evidence WHERE provider_instance_id=$1::uuid AND external_event_id=$2`,
+		providerInstanceID, externalEventID).Scan(&storedDigest, &storedStream, &storedSequence)
+	if err == nil {
+		if storedDigest != digest || storedStream != streamID || storedSequence != int64(sequence) {
+			return FinanceEvidenceDecision{}, ErrFinanceEvidenceConflict
+		}
+		id, idErr := persistentid.FromRef("finance-evidence", providerInstanceID+"/"+externalEventID)
+		if idErr != nil { return FinanceEvidenceDecision{}, idErr }
+		return FinanceEvidenceDecision{EvidenceID:id, Accepted:false, ReasonCode:"FINANCE_EVIDENCE_DUPLICATE"}, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return FinanceEvidenceDecision{}, fmt.Errorf("read finance provider event: %w", err)
+	}
+	var lastSequence int64
+	err = tx.QueryRowContext(ctx, `SELECT last_sequence FROM finance_provider_stream_cursors
+		WHERE provider_instance_id=$1::uuid AND stream_id=$2 FOR UPDATE`, providerInstanceID, streamID).Scan(&lastSequence)
+	if errors.Is(err, sql.ErrNoRows) {
+		lastSequence = 0
+	} else if err != nil {
+		return FinanceEvidenceDecision{}, fmt.Errorf("read finance provider stream cursor: %w", err)
+	}
+	switch {
+	case int64(sequence) <= lastSequence:
+		return FinanceEvidenceDecision{}, finance.ErrProviderEventSequenceStale
+	case int64(sequence) != lastSequence+1:
+		return FinanceEvidenceDecision{}, finance.ErrProviderEventSequenceGap
+	}
+	decision, err := recordFinanceEvidenceInStreamTx(ctx, tx, providerInstanceID, externalEventID,
+		streamID, sequence, digest, payload, occurredAt, now)
+	if err != nil { return FinanceEvidenceDecision{}, err }
+	_, err = tx.ExecContext(ctx, `INSERT INTO finance_provider_stream_cursors
+		(provider_instance_id, stream_id, last_sequence, last_external_event_id, updated_at)
+		VALUES ($1::uuid,$2,$3,$4,$5)
+		ON CONFLICT (provider_instance_id, stream_id) DO UPDATE
+		SET last_sequence=EXCLUDED.last_sequence,
+		    last_external_event_id=EXCLUDED.last_external_event_id,
+		    updated_at=EXCLUDED.updated_at`,
+		providerInstanceID, streamID, int64(sequence), externalEventID, now)
+	if err != nil { return FinanceEvidenceDecision{}, fmt.Errorf("advance finance provider stream cursor: %w", err) }
+	return decision, nil
+}
+
+func recordFinanceEvidenceInStreamTx(ctx context.Context, tx *sql.Tx, providerInstanceID, externalEventID, streamID string, sequence uint64, digest string, payload FinanceEvidencePayload, occurredAt, now time.Time) (FinanceEvidenceDecision, error) {
 	payload.Currency = strings.ToUpper(strings.TrimSpace(payload.Currency))
 	if !financeEvidenceKinds[payload.EvidenceKind] ||
 		strings.TrimSpace(providerInstanceID) == "" ||
 		strings.TrimSpace(externalEventID) == "" ||
+		strings.TrimSpace(streamID) == "" || sequence == 0 || sequence > uint64(1<<63-1) ||
 		strings.TrimSpace(payload.SettlementInstructionID) == "" ||
 		strings.TrimSpace(payload.ProviderReference) == "" ||
 		payload.GrossAmountMinor < 0 || payload.ProviderFeeMinor < 0 ||
@@ -490,12 +552,12 @@ func recordFinanceEvidenceTx(ctx context.Context, tx *sql.Tx, providerInstanceID
 		eligible = *payload.PayoutEligible
 	}
 	result, err := tx.ExecContext(ctx, `
-INSERT INTO finance_provider_evidence (id, provider_instance_id, external_event_id, payload_sha256,
+INSERT INTO finance_provider_evidence (id, provider_instance_id, external_event_id, stream_id, stream_sequence, payload_sha256,
   evidence_kind, settlement_instruction_id, provider_reference, gross_amount_minor, provider_fee_minor,
   currency, payout_eligible, compliance_evidence_ref, occurred_at, received_at)
-VALUES ($1::uuid,$2::uuid,$3,$4,$5,$6::uuid,$7,$8,$9,$10,$11,$12,$13,$14)
+VALUES ($1::uuid,$2::uuid,$3,$4,$5,$6,$7,$8::uuid,$9,$10,$11,$12,$13,$14,$15,$16)
 ON CONFLICT (provider_instance_id, external_event_id) DO NOTHING`,
-		evidenceID, providerInstanceID, externalEventID, digest, payload.EvidenceKind,
+		evidenceID, providerInstanceID, externalEventID, streamID, int64(sequence), digest, payload.EvidenceKind,
 		payload.SettlementInstructionID, payload.ProviderReference, payload.GrossAmountMinor,
 		payload.ProviderFeeMinor, payload.Currency, eligible, compliance, occurredAt, now)
 	if err != nil {
@@ -506,11 +568,12 @@ ON CONFLICT (provider_instance_id, external_event_id) DO NOTHING`,
 		return FinanceEvidenceDecision{}, err
 	}
 	if affected == 0 {
-		var storedDigest string
-		if err := tx.QueryRowContext(ctx, `SELECT payload_sha256 FROM finance_provider_evidence WHERE id = $1::uuid`, evidenceID).Scan(&storedDigest); err != nil {
+		var storedDigest, storedStream string
+		var storedSequence int64
+		if err := tx.QueryRowContext(ctx, `SELECT payload_sha256, stream_id, stream_sequence FROM finance_provider_evidence WHERE id = $1::uuid`, evidenceID).Scan(&storedDigest, &storedStream, &storedSequence); err != nil {
 			return FinanceEvidenceDecision{}, fmt.Errorf("read duplicate finance evidence: %w", err)
 		}
-		if storedDigest != digest {
+		if storedDigest != digest || storedStream != streamID || storedSequence != int64(sequence) {
 			return FinanceEvidenceDecision{}, ErrFinanceEvidenceConflict
 		}
 		return FinanceEvidenceDecision{EvidenceID: evidenceID, Accepted: false, ReasonCode: "FINANCE_EVIDENCE_DUPLICATE"}, nil

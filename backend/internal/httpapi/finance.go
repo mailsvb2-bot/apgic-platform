@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"errors"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -44,6 +45,14 @@ func registerFinance(mux *http.ServeMux, store FinanceStore, keys connector.Webh
 			return
 		}
 		decision, err := store.ApplyFinanceProviderWebhook(r.Context(), event, keys)
+		if errors.Is(err, finance.ErrProviderEventSequenceGap) {
+			writeDemandError(w, r, http.StatusConflict, "FINANCE_PROVIDER_EVENT_GAP", "Пропущено событие платёжного провайдера; требуется повторная доставка последовательности.", true, nil)
+			return
+		}
+		if errors.Is(err, finance.ErrProviderEventSequenceStale) {
+			writeDemandError(w, r, http.StatusConflict, "FINANCE_PROVIDER_EVENT_STALE", "Событие платёжного провайдера устарело; финансовая история не изменена.", false, nil)
+			return
+		}
 		if err != nil {
 			writeDemandError(w, r, http.StatusConflict, "FINANCE_PROVIDER_EVENT_REJECTED", "Финансовое событие провайдера не принято; история не изменена.", false, nil)
 			return

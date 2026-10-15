@@ -94,6 +94,8 @@ type OpenDiscrepancy struct {
 }
 
 var (
+	ErrProviderEventSequenceGap   = errors.New("provider event stream sequence gap")
+	ErrProviderEventSequenceStale = errors.New("provider event stream sequence is stale")
 	ErrResolutionInvalid          = errors.New("finance discrepancy resolution is invalid")
 	ErrOperatorNotGranted         = errors.New("finance operator grant is missing or revoked")
 	ErrDiscrepancyAlreadyResolved = errors.New("finance discrepancy is already resolved")
