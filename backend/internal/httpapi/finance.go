@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/connector"
@@ -25,7 +26,15 @@ func registerFinance(mux *http.ServeMux, store FinanceStore, keys connector.Webh
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, 64*1024)
 		var event connector.WebhookEnvelope
-		if err := json.NewDecoder(r.Body).Decode(&event); err != nil {
+		decoder := json.NewDecoder(r.Body)
+		if err := decoder.Decode(&event); err != nil {
+			writeDemandError(w, r, http.StatusUnauthorized, "FINANCE_PROVIDER_EVIDENCE_UNVERIFIED", "Подпись провайдера не подтверждена.", false, nil)
+			return
+		}
+		// Reject multiple JSON documents and trailing garbage. Otherwise the
+		// signed first envelope could conceal a second, unaudited event.
+		var trailing json.RawMessage
+		if err := decoder.Decode(&trailing); err != io.EOF {
 			writeDemandError(w, r, http.StatusUnauthorized, "FINANCE_PROVIDER_EVIDENCE_UNVERIFIED", "Подпись провайдера не подтверждена.", false, nil)
 			return
 		}
