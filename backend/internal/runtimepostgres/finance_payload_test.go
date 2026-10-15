@@ -14,9 +14,9 @@ func TestFinanceProviderPayloadMustBeOneCompleteSignedEconomicEvent(t *testing.T
 		ok   bool
 	}{
 		{"valid", valid, true},
-		{"whitespace", "  "+valid+"\n", true},
-		{"second document", valid+`{"evidence_kind":"DISPUTE_REFUND"}`, false},
-		{"trailing garbage", valid+" ;", false},
+		{"whitespace", "  " + valid + "\n", true},
+		{"second document", valid + `{"evidence_kind":"DISPUTE_REFUND"}`, false},
+		{"trailing garbage", valid + " ;", false},
 		{"unknown additional directive", `{"evidence_kind":"PAYOUT_EXECUTED","transfer_all_funds":true}`, false},
 		{"wrong numeric type", `{"gross_amount_minor":"18000"}`, false},
 		{"incomplete", `{"evidence_kind":"PAYOUT_EXECUTED"`, false},
