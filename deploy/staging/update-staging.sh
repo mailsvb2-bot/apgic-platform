@@ -239,6 +239,8 @@ if [[ "$units_changed" == "true" ]]; then
   systemctl daemon-reload
 fi
 systemctl enable --now apgic-staging-backup.timer apgic-staging-restore-verify.timer
+# Stop the prior worker before any schema migration; restart only after readiness.
+systemctl stop apgic-finance-worker-staging.service >/dev/null 2>&1 || true
 
 if [[ -n "$(git status --porcelain)" ]]; then
   echo "deployment left the canonical checkout dirty:" >&2
@@ -317,16 +319,6 @@ case "$outbox_enabled" in
     ;;
 esac
 
-case "$finance_worker_enabled" in
-  0)
-    systemctl disable --now apgic-finance-worker-staging.service >/dev/null 2>&1 || true
-    echo "APGIC finance worker: disabled (R4 settlement/reconciliation staging evidence not claimed)"
-    ;;
-  1)
-    systemctl enable apgic-finance-worker-staging.service >/dev/null
-    systemctl restart apgic-finance-worker-staging.service
-    ;;
-esac
 
 wait_for_http() {
   local name="$1"
@@ -358,6 +350,22 @@ if ! wait_for_http "Web" "http://127.0.0.1:43112/" 30 1; then
   journalctl -u apgic-web-staging.service -n 80 --no-pager >&2 || true
   exit 1
 fi
+
+case "$finance_worker_enabled" in
+  0)
+    systemctl disable --now apgic-finance-worker-staging.service >/dev/null 2>&1 || true
+    echo "APGIC finance worker: disabled (R4 settlement/reconciliation staging evidence not claimed)"
+    ;;
+  1)
+    systemctl enable apgic-finance-worker-staging.service >/dev/null
+    systemctl restart apgic-finance-worker-staging.service
+    if ! systemctl is-active --quiet apgic-finance-worker-staging.service; then
+      systemctl --no-pager --full status apgic-finance-worker-staging.service >&2 || true
+      journalctl -u apgic-finance-worker-staging.service -n 80 --no-pager >&2 || true
+      exit 1
+    fi
+    ;;
+esac
 
 echo "=== Verify runtime ==="
 bash "$REPO_ROOT/deploy/staging/check-staging-runtime.sh"

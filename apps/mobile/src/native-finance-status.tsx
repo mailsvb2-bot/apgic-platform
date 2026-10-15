@@ -53,8 +53,16 @@ export default function NativeFinanceStatus({baseURL, sessionCookie, enabled, in
   }
 
   useEffect(() => {
-    if (!enabled || !initialOrderID) return;
-    const orderID = initialOrderID.trim();
+    if (!enabled) return;
+    const orderID = initialOrderID?.trim() ?? "";
+    if (!orderID) {
+      epoch.current += 1;
+      setInputID("");
+      setStatus(null);
+      setError("");
+      setState("IDLE");
+      return;
+    }
     if (!validOrderID.test(orderID)) return;
     setInputID(orderID);
     void read(orderID);

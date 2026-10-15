@@ -80,6 +80,8 @@ def main() -> None:
         'systemctl restart apgic-outbox-worker-staging.service',
         'systemctl restart apgic-finance-worker-staging.service',
         'systemctl disable --now apgic-finance-worker-staging.service',
+        'systemctl stop apgic-finance-worker-staging.service',
+        'systemctl is-active --quiet apgic-finance-worker-staging.service',
         'systemctl disable --now apgic-outbox-worker-staging.service',
         'wait_for_http()',
         'wait_for_http "API" "http://127.0.0.1:43111/readyz" 30 1',
@@ -108,8 +110,9 @@ def main() -> None:
     ordered(text, 'systemctl start apgic-staging-backup.service', '=== Reconcile migration ledger ===')
     ordered(text, '=== Reconcile migration ledger ===', 'APGIC_COMMIT_SHA=$TARGET_SHA')
     ordered(text, 'APGIC_COMMIT_SHA=$TARGET_SHA', 'systemctl restart apgic-api-staging.service')
-    ordered(text, 'systemctl restart apgic-web-staging.service', 'systemctl restart apgic-finance-worker-staging.service')
-    ordered(text, 'systemctl restart apgic-finance-worker-staging.service', 'wait_for_http "API" "http://127.0.0.1:43111/readyz" 30 1')
+    ordered(text, 'systemctl stop apgic-finance-worker-staging.service', '=== Reconcile migration ledger ===')
+    ordered(text, 'wait_for_http "Web" "http://127.0.0.1:43112/" 30 1', 'systemctl restart apgic-finance-worker-staging.service')
+    ordered(text, 'systemctl restart apgic-finance-worker-staging.service', 'bash "$REPO_ROOT/deploy/staging/check-staging-runtime.sh"')
     ordered(text, 'wait_for_http "API" "http://127.0.0.1:43111/readyz" 30 1', 'wait_for_http "Web" "http://127.0.0.1:43112/" 30 1')
     ordered(text, 'wait_for_http "Web" "http://127.0.0.1:43112/" 30 1', 'bash "$REPO_ROOT/deploy/staging/check-staging-runtime.sh"')
 
