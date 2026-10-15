@@ -943,7 +943,7 @@ func readFinanceOrderStatusTx(ctx context.Context, tx *sql.Tx, orderID, identity
 	if !financeUUIDPattern.MatchString(orderID) || !financeUUIDPattern.MatchString(identityID) {
 		return nil, nil
 	}
-	status := &FinanceOrderStatus{OrderID: orderID, ExecutionOwner: finance.ExternalExecutionOwner}
+	status := &FinanceOrderStatus{OrderID: orderID, ExecutionOwner: finance.ExternalExecutionOwner, DiscrepancyStatus: "NONE"}
 	err := tx.QueryRowContext(ctx, `
 SELECT o.currency, o.amount_minor
   FROM orders o
@@ -1052,6 +1052,9 @@ SELECT r.outcome, d.id::text
 		if discrepancyID.Valid {
 			revenue.DiscrepancyEvidenceRef = "discrepancy/" + discrepancyID.String
 		}
+	}
+	if status.DiscrepancyStatus, status.DiscrepancyResolution, err = financeDiscrepancyStatusTx(ctx, tx, instructionID); err != nil {
+		return nil, err
 	}
 	if err := tx.QueryRowContext(ctx, `SELECT COALESCE(sum(amount_minor), 0) FROM finance_dispute_effects WHERE settlement_instruction_id = $1::uuid`, instructionID).Scan(&status.DisputedAmountMinor); err != nil {
 		return nil, err

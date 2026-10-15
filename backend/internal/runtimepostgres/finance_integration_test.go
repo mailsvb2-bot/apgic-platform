@@ -180,6 +180,102 @@ func TestR4RevenueConvergenceIsNonCustodialIdempotentAndReconciled(t *testing.T)
 		t.Fatalf("typed mismatch not surfaced: %+v %v", status, err)
 	}
 
+	// 7b. Discrepancy resolution is typed, operator-granted and append-only.
+	var discrepancyID string
+	if err := tx.QueryRowContext(ctx, `
+SELECT d.id::text FROM finance_reconciliation_discrepancies d
+  JOIN finance_reconciliation_results r ON r.id = d.result_id
+ WHERE r.settlement_instruction_id = $1::uuid`, instructionID).Scan(&discrepancyID); err != nil {
+		t.Fatal(err)
+	}
+	if open, err := listOpenFinanceDiscrepanciesTx(ctx, tx, 10); err != nil || len(open) != 1 || open[0].DiscrepancyID != discrepancyID || open[0].ProviderFeeMinor != 350 {
+		t.Fatalf("open discrepancy queue wrong: %+v %v", open, err)
+	}
+	const operatorID = "00000000-0000-0000-0000-0000000f4800"
+	resolveAt := now.Add(3 * time.Minute)
+	request := func(key, kind string) FinanceDiscrepancyResolutionRequest {
+		return FinanceDiscrepancyResolutionRequest{DiscrepancyID: discrepancyID, IdempotencyKey: key, Kind: kind,
+			Reason: "provider re-issued statement line", EvidenceRefs: []string{"ticket/fin-ops-1"},
+			OperatorID: operatorID, StepUpSessionRef: "session:ci-ops", AuditRef: "audit/ci-ops-1", ResolvedAt: resolveAt}
+	}
+	mustExec(t, tx, `INSERT INTO identities (id) VALUES ('`+operatorID+`')`)
+	if _, err := resolveFinanceDiscrepancyTx(ctx, tx, request("k-0", "OPERATIONAL_EXCEPTION_ACCEPTED")); !errors.Is(err, ErrFinanceOperatorNotGranted) {
+		t.Fatalf("ungranted operator resolved discrepancy: %v", err)
+	}
+	mustExec(t, tx, `INSERT INTO finance_operator_grants VALUES ('00000000-0000-0000-0000-0000000f4801','`+operatorID+`',
+  'FINANCE_DISCREPANCY_RESOLVE','ci-ops','ci://grant', now() - interval '1 day')`)
+	if _, err := resolveFinanceDiscrepancyTx(ctx, tx, request("k-1", "WRITE_OFF")); !errors.Is(err, ErrFinanceResolutionInvalid) {
+		t.Fatalf("untyped resolution accepted: %v", err)
+	}
+	if _, err := resolveFinanceDiscrepancyTx(ctx, tx, request("k-1", "PROVIDER_CORRECTION_CONFIRMED")); !errors.Is(err, ErrFinanceResolutionInvalid) {
+		t.Fatalf("provider correction without evidence accepted: %v", err)
+	}
+	withSavepoint(t, tx, func() {
+		mustExec(t, tx, `INSERT INTO finance_operator_grant_revocations VALUES ('00000000-0000-0000-0000-0000000f4802',
+  '00000000-0000-0000-0000-0000000f4801','ci-ops','rotation', now())`)
+		if _, err := resolveFinanceDiscrepancyTx(ctx, tx, request("k-r", "OPERATIONAL_EXCEPTION_ACCEPTED")); !errors.Is(err, ErrFinanceOperatorNotGranted) {
+			t.Fatalf("revoked operator resolved discrepancy: %v", err)
+		}
+	})
+	correction, err := record(financeTestProviderB, "b-statement-3", digest("c"), ev("STATEMENT_LINE", 20000, 300))
+	if err != nil {
+		t.Fatal(err)
+	}
+	stale := request("k-2", "PROVIDER_CORRECTION_CONFIRMED")
+	var mismatchStatementID string
+	if err := tx.QueryRowContext(ctx, `SELECT r.statement_evidence_id::text FROM finance_reconciliation_results r
+  JOIN finance_reconciliation_discrepancies d ON d.result_id = r.id WHERE d.id=$1::uuid`, discrepancyID).Scan(&mismatchStatementID); err != nil {
+		t.Fatal(err)
+	}
+	stale.ProviderEvidenceID = mismatchStatementID
+	if _, err := resolveFinanceDiscrepancyTx(ctx, tx, stale); !errors.Is(err, ErrFinanceResolutionInvalid) {
+		t.Fatalf("correction reusing mismatching statement accepted: %v", err)
+	}
+	withSavepoint(t, tx, func() {
+		rerun, err := reconcileProviderTx(ctx, tx, financeTestProviderB, start, end.Add(2*time.Minute), now.Add(2*time.Minute))
+		if err != nil || rerun.Matched != 1 {
+			t.Fatalf("corrected statement did not reconcile: %+v %v", rerun, err)
+		}
+		var matchedID string
+		if err := tx.QueryRowContext(ctx, `SELECT id::text FROM finance_reconciliation_results WHERE run_id=$1::uuid`, rerun.RunID).Scan(&matchedID); err != nil {
+			t.Fatal(err)
+		}
+		superseded := request("k-s", "SUPERSEDED_BY_MATCHED_RECONCILIATION")
+		superseded.SupersedingResultID = matchedID
+		if r, err := resolveFinanceDiscrepancyTx(ctx, tx, superseded); err != nil || r.Kind != "SUPERSEDED_BY_MATCHED_RECONCILIATION" {
+			t.Fatalf("supersession not recorded: %+v %v", r, err)
+		}
+	})
+	fixed := request("k-3", "PROVIDER_CORRECTION_CONFIRMED")
+	fixed.ProviderEvidenceID = correction.EvidenceID
+	resolution, err := resolveFinanceDiscrepancyTx(ctx, tx, fixed)
+	if err != nil || resolution.Replayed || resolution.ResolvedBy != operatorID {
+		t.Fatalf("provider correction not recorded: %+v %v", resolution, err)
+	}
+	if again, err := resolveFinanceDiscrepancyTx(ctx, tx, fixed); err != nil || !again.Replayed || again.ResolutionID != resolution.ResolutionID {
+		t.Fatalf("resolution replay not idempotent: %+v %v", again, err)
+	}
+	if _, err := resolveFinanceDiscrepancyTx(ctx, tx, request("k-4", "OPERATIONAL_EXCEPTION_ACCEPTED")); !errors.Is(err, ErrFinanceDiscrepancyAlreadyResolved) {
+		t.Fatalf("second resolution accepted: %v", err)
+	}
+	conflict := fixed
+	conflict.Kind, conflict.ProviderEvidenceID = "OPERATIONAL_EXCEPTION_ACCEPTED", ""
+	if _, err := resolveFinanceDiscrepancyTx(ctx, tx, conflict); !errors.Is(err, ErrFinanceResolutionConflict) {
+		t.Fatalf("idempotency key reuse with new content accepted: %v", err)
+	}
+	withSavepointExpectError(t, tx, func() error {
+		_, err := tx.ExecContext(ctx, `UPDATE finance_discrepancy_resolutions SET kind='OPERATIONAL_EXCEPTION_ACCEPTED'`)
+		return err
+	})
+	assertOutbox(t, tx, "finance-discrepancy-resolved:"+discrepancyID)
+	if status, err := readFinanceOrderStatusTx(ctx, tx, financeTestOrderID, financeTestClientID); err != nil ||
+		status.DiscrepancyStatus != "RESOLVED" || status.DiscrepancyResolution != "PROVIDER_CORRECTION_CONFIRMED" {
+		t.Fatalf("resolution not surfaced in status: %+v %v", status, err)
+	}
+	if open, err := listOpenFinanceDiscrepanciesTx(ctx, tx, 10); err != nil || len(open) != 0 {
+		t.Fatalf("resolved discrepancy still queued: %+v %v", open, err)
+	}
+
 	// 8. Chargeback is a linked, append-only effect bounded by the settled amount.
 	if d, err := record(financeTestProviderB, "b-chargeback-1", digest("9"), ev("DISPUTE_CHARGEBACK", 5000, 0)); err != nil || d.ReasonCode != "FINANCE_DISPUTE_RECORDED" {
 		t.Fatalf("chargeback not recorded: %+v %v", d, err)
