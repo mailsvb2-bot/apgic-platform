@@ -1780,6 +1780,42 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /v1/finance/orders/{orderID}/status:
+    get:
+      operationId: getFinanceOrderStatus
+      summary: Read owner-scoped, provider-executed R4 financial status (non-custodial)
+      security:
+        - ClientSession: []
+      parameters:
+        - name: orderID
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: No-store commission, provider settlement/payout, reconciliation and revenue-assurance status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FinanceOrderStatus'
+        '401':
+          description: Trusted client session is required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Order is not owned by the session identity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '503':
+          description: Canonical finance storage or session validation is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /v1/consultations/{bookingID}/presence:
     post:
       operationId: recordConsultationPresence
@@ -3042,6 +3078,38 @@ components:
           enum: [SCHEDULED, READY, IN_PROGRESS, RECOVERING, TECHNICAL_FAILURE, COMPLETED]
         provider_instance_id: { type: string }
         completion_evidence_ref: { type: string }
+    FinanceOrderStatus:
+      type: object
+      additionalProperties: false
+      required: [order_id, currency, total_amount_minor, settlement_status, payout_status, reconciliation_outcome, disputed_amount_minor, revenue_assurance, revenue_reason_code, execution_owner]
+      properties:
+        order_id: { type: string }
+        currency: { type: string }
+        total_amount_minor: { type: integer }
+        commission_policy_version: { type: string }
+        platform_fee_minor: { type: integer }
+        beneficiary_amount_minor: { type: integer }
+        settlement_status:
+          type: string
+          enum: [NOT_INSTRUCTED, HELD, INSTRUCTED, PROVIDER_SETTLED]
+        settlement_hold_reasons:
+          type: array
+          items: { type: string }
+        payout_status:
+          type: string
+          enum: [NOT_ELIGIBLE, AWAITING_PROVIDER_ELIGIBILITY, BLOCKED, INSTRUCTED, PROVIDER_PAID_OUT]
+        payout_reason_code: { type: string }
+        reconciliation_outcome:
+          type: string
+          enum: [NOT_RECONCILED, MATCHED, MISMATCH]
+        disputed_amount_minor: { type: integer }
+        revenue_assurance:
+          type: string
+          enum: [PASS, PASS_WITH_EXCEPTION, BLOCK]
+        revenue_reason_code: { type: string }
+        execution_owner:
+          type: string
+          enum: [EXTERNAL_PROVIDER]
     ConsultationView:
       type: object
       additionalProperties: false

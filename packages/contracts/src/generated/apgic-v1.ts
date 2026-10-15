@@ -2,7 +2,7 @@
 // DO NOT EDIT.
 export const apiContractVersion = "0.10.0-r0-remote-config" as const;
 
-export type ApiOperationId = "acquireSlotHold" | "applyProviderEvent" | "applyTrustedProviderWebhook" | "archiveOrganizationDirection" | "cancelOrder" | "completeConsultation" | "confirmConsultationReadiness" | "confirmHelpIntent" | "createCheckoutInstruction" | "createHelpIntent" | "createMobileCheckoutInstruction" | "createOrganization" | "createOrganizationDirection" | "createOrganizationProduct" | "createSpecialistBookableOffer" | "createSpecialistBookableSlot" | "declareSpecialistCapability" | "deleteAccount" | "exportConsultationToGrowth" | "getBookingFulfillment" | "getBookingStatus" | "getConsultationClientOutcome" | "getConsultationReadiness" | "getConsultationResult" | "getConsultationTimeline" | "getLegalAcceptanceStatus" | "getMeta" | "getMobileCompatibility" | "getMobileNotificationDelivery" | "getMobileRemoteConfig" | "getMySpecialistPublicDetails" | "getOrderForBooking" | "getOrderStatus" | "getOrganization" | "getPrivateOrganizationProfile" | "getPublicSpecialist" | "getSpecialistProfile" | "health" | "issueConsultationRoomJoin" | "issueMobileDeepLink" | "listCheckoutOptions" | "listHelpIntentMatches" | "listMobileInstallations" | "listMobileWorkspaces" | "listMySpecialistBookableOffers" | "listOrganizationProducts" | "listOrganizations" | "listPublicBookableOffers" | "listPublicSpecialists" | "listSpecialistSlots" | "markSearchProjectionStale" | "pauseSpecialistBookableOffer" | "publishOrganizationProduct" | "publishSpecialistCapability" | "readiness" | "rebuildSearchProjection" | "recordConsent" | "recordConsultationPresence" | "recordLegalAcceptance" | "registerMobileInstallation" | "reportConsultationFailure" | "resolveMobileDeepLink" | "resolveMobileWorkspace" | "revokeConsent" | "revokeMobileInstallation" | "rotateMobilePushEndpoint" | "searchProjection" | "submitConsultationClientOutcome" | "submitSpecialistEvidence" | "submitVerifiedSpecialistFeedback" | "succeedConsultationRecovery" | "unpublishSpecialistCapability" | "updateMySpecialistPublicDetails" | "updateProductCommercialOwner" | "upsertSpecialistProfile";
+export type ApiOperationId = "acquireSlotHold" | "applyProviderEvent" | "applyTrustedProviderWebhook" | "archiveOrganizationDirection" | "cancelOrder" | "completeConsultation" | "confirmConsultationReadiness" | "confirmHelpIntent" | "createCheckoutInstruction" | "createHelpIntent" | "createMobileCheckoutInstruction" | "createOrganization" | "createOrganizationDirection" | "createOrganizationProduct" | "createSpecialistBookableOffer" | "createSpecialistBookableSlot" | "declareSpecialistCapability" | "deleteAccount" | "exportConsultationToGrowth" | "getBookingFulfillment" | "getBookingStatus" | "getConsultationClientOutcome" | "getConsultationReadiness" | "getConsultationResult" | "getConsultationTimeline" | "getFinanceOrderStatus" | "getLegalAcceptanceStatus" | "getMeta" | "getMobileCompatibility" | "getMobileNotificationDelivery" | "getMobileRemoteConfig" | "getMySpecialistPublicDetails" | "getOrderForBooking" | "getOrderStatus" | "getOrganization" | "getPrivateOrganizationProfile" | "getPublicSpecialist" | "getSpecialistProfile" | "health" | "issueConsultationRoomJoin" | "issueMobileDeepLink" | "listCheckoutOptions" | "listHelpIntentMatches" | "listMobileInstallations" | "listMobileWorkspaces" | "listMySpecialistBookableOffers" | "listOrganizationProducts" | "listOrganizations" | "listPublicBookableOffers" | "listPublicSpecialists" | "listSpecialistSlots" | "markSearchProjectionStale" | "pauseSpecialistBookableOffer" | "publishOrganizationProduct" | "publishSpecialistCapability" | "readiness" | "rebuildSearchProjection" | "recordConsent" | "recordConsultationPresence" | "recordLegalAcceptance" | "registerMobileInstallation" | "reportConsultationFailure" | "resolveMobileDeepLink" | "resolveMobileWorkspace" | "revokeConsent" | "revokeMobileInstallation" | "rotateMobilePushEndpoint" | "searchProjection" | "submitConsultationClientOutcome" | "submitSpecialistEvidence" | "submitVerifiedSpecialistFeedback" | "succeedConsultationRecovery" | "unpublishSpecialistCapability" | "updateMySpecialistPublicDetails" | "updateProductCommercialOwner" | "upsertSpecialistProfile";
 
 export interface AccountDeletion {
   apgic_deletes_ledger: boolean;
@@ -304,6 +304,24 @@ export interface FeedbackSubmission {
   id: string;
   notice: string;
   state: "PENDING";
+}
+
+export interface FinanceOrderStatus {
+  beneficiary_amount_minor?: number;
+  commission_policy_version?: string;
+  currency: string;
+  disputed_amount_minor: number;
+  execution_owner: "EXTERNAL_PROVIDER";
+  order_id: string;
+  payout_reason_code?: string;
+  payout_status: "NOT_ELIGIBLE" | "AWAITING_PROVIDER_ELIGIBILITY" | "BLOCKED" | "INSTRUCTED" | "PROVIDER_PAID_OUT";
+  platform_fee_minor?: number;
+  reconciliation_outcome: "NOT_RECONCILED" | "MATCHED" | "MISMATCH";
+  revenue_assurance: "PASS" | "PASS_WITH_EXCEPTION" | "BLOCK";
+  revenue_reason_code: string;
+  settlement_hold_reasons?: Array<string>;
+  settlement_status: "NOT_INSTRUCTED" | "HELD" | "INSTRUCTED" | "PROVIDER_SETTLED";
+  total_amount_minor: number;
 }
 
 export interface GrowthExport {
