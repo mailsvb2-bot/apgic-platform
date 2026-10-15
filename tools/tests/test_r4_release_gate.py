@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import hashlib
+import tempfile
 import unittest
+from pathlib import Path
+from unittest.mock import patch
 
 from tools import r4_release_gate as gate
 
@@ -236,6 +239,35 @@ class R4ReleaseGateTests(unittest.TestCase):
             blockers,
         )
 
+
+    def test_finance_production_rejects_reused_fixture_and_ci_origin(self) -> None:
+        document = valid_ci()
+        document["synthetic"] = False
+        document["production_candidate"] = True
+        index = valid_production_index(document, "finance")
+        passed, blockers = gate.evaluate(document, "finance", "production", index)
+        self.assertFalse(passed)
+        self.assertTrue(any("FINANCE_PROOF_ARTIFACT_REUSED" in reason for reason in blockers), blockers)
+        self.assertTrue(any("REGULATED_PROVIDER_SOURCE_REQUIRED" in reason for reason in blockers), blockers)
+
+    def test_finance_production_accepts_independent_provider_artifacts(self) -> None:
+        document = valid_ci()
+        document["synthetic"] = False
+        document["production_candidate"] = True
+        index = valid_production_index(document, "finance")
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for evidence_type in gate.FINANCE_REQUIRED:
+                evidence_id = evidence_type.lower()
+                artifact = root / f"{evidence_id}.proof"
+                artifact.write_text(f"external receipt for {evidence_type}", encoding="utf-8")
+                record = index["records"][evidence_id]
+                record["artifact_path"] = artifact.name
+                record["artifact_sha256"] = hashlib.sha256(artifact.read_bytes()).hexdigest()
+                record["source_ref"] = f"psp://certified-provider/{evidence_id}"
+            with patch.object(gate, "ROOT", root):
+                passed, blockers = gate.evaluate(document, "finance", "production", index)
+            self.assertTrue(passed, blockers)
 
     def test_finance_release_requires_all_five_independent_proofs(self) -> None:
         document = valid_ci()
