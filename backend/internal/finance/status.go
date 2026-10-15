@@ -1,6 +1,9 @@
 package finance
 
-import "time"
+import (
+	"errors"
+	"time"
+)
 
 // Owner-facing, provider-neutral read model for R4 financial status. APGIC
 // only reports provider-executed facts; it never exposes or holds a balance.
@@ -89,3 +92,11 @@ type OpenDiscrepancy struct {
 	EvidenceRefs            []string  `json:"evidence_refs"`
 	CreatedAt               time.Time `json:"created_at"`
 }
+
+var (
+	ErrResolutionInvalid          = errors.New("finance discrepancy resolution is invalid")
+	ErrOperatorNotGranted         = errors.New("finance operator grant is missing or revoked")
+	ErrDiscrepancyAlreadyResolved = errors.New("finance discrepancy is already resolved")
+	ErrResolutionConflict         = errors.New("finance resolution idempotency key reused with different content")
+	ErrDiscrepancyNotFound        = errors.New("finance discrepancy not found")
+)

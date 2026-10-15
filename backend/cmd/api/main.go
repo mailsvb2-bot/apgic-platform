@@ -111,6 +111,7 @@ func main() {
 		ProviderWebhookKeys:       providerWebhookKeys,
 		ConsultationProvider:      storage,
 		Finance:                   financeStore(storage),
+		FinanceOperations:         financeOperationsStore(storage),
 		ConsultationJourney:       storage,
 		ConsultationJoin: httpapi.ConsultationJoinOptions{
 			Store: storage, Issuer: roomIssuer,
@@ -421,6 +422,13 @@ func remoteConfigProviderFromEnvironment(environment string) (func(time.Time) (r
 // financeStore keeps a nil *Checker from becoming a non-nil interface, so the
 // finance endpoints fail closed (503) when no database is configured.
 func financeStore(storage *runtimepostgres.Checker) httpapi.FinanceStore {
+	if storage == nil {
+		return nil
+	}
+	return storage
+}
+
+func financeOperationsStore(storage *runtimepostgres.Checker) httpapi.FinanceOperationsStore {
 	if storage == nil {
 		return nil
 	}

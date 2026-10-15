@@ -18,10 +18,10 @@ import (
 )
 
 var (
-	ErrFinanceResolutionInvalid          = errors.New("finance discrepancy resolution is invalid")
-	ErrFinanceOperatorNotGranted         = errors.New("finance operator grant is missing or revoked")
-	ErrFinanceDiscrepancyAlreadyResolved = errors.New("finance discrepancy is already resolved")
-	ErrFinanceResolutionConflict         = errors.New("finance resolution idempotency key reused with different content")
+	ErrFinanceResolutionInvalid          = finance.ErrResolutionInvalid
+	ErrFinanceOperatorNotGranted         = finance.ErrOperatorNotGranted
+	ErrFinanceDiscrepancyAlreadyResolved = finance.ErrDiscrepancyAlreadyResolved
+	ErrFinanceResolutionConflict         = finance.ErrResolutionConflict
 )
 
 type (
@@ -167,7 +167,7 @@ SELECT r.settlement_instruction_id::text
  WHERE d.id = $1::uuid
    FOR SHARE OF d`, req.DiscrepancyID).Scan(&instructionID)
 	if errors.Is(err, sql.ErrNoRows) {
-		return out, ErrFinanceNotFound
+		return out, finance.ErrDiscrepancyNotFound
 	}
 	if err != nil {
 		return out, fmt.Errorf("lock finance discrepancy: %w", err)
