@@ -120,18 +120,34 @@ func TestDeepLinkTokenRejectsOversizedInput(t *testing.T) {
 func TestFinanceOrderDeepLinkIsOwnerScopedAndCanonical(t *testing.T) {
 	key := []byte(strings.Repeat("f", 32))
 	manager, err := NewDeepLinkTokenManager(key)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	now := time.Date(2026, 10, 15, 12, 0, 0, 0, time.UTC)
-	resource := DeepLinkResource{Kind: LinkFinanceOrder, TargetID: "00000000-0000-0000-0000-000000000711", AccessClass: LinkProtectedResource, TenantID: "tenant-finance", SubjectIdentityID: "identity-a"}
+	resource := DeepLinkResource{
+		Kind: LinkFinanceOrder, TargetID: "00000000-0000-0000-0000-000000000711",
+		AccessClass: LinkProtectedResource, TenantID: "tenant-finance", SubjectIdentityID: "identity-a",
+	}
 	token, err := manager.Issue(resource, "finance-link-1", now, now.Add(15*time.Minute))
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	claims, err := manager.Parse(token, now.Add(time.Minute))
-	if err != nil { t.Fatal(err) }
-	principal := authz.Principal{ID: "identity-a", TenantID: "tenant-finance", Permissions: map[string]struct{}{"deeplink.open.finance_order": {}}}
+	if err != nil {
+		t.Fatal(err)
+	}
+	principal := authz.Principal{
+		ID: "identity-a", TenantID: "tenant-finance",
+		Permissions: map[string]struct{}{"deeplink.open.finance_order": {}},
+	}
 	got := ResolveTrustedDeepLink(claims, resource, principal, now.Add(time.Minute))
 	wantPath := "/orders/" + resource.TargetID + "/finance"
-	if !got.Allowed || got.CanonicalPath != wantPath || got.WebFallback != "https://apgic.ru"+wantPath { t.Fatalf("finance order link did not resolve canonically: %#v", got) }
+	if !got.Allowed || got.CanonicalPath != wantPath || got.WebFallback != "https://apgic.ru"+wantPath {
+		t.Fatalf("finance order link did not resolve canonically: %#v", got)
+	}
 	changed := resource
 	changed.SubjectIdentityID = "identity-b"
-	if got := ResolveTrustedDeepLink(claims, changed, principal, now.Add(time.Minute)); got.Allowed || got.ReasonCode != ReasonLinkInvalid { t.Fatalf("changed finance order owner must invalidate token: %#v", got) }
+	if got := ResolveTrustedDeepLink(claims, changed, principal, now.Add(time.Minute)); got.Allowed || got.ReasonCode != ReasonLinkInvalid {
+		t.Fatalf("changed finance order owner must invalidate token: %#v", got)
+	}
 }

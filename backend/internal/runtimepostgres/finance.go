@@ -498,7 +498,7 @@ func recordSequencedFinanceEvidenceTx(ctx context.Context, tx *sql.Tx, providerI
 		if idErr != nil {
 			return FinanceEvidenceDecision{}, idErr
 		}
-		return FinanceEvidenceDecision{EvidenceID:id, Accepted:false, ReasonCode:"FINANCE_EVIDENCE_DUPLICATE"}, nil
+		return FinanceEvidenceDecision{EvidenceID: id, Accepted: false, ReasonCode: "FINANCE_EVIDENCE_DUPLICATE"}, nil
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		return FinanceEvidenceDecision{}, fmt.Errorf("read finance provider event: %w", err)
