@@ -99,6 +99,16 @@ func TestFinanceDiscrepancyResolutionRequiresGrantStepUpAndAudit(t *testing.T) {
 	if rec := do(http.MethodGet, list, "", operatorCookie); rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "PROVIDER_LEDGER_MISMATCH") {
 		t.Fatalf("operator queue read: %d %s", rec.Code, rec.Body.String())
 	}
+	for _, invalidLimit := range []string{"?limit=", "?limit=0", "?limit=-1", "?limit=201", "?limit=abc", "?limit=1&limit=2", "?limit=999999999999999999999"} {
+		if rec := do(http.MethodGet, list+invalidLimit, "", operatorCookie); rec.Code != http.StatusBadRequest {
+			t.Fatalf("invalid finance queue limit %q accepted: %d %s", invalidLimit, rec.Code, rec.Body.String())
+		}
+	}
+	for _, validLimit := range []string{"?limit=1", "?limit=200"} {
+		if rec := do(http.MethodGet, list+validLimit, "", operatorCookie); rec.Code != http.StatusOK {
+			t.Fatalf("valid finance queue limit %q rejected: %d %s", validLimit, rec.Code, rec.Body.String())
+		}
+	}
 	if rec := do(http.MethodPost, resolve, body, operatorCookie); rec.Code != http.StatusPreconditionRequired || len(store.resolved) != 0 {
 		t.Fatalf("resolution without step-up: %d", rec.Code)
 	}
