@@ -285,10 +285,12 @@ SELECT d.id::text FROM finance_reconciliation_discrepancies d
 		t.Fatalf("authenticated repeat with fresh audit was not idempotent: %+v %v", replay, err)
 	}
 	for name, mutate := range map[string]func(*FinanceDiscrepancyResolutionRequest){
-		"reason": func(r *FinanceDiscrepancyResolutionRequest) { r.Reason = "different provider correction rationale" },
-		"evidence": func(r *FinanceDiscrepancyResolutionRequest) { r.EvidenceRefs = []string{"ticket/other-review"} },
+		"reason":         func(r *FinanceDiscrepancyResolutionRequest) { r.Reason = "different provider correction rationale" },
+		"evidence":       func(r *FinanceDiscrepancyResolutionRequest) { r.EvidenceRefs = []string{"ticket/other-review"} },
 		"evidence-added": func(r *FinanceDiscrepancyResolutionRequest) { r.EvidenceRefs = append(r.EvidenceRefs, "ticket/extra") },
-		"evidence-order": func(r *FinanceDiscrepancyResolutionRequest) { r.EvidenceRefs = []string{"ticket/extra", "ticket/fin-ops-1"} },
+		"evidence-order": func(r *FinanceDiscrepancyResolutionRequest) {
+			r.EvidenceRefs = []string{"ticket/extra", "ticket/fin-ops-1"}
+		},
 	} {
 		conflicting := fixed
 		mutate(&conflicting)
