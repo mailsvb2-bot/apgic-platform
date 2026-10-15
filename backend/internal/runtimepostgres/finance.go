@@ -570,6 +570,30 @@ func recordFinanceEvidenceInStreamTx(ctx context.Context, tx *sql.Tx, providerIn
 		occurredAt.IsZero() {
 		return FinanceEvidenceDecision{}, ErrFinanceEvidenceInvalid
 	}
+	// An unsolicited "paid out" notice must not advance the customer-facing
+	// financial status before our authorized provider payout instruction exists.
+	// The bank executes the payment; APGIC only validates the evidence chain.
+	if payload.EvidenceKind == "PAYOUT_EXECUTED" {
+		instruction, err := loadInstructionTx(ctx, tx, payload.SettlementInstructionID)
+		if err != nil {
+			return FinanceEvidenceDecision{}, err
+		}
+		if instruction.ProviderInstanceID != providerInstanceID ||
+			instruction.Currency != payload.Currency ||
+			instruction.BeneficiaryMinor != payload.GrossAmountMinor {
+			return FinanceEvidenceDecision{}, ErrFinanceEvidenceInvalid
+		}
+		var authorized bool
+		if err := tx.QueryRowContext(ctx, `SELECT EXISTS (
+			SELECT 1 FROM finance_payout_decisions
+			WHERE settlement_instruction_id = $1::uuid AND decision = 'ALLOW'
+		)`, instruction.ID).Scan(&authorized); err != nil {
+			return FinanceEvidenceDecision{}, err
+		}
+		if !authorized {
+			return FinanceEvidenceDecision{}, ErrFinanceEvidenceInvalid
+		}
+	}
 	evidenceID, err := persistentid.FromRef("finance-evidence", providerInstanceID+"/"+externalEventID)
 	if err != nil {
 		return FinanceEvidenceDecision{}, err
