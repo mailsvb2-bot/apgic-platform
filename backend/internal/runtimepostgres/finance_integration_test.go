@@ -158,6 +158,11 @@ func TestR4RevenueConvergenceIsNonCustodialIdempotentAndReconciled(t *testing.T)
 		t.Fatalf("settlement evidence prematurely marked payout complete: %+v %v", settled, err)
 	}
 
+	// A signed payout notification alone is not authorization to pay.
+	// Reject premature confirmations, unexpected amounts and other providers.
+	if _, err := record(financeTestProviderB, "b-premature-paid", digest("e"), ev("PAYOUT_EXECUTED", 18000, 0)); !errors.Is(err, ErrFinanceEvidenceInvalid) {
+		t.Fatalf("payout without authorized instruction accepted: %v", err)
+	}
 	// 5. Payout blocked without provider eligibility, then instructed once.
 	notEligible, eligible := false, true
 	blocked := ev("PAYOUT_ELIGIBILITY", 0, 0)
@@ -178,6 +183,18 @@ func TestR4RevenueConvergenceIsNonCustodialIdempotentAndReconciled(t *testing.T)
 		awaiting == nil || awaiting.PayoutStatus != "INSTRUCTED" ||
 		awaiting.ReconciliationOutcome != "NOT_RECONCILED" {
 		t.Fatalf("payout instruction presented as completed payout: %+v %v", awaiting, err)
+	}
+	if _, err := record(financeTestProviderB, "b-wrong-paid", digest("e"), ev("PAYOUT_EXECUTED", 17999, 0)); !errors.Is(err, ErrFinanceEvidenceInvalid) {
+		t.Fatalf("mismatched external payout amount accepted: %v", err)
+	}
+	if _, err := record(financeTestProviderA, "a-wrong-paid", digest("e"), ev("PAYOUT_EXECUTED", 18000, 0)); !errors.Is(err, ErrFinanceEvidenceInvalid) {
+		t.Fatalf("other provider's payout accepted: %v", err)
+	}
+	if _, err := record(financeTestProviderB, "b-wrong-currency", digest("e"), FinanceEvidencePayload{
+		EvidenceKind: "PAYOUT_EXECUTED", SettlementInstructionID: instructionID,
+		ProviderReference: "bank/foreign-currency", GrossAmountMinor: 18000, Currency: "USD",
+	}); !errors.Is(err, ErrFinanceEvidenceInvalid) {
+		t.Fatalf("wrong payout currency accepted: %v", err)
 	}
 	if _, err := record(financeTestProviderB, "b-paid-1", digest("6"), ev("PAYOUT_EXECUTED", 18000, 0)); err != nil {
 		t.Fatal(err)
