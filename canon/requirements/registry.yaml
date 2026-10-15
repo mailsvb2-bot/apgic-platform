@@ -2147,6 +2147,9 @@ requirements:
   - backend/internal/runtimepostgres/finance.go
   - backend/cmd/finance-worker/main.go
   - docs/traceability/R4-financial-completion.md
+  - backend/migrations/000040_r4_finance_discrepancy_resolution.sql
+  - backend/internal/runtimepostgres/finance_resolution.go
+  - backend/internal/httpapi/finance_operations.go
   contract_refs:
   - contracts/jsonschema/financial-evidence-v1.schema.json
   test_refs:
@@ -2154,6 +2157,7 @@ requirements:
   - backend/internal/runtimepostgres/finance_integration_test.go
   - backend/migrations/ci_r4_finance_invariants.sql
   - backend/cmd/finance-worker/main_test.go
+  - backend/internal/httpapi/finance_operations_test.go
   evidence_refs: []
   acceptance:
     given: есть APGIC ledger period и provider statement/webhook facts
@@ -2223,6 +2227,10 @@ requirements:
   - docs/traceability/R4-financial-completion.md
   - backend/internal/httpapi/finance.go
   - tools/r4_release_gate.py
+  - backend/migrations/000040_r4_finance_discrepancy_resolution.sql
+  - backend/internal/runtimepostgres/finance_resolution.go
+  - apps/mobile/src/mobile-finance-status-client.ts
+  - apps/mobile/src/native-finance-status.tsx
   contract_refs:
   - contracts/jsonschema/financial-evidence-v1.schema.json
   test_refs:
@@ -2231,6 +2239,7 @@ requirements:
   - backend/internal/runtimepostgres/finance_integration_test.go
   - backend/migrations/ci_r4_finance_invariants.sql
   - tools/tests/test_r4_release_gate.py
+  - apps/mobile/src/mobile-finance-status-client.test.ts
   evidence_refs: []
   acceptance:
     given: release candidate R4
