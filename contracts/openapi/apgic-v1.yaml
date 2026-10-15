@@ -2356,7 +2356,7 @@ components:
           $ref: '#/components/schemas/AuthorizedMobileWorkspace'
     DeepLinkKind:
       type: string
-      enum: [BOOKING, SPECIALIST, NOTIFICATION]
+      enum: [BOOKING, SPECIALIST, NOTIFICATION, FINANCE_ORDER]
     DeepLinkResolution:
       type: object
       additionalProperties: false

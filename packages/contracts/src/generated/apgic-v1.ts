@@ -280,7 +280,7 @@ export interface CreateOrganizationRequest {
   name: string;
 }
 
-export type DeepLinkKind = "BOOKING" | "SPECIALIST" | "NOTIFICATION";
+export type DeepLinkKind = "BOOKING" | "SPECIALIST" | "NOTIFICATION" | "FINANCE_ORDER";
 
 export interface DeepLinkResolution {
   canonical_path?: string;
