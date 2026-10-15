@@ -453,7 +453,7 @@ export default function App({
           sessionCookie: deepLinkE2ESessionCookie,
         });
         if (action.action === "OPEN_APP_PATH") {
-          const financeOrder = /^\\/orders\\/([0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12})\\/finance$/.exec(action.target);
+          const financeOrder = /^\/orders\/([0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12})\/finance$/.exec(action.target);
           if (financeOrder) setFinanceDeepLinkOrderID(financeOrder[1]);
           setDeepLinkState({status: "OPEN", target: action.target});
           return;

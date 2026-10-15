@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/finance"
 	"time"
 )
 

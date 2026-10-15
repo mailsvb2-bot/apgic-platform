@@ -5,7 +5,7 @@ export const canonicalAPGICOrigin = "https://apgic.ru";
 const maxDeepLinkTokenLength = 4096;
 const maxWorkspaceIDLength = 256;
 const canonicalWorkspaceIDPattern = /^(?:client|specialist|organization):[A-Za-z0-9._~-]+$/;
-const canonicalPathPattern = /^\/(?:bookings|specialists|notifications)\/[A-Za-z0-9._~-]+$/;
+const canonicalPathPattern = /^\/(?:(?:bookings|specialists|notifications)\/[A-Za-z0-9._~-]+|orders\/[A-Za-z0-9._~-]+\/finance)$/;
 
 type FetchOptions = {
   method?: string;
