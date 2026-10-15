@@ -107,6 +107,21 @@ func TestFinanceDiscrepancyResolutionRequiresGrantStepUpAndAudit(t *testing.T) {
 		t.Fatalf("stale step-up accepted: %d", rec.Code)
 	}
 	freshStepUp, _ := stepUps.issue(operator, operatorRef, "WEBAUTHN", now)
+	// High-risk finance resolution must be an unambiguous single JSON object.
+	// A valid prefix followed by another object or JSON token must not produce
+	// any decision, while JSON whitespace after the object is permitted.
+	for _, invalid := range []string{
+		body + body,
+		body + `{"kind":"PROVIDER_CORRECTION_CONFIRMED"}`,
+		body + `null`,
+		body + `[]`,
+		body + `garbage`,
+		body + strings.Repeat(" ", financeOpsMaxRequestBytes),
+	} {
+		if rec := do(http.MethodPost, resolve, invalid, operatorCookie, freshStepUp); rec.Code != http.StatusBadRequest || len(store.resolved) != 0 {
+			t.Fatalf("ambiguous finance resolution accepted: status=%d body=%q", rec.Code, rec.Body.String())
+		}
+	}
 	forged := `{"idempotency_key":"k1","kind":"OPERATIONAL_EXCEPTION_ACCEPTED","reason":"accepted by finance ops","evidence_refs":["ticket/1"],"operator_id":"` + stranger + `"}`
 	if rec := do(http.MethodPost, resolve, forged, operatorCookie, freshStepUp); rec.Code != http.StatusBadRequest {
 		t.Fatalf("body-supplied operator accepted: %d", rec.Code)
