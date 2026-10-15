@@ -98,6 +98,15 @@ case ",$APGIC_MOBILE_SUPPORTED_CONTRACTS," in
     ;;
 esac
 
+finance_worker_enabled="${APGIC_FINANCE_WORKER_ENABLED:-0}"
+case "$finance_worker_enabled" in
+  0|1) ;;
+  *)
+    echo "APGIC_FINANCE_WORKER_ENABLED must be 0 or 1" >&2
+    exit 1
+    ;;
+esac
+
 outbox_enabled="${APGIC_OUTBOX_WORKER_ENABLED:-0}"
 case "$outbox_enabled" in
   0)
@@ -189,11 +198,12 @@ if [[ "${APGIC_UPDATE_REEXEC:-0}" != "1" ]]; then
   APGIC_UPDATE_REEXEC=1 exec bash "$REPO_ROOT/deploy/staging/update-staging.sh" "$TARGET_SHA"
 fi
 
-echo "=== Build API and outbox worker ==="
+echo "=== Build API, outbox worker and finance worker ==="
 cd "$REPO_ROOT/backend"
 mkdir -p bin
 go build -o bin/apgic-api ./cmd/api
 go build -o bin/apgic-outbox-worker ./cmd/outbox-worker
+go build -o bin/apgic-finance-worker ./cmd/finance-worker
 
 echo "=== Build Web ==="
 cd "$REPO_ROOT/apps/web"
@@ -209,6 +219,7 @@ cd "$REPO_ROOT"
 echo "=== Reconcile staging maintenance units ==="
 maintenance_units=(
   apgic-outbox-worker-staging.service
+  apgic-finance-worker-staging.service
   apgic-staging-runtime-watchdog.service
   apgic-staging-backup.service
   apgic-staging-backup.timer
@@ -303,6 +314,17 @@ case "$outbox_enabled" in
   1)
     systemctl enable apgic-outbox-worker-staging.service >/dev/null
     systemctl restart apgic-outbox-worker-staging.service
+    ;;
+esac
+
+case "$finance_worker_enabled" in
+  0)
+    systemctl disable --now apgic-finance-worker-staging.service >/dev/null 2>&1 || true
+    echo "APGIC finance worker: disabled (R4 settlement/reconciliation staging evidence not claimed)"
+    ;;
+  1)
+    systemctl enable apgic-finance-worker-staging.service >/dev/null
+    systemctl restart apgic-finance-worker-staging.service
     ;;
 esac
 

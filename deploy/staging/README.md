@@ -60,6 +60,10 @@ Install the four systemd units/timers from deploy/staging, run systemctl daemon-
 Timeweb VM snapshots complement this logical backup path; they do not replace logical restore verification.
 
 
+## R4 finance worker
+
+`apgic-finance-worker-staging.service` is installed by the staging updater but is **disabled by default**. Set `APGIC_FINANCE_WORKER_ENABLED=1` in `/etc/apgic/staging.env` only after the R4 migrations are applied and the staging owner approves settlement/reconciliation processing; the updater then enables and restarts the worker after migration and runtime restart. The worker shares `APGIC_DATABASE_URL` and fails closed unless every R4 finance table is present. Enabling this service is not payment-provider certification or production payout evidence.
+
 ## Transactional outbox worker
 
 EVENT-001 uses a separate worker process rather than delivering external side effects inside API request handling. It is deliberately disabled unless a real compatible Event Gateway has been configured.

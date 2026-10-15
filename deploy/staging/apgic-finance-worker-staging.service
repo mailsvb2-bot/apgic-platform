@@ -1,0 +1,26 @@
+[Unit]
+Description=APGIC staging R4 finance settlement and reconciliation worker
+After=network-online.target postgresql.service apgic-api-staging.service
+Wants=network-online.target
+Requires=apgic-api-staging.service
+
+[Service]
+Type=simple
+DynamicUser=yes
+EnvironmentFile=/etc/apgic/staging.env
+WorkingDirectory=/opt/apgic/current/backend
+ExecStart=/opt/apgic/current/backend/bin/apgic-finance-worker
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateDevices=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target
