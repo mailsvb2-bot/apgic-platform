@@ -49,7 +49,7 @@ func main() {
 
 	ticker := time.NewTicker(cfg.pollInterval)
 	defer ticker.Stop()
-	var lastReconcile time.Time
+	var nextReconcileAt time.Time // Zero means reconcile immediately on startup.
 	for {
 		outcomes, err := storage.SettleCompletedConsultations(ctx, cfg.batchSize)
 		if err != nil && ctx.Err() == nil {
@@ -58,9 +58,12 @@ func main() {
 		for _, outcome := range outcomes {
 			log.Printf("APGIC finance settlement order=%s status=%s reason=%s", outcome.OrderID, outcome.Status, outcome.ReasonCode)
 		}
-		if now := time.Now().UTC(); now.Sub(lastReconcile) >= cfg.reconcileInterval {
-			reconcileAll(ctx, storage, now, cfg.reconcileInterval)
-			lastReconcile = now
+		// Failed provider reconciliation is not a completed accounting run.
+		// Retry it on a bounded cadence rather than leaving unverified money
+		// movements unexamined for an entire reconciliation interval.
+		if now := time.Now().UTC(); !now.Before(nextReconcileAt) {
+			reconciled := reconcileAll(ctx, storage, now, cfg.reconcileInterval)
+			nextReconcileAt = nextFinanceReconcileAttempt(now, cfg.reconcileInterval, reconciled)
 		}
 		select {
 		case <-ctx.Done():
@@ -71,22 +74,39 @@ func main() {
 	}
 }
 
-func reconcileAll(ctx context.Context, storage *runtimepostgres.Checker, now time.Time, bucket time.Duration) {
+func reconcileAll(ctx context.Context, storage *runtimepostgres.Checker, now time.Time, bucket time.Duration) bool {
 	start, end := reconciliationWindow(now, bucket)
 	providers, err := storage.FinanceProviderInstances(ctx)
 	if err != nil {
 		log.Printf("APGIC finance reconciliation scope unavailable: %v", err)
-		return
+		return false
 	}
+	allReconciled := true
 	for _, provider := range providers {
 		report, err := storage.ReconcileFinanceProvider(ctx, provider, start, end)
 		if err != nil {
+			allReconciled = false
 			log.Printf("APGIC finance reconciliation provider=%s failed: %v", provider, err)
 			continue
 		}
 		log.Printf("APGIC finance reconciliation provider=%s run=%s matched=%d mismatched=%d pending=%d",
 			provider, report.RunID, report.Matched, report.Mismatched, report.Pending)
 	}
+	return allReconciled
+}
+
+// Retry failures on the same durable period bucket. A successful pass returns
+// to the configured interval. The retry delay never exceeds the configured
+// interval and is never less than one polling tick (500ms minimum in settings).
+func nextFinanceReconcileAttempt(now time.Time, interval time.Duration, successful bool) time.Time {
+	if successful {
+		return now.Add(interval)
+	}
+	retry := time.Minute
+	if interval < retry {
+		retry = interval
+	}
+	return now.Add(retry)
 }
 
 // reconciliationWindow aligns runs to bucket boundaries so a restarted worker
