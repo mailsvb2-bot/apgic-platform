@@ -434,18 +434,9 @@ func (c *Checker) ApplyFinanceProviderWebhook(ctx context.Context, envelope conn
 	if err := connector.VerifyWebhook(envelope, keys); err != nil {
 		return FinanceEvidenceDecision{}, err
 	}
-	var payload FinanceEvidencePayload
-	decoder := json.NewDecoder(strings.NewReader(string(envelope.Payload)))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&payload); err != nil {
-		return FinanceEvidenceDecision{}, ErrFinanceEvidenceInvalid
-	}
-	// Verification covers the entire signed payload, not just the first JSON
-	// object. Reject trailing JSON, garbage and unrelated instructions even
-	// when the caller bypasses the public HTTP handler and invokes the store.
-	var trailing json.RawMessage
-	if err := decoder.Decode(&trailing); err != io.EOF {
-		return FinanceEvidenceDecision{}, ErrFinanceEvidenceInvalid
+	payload, err := decodeFinanceProviderPayload(envelope.Payload)
+	if err != nil {
+		return FinanceEvidenceDecision{}, err
 	}
 	digest := sha256.Sum256(envelope.Payload)
 	txCtx, cancel := context.WithTimeout(ctx, financeTimeout)
@@ -465,6 +456,23 @@ func (c *Checker) ApplyFinanceProviderWebhook(ctx context.Context, envelope conn
 		return FinanceEvidenceDecision{}, fmt.Errorf("commit finance evidence: %w", err)
 	}
 	return decision, nil
+}
+
+
+func decodeFinanceProviderPayload(raw json.RawMessage) (FinanceEvidencePayload, error) {
+	var payload FinanceEvidencePayload
+	decoder := json.NewDecoder(strings.NewReader(string(raw)))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&payload); err != nil {
+		return FinanceEvidencePayload{}, ErrFinanceEvidenceInvalid
+	}
+	// JSON may be signed but still contain additional unaccounted instructions.
+	// Reject both multiple objects and trailing garbage at the storage boundary.
+	var trailing json.RawMessage
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		return FinanceEvidencePayload{}, ErrFinanceEvidenceInvalid
+	}
+	return payload, nil
 }
 
 var financeEvidenceKinds = map[string]bool{
