@@ -1063,7 +1063,28 @@ dismiss_android_ime() {
   return 1
 }
 
+# The installed Android app reaches the isolated backend through adb reverse.
+# Device/ADB transport changes during the long native suite may invalidate it.
+# Verify the actual bridge before asserting a user-visible server confirmation.
+ensure_demand_backend_bridge() {
+  if ! kill -0 "$SERVER_PID" 2>/dev/null ||
+     ! curl --fail --silent --show-error --max-time 5 http://127.0.0.1:43113/healthz >/dev/null; then
+    echo "Android HelpIntent backend is unavailable on the host" >&2
+    return 1
+  fi
+  local reverse_routes
+  reverse_routes="$("$ADB" reverse --list 2>/dev/null)" || return 1
+  if ! grep -Eq 'tcp:43113[[:space:]]+tcp:43113([[:space:]]|$)' <<<"$reverse_routes"; then
+    echo "Android HelpIntent reverse TCP bridge missing; restoring actual device forwarding" >&2
+    "$ADB" reverse tcp:43113 tcp:43113 || return 1
+  fi
+  "$ADB" reverse --list | grep -Eq 'tcp:43113[[:space:]]+tcp:43113([[:space:]]|$)' ||
+    return 1
+}
+
 assert_help_intent_confirmation() {
+  ensure_demand_backend_bridge ||
+    fail "Android HelpIntent network transport is unavailable before native confirmation"
   local output="$EVIDENCE_DIR/android-demand-e2e.xml"
   local remote="/sdcard/apgic-demand-e2e.xml"
   local confirm_count_before
