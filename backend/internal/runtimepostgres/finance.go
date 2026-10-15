@@ -928,3 +928,135 @@ SELECT DISTINCT p.provider_instance_id::text
 func (c *Checker) ReadFinanceOrderStatus(ctx context.Context, orderID, identityID string) (*FinanceOrderStatus, error) {
 	if c == nil || c.db == nil {
 		return nil, errors.New("postgres checker is not initialized")
+	}
+	txCtx, cancel := context.WithTimeout(ctx, financeTimeout)
+	defer cancel()
+	tx, err := c.db.BeginTx(txCtx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	return readFinanceOrderStatusTx(txCtx, tx, orderID, identityID)
+}
+
+func readFinanceOrderStatusTx(ctx context.Context, tx *sql.Tx, orderID, identityID string) (*FinanceOrderStatus, error) {
+	if !financeUUIDPattern.MatchString(orderID) || !financeUUIDPattern.MatchString(identityID) {
+		return nil, nil
+	}
+	status := &FinanceOrderStatus{OrderID: orderID, ExecutionOwner: finance.ExternalExecutionOwner}
+	err := tx.QueryRowContext(ctx, `
+SELECT o.currency, o.amount_minor
+  FROM orders o
+  JOIN bookings b ON b.id = o.booking_id
+  JOIN booking_slots s ON s.id = b.slot_id
+ WHERE o.id = $1::uuid AND (b.client_identity_id = $2::uuid OR s.specialist_identity_id = $2::uuid)`,
+		orderID, identityID).Scan(&status.Currency, &status.TotalAmountMinor)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("read finance order: %w", err)
+	}
+
+	revenue := finance.RevenueEvidence{}
+	var paymentRef, ledgerRef sql.NullString
+	if err := tx.QueryRowContext(ctx, `
+SELECT e.provider_evidence_ref, e.ledger_entry_id::text
+  FROM payment_attempts a JOIN payment_effects e ON e.attempt_id = a.id AND e.effect_kind = 'CAPTURED'
+ WHERE a.order_id = $1::uuid LIMIT 1`, orderID).Scan(&paymentRef, &ledgerRef); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, err
+	}
+	revenue.PaymentEvidenceRef, revenue.LedgerEvidenceRef = paymentRef.String, ledgerRef.String
+
+	var instructionID, completionRef, policyVersion, snapshotID string
+	var fee, beneficiary int64
+	err = tx.QueryRowContext(ctx, `
+SELECT i.id::text, i.completion_evidence_ref, c.policy_version, c.id::text, i.platform_fee_minor, i.beneficiary_amount_minor
+  FROM finance_settlement_instructions i JOIN finance_commission_snapshots c ON c.id = i.commission_snapshot_id
+ WHERE i.order_id = $1::uuid`, orderID).Scan(&instructionID, &completionRef, &policyVersion, &snapshotID, &fee, &beneficiary)
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		status.SettlementStatus, status.PayoutStatus, status.ReconciliationOutcome = "NOT_INSTRUCTED", "NOT_ELIGIBLE", "NOT_RECONCILED"
+		rows, err := tx.QueryContext(ctx, `SELECT reason_code FROM finance_settlement_holds WHERE order_id = $1::uuid ORDER BY reason_code`, orderID)
+		if err != nil {
+			return nil, err
+		}
+		for rows.Next() {
+			var reason string
+			if err := rows.Scan(&reason); err != nil {
+				rows.Close()
+				return nil, err
+			}
+			status.SettlementHoldReasons = append(status.SettlementHoldReasons, reason)
+		}
+		rows.Close()
+		if len(status.SettlementHoldReasons) > 0 {
+			status.SettlementStatus = "HELD"
+		}
+		result, _ := finance.EvaluateRevenueAssurance(revenue)
+		status.RevenueAssurance, status.RevenueReasonCode = result.Outcome, result.ReasonCode
+		return status, nil
+	case err != nil:
+		return nil, err
+	}
+	status.CommissionPolicyVersion = policyVersion
+	status.PlatformFeeMinor, status.BeneficiaryAmountMinor = &fee, &beneficiary
+	revenue.FulfillmentEvidenceRef = completionRef
+	revenue.CommissionEvidenceRef = "commission/" + snapshotID
+
+	status.SettlementStatus = "INSTRUCTED"
+	if id, _, _, _, ok, err := latestEvidenceTx(ctx, tx, instructionID, "SETTLEMENT_EXECUTED"); err != nil {
+		return nil, err
+	} else if ok {
+		status.SettlementStatus = "PROVIDER_SETTLED"
+		revenue.SettlementEvidenceRef = "finance-evidence/" + id
+	}
+
+	status.PayoutStatus = "AWAITING_PROVIDER_ELIGIBILITY"
+	var decision, reason string
+	err = tx.QueryRowContext(ctx, `
+SELECT decision, reason_code FROM finance_payout_decisions
+ WHERE settlement_instruction_id = $1::uuid ORDER BY (decision = 'ALLOW') DESC, decided_at DESC LIMIT 1`, instructionID).Scan(&decision, &reason)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, err
+	}
+	if err == nil {
+		status.PayoutReasonCode = reason
+		if decision == "ALLOW" {
+			status.PayoutStatus = "INSTRUCTED"
+		} else {
+			status.PayoutStatus = "BLOCKED"
+		}
+	}
+	if id, _, _, _, ok, err := latestEvidenceTx(ctx, tx, instructionID, "PAYOUT_EXECUTED"); err != nil {
+		return nil, err
+	} else if ok {
+		status.PayoutStatus = "PROVIDER_PAID_OUT"
+		revenue.PayoutEvidenceRef = "finance-evidence/" + id
+	}
+
+	status.ReconciliationOutcome = "NOT_RECONCILED"
+	var outcome string
+	var discrepancyID sql.NullString
+	err = tx.QueryRowContext(ctx, `
+SELECT r.outcome, d.id::text
+  FROM finance_reconciliation_results r
+  LEFT JOIN finance_reconciliation_discrepancies d ON d.result_id = r.id
+ WHERE r.settlement_instruction_id = $1::uuid ORDER BY r.decided_at DESC, r.id DESC LIMIT 1`, instructionID).Scan(&outcome, &discrepancyID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, err
+	}
+	if err == nil {
+		status.ReconciliationOutcome = outcome
+		revenue.ReconciliationOutcome = finance.ReconciliationOutcome(outcome)
+		if discrepancyID.Valid {
+			revenue.DiscrepancyEvidenceRef = "discrepancy/" + discrepancyID.String
+		}
+	}
+	if err := tx.QueryRowContext(ctx, `SELECT COALESCE(sum(amount_minor), 0) FROM finance_dispute_effects WHERE settlement_instruction_id = $1::uuid`, instructionID).Scan(&status.DisputedAmountMinor); err != nil {
+		return nil, err
+	}
+	result, _ := finance.EvaluateRevenueAssurance(revenue)
+	status.RevenueAssurance, status.RevenueReasonCode = result.Outcome, result.ReasonCode
+	return status, nil
+}
