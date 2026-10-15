@@ -208,7 +208,7 @@ func validDeepLinkResource(resource DeepLinkResource) bool {
 		return false
 	}
 	switch resource.Kind {
-	case LinkBooking, LinkNotification:
+	case LinkBooking, LinkNotification, LinkFinanceOrder:
 		return resource.AccessClass == LinkProtectedResource &&
 			strings.TrimSpace(resource.TenantID) != "" &&
 			strings.TrimSpace(resource.SubjectIdentityID) != ""
