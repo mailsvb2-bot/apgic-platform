@@ -1103,7 +1103,10 @@ assert_help_intent_confirmation() {
   seek_demand_accessibility_node "С чем нужна помощь" "" tap "$remote" "$output" ||
     fail "Android HelpIntent text input not operable in scrollable app"
   "$ADB" shell input text 'anxiety%ssleep' >/dev/null
-  "$ADB" shell input keyevent 4 >/dev/null
+  # Dismiss the IME deterministically before navigating to the real
+  # interpretation button: a still-visible keyboard intercepts scrolls,
+  # making the enabled native control unreachable on small emulators.
+  dismiss_android_ime || fail "Android IME blocks HelpIntent interpretation navigation"
   sleep 1
   seek_demand_accessibility_node "Разобрать запрос" "" tap "$remote" "$output" ||
     fail "Android HelpIntent interpret button not operable"
