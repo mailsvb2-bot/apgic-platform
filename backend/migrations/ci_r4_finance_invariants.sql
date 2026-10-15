@@ -80,7 +80,7 @@ INSERT INTO finance_settlement_instructions VALUES ('00000000-0000-0000-0000-000
   '00000000-0000-0000-0000-0000000f4602','EXTERNAL_PROVIDER','00000000-0000-0000-0000-0000000f4501',
   'provider-evidence/r4-ended','RUB',20000,'identity/specialist-r4',18000,'platform/apgic-fee',2000,now());
 
-INSERT INTO finance_provider_evidence VALUES
+INSERT INTO finance_provider_evidence (id, provider_instance_id, external_event_id, payload_sha256, evidence_kind, settlement_instruction_id, provider_reference, gross_amount_minor, provider_fee_minor, currency, payout_eligible, compliance_evidence_ref, occurred_at, received_at) VALUES
 ('00000000-0000-0000-0000-0000000f4631','00000000-0000-0000-0000-00000000d002','b-settled',
  'sha256:' || repeat('1',64),'SETTLEMENT_EXECUTED','00000000-0000-0000-0000-0000000f4620','ci-b/settled',
  20000,300,'RUB',NULL,NULL,now(),now()),
@@ -108,7 +108,7 @@ BEGIN
 
   blocked := false;
   BEGIN
-    INSERT INTO finance_provider_evidence VALUES ('00000000-0000-0000-0000-0000000f4695',
+    INSERT INTO finance_provider_evidence (id, provider_instance_id, external_event_id, payload_sha256, evidence_kind, settlement_instruction_id, provider_reference, gross_amount_minor, provider_fee_minor, currency, payout_eligible, compliance_evidence_ref, occurred_at, received_at) VALUES ('00000000-0000-0000-0000-0000000f4695',
       '00000000-0000-0000-0000-00000000d001','a-settled','sha256:' || repeat('5',64),'SETTLEMENT_EXECUTED',
       '00000000-0000-0000-0000-0000000f4620','ci-a/settled',20000,300,'RUB',NULL,NULL,now(),now());
   EXCEPTION WHEN raise_exception THEN blocked := true; END;
@@ -116,7 +116,7 @@ BEGIN
 
   blocked := false;
   BEGIN
-    INSERT INTO finance_provider_evidence VALUES ('00000000-0000-0000-0000-0000000f4694',
+    INSERT INTO finance_provider_evidence (id, provider_instance_id, external_event_id, payload_sha256, evidence_kind, settlement_instruction_id, provider_reference, gross_amount_minor, provider_fee_minor, currency, payout_eligible, compliance_evidence_ref, occurred_at, received_at) VALUES ('00000000-0000-0000-0000-0000000f4694',
       '00000000-0000-0000-0000-00000000d002','b-settled','sha256:' || repeat('6',64),'SETTLEMENT_EXECUTED',
       '00000000-0000-0000-0000-0000000f4620','ci-b/settled-again',20000,300,'RUB',NULL,NULL,now(),now());
   EXCEPTION WHEN unique_violation THEN blocked := true; END;
