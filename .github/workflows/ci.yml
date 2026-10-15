@@ -1,6 +1,7 @@
 name: CI
 
 on:
+  workflow_dispatch:
   pull_request:
   push:
     branches:
@@ -318,6 +319,9 @@ jobs:
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r2_transaction_edge_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r2_payment_governance_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r2_mobile_store_invariants.sql
+          # Reuse the real R2 synthetic provider-verification and captured-ledger proof
+          # BEFORE R4's deliberately destructive subscription refund/revocation drill.
+          (cd backend && APGIC_ORGANIZATION_TEST_DATABASE_URL='postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable' go test ./internal/runtimepostgres -run TestAcademyStoreVerifiedPaidJourneySurvivesRestart -count=1 -v)
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r3_communication_consultation_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r3_consultation_outcome_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r4_store_lifecycle_invariants.sql
@@ -500,6 +504,17 @@ jobs:
         env:
           APGIC_ORGANIZATION_TEST_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable
         run: go test ./internal/httpapi -run 'TestOrganizationDirectionHTTPPersistsOwnershipAndArchivesInsteadOfDelete|TestOrganizationProductHTTPPublishesExplicitOwnershipSnapshot' -count=1
+      - name: Prove real refund lifecycle withdraws Academy lesson access
+        working-directory: backend
+        env:
+          APGIC_ORGANIZATION_TEST_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable
+        run: go test ./internal/runtimepostgres -run TestAcademyStoreRefundWithdrawsLearningAccess -count=1 -v
+      - name: Prove R8 Academy canonical course versioning, ownership and entitlement gate in PostgreSQL
+        working-directory: backend
+        env:
+          APGIC_ORGANIZATION_TEST_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable
+        run: go test ./internal/runtimepostgres -run TestAcademyVersioningRequiresVerifiedAccess -count=1 -v
+
       - name: Prove AUTH-002 high-risk step-up gate and audit
         working-directory: backend
         env:

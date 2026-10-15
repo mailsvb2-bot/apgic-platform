@@ -13,6 +13,7 @@ import {
 } from "react-native";
 
 import {apiContractVersion} from "./api-contract.ts";
+import {AcademySurface} from "./mobile-academy-client.tsx";
 import {NativeSpecialistDirectory} from "./native-specialist-directory.tsx";
 import {
   decideCapability,
@@ -1017,6 +1018,7 @@ export default function App({
         keyboardDismissMode="on-drag"
       >
         <Text style={styles.eyebrow}>R0 · Foundation</Text>
+        {!infrastructureE2EActive ? <AcademySurface /> : null}
         <Text style={styles.title}>APGIC</Text>
         <Text style={styles.body}>
           Одна Identity и одна server truth для iOS, Android, Web и PWA.

@@ -1,0 +1,35 @@
+name: Academy Go formatting guard
+
+on:
+  push:
+    branches:
+      - feat/academy-edtech
+    paths:
+      - 'backend/internal/academy/**'
+      - 'backend/internal/httpapi/academy*.go'
+      - 'backend/internal/httpapi/handler.go'
+      - 'backend/internal/runtimepostgres/academy*.go'
+      - 'backend/cmd/api/main.go'
+      - 'backend/migrations/000049_r8_academy_learning.sql'
+      - '.github/workflows/academy-go-format.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  gofmt:
+    if: github.ref == 'refs/heads/feat/academy-edtech'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Refuse unformatted Academy changes without mutating HEAD
+        shell: bash
+        run: |
+          set -euo pipefail
+          unformatted="$(gofmt -l backend/internal/academy/*.go backend/internal/httpapi/academy*.go backend/internal/httpapi/handler.go backend/internal/runtimepostgres/academy*.go backend/cmd/api/main.go)"
+          if [ -n "$unformatted" ]; then
+            echo "Academy Go sources require gofmt:"
+            printf '%s\\n' "$unformatted"
+            exit 1
+          fi
+          echo "Academy Go source formatting verified on immutable CI SHA $GITHUB_SHA"
