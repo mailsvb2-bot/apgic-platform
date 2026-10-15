@@ -2022,12 +2022,18 @@ requirements:
   - backend/internal/finance/settlement.go
   - config/finance/r4-ci-settlement-policy.yaml
   - tools/launch_config_guard.py
+  - backend/migrations/000039_r4_financial_completion.sql
+  - backend/internal/runtimepostgres/finance.go
+  - backend/cmd/finance-worker/main.go
+  - docs/traceability/R4-financial-completion.md
   contract_refs:
   - contracts/jsonschema/provider-settlement-v1.schema.json
   test_refs:
   - backend/internal/finance/settlement_test.go
   - tools/tests/test_r4_finance_policy.py
   - .github/workflows/ci.yml
+  - backend/internal/runtimepostgres/finance_integration_test.go
+  - backend/migrations/ci_r4_finance_invariants.sql
   evidence_refs: []
   acceptance:
     given: completed payable transaction имеет demand source
@@ -2057,12 +2063,18 @@ requirements:
   implementation_refs:
   - backend/internal/finance/settlement.go
   - config/finance/r4-ci-settlement-policy.yaml
+  - backend/migrations/000039_r4_financial_completion.sql
+  - backend/internal/runtimepostgres/finance.go
+  - backend/cmd/finance-worker/main.go
+  - docs/traceability/R4-financial-completion.md
   contract_refs:
   - contracts/jsonschema/provider-settlement-v1.schema.json
   - docs/architecture/0002-non-custodial-payment-control-plane.md
   test_refs:
   - backend/internal/finance/settlement_test.go
   - .github/workflows/ci.yml
+  - backend/internal/runtimepostgres/finance_integration_test.go
+  - backend/migrations/ci_r4_finance_invariants.sql
   evidence_refs: []
   acceptance:
     given: transaction eligible for settlement
@@ -2090,11 +2102,19 @@ requirements:
   implementation_refs:
   - backend/internal/finance/settlement.go
   - config/finance/r4-ci-settlement-policy.yaml
+  - backend/migrations/000039_r4_financial_completion.sql
+  - backend/internal/runtimepostgres/finance.go
+  - backend/cmd/finance-worker/main.go
+  - docs/traceability/R4-financial-completion.md
+  - backend/internal/httpapi/finance.go
   contract_refs:
   - contracts/jsonschema/provider-settlement-v1.schema.json
   test_refs:
   - backend/internal/finance/settlement_test.go
   - .github/workflows/ci.yml
+  - backend/internal/runtimepostgres/finance_integration_test.go
+  - backend/migrations/ci_r4_finance_invariants.sql
+  - backend/internal/httpapi/finance_test.go
   evidence_refs: []
   acceptance:
     given: по APGIC economic snapshot/fulfillment policy существует ожидаемая выплата beneficiary
@@ -2123,10 +2143,17 @@ requirements:
   - APGIC-PAYOUT-001
   implementation_refs:
   - backend/internal/finance/reconciliation.go
+  - backend/migrations/000039_r4_financial_completion.sql
+  - backend/internal/runtimepostgres/finance.go
+  - backend/cmd/finance-worker/main.go
+  - docs/traceability/R4-financial-completion.md
   contract_refs:
   - contracts/jsonschema/financial-evidence-v1.schema.json
   test_refs:
   - backend/internal/finance/reconciliation_test.go
+  - backend/internal/runtimepostgres/finance_integration_test.go
+  - backend/migrations/ci_r4_finance_invariants.sql
+  - backend/cmd/finance-worker/main_test.go
   evidence_refs: []
   acceptance:
     given: есть APGIC ledger period и provider statement/webhook facts
@@ -2152,11 +2179,17 @@ requirements:
   - APGIC-SETTLE-001
   implementation_refs:
   - backend/internal/finance/reconciliation.go
+  - backend/migrations/000039_r4_financial_completion.sql
+  - backend/internal/runtimepostgres/finance.go
+  - backend/cmd/finance-worker/main.go
+  - docs/traceability/R4-financial-completion.md
   contract_refs:
   - contracts/jsonschema/financial-evidence-v1.schema.json
   - docs/architecture/0002-non-custodial-payment-control-plane.md
   test_refs:
   - backend/internal/finance/reconciliation_test.go
+  - backend/internal/runtimepostgres/finance_integration_test.go
+  - backend/migrations/ci_r4_finance_invariants.sql
   evidence_refs: []
   acceptance:
     given: завершённая транзакция получает dispute/chargeback
@@ -2184,11 +2217,20 @@ requirements:
   - APGIC-DISPUTE-001
   implementation_refs:
   - backend/internal/finance/reconciliation.go
+  - backend/migrations/000039_r4_financial_completion.sql
+  - backend/internal/runtimepostgres/finance.go
+  - backend/cmd/finance-worker/main.go
+  - docs/traceability/R4-financial-completion.md
+  - backend/internal/httpapi/finance.go
+  - tools/r4_release_gate.py
   contract_refs:
   - contracts/jsonschema/financial-evidence-v1.schema.json
   test_refs:
   - backend/internal/finance/reconciliation_test.go
   - .github/workflows/ci.yml
+  - backend/internal/runtimepostgres/finance_integration_test.go
+  - backend/migrations/ci_r4_finance_invariants.sql
+  - tools/tests/test_r4_release_gate.py
   evidence_refs: []
   acceptance:
     given: release candidate R4
