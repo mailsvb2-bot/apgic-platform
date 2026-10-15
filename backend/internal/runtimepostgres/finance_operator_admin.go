@@ -36,6 +36,9 @@ func (c *Checker) GrantFinanceOperator(ctx context.Context, identityID, approved
 		return "", fmt.Errorf("begin finance operator grant: %w", err)
 	}
 	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtext('finance-operator-grant:' || $1))`, identityID); err != nil {
+		return "", fmt.Errorf("lock finance operator grant scope: %w", err)
+	}
 
 	var activeID string
 	err = tx.QueryRowContext(ctx, `SELECT g.id::text
