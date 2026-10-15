@@ -1,23 +1,19 @@
 -- Persist signed provider stream ordering for R4 financial evidence.
--- Evidence remains append-only; the cursor is a mutable, monotonic projection
--- used only to serialize delivery and reject gaps/replays before financial mutation.
+-- Existing evidence is append-only and must not be rewritten during migration;
+-- old rows keep NULL stream metadata and remain replay-safe by event ID + digest.
+-- New webhook rows always carry a stream ID and positive sequence.
 ALTER TABLE finance_provider_evidence
   ADD COLUMN stream_id text,
   ADD COLUMN stream_sequence bigint;
 
-UPDATE finance_provider_evidence
-   SET stream_id = 'legacy/' || id::text,
-       stream_sequence = 1
- WHERE stream_id IS NULL OR stream_sequence IS NULL;
-
 ALTER TABLE finance_provider_evidence
-  ALTER COLUMN stream_id SET NOT NULL,
-  ALTER COLUMN stream_sequence SET NOT NULL,
-  ADD CONSTRAINT finance_provider_evidence_stream_nonblank CHECK (btrim(stream_id) <> ''),
-  ADD CONSTRAINT finance_provider_evidence_stream_sequence_positive CHECK (stream_sequence > 0);
+  ADD CONSTRAINT finance_provider_evidence_stream_metadata_pair
+    CHECK ((stream_id IS NULL AND stream_sequence IS NULL)
+        OR (stream_id IS NOT NULL AND btrim(stream_id) <> '' AND stream_sequence > 0));
 
 CREATE UNIQUE INDEX finance_provider_evidence_stream_sequence_unique
-  ON finance_provider_evidence(provider_instance_id, stream_id, stream_sequence);
+  ON finance_provider_evidence(provider_instance_id, stream_id, stream_sequence)
+  WHERE stream_id IS NOT NULL;
 
 CREATE TABLE finance_provider_stream_cursors (
   provider_instance_id uuid NOT NULL REFERENCES connector_instances(id),

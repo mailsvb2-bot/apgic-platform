@@ -482,11 +482,16 @@ func recordSequencedFinanceEvidenceTx(ctx context.Context, tx *sql.Tx, providerI
 	}
 	var storedDigest, storedStream string
 	var storedSequence int64
-	err := tx.QueryRowContext(ctx, `SELECT payload_sha256, stream_id, stream_sequence
+	err := tx.QueryRowContext(ctx, `SELECT payload_sha256, COALESCE(stream_id,''), COALESCE(stream_sequence,0)
 		FROM finance_provider_evidence WHERE provider_instance_id=$1::uuid AND external_event_id=$2`,
 		providerInstanceID, externalEventID).Scan(&storedDigest, &storedStream, &storedSequence)
 	if err == nil {
-		if storedDigest != digest || storedStream != streamID || storedSequence != int64(sequence) {
+		if storedDigest != digest {
+			return FinanceEvidenceDecision{}, ErrFinanceEvidenceConflict
+		}
+		// Pre-sequencing evidence is immutable legacy history. A byte-identical
+		// replay remains idempotent; it cannot be retroactively assigned a stream.
+		if storedStream != "" && (storedStream != streamID || storedSequence != int64(sequence)) {
 			return FinanceEvidenceDecision{}, ErrFinanceEvidenceConflict
 		}
 		id, idErr := persistentid.FromRef("finance-evidence", providerInstanceID+"/"+externalEventID)
@@ -576,10 +581,13 @@ ON CONFLICT (provider_instance_id, external_event_id) DO NOTHING`,
 	if affected == 0 {
 		var storedDigest, storedStream string
 		var storedSequence int64
-		if err := tx.QueryRowContext(ctx, `SELECT payload_sha256, stream_id, stream_sequence FROM finance_provider_evidence WHERE id = $1::uuid`, evidenceID).Scan(&storedDigest, &storedStream, &storedSequence); err != nil {
+		if err := tx.QueryRowContext(ctx, `SELECT payload_sha256, COALESCE(stream_id,''), COALESCE(stream_sequence,0) FROM finance_provider_evidence WHERE id = $1::uuid`, evidenceID).Scan(&storedDigest, &storedStream, &storedSequence); err != nil {
 			return FinanceEvidenceDecision{}, fmt.Errorf("read duplicate finance evidence: %w", err)
 		}
-		if storedDigest != digest || storedStream != streamID || storedSequence != int64(sequence) {
+		if storedDigest != digest {
+			return FinanceEvidenceDecision{}, ErrFinanceEvidenceConflict
+		}
+		if storedStream != "" && (storedStream != streamID || storedSequence != int64(sequence)) {
 			return FinanceEvidenceDecision{}, ErrFinanceEvidenceConflict
 		}
 		return FinanceEvidenceDecision{EvidenceID: evidenceID, Accepted: false, ReasonCode: "FINANCE_EVIDENCE_DUPLICATE"}, nil
