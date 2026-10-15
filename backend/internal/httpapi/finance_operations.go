@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -153,6 +154,14 @@ func registerFinanceOperations(
 		var body finance.DiscrepancyResolutionRequest
 		if err := decoder.Decode(&body); err != nil {
 			writeDemandError(w, r, http.StatusBadRequest, "FINANCE_RESOLUTION_INVALID", "Решение по расхождению заполнено неверно.", false, nil)
+			return
+		}
+		// A privileged finance decision must contain exactly one JSON object.
+		// Decode again to reject trailing objects, tokens and oversized padding
+		// instead of silently processing an ambiguous request.
+		var trailing any
+		if err := decoder.Decode(&trailing); err != io.EOF {
+			writeDemandError(w, r, http.StatusBadRequest, "FINANCE_RESOLUTION_INVALID", "Запрос должен содержать ровно один JSON-объект.", false, nil)
 			return
 		}
 		body.DiscrepancyID = discrepancyID
