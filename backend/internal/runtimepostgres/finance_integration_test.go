@@ -276,6 +276,28 @@ SELECT d.id::text FROM finance_reconciliation_discrepancies d
 	if again, err := resolveFinanceDiscrepancyTx(ctx, tx, fixed); err != nil || !again.Replayed || again.ResolutionID != resolution.ResolutionID {
 		t.Fatalf("resolution replay not idempotent: %+v %v", again, err)
 	}
+	// Replays of the same economic decision may have a fresh authorization
+	// audit/step-up session, but may never silently change stored evidence.
+	freshAudit := fixed
+	freshAudit.AuditRef = "audit/ci-ops-retry"
+	freshAudit.StepUpSessionRef = "session:ci-ops-retry"
+	if replay, err := resolveFinanceDiscrepancyTx(ctx, tx, freshAudit); err != nil || !replay.Replayed {
+		t.Fatalf("authenticated repeat with fresh audit was not idempotent: %+v %v", replay, err)
+	}
+	for name, mutate := range map[string]func(*FinanceDiscrepancyResolutionRequest){
+		"reason":         func(r *FinanceDiscrepancyResolutionRequest) { r.Reason = "different provider correction rationale" },
+		"evidence":       func(r *FinanceDiscrepancyResolutionRequest) { r.EvidenceRefs = []string{"ticket/other-review"} },
+		"evidence-added": func(r *FinanceDiscrepancyResolutionRequest) { r.EvidenceRefs = append(r.EvidenceRefs, "ticket/extra") },
+		"evidence-order": func(r *FinanceDiscrepancyResolutionRequest) {
+			r.EvidenceRefs = []string{"ticket/extra", "ticket/fin-ops-1"}
+		},
+	} {
+		conflicting := fixed
+		mutate(&conflicting)
+		if _, err := resolveFinanceDiscrepancyTx(ctx, tx, conflicting); !errors.Is(err, ErrFinanceResolutionConflict) {
+			t.Fatalf("idempotency replay changed %s without conflict: %v", name, err)
+		}
+	}
 	if _, err := resolveFinanceDiscrepancyTx(ctx, tx, request("k-4", "OPERATIONAL_EXCEPTION_ACCEPTED")); !errors.Is(err, ErrFinanceDiscrepancyAlreadyResolved) {
 		t.Fatalf("second resolution accepted: %v", err)
 	}
