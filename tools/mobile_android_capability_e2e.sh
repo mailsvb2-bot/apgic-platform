@@ -1100,6 +1100,12 @@ assert_help_intent_confirmation() {
     --es APGIC_E2E_DEMAND_SESSION_COOKIE "$SESSION_COOKIE" \
     >/dev/null
 
+  # Android app restart and Metro reload can reset adb reverse during the
+  # earlier installation/device journeys. Revalidate the transport at the
+  # moment of the actual HelpIntent request, not only before app startup.
+  ensure_demand_backend_bridge ||
+    fail "Android HelpIntent transport lost after native activity restart"
+
   seek_demand_accessibility_node "С чем нужна помощь" "" tap "$remote" "$output" ||
     fail "Android HelpIntent text input not operable in scrollable app"
   "$ADB" shell input text 'anxiety%ssleep' >/dev/null
@@ -1108,6 +1114,8 @@ assert_help_intent_confirmation() {
   # making the enabled native control unreachable on small emulators.
   dismiss_android_ime || fail "Android IME blocks HelpIntent interpretation navigation"
   sleep 1
+  ensure_demand_backend_bridge ||
+    fail "Android HelpIntent transport lost before native interpretation request"
   seek_demand_accessibility_node "Разобрать запрос" "" tap "$remote" "$output" ||
     fail "Android HelpIntent interpret button not operable"
 
