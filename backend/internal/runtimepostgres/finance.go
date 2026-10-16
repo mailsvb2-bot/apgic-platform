@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"regexp"
 	"strconv"
 	"strings"
@@ -433,11 +434,9 @@ func (c *Checker) ApplyFinanceProviderWebhook(ctx context.Context, envelope conn
 	if err := connector.VerifyWebhook(envelope, keys); err != nil {
 		return FinanceEvidenceDecision{}, err
 	}
-	var payload FinanceEvidencePayload
-	decoder := json.NewDecoder(strings.NewReader(string(envelope.Payload)))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&payload); err != nil {
-		return FinanceEvidenceDecision{}, ErrFinanceEvidenceInvalid
+	payload, err := decodeFinanceProviderPayload(envelope.Payload)
+	if err != nil {
+		return FinanceEvidenceDecision{}, err
 	}
 	digest := sha256.Sum256(envelope.Payload)
 	txCtx, cancel := context.WithTimeout(ctx, financeTimeout)
@@ -457,6 +456,26 @@ func (c *Checker) ApplyFinanceProviderWebhook(ctx context.Context, envelope conn
 		return FinanceEvidenceDecision{}, fmt.Errorf("commit finance evidence: %w", err)
 	}
 	return decision, nil
+}
+
+func decodeFinanceProviderPayload(raw json.RawMessage) (FinanceEvidencePayload, error) {
+	var payload FinanceEvidencePayload
+	decoder := json.NewDecoder(strings.NewReader(string(raw)))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&payload); err != nil {
+		return FinanceEvidencePayload{}, ErrFinanceEvidenceInvalid
+	}
+	// JSON may be signed but still contain additional unaccounted instructions.
+	// Reject both multiple objects and trailing garbage at the storage boundary.
+	var trailing json.RawMessage
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		return FinanceEvidencePayload{}, ErrFinanceEvidenceInvalid
+	}
+	// A signed null or empty object must never become a financial event.
+	if strings.TrimSpace(payload.EvidenceKind) == "" {
+		return FinanceEvidencePayload{}, ErrFinanceEvidenceInvalid
+	}
+	return payload, nil
 }
 
 var financeEvidenceKinds = map[string]bool{
@@ -549,6 +568,30 @@ func recordFinanceEvidenceInStreamTx(ctx context.Context, tx *sql.Tx, providerIn
 		(payload.EvidenceKind == "PAYOUT_ELIGIBILITY") != (payload.PayoutEligible != nil) ||
 		occurredAt.IsZero() {
 		return FinanceEvidenceDecision{}, ErrFinanceEvidenceInvalid
+	}
+	// An unsolicited "paid out" notice must not advance the customer-facing
+	// financial status before our authorized provider payout instruction exists.
+	// The bank executes the payment; APGIC only validates the evidence chain.
+	if payload.EvidenceKind == "PAYOUT_EXECUTED" {
+		instruction, err := loadInstructionTx(ctx, tx, payload.SettlementInstructionID)
+		if err != nil {
+			return FinanceEvidenceDecision{}, err
+		}
+		if instruction.ProviderInstanceID != providerInstanceID ||
+			instruction.Currency != payload.Currency ||
+			instruction.BeneficiaryMinor != payload.GrossAmountMinor {
+			return FinanceEvidenceDecision{}, ErrFinanceEvidenceInvalid
+		}
+		var authorized bool
+		if err := tx.QueryRowContext(ctx, `SELECT EXISTS (
+			SELECT 1 FROM finance_payout_decisions
+			WHERE settlement_instruction_id = $1::uuid AND decision = 'ALLOW'
+		)`, instruction.ID).Scan(&authorized); err != nil {
+			return FinanceEvidenceDecision{}, err
+		}
+		if !authorized {
+			return FinanceEvidenceDecision{}, ErrFinanceEvidenceInvalid
+		}
 	}
 	evidenceID, err := persistentid.FromRef("finance-evidence", providerInstanceID+"/"+externalEventID)
 	if err != nil {
