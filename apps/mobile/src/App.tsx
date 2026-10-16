@@ -1072,13 +1072,11 @@ export default function App({
               <View style={styles.capability}>
                 {demandStatus !== "CONFIRMED" ? (
                 <Text accessibilityLabel={`native-demand-status:${demandStatus}`}>
-                  {demandStatus === "CONFIRMED"
-                    ? "Темы сохранены и подтверждены сервером."
-                    : demandStatus === "RUNNING"
-                      ? "Сохраняем выбранные темы…"
-                      : demandStatus === "FAIL"
-                        ? "Подтверждение не выполнено. Исправьте ошибку и повторите."
-                        : "Проверьте темы перед подтверждением."}
+                  {demandStatus === "RUNNING"
+                    ? "Сохраняем выбранные темы…"
+                    : demandStatus === "FAIL"
+                      ? "Подтверждение не выполнено. Исправьте ошибку и повторите."
+                      : "Проверьте темы перед подтверждением."}
                 </Text>
                 ) : null}
                 <Text accessibilityLabel="native-demand-notice">{demandIntent.notice}</Text>
