@@ -58,6 +58,7 @@ export default function FinanceOperationsQueue() {
   const mounted = useRef(true);
 
   const refresh = useCallback(async () => {
+    const epoch = ++loadEpoch.current;
     setState("LOADING");
     try {
       const response = await fetch("/v1/finance/operations/discrepancies?limit=100", {
@@ -80,6 +81,7 @@ export default function FinanceOperationsQueue() {
       setSelectedID(previous => payload.items.some(item => item.discrepancy_id === previous) ? previous : "");
       setState("READY");
     } catch {
+      if (!mounted.current || epoch !== loadEpoch.current) return;
       setItems([]);
       setState("ERROR");
     }
