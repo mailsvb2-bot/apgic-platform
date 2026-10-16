@@ -66,15 +66,18 @@ export default function FinanceOperationsQueue() {
         cache: "no-store",
         headers: { Accept: "application/json" },
       });
-      if (!mounted.current || epoch !== loadEpoch.current) return;\n      if (response.status === 401 || response.status === 403) {
+      if (!mounted.current || epoch !== loadEpoch.current) return;
+      if (response.status === 401 || response.status === 403) {
         setItems([]);
         setState("DENIED");
         return;
       }
       if (!response.ok) throw new Error("finance operations unavailable");
       const payload: unknown = await response.json();
-      if (!mounted.current || epoch !== loadEpoch.current) return;\n      if (!isList(payload)) throw new Error("finance operations contract invalid");
-      setItems(payload.items);\n      setSelectedID(previous => payload.items.some(item => item.discrepancy_id === previous) ? previous : "");
+      if (!mounted.current || epoch !== loadEpoch.current) return;
+      if (!isList(payload)) throw new Error("finance operations contract invalid");
+      setItems(payload.items);
+      setSelectedID(previous => payload.items.some(item => item.discrepancy_id === previous) ? previous : "");
       setState("READY");
     } catch {
       setItems([]);
@@ -89,7 +92,7 @@ export default function FinanceOperationsQueue() {
   }, [refresh]);
 
   const selected = items.find(item => item.discrepancy_id === selectedID);
-  const evidenceRefs = evidenceText.split("\\n").map(value => value.trim()).filter(Boolean);
+  const evidenceRefs = evidenceText.split("\n").map(value => value.trim()).filter(Boolean);
   const valid = Boolean(selected && reason.trim().length >= 8 && evidenceRefs.length > 0 &&
     (kind !== "PROVIDER_CORRECTION_CONFIRMED" || providerEvidenceID.trim()) &&
     (kind !== "SUPERSEDED_BY_MATCHED_RECONCILIATION" || supersedingResultID.trim()));
