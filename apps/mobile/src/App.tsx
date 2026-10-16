@@ -1015,6 +1015,19 @@ export default function App({
 
   return (
     <SafeAreaView style={styles.safe}>
+      {/* Keep the actual server-confirmed state in view when the specialist
+          directory extends the scrollable content. This is derived from the
+          canonical response, never from a test-only flag. */}
+      {!infrastructureE2EActive && demandIntent && demandStatus === "CONFIRMED" ? (
+        <View style={styles.demandCard}>
+          <Text accessibilityLabel="native-demand-status:CONFIRMED">
+            Темы сохранены и подтверждены сервером.
+          </Text>
+          <Text accessibilityLabel="native-demand-confirmed">
+            Запрос подтверждён пользователем.
+          </Text>
+        </View>
+      ) : null}
       <ScrollView
         contentContainerStyle={styles.card}
         keyboardShouldPersistTaps="always"
@@ -1057,6 +1070,7 @@ export default function App({
             ) : null}
             {demandIntent ? (
               <View style={styles.capability}>
+                {demandStatus !== "CONFIRMED" ? (
                 <Text accessibilityLabel={`native-demand-status:${demandStatus}`}>
                   {demandStatus === "CONFIRMED"
                     ? "Темы сохранены и подтверждены сервером."
@@ -1066,6 +1080,7 @@ export default function App({
                         ? "Подтверждение не выполнено. Исправьте ошибку и повторите."
                         : "Проверьте темы перед подтверждением."}
                 </Text>
+                ) : null}
                 <Text accessibilityLabel="native-demand-notice">{demandIntent.notice}</Text>
                 <Text accessibilityLabel={`native-demand-diagnosis:${demandIntent.diagnosis_asserted}`}>
                   Это не диагноз. Диагноз поставлен: {demandIntent.diagnosis_asserted ? "да" : "нет"}.
@@ -1167,11 +1182,6 @@ export default function App({
                   >
                     <Text>Изменить описание или создать новый запрос</Text>
                   </Pressable>
-                ) : null}
-                {demandStatus === "CONFIRMED" ? (
-                  <Text accessibilityLabel="native-demand-confirmed">
-                    Запрос подтверждён пользователем.
-                  </Text>
                 ) : null}
                 {demandStatus === "CONFIRMED" && demandTopics.length>0 ? (
                   <NativeSpecialistDirectory baseURL={demandAPIBaseURL} topic={demandTopics[0]} />
