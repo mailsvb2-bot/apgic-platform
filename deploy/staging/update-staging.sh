@@ -127,6 +127,14 @@ case "$outbox_enabled" in
     ;;
 esac
 
+# Finance settlement emits provider-executed instructions through the durable
+# outbox. Without its delivery worker a successful deploy would silently strand
+# payouts and report a healthy API while no provider can execute them.
+if [[ "$finance_worker_enabled" == "1" && "$outbox_enabled" != "1" ]]; then
+  echo "APGIC finance worker activation requires APGIC_OUTBOX_WORKER_ENABLED=1" >&2
+  exit 1
+fi
+
 CURRENT_SHA="$APGIC_COMMIT_SHA"
 
 git fetch origin main
