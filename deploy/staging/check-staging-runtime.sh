@@ -51,6 +51,44 @@ elif [[ "$outbox_enabled" != "0" ]]; then
     exit 1
 fi
 
+# R4 financial execution must not be called healthy just because the API
+# responds. No PSP credentials are needed to prove the local worker, schema
+# and its durable delivery path are actually running in staging.
+finance_enabled="${APGIC_FINANCE_WORKER_ENABLED:-0}"
+case "$finance_enabled" in
+  0) ;;
+  1)
+    : "${APGIC_DATABASE_URL:?APGIC_DATABASE_URL is required when finance worker is enabled}"
+    if [[ "$outbox_enabled" != "1" ]]; then
+      echo "APGIC staging runtime watchdog: finance worker requires outbox delivery" >&2
+      exit 1
+    fi
+    if ! systemctl is-active --quiet apgic-finance-worker-staging.service; then
+      echo "APGIC staging runtime watchdog: finance worker is not active" >&2
+      exit 1
+    fi
+    finance_schema="$(psql "$APGIC_DATABASE_URL" -Atqc "
+      SELECT (
+        to_regclass('public.finance_settlement_instructions') IS NOT NULL
+        AND to_regclass('public.finance_provider_evidence') IS NOT NULL
+        AND to_regclass('public.finance_payout_decisions') IS NOT NULL
+        AND to_regclass('public.finance_reconciliation_runs') IS NOT NULL
+        AND to_regclass('public.finance_reconciliation_results') IS NOT NULL
+      )")" || {
+      echo "APGIC staging runtime watchdog: cannot inspect financial schema" >&2
+      exit 1
+    }
+    if [[ "$finance_schema" != "t" ]]; then
+      echo "APGIC staging runtime watchdog: financial schema is incomplete" >&2
+      exit 1
+    fi
+    ;;
+  *)
+    echo "APGIC_FINANCE_WORKER_ENABLED must be 0 or 1" >&2
+    exit 1
+    ;;
+esac
+
 meta="$(curl -fsS --max-time 5 "http://${APGIC_HTTP_ADDR}/v1/meta")"
 python3 - "$APGIC_COMMIT_SHA" "$meta" <<'PY'
 import json
