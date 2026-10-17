@@ -22,7 +22,7 @@ var ErrFinanceMFAExists = errors.New("finance MFA already enrolled")
 
 // FinanceMFAKey is a 32-byte AES-GCM key independent from the session cookie
 // key. The key must be supplied by the host secret manager, not Git or clients.
-type FinanceMFAKey [32]byte
+type FinanceMFAKey = [32]byte
 
 func financeMFAEncrypt(key FinanceMFAKey, identity string, secret []byte) ([]byte,error) {
  block,err:=aes.NewCipher(key[:]);if err!=nil{return nil,err}
