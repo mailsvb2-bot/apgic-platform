@@ -17,6 +17,16 @@ SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 NATIVE_RELEASE_REQUIREMENT_ID = "APGIC-MOBILE-015"
 STORE_RELEASE_REQUIREMENT_ID = "APGIC-MOBILE-030"
 PAYMENT_RELEASE_REQUIREMENT_ID = "APGIC-PAY-015"
+AUTH_STEP_UP_REQUIREMENT_ID = "APGIC-AUTH-002"
+
+# Live evidence must never be inferred from a green synthetic CI fixture.
+PRODUCTION_FINANCE_REQUIRED = {
+    "HUMAN_MFA_STEP_UP_E2E",
+    "STAGING_FINANCE_END_TO_END",
+    "STAGING_FINANCE_WORKER_OUTBOX",
+    "STAGING_RECONCILIATION_DISCREPANCY_E2E",
+}
+
 FINANCE_RELEASE_REQUIREMENT_ID = "APGIC-REVENUE-001"
 
 NATIVE_REQUIRED = {
@@ -202,7 +212,10 @@ def evaluate(document: dict, gate: str, mode: str, production_index: dict | None
         return False, ["EVIDENCE_MAP_MISSING"]
 
     blockers: list[str] = []
-    for evidence_type in sorted(GATE_REQUIRED[gate]):
+    required = GATE_REQUIRED[gate]
+    if mode == "production" and gate in {"payments", "all"}:
+        required = required | PRODUCTION_FINANCE_REQUIRED
+    for evidence_type in sorted(required):
         row = evidence.get(evidence_type)
         if not isinstance(row, dict):
             blockers.append(f"{evidence_type}:MISSING")
@@ -312,6 +325,15 @@ def main() -> None:
             )
         if args.gate in {"finance", "all"}:
             blockers.extend(canon_dependency_blockers(registry, FINANCE_RELEASE_REQUIREMENT_ID))
+        if args.gate in {"payments", "all"}:
+            auth_requirement = requirement_index(registry).get(AUTH_STEP_UP_REQUIREMENT_ID)
+            if auth_requirement is None:
+                blockers.append("APGIC-AUTH-002:CANON_REQUIREMENT_MISSING")
+            elif auth_requirement.get("status") not in {"VERIFIED", "RELEASED"}:
+                blockers.append(
+                    "APGIC-AUTH-002:CANON_STATUS_"
+                    + str(auth_requirement.get("status", "MISSING"))
+                )
         passed = len(blockers) == 0
 
     if not passed:
