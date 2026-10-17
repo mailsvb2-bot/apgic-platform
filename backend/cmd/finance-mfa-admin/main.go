@@ -20,6 +20,7 @@ func run(args []string, databaseURL, keyEncoded string) (string, error) {
 	identity := flags.String("identity-id", "", "Existing approved finance operator Identity UUID")
 	approver := flags.String("approved-by", "", "Human enrollment approver")
 	reference := flags.String("approval-ref", "", "External signed approval reference")
+	revoke := flags.Bool("revoke", false, "Revoke a lost factor instead of creating a secret")
 	if err := flags.Parse(args); err != nil {
 		return "", err
 	}
@@ -40,6 +41,12 @@ func run(args []string, databaseURL, keyEncoded string) (string, error) {
 		return "", err
 	}
 	defer store.Close()
+	if *revoke {
+		if err := store.RevokeFinanceMFA(context.Background(), *identity, *approver, *reference, time.Now().UTC()); err != nil {
+			return "", err
+		}
+		return "REVOKED", nil
+	}
 	return store.ProvisionFinanceMFA(context.Background(), *identity, *approver, *reference, key, time.Now().UTC())
 }
 
@@ -48,6 +55,10 @@ func main() {
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "finance-mfa-admin:", err)
 		os.Exit(2)
+	}
+	if secret == "REVOKED" {
+		fmt.Fprintln(os.Stdout, "FINANCE_MFA_FACTOR_REVOKED")
+		return
 	}
 	// Print ONCE on a private terminal; never log it as CI/staging proof.
 	fmt.Fprintln(os.Stdout, "TOTP_SECRET_BASE32="+secret)
