@@ -192,6 +192,20 @@ func (c *Checker) RevokeFinanceMFA(ctx context.Context, identity, approver, appr
 	return tx.Commit()
 }
 
+// FinanceMFAActiveAt invalidates already-issued TOTP assertions immediately
+// after factor revocation or rotation; old signed cookies are not sufficient.
+func (c *Checker) FinanceMFAActiveAt(ctx context.Context, identity string, issuedAt time.Time) (bool, error) {
+	if c == nil || c.db == nil || !financeUUIDPattern.MatchString(identity) || issuedAt.IsZero() {
+		return false, ErrFinanceMFAInvalid
+	}
+	var active bool
+	err := c.db.QueryRowContext(ctx, `SELECT EXISTS(
+ SELECT 1 FROM finance_operator_mfa_factors
+ WHERE identity_id=$1::uuid AND revoked_at IS NULL AND provisioned_at <= $2)`,
+		identity, issuedAt.UTC()).Scan(&active)
+	return active, err
+}
+
 // VerifyFinanceMFA validates a real possession factor in one transaction.
 // A failed response gives no hints about factor existence or exact state;
 // repeated/cross-session codes cannot mint a second assertion.
