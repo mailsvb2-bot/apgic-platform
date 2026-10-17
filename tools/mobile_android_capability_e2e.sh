@@ -1106,9 +1106,45 @@ assert_help_intent_confirmation() {
   ensure_demand_backend_bridge ||
     fail "Android HelpIntent transport lost after native activity restart"
 
-  seek_demand_accessibility_node "С чем нужна помощь" "" tap "$remote" "$output" ||
-    fail "Android HelpIntent text input not operable in scrollable app"
-  "$ADB" shell input text 'anxiety%ssleep' >/dev/null
+  # A successful adb input command does not prove React Native received its
+  # onChangeText event. Focus can be stolen by a late layout/keyboard transition.
+  # Require the *real editable native node* to expose the requested text before
+  # pressing interpret. Never manufacture an interpretation or skip this journey.
+  local input_confirmed=false input_attempt
+  for input_attempt in 1 2 3; do
+    seek_demand_accessibility_node "С чем нужна помощь" "" tap "$remote" "$output" ||
+      fail "Android HelpIntent text input not operable in scrollable app"
+    "$ADB" shell input text 'anxiety%ssleep' >/dev/null ||
+      fail "Android adb could not type HelpIntent text"
+    for _ in 1 2 3 4 5; do
+      sleep 0.5
+      "$ADB" shell uiautomator dump "$remote" >/dev/null 2>&1 || continue
+      "$ADB" pull "$remote" "$output" >/dev/null 2>&1 || continue
+      if python3 - "$output" <<'PY'
+import sys
+import xml.etree.ElementTree as ET
+try:
+    root = ET.parse(sys.argv[1]).getroot()
+except (OSError, ET.ParseError):
+    raise SystemExit(1)
+for node in root.iter("node"):
+    if node.attrib.get("content-desc") != "С чем нужна помощь":
+        continue
+    value = node.attrib.get("text", "").lower()
+    if "anxiety" in value and "sleep" in value:
+        raise SystemExit(0)
+raise SystemExit(1)
+PY
+      then
+        input_confirmed=true
+        break
+      fi
+    done
+    [[ "$input_confirmed" == true ]] && break
+    echo "Android HelpIntent typing not reflected in real TextInput; refocusing attempt $input_attempt" >&2
+  done
+  [[ "$input_confirmed" == true ]] ||
+    fail "Android HelpIntent TextInput did not retain typed user request"
   # Dismiss the IME deterministically before navigating to the real
   # interpretation button: a still-visible keyboard intercepts scrolls,
   # making the enabled native control unreachable on small emulators.
