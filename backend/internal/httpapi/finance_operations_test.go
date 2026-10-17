@@ -14,9 +14,9 @@ import (
 
 type testFinanceOpsStore struct {
 	factorActive bool
-	operator string
-	audits   []audit.Record
-	resolved []finance.DiscrepancyResolutionRequest
+	operator     string
+	audits       []audit.Record
+	resolved     []finance.DiscrepancyResolutionRequest
 }
 
 func (s *testFinanceOpsStore) Append(record audit.Record) error {
