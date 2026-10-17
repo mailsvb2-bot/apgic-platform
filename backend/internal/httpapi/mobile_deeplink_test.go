@@ -43,6 +43,13 @@ func (s deepLinkTestStore) DeepLinkResource(kind mobile.LinkKind, targetID strin
 	value, ok := s.resources[string(kind)+":"+targetID]
 	return value, ok, nil
 }
+func (s deepLinkTestStore) DeepLinkResourceForIdentity(kind mobile.LinkKind, targetID, identityID string) (mobile.DeepLinkResource, bool, error) {
+	value, ok := s.resources[string(kind)+":"+targetID]
+	if !ok || value.SubjectIdentityID != identityID {
+		return mobile.DeepLinkResource{}, false, nil
+	}
+	return value, true, nil
+}
 
 func TestMobileDeepLinkHTTPUsesTrustedSessionAndCurrentResourceTruth(t *testing.T) {
 	now := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
@@ -366,5 +373,63 @@ func TestMobileDeepLinkIssueRejectsTrailingOrOversizedJSON(t *testing.T) {
 				t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
 			}
 		})
+	}
+}
+
+func TestFinanceOrderDeepLinkHTTPRequiresCurrentOwnerAndResolvesCanonicalPath(t *testing.T) {
+	now := time.Date(2026, 10, 15, 12, 0, 0, 0, time.UTC)
+	sessionKey := []byte(strings.Repeat("s", 32))
+	sessions, err := newClientSessionManager(sessionKey, func() time.Time { return now })
+	if err != nil {
+		t.Fatal(err)
+	}
+	ownerCookie, err := sessions.issue("identity-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherCookie, err := sessions.issue("identity-b")
+	if err != nil {
+		t.Fatal(err)
+	}
+	targetID := "00000000-0000-0000-0000-000000000711"
+	store := deepLinkTestStore{resources: map[string]mobile.DeepLinkResource{
+		"FINANCE_ORDER:" + targetID: {
+			Kind: mobile.LinkFinanceOrder, TargetID: targetID, AccessClass: mobile.LinkProtectedResource,
+			TenantID: "tenant-finance", SubjectIdentityID: "identity-a",
+		},
+	}}
+	handler := New(Options{
+		DeepLinks: store, DeepLinkSigningKey: []byte(strings.Repeat("d", 32)),
+		ClientSessionKey: sessionKey, Now: func() time.Time { return now },
+	})
+	body, _ := json.Marshal(issueDeepLinkRequest{Kind: mobile.LinkFinanceOrder, TargetID: targetID})
+	issue := func(cookie *http.Cookie) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodPost, "/v1/mobile/deep-links", bytes.NewReader(body))
+		req.AddCookie(cookie)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		return rec
+	}
+	if rec := issue(otherCookie); rec.Code != http.StatusNotFound && rec.Code != http.StatusForbidden {
+		t.Fatalf("non-owner finance deep-link issue status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	rec := issue(ownerCookie)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("owner issue status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	var issued issueDeepLinkResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &issued); err != nil {
+		t.Fatal(err)
+	}
+	resolve := httptest.NewRequest(http.MethodGet, "/v1/mobile/deep-links/resolve?token="+issued.Token, nil)
+	resolve.AddCookie(ownerCookie)
+	resolved := httptest.NewRecorder()
+	handler.ServeHTTP(resolved, resolve)
+	var payload deepLinkResolutionResponse
+	if err := json.Unmarshal(resolved.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if resolved.Code != http.StatusOK || payload.Decision != "ALLOW" || payload.CanonicalPath != "/orders/"+targetID+"/finance" {
+		t.Fatalf("finance deep-link resolution=%d %#v body=%s", resolved.Code, payload, resolved.Body.String())
 	}
 }

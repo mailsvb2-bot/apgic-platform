@@ -110,6 +110,8 @@ func main() {
 		ConformanceProviderEvents: !runtimepostgres.RequiresDatabase(environment) && os.Getenv("APGIC_CONFORMANCE_PROVIDER_EVENTS") == "1",
 		ProviderWebhookKeys:       providerWebhookKeys,
 		ConsultationProvider:      storage,
+		Finance:                   financeStore(storage),
+		FinanceOperations:         financeOperationsStore(storage),
 		ConsultationJourney:       storage,
 		ConsultationJoin: httpapi.ConsultationJoinOptions{
 			Store: storage, Issuer: roomIssuer,
@@ -415,4 +417,20 @@ func remoteConfigProviderFromEnvironment(environment string) (func(time.Time) (r
 		return nil, err
 	}
 	return publisher.Envelope, nil
+}
+
+// financeStore keeps a nil *Checker from becoming a non-nil interface, so the
+// finance endpoints fail closed (503) when no database is configured.
+func financeStore(storage *runtimepostgres.Checker) httpapi.FinanceStore {
+	if storage == nil {
+		return nil
+	}
+	return storage
+}
+
+func financeOperationsStore(storage *runtimepostgres.Checker) httpapi.FinanceOperationsStore {
+	if storage == nil {
+		return nil
+	}
+	return storage
 }

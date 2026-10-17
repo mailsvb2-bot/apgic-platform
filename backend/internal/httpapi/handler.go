@@ -43,6 +43,8 @@ type Options struct {
 	ConformanceProviderEvents   bool
 	ProviderWebhookKeys         connector.WebhookPublicKeyResolver
 	ConsultationProvider        ConsultationProviderStore
+	Finance                     FinanceStore
+	FinanceOperations           FinanceOperationsStore
 	ConsultationJourney         ConsultationJourneyStore
 	ConsultationJoin            ConsultationJoinOptions
 	ClientSessionKey            []byte
@@ -132,6 +134,8 @@ func New(options Options) http.Handler {
 	}
 	registerDemand(mux, options.Demand, options.Consents, options.ConsentPolicies, sessions, sessionConfigErr, options.ConformanceProviderEvents, options.ProviderWebhookKeys, options.Now)
 	registerConsultationProvider(mux, options.ConsultationProvider, options.ProviderWebhookKeys, sessions, sessionConfigErr)
+	registerFinance(mux, options.Finance, options.ProviderWebhookKeys, sessions, sessionConfigErr)
+	registerFinanceOperations(mux, options.FinanceOperations, sessions, stepUp, sessionConfigErr, options.Now)
 	registerConsultationJourney(mux, options.ConsultationJourney, sessions, sessionConfigErr, options.Now)
 	registerConsultationJoin(mux, options.ConsultationJoin, sessions, sessionConfigErr, options.Now)
 	registerLegalAcceptance(mux, options.LegalAcceptances, sessions, sessionConfigErr, options.Now)

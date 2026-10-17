@@ -778,9 +778,14 @@ assert_realtime_lifecycle() {
   # the scripted lifecycle reaches its terminal state. Do not accept DEGRADED
   # as success: retry the exact same canonical consultation only when every
   # other expected invariant is already proven, and keep CONNECTED mandatory.
+  # Hosted simulators can transiently interrupt AVAudioSession; retry only
+  # when the existing ambient-DEGRADED predicate proves all other invariants.
+  # CONNECTED remains mandatory; non-ambient deviations fail immediately.
+  local ambient_attempts=5
+  local ambient_settle_seconds=10
   local first_pass=false
   local initial_attempt
-  for initial_attempt in $(seq 1 3); do
+  for initial_attempt in $(seq 1 "$ambient_attempts"); do
     launch_realtime
     for _ in $(seq 1 60); do
       if realtime_ready "$output"; then
@@ -792,6 +797,7 @@ assert_realtime_lifecycle() {
 
     if ambient_technical_degraded "$output"; then
       echo "iOS initial realtime attempt $initial_attempt ended in ambient technical DEGRADED state; retrying same consultation"
+      sleep "$ambient_settle_seconds"
       continue
     fi
 
@@ -804,7 +810,7 @@ assert_realtime_lifecycle() {
   fi
 
   local rejoin_attempt
-  for rejoin_attempt in $(seq 1 3); do
+  for rejoin_attempt in $(seq 1 "$ambient_attempts"); do
     launch_realtime
     for _ in $(seq 1 60); do
       if realtime_ready "$rejoin_output"; then
@@ -816,6 +822,7 @@ assert_realtime_lifecycle() {
 
     if ambient_technical_degraded "$rejoin_output"; then
       echo "iOS rejoin attempt $rejoin_attempt ended in ambient technical DEGRADED state; retrying same consultation"
+      sleep "$ambient_settle_seconds"
       continue
     fi
 

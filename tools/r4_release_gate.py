@@ -17,6 +17,7 @@ SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 NATIVE_RELEASE_REQUIREMENT_ID = "APGIC-MOBILE-015"
 STORE_RELEASE_REQUIREMENT_ID = "APGIC-MOBILE-030"
 PAYMENT_RELEASE_REQUIREMENT_ID = "APGIC-PAY-015"
+FINANCE_RELEASE_REQUIREMENT_ID = "APGIC-REVENUE-001"
 
 NATIVE_REQUIRED = {
     "SERVER_CRITICAL_PATH_E2E",
@@ -60,11 +61,20 @@ PAYMENT_REQUIRED = {
     "ADMIN_AUDIT_EVIDENCE",
 }
 
+FINANCE_REQUIRED = {
+    "MARKETPLACE_SPLIT_E2E",
+    "PROVIDER_PAYOUT_EVIDENCE",
+    "NON_CUSTODIAL_LEDGER_RECONCILIATION",
+    "E2E_FINANCIAL_PROOF",
+    "RECONCILIATION_PROOF",
+}
+
 GATE_REQUIRED = {
     "native": NATIVE_REQUIRED,
     "store": STORE_REQUIRED,
     "payments": PAYMENT_REQUIRED,
-    "all": NATIVE_REQUIRED | STORE_REQUIRED | PAYMENT_REQUIRED,
+    "finance": FINANCE_REQUIRED,
+    "all": NATIVE_REQUIRED | STORE_REQUIRED | PAYMENT_REQUIRED | FINANCE_REQUIRED,
 }
 
 
@@ -226,6 +236,33 @@ def evaluate(document: dict, gate: str, mode: str, production_index: dict | None
                 )
             )
 
+    if mode == "production" and gate in {"finance", "all"} and production_index is not None:
+        records = production_index.get("records", {})
+        if isinstance(records, dict):
+            seen_artifacts: set[tuple[str, str]] = set()
+            for evidence_type in sorted(FINANCE_REQUIRED):
+                row = evidence.get(evidence_type)
+                if not isinstance(row, dict):
+                    continue
+                ref = row.get("ref")
+                if not isinstance(ref, str) or not ref.startswith("evidence://"):
+                    continue
+                record = records.get(ref.removeprefix("evidence://"))
+                if not isinstance(record, dict):
+                    continue
+                # Independent financial proofs cannot be five aliases to one
+                # CI fixture or schema. Require a distinct immutable artifact
+                # and an independently identifiable regulated provider source.
+                artifact = (str(record.get("artifact_path", "")), str(record.get("artifact_sha256", "")))
+                if artifact in seen_artifacts:
+                    blockers.append(f"{evidence_type}:FINANCE_PROOF_ARTIFACT_REUSED")
+                seen_artifacts.add(artifact)
+                source = record.get("source_ref")
+                if not isinstance(source, str) or not (
+                    source.startswith("psp://") or source.startswith("bank://") or source.startswith("store://")
+                ):
+                    blockers.append(f"{evidence_type}:REGULATED_PROVIDER_SOURCE_REQUIRED")
+
     return len(blockers) == 0, blockers
 
 
@@ -273,6 +310,8 @@ def main() -> None:
                     PAYMENT_RELEASE_REQUIREMENT_ID,
                 )
             )
+        if args.gate in {"finance", "all"}:
+            blockers.extend(canon_dependency_blockers(registry, FINANCE_RELEASE_REQUIREMENT_ID))
         passed = len(blockers) == 0
 
     if not passed:

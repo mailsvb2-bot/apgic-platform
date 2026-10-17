@@ -1000,8 +1000,19 @@ PY
 dismiss_android_debug_warning_overlay() {
   local remote="$1" output="$2" close_position attempt
   for attempt in 1 2 3; do
-    "$ADB" shell uiautomator dump "$remote" >/dev/null 2>&1 || return 1
-    "$ADB" pull "$remote" "$output" >/dev/null 2>&1 || return 1
+    local dump_ok=false retry
+    for retry in 1 2 3 4; do
+      if "$ADB" shell uiautomator dump "$remote" >/dev/null 2>&1 &&
+         "$ADB" pull "$remote" "$output" >/dev/null 2>&1; then
+        dump_ok=true
+        break
+      fi
+      sleep 1
+    done
+    if [[ "$dump_ok" != true ]]; then
+      echo "Android UIAutomator hierarchy unavailable while checking native overlay" >&2
+      return 1
+    fi
     close_position="$(python3 - "$output" <<'PY'
 import re
 import sys
@@ -1052,7 +1063,28 @@ dismiss_android_ime() {
   return 1
 }
 
+# The installed Android app reaches the isolated backend through adb reverse.
+# Device/ADB transport changes during the long native suite may invalidate it.
+# Verify the actual bridge before asserting a user-visible server confirmation.
+ensure_demand_backend_bridge() {
+  if ! kill -0 "$SERVER_PID" 2>/dev/null ||
+     ! curl --fail --silent --show-error --max-time 5 http://127.0.0.1:43113/healthz >/dev/null; then
+    echo "Android HelpIntent backend is unavailable on the host" >&2
+    return 1
+  fi
+  local reverse_routes
+  reverse_routes="$("$ADB" reverse --list 2>/dev/null)" || return 1
+  if ! grep -Eq 'tcp:43113[[:space:]]+tcp:43113([[:space:]]|$)' <<<"$reverse_routes"; then
+    echo "Android HelpIntent reverse TCP bridge missing; restoring actual device forwarding" >&2
+    "$ADB" reverse tcp:43113 tcp:43113 || return 1
+  fi
+  "$ADB" reverse --list | grep -Eq 'tcp:43113[[:space:]]+tcp:43113([[:space:]]|$)' ||
+    return 1
+}
+
 assert_help_intent_confirmation() {
+  ensure_demand_backend_bridge ||
+    fail "Android HelpIntent network transport is unavailable before native confirmation"
   local output="$EVIDENCE_DIR/android-demand-e2e.xml"
   local remote="/sdcard/apgic-demand-e2e.xml"
   local confirm_count_before
@@ -1068,11 +1100,58 @@ assert_help_intent_confirmation() {
     --es APGIC_E2E_DEMAND_SESSION_COOKIE "$SESSION_COOKIE" \
     >/dev/null
 
-  seek_demand_accessibility_node "С чем нужна помощь" "" tap "$remote" "$output" ||
-    fail "Android HelpIntent text input not operable in scrollable app"
-  "$ADB" shell input text 'anxiety%ssleep' >/dev/null
-  "$ADB" shell input keyevent 4 >/dev/null
+  # Android app restart and Metro reload can reset adb reverse during the
+  # earlier installation/device journeys. Revalidate the transport at the
+  # moment of the actual HelpIntent request, not only before app startup.
+  ensure_demand_backend_bridge ||
+    fail "Android HelpIntent transport lost after native activity restart"
+
+  # A successful adb input command does not prove React Native received its
+  # onChangeText event. Focus can be stolen by a late layout/keyboard transition.
+  # Require the *real editable native node* to expose the requested text before
+  # pressing interpret. Never manufacture an interpretation or skip this journey.
+  local input_confirmed=false input_attempt
+  for input_attempt in 1 2 3; do
+    seek_demand_accessibility_node "С чем нужна помощь" "" tap "$remote" "$output" ||
+      fail "Android HelpIntent text input not operable in scrollable app"
+    "$ADB" shell input text 'anxiety%ssleep' >/dev/null ||
+      fail "Android adb could not type HelpIntent text"
+    for _ in 1 2 3 4 5; do
+      sleep 0.5
+      "$ADB" shell uiautomator dump "$remote" >/dev/null 2>&1 || continue
+      "$ADB" pull "$remote" "$output" >/dev/null 2>&1 || continue
+      if python3 - "$output" <<'PY'
+import sys
+import xml.etree.ElementTree as ET
+try:
+    root = ET.parse(sys.argv[1]).getroot()
+except (OSError, ET.ParseError):
+    raise SystemExit(1)
+for node in root.iter("node"):
+    if node.attrib.get("content-desc") != "С чем нужна помощь":
+        continue
+    value = node.attrib.get("text", "").lower()
+    if "anxiety" in value and "sleep" in value:
+        raise SystemExit(0)
+raise SystemExit(1)
+PY
+      then
+        input_confirmed=true
+        break
+      fi
+    done
+    [[ "$input_confirmed" == true ]] && break
+    echo "Android HelpIntent typing not reflected in real TextInput; refocusing attempt $input_attempt" >&2
+  done
+  [[ "$input_confirmed" == true ]] ||
+    fail "Android HelpIntent TextInput did not retain typed user request"
+  # Dismiss the IME deterministically before navigating to the real
+  # interpretation button: a still-visible keyboard intercepts scrolls,
+  # making the enabled native control unreachable on small emulators.
+  dismiss_android_ime || fail "Android IME blocks HelpIntent interpretation navigation"
   sleep 1
+  ensure_demand_backend_bridge ||
+    fail "Android HelpIntent transport lost before native interpretation request"
   seek_demand_accessibility_node "Разобрать запрос" "" tap "$remote" "$output" ||
     fail "Android HelpIntent interpret button not operable"
 

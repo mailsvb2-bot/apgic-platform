@@ -98,6 +98,15 @@ case ",$APGIC_MOBILE_SUPPORTED_CONTRACTS," in
     ;;
 esac
 
+finance_worker_enabled="${APGIC_FINANCE_WORKER_ENABLED:-0}"
+case "$finance_worker_enabled" in
+  0|1) ;;
+  *)
+    echo "APGIC_FINANCE_WORKER_ENABLED must be 0 or 1" >&2
+    exit 1
+    ;;
+esac
+
 outbox_enabled="${APGIC_OUTBOX_WORKER_ENABLED:-0}"
 case "$outbox_enabled" in
   0)
@@ -117,6 +126,14 @@ case "$outbox_enabled" in
     exit 1
     ;;
 esac
+
+# Finance settlement emits provider-executed instructions through the durable
+# outbox. Without its delivery worker a successful deploy would silently strand
+# payouts and report a healthy API while no provider can execute them.
+if [[ "$finance_worker_enabled" == "1" && "$outbox_enabled" != "1" ]]; then
+  echo "APGIC finance worker activation requires APGIC_OUTBOX_WORKER_ENABLED=1" >&2
+  exit 1
+fi
 
 CURRENT_SHA="$APGIC_COMMIT_SHA"
 
@@ -189,11 +206,12 @@ if [[ "${APGIC_UPDATE_REEXEC:-0}" != "1" ]]; then
   APGIC_UPDATE_REEXEC=1 exec bash "$REPO_ROOT/deploy/staging/update-staging.sh" "$TARGET_SHA"
 fi
 
-echo "=== Build API and outbox worker ==="
+echo "=== Build API, outbox worker and finance worker ==="
 cd "$REPO_ROOT/backend"
 mkdir -p bin
 go build -o bin/apgic-api ./cmd/api
 go build -o bin/apgic-outbox-worker ./cmd/outbox-worker
+go build -o bin/apgic-finance-worker ./cmd/finance-worker
 
 echo "=== Build Web ==="
 cd "$REPO_ROOT/apps/web"
@@ -209,6 +227,7 @@ cd "$REPO_ROOT"
 echo "=== Reconcile staging maintenance units ==="
 maintenance_units=(
   apgic-outbox-worker-staging.service
+  apgic-finance-worker-staging.service
   apgic-staging-runtime-watchdog.service
   apgic-staging-backup.service
   apgic-staging-backup.timer
@@ -228,6 +247,8 @@ if [[ "$units_changed" == "true" ]]; then
   systemctl daemon-reload
 fi
 systemctl enable --now apgic-staging-backup.timer apgic-staging-restore-verify.timer
+# Stop the prior worker before any schema migration; restart only after readiness.
+systemctl stop apgic-finance-worker-staging.service >/dev/null 2>&1 || true
 
 if [[ -n "$(git status --porcelain)" ]]; then
   echo "deployment left the canonical checkout dirty:" >&2
@@ -306,6 +327,7 @@ case "$outbox_enabled" in
     ;;
 esac
 
+
 wait_for_http() {
   local name="$1"
   local url="$2"
@@ -336,6 +358,22 @@ if ! wait_for_http "Web" "http://127.0.0.1:43112/" 30 1; then
   journalctl -u apgic-web-staging.service -n 80 --no-pager >&2 || true
   exit 1
 fi
+
+case "$finance_worker_enabled" in
+  0)
+    systemctl disable --now apgic-finance-worker-staging.service >/dev/null 2>&1 || true
+    echo "APGIC finance worker: disabled (R4 settlement/reconciliation staging evidence not claimed)"
+    ;;
+  1)
+    systemctl enable apgic-finance-worker-staging.service >/dev/null
+    systemctl restart apgic-finance-worker-staging.service
+    if ! systemctl is-active --quiet apgic-finance-worker-staging.service; then
+      systemctl --no-pager --full status apgic-finance-worker-staging.service >&2 || true
+      journalctl -u apgic-finance-worker-staging.service -n 80 --no-pager >&2 || true
+      exit 1
+    fi
+    ;;
+esac
 
 echo "=== Verify runtime ==="
 bash "$REPO_ROOT/deploy/staging/check-staging-runtime.sh"

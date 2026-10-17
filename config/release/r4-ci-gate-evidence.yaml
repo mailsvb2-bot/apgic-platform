@@ -93,3 +93,18 @@ evidence:
   ADMIN_AUDIT_EVIDENCE:
     status: PASS
     ref: ci://admin_audit_evidence
+  MARKETPLACE_SPLIT_E2E:
+    status: PASS
+    ref: ci://marketplace_split_e2e
+  PROVIDER_PAYOUT_EVIDENCE:
+    status: PASS
+    ref: ci://provider_payout_evidence
+  NON_CUSTODIAL_LEDGER_RECONCILIATION:
+    status: PASS
+    ref: ci://non_custodial_ledger_reconciliation
+  E2E_FINANCIAL_PROOF:
+    status: PASS
+    ref: ci://e2e_financial_proof
+  RECONCILIATION_PROOF:
+    status: PASS
+    ref: ci://reconciliation_proof

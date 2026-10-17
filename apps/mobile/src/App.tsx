@@ -45,6 +45,7 @@ import {offlineMutationStorage} from "./offline-mutation-storage.ts";
 import {clearUserScopedLocalState, secureCredentialStorage} from "./secure-local-storage.ts";
 import {runNativeRealtimeE2E, type NativeRealtimeE2EResult} from "./r3-realtime-e2e.ts";
 import NativeConsultationAccess from "./native-consultation-access.tsx";
+import NativeFinanceStatus from "./native-finance-status.tsx";
 import type {HelpIntent} from "../../../packages/contracts/src/generated/apgic-v1.ts";
 import {
   confirmMobileHelpIntent,
@@ -260,6 +261,7 @@ export default function App({
     | {status: "FAIL"; reason: string}
   >({status: "IDLE"});
 
+  const [financeDeepLinkOrderID, setFinanceDeepLinkOrderID] = useState("");
   const [deepLinkState, setDeepLinkState] = useState<
     | {status: "IDLE" | "RESOLVING"}
     | {status: "OPEN"; target: string}
@@ -451,6 +453,8 @@ export default function App({
           sessionCookie: deepLinkE2ESessionCookie,
         });
         if (action.action === "OPEN_APP_PATH") {
+          const financeOrder = /^\/orders\/([0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12})\/finance$/.exec(action.target);
+          setFinanceDeepLinkOrderID(financeOrder?.[1] ?? "");
           setDeepLinkState({status: "OPEN", target: action.target});
           return;
         }
@@ -1011,6 +1015,19 @@ export default function App({
 
   return (
     <SafeAreaView style={styles.safe}>
+      {/* Keep the actual server-confirmed state in view when the specialist
+          directory extends the scrollable content. This is derived from the
+          canonical response, never from a test-only flag. */}
+      {!infrastructureE2EActive && demandIntent && demandStatus === "CONFIRMED" ? (
+        <View style={styles.demandCard}>
+          <Text accessibilityLabel="native-demand-status:CONFIRMED">
+            Темы сохранены и подтверждены сервером.
+          </Text>
+          <Text accessibilityLabel="native-demand-confirmed">
+            Запрос подтверждён пользователем.
+          </Text>
+        </View>
+      ) : null}
       <ScrollView
         contentContainerStyle={styles.card}
         keyboardShouldPersistTaps="always"
@@ -1053,15 +1070,15 @@ export default function App({
             ) : null}
             {demandIntent ? (
               <View style={styles.capability}>
+                {demandStatus !== "CONFIRMED" ? (
                 <Text accessibilityLabel={`native-demand-status:${demandStatus}`}>
-                  {demandStatus === "CONFIRMED"
-                    ? "Темы сохранены и подтверждены сервером."
-                    : demandStatus === "RUNNING"
-                      ? "Сохраняем выбранные темы…"
-                      : demandStatus === "FAIL"
-                        ? "Подтверждение не выполнено. Исправьте ошибку и повторите."
-                        : "Проверьте темы перед подтверждением."}
+                  {demandStatus === "RUNNING"
+                    ? "Сохраняем выбранные темы…"
+                    : demandStatus === "FAIL"
+                      ? "Подтверждение не выполнено. Исправьте ошибку и повторите."
+                      : "Проверьте темы перед подтверждением."}
                 </Text>
+                ) : null}
                 <Text accessibilityLabel="native-demand-notice">{demandIntent.notice}</Text>
                 <Text accessibilityLabel={`native-demand-diagnosis:${demandIntent.diagnosis_asserted}`}>
                   Это не диагноз. Диагноз поставлен: {demandIntent.diagnosis_asserted ? "да" : "нет"}.
@@ -1164,11 +1181,6 @@ export default function App({
                     <Text>Изменить описание или создать новый запрос</Text>
                   </Pressable>
                 ) : null}
-                {demandStatus === "CONFIRMED" ? (
-                  <Text accessibilityLabel="native-demand-confirmed">
-                    Запрос подтверждён пользователем.
-                  </Text>
-                ) : null}
                 {demandStatus === "CONFIRMED" && demandTopics.length>0 ? (
                   <NativeSpecialistDirectory baseURL={demandAPIBaseURL} topic={demandTopics[0]} />
                 ) : null}
@@ -1187,6 +1199,15 @@ export default function App({
             baseURL={demandAPIBaseURL}
             sessionCookie={demandE2ESessionCookie}
             enabled={compatibilityAllowsRuntime && remoteConfigAllowsRealtime}
+          />
+        ) : null}
+
+        {!infrastructureE2EActive && !demandReviewPending ? (
+          <NativeFinanceStatus
+            baseURL={demandAPIBaseURL}
+            sessionCookie={demandE2ESessionCookie}
+            enabled={compatibilityAllowsRuntime}
+            initialOrderID={financeDeepLinkOrderID}
           />
         ) : null}
 

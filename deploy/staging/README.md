@@ -60,6 +60,27 @@ Install the four systemd units/timers from deploy/staging, run systemctl daemon-
 Timeweb VM snapshots complement this logical backup path; they do not replace logical restore verification.
 
 
+## R4 finance worker
+
+`apgic-finance-worker-staging.service` is installed by the staging updater but is **disabled by default**. Set `APGIC_FINANCE_WORKER_ENABLED=1` in `/etc/apgic/staging.env` only after the R4 migrations are applied and the staging owner approves settlement/reconciliation processing; the updater then enables and restarts the worker after migration and runtime restart. The worker shares `APGIC_DATABASE_URL` and fails closed unless every R4 finance table is present. Enabling this service is not payment-provider certification or production payout evidence.
+
+### R4 staging activation and proof
+
+Finance worker and outbox delivery are one operational dependency: never enable finance alone. Configure APGIC_FINANCE_WORKER_ENABLED=1 only alongside APGIC_OUTBOX_WORKER_ENABLED=1 and a functioning authorized event gateway. The updater rejects misconfiguration before changing the checkout.
+
+After deploying finance migrations, check both services and the runtime watchdog on the authorized staging host:
+
+```bash
+sudo systemctl is-active apgic-finance-worker-staging.service
+sudo systemctl is-active apgic-outbox-worker-staging.service
+sudo bash /opt/apgic/current/deploy/staging/check-staging-runtime.sh
+sudo journalctl -u apgic-finance-worker-staging.service -n 100 --no-pager
+```
+
+The watchdog fails closed if finance is enabled but the worker is inactive, delivery is unavailable or the canonical finance schema is incomplete. It separately rejects stale pending outbox instructions. A healthy API is insufficient to claim financial readiness.
+
+For a bank-free rehearsal, use the R4 PostgreSQL integration suite with APGIC_FINANCE_TEST_DATABASE_URL pointing to a disposable migrated test database. Its seeded evidence is synthetic and does not certify any PSP or money movement. Keep real provider signed proofs, payout statements, and real-device user journeys as external release gates.
+
 ## Transactional outbox worker
 
 EVENT-001 uses a separate worker process rather than delivering external side effects inside API request handling. It is deliberately disabled unless a real compatible Event Gateway has been configured.
