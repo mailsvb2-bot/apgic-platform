@@ -165,6 +165,7 @@ export default function FinanceOperationsQueue() {
         await refresh();
         if (mounted.current) setResultMessage("Решение записано сервером; очередь обновлена.");
       } else {
+        if (response.status === 428) setMfaState("IDLE");
         setResultMessage(response.status === 428
           ? "Для действия требуется свежий второй фактор. Проверьте код TOTP ниже; решение не записано."
           : response.status === 401 || response.status === 403
@@ -233,7 +234,7 @@ export default function FinanceOperationsQueue() {
                   onClick={() => void verifySecondFactor()}>
                   {mfaState === "LOADING" ? "Проверяем код…" : "Подтвердить второй фактор"}
                 </button>
-                {mfaState === "VERIFIED" ? <p role="status">MFA подтверждён для текущей сессии.</p> : null}
+                {mfaState === "VERIFIED" ? <p role="status">Код принят. Срок подтверждения будет повторно проверен сервером перед финансовым решением.</p> : null}
                 {mfaState === "ERROR" ? <p role="alert">MFA не подтверждён.</p> : null}
               </section>
               <p>Инструкция: {selected.settlement_instruction_id}. Провайдер: {selected.provider_instance_id}.</p>
