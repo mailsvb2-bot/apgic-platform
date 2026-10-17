@@ -146,7 +146,7 @@ try:
     key = base64.b64decode(os.getenv("APGIC_MFA_ENCRYPTION_KEY_BASE64", ""), validate=True)
 except Exception:
     key = b""
-if len(key) != 32 or key == b"\\x00" * 32:
+if len(key) != 32 or key == bytes(32):
     sys.exit("APGIC staging deployment refused: missing independent AES-256 MFA key")
 PY
 fi
