@@ -63,23 +63,50 @@ Timeweb VM snapshots complement this logical backup path; they do not replace lo
 ## R4: real MFA and finance staging acceptance (release blocking)
 
 **Unverified, not released.** Canon v7 APGIC-AUTH-002 requires actual higher-assurance
-factor verification by a trusted IdentityProvider / WebAuthn / MFA ceremony;
-the existing ten-minute signed step-up cookie is only the verifier and is
-NOT a factor ceremony. Do not expose a public self-issue endpoint, trust a
-caller-provided identity, generate a synthetic positive MFA assertion, or
-relabel a green CI run as a human MFA success.
+factor verification. The R4 operator path provides a server-verified TOTP
+second factor and ten-minute session-bound step-up cookie; the factor is
+provisioned out of band by a named administrator ONLY after the canonical
+Identity received a finance-operator grant. This code is not a completed
+human staging ceremony and cannot be used as production evidence until
+real enrollment, test devices and audit proof have been independently reviewed.
+
+Configure a 32-byte random AES key in the authorized host secret manager as
+APGIC_MFA_ENCRYPTION_KEY_BASE64 (strict base64, separate from session signing).
+After migration 000042 and grant provisioning, use the **private admin terminal**:
+
+```bash
+cd /opt/apgic/current/backend
+go run ./cmd/finance-mfa-admin \
+  --identity-id "<approved-identity-uuid>" \
+  --approved-by "<named-approver>" \
+  --approval-ref "<approved-change-ticket>"
+```
+
+The CLI outputs the authenticator secret **once**. Do not place it in shell
+history, CI, ticket systems, chat, repository, telemetry or stdout captures.
+Enroll it in the human operator's authenticator through an approved secure
+channel. For high-risk finance actions, the operator enters a six-digit code
+in the finance operations web view. The server checks active finance capability,
+decrypts only on the backend, rejects replay, locks repeated failures and
+emits immutable audit evidence; only success mints an HttpOnly Secure SameSite
+step-up cookie for that exact browser session.
+
+Do not expose a public self-issue endpoint, trust caller-provided identity,
+generate a synthetic positive MFA assertion, or relabel green CI as a
+human MFA success. Factor loss/rotation requires security-administrator review;
+do not bypass the factor or edit economic truth as a recovery workaround.
 
 ### Mandatory human operator acceptance (not automatable with CI fixtures)
 
 1. Provision a real finance operator using the existing append-only admin grant,
-   with a named human and a separately controlled identity provider. Authenticate
+   with a named human and an out-of-band provisioned TOTP factor. Authenticate
    the same Identity and browser session; verify that attempting the high-risk
    discrepancy resolution WITHOUT fresh MFA returns HTTP 428 and leaves the
    discrepancy, ledger and audit business effects unchanged. Confirm the deny
    was audited.
-2. Complete a REAL additional-factor ceremony with the chosen IdentityProvider.
-   A server-side, verified, nonce- and session-bound assertion must be issued by
-   APGIC only AFTER factor verification. A fresh authorized resolution must
+2. Complete a REAL authenticator-code ceremony. A server-verified,
+   one-time counter and session-bound assertion must be issued by APGIC
+   only AFTER factor verification. A fresh authorized resolution must
    write exactly one append-only resolution and its actor/audit evidence.
 3. Replay the same idempotency key and identical decision; require one economic
    effect and replay response. Mutate the decision while reusing the key;
