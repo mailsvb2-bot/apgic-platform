@@ -90,8 +90,28 @@ func authorizeFinanceOperator(
 		principal.Permissions[financeOpsActionResolve] = struct{}{}
 	}
 	if evidence := stepUp.evidenceFromRequest(r, identityID, sessionRef); evidence != nil {
-		issued := evidence.IssuedAt
-		principal.StepUpAt, principal.StepUpMethod = &issued, evidence.Method
+		acceptable := true
+		if evidence.Method == "TOTP" {
+			// A revoked/reprovisioned factor must invalidate its old signed
+			// step-up cookie immediately, not merely after the ten-minute TTL.
+			checker, supported := store.(interface {
+				FinanceMFAActiveAt(context.Context, string, time.Time) (bool, error)
+			})
+			if !supported {
+				writeDemandError(w, r, http.StatusServiceUnavailable, "MFA_STORE_UNAVAILABLE", "Проверка второго фактора недоступна.", true, nil)
+				return op, false
+			}
+			var err error
+			acceptable, err = checker.FinanceMFAActiveAt(r.Context(), identityID, evidence.IssuedAt)
+			if err != nil {
+				writeDemandError(w, r, http.StatusServiceUnavailable, "MFA_STORE_UNAVAILABLE", "Проверка второго фактора недоступна.", true, nil)
+				return op, false
+			}
+		}
+		if acceptable {
+			issued := evidence.IssuedAt
+			principal.StepUpAt, principal.StepUpMethod = &issued, evidence.Method
+		}
 	}
 	result, err := (authz.Evaluator{PolicyVersion: financeOpsPolicyVersion, Appender: store}).Authorize(authz.Input{
 		Principal:     principal,
