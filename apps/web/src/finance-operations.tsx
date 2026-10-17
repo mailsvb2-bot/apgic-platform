@@ -53,6 +53,8 @@ export default function FinanceOperationsQueue() {
   const [idempotencyKey, setIdempotencyKey] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [resultMessage, setResultMessage] = useState("");
+  const [totp, setTotp] = useState("");
+  const [mfaState, setMfaState] = useState<"IDLE" | "LOADING" | "VERIFIED" | "ERROR">("IDLE");
   const inFlight = useRef(false);
   const loadEpoch = useRef(0);
   const mounted = useRef(true);
@@ -109,6 +111,32 @@ export default function FinanceOperationsQueue() {
     invalidateKey();
     setResultMessage("");
   };
+  async function verifySecondFactor() {
+    if (!/^\\d{6}$/.test(totp) || mfaState === "LOADING") return;
+    setMfaState("LOADING");
+    try {
+      const response = await fetch("/v1/finance/mfa/verify", {
+        method: "POST", credentials: "include", cache: "no-store",
+        headers: { "Content-Type": "application/json", "X-APGIC-MFA": "totp-v1" },
+        body: JSON.stringify({ code: totp }),
+      });
+      if (!mounted.current) return;
+      setTotp("");
+      if (response.status === 204) {
+        setMfaState("VERIFIED");
+        setResultMessage("Второй фактор проверен сервером. Подтверждение действует не более 10 минут и только в этой сессии.");
+      } else {
+        setMfaState("ERROR");
+        setResultMessage("Подтверждение отклонено. Проверьте код и наличие заранее выданного фактора.");
+      }
+    } catch {
+      if (mounted.current) {
+        setMfaState("ERROR");
+        setResultMessage("Не удалось связаться с сервером MFA; финансовое решение не выполнено.");
+      }
+    }
+  }
+
   async function resolve() {
     if (!valid || !selected || inFlight.current) return;
     inFlight.current = true;
@@ -138,7 +166,7 @@ export default function FinanceOperationsQueue() {
         if (mounted.current) setResultMessage("Решение записано сервером; очередь обновлена.");
       } else {
         setResultMessage(response.status === 428
-          ? "Сервер требует свежий step-up. Самостоятельная выдача step-up в APGIC пока не подключена; решение не записано. Обратитесь к уполномоченному администратору."
+          ? "Для действия требуется свежий второй фактор. Проверьте код TOTP ниже; решение не записано."
           : response.status === 401 || response.status === 403
             ? "Нет действующего полномочия финансового оператора."
             : response.status === 409
@@ -194,6 +222,20 @@ export default function FinanceOperationsQueue() {
           </select>
           {selected ? (
             <>
+              <section aria-label="Дополнительное подтверждение финансового оператора">
+                <h3>Подтвердить личность (MFA)</h3>
+                <p>Введите одноразовый код из предварительно выданного администратором приложения-аутентификатора. Новый фактор здесь не создаётся.</p>
+                <label htmlFor="finance-totp">Одноразовый код</label>
+                <input id="finance-totp" type="text" inputMode="numeric" autoComplete="one-time-code"
+                  maxLength={6} pattern="[0-9]{6}" value={totp} disabled={mfaState === "LOADING"}
+                  onChange={event => { setTotp(event.target.value.replace(/\\D/g, "").slice(0, 6)); setMfaState("IDLE"); }} />
+                <button type="button" disabled={!/^\\d{6}$/.test(totp) || mfaState === "LOADING"}
+                  onClick={() => void verifySecondFactor()}>
+                  {mfaState === "LOADING" ? "Проверяем код…" : "Подтвердить второй фактор"}
+                </button>
+                {mfaState === "VERIFIED" ? <p role="status">MFA подтверждён для текущей сессии.</p> : null}
+                {mfaState === "ERROR" ? <p role="alert">MFA не подтверждён.</p> : null}
+              </section>
               <p>Инструкция: {selected.settlement_instruction_id}. Провайдер: {selected.provider_instance_id}.</p>
               <label htmlFor="finance-resolution-kind">Тип решения</label>
               <select id="finance-resolution-kind" value={kind} disabled={submitting}
@@ -228,7 +270,7 @@ export default function FinanceOperationsQueue() {
         </section>
       ) : null}
       {resultMessage ? <p role="status">{resultMessage}</p> : null}
-      <p>Запись решения требует отдельного полномочия и свежего step-up. Сервер проверяет их при каждой операции; веб-форма не предоставляет обхода. Публичный выпуск step-up пока не подключён: при HTTP 428 решение блокируется до интеграции настоящего MFA/IdentityProvider.</p>
+      <p>Запись решения требует отдельного полномочия и свежего step-up. Сервер проверяет их при каждой операции; веб-форма не предоставляет обхода. Step-up выдаётся только после проверки заранее зарегистрированного TOTP-фактора, привязанного к текущей серверной сессии.</p>
     </main>
   );
 }
