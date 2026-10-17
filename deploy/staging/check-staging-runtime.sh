@@ -82,6 +82,16 @@ case "$finance_enabled" in
       echo "APGIC staging runtime watchdog: financial schema is incomplete" >&2
       exit 1
     fi
+    # Read-only negative MFA probe: no browser cookie/factor can issue a
+    # high-risk assertion. A 503 means the verifier/key is unavailable.
+    mfa_http_status="$(curl -sS --max-time 5 -o /dev/null -w '%{http_code}' \\
+      -H 'content-type: application/json' -H 'X-APGIC-MFA: totp-v1' \\
+      --data '{"code":"000000"}' \\
+      "http://${APGIC_HTTP_ADDR}/v1/finance/mfa/verify")"
+    if [[ "$mfa_http_status" != "401" ]]; then
+      echo "APGIC staging runtime watchdog: finance MFA challenge not enforcing signed sessions (HTTP $mfa_http_status)" >&2
+      exit 1
+    fi
     ;;
   *)
     echo "APGIC_FINANCE_WORKER_ENABLED must be 0 or 1" >&2
