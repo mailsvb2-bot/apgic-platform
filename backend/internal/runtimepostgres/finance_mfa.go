@@ -118,10 +118,24 @@ func (c *Checker) ProvisionFinanceMFA(ctx context.Context, identity, approver, a
 	if !granted {
 		return "", ErrFinanceMFAInvalid
 	}
-	if _, err = tx.ExecContext(ctx, `INSERT INTO finance_operator_mfa_factors
+	result, err := tx.ExecContext(ctx, `INSERT INTO finance_operator_mfa_factors
  (identity_id,encrypted_secret,provisioned_by,approval_ref,provisioned_at)
- VALUES ($1::uuid,$2,$3,$4,$5)`, identity, encrypted, approver, approval, now.UTC()); err != nil {
-		return "", fmt.Errorf("%w: factor insert rejected", ErrFinanceMFAExists)
+ VALUES ($1::uuid,$2,$3,$4,$5)
+ ON CONFLICT (identity_id) DO UPDATE SET encrypted_secret=EXCLUDED.encrypted_secret,
+ last_accepted_step=-1,failure_count=0,locked_until=NULL,
+ provisioned_by=EXCLUDED.provisioned_by,approval_ref=EXCLUDED.approval_ref,
+ provisioned_at=EXCLUDED.provisioned_at,revoked_at=NULL
+ WHERE finance_operator_mfa_factors.revoked_at IS NOT NULL`,
+ identity, encrypted, approver, approval, now.UTC())
+	if err != nil {
+		return "", fmt.Errorf("persist finance MFA enrollment: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return "", err
+	}
+	if affected != 1 {
+		return "", ErrFinanceMFAExists
 	}
 	auditID, err := persistentid.New()
 	if err != nil {
@@ -138,6 +152,44 @@ func (c *Checker) ProvisionFinanceMFA(ctx context.Context, identity, approver, a
 		return "", err
 	}
 	return base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(secret), nil
+}
+
+// RevokeFinanceMFA disables a lost/stolen factor under named approval and
+// commits its canonical audit fact atomically. No public revocation endpoint.
+func (c *Checker) RevokeFinanceMFA(ctx context.Context, identity, approver, approval string, at time.Time) error {
+	if c == nil || c.db == nil || !financeUUIDPattern.MatchString(identity) ||
+		strings.TrimSpace(approver) == "" || strings.TrimSpace(approval) == "" {
+		return ErrFinanceMFAInvalid
+	}
+	tx, err := c.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	result, err := tx.ExecContext(ctx, `UPDATE finance_operator_mfa_factors
+ SET revoked_at=$2 WHERE identity_id=$1::uuid AND revoked_at IS NULL`, identity, at.UTC())
+	if err != nil {
+		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected != 1 {
+		return ErrFinanceMFAInvalid
+	}
+	auditID, err := persistentid.New()
+	if err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, `INSERT INTO audit_records
+ (id,actor_id,action,scope,resource_ref,new_state,reason,policy_version,correlation_id,occurred_at)
+ VALUES ($1::uuid,$2,'finance.mfa.revoke','apgic/finance-operations',$3,'{"factor":"TOTP","state":"REVOKED"}'::jsonb,$4,'finance-mfa-v1',$5,$6)`,
+ auditID, approver, "identity/"+identity, "approved revocation: "+approval, "finance-mfa/"+auditID, at.UTC())
+	if err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // VerifyFinanceMFA validates a real possession factor in one transaction.
