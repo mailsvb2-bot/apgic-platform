@@ -57,6 +57,9 @@ def validate() -> list[str]:
         'finance_worker_enabled',
         'outbox_enabled',
         'APGIC finance worker activation requires APGIC_OUTBOX_WORKER_ENABLED=1',
+        'APGIC_MFA_ENCRYPTION_KEY_BASE64',
+        'APGIC staging deployment refused: missing independent AES-256 MFA key',
+        'go build -o bin/apgic-finance-mfa-admin',
     ):
         if item not in updater:
             errors.append(f"staging deploy missing finance dependency: {item}")
