@@ -16,6 +16,19 @@ if [[ "${APGIC_FINANCE_WORKER_ENABLED:-0}" != "1" || "${APGIC_OUTBOX_WORKER_ENAB
   echo "R4 STAGING: worker/outbox are not both enabled" >&2
   exit 1
 fi
+# Verify a separately managed AES-256 MFA key is available to the API.
+python3 - <<'PY'
+import base64
+import os
+import sys
+raw = os.getenv("APGIC_MFA_ENCRYPTION_KEY_BASE64", "")
+try:
+    key = base64.b64decode(raw, validate=True)
+except (ValueError, Exception):
+    key = b""
+if len(key) != 32:
+    sys.exit("R4 STAGING: finance MFA key is unavailable")
+PY
 for unit in apgic-finance-worker-staging.service apgic-outbox-worker-staging.service; do
   systemctl is-active --quiet "$unit" || {
     echo "R4 STAGING: inactive service $unit" >&2
@@ -47,6 +60,17 @@ runtime_sha="$(curl -fsS --max-time 5 "http://${APGIC_HTTP_ADDR}/v1/meta" |
 # is blocked until a trusted real IdentityProvider ceremony is integrated.
 status="$(curl -sS --max-time 5 -o /dev/null -w '%{http_code}' \
   -X POST "http://${APGIC_HTTP_ADDR}/v1/auth/step-up/issue")"
+# An unauthenticated caller must not obtain an MFA assertion even with an
+# arbitrary code. HTTP 401 (rather than 503) also proves backend verifier
+# and key are enabled without making any signed or financial changes.
+mfa_auth_status="$(curl -sS --max-time 5 -o /dev/null -w '%{http_code}' \
+  -H 'content-type: application/json' -H 'X-APGIC-MFA: totp-v1' \
+  --data '{"code":"000000"}' \
+  "http://${APGIC_HTTP_ADDR}/v1/finance/mfa/verify")"
+if [[ "$mfa_auth_status" != "401" ]]; then
+  echo "R4 STAGING: finance MFA boundary not configured or exposed (HTTP $mfa_auth_status)" >&2
+  exit 1
+fi
 if [[ "$status" != "404" && "$status" != "405" ]]; then
   echo "R4 STAGING: potentially public MFA issuance route ($status)" >&2
   exit 1
