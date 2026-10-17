@@ -126,7 +126,7 @@ func (c *Checker) ProvisionFinanceMFA(ctx context.Context, identity, approver, a
  provisioned_by=EXCLUDED.provisioned_by,approval_ref=EXCLUDED.approval_ref,
  provisioned_at=EXCLUDED.provisioned_at,revoked_at=NULL
  WHERE finance_operator_mfa_factors.revoked_at IS NOT NULL`,
- identity, encrypted, approver, approval, now.UTC())
+		identity, encrypted, approver, approval, now.UTC())
 	if err != nil {
 		return "", fmt.Errorf("persist finance MFA enrollment: %w", err)
 	}
@@ -185,7 +185,7 @@ func (c *Checker) RevokeFinanceMFA(ctx context.Context, identity, approver, appr
 	_, err = tx.ExecContext(ctx, `INSERT INTO audit_records
  (id,actor_id,action,scope,resource_ref,new_state,reason,policy_version,correlation_id,occurred_at)
  VALUES ($1::uuid,$2,'finance.mfa.revoke','apgic/finance-operations',$3,'{"factor":"TOTP","state":"REVOKED"}'::jsonb,$4,'finance-mfa-v1',$5,$6)`,
- auditID, approver, "identity/"+identity, "approved revocation: "+approval, "finance-mfa/"+auditID, at.UTC())
+		auditID, approver, "identity/"+identity, "approved revocation: "+approval, "finance-mfa/"+auditID, at.UTC())
 	if err != nil {
 		return err
 	}
