@@ -74,6 +74,7 @@ case "$finance_enabled" in
         AND to_regclass('public.finance_payout_decisions') IS NOT NULL
         AND to_regclass('public.finance_reconciliation_runs') IS NOT NULL
         AND to_regclass('public.finance_reconciliation_results') IS NOT NULL
+        AND to_regclass('public.finance_operator_mfa_factors') IS NOT NULL
       )")" || {
       echo "APGIC staging runtime watchdog: cannot inspect financial schema" >&2
       exit 1
