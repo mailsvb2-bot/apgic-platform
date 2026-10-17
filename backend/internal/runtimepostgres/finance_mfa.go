@@ -113,6 +113,8 @@ func (c *Checker) VerifyFinanceMFA(ctx context.Context, identity,sessionRef,code
  FROM finance_operator_mfa_factors WHERE identity_id=$1::uuid AND revoked_at IS NULL FOR UPDATE`,identity).Scan(&ciphertext,&lastStep,&failed,&locked)
  if err!=nil{return false,ErrFinanceMFAInvalid}
  if locked!=nil && locked.After(now.UTC()){return false,ErrFinanceMFAInvalid}
+ // After a completed cooldown the failure counter starts afresh.
+ if locked!=nil && !locked.After(now.UTC()){failed=0}
  secret,err:=financeMFADecrypt(key,identity,ciphertext);if err!=nil{return false,ErrFinanceMFAInvalid}
  step:=financeMFAMatch(secret,code,now,lastStep)
  if step<0{
