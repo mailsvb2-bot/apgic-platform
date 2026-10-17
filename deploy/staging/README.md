@@ -60,6 +60,78 @@ Install the four systemd units/timers from deploy/staging, run systemctl daemon-
 Timeweb VM snapshots complement this logical backup path; they do not replace logical restore verification.
 
 
+## R4: real MFA and finance staging acceptance (release blocking)
+
+**Unverified, not released.** Canon v7 APGIC-AUTH-002 requires actual higher-assurance
+factor verification. The R4 operator path provides a server-verified TOTP
+second factor and ten-minute session-bound step-up cookie; the factor is
+provisioned out of band by a named administrator ONLY after the canonical
+Identity received a finance-operator grant. This code is not a completed
+human staging ceremony and cannot be used as production evidence until
+real enrollment, test devices and audit proof have been independently reviewed.
+
+Configure a 32-byte random AES key in the authorized host secret manager as
+APGIC_MFA_ENCRYPTION_KEY_BASE64 (strict base64, separate from session signing).
+After migration 000042 and grant provisioning, use the **private admin terminal**:
+
+```bash
+cd /opt/apgic/current/backend
+go run ./cmd/finance-mfa-admin \
+  --identity-id "<approved-identity-uuid>" \
+  --approved-by "<named-approver>" \
+  --approval-ref "<approved-change-ticket>"
+```
+
+The CLI outputs the authenticator secret **once**. Do not place it in shell
+history, CI, ticket systems, chat, repository, telemetry or stdout captures.
+Enroll it in the human operator's authenticator through an approved secure
+channel. For high-risk finance actions, the operator enters a six-digit code
+in the finance operations web view. The server checks active finance capability,
+decrypts only on the backend, rejects replay, locks repeated failures and
+emits immutable audit evidence; only success mints an HttpOnly Secure SameSite
+step-up cookie for that exact browser session.
+
+Do not expose a public self-issue endpoint, trust caller-provided identity,
+generate a synthetic positive MFA assertion, or relabel green CI as a
+human MFA success. Factor loss/rotation requires security-administrator review;
+do not bypass the factor or edit economic truth as a recovery workaround.
+
+### Mandatory human operator acceptance (not automatable with CI fixtures)
+
+1. Provision a real finance operator using the existing append-only admin grant,
+   with a named human and an out-of-band provisioned TOTP factor. Authenticate
+   the same Identity and browser session; verify that attempting the high-risk
+   discrepancy resolution WITHOUT fresh MFA returns HTTP 428 and leaves the
+   discrepancy, ledger and audit business effects unchanged. Confirm the deny
+   was audited.
+2. Complete a REAL authenticator-code ceremony. A server-verified,
+   one-time counter and session-bound assertion must be issued by APGIC
+   only AFTER factor verification. A fresh authorized resolution must
+   write exactly one append-only resolution and its actor/audit evidence.
+3. Replay the same idempotency key and identical decision; require one economic
+   effect and replay response. Mutate the decision while reusing the key;
+   require a deterministic conflict. Expired / wrong-session MFA must return 428
+   and create no resolution. Confirm no cross-tenant/operator data leakage.
+4. On the authorized staging host, AFTER approved migration/deployment, run
+   `sudo bash /opt/apgic/current/deploy/staging/prove-r4-finance-readonly.sh`.
+   The probe requires active finance/outbox workers, durable finance tables,
+   same runtime SHA and API health. Capture complete host-signed session logs
+   and repository SHA as separate reviewed evidence. This read-only probe is
+   *not* proof of real money movement or of successful MFA.
+5. For every provider used for release, corroborate settlement, payout, refund
+   and reconciliation with independently obtained PSP/bank/store evidence;
+   synthetic CI events or database fixtures are invalid substitutes.
+
+The production-only R4 payment gate requires `HUMAN_MFA_STEP_UP_E2E`,
+`STAGING_FINANCE_END_TO_END`, `STAGING_FINANCE_WORKER_OUTBOX`, and
+`STAGING_RECONCILIATION_DISCREPANCY_E2E`. These proof records must be
+non-synthetic, bound to the exact candidate SHA, digested, reviewed and listed
+in the immutable production evidence index. The v7 AUTH-002 registry status
+must also be VERIFIED or RELEASED. Never change statuses merely to make CI pass.
+
+The ordinary CI mode intentionally verifies gate mechanics with synthetic
+fixtures; it cannot certify MFA enrollment, PSP payouts, or staging operations.
+
 ## R4 finance worker
 
 `apgic-finance-worker-staging.service` is installed by the staging updater but is **disabled by default**. Set `APGIC_FINANCE_WORKER_ENABLED=1` in `/etc/apgic/staging.env` only after the R4 migrations are applied and the staging owner approves settlement/reconciliation processing; the updater then enables and restarts the worker after migration and runtime restart. The worker shares `APGIC_DATABASE_URL` and fails closed unless every R4 finance table is present. Enabling this service is not payment-provider certification or production payout evidence.

@@ -28,7 +28,10 @@ def valid_production_index(document: dict, gate_name: str) -> dict:
     records = {}
     artifact_path = gate.ROOT / "canon/evidence/r4-release-gate-v1.schema.json"
     artifact_digest = hashlib.sha256(artifact_path.read_bytes()).hexdigest()
-    for evidence_type in gate.GATE_REQUIRED[gate_name]:
+    required = gate.GATE_REQUIRED[gate_name]
+    if gate_name in {"payments", "all"}:
+        required = required | gate.PRODUCTION_FINANCE_REQUIRED
+    for evidence_type in required:
         evidence_id = evidence_type.lower()
         document["evidence"][evidence_type] = evidence_row(f"evidence://{evidence_id}")
         records[evidence_id] = {
@@ -210,6 +213,27 @@ class R4ReleaseGateTests(unittest.TestCase):
         production_index = valid_production_index(document, "payments")
         passed, blockers = gate.evaluate(document, "payments", "production", production_index)
         self.assertTrue(passed, blockers)
+
+    def test_production_finance_blocks_without_actual_mfa_and_staging(self) -> None:
+        document = valid_ci()
+        document["synthetic"] = False
+        document["production_candidate"] = True
+        index = valid_production_index(document, "payments")
+        for evidence_type in gate.PRODUCTION_FINANCE_REQUIRED:
+            index["records"].pop(evidence_type.lower())
+            document["evidence"].pop(evidence_type)
+        passed, blockers = gate.evaluate(document, "payments", "production", index)
+        self.assertFalse(passed)
+        for evidence_type in gate.PRODUCTION_FINANCE_REQUIRED:
+            self.assertIn(f"{evidence_type}:MISSING", blockers)
+
+    def test_ci_does_not_masquerade_as_human_step_up_evidence(self) -> None:
+        document = valid_ci()
+        passed, blockers = gate.evaluate(document, "payments", "ci")
+        self.assertTrue(passed, blockers)
+        passed, blockers = gate.evaluate(document, "payments", "production")
+        self.assertFalse(passed)
+        self.assertIn("SYNTHETIC_EVIDENCE_FORBIDDEN", blockers)
 
     def test_production_evidence_digest_mismatch_is_rejected(self) -> None:
         document = valid_ci()

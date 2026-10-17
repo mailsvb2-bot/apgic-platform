@@ -135,6 +135,22 @@ if [[ "$finance_worker_enabled" == "1" && "$outbox_enabled" != "1" ]]; then
   exit 1
 fi
 
+# Finance is high-risk: never activate the worker while the second-factor
+# service would be unavailable. The secret is an independent AES-256 key.
+if [[ "$finance_worker_enabled" == "1" ]]; then
+  python3 - <<'PY'
+import base64
+import os
+import sys
+try:
+    key = base64.b64decode(os.getenv("APGIC_MFA_ENCRYPTION_KEY_BASE64", ""), validate=True)
+except Exception:
+    key = b""
+if len(key) != 32 or key == bytes(32):
+    sys.exit("APGIC staging deployment refused: missing independent AES-256 MFA key")
+PY
+fi
+
 CURRENT_SHA="$APGIC_COMMIT_SHA"
 
 git fetch origin main
@@ -212,6 +228,7 @@ mkdir -p bin
 go build -o bin/apgic-api ./cmd/api
 go build -o bin/apgic-outbox-worker ./cmd/outbox-worker
 go build -o bin/apgic-finance-worker ./cmd/finance-worker
+go build -o bin/apgic-finance-mfa-admin ./cmd/finance-mfa-admin
 
 echo "=== Build Web ==="
 cd "$REPO_ROOT/apps/web"
