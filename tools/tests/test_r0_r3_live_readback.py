@@ -41,6 +41,30 @@ class R0R3LiveReadbackTests(unittest.TestCase):
                 data[index][key]=value
                 self.assertIn(expected,probe.verify_observations(*data,SHA,ID))
 
+    def test_authenticated_probe_never_accepts_nonlocal_api_origin(self):
+        from unittest import mock
+        safe = ("http://127.0.0.1:43111", "http://[::1]:43111")
+        for origin in safe:
+            with self.subTest(origin=origin):
+                probe.assert_local_api_base(origin)
+        rejected = (
+            "https://127.0.0.1:43111", "http://example.com:43111",
+            "http://192.0.2.1:43111", "http://localhost:43111",
+            "http://127.0.0.1", "http://127.0.0.1:43111/path",
+            "http://user:password@127.0.0.1:43111",
+            "http://127.0.0.1:43111/?redirect=1",
+        )
+        for origin in rejected:
+            with self.subTest(origin=origin):
+                with self.assertRaises(probe.ProbeError):
+                    probe.assert_local_api_base(origin)
+        with self.assertRaises(probe.ProbeError):
+            probe.NoRedirect().redirect_request(None, None, 302, "Moved", {}, "https://evil.example")
+        with mock.patch.object(probe.urllib.request, "build_opener") as open_mock:
+            with self.assertRaises(probe.ProbeError):
+                probe.fetch_json("http://example.org:43111", "/v1/bookings/1", "session=secret")
+            open_mock.assert_not_called()
+
     def test_authorized_host_guard_and_script_syntax(self):
         path = ROOT / "deploy/staging/prove-r0-r3-client-readback.sh"
         subprocess.run(["bash","-n",str(path)],check=True)
