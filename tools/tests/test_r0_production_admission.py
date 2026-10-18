@@ -31,7 +31,7 @@ class R0ProductionAdmissionTests(unittest.TestCase):
             content = ('{"proof":"' + kind + '"}').encode()
             (self.root / path).write_bytes(content)
             digest = hashlib.sha256(content).hexdigest()
-            signed = "\\\\n".join((kind, SHA, digest, path, "security-reviewer")).encode()
+            signed = chr(10).join((kind, SHA, digest, path, "security-reviewer")).encode("utf-8")
             records[kind] = {"candidate_sha":SHA,"evidence_class":"PRODUCTION_OPERATIONAL",
                              "synthetic":False,"reviewed":True,"reviewer":"security-reviewer",
                              "path":path,"sha256":digest,
