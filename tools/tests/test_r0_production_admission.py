@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -34,6 +35,17 @@ class R0ProductionAdmissionTests(unittest.TestCase):
 
     def test_full_exact_candidate_proof_passes_only_with_verified_r0(self):
         self.assertEqual(gate.inspect(registry(), self.evidence(), SHA, self.root), [])
+
+    def test_staging_probe_shell_is_parseable_and_reuses_canonical_guards(self):
+        script = gate.ROOT / "deploy/staging/prove-r0-foundation-readonly.sh"
+        subprocess.run(["bash", "-n", str(script)], check=True, capture_output=True)
+        code = script.read_text(encoding="utf-8")
+        for must in ("assert-authorized-host.sh", "check-staging-runtime.sh",
+                     "APGIC_COMMIT_SHA", "APGIC_DATABASE_URL",
+                     "apgic-staging-restore-verify.timer",
+                     "R0_STAGING_READ_ONLY_PASS"):
+            self.assertIn(must, code)
+        self.assertNotIn("production_promotion_eligible", code)
 
     def test_empty_index_fails_all_proofs(self):
         reasons = gate.inspect(registry(), {"schema_version":"production-evidence-index-v1","records":{}},SHA,self.root)
