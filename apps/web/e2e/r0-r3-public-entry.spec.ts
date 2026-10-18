@@ -7,7 +7,7 @@ test("customer can enter real public specialist catalogue directly from homepage
     })})
   );
   await page.goto("/");
-  const directoryLink = page.getByRole("link", {name:"Смотреть каталог специалистов"});
+  const directoryLink = page.getByRole("navigation", {name:"Разделы"}).getByRole("link", {name:"Подобрать специалиста"});
   await expect(directoryLink).toHaveAttribute("href","/specialists");
   await directoryLink.click();
   await expect(page).toHaveURL(/\/specialists\/?$/);
