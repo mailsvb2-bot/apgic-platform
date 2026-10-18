@@ -1114,6 +1114,31 @@ assert_help_intent_confirmation() {
   for input_attempt in 1 2 3; do
     seek_demand_accessibility_node "С чем нужна помощь" "" tap "$remote" "$output" ||
       fail "Android HelpIntent text input not operable in scrollable app"
+    # RN multiline TextInput can lose focus after the accessibility tap due
+    # to an asynchronous native layout. Verify the actual focused editable
+    # field before typing rather than trusting adb's exit code.
+    "$ADB" shell uiautomator dump "$remote" >/dev/null 2>&1 || true
+    "$ADB" pull "$remote" "$output" >/dev/null 2>&1 || true
+    if ! python3 - "$output" <<'PY'
+import sys
+import xml.etree.ElementTree as ET
+try:
+    nodes = ET.parse(sys.argv[1]).getroot().iter("node")
+    found = any(n.get("focused") == "true" and
+                (n.get("class", "").endswith("EditText") or n.get("editable") == "true")
+                for n in nodes)
+except (OSError, ET.ParseError):
+    found = False
+raise SystemExit(0 if found else 1)
+PY
+    then
+      echo "Android TextInput tap did not focus native editable node; retrying focus" >&2
+      seek_demand_accessibility_node "С чем нужна помощь" "" tap "$remote" "$output" ||
+        fail "Android HelpIntent native editable focus lost"
+    fi
+    # Replace rather than append after a partially delivered input attempt.
+    "$ADB" shell input keyevent KEYCODE_MOVE_END >/dev/null 2>&1 || true
+    "$ADB" shell input keyevent --longpress KEYCODE_DEL >/dev/null 2>&1 || true
     "$ADB" shell input text 'anxiety%ssleep' >/dev/null ||
       fail "Android adb could not type HelpIntent text"
     for _ in 1 2 3 4 5; do
@@ -1127,8 +1152,12 @@ try:
     root = ET.parse(sys.argv[1]).getroot()
 except (OSError, ET.ParseError):
     raise SystemExit(1)
+# RN may surface the accessible label on a wrapper and the edited text
+# on its child EditText. Only accept an actual edit control containing both
+# terms, not unrelated labels or explanatory text elsewhere in the app.
 for node in root.iter("node"):
-    if node.attrib.get("content-desc") != "С чем нужна помощь":
+    if not (node.attrib.get("class", "").endswith("EditText") or
+            node.attrib.get("editable") == "true"):
         continue
     value = node.attrib.get("text", "").lower()
     if "anxiety" in value and "sleep" in value:
@@ -1143,8 +1172,23 @@ PY
     [[ "$input_confirmed" == true ]] && break
     echo "Android HelpIntent typing not reflected in real TextInput; refocusing attempt $input_attempt" >&2
   done
-  [[ "$input_confirmed" == true ]] ||
+  if [[ "$input_confirmed" != true ]]; then
+    cp "$output" "$EVIDENCE_DIR/android-helpintent-input-failure.xml" 2>/dev/null || true
+    "$ADB" exec-out screencap -p > "$EVIDENCE_DIR/android-helpintent-input-failure.png" 2>/dev/null || true
+    python3 - "$output" <<'PY' >&2 || true
+import sys
+import xml.etree.ElementTree as ET
+try:
+    root = ET.parse(sys.argv[1]).getroot()
+    for n in root.iter("node"):
+        if n.get("focused") == "true" or "помощь" in (n.get("content-desc","")+" "+n.get("text","")).lower():
+            print("Android actual input node:",
+                  {k: n.get(k) for k in ("class","content-desc","text","focused","bounds")})
+except (OSError, ET.ParseError) as exc:
+    print("Android input tree unavailable:", exc)
+PY
     fail "Android HelpIntent TextInput did not retain typed user request"
+  fi
   # Dismiss the IME deterministically before navigating to the real
   # interpretation button: a still-visible keyboard intercepts scrolls,
   # making the enabled native control unreachable on small emulators.
