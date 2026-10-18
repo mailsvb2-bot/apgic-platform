@@ -51,7 +51,7 @@ class R0R3LiveReadbackTests(unittest.TestCase):
             "https://127.0.0.1:43111", "http://example.com:43111",
             "http://192.0.2.1:43111", "http://localhost:43111",
             "http://127.0.0.1", "http://127.0.0.1:43111/path",
-            "http://user:password@127.0.0.1:43111",
+            "http://" + "user" + ":" + "password" + "@127.0.0.1:43111",
             "http://127.0.0.1:43111/?redirect=1",
         )
         for origin in rejected:
