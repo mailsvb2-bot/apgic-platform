@@ -1,5 +1,33 @@
 # APGIC staging boundary
 
+## R0 foundation acceptance — CI versus real deployment
+
+R0 requires trusted Identity → role and tenant permission → protected action →
+durable PostgreSQL/audit/outbox result → replay/readback after restart, across
+Web, iOS and Android. Passing CI cannot substitute for real MFA and installation.
+
+On the **only authorized APGIC host** (92.51.23.254), after deploying the
+exact candidate commit through the canonical updater, run:
+
+```bash
+sudo bash /opt/apgic/current/deploy/staging/prove-r0-foundation-readonly.sh
+```
+
+This read-only probe reuses existing host and watchdog protections, verifies
+runtime SHA, canonical PostgreSQL tables, API/web services, backup/restore
+timers and recent restore evidence. It does not mutate business data or
+certify human authentication, tenant isolation, store builds or production.
+
+The separate `tools/r0_production_admission.py` blocks promotion until
+**all R0 canonical requirements** are VERIFIED/RELEASED and independently
+reviewed exact-candidate evidence exists for multi-surface Identity, tenant
+isolation, real human MFA/audit, staging, measured RPO/RTO, rollback and
+signed iOS/Android installs. The production evidence index is currently
+empty; readiness therefore remains BLOCKED. The config-only preflight
+sets `production_promotion_eligible: false` by design.
+
+Never relabel CI fixtures as operational or production evidence.
+
 ## Authorized host and Remote Desktop Commander boundary
 
 The only authorized APGIC server is **IPv4 `92.51.23.254`**.
