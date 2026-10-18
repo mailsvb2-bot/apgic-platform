@@ -13,9 +13,10 @@ import (
 )
 
 type testFinanceOpsStore struct {
-	operator string
-	audits   []audit.Record
-	resolved []finance.DiscrepancyResolutionRequest
+	factorActive bool
+	operator     string
+	audits       []audit.Record
+	resolved     []finance.DiscrepancyResolutionRequest
 }
 
 func (s *testFinanceOpsStore) Append(record audit.Record) error {
@@ -28,6 +29,10 @@ func (s *testFinanceOpsStore) ActiveFinanceOperatorGrant(_ context.Context, iden
 		return "00000000-0000-4000-8000-0000000000f1", true, nil
 	}
 	return "", false, nil
+}
+
+func (s *testFinanceOpsStore) FinanceMFAActiveAt(_ context.Context, _ string, _ time.Time) (bool, error) {
+	return s.factorActive, nil
 }
 
 func (s *testFinanceOpsStore) ListOpenFinanceDiscrepancies(context.Context, int) ([]finance.OpenDiscrepancy, error) {
@@ -149,5 +154,52 @@ func TestFinanceDiscrepancyResolutionRequiresGrantStepUpAndAudit(t *testing.T) {
 	}
 	if len(store.audits) < 6 {
 		t.Fatalf("authorization decisions not audited: %d", len(store.audits))
+	}
+}
+
+func TestFinanceTOTPRevokeInvalidatesActiveCookieBeforeResolution(t *testing.T) {
+	now := time.Date(2026, 10, 18, 12, 0, 0, 0, time.UTC)
+	operator := "00000000-0000-4000-8000-0000000000b1"
+	key := []byte(strings.Repeat("m", 32))
+	store := &testFinanceOpsStore{operator: operator, factorActive: false}
+	handler := New(Options{ClientSessionKey: key, FinanceOperations: store, Now: func() time.Time { return now }})
+	sessions, err := newClientSessionManager(key, func() time.Time { return now })
+	if err != nil {
+		t.Fatal(err)
+	}
+	manager, err := newStepUpManager(key, func() time.Time { return now })
+	if err != nil {
+		t.Fatal(err)
+	}
+	session, err := sessions.issue(operator)
+	if err != nil {
+		t.Fatal(err)
+	}
+	probe := httptest.NewRequest(http.MethodGet, "/", nil)
+	probe.AddCookie(session)
+	_, ref, err := sessions.identityAndReferenceFromRequest(probe)
+	if err != nil {
+		t.Fatal(err)
+	}
+	verifiedCookie, err := manager.issue(operator, ref, "TOTP", now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const route = "/v1/finance/operations/discrepancies/00000000-0000-4000-8000-0000000000d1/resolutions"
+	const body = `{"idempotency_key":"step-up-revoke","kind":"OPERATIONAL_EXCEPTION_ACCEPTED","reason":"approved by finance operations","evidence_refs":["ticket/1"]}`
+	resolve := func() int {
+		request := httptest.NewRequest(http.MethodPost, route, strings.NewReader(body))
+		request.AddCookie(session)
+		request.AddCookie(verifiedCookie)
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, request)
+		return recorder.Code
+	}
+	if status := resolve(); status != http.StatusPreconditionRequired || len(store.resolved) != 0 {
+		t.Fatalf("revoked TOTP factor still authorized a financial decision: %d", status)
+	}
+	store.factorActive = true
+	if status := resolve(); status != http.StatusCreated || len(store.resolved) != 1 {
+		t.Fatalf("currently active TOTP was not accepted: %d", status)
 	}
 }

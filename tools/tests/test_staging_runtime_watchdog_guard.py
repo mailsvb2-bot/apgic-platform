@@ -1,4 +1,5 @@
 import tempfile
+import subprocess
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -7,6 +8,16 @@ from tools import staging_runtime_watchdog_guard as guard
 
 
 class StagingRuntimeWatchdogGuardTest(unittest.TestCase):
+    def test_finance_staging_shell_scripts_have_valid_bash_syntax(self):
+        for name in (
+            "check-staging-runtime.sh",
+            "update-staging.sh",
+            "prove-r4-finance-readonly.sh",
+        ):
+            script = guard.ROOT / "deploy" / "staging" / name
+            with self.subTest(script=name):
+                subprocess.run(["bash", "-n", str(script)], check=True, capture_output=True, text=True)
+
     def test_watchdog_preserves_runtime_invariants(self):
         self.assertEqual(guard.validate(), [])
 
