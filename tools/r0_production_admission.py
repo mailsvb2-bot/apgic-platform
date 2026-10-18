@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import hmac
+import os
 import json
 import re
 from pathlib import Path
@@ -29,10 +31,12 @@ REQUIRED_PROOFS = (
 PROHIBITED_CLASSES = {"CI_CANDIDATE", "CONFORMANCE", "SYNTHETIC", "TEST_FIXTURE"}
 
 
-def inspect(registry: dict, index: dict, candidate_sha: str, root: Path = ROOT) -> list[str]:
+def inspect(registry: dict, index: dict, candidate_sha: str, root: Path = ROOT, attestation_key: bytes | None = None) -> list[str]:
     blockers: list[str] = []
     if not SHA.fullmatch(candidate_sha):
         return ["CANDIDATE_SHA_INVALID"]
+    if attestation_key is None or len(attestation_key) < 32:
+        blockers.append("RELEASE_ATTESTATION_SECRET_UNAVAILABLE")
     requirements = registry.get("requirements")
     if not isinstance(requirements, list):
         return ["CANON_REGISTRY_INVALID"]
@@ -64,6 +68,14 @@ def inspect(registry: dict, index: dict, candidate_sha: str, root: Path = ROOT) 
         if not isinstance(path, str) or not path.startswith("canon/evidence/production/") or not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest):
             blockers.append(f"EVIDENCE_PATH_OR_DIGEST_INVALID:{proof}")
             continue
+        signature = entry.get("attestation_hmac_sha256")
+        if not isinstance(signature, str) or not re.fullmatch(r"[0-9a-f]{64}", signature):
+            blockers.append(f"EVIDENCE_ATTESTATION_MISSING:{proof}")
+        elif attestation_key is not None and len(attestation_key) >= 32:
+            canonical = "\\n".join((proof, candidate_sha, digest, path, entry["reviewer"])).encode("utf-8")
+            actual_signature = hmac.new(attestation_key, canonical, hashlib.sha256).hexdigest()
+            if not hmac.compare_digest(actual_signature, signature):
+                blockers.append(f"EVIDENCE_ATTESTATION_INVALID:{proof}")
         target = (root / path).resolve()
         if root.resolve() not in target.parents or not target.is_file():
             blockers.append(f"EVIDENCE_ARTIFACT_MISSING:{proof}")
@@ -83,7 +95,12 @@ def main() -> int:
     try:
         registry = yaml.safe_load((ROOT / args.registry).read_text(encoding="utf-8"))
         index = yaml.safe_load((ROOT / args.index).read_text(encoding="utf-8"))
-        blockers = inspect(registry, index, args.candidate_sha)
+        raw_key = os.getenv("APGIC_R0_ADMISSION_HMAC_KEY_HEX", "")
+        try:
+            attestation_key = bytes.fromhex(raw_key)
+        except ValueError:
+            attestation_key = b""
+        blockers = inspect(registry, index, args.candidate_sha, attestation_key=attestation_key)
     except (OSError, yaml.YAMLError, ValueError, TypeError) as exc:
         print(f"R0 PRODUCTION ADMISSION: BLOCKED (invalid input: {type(exc).__name__})")
         return 1
