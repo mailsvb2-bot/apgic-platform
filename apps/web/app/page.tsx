@@ -27,7 +27,7 @@ export default function Home() {
           </a>
           <nav className="top-nav" aria-label="Разделы">
             <a href="#how">Как это работает</a>
-            <a href="#start">Подобрать специалиста</a>
+            <a href="/specialists">Подобрать специалиста</a>
             <a className="organization-nav-link" href="/organization">Организация</a>
             <a className="pro-nav-link" href="/specialist">Для специалистов</a>
           </nav>
