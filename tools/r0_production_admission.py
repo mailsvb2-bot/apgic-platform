@@ -72,7 +72,7 @@ def inspect(registry: dict, index: dict, candidate_sha: str, root: Path = ROOT, 
         if not isinstance(signature, str) or not re.fullmatch(r"[0-9a-f]{64}", signature):
             blockers.append(f"EVIDENCE_ATTESTATION_MISSING:{proof}")
         elif attestation_key is not None and len(attestation_key) >= 32:
-            canonical = "\\n".join((proof, candidate_sha, digest, path, entry["reviewer"])).encode("utf-8")
+            canonical = chr(10).join((proof, candidate_sha, digest, path, str(entry.get("reviewer") or ""))).encode("utf-8")
             actual_signature = hmac.new(attestation_key, canonical, hashlib.sha256).hexdigest()
             if not hmac.compare_digest(actual_signature, signature):
                 blockers.append(f"EVIDENCE_ATTESTATION_INVALID:{proof}")
