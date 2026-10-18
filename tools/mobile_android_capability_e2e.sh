@@ -999,7 +999,7 @@ PY
 # This does not suppress warnings or change confirmation/server assertions.
 dismiss_android_debug_warning_overlay() {
   local remote="$1" output="$2" close_position attempt
-  for attempt in 1 2 3; do
+  for attempt in 1 2 3 4 5 6 7 8; do
     "$ADB" shell uiautomator dump "$remote" >/dev/null 2>&1 || return 1
     "$ADB" pull "$remote" "$output" >/dev/null 2>&1 || return 1
     close_position="$(python3 - "$output" <<'PY'
@@ -1027,12 +1027,14 @@ PY
     fi
     echo "Android debug warning overlay covers native touch target; dismissing its actual close control at $close_position" >&2
     "$ADB" shell input touchscreen tap $close_position >/dev/null 2>&1 || return 1
-    sleep 0.6
+    sleep 1.2
   done
   "$ADB" shell uiautomator dump "$remote" >/dev/null 2>&1 || return 1
   "$ADB" pull "$remote" "$output" >/dev/null 2>&1 || return 1
   if grep -q 'Open debugger to view warnings.' "$output"; then
     echo "Android debug warning overlay still intercepts native touches" >&2
+    cp "$output" "$EVIDENCE_DIR/android-debug-warning-overlay-failure.xml" 2>/dev/null || true
+    "$ADB" exec-out screencap -p > "$EVIDENCE_DIR/android-debug-warning-overlay-failure.png" 2>/dev/null || true
     return 1
   fi
 }
