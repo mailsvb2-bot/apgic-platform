@@ -365,7 +365,7 @@ assert_state() {
     xcrun simctl terminate "$UDID" com.apgic.ci >/dev/null 2>&1 || true
     sleep 2
     SIMCTL_CHILD_APGIC_E2E_CAPABILITY_STATE="$state" \
-      xcrun simctl launch --terminate-running-process "$UDID" com.apgic.ci >/dev/null
+      xcrun simctl launch "$UDID" com.apgic.ci >/dev/null
     for observation in $(seq 1 20); do
       if "$IDB" ui describe-all --udid "$UDID" --api axbridge --json --nested >"$output" 2>/dev/null &&
          grep -q "capability-state:${state}" "$output" &&
