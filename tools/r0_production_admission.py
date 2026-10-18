@@ -61,7 +61,7 @@ def inspect(registry: dict, index: dict, candidate_sha: str, root: Path = ROOT, 
             blockers.append(f"EVIDENCE_CANDIDATE_MISMATCH:{proof}")
         if entry.get("evidence_class") in PROHIBITED_CLASSES or entry.get("synthetic") is not False:
             blockers.append(f"EVIDENCE_NOT_LIVE:{proof}")
-        if entry.get("reviewed") is not True or not isinstance(entry.get("reviewer"), str) or not entry["reviewer"].strip():
+        if entry.get("reviewed") is not True or not isinstance(entry.get("reviewer"), str) or not str(entry.get("reviewer") or "").strip():
             blockers.append(f"EVIDENCE_NOT_REVIEWED:{proof}")
         path = entry.get("path")
         digest = entry.get("sha256")
