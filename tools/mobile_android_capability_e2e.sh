@@ -1152,8 +1152,12 @@ try:
     root = ET.parse(sys.argv[1]).getroot()
 except (OSError, ET.ParseError):
     raise SystemExit(1)
+# RN may surface the accessible label on a wrapper and the edited text
+# on its child EditText. Only accept an actual edit control containing both
+# terms, not unrelated labels or explanatory text elsewhere in the app.
 for node in root.iter("node"):
-    if node.attrib.get("content-desc") != "С чем нужна помощь":
+    if not (node.attrib.get("class", "").endswith("EditText") or
+            node.attrib.get("editable") == "true"):
         continue
     value = node.attrib.get("text", "").lower()
     if "anxiety" in value and "sleep" in value:
