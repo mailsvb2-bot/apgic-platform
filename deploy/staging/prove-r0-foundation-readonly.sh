@@ -53,26 +53,20 @@ SELECT (
   exit 1
 }
 
-# Latest timestamp from already-completed restore drill, no new database,
-# mutation or backup side effect is performed by this read-only probe.
+# Require the canonical completed restore drill, not merely a recently touched
+# JSON file. The verifier validates measured RPO/RTO, database integrity
+# and business probes and binds the actual observation to deployed SHA.
 RESTORE_DIR="${APGIC_RESTORE_EVIDENCE_DIR:-/var/backups/apgic/evidence}"
-[[ -d "$RESTORE_DIR" ]] || {
-  echo "R0 staging: operational restore evidence directory missing" >&2
+restore_file="$RESTORE_DIR/latest.json"
+[[ -f "$restore_file" ]] || {
+  echo "R0 staging: canonical latest restore evidence is missing" >&2
   exit 1
 }
-latest="$(find "$RESTORE_DIR" -maxdepth 1 -type f -name '*.json' -printf '%T@ %p\n' | sort -nr | head -n 1 | cut -d' ' -f2-)"
-[[ -n "$latest" && -f "$latest" ]] || {
-  echo "R0 staging: restore evidence absent" >&2
-  exit 1
-}
-mtime="$(stat -c '%Y' "$latest")"
-now="$(date +%s)"
-age="$(( now - mtime ))"
-# Old evidence may be useful historically, but cannot pass live R0 readiness.
-if (( age < 0 || age > 8 * 86400 )); then
-  echo "R0 staging: no fresh restore evidence (age_seconds=$age)" >&2
-  exit 1
-fi
+python3 "$SCRIPT_DIR/../../tools/r0_restore_evidence_verify.py" \
+  --evidence "$restore_file" \
+  --candidate-sha "$APGIC_COMMIT_SHA" \
+  --max-age-seconds 691200
+
 # Data classification and full consent, tenant-isolation, MFA, signed-device
 # installation, and rollback remain separate real-world release proofs.
-printf 'R0_STAGING_READ_ONLY_PASS candidate_sha=%s restore_evidence_age_seconds=%s\n' "$APGIC_COMMIT_SHA" "$age"
+printf 'R0_STAGING_READ_ONLY_PASS candidate_sha=%s measured_restore_proof=true\n' "$APGIC_COMMIT_SHA"
