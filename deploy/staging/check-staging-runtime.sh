@@ -19,6 +19,18 @@ fi
 curl -fsS --max-time 5 "http://${APGIC_HTTP_ADDR}/healthz" | grep -q '"status":"ok"'
 curl -fsS --max-time 5 "http://${APGIC_HTTP_ADDR}/readyz" | grep -q '"status":"ready"'
 
+# Capability probe: an enabled Growth subsystem must answer with a
+# session-authentication challenge, not a misconfigured 503. Disabled Growth
+# must fail closed rather than exposing unsigned attribution tokens.
+growth_status="$(curl -sS --max-time 5 -o /dev/null -w '%{http_code}' "http://${APGIC_HTTP_ADDR}/v1/specialist/growth-links")"
+case "${APGIC_GROWTH_ENABLED:-0}:${growth_status}" in
+    1:401|0:503) ;;
+    *)
+        printf 'Growth capability mismatch: enabled=%s status=%s\n' "${APGIC_GROWTH_ENABLED:-0}" "${growth_status}" >&2
+        exit 1
+        ;;
+esac
+
 metrics="$(curl -fsS --max-time 5 "http://${APGIC_HTTP_ADDR}/metrics")"
 grep -q 'apgic_http_requests_total' <<<"$metrics"
 grep -q 'apgic_http_request_duration_milliseconds_bucket' <<<"$metrics"

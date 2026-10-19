@@ -64,7 +64,7 @@ export default function Home() {
             </div>
             <h2>С чем можно обратиться</h2>
             <div className="direction-grid" aria-label="Популярные направления">
-              {directions.map((direction) => <span key={direction}>{direction}</span>)}
+              {directions.map((direction, i) => <a key={direction} href={["/help/trevoga","/help/son","/help/otnosheniya","/help/kariera"][i]}>{direction}</a>)}
             </div>
             <div className="mini-steps">
               <p><strong>1.</strong> Опишите ситуацию</p>
