@@ -999,7 +999,10 @@ PY
 # This does not suppress warnings or change confirmation/server assertions.
 dismiss_android_debug_warning_overlay() {
   local remote="$1" output="$2" close_position attempt
-  for attempt in 1 2 3 4 5 6 7 8; do
+  # React Native LogBox notifications are not part of the customer flow and
+  # can intercept a genuine native press. Locate the warning's native close
+  # affordance, never touch an arbitrary guessed coordinate outside its bounds.
+  for attempt in 1 2 3 4; do
     "$ADB" shell uiautomator dump "$remote" >/dev/null 2>&1 || return 1
     "$ADB" pull "$remote" "$output" >/dev/null 2>&1 || return 1
     close_position="$(python3 - "$output" <<'PY'
@@ -1008,33 +1011,56 @@ import sys
 import xml.etree.ElementTree as ET
 
 root = ET.parse(sys.argv[1]).getroot()
-for node in root.iter("node"):
+nodes = list(root.iter("node"))
+for idx, node in enumerate(nodes):
     attrs = node.attrib
     if "Open debugger to view warnings." not in attrs.get("content-desc", ""):
         continue
+    # Prefer an actual native dismissal affordance when exposed by LogBox.
+    # Otherwise use the last 20dp INSIDE the measured warning bounds, as
+    # React Native's close icon occupies that region on supported builds.
     match = re.fullmatch(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]", attrs.get("bounds", ""))
     if match is None:
-        raise SystemExit("Android warning overlay has invalid native bounds")
+        raise SystemExit("Android debug warning has invalid native bounds")
     x1, y1, x2, y2 = map(int, match.groups())
     if x2 - x1 < 100 or y2 - y1 < 30:
-        raise SystemExit("Android warning overlay has invalid native hit target")
+        raise SystemExit("Android debug warning has invalid native hit target")
+    for candidate in nodes[idx + 1:idx + 8]:
+        desc = (candidate.attrib.get("content-desc", "") + " " +
+                candidate.attrib.get("text", "")).strip().lower()
+        if desc not in ("close", "dismiss", "закрыть"):
+            continue
+        b = re.fullmatch(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]", candidate.attrib.get("bounds", ""))
+        if b:
+            a, c, d, e = map(int, b.groups())
+            if x1 <= a < d <= x2 and y1 <= c < e <= y2:
+                print((a + d) // 2, (c + e) // 2)
+                raise SystemExit(0)
     print(x2 - 20, (y1 + y2) // 2)
     break
 PY
-)"
+)" || return 1
     if [[ -z "$close_position" ]]; then
       return 0
     fi
-    echo "Android debug warning overlay covers native touch target; dismissing its actual close control at $close_position" >&2
+    echo "Android native debug overlay detected; tapping its measured close control at $close_position" >&2
     "$ADB" shell input touchscreen tap $close_position >/dev/null 2>&1 || return 1
     sleep 1.2
   done
+
+  # Some RN debug versions present the banner as a dismissible native
+  # overlay without a tappable close affordance. Back closes that overlay,
+  # but may also navigate away; the caller's real accessibility and HTTP
+  # assertions must still succeed, and we verify the banner is absent.
+  "$ADB" shell input keyevent KEYCODE_BACK >/dev/null 2>&1 || return 1
+  sleep 1.2
   "$ADB" shell uiautomator dump "$remote" >/dev/null 2>&1 || return 1
   "$ADB" pull "$remote" "$output" >/dev/null 2>&1 || return 1
   if grep -q 'Open debugger to view warnings.' "$output"; then
     echo "Android debug warning overlay still intercepts native touches" >&2
     cp "$output" "$EVIDENCE_DIR/android-debug-warning-overlay-failure.xml" 2>/dev/null || true
     "$ADB" exec-out screencap -p > "$EVIDENCE_DIR/android-debug-warning-overlay-failure.png" 2>/dev/null || true
+    "$ADB" logcat -d -s ReactNativeJS:V ReactNative:W ReactNative:V > "$EVIDENCE_DIR/android-debug-warning-logcat.txt" 2>/dev/null || true
     return 1
   fi
 }
