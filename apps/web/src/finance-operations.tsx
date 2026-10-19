@@ -112,7 +112,7 @@ export default function FinanceOperationsQueue() {
     setResultMessage("");
   };
   async function verifySecondFactor() {
-    if (!/^\\d{6}$/.test(totp) || mfaState === "LOADING") return;
+    if (!/^\d{6}$/.test(totp) || mfaState === "LOADING") return;
     setMfaState("LOADING");
     try {
       const response = await fetch("/v1/finance/mfa/verify", {
@@ -229,8 +229,8 @@ export default function FinanceOperationsQueue() {
                 <label htmlFor="finance-totp">Одноразовый код</label>
                 <input id="finance-totp" type="text" inputMode="numeric" autoComplete="one-time-code"
                   maxLength={6} pattern="[0-9]{6}" value={totp} disabled={mfaState === "LOADING"}
-                  onChange={event => { setTotp(event.target.value.replace(/\\D/g, "").slice(0, 6)); setMfaState("IDLE"); }} />
-                <button type="button" disabled={!/^\\d{6}$/.test(totp) || mfaState === "LOADING"}
+                  onChange={event => { setTotp(event.target.value.replace(/\D/g, "").slice(0, 6)); setMfaState("IDLE"); }} />
+                <button type="button" disabled={!/^\d{6}$/.test(totp) || mfaState === "LOADING"}
                   onClick={() => void verifySecondFactor()}>
                   {mfaState === "LOADING" ? "Проверяем код…" : "Подтвердить второй фактор"}
                 </button>
