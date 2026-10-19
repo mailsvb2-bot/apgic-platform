@@ -357,17 +357,25 @@ assert_state() {
   local reason="$2"
   local output="$EVIDENCE_DIR/ios-capability-e2e-${state}.json"
 
-  xcrun simctl terminate "$UDID" com.apgic.ci >/dev/null 2>&1 || true
-  SIMCTL_CHILD_APGIC_E2E_CAPABILITY_STATE="$state"     xcrun simctl launch "$UDID" com.apgic.ci >/dev/null
-
-  for _ in $(seq 1 30); do
-    if "$IDB" ui describe-all --udid "$UDID" --api axbridge --json --nested >"$output" 2>/dev/null &&
-       grep -q "capability-state:${state}" "$output" &&
-       grep -q "capability-fallback:${reason}" "$output"; then
-      echo "iOS native E2E state $state: PASS"
-      return 0
-    fi
-    sleep 1
+  # simctl termination is asynchronous and AXBridge can briefly return a
+  # stale accessibility tree from the prior app process. Use bounded, real
+  # relaunches, but accept ONLY the fresh requested state and fallback.
+  local launch_attempt observation
+  for launch_attempt in 1 2 3; do
+    xcrun simctl terminate "$UDID" com.apgic.ci >/dev/null 2>&1 || true
+    sleep 2
+    SIMCTL_CHILD_APGIC_E2E_CAPABILITY_STATE="$state" \
+      xcrun simctl launch "$UDID" com.apgic.ci >/dev/null
+    for observation in $(seq 1 20); do
+      if "$IDB" ui describe-all --udid "$UDID" --api axbridge --json --nested >"$output" 2>/dev/null &&
+         grep -q "capability-state:${state}" "$output" &&
+         grep -q "capability-fallback:${reason}" "$output"; then
+        echo "iOS native E2E state $state: PASS"
+        return 0
+      fi
+      sleep 1
+    done
+    echo "iOS state $state attempt $launch_attempt: no verified accessibility transition" >&2
   done
 
   [[ -f "$output" ]] && cat "$output" >&2 || true

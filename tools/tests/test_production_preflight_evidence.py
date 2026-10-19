@@ -86,7 +86,9 @@ class ProductionPreflightEvidenceTests(unittest.TestCase):
         self.assertEqual(evidence["schema_version"], "production-preflight-evidence-v1")
         self.assertEqual(evidence["candidate_sha"], "a" * 40)
         self.assertEqual(evidence["release_profile"], "R0")
-        self.assertTrue(evidence["production_promotion_eligible"])
+        self.assertFalse(evidence["production_promotion_eligible"])
+        self.assertIn("EXACT_CANDIDATE_STAGING_E2E_EVIDENCE_REQUIRED", evidence["promotion_blockers"])
+        self.assertIn("PRODUCTION_IDENTITY_MFA_AND_TENANT_PROOF_REQUIRED", evidence["promotion_blockers"])
         self.assertFalse(evidence["production_release"])
         self.assertEqual(
             set(evidence["policy_artifacts"]),
@@ -101,6 +103,23 @@ class ProductionPreflightEvidenceTests(unittest.TestCase):
         self.assertEqual(len(binding["contract_schema_registry_revision"]), 64)
         self.assertIn("canon/requirements/registry.yaml", binding["requirement_artifacts"])
         self.assertIn("contracts/openapi/apgic-v1.yaml", binding["contract_schema_artifacts"])
+
+    def test_approved_configuration_cannot_be_promoted_to_release(self) -> None:
+        self.seed_canonical_binding()
+        self.write_yaml("config/launch.production.yaml", self.production_config())
+        for profile in module.PROFILE_POLICY_FIELDS:
+            config = self.production_config()
+            for field in module.PROFILE_POLICY_FIELDS[profile]:
+                if field not in config:
+                    rel = f"config/policies/{field}.yaml"
+                    self.write_yaml(rel, {"version": field + "-v1"})
+                    config[field] = rel
+            self.write_yaml("config/launch.production.yaml", config)
+            with self.subTest(profile=profile):
+                evidence = module.build_evidence("d" * 40, profile, "config/launch.production.yaml")
+                self.assertFalse(evidence["production_promotion_eligible"])
+                self.assertFalse(evidence["production_release"])
+                self.assertGreaterEqual(len(evidence["promotion_blockers"]), 5)
 
     def test_ci_only_or_unapproved_config_cannot_create_production_evidence(self) -> None:
         self.seed_canonical_binding()
