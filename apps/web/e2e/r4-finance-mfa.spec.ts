@@ -18,7 +18,9 @@ test("R4 operator TOTP accepts six digits and sends them to the verified endpoin
   await page.goto("/finance/operations");
   await page.getByLabel("Расхождение", {exact:true}).selectOption("00000000-0000-0000-0000-000000000101");
   const input = page.getByLabel("Одноразовый код");
-  await input.fill("12ab3456");
+  await input.fill("12ab34");
+  await expect(input).toHaveValue("1234");
+  await input.fill("123456");
   await expect(input).toHaveValue("123456");
   await page.getByRole("button", {name:"Подтвердить второй фактор"}).click();
   await expect(page.getByText("Код принят.", {exact:false})).toBeVisible();
