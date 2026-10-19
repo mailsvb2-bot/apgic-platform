@@ -10,6 +10,7 @@ import argparse
 import json
 import re
 import sys
+import ipaddress
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -22,12 +23,35 @@ class ProbeError(Exception):
     pass
 
 
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise ProbeError("redirect forbidden in authenticated staging readback")
+
+
+def assert_local_api_base(base: str) -> None:
+    # Staging probe carries a privileged human session cookie. Never allow
+    # forwarding it to a remote host, HTTPS gateway, redirect or HTTP proxy.
+    parsed = urllib.parse.urlsplit(base)
+    if parsed.scheme != "http" or parsed.username or parsed.password or parsed.query or parsed.fragment or parsed.path not in ("", "/"):
+        raise ProbeError("API origin must be a bare localhost HTTP origin")
+    try:
+        if parsed.hostname is None or not ipaddress.ip_address(parsed.hostname).is_loopback or parsed.port is None:
+            raise ProbeError("API origin must use an explicit loopback address and port")
+    except ValueError as exc:
+        raise ProbeError("API origin must use an explicit loopback address and port") from exc
+
+
 def fetch_json(base: str, path: str, cookie: str = "") -> dict:
+    assert_local_api_base(base)
+    if not path.startswith("/") or path.startswith("//"):
+        raise ProbeError("API path must be absolute and local")
     url = base.rstrip("/") + path
     req = urllib.request.Request(url, headers={"Accept": "application/json",
                                                **({"Cookie": cookie} if cookie else {})})
     try:
-        with urllib.request.urlopen(req, timeout=7) as response:
+        # No environment proxies, cookies must never follow HTTP redirects.
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
+        with opener.open(req, timeout=7) as response:
             if response.status != 200:
                 raise ProbeError(f"{path}: HTTP {response.status}")
             data = response.read(1_000_001)
