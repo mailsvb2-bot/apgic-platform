@@ -40,6 +40,7 @@ type Options struct {
 	Organizations               organizationRuntimeStore
 	ProductOwnership            productOwnershipStore
 	Products                    organizationProductStore
+	ClientPersonal              clientPersonalStore
 	ConformanceProviderEvents   bool
 	ProviderWebhookKeys         connector.WebhookPublicKeyResolver
 	ConsultationProvider        ConsultationProviderStore
@@ -163,6 +164,7 @@ func New(options Options) http.Handler {
 	registerOrganizationRuntime(mux, options.Organizations, sessions, sessionConfigErr)
 	registerOrganizationProducts(mux, options.Products, sessions, sessionConfigErr, options.Now)
 	registerHighRiskProductOwnership(mux, options.ProductOwnership, sessions, stepUp, sessionConfigErr, options.Now)
+	registerClientPersonal(mux, options.ClientPersonal, sessions, sessionConfigErr, options.Now)
 	return observeRuntimeSLI(mux, sli)
 }
 
