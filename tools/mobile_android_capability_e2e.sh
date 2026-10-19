@@ -1140,6 +1140,15 @@ assert_help_intent_confirmation() {
   # pressing interpret. Never manufacture an interpretation or skip this journey.
   local input_confirmed=false input_attempt
   for input_attempt in 1 2 3; do
+    # Previous installed-app journeys may leave the scroll container at the
+    # bottom, with the EditText clipped to y=0 while the submit button still
+    # receives focus. Restore the input to a visible viewport before every
+    # real touch; never count adb typing as successful without EditText readback.
+    for _ in 1 2 3; do
+      "$ADB" shell input swipe 300 180 300 540 450 >/dev/null 2>&1 ||
+        fail "Android HelpIntent could not restore input viewport"
+    done
+    sleep 0.8
     seek_demand_accessibility_node "С чем нужна помощь" "" tap "$remote" "$output" ||
       fail "Android HelpIntent text input not operable in scrollable app"
     # RN multiline TextInput can lose focus after the accessibility tap due
