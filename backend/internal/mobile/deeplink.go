@@ -14,6 +14,7 @@ const (
 	LinkBooking      LinkKind = "BOOKING"
 	LinkSpecialist   LinkKind = "SPECIALIST"
 	LinkNotification LinkKind = "NOTIFICATION"
+	LinkFinanceOrder LinkKind = "FINANCE_ORDER"
 )
 
 type LinkAccessClass string
@@ -153,6 +154,8 @@ func canonicalPathFor(kind LinkKind, targetID string) (string, bool) {
 		return "/specialists/" + targetID, true
 	case LinkNotification:
 		return "/notifications/" + targetID, true
+	case LinkFinanceOrder:
+		return "/orders/" + targetID + "/finance", true
 	default:
 		return "", false
 	}
@@ -160,7 +163,7 @@ func canonicalPathFor(kind LinkKind, targetID string) (string, bool) {
 
 func validLinkKind(kind LinkKind) bool {
 	switch kind {
-	case LinkBooking, LinkSpecialist, LinkNotification:
+	case LinkBooking, LinkSpecialist, LinkNotification, LinkFinanceOrder:
 		return true
 	default:
 		return false

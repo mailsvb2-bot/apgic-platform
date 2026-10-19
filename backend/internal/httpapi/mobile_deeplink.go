@@ -23,6 +23,24 @@ type deepLinkResourceStore interface {
 	DeepLinkResource(kind mobile.LinkKind, targetID string) (mobile.DeepLinkResource, bool, error)
 }
 
+type identityScopedDeepLinkResourceStore interface {
+	DeepLinkResourceForIdentity(kind mobile.LinkKind, targetID, identityID string) (mobile.DeepLinkResource, bool, error)
+}
+
+func lookupDeepLinkResource(store deepLinkResourceStore, kind mobile.LinkKind, targetID, identityID string) (mobile.DeepLinkResource, bool, error) {
+	if kind != mobile.LinkFinanceOrder {
+		return store.DeepLinkResource(kind, targetID)
+	}
+	if strings.TrimSpace(identityID) == "" {
+		return mobile.DeepLinkResource{}, false, nil
+	}
+	scoped, ok := store.(identityScopedDeepLinkResourceStore)
+	if !ok {
+		return mobile.DeepLinkResource{}, false, errors.New("identity-scoped finance deep-link lookup unavailable")
+	}
+	return scoped.DeepLinkResourceForIdentity(kind, targetID, identityID)
+}
+
 type issueDeepLinkRequest struct {
 	Kind     mobile.LinkKind `json:"kind"`
 	TargetID string          `json:"target_id"`
@@ -75,14 +93,14 @@ func registerMobileDeepLinks(
 			return
 		}
 		identityID := ""
-		if body.Kind == mobile.LinkBooking || body.Kind == mobile.LinkNotification {
+		if body.Kind == mobile.LinkBooking || body.Kind == mobile.LinkNotification || body.Kind == mobile.LinkFinanceOrder {
 			var ok bool
 			identityID, ok = requiredClientSessionIdentity(w, r, sessions, sessionConfigErr)
 			if !ok {
 				return
 			}
 		}
-		resource, found, err := store.DeepLinkResource(body.Kind, body.TargetID)
+		resource, found, err := lookupDeepLinkResource(store, body.Kind, body.TargetID, identityID)
 		switch {
 		case err != nil:
 			writeDemandError(w, r, http.StatusServiceUnavailable, "DEEPLINK_RESOURCE_UNAVAILABLE", "Ресурс ссылки временно недоступен.", true, nil)
@@ -148,7 +166,7 @@ func registerMobileDeepLinks(
 				return
 			}
 		}
-		resource, found, err := store.DeepLinkResource(claims.Kind, claims.TargetID)
+		resource, found, err := lookupDeepLinkResource(store, claims.Kind, claims.TargetID, identityID)
 		switch {
 		case err != nil:
 			writeDemandError(w, r, http.StatusServiceUnavailable, "DEEPLINK_RESOURCE_UNAVAILABLE", "Ресурс ссылки временно недоступен.", true, nil)

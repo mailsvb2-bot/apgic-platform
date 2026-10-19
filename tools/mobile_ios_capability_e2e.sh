@@ -537,7 +537,13 @@ json_has_ax_label() {
 import json
 import sys
 
-payload = json.load(open(sys.argv[1], encoding="utf-8"))
+try:
+    with open(sys.argv[1], encoding="utf-8") as stream:
+        payload = json.load(stream)
+except (OSError, json.JSONDecodeError):
+    # idb may produce empty or partial JSON while AXBridge reconnects.
+    # That observation must be retried, never misreported as a passed state.
+    raise SystemExit(1)
 expected = sys.argv[2]
 
 def walk(value):
@@ -675,8 +681,31 @@ assert_offline_mutation_restart() {
     fi
     sleep 1
   done
-  json_has_ax_label "$pending_output" "offline-mutation-e2e:LOCAL_PENDING" ||
+  if ! json_has_ax_label "$pending_output" "offline-mutation-e2e:LOCAL_PENDING"; then
+    echo "iOS offline checkout failed to expose LOCAL_PENDING; final genuine AX snapshot:" >&2
+    if [[ -s "$pending_output" ]]; then
+      python3 - "$pending_output" <<'PY' >&2 || true
+import json,sys
+try:
+    data=json.load(open(sys.argv[1],encoding="utf-8"))
+except (OSError,json.JSONDecodeError) as exc:
+    print("iOS AX snapshot unavailable:",exc)
+    raise SystemExit(0)
+def walk(v):
+    if isinstance(v,dict):
+        label=v.get("AXLabel")
+        if isinstance(label,str) and ("offline-mutation" in label or "Offline mutation" in label):
+            print(label)
+        for item in v.values(): walk(item)
+    elif isinstance(v,list):
+        for item in v: walk(item)
+walk(data)
+PY
+    else
+      echo "iOS idb produced no usable accessibility snapshot" >&2
+    fi
     fail "offline checkout did not remain LOCAL_PENDING after committed response was lost"
+  fi
 
   xcrun simctl terminate "$UDID" com.apgic.ci >/dev/null 2>&1 || true
   SIMCTL_CHILD_APGIC_E2E_CAPABILITY_STATE=GRANTED \
@@ -786,9 +815,14 @@ assert_realtime_lifecycle() {
   # the scripted lifecycle reaches its terminal state. Do not accept DEGRADED
   # as success: retry the exact same canonical consultation only when every
   # other expected invariant is already proven, and keep CONNECTED mandatory.
+  # Hosted simulators can transiently interrupt AVAudioSession; retry only
+  # when the existing ambient-DEGRADED predicate proves all other invariants.
+  # CONNECTED remains mandatory; non-ambient deviations fail immediately.
+  local ambient_attempts=5
+  local ambient_settle_seconds=10
   local first_pass=false
   local initial_attempt
-  for initial_attempt in $(seq 1 3); do
+  for initial_attempt in $(seq 1 "$ambient_attempts"); do
     launch_realtime
     for _ in $(seq 1 60); do
       if realtime_ready "$output"; then
@@ -800,6 +834,7 @@ assert_realtime_lifecycle() {
 
     if ambient_technical_degraded "$output"; then
       echo "iOS initial realtime attempt $initial_attempt ended in ambient technical DEGRADED state; retrying same consultation"
+      sleep "$ambient_settle_seconds"
       continue
     fi
 
@@ -812,7 +847,7 @@ assert_realtime_lifecycle() {
   fi
 
   local rejoin_attempt
-  for rejoin_attempt in $(seq 1 3); do
+  for rejoin_attempt in $(seq 1 "$ambient_attempts"); do
     launch_realtime
     for _ in $(seq 1 60); do
       if realtime_ready "$rejoin_output"; then
@@ -824,6 +859,7 @@ assert_realtime_lifecycle() {
 
     if ambient_technical_degraded "$rejoin_output"; then
       echo "iOS rejoin attempt $rejoin_attempt ended in ambient technical DEGRADED state; retrying same consultation"
+      sleep "$ambient_settle_seconds"
       continue
     fi
 

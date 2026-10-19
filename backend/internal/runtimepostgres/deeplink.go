@@ -77,3 +77,29 @@ func (c *Checker) DeepLinkResource(kind mobile.LinkKind, targetID string) (mobil
 	}
 	return resource, true, nil
 }
+
+func (c *Checker) DeepLinkResourceForIdentity(kind mobile.LinkKind, targetID, identityID string) (mobile.DeepLinkResource, bool, error) {
+	if c == nil || c.db == nil {
+		return mobile.DeepLinkResource{}, false, errors.New("postgres checker is not initialized")
+	}
+	if kind != mobile.LinkFinanceOrder || !financeUUIDPattern.MatchString(targetID) || !financeUUIDPattern.MatchString(identityID) {
+		return mobile.DeepLinkResource{}, false, nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), deepLinkReadTimeout)
+	defer cancel()
+	resource := mobile.DeepLinkResource{Kind: kind, TargetID: targetID, AccessClass: mobile.LinkProtectedResource, SubjectIdentityID: identityID}
+	err := c.db.QueryRowContext(ctx, `
+SELECT slot.tenant_scope
+  FROM orders o
+  JOIN bookings b ON b.id = o.booking_id
+  JOIN booking_slots slot ON slot.id = b.slot_id
+ WHERE o.id::text = $1
+   AND (b.client_identity_id = $2::uuid OR slot.specialist_identity_id = $2::uuid)`, targetID, identityID).Scan(&resource.TenantID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return mobile.DeepLinkResource{}, false, nil
+	}
+	if err != nil {
+		return mobile.DeepLinkResource{}, false, fmt.Errorf("read owner-scoped finance deep-link resource: %w", err)
+	}
+	return resource, true, nil
+}

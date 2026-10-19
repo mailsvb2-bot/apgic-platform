@@ -42,6 +42,14 @@ func main() {
 	releaseTrack := envOr("APGIC_RELEASE_TRACK", "R0")
 	clientSessionKey := []byte(os.Getenv("APGIC_CLIENT_SESSION_KEY"))
 	deepLinkSigningKey := []byte(os.Getenv("APGIC_DEEPLINK_SIGNING_KEY"))
+	var financeMFAKey [32]byte
+	if encoded := strings.TrimSpace(os.Getenv("APGIC_MFA_ENCRYPTION_KEY_BASE64")); encoded != "" {
+		decoded, err := base64.StdEncoding.Strict().DecodeString(encoded)
+		if err != nil || len(decoded) != len(financeMFAKey) {
+			log.Fatal("APGIC MFA key must be a separately managed base64-encoded 32-byte secret")
+		}
+		copy(financeMFAKey[:], decoded)
+	}
 	clientCompatibilityPolicies, err := clientCompatibilityPoliciesFromEnvironment(environment)
 	if err != nil {
 		log.Fatalf("APGIC mobile compatibility configuration failed: %v", err)
@@ -110,6 +118,10 @@ func main() {
 		ConformanceProviderEvents: !runtimepostgres.RequiresDatabase(environment) && os.Getenv("APGIC_CONFORMANCE_PROVIDER_EVENTS") == "1",
 		ProviderWebhookKeys:       providerWebhookKeys,
 		ConsultationProvider:      storage,
+		Finance:                   financeStore(storage),
+		FinanceOperations:         financeOperationsStore(storage),
+		FinanceMFA:                financeMFAStore(storage),
+		FinanceMFAKey:             financeMFAKey,
 		ConsultationJourney:       storage,
 		ConsultationJoin: httpapi.ConsultationJoinOptions{
 			Store: storage, Issuer: roomIssuer,
@@ -415,4 +427,27 @@ func remoteConfigProviderFromEnvironment(environment string) (func(time.Time) (r
 		return nil, err
 	}
 	return publisher.Envelope, nil
+}
+
+// financeStore keeps a nil *Checker from becoming a non-nil interface, so the
+// finance endpoints fail closed (503) when no database is configured.
+func financeStore(storage *runtimepostgres.Checker) httpapi.FinanceStore {
+	if storage == nil {
+		return nil
+	}
+	return storage
+}
+
+func financeMFAStore(storage *runtimepostgres.Checker) httpapi.FinanceMFAStore {
+	if storage == nil {
+		return nil
+	}
+	return storage
+}
+
+func financeOperationsStore(storage *runtimepostgres.Checker) httpapi.FinanceOperationsStore {
+	if storage == nil {
+		return nil
+	}
+	return storage
 }

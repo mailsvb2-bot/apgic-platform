@@ -43,6 +43,21 @@ var requiredTables = []string{
 	"qualification_evaluations",
 	"specialist_publications",
 	"organization_ownerships",
+	"finance_commission_rules",
+	"finance_provider_execution_profiles",
+	"finance_commission_snapshots",
+	"finance_settlement_holds",
+	"finance_settlement_instructions",
+	"finance_provider_evidence",
+	"finance_payout_decisions",
+	"finance_reconciliation_runs",
+	"finance_reconciliation_results",
+	"finance_reconciliation_discrepancies",
+	"finance_dispute_effects",
+	"finance_operator_grants",
+	"finance_operator_grant_revocations",
+	"finance_discrepancy_resolutions",
+	"finance_provider_stream_cursors",
 }
 
 var requiredIndexes = []string{

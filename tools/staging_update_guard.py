@@ -55,9 +55,11 @@ def main() -> None:
         '=== Reconcile migration ledger ===',
         'go build -o bin/apgic-api ./cmd/api',
         'go build -o bin/apgic-outbox-worker ./cmd/outbox-worker',
+        'go build -o bin/apgic-finance-worker ./cmd/finance-worker',
         'npm run build',
         '=== Reconcile staging maintenance units ===',
         'apgic-outbox-worker-staging.service',
+        'apgic-finance-worker-staging.service',
         'apgic-staging-runtime-watchdog.service',
         'apgic-staging-backup.service',
         'apgic-staging-backup.timer',
@@ -68,11 +70,18 @@ def main() -> None:
         'systemctl enable --now apgic-staging-backup.timer apgic-staging-restore-verify.timer',
         'systemctl restart apgic-api-staging.service',
         'systemctl restart apgic-web-staging.service',
+        'APGIC_FINANCE_WORKER_ENABLED',
+        'finance_worker_enabled="${APGIC_FINANCE_WORKER_ENABLED:-0}"',
+        'APGIC_FINANCE_WORKER_ENABLED must be 0 or 1',
         'APGIC_OUTBOX_WORKER_ENABLED',
         'APGIC_EVENT_GATEWAY_URL',
         'APGIC_EVENT_GATEWAY_PRINCIPAL_ID',
         'APGIC_EVENT_GATEWAY_CREDENTIAL',
         'systemctl restart apgic-outbox-worker-staging.service',
+        'systemctl restart apgic-finance-worker-staging.service',
+        'systemctl disable --now apgic-finance-worker-staging.service',
+        'systemctl stop apgic-finance-worker-staging.service',
+        'systemctl is-active --quiet apgic-finance-worker-staging.service',
         'systemctl disable --now apgic-outbox-worker-staging.service',
         'wait_for_http()',
         'wait_for_http "API" "http://127.0.0.1:43111/readyz" 30 1',
@@ -93,14 +102,17 @@ def main() -> None:
     ordered(text, 'git reset --hard "$TARGET_SHA"', '=== Re-exec target updater ===')
     ordered(text, '=== Re-exec target updater ===', 'go build -o bin/apgic-api ./cmd/api')
     ordered(text, 'go build -o bin/apgic-api ./cmd/api', 'go build -o bin/apgic-outbox-worker ./cmd/outbox-worker')
-    ordered(text, 'go build -o bin/apgic-outbox-worker ./cmd/outbox-worker', "SELECT to_regclass('public.apgic_schema_migrations') IS NOT NULL")
+    ordered(text, 'go build -o bin/apgic-outbox-worker ./cmd/outbox-worker', 'go build -o bin/apgic-finance-worker ./cmd/finance-worker')
+    ordered(text, 'go build -o bin/apgic-finance-worker ./cmd/finance-worker', "SELECT to_regclass('public.apgic_schema_migrations') IS NOT NULL")
     ordered(text, 'npm run build', '=== Reconcile staging maintenance units ===')
     ordered(text, '=== Reconcile staging maintenance units ===', "SELECT to_regclass('public.apgic_schema_migrations') IS NOT NULL")
     ordered(text, "SELECT to_regclass('public.apgic_schema_migrations') IS NOT NULL", 'systemctl start apgic-staging-backup.service')
     ordered(text, 'systemctl start apgic-staging-backup.service', '=== Reconcile migration ledger ===')
     ordered(text, '=== Reconcile migration ledger ===', 'APGIC_COMMIT_SHA=$TARGET_SHA')
     ordered(text, 'APGIC_COMMIT_SHA=$TARGET_SHA', 'systemctl restart apgic-api-staging.service')
-    ordered(text, 'systemctl restart apgic-web-staging.service', 'wait_for_http "API" "http://127.0.0.1:43111/readyz" 30 1')
+    ordered(text, 'systemctl stop apgic-finance-worker-staging.service', '=== Reconcile migration ledger ===')
+    ordered(text, 'wait_for_http "Web" "http://127.0.0.1:43112/" 30 1', 'systemctl restart apgic-finance-worker-staging.service')
+    ordered(text, 'systemctl restart apgic-finance-worker-staging.service', 'bash "$REPO_ROOT/deploy/staging/check-staging-runtime.sh"')
     ordered(text, 'wait_for_http "API" "http://127.0.0.1:43111/readyz" 30 1', 'wait_for_http "Web" "http://127.0.0.1:43112/" 30 1')
     ordered(text, 'wait_for_http "Web" "http://127.0.0.1:43112/" 30 1', 'bash "$REPO_ROOT/deploy/staging/check-staging-runtime.sh"')
 

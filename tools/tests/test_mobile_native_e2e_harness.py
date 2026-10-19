@@ -308,7 +308,11 @@ class MobileNativeE2EHarnessTest(unittest.TestCase):
         text = self._read("mobile_ios_capability_e2e.sh")
         realtime = text[text.index("assert_realtime_lifecycle() {"):]
         self.assertIn("ambient_technical_degraded() {", realtime)
-        self.assertIn("for initial_attempt in $(seq 1 3); do", realtime)
+        self.assertIn("local ambient_attempts=5", realtime)
+        self.assertIn('for initial_attempt in $(seq 1 "$ambient_attempts"); do', realtime)
+        self.assertIn('for rejoin_attempt in $(seq 1 "$ambient_attempts"); do', realtime)
+        self.assertIn('sleep "$ambient_settle_seconds"', realtime)
+        self.assertIn('json_has_ax_label "$target" "realtime-phase:CONNECTED"', realtime)
         self.assertIn('json_has_ax_label "$target" "realtime-phase:DEGRADED"', realtime)
         self.assertIn('json_has_ax_label "$target" "realtime-business-transition:NONE"', realtime)
         self.assertIn(

@@ -662,6 +662,13 @@ func (s *Service) AcquireHold(intentID, slotID, clientIdentityID string) (*Hold,
 		}
 		return nil, ErrSlotHeld
 	}
+	// A confirmed booking is canonical PostgreSQL truth even when the
+	// rolling catalog no longer lists its historical slot after restart.
+	// Check occupancy before treating a stale catalog ID as nonexistent.
+	// This also prevents another client from acquiring an already-booked slot.
+	if s.slotBookedLocked(slotID) {
+		return nil, ErrSlotBooked
+	}
 	slot, ok := s.slot(slotID)
 	if !ok {
 		return nil, ErrSlotNotFound
