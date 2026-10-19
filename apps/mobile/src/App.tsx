@@ -1,3 +1,4 @@
+import ClientPersonalPanel from "./client-personal-panel.tsx";
 import React, {useCallback, useEffect, useRef, useState} from "react";
 import {
   AccessibilityInfo,
@@ -255,6 +256,8 @@ export default function App({
   const [demandError, setDemandError] = useState("");
   const demandConfirmationInFlight = useRef(false);
   const [demandTouchEvidence, setDemandTouchEvidence] = useState({down: 0, up: 0, press: 0});
+  // Explicit private panel: do not displace the primary HelpIntent journey.
+  const [personalPanelOpen, setPersonalPanelOpen] = useState(false);
   const [demandE2E, setDemandE2E] = useState<
     | {status: "IDLE" | "RUNNING"}
     | ({status: "PASS"} & MobileDemandE2EResult)
@@ -1209,6 +1212,20 @@ export default function App({
             enabled={compatibilityAllowsRuntime}
             initialOrderID={financeDeepLinkOrderID}
           />
+        ) : null}
+
+        {!infrastructureE2EActive ? (
+          <View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Открыть личный кабинет"
+              style={styles.demandAction}
+              onPress={() => setPersonalPanelOpen((current) => !current)}
+            >
+              <Text>{personalPanelOpen ? "Закрыть личный кабинет" : "Личный кабинет"}</Text>
+            </Pressable>
+            {personalPanelOpen ? <ClientPersonalPanel baseURL={demandAPIBaseURL} /> : null}
+          </View>
         ) : null}
 
         {demandE2E.status !== "IDLE" ? (
