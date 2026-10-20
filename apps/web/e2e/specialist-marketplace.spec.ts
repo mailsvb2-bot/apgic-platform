@@ -85,7 +85,7 @@ test("new specialist registration appears explicitly unverified with no booking 
  }}));
  await page.goto("/specialists");
  await expect(page.getByRole("heading",{name:"Сергей"})).toBeVisible();
- await expect(page.getByText("Специализация не подтверждена")).toBeVisible();
+ await expect(page.getByRole("status").getByText("Специализация не подтверждена")).toBeVisible();
  await expect(page.getByRole("link",{name:"Посмотреть анкету"})).toHaveCount(0);
  await expect(page.getByText("Сейчас нет опубликованных проверенных анкет")).toHaveCount(0);
  await expect(page.getByRole("button",{name:/Забронировать/})).toHaveCount(0);
