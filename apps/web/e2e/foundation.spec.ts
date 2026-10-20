@@ -415,6 +415,25 @@ test("critical journey boots when crypto.randomUUID is unavailable", async ({ pa
 });
 
 
+
+test("specialist registration reports unreachable API without losing the form", async ({ page }) => {
+  await page.route("**/v1/specialist/profile", async route => {
+    if (route.request().method() === "PUT") {
+      await route.abort("failed");
+      return;
+    }
+    await route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({
+      code: "SPECIALIST_PROFILE_NOT_FOUND", message_safe: "Профиль ещё не создан."
+    }) });
+  });
+  await page.goto("/specialist");
+  await page.getByLabel("Имя для публичного профиля").fill("Анна Тестова");
+  await page.getByRole("button", { name: "Сохранить профиль" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Данные не подтверждены сервером" })).toBeVisible();
+  await expect(page.getByLabel("Имя для публичного профиля")).toHaveValue("Анна Тестова");
+  await expect(page.getByRole("region", { name: "Кабинет специалиста" })).toHaveCount(0);
+});
+
 test("specialist onboarding preserves evidence and publish boundaries", async ({ page }) => {
   type Profile = {
     id: string;
@@ -531,6 +550,16 @@ test("specialist onboarding preserves evidence and publish boundaries", async ({
   await page.getByRole("button", { name: "Сохранить профиль" }).click();
   await expect(page.getByText(/Профиль сохранён\. В каталоге вы отображаетесь со статусом/)).toBeVisible();
   await expect(page.getByRole("region", { name: "Кабинет специалиста" })).toBeVisible();
+  // After registration, the conditional profile summary must not push the
+  // editable workspace beneath an overlapping sticky heading.
+  const specialistLayout = await page.evaluate(() => {
+    const heading = document.getElementById("onboarding-title")!.getBoundingClientRect();
+    const form = document.getElementById("specialist-profile")!.getBoundingClientRect();
+    return { headingBottom: heading.bottom, formTop: form.top, formWidth: form.width };
+  });
+  expect(specialistLayout.formTop).toBeGreaterThanOrEqual(specialistLayout.headingBottom);
+  expect(specialistLayout.formWidth).toBeGreaterThan(0);
+
   await expect(page.getByRole("region", { name: "Календарь и записи специалиста" })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Разделы кабинета специалиста" }).getByRole("link", { name: "Документы" })).toHaveAttribute("href", "#specialist-documents");
   await expect(page.getByRole("region", { name: "Кабинет специалиста" }).getByRole("status").filter({ hasText: "Специализация не подтверждена" }).first()).toBeVisible();

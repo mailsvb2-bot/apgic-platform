@@ -107,17 +107,21 @@ export function SpecialistOnboarding() {
   }, [profile?.id]);
 
   async function loadProfile() {
-    const response = await fetch("/v1/specialist/profile", { cache: "no-store" });
-    if (response.ok) {
-      const loaded = (await response.json()) as Profile;
-      setProfile(loaded);
-      setDisplayName(loaded.display_name);
-      setProfessionCode(loaded.profession_code);
-      setNotice("Профиль загружен.");
-      return;
-    }
-    if (response.status !== 401 && response.status !== 404) {
-      setNotice("Профиль пока не удалось загрузить.");
+    try {
+      const response = await fetch("/v1/specialist/profile", { cache: "no-store" });
+      if (response.ok) {
+        const loaded = (await response.json()) as Profile;
+        setProfile(loaded);
+        setDisplayName(loaded.display_name);
+        setProfessionCode(loaded.profession_code);
+        setNotice("Профиль загружен.");
+        return;
+      }
+      if (response.status !== 401 && response.status !== 404) {
+        setNotice("Профиль пока не удалось загрузить. Повторите попытку.");
+      }
+    } catch {
+      setNotice("Нет соединения с APGIC. Проверьте сеть и повторите попытку.");
     }
   }
 
@@ -139,6 +143,9 @@ export function SpecialistOnboarding() {
       setProfessionCode(updated.profession_code);
       setNotice(success);
       return updated;
+    } catch {
+      setNotice("Не удалось связаться с APGIC. Данные не подтверждены сервером; повторите попытку.");
+      return null;
     } finally {
       setBusy(false);
     }
