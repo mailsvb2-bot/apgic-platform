@@ -1,12 +1,12 @@
 package httpapi
 
 import (
-	"net/http"
 	"context"
-	"time"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/marketplace"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/specialist"
