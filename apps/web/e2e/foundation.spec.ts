@@ -530,6 +530,9 @@ test("specialist onboarding preserves evidence and publish boundaries", async ({
   await page.getByLabel("Профессия").selectOption("PSYCHOLOGIST");
   await page.getByRole("button", { name: "Сохранить профиль" }).click();
   await expect(page.getByText(/Профиль сохранён\. В каталоге вы отображаетесь со статусом/)).toBeVisible();
+  await expect(page.getByRole("region", { name: "Кабинет специалиста" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Разделы кабинета специалиста" }).getByRole("link", { name: "Документы" })).toHaveAttribute("href", "#specialist-documents");
+  await expect(page.getByRole("status").filter({ hasText: "Специализация не подтверждена" })).toBeVisible();
 
   await page.getByLabel("Направление").selectOption("anxiety");
   await page.getByRole("button", { name: "Добавить направление" }).click();
