@@ -533,7 +533,7 @@ test("specialist onboarding preserves evidence and publish boundaries", async ({
   await expect(page.getByRole("region", { name: "Кабинет специалиста" })).toBeVisible();
   await expect(page.getByRole("region", { name: "Календарь и записи специалиста" })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Разделы кабинета специалиста" }).getByRole("link", { name: "Документы" })).toHaveAttribute("href", "#specialist-documents");
-  await expect(page.getByRole("status").filter({ hasText: "Специализация не подтверждена" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Кабинет специалиста" }).getByRole("status").filter({ hasText: "Специализация не подтверждена" }).first()).toBeVisible();
 
   await page.getByLabel("Направление").selectOption("anxiety");
   await page.getByRole("button", { name: "Добавить направление" }).click();
