@@ -523,7 +523,7 @@ test("specialist onboarding preserves evidence and publish boundaries", async ({
   });
 
   await page.goto("/specialist");
-  await expect(page.getByRole("heading", { level: 1, name: /Работайте с клиентами/ })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Кабинет специалиста APGIC" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Создайте профессиональный профиль" })).toBeVisible();
 
   await page.getByLabel("Имя для публичного профиля").fill("Анна Тестова");
