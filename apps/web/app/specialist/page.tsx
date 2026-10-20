@@ -1,5 +1,6 @@
 import { SpecialistOnboarding } from "./onboarding";
 import { SpecialistConsultationAccess } from "./consultation-access";
+import { SpecialistWorkspaceCalendar } from "./workspace-calendar";
 
 // Public HTML must not be served with Next's immutable static-page cache.
 export const dynamic = "force-dynamic";
@@ -79,6 +80,7 @@ export default function SpecialistPage() {
         </section>
 
         <SpecialistOnboarding />
+        <SpecialistWorkspaceCalendar />
         <section id="specialist-consultations" aria-label="Мои консультации">
           <SpecialistConsultationAccess />
         </section>
