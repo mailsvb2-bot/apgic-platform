@@ -100,4 +100,70 @@ test("confirmed booking enables readiness, fail-closed room entry and verified p
   await resumed.getByRole("button",{name:"Сохранить мой отклик"}).click();
   await expect(resumed.getByText("Ваш отклик сохранён.")).toBeVisible();
   expect(outcomeCount).toBe(1);
+  // The completed consultation must lead to the same owner's server-backed
+  // personal history, not a browser-local success screen.
+  await page.route("**/v1/client/personal", async route => route.fulfill({
+    status: 200, contentType: "application/json",
+    body: JSON.stringify({
+      identity_id: "00000000-0000-4000-8000-000000000902",
+      as_of: "2026-10-12T12:00:00Z",
+      preferences: { display_name: "Клиент", locale: "ru", time_zone: "Europe/Moscow" },
+      upcoming: [], requests: [],
+      history: [{
+        booking_id: id, state: "COMPLETED",
+        starts_at: "2026-10-12T10:15:00Z", ends_at: "2026-10-12T11:15:00Z",
+        specialist_name: "Ирина Тестовая", specialist_profession: "PSYCHOLOGIST",
+        consultation_state: "COMPLETED",
+      }],
+    }),
+  }));
+  await resumed.getByRole("link", { name: "Посмотреть завершённую консультацию в личном кабинете" }).click();
+  await expect(page).toHaveURL(new RegExp("/personal#personal-history$"));
+  await expect(page.getByRole("heading", { name: "История встреч" })).toBeVisible();
+  await expect(page.getByText("Ирина Тестовая")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Детали записи" })).toHaveAttribute("href", `/bookings/${id}`);
+});
+
+test("verified historical completion remains reachable when active payment entitlement cannot be established", async ({ page }) => {
+  const id = "00000000-0000-4000-8000-000000000911";
+  await page.route(`**/v1/bookings/${id}`, route => route.fulfill({
+    status: 200, contentType: "application/json",
+    body: JSON.stringify({
+      booking_id: id, hold_id: "hold-history-e2e", state: "COMPLETED",
+      hold_expires_at: "2026-10-12T10:00:00Z",
+      starts_at: "2026-10-12T10:15:00Z", ends_at: "2026-10-12T11:15:00Z",
+    }),
+  }));
+  await page.route(`**/v1/bookings/${id}/order`, route => route.fulfill({ status: 503, body: "{}" }));
+  await page.route(`**/v1/consultations/${id}/result`, route => route.fulfill({
+    status: 200, contentType: "application/json",
+    body: JSON.stringify({
+      booking_id: id, state: "COMPLETED", provider_instance_id: "communication-1",
+      completion_evidence_ref: "provider-signed/finished-911",
+    }),
+  }));
+  await page.route(`**/v1/client/personal`, route => route.fulfill({
+    status: 200, contentType: "application/json",
+    body: JSON.stringify({
+      identity_id: "00000000-0000-4000-8000-000000000912",
+      as_of: "2026-10-12T12:00:00Z",
+      preferences: { display_name: "Клиент", locale: "ru", time_zone: "Europe/Moscow" },
+      upcoming: [], requests: [],
+      history: [{
+        booking_id: id, state: "COMPLETED",
+        starts_at: "2026-10-12T10:15:00Z", ends_at: "2026-10-12T11:15:00Z",
+        specialist_name: "Проверенный специалист", specialist_profession: "PSYCHOLOGIST",
+        consultation_state: "COMPLETED",
+      }],
+    }),
+  }));
+  await page.goto(`/bookings/${id}`);
+  await expect(page.getByText(/Платёжные сведения не удалось проверить/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Я готов" })).toHaveCount(0);
+  const result = page.getByRole("region", { name: "Результат консультации" });
+  await result.getByRole("button", { name: "Проверить результат консультации" }).click();
+  await expect(result.getByText("Консультация завершена по подтверждённому событию провайдера.")).toBeVisible();
+  await result.getByRole("link", { name: "Посмотреть консультацию в истории личного кабинета" }).click();
+  await expect(page).toHaveURL(new RegExp("/personal#personal-history$"));
+  await expect(page.getByText("Проверенный специалист")).toBeVisible();
 });

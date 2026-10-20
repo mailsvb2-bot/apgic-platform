@@ -136,7 +136,7 @@ export default function ClientPersonalView(){
           </li>)}</ul>}
         </section>
       </div>
-      <section className="personal-section" aria-labelledby="personal-history">
+      <section className="personal-section" id="personal-history" aria-labelledby="personal-history">
         <h2 id="personal-history">История встреч</h2>
         <BookingList items={data.history} zone={data.preferences.time_zone} onSaved={()=>void reload()}/>
         {data.next_history_cursor?<button type="button" disabled={loadingMore} onClick={()=>void loadMore()}>
