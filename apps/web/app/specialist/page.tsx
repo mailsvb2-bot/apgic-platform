@@ -5,7 +5,7 @@ import { SpecialistConsultationAccess } from "./consultation-access";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Для специалистов — APGIC",
+  title: "Кабинет специалиста — APGIC",
   description: "Профессиональный вход APGIC: профиль специалиста, подтверждение компетенций, проверка и публикация.",
 };
 
@@ -46,19 +46,19 @@ export default function SpecialistPage() {
             <a href="/specialists">Каталог специалистов</a>
             <a href="/organization">Организация</a>
             <a href="#path">Как подключиться</a>
+            <a href="#onboarding">Мой кабинет</a>
           </nav>
         </header>
 
         <section className="specialist-hero">
           <div>
             <p className="eyebrow">APGIC · Для специалистов</p>
-            <h1>Работайте с клиентами через единый профессиональный профиль</h1>
+            <h1>Кабинет специалиста APGIC</h1>
             <p className="hero-lead">
-              Профессиональный контур APGIC строится вокруг проверяемого профиля: заявленные компетенции,
-              подтверждающие материалы, review и управляемая публикация в marketplace.
+              Здесь вы управляете своей анкетой, подтверждением квалификации, услугами и доступным временем. После регистрации анкета видна в каталоге с пометкой «Специализация не подтверждена».
             </p>
             <div className="hero-actions">
-              <a className="button-link primary-action" href="#onboarding">Начать подключение</a>
+              <a className="button-link primary-action" href="#onboarding">Открыть кабинет</a>
               <a className="button-link secondary-action" href="/">Вернуться к клиентскому входу</a>
             </div>
           </div>
@@ -73,13 +73,15 @@ export default function SpecialistPage() {
             </ul>
             <p className="status-note">
               После создания профиля страница показывает фактические состояния evidence и review.
-              Публичная публикация остаётся заблокированной, пока обязательные проверки не завершены.
+              Неподтверждённая анкета отображается в каталоге отдельно. Доступ к подтверждённым услугам требует проверки квалификации.
             </p>
           </aside>
         </section>
 
         <SpecialistOnboarding />
-        <SpecialistConsultationAccess />
+        <section id="specialist-consultations" aria-label="Мои консультации">
+          <SpecialistConsultationAccess />
+        </section>
 
         <section className="how-section" id="path" aria-labelledby="specialist-path-title">
           <div>
@@ -109,7 +111,7 @@ export default function SpecialistPage() {
               или направлению после предусмотренного review.
             </p>
             <p>
-              Неполный профиль или незавершённый review не может стать публично доступным в подборе.
+              Неподтверждённый специалист виден в каталоге с предупреждением, но не получает допуска к платной записи до независимой проверки.
             </p>
           </div>
         </section>
