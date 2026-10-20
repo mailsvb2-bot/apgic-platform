@@ -415,6 +415,25 @@ test("critical journey boots when crypto.randomUUID is unavailable", async ({ pa
 });
 
 
+
+test("specialist registration reports unreachable API without losing the form", async ({ page }) => {
+  await page.route("**/v1/specialist/profile", async route => {
+    if (route.request().method() === "PUT") {
+      await route.abort("failed");
+      return;
+    }
+    await route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({
+      code: "SPECIALIST_PROFILE_NOT_FOUND", message_safe: "Профиль ещё не создан."
+    }) });
+  });
+  await page.goto("/specialist");
+  await page.getByLabel("Имя для публичного профиля").fill("Анна Тестова");
+  await page.getByRole("button", { name: "Сохранить профиль" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Данные не подтверждены сервером" })).toBeVisible();
+  await expect(page.getByLabel("Имя для публичного профиля")).toHaveValue("Анна Тестова");
+  await expect(page.getByRole("region", { name: "Кабинет специалиста" })).toHaveCount(0);
+});
+
 test("specialist onboarding preserves evidence and publish boundaries", async ({ page }) => {
   type Profile = {
     id: string;
