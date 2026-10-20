@@ -2,7 +2,7 @@
 // DO NOT EDIT.
 export const apiContractVersion = "0.10.0-r0-remote-config" as const;
 
-export type ApiOperationId = "acquireSlotHold" | "applyProviderEvent" | "applyTrustedProviderWebhook" | "archiveOrganizationDirection" | "cancelOrder" | "completeConsultation" | "confirmConsultationReadiness" | "confirmHelpIntent" | "createCheckoutInstruction" | "createHelpIntent" | "createMobileCheckoutInstruction" | "createOrganization" | "createOrganizationDirection" | "createOrganizationProduct" | "createSpecialistBookableOffer" | "createSpecialistBookableSlot" | "declareSpecialistCapability" | "deleteAccount" | "exportConsultationToGrowth" | "getBookingFulfillment" | "getBookingStatus" | "getConsultationClientOutcome" | "getConsultationReadiness" | "getConsultationResult" | "getConsultationTimeline" | "getFinanceOrderStatus" | "getLegalAcceptanceStatus" | "getMeta" | "getMobileCompatibility" | "getMobileNotificationDelivery" | "getMobileRemoteConfig" | "getMySpecialistPublicDetails" | "getOrderForBooking" | "getOrderStatus" | "getOrganization" | "getPrivateOrganizationProfile" | "getPublicSpecialist" | "getSpecialistProfile" | "health" | "issueConsultationRoomJoin" | "issueMobileDeepLink" | "listCheckoutOptions" | "listHelpIntentMatches" | "listMobileInstallations" | "listMobileWorkspaces" | "listMySpecialistBookableOffers" | "listOpenFinanceDiscrepancies" | "listOrganizationProducts" | "listOrganizations" | "listPublicBookableOffers" | "listPublicSpecialists" | "listSpecialistSlots" | "markSearchProjectionStale" | "pauseSpecialistBookableOffer" | "publishOrganizationProduct" | "publishSpecialistCapability" | "readiness" | "rebuildSearchProjection" | "recordConsent" | "recordConsultationPresence" | "recordLegalAcceptance" | "registerMobileInstallation" | "reportConsultationFailure" | "resolveFinanceDiscrepancy" | "resolveMobileDeepLink" | "resolveMobileWorkspace" | "revokeConsent" | "revokeMobileInstallation" | "rotateMobilePushEndpoint" | "searchProjection" | "submitConsultationClientOutcome" | "submitSpecialistEvidence" | "submitVerifiedSpecialistFeedback" | "succeedConsultationRecovery" | "unpublishSpecialistCapability" | "updateMySpecialistPublicDetails" | "updateProductCommercialOwner" | "upsertSpecialistProfile";
+export type ApiOperationId = "acquireSlotHold" | "applyProviderEvent" | "applyTrustedProviderWebhook" | "archiveOrganizationDirection" | "cancelOrder" | "completeConsultation" | "confirmConsultationReadiness" | "confirmHelpIntent" | "createCheckoutInstruction" | "createHelpIntent" | "createMobileCheckoutInstruction" | "createOrganization" | "createOrganizationDirection" | "createOrganizationProduct" | "createSpecialistBookableOffer" | "createSpecialistBookableSlot" | "declareSpecialistCapability" | "deleteAccount" | "exportConsultationToGrowth" | "getBookingFulfillment" | "getBookingStatus" | "getClientPersonal" | "getConsultationClientOutcome" | "getConsultationReadiness" | "getConsultationResult" | "getConsultationTimeline" | "getFinanceOrderStatus" | "getLegalAcceptanceStatus" | "getMeta" | "getMobileCompatibility" | "getMobileNotificationDelivery" | "getMobileRemoteConfig" | "getMySpecialistPublicDetails" | "getOrderForBooking" | "getOrderStatus" | "getOrganization" | "getPrivateOrganizationProfile" | "getPublicSpecialist" | "getSpecialistProfile" | "health" | "issueConsultationRoomJoin" | "issueMobileDeepLink" | "listCheckoutOptions" | "listHelpIntentMatches" | "listMobileInstallations" | "listMobileWorkspaces" | "listMySpecialistBookableOffers" | "listOpenFinanceDiscrepancies" | "listOrganizationProducts" | "listOrganizations" | "listPublicBookableOffers" | "listPublicSpecialists" | "listSpecialistSlots" | "markSearchProjectionStale" | "pauseSpecialistBookableOffer" | "postClientPersonalCheckIn" | "publishOrganizationProduct" | "publishSpecialistCapability" | "putClientPersonalPreferences" | "readiness" | "rebuildSearchProjection" | "recordConsent" | "recordConsultationPresence" | "recordLegalAcceptance" | "registerMobileInstallation" | "reportConsultationFailure" | "resolveFinanceDiscrepancy" | "resolveMobileDeepLink" | "resolveMobileWorkspace" | "revokeConsent" | "revokeMobileInstallation" | "rotateMobilePushEndpoint" | "searchProjection" | "submitConsultationClientOutcome" | "submitSpecialistEvidence" | "submitVerifiedSpecialistFeedback" | "succeedConsultationRecovery" | "unpublishSpecialistCapability" | "updateMySpecialistPublicDetails" | "updateProductCommercialOwner" | "upsertSpecialistProfile";
 
 export interface AccountDeletion {
   apgic_deletes_ledger: boolean;
@@ -137,6 +137,63 @@ export interface ClientInstallation {
 
 export interface ClientInstallationList {
   installations: Array<ClientInstallation>;
+}
+
+export interface ClientPersonalBooking {
+  booking_id: string;
+  client_progress?: "IMPROVED" | "UNCHANGED" | "WORSE" | "UNSURE";
+  consultation_state?: "SCHEDULED" | "READY" | "IN_PROGRESS" | "RECOVERING" | "TECHNICAL_FAILURE" | "COMPLETED";
+  ends_at: string;
+  match_satisfaction?: number;
+  order_id?: string;
+  specialist_name: string;
+  specialist_profession: string;
+  starts_at: string;
+  state: "HELD" | "PENDING_PAYMENT" | "CONFIRMED" | "CANCELLED" | "EXPIRED" | "COMPLETED" | "NO_SHOW";
+}
+
+export interface ClientPersonalCheckIn {
+  booking_id: string;
+  idempotent: boolean;
+  match_satisfaction?: number;
+  progress_code: "IMPROVED" | "UNCHANGED" | "WORSE" | "UNSURE";
+  recorded_at: string;
+}
+
+export interface ClientPersonalCheckInInput {
+  booking_id: string;
+  match_satisfaction?: number;
+  progress_code: "IMPROVED" | "UNCHANGED" | "WORSE" | "UNSURE";
+}
+
+export interface ClientPersonalPreferences {
+  display_name: string;
+  locale: "ru" | "en";
+  time_zone: string;
+  updated_at?: string;
+}
+
+export interface ClientPersonalPreferencesInput {
+  display_name: string;
+  locale: "ru" | "en";
+  time_zone: string;
+}
+
+export interface ClientPersonalRequest {
+  created_at: string;
+  id: string;
+  state: "DRAFT" | "CONFIRMED";
+  topics: Array<string>;
+}
+
+export interface ClientPersonalView {
+  as_of: string;
+  history: Array<ClientPersonalBooking>;
+  identity_id: string;
+  next_history_cursor?: string;
+  preferences: ClientPersonalPreferences;
+  requests: Array<ClientPersonalRequest>;
+  upcoming: Array<ClientPersonalBooking>;
 }
 
 export interface CompleteConsultationRequest {

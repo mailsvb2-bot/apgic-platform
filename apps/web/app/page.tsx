@@ -1,4 +1,5 @@
 import { Journey } from "./journey";
+import PersonalNavLink from "../src/personal-nav-link";
 
 // Public HTML must not be served with Next's immutable static-page cache.
 export const dynamic = "force-dynamic";
@@ -27,6 +28,7 @@ export default function Home() {
           </a>
           <nav className="top-nav" aria-label="Разделы">
             <a href="#how">Как это работает</a>
+            <PersonalNavLink />
             <a href="/specialists">Подобрать специалиста</a>
             <a className="organization-nav-link" href="/organization">Организация</a>
             <a className="pro-nav-link" href="/specialist">Для специалистов</a>

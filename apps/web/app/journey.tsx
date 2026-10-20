@@ -394,6 +394,8 @@ export function Journey() {
       const created = await postJSON<Intent>("/v1/help-intents", { free_text: text });
       setIntent(created);
       setTopics(created.topics);
+      // Signed session was issued by server; refresh private navigation.
+      window.dispatchEvent(new Event("apgic:client-session-established"));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Не удалось разобрать запрос.");
     } finally {
