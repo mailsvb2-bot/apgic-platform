@@ -136,7 +136,7 @@ func TestSpecialistHTTPKeepsOneSignedIdentityAndExposesNoReviewMutation(t *testi
 func TestSpecialistWorkspaceRejectsAnonymousAndUsesSignedOwner(t *testing.T) {
 	store := &specialistStoreSpy{}
 	handler := New(Options{
-		Specialists: store,
+		Specialists:      store,
 		ClientSessionKey: []byte("specialist-http-test-key-000000000000"),
 	})
 	path := "/v1/specialist/workspace?from=2026-10-01T00:00:00Z&until=2026-11-01T00:00:00Z"
