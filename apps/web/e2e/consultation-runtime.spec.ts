@@ -118,7 +118,7 @@ test("confirmed booking enables readiness, fail-closed room entry and verified p
     }),
   }));
   await resumed.getByRole("link", { name: "Посмотреть завершённую консультацию в личном кабинете" }).click();
-  await expect(page).toHaveURL(/\\/personal#personal-history$/);
+  await expect(page).toHaveURL(new RegExp("/personal#personal-history$"));
   await expect(page.getByRole("heading", { name: "История встреч" })).toBeVisible();
   await expect(page.getByText("Ирина Тестовая")).toBeVisible();
   await expect(page.getByRole("link", { name: "Детали записи" })).toHaveAttribute("href", `/bookings/${id}`);
@@ -164,6 +164,6 @@ test("verified historical completion remains reachable when active payment entit
   await result.getByRole("button", { name: "Проверить результат консультации" }).click();
   await expect(result.getByText("Консультация завершена по подтверждённому событию провайдера.")).toBeVisible();
   await result.getByRole("link", { name: "Посмотреть консультацию в истории личного кабинета" }).click();
-  await expect(page).toHaveURL(/\\/personal#personal-history$/);
+  await expect(page).toHaveURL(new RegExp("/personal#personal-history$"));
   await expect(page.getByText("Проверенный специалист")).toBeVisible();
 });
