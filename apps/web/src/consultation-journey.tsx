@@ -198,6 +198,7 @@ export default function ConsultationJourney({ bookingID }: { bookingID: string }
           </label>
           <button type="button" disabled={busy} onClick={() => void reportOutcome()}>Сохранить мой отклик</button>
           {outcomeStatus ? <p role="status">{outcomeStatus}</p> : null}
+          <p><a href="/personal#personal-history">Посмотреть завершённую консультацию в личном кабинете</a></p>
         </div>
       ) : null}
     </section>
