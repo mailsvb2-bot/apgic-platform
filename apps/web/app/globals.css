@@ -482,6 +482,21 @@ fieldset {
   border-top: 1px solid rgba(23,32,25,.12);
   padding: 72px 0;
 }
+/* The profile summary is conditional; never let it shift the workspace into
+   a second grid row beneath a sticky, oversized heading. */
+.specialist-onboarding {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px;
+}
+.specialist-onboarding > .start-heading {
+  position: static;
+  max-width: 780px;
+}
+.specialist-onboarding > .start-heading h2 {
+  font-size: clamp(1.75rem, 3.4vw, 2.75rem);
+  line-height: 1.16;
+  overflow-wrap: break-word;
+}
 .specialist-workspace {
   min-width: 0;
   display: grid;
