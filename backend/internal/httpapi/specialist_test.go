@@ -1,10 +1,12 @@
 package httpapi
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/marketplace"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/specialist"
@@ -13,6 +15,11 @@ import (
 type specialistStoreSpy struct {
 	identities []string
 	profile    specialist.Profile
+}
+
+func (s *specialistStoreSpy) SpecialistWorkspace(_ context.Context, identityID string, from, until time.Time) ([]specialist.WorkspaceEntry, error) {
+	s.capture(identityID)
+	return []specialist.WorkspaceEntry{{SlotID: "owner-slot", BookingID: "owner-booking", BookingState: "CONFIRMED", StartsAt: from, EndsAt: until}}, nil
 }
 
 func (s *specialistStoreSpy) capture(identityID string) {
@@ -123,5 +130,48 @@ func TestSpecialistHTTPKeepsOneSignedIdentityAndExposesNoReviewMutation(t *testi
 	handler.ServeHTTP(reviewRecorder, review)
 	if reviewRecorder.Code != http.StatusNotFound {
 		t.Fatalf("public review mutation unexpectedly exists: status=%d body=%s", reviewRecorder.Code, reviewRecorder.Body.String())
+	}
+}
+
+func TestSpecialistWorkspaceRejectsAnonymousAndUsesSignedOwner(t *testing.T) {
+	store := &specialistStoreSpy{}
+	handler := New(Options{
+		Specialists:      store,
+		ClientSessionKey: []byte("specialist-http-test-key-000000000000"),
+	})
+	path := "/v1/specialist/workspace?from=2026-10-01T00:00:00Z&until=2026-11-01T00:00:00Z"
+	unauthenticated := httptest.NewRecorder()
+	handler.ServeHTTP(unauthenticated, httptest.NewRequest(http.MethodGet, path, nil))
+	if unauthenticated.Code == http.StatusOK || len(store.identities) != 0 {
+		t.Fatalf("anonymous workspace accessible: status=%d", unauthenticated.Code)
+	}
+	create := httptest.NewRecorder()
+	handler.ServeHTTP(create, httptest.NewRequest(http.MethodPut, "/v1/specialist/profile",
+		strings.NewReader(`{"display_name":"Анна Тестова","profession_code":"PSYCHOLOGIST"}`)))
+	if create.Code != http.StatusOK {
+		t.Fatalf("create specialist: %d %s", create.Code, create.Body.String())
+	}
+	cookies := create.Result().Cookies()
+	if len(cookies) == 0 {
+		t.Fatal("missing signed specialist session")
+	}
+	owner := store.identities[0]
+	req := httptest.NewRequest(http.MethodGet, path, nil)
+	req.AddCookie(cookies[0])
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, req)
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "owner-booking") {
+		t.Fatalf("authenticated workspace status=%d body=%s", response.Code, response.Body.String())
+	}
+	if len(store.identities) != 2 || store.identities[1] != owner {
+		t.Fatalf("workspace did not use signed identity: %#v", store.identities)
+	}
+	invalid := httptest.NewRequest(http.MethodGet,
+		"/v1/specialist/workspace?from=2026-10-01T00:00:00Z&until=2029-10-01T00:00:00Z", nil)
+	invalid.AddCookie(cookies[0])
+	rejected := httptest.NewRecorder()
+	handler.ServeHTTP(rejected, invalid)
+	if rejected.Code != http.StatusBadRequest {
+		t.Fatalf("unbounded calendar range allowed: %d", rejected.Code)
 	}
 }

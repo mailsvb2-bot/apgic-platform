@@ -523,13 +523,17 @@ test("specialist onboarding preserves evidence and publish boundaries", async ({
   });
 
   await page.goto("/specialist");
-  await expect(page.getByRole("heading", { level: 1, name: /Работайте с клиентами/ })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Кабинет специалиста APGIC" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Создайте профессиональный профиль" })).toBeVisible();
 
   await page.getByLabel("Имя для публичного профиля").fill("Анна Тестова");
   await page.getByLabel("Профессия").selectOption("PSYCHOLOGIST");
   await page.getByRole("button", { name: "Сохранить профиль" }).click();
   await expect(page.getByText(/Профиль сохранён\. В каталоге вы отображаетесь со статусом/)).toBeVisible();
+  await expect(page.getByRole("region", { name: "Кабинет специалиста" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Календарь и записи специалиста" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Разделы кабинета специалиста" }).getByRole("link", { name: "Документы" })).toHaveAttribute("href", "#specialist-documents");
+  await expect(page.getByRole("region", { name: "Кабинет специалиста" }).getByRole("status").filter({ hasText: "Специализация не подтверждена" }).first()).toBeVisible();
 
   await page.getByLabel("Направление").selectOption("anxiety");
   await page.getByRole("button", { name: "Добавить направление" }).click();
@@ -542,7 +546,7 @@ test("specialist onboarding preserves evidence and publish boundaries", async ({
   await expect(page.getByText(/Review профиля:/)).toContainText("MANUAL_REVIEW");
 
   await page.getByRole("button", { name: "Проверить и опубликовать" }).click();
-  await expect(page.getByRole("status")).toContainText("PUBLISH_REVIEW_INCOMPLETE");
+  await expect(page.getByRole("status").filter({ hasText: "PUBLISH_REVIEW_INCOMPLETE" })).toContainText("PUBLISH_REVIEW_INCOMPLETE");
   await expect(page.getByText(/Опубликовано:/)).toContainText("пока ничего");
 
   const layout = await page.evaluate(() => ({
