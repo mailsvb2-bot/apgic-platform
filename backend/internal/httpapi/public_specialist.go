@@ -15,7 +15,28 @@ import (
 // or verification mutation is exposed on this API.
 func registerPublicSpecialists(mux *http.ServeMux, store specialist.Store, sessions *clientSessionManager, sessionConfigErr error) {
 	public, _ := store.(specialist.PublicDirectoryStore)
-	mux.HandleFunc("GET /v1/specialists", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /v1/specialists/registrations", func(w http.ResponseWriter, r *http.Request) {
+  w.Header().Set("Cache-Control", "no-store")
+  registered, ok := store.(specialist.RegisteredDirectoryStore)
+  if !ok {
+   writeSpecialistError(w, r, http.StatusServiceUnavailable, "SPECIALIST_DIRECTORY_UNAVAILABLE", "Список регистраций недоступен.")
+   return
+  }
+  topic := strings.TrimSpace(r.URL.Query().Get("topic"))
+  if topic != "" {
+   if _, err := specialist.NormalizeTopic(topic); err != nil {
+    writeSpecialistError(w, r, http.StatusBadRequest, "SPECIALIST_TOPIC_INVALID", "Выберите поддерживаемое направление.")
+    return
+   }
+  }
+  profiles, err := registered.RegisteredProfiles(r.Context(), topic, 100)
+  if err != nil {
+   writeSpecialistError(w, r, http.StatusServiceUnavailable, "SPECIALIST_DIRECTORY_UNAVAILABLE", "Не удалось загрузить зарегистрированные анкеты.")
+   return
+  }
+  writeJSON(w, http.StatusOK, map[string]any{"profiles": profiles})
+ })
+ mux.HandleFunc("GET /v1/specialists", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		if public == nil {
 			writeSpecialistError(w, r, http.StatusServiceUnavailable, "SPECIALIST_DIRECTORY_UNAVAILABLE", "Каталог специалистов пока недоступен.")
