@@ -32,16 +32,22 @@ func TestPublicSpecialistFullPublicationReviewAndRemoval(t *testing.T) {
 	if _, err = store.DeclareCapability(identityID, "anxiety"); err != nil {
 		t.Fatal(err)
 	}
- registered, err := store.RegisteredProfiles(ctx, "anxiety", 100)
- if err != nil { t.Fatal(err) }
- visibleUnverified := false
- for _, item := range registered {
-  if item.ID == p.ID {
-   if item.VerificationStatus != "UNVERIFIED" { t.Fatalf("new registrant wrongly verified: %#v", item) }
-   visibleUnverified = true
-  }
- }
- if !visibleUnverified { t.Fatal("self-registered specialist is absent from unverified directory") }
+	registered, err := store.RegisteredProfiles(ctx, "anxiety", 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	visibleUnverified := false
+	for _, item := range registered {
+		if item.ID == p.ID {
+			if item.VerificationStatus != "UNVERIFIED" {
+				t.Fatalf("new registrant wrongly verified: %#v", item)
+			}
+			visibleUnverified = true
+		}
+	}
+	if !visibleUnverified {
+		t.Fatal("self-registered specialist is absent from unverified directory")
+	}
 
 	p, err = store.SubmitEvidence(identityID, "anxiety", "DIPLOMA", "document:public-directory-test")
 	if err != nil {
