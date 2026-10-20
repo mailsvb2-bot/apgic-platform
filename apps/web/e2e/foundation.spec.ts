@@ -529,7 +529,7 @@ test("specialist onboarding preserves evidence and publish boundaries", async ({
   await page.getByLabel("Имя для публичного профиля").fill("Анна Тестова");
   await page.getByLabel("Профессия").selectOption("PSYCHOLOGIST");
   await page.getByRole("button", { name: "Сохранить профиль" }).click();
-  await expect(page.getByText("Профиль сохранён. Теперь добавьте направления работы.")).toBeVisible();
+  await expect(page.getByText(/Профиль сохранён\. В каталоге вы отображаетесь со статусом/)).toBeVisible();
 
   await page.getByLabel("Направление").selectOption("anxiety");
   await page.getByRole("button", { name: "Добавить направление" }).click();

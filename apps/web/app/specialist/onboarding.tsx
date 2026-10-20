@@ -149,7 +149,7 @@ export function SpecialistOnboarding() {
     await callProfile("/v1/specialist/profile", {
       method: "PUT",
       body: JSON.stringify({ display_name: displayName, profession_code: professionCode }),
-    }, "Профиль сохранён. Теперь добавьте направления работы.");
+    }, "Профиль сохранён. В каталоге вы отображаетесь со статусом «Специализация не подтверждена». Чтобы получить подтверждение и возможность записи, добавьте направления и документы.");
   }
 
   async function declareCapability() {

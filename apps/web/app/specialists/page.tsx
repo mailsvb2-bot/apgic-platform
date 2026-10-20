@@ -2,7 +2,7 @@ import { SpecialistDirectory } from "./specialist-directory";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
- title: "Каталог проверенных специалистов — APGIC",
+ title: "Каталог специалистов — APGIC",
  description: "Изучите опубликованные анкеты по направлениям работы. Допуск к консультации проверяется платформой.",
 };
 export default function SpecialistsPage(){
@@ -16,7 +16,7 @@ export default function SpecialistsPage(){
   <section className="marketplace-heading">
    <p className="eyebrow">APGIC · Marketplace</p>
    <h1>Выберите специалиста</h1>
-   <p>В каталоге только опубликованные анкеты с подтверждёнными направлениями. Сравните опыт и подход, затем уточните свой запрос для записи.</p>
+   <p>В каталоге есть проверенные специалисты и новые регистрации. У новых анкет указано «Специализация не подтверждена»; запись становится доступной только после проверки документов и квалификации.</p>
   </section>
   <SpecialistDirectory/>
  </main>;
