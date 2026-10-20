@@ -32,6 +32,7 @@ type PublicProfile struct {
 	VerifiedReviewCount int      `json:"verified_review_count"`
 	VerifiedRating      *float64 `json:"verified_rating,omitempty"`
 }
+
 // RegisteredProfile is a deliberately minimal public listing of a
 // self-registered specialist. It is NOT a qualification or booking entitlement.
 type RegisteredProfile struct {
