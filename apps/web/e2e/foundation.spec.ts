@@ -546,7 +546,7 @@ test("specialist onboarding preserves evidence and publish boundaries", async ({
   await expect(page.getByText(/Review профиля:/)).toContainText("MANUAL_REVIEW");
 
   await page.getByRole("button", { name: "Проверить и опубликовать" }).click();
-  await expect(page.getByRole("status")).toContainText("PUBLISH_REVIEW_INCOMPLETE");
+  await expect(page.getByRole("status").filter({ hasText: "PUBLISH_REVIEW_INCOMPLETE" })).toContainText("PUBLISH_REVIEW_INCOMPLETE");
   await expect(page.getByText(/Опубликовано:/)).toContainText("пока ничего");
 
   const layout = await page.evaluate(() => ({
