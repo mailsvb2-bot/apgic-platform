@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/specialist"
 )
@@ -166,6 +167,31 @@ func registerSpecialist(
 			return
 		}
 		writeJSON(w, http.StatusOK, result)
+	})
+
+	mux.HandleFunc("GET /v1/specialist/workspace", func(w http.ResponseWriter, r *http.Request) {
+		owner, ok := trustedClientIdentity(w, r, sessions, sessionConfigErr, "")
+		if !ok {
+			return
+		}
+		workspace, supported := store.(specialist.WorkspaceStore)
+		if !supported {
+			writeSpecialistError(w, r, http.StatusServiceUnavailable, "SPECIALIST_WORKSPACE_UNAVAILABLE", "Расписание временно недоступно.")
+			return
+		}
+		from, errFrom := time.Parse(time.RFC3339, r.URL.Query().Get("from"))
+		until, errUntil := time.Parse(time.RFC3339, r.URL.Query().Get("until"))
+		if errFrom != nil || errUntil != nil || !until.After(from) || until.Sub(from) > 370*24*time.Hour {
+			writeSpecialistError(w, r, http.StatusBadRequest, "SPECIALIST_WORKSPACE_RANGE_INVALID", "Выберите период до 370 дней.")
+			return
+		}
+		entries, err := workspace.SpecialistWorkspace(r.Context(), owner, from, until)
+		if err != nil {
+			writeSpecialistError(w, r, http.StatusServiceUnavailable, "SPECIALIST_WORKSPACE_UNAVAILABLE", "Не удалось прочитать расписание.")
+			return
+		}
+		w.Header().Set("Cache-Control", "no-store")
+		writeJSON(w, http.StatusOK, map[string]any{"entries": entries})
 	})
 	registerSpecialistBookableOffers(mux, store, sessions, sessionConfigErr)
 }
