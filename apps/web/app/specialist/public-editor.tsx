@@ -19,15 +19,34 @@ export function SpecialistPublicEditor(){
  async function save(e:FormEvent){
   e.preventDefault();setBusy(true);setNotice("");
   try{
+   if(!Number.isSafeInteger(years)||years<0||years>75){setNotice("Укажите стаж от 0 до 75 лет.");return;}
+   const normalizedLanguages=languages.split(",").map(x=>x.trim().toLowerCase()).filter(Boolean);
+   if(normalizedLanguages.length===0||normalizedLanguages.some(x=>!/^[a-z]{2,3}(-[a-z]{2,4})?$/.test(x))){setNotice("Укажите языки двух- или трёхбуквенными кодами, например ru, en.");return;}
    const res=await fetch("/v1/specialist/public-details",{
     method:"PUT",headers:{"content-type":"application/json"},
     body:JSON.stringify({headline,about,experience_years:years,
-     languages:languages.split(",").map(x=>x.trim()).filter(Boolean),
+     languages:normalizedLanguages,
      limitations:limitations.split("\n").map(x=>x.trim()).filter(Boolean)})
    });
-   const data=await res.json() as {notice?:string;message_safe?:string};
-   setNotice(res.ok?"Анкета сохранена. Если данные изменились, публикация приостанавливается до повторного одобрения.":data.message_safe??"Не удалось сохранить анкету.");
-  }catch{setNotice("Не удалось отправить анкету. Повторите попытку.");}
+   if(!res.ok){
+    const data=await res.json().catch(()=>({})) as {message_safe?:string};
+    setNotice(data.message_safe??"Не удалось сохранить анкету. Проверьте поля и попробуйте ещё раз.");
+    return;
+   }
+   // Do not assert durable persistence based only on the write response:
+   // reload canonical truth from PostgreSQL through the same authorized API.
+   const readback=await fetch("/v1/specialist/public-details",{cache:"no-store"});
+   if(!readback.ok){
+    setNotice("Сервер принял изменение, но проверить сохранённые данные не удалось. Обновите кабинет.");
+    return;
+   }
+   const stored=await readback.json() as Details;
+   setHeadline(stored.headline);setAbout(stored.about);
+   setYears(stored.experience_years);
+   setLanguages(stored.languages.join(", "));
+   setLimitations(stored.limitations.join("\n"));
+   setNotice("Описание сохранено и повторно загружено с сервера. Публикация зависит от проверки квалификации.");
+  }catch{setNotice("Не удалось завершить сохранение или контрольное чтение анкеты. Проверьте соединение и обновите кабинет.");}
   finally{setBusy(false)}
  }
  return <section className="panel specialist-form" aria-labelledby="public-details-title">
@@ -46,6 +65,6 @@ export function SpecialistPublicEditor(){
    <textarea id="public-limitations" rows={3} value={limitations} onChange={e=>setLimitations(e.target.value)}/>
    <button type="submit" disabled={busy}>Сохранить описание</button>
   </form>:<p>Описание станет доступно после создания профиля.</p>}
-  {notice?<p className="form-help">{notice}</p>:null}
+  {notice?<p className="form-help" role="status">{notice}</p>:null}
  </section>;
 }

@@ -434,6 +434,67 @@ test("specialist registration reports unreachable API without losing the form", 
   await expect(page.getByRole("region", { name: "Кабинет специалиста" })).toHaveCount(0);
 });
 
+
+test("specialist calendar handles locally grouped entries and refresh races", async ({ page }) => {
+  let calls = 0;
+  await page.route("**/v1/specialist/workspace?**", async route => {
+    calls += 1;
+    const call = calls;
+    if (call === 1) {
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ entries: [] }) });
+      return;
+    }
+    if (call === 2) await new Promise(resolve => setTimeout(resolve, 250));
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
+      entries: call === 2 ? [] : [{
+        slot_id: "slot-new", starts_at: new Date().toISOString(), ends_at: new Date(Date.now() + 3600000).toISOString(),
+        topic_id: "anxiety"
+      }]
+    }) });
+  });
+  await page.goto("/specialist");
+  const section = page.getByRole("region", { name: "Календарь и записи специалиста" });
+  await expect(section.getByText("Свободное время (0)")).toBeVisible();
+  await section.getByRole("button", { name: "Обновить" }).click();
+  // The loading UI disables the button; the next request occurs after completion.
+  await expect(section.getByText("Свободное время (0)")).toBeVisible();
+  await section.getByRole("button", { name: "Обновить" }).click();
+  await expect(section.getByText("Свободное время (1)")).toBeVisible();
+});
+
+
+test("specialist public editor proves saved state with canonical reload", async ({ page }) => {
+  const profile = {
+    id: "specialist-persist", identity_id: "identity-persist", display_name: "Анна",
+    profession_code: "PSYCHOLOGIST", profile_complete: true, review_state: "PENDING",
+    capabilities: [], evidence: [], published_topics: []
+  };
+  let stored = { headline: "", about: "", experience_years: 0, languages: ["ru"], limitations: [] as string[] };
+  let reads = 0;
+  await page.route("**/v1/specialist/profile", route => route.fulfill({
+    status: 200, contentType: "application/json", body: JSON.stringify(profile)
+  }));
+  await page.route("**/v1/specialist/public-details", async route => {
+    if (route.request().method() === "PUT") {
+      const payload = route.request().postDataJSON() as typeof stored;
+      stored = payload;
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(stored) });
+      return;
+    }
+    reads++;
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(stored) });
+  });
+  await page.goto("/specialist");
+  await page.getByLabel("Короткое профессиональное описание").fill("Работа со стрессом");
+  await page.getByLabel("Языки (коды через запятую, например ru, en)").fill("ru, en");
+  await page.getByRole("button", { name: "Сохранить описание" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "повторно загружено с сервера" })).toBeVisible();
+  expect(reads).toBeGreaterThanOrEqual(2);
+  await page.reload();
+  await expect(page.getByLabel("Короткое профессиональное описание")).toHaveValue("Работа со стрессом");
+  await expect(page.getByLabel("Языки (коды через запятую, например ru, en)")).toHaveValue("ru, en");
+});
+
 test("specialist onboarding preserves evidence and publish boundaries", async ({ page }) => {
   type Profile = {
     id: string;

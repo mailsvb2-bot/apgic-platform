@@ -1,13 +1,13 @@
 "use client";
 
-import {useCallback,useEffect,useMemo,useState} from "react";
+import {useCallback,useEffect,useMemo,useRef,useState} from "react";
 
 type Entry = {slot_id:string;booking_id?:string;booking_state?:string;consultation_state?:string;starts_at:string;ends_at:string;topic_id?:string};
 const topics:Record<string,string>={anxiety:"Тревога и стресс",sleep:"Сон",relationships:"Отношения",career:"Карьера"};
 function monthRange(month:string){
  const [year,part]=month.split("-").map(Number);
- const from=new Date(Date.UTC(year,part-1,1));
- const until=new Date(Date.UTC(year,part,1));
+ const from=new Date(year,part-1,1);
+ const until=new Date(year,part,1);
  return {from:from.toISOString(),until:until.toISOString()};
 }
 function state(entry:Entry){
@@ -19,12 +19,23 @@ function state(entry:Entry){
  return "Свободное время";
 }
 function dateLabel(value:string){return new Intl.DateTimeFormat("ru-RU",{dateStyle:"medium",timeStyle:"short"}).format(new Date(value));}
+function localDay(value:string){
+ const date=new Date(value);
+ if(!Number.isFinite(date.getTime()))return "";
+ const year=date.getFullYear(),month=String(date.getMonth()+1).padStart(2,"0"),day=String(date.getDate()).padStart(2,"0");
+ return `${year}-${month}-${day}`;
+}
+function localMonth(){const now=new Date();return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;}
+function validMonth(value:string){return /^(20[2-9][0-9])-((0[1-9])|(1[0-2]))$/.test(value);}
 export function SpecialistWorkspaceCalendar(){
- const [month,setMonth]=useState(()=>new Date().toISOString().slice(0,7));
+ const [month,setMonth]=useState(localMonth);
  const [items,setItems]=useState<Entry[]>([]);
  const [error,setError]=useState("");
  const [loading,setLoading]=useState(true);
+ const requestRef=useRef(0);
  const fetchEntries=useCallback(async(signal?:AbortSignal)=>{
+  const request=++requestRef.current;
+  if(!validMonth(month)){setError("Выберите корректный месяц.");setLoading(false);return;}
   setLoading(true);setError("");
   try{
    const range=monthRange(month);
@@ -32,9 +43,9 @@ export function SpecialistWorkspaceCalendar(){
    const response=await fetch(`/v1/specialist/workspace?${params}`,{cache:"no-store",credentials:"include",signal});
    if(!response.ok)throw new Error(response.status===401?"Войдите в кабинет специалиста.":"Не удалось загрузить календарь и записи.");
    const data=await response.json() as {entries:Entry[]};
-   if(!signal?.aborted)setItems(Array.isArray(data.entries)?data.entries:[]);
-  }catch(e){if(!signal?.aborted){setError(e instanceof Error?e.message:"Ошибка загрузки.");setItems([]);}}
-  finally{if(!signal?.aborted)setLoading(false);}
+   if(!signal?.aborted&&request===requestRef.current)setItems(Array.isArray(data.entries)?data.entries:[]);
+  }catch(e){if(!signal?.aborted&&request===requestRef.current){setError(e instanceof Error?e.message:"Ошибка загрузки.");setItems([]);}}
+  finally{if(!signal?.aborted&&request===requestRef.current)setLoading(false);}
  },[month]);
  useEffect(()=>{const controller=new AbortController();void fetchEntries(controller.signal);return()=>controller.abort();},[fetchEntries]);
  const booked=useMemo(()=>items.filter(e=>Boolean(e.booking_id)&&e.booking_state!=="CANCELLED"),[items]);
@@ -42,11 +53,11 @@ export function SpecialistWorkspaceCalendar(){
  const upcoming=booked.filter(e=>e.consultation_state!=="COMPLETED"&&new Date(e.ends_at).getTime()>=Date.now());
  const history=booked.filter(e=>e.consultation_state!=="COMPLETED"&&new Date(e.ends_at).getTime()<Date.now());
  const byDay=useMemo(()=>items.reduce<Record<string,Entry[]>>((all,e)=>{
-  const day=e.starts_at.slice(0,10);(all[day]??=[]).push(e);return all;
+  const day=localDay(e.starts_at);if(day)(all[day]??=[]).push(e);return all;
  },{}),[items]);
- const first=new Date(month+"-01T00:00:00Z");
- const offset=(first.getUTCDay()+6)%7;
- const days=new Date(Date.UTC(first.getUTCFullYear(),first.getUTCMonth()+1,0)).getUTCDate();
+ const first=new Date(month+"-01T12:00:00");
+ const offset=(first.getDay()+6)%7;
+ const days=new Date(first.getFullYear(),first.getMonth()+1,0).getDate();
  return <section className="panel" id="specialist-calendar" aria-label="Календарь и записи специалиста">
   <h2>Мои записи и календарь</h2>
   <p>Данные из APGIC. История завершения определяется подтверждённым состоянием консультации, а не наступлением даты.</p>
