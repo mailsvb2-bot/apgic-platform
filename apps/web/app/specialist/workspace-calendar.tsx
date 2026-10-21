@@ -6,8 +6,8 @@ type Entry = {slot_id:string;booking_id?:string;booking_state?:string;consultati
 const topics:Record<string,string>={anxiety:"Тревога и стресс",sleep:"Сон",relationships:"Отношения",career:"Карьера"};
 function monthRange(month:string){
  const [year,part]=month.split("-").map(Number);
- const from=new Date(Date.UTC(year,part-1,1));
- const until=new Date(Date.UTC(year,part,1));
+ const from=new Date(year,part-1,1);
+ const until=new Date(year,part,1);
  return {from:from.toISOString(),until:until.toISOString()};
 }
 function state(entry:Entry){
