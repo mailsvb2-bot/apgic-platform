@@ -434,6 +434,34 @@ test("specialist registration reports unreachable API without losing the form", 
   await expect(page.getByRole("region", { name: "Кабинет специалиста" })).toHaveCount(0);
 });
 
+
+test("specialist calendar handles locally grouped entries and refresh races", async ({ page }) => {
+  let calls = 0;
+  await page.route("**/v1/specialist/workspace?**", async route => {
+    calls += 1;
+    const call = calls;
+    if (call === 1) {
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ entries: [] }) });
+      return;
+    }
+    if (call === 2) await new Promise(resolve => setTimeout(resolve, 250));
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
+      entries: call === 2 ? [] : [{
+        slot_id: "slot-new", starts_at: new Date().toISOString(), ends_at: new Date(Date.now() + 3600000).toISOString(),
+        topic_id: "anxiety"
+      }]
+    }) });
+  });
+  await page.goto("/specialist");
+  const section = page.getByRole("region", { name: "Календарь и записи специалиста" });
+  await expect(section.getByText("Свободное время (0)")).toBeVisible();
+  await section.getByRole("button", { name: "Обновить" }).click();
+  // The loading UI disables the button; the next request occurs after completion.
+  await expect(section.getByText("Свободное время (0)")).toBeVisible();
+  await section.getByRole("button", { name: "Обновить" }).click();
+  await expect(section.getByText("Свободное время (1)")).toBeVisible();
+});
+
 test("specialist onboarding preserves evidence and publish boundaries", async ({ page }) => {
   type Profile = {
     id: string;
