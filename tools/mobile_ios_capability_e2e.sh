@@ -363,10 +363,17 @@ assert_state() {
   local launch_attempt observation
   for launch_attempt in 1 2 3; do
     xcrun simctl terminate "$UDID" com.apgic.ci >/dev/null 2>&1 || true
-    sleep 2
+    # A fresh container eliminates cached native permission snapshots and AX
+    # bridge elements left behind by the previous OS capability scenario.
+    # Reinstall the same already-built app; never synthesize an AX result.
+    xcrun simctl uninstall "$UDID" com.apgic.ci >/dev/null 2>&1 || true
+    xcrun simctl install "$UDID" "$APP" ||
+      fail "state $state: failed to reinstall isolated simulator app"
+    rm -f "$output"
     SIMCTL_CHILD_APGIC_E2E_CAPABILITY_STATE="$state" \
-      xcrun simctl launch "$UDID" com.apgic.ci >/dev/null
-    for observation in $(seq 1 20); do
+      xcrun simctl launch --terminate-running-process "$UDID" com.apgic.ci >/dev/null ||
+      fail "state $state: simulator could not launch app"
+    for observation in $(seq 1 30); do
       if "$IDB" ui describe-all --udid "$UDID" --api axbridge --json --nested >"$output" 2>/dev/null &&
          grep -q "capability-state:${state}" "$output" &&
          grep -q "capability-fallback:${reason}" "$output"; then
