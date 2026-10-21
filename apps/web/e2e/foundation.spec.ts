@@ -462,6 +462,39 @@ test("specialist calendar handles locally grouped entries and refresh races", as
   await expect(section.getByText("Свободное время (1)")).toBeVisible();
 });
 
+
+test("specialist public editor proves saved state with canonical reload", async ({ page }) => {
+  const profile = {
+    id: "specialist-persist", identity_id: "identity-persist", display_name: "Анна",
+    profession_code: "PSYCHOLOGIST", profile_complete: true, review_state: "PENDING",
+    capabilities: [], evidence: [], published_topics: []
+  };
+  let stored = { headline: "", about: "", experience_years: 0, languages: ["ru"], limitations: [] as string[] };
+  let reads = 0;
+  await page.route("**/v1/specialist/profile", route => route.fulfill({
+    status: 200, contentType: "application/json", body: JSON.stringify(profile)
+  }));
+  await page.route("**/v1/specialist/public-details", async route => {
+    if (route.request().method() === "PUT") {
+      const payload = route.request().postDataJSON() as typeof stored;
+      stored = payload;
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(stored) });
+      return;
+    }
+    reads++;
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(stored) });
+  });
+  await page.goto("/specialist");
+  await page.getByLabel("Короткое профессиональное описание").fill("Работа со стрессом");
+  await page.getByLabel("Языки (коды через запятую, например ru, en)").fill("ru, en");
+  await page.getByRole("button", { name: "Сохранить описание" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "повторно загружено с сервера" })).toBeVisible();
+  expect(reads).toBeGreaterThanOrEqual(2);
+  await page.reload();
+  await expect(page.getByLabel("Короткое профессиональное описание")).toHaveValue("Работа со стрессом");
+  await expect(page.getByLabel("Языки (коды через запятую, например ru, en)")).toHaveValue("ru, en");
+});
+
 test("specialist onboarding preserves evidence and publish boundaries", async ({ page }) => {
   type Profile = {
     id: string;
