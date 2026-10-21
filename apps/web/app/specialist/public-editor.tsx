@@ -44,7 +44,7 @@ export function SpecialistPublicEditor(){
    setHeadline(stored.headline);setAbout(stored.about);
    setYears(stored.experience_years);
    setLanguages(stored.languages.join(", "));
-   setLimitations(stored.limitations.join("\\n"));
+   setLimitations(stored.limitations.join("\n"));
    setNotice("Описание сохранено и повторно загружено с сервера. Публикация зависит от проверки квалификации.");
   }catch{setNotice("Не удалось завершить сохранение или контрольное чтение анкеты. Проверьте соединение и обновите кабинет.");}
   finally{setBusy(false)}
