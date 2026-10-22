@@ -21,9 +21,10 @@ export function SpecialistDirectory(){
  const [error,setError]=useState("");
  const [registered,setRegistered]=useState<RegisteredProfile[]>([]);
  const [registeredError,setRegisteredError]=useState(false);
+ const [selectedRegistration,setSelectedRegistration]=useState<string|null>(null);
  useEffect(()=>{
   const controller=new AbortController();
-  setLoading(true);setError("");setData(null);setRegistered([]);setRegisteredError(false);
+  setLoading(true);setError("");setData(null);setRegistered([]);setRegisteredError(false);setSelectedRegistration(null);
   const params=new URLSearchParams({limit:"10",offset:String(offset)});
   if(topic)params.set("topic",topic);
   const registrationParams=new URLSearchParams();
@@ -84,8 +85,17 @@ export function SpecialistDirectory(){
     <div className="marketplace-avatar" aria-hidden="true">{initials(p.display_name)}</div>
     <div className="marketplace-profile-copy"><h3>{p.display_name}</h3>
      <p>{professions[p.profession_code]??"Специалист"} (со слов пользователя)</p>
-     <p role="status"><strong>Специализация не подтверждена</strong></p>
+     <p><strong>Специализация не подтверждена</strong></p>
      <p>Документы и профессиональная квалификация находятся на проверке или ещё не предоставлены.</p>
+     <button type="button" className="button-link secondary-action" aria-expanded={selectedRegistration===p.id}
+      aria-controls={`registration-info-${p.id}`} onClick={()=>setSelectedRegistration(current=>current===p.id?null:p.id)}>
+      {selectedRegistration===p.id?"Скрыть сведения":"Посмотреть сведения"}
+     </button>
+     {selectedRegistration===p.id?<div id={`registration-info-${p.id}`} className="form-help" role="region" aria-label={`Сведения о регистрации: ${p.display_name}`}>
+      <p>Профессия заявлена самостоятельно. APGIC пока не подтвердил квалификацию или право проводить консультации по выбранному направлению.</p>
+      <p>Анкета ещё не опубликована. Выбрать время, оплатить консультацию или отправить запрос этому специалисту сейчас нельзя.</p>
+      <a href="/#start">Описать запрос и найти проверенного специалиста</a>
+     </div>:null}
     </div>
    </li>)}</ul>
   </section>:null}
