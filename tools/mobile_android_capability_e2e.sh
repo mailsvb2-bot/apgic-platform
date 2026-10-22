@@ -1233,12 +1233,30 @@ PY
   sleep 1
   ensure_demand_backend_bridge ||
     fail "Android HelpIntent transport lost before native interpretation request"
-  seek_demand_accessibility_node "Разобрать запрос" "" tap "$remote" "$output" ||
-    fail "Android HelpIntent interpret button not operable"
-
-  # Each observation is the real accessibility tree, not a synthetic marker.
-  # Diagnosis and checkboxes need not fit in ONE viewport.
-  seek_demand_accessibility_node 'native-demand-diagnosis:false' "" observe "$remote" "$output" ||
+  # The accessibility tree can report a stationary Pressable while a late
+  # React Native/IME surface still intercepts its first tap. A successful
+  # adb input exit code does NOT prove the interpretation ran. Require the
+  # real native semantic transition, and retry the actual user action with
+  # a fresh, measured hit target (never fabricate a response).
+  local interpretation_verified=false interpretation_attempt
+  for interpretation_attempt in 1 2 3; do
+    ensure_demand_backend_bridge ||
+      fail "Android HelpIntent backend connection lost during interpretation"
+    dismiss_android_ime ||
+      fail "Android IME intercepts interpretation action"
+    dismiss_android_debug_warning_overlay "$remote" "$output" ||
+      fail "Android debug warning blocks interpretation action"
+    seek_demand_accessibility_node "Разобрать запрос" "" tap "$remote" "$output" ||
+      fail "Android HelpIntent interpret button not operable"
+    # Diagnosis and checkboxes need not fit in one viewport: verify the
+    # actual app accessibility state, not the input command's return code.
+    if seek_demand_accessibility_node 'native-demand-diagnosis:false' "" observe "$remote" "$output"; then
+      interpretation_verified=true
+      break
+    fi
+    echo "Android native interpretation attempt $interpretation_attempt: no verified semantic transition" >&2
+  done
+  [[ "$interpretation_verified" == true ]] ||
     fail "Android interpretation did not clearly reject automated diagnosis"
   seek_demand_accessibility_node 'Тема anxiety' true observe "$remote" "$output" ||
     fail "Android interpretation did not offer selected anxiety topic"
