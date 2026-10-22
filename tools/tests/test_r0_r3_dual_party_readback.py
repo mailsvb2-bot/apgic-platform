@@ -64,7 +64,7 @@ class DualPartyTests(unittest.TestCase):
   with patch.object(mod.base.urllib.request,"build_opener",return_value=FakeOpener()):
    self.assertTrue(mod.denied_for_stranger("http://127.0.0.1:43111",B,"sid=unrelated"))
   self.assertEqual([url.split("43111",1)[1] for url in seen],[
-   f"/v1/bookings/{B}",f"/v1/consultations/{B}/ready",f"/v1/consultations/{B}/result"])
+   f"/v1/bookings/{B}",f"/v1/consultations/{B}/ready",f"/v1/consultations/{B}/result",f"/v1/consultations/{B}/timeline"])
  def test_stranger_booking_leak_fails_closed_before_consultation_checks(self):
   import urllib.error
   seen=[]
@@ -79,6 +79,15 @@ class DualPartyTests(unittest.TestCase):
   with patch.object(mod.base.urllib.request,"build_opener",return_value=FakeOpener()):
    self.assertFalse(mod.denied_for_stranger("http://127.0.0.1:43111",B,"sid=unrelated"))
   self.assertEqual(len(seen),1)
+ def test_both_roles_share_durable_completion_timeline(self):
+  good={"booking_id":B,"consultation_state":"COMPLETED","facts":[{"fact_type":"ENDED","evidence_ref":"provider-event-901"}]}
+  self.assertEqual(mod.validate_timelines(good,dict(good),B),[])
+  other={"booking_id":B,"consultation_state":"COMPLETED","facts":[{"fact_type":"ENDED","evidence_ref":"different-event"}]}
+  self.assertIn("CROSS_ROLE_TIMELINE_EVIDENCE_MISMATCH",mod.validate_timelines(good,other,B))
+  empty={"booking_id":B,"consultation_state":"COMPLETED","facts":[]}
+  self.assertIn("SPECIALIST_TIMELINE_END_EVIDENCE_MISSING",mod.validate_timelines(good,empty,B))
+  draft={"booking_id":B,"consultation_state":"ACTIVE","facts":[{"fact_type":"ENDED","evidence_ref":"provider-event-901"}]}
+  self.assertIn("CLIENT_TIMELINE_COMPLETION_NOT_PROVEN",mod.validate_timelines(draft,good,B))
  def test_staging_wrapper_guards_host_and_requires_three_sessions(self):
   script=ROOT/"deploy/staging/prove-r0-r3-dual-party.sh"
   subprocess.run(["bash","-n",str(script)],check=True)
