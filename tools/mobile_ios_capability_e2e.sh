@@ -352,6 +352,35 @@ IDB="$(command -v idb || true)"
 
 mkdir -p "$EVIDENCE_DIR"
 
+json_has_ax_label() {
+  local file="$1"
+  local expected="$2"
+  python3 - "$file" "$expected" <<'PY'
+import json
+import sys
+
+try:
+    with open(sys.argv[1], encoding="utf-8") as stream:
+        payload = json.load(stream)
+except (OSError, json.JSONDecodeError):
+    # idb may produce empty or partial JSON while AXBridge reconnects.
+    # That observation must be retried, never misreported as a passed state.
+    raise SystemExit(1)
+expected = sys.argv[2]
+
+def walk(value):
+    if isinstance(value, dict):
+        if value.get("AXLabel") == expected:
+            return True
+        return any(walk(item) for item in value.values())
+    if isinstance(value, list):
+        return any(walk(item) for item in value)
+    return False
+
+raise SystemExit(0 if walk(payload) else 1)
+PY
+}
+
 assert_state() {
   local state="$1"
   local reason="$2"
@@ -558,35 +587,6 @@ PY
   fail "installed app did not complete register/rotate/revoke lifecycle"
 }
 
-
-json_has_ax_label() {
-  local file="$1"
-  local expected="$2"
-  python3 - "$file" "$expected" <<'PY'
-import json
-import sys
-
-try:
-    with open(sys.argv[1], encoding="utf-8") as stream:
-        payload = json.load(stream)
-except (OSError, json.JSONDecodeError):
-    # idb may produce empty or partial JSON while AXBridge reconnects.
-    # That observation must be retried, never misreported as a passed state.
-    raise SystemExit(1)
-expected = sys.argv[2]
-
-def walk(value):
-    if isinstance(value, dict):
-        if value.get("AXLabel") == expected:
-            return True
-        return any(walk(item) for item in value.values())
-    if isinstance(value, list):
-        return any(walk(item) for item in value)
-    return False
-
-raise SystemExit(0 if walk(payload) else 1)
-PY
-}
 
 json_has_ax_label_fragment() {
   local file="$1"
