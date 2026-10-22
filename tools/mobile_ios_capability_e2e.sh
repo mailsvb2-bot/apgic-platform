@@ -375,14 +375,36 @@ assert_state() {
       fail "state $state: simulator could not launch app"
     for observation in $(seq 1 30); do
       if "$IDB" ui describe-all --udid "$UDID" --api axbridge --json --nested >"$output" 2>/dev/null &&
-         grep -q "capability-state:${state}" "$output" &&
-         grep -q "capability-fallback:${reason}" "$output"; then
+         json_has_ax_label "$output" "capability-state:${state}" &&
+         json_has_ax_label "$output" "capability-fallback:${reason}"; then
         echo "iOS native E2E state $state: PASS"
         return 0
       fi
       sleep 1
     done
     echo "iOS state $state attempt $launch_attempt: no verified accessibility transition" >&2
+    xcrun simctl spawn "$UDID" launchctl list 2>/dev/null | grep -F "com.apgic.ci" >&2 || true
+    if [[ -s "$output" ]]; then
+      python3 - "$output" <<'PY' >&2 || true
+import json,sys
+try:
+    data=json.load(open(sys.argv[1]))
+    found=[]
+    def walk(node):
+        if isinstance(node,dict):
+            for key,value in node.items():
+                if isinstance(value,str) and ("capability-state:" in value or "capability-fallback:" in value):
+                    found.append((key,value[:180]))
+                elif isinstance(value,(dict,list)):
+                    walk(value)
+        elif isinstance(node,list):
+            for value in node: walk(value)
+    walk(data)
+    print("iOS observed capability AX labels:",found[:12],file=sys.stderr)
+except (OSError,ValueError) as exc:
+    print("iOS AX evidence unreadable:",type(exc).__name__,file=sys.stderr)
+PY
+    fi
   done
 
   [[ -f "$output" ]] && cat "$output" >&2 || true
