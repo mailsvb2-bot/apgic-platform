@@ -85,7 +85,7 @@ export function SpecialistDirectory(){
     <div className="marketplace-avatar" aria-hidden="true">{initials(p.display_name)}</div>
     <div className="marketplace-profile-copy"><h3>{p.display_name}</h3>
      <p>{professions[p.profession_code]??"Специалист"} (со слов пользователя)</p>
-     <p><strong>Специализация не подтверждена</strong></p>
+     <p role="status"><strong>Специализация не подтверждена</strong></p>
      <p>Документы и профессиональная квалификация находятся на проверке или ещё не предоставлены.</p>
      <button type="button" className="button-link secondary-action" aria-expanded={selectedRegistration===p.id}
       aria-controls={`registration-info-${p.id}`} onClick={()=>setSelectedRegistration(current=>current===p.id?null:p.id)}>
