@@ -38,7 +38,7 @@ func (s *journeyStub) ReadConsultationTimeline(_ context.Context, b, i string) (
 		Facts: []connector.ConsultationTimelineFact{{FactType: "ENDED", Role: "SYSTEM", EvidenceRef: "provider-signed/complete-1"}}}, nil
 }
 func (s *journeyStub) ReadConsultationOutcome(_ context.Context, b, i string) (*connector.OutcomeReport, error) {
-	if i != journeyIdentityID {
+	if i != journeyIdentityID || b != journeyBookingID {
 		return nil, nil
 	}
 	return &connector.OutcomeReport{BookingID: b, Progress: 1, MatchSatisfaction: 5}, nil
@@ -109,6 +109,24 @@ func TestConsultationJourneySignedSessionAndEvidence(t *testing.T) {
 		if err := json.Unmarshal(rr.Body.Bytes(), &m); err != nil || m["progress"] != float64(1) {
 			t.Fatalf("outcome=%s err=%v", rr.Body.String(), err)
 		}
+	}
+	// A different valid signed identity must not be able to enumerate another
+	// participant's readiness, event timeline or outcome.
+	stranger, err := sessions.issue("00000000-0000-4000-8000-000000000099")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{base + "/ready", base + "/timeline", base + "/outcome"} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.AddCookie(stranger)
+		rr := httptest.NewRecorder()
+		h.ServeHTTP(rr, req)
+		if rr.Code != http.StatusNotFound {
+			t.Fatalf("foreign identity disclosure on %s: HTTP %d body=%s", path, rr.Code, rr.Body.String())
+		}
+	}
+	if rr := call("GET", "/v1/consultations/00000000-0000-4000-8000-000000000099/outcome", "", true, false); rr.Code != http.StatusNotFound {
+		t.Fatalf("cross-booking outcome disclosure: HTTP %d body=%s", rr.Code, rr.Body.String())
 	}
 	if rr := call("GET", "/v1/consultations/not-uuid/ready", "", true, false); rr.Code != http.StatusBadRequest {
 		t.Fatalf("invalid UUID status=%d", rr.Code)
