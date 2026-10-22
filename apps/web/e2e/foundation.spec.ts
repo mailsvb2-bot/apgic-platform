@@ -416,6 +416,28 @@ test("critical journey boots when crypto.randomUUID is unavailable", async ({ pa
 
 
 
+test("registered unverified specialists can be inspected without bypassing booking gate", async ({ page }) => {
+  await page.route("**/v1/specialists/registrations*", route => route.fulfill({
+    status: 200, contentType: "application/json",
+    body: JSON.stringify({ profiles: [
+      { id: "unverified-test", display_name: "Маша", profession_code: "PSYCHOLOGIST", verification_status: "UNVERIFIED" }
+    ] })
+  }));
+  await page.route("**/v1/specialists?*", route => route.fulfill({
+    status: 200, contentType: "application/json",
+    body: JSON.stringify({ profiles: [], has_more: false })
+  }));
+  await page.goto("/specialists");
+  const section = page.getByRole("region", { name: "Зарегистрированные специалисты — без подтверждённой квалификации" });
+  await expect(section.getByRole("heading", { name: "Маша" })).toBeVisible();
+  await section.getByRole("button", { name: "Посмотреть сведения" }).click();
+  await expect(section.getByRole("region", { name: "Сведения о регистрации: Маша" })).toContainText("Анкета ещё не опубликована");
+  await expect(section.getByRole("link", { name: /Описать запрос/ })).toHaveAttribute("href", "/#start");
+  await expect(section.getByRole("link", { name: /записаться|оплатить|выбрать время/i })).toHaveCount(0);
+  await section.getByRole("button", { name: "Скрыть сведения" }).click();
+  await expect(section.getByRole("region", { name: "Сведения о регистрации: Маша" })).toHaveCount(0);
+});
+
 test("specialist registration reports unreachable API without losing the form", async ({ page }) => {
   await page.route("**/v1/specialist/profile", async route => {
     if (route.request().method() === "PUT") {
