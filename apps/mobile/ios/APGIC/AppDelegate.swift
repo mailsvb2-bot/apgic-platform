@@ -152,7 +152,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 #if DEBUG
     if let override = ProcessInfo.processInfo.environment["APGIC_E2E_CAPABILITY_STATE"],
        capabilityStates.contains(override) {
+      NSLog("APGIC_E2E_CAPABILITY_OVERRIDE_APPLIED state=%@", override)
       return override
+    }
+    if ProcessInfo.processInfo.environment["APGIC_E2E_CAPABILITY_STATE"] != nil {
+      NSLog("APGIC_E2E_CAPABILITY_OVERRIDE_REJECTED")
     }
 #endif
 
