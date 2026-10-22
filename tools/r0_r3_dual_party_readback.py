@@ -43,8 +43,9 @@ def validate_parties(client: dict, specialist: dict, client_result: dict,
 def denied_for_stranger(api_base: str, booking_id: str, cookie: str) -> bool:
     import urllib.error
     # An unrelated authenticated identity must not learn the appointment's
-    # existence via the readiness or result projections.
-    for path in (f"/v1/consultations/{booking_id}/ready",
+    # existence via the booking, readiness or result projections.
+    for path in (f"/v1/bookings/{booking_id}",
+                 f"/v1/consultations/{booking_id}/ready",
                  f"/v1/consultations/{booking_id}/result"):
         base.assert_local_api_base(api_base)
         request = base.urllib.request.Request(
