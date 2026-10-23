@@ -889,7 +889,7 @@ PY
     --ez APGIC_E2E_ACCESSIBILITY true \
     >/dev/null
 
-  for _ in $(seq 1 60); do
+  for attempt in $(seq 1 60); do
     if "$ADB" shell uiautomator dump /sdcard/apgic-accessibility.xml >/dev/null 2>&1 &&
        "$ADB" pull /sdcard/apgic-accessibility.xml "$output" >/dev/null 2>&1 &&
        grep -q 'a11y-action-primary' "$output" &&
@@ -897,6 +897,11 @@ PY
        grep -q 'a11y-font-scale:' "$output" &&
        grep -q 'a11y-reduced-motion:' "$output"; then
       break
+    fi
+    # UiAutomator exposes only the current ScrollView viewport. Move through
+    # the real rendered screen instead of retrying an unchanged top viewport.
+    if (( attempt % 3 == 0 )); then
+      "$ADB" shell input swipe 300 530 300 180 280 >/dev/null 2>&1 || true
     fi
     sleep 1
   done
@@ -968,7 +973,7 @@ for name, size, density in profiles:
     remote = f"/sdcard/apgic-a11y-{name.lower()}.xml"
     local = pathlib.Path(evidence_dir) / f"android-a11y-{name.lower()}.xml"
     ready = False
-    for _ in range(45):
+    for attempt in range(45):
         if subprocess.run([adb, "shell", "uiautomator", "dump", remote], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
             if subprocess.run([adb, "pull", remote, str(local)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
                 root = ET.parse(local).getroot()
@@ -976,6 +981,9 @@ for name, size, density in profiles:
                 if "a11y-action-primary" in labels and "a11y-action-secondary" in labels:
                     ready = True
                     break
+        if attempt % 3 == 2:
+            subprocess.run([adb, "shell", "input", "swipe", "300", "530", "300", "180", "280"],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         time.sleep(1)
     if not ready:
         raise SystemExit(f"{name}: accessibility controls not operable at representative size")
