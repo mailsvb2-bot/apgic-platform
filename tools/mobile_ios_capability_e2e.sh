@@ -482,6 +482,7 @@ assert_compatibility_policy() {
     [[ "$supported_verified" -eq 1 ]] && break
     echo "iOS supported compatibility attempt $launch_attempt: state evidence incomplete" >&2
     describe_compatibility_evidence "$supported_output"
+    [[ -f "$supported_output" ]] && cat "$supported_output" >&2 || true
   done
   [[ "$supported_verified" -eq 1 ]] ||
     fail "supported previous iOS contract did not remain usable under the updated backend contract"
