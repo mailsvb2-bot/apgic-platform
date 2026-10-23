@@ -449,54 +449,105 @@ assert_compatibility_policy() {
   local update_output="$EVIDENCE_DIR/ios-compatibility-update-required.json"
   local supported_installation_id
   supported_installation_id="$(python3 -c 'import uuid; print(uuid.uuid4())')"
+  local launch_attempt observation supported_verified=0 update_verified=0
 
-  xcrun simctl terminate "$UDID" com.apgic.ci >/dev/null 2>&1 || true
-  SIMCTL_CHILD_APGIC_E2E_CAPABILITY_STATE=GRANTED \
-  SIMCTL_CHILD_APGIC_E2E_COMPATIBILITY_BASE_URL=http://127.0.0.1:43113 \
-  SIMCTL_CHILD_APGIC_E2E_CONTRACT_VERSION=0.8.0-r2-offline-sync \
-  SIMCTL_CHILD_APGIC_E2E_INSTALLATION_BASE_URL=http://127.0.0.1:43113 \
-  SIMCTL_CHILD_APGIC_E2E_SESSION_COOKIE="$SESSION_COOKIE" \
-  SIMCTL_CHILD_APGIC_E2E_INSTALLATION_ID="$supported_installation_id" \
-  SIMCTL_CHILD_APGIC_E2E_INSTALLATION_PLATFORM=IOS \
-    xcrun simctl launch "$UDID" com.apgic.ci >/dev/null
-
-  for _ in $(seq 1 60); do
-    if "$IDB" ui describe-all --udid "$UDID" --api axbridge --json --nested >"$supported_output" 2>/dev/null &&
-       json_has_ax_label "$supported_output" "installation-e2e:PASS" &&
-       json_has_ax_label "$supported_output" "installation-e2e-state:REVOKED" &&
-       json_has_ax_label "$supported_output" "installation-e2e-generation:2" &&
-       ! json_has_ax_label "$supported_output" "compatibility-status:UPDATE_REQUIRED"; then
-      echo "iOS supported previous contract remained operational: PASS"
-      break
-    fi
-    sleep 1
+  # Do not reuse the preceding capability scenario's app container or AX tree.
+  # A fresh install and unique installation ID are mandatory on each attempt.
+  for launch_attempt in 1 2 3; do
+    xcrun simctl terminate "$UDID" com.apgic.ci >/dev/null 2>&1 || true
+    xcrun simctl uninstall "$UDID" com.apgic.ci >/dev/null 2>&1 || true
+    xcrun simctl install "$UDID" "$APP" ||
+      fail "supported compatibility: simulator app install failed"
+    rm -f "$supported_output"
+    SIMCTL_CHILD_APGIC_E2E_CAPABILITY_STATE=GRANTED \
+    SIMCTL_CHILD_APGIC_E2E_COMPATIBILITY_BASE_URL=http://127.0.0.1:43113 \
+    SIMCTL_CHILD_APGIC_E2E_CONTRACT_VERSION=0.8.0-r2-offline-sync \
+    SIMCTL_CHILD_APGIC_E2E_INSTALLATION_BASE_URL=http://127.0.0.1:43113 \
+    SIMCTL_CHILD_APGIC_E2E_SESSION_COOKIE="$SESSION_COOKIE" \
+    SIMCTL_CHILD_APGIC_E2E_INSTALLATION_ID="$supported_installation_id" \
+    SIMCTL_CHILD_APGIC_E2E_INSTALLATION_PLATFORM=IOS \
+      xcrun simctl launch --terminate-running-process "$UDID" com.apgic.ci >/dev/null ||
+      fail "supported compatibility: app launch failed"
+    for observation in $(seq 1 60); do
+      if "$IDB" ui describe-all --udid "$UDID" --api axbridge --json --nested >"$supported_output" 2>/dev/null &&
+         json_has_ax_label "$supported_output" "installation-e2e:PASS" &&
+         json_has_ax_label "$supported_output" "installation-e2e-state:REVOKED" &&
+         json_has_ax_label "$supported_output" "installation-e2e-generation:2" &&
+         ! json_has_ax_label "$supported_output" "compatibility-status:UPDATE_REQUIRED"; then
+        supported_verified=1
+        break
+      fi
+      sleep 1
+    done
+    [[ "$supported_verified" -eq 1 ]] && break
+    echo "iOS supported compatibility attempt $launch_attempt: state evidence incomplete" >&2
+    describe_compatibility_evidence "$supported_output"
   done
-  if ! json_has_ax_label "$supported_output" "installation-e2e:PASS"; then
-    [[ -f "$supported_output" ]] && cat "$supported_output" >&2 || true
+  [[ "$supported_verified" -eq 1 ]] ||
     fail "supported previous iOS contract did not remain usable under the updated backend contract"
-  fi
+  echo "iOS supported previous contract remained operational: PASS"
 
-  xcrun simctl terminate "$UDID" com.apgic.ci >/dev/null 2>&1 || true
-  SIMCTL_CHILD_APGIC_E2E_CAPABILITY_STATE=GRANTED \
-  SIMCTL_CHILD_APGIC_E2E_COMPATIBILITY_BASE_URL=http://127.0.0.1:43113 \
-  SIMCTL_CHILD_APGIC_E2E_CONTRACT_VERSION=0.7.0-unsupported \
-    xcrun simctl launch "$UDID" com.apgic.ci >/dev/null
-
-  for _ in $(seq 1 60); do
-    if "$IDB" ui describe-all --udid "$UDID" --api axbridge --json --nested >"$update_output" 2>/dev/null &&
-       json_has_ax_label "$update_output" "compatibility-e2e:PASS" &&
-       json_has_ax_label "$update_output" "compatibility-status:UPDATE_REQUIRED" &&
-       json_has_ax_label "$update_output" "compatibility-reason:CLIENT_CONTRACT_UNSUPPORTED" &&
-       json_has_ax_label "$update_output" "compatibility-update-reason:INCOMPATIBLE_CRITICAL" &&
-       json_has_ax_label "$update_output" "compatibility-update-action"; then
-      echo "iOS installed-app compatibility + governed update path: PASS"
-      return 0
-    fi
-    sleep 1
+  for launch_attempt in 1 2 3; do
+    xcrun simctl terminate "$UDID" com.apgic.ci >/dev/null 2>&1 || true
+    xcrun simctl uninstall "$UDID" com.apgic.ci >/dev/null 2>&1 || true
+    xcrun simctl install "$UDID" "$APP" ||
+      fail "unsupported compatibility: simulator app install failed"
+    rm -f "$update_output"
+    SIMCTL_CHILD_APGIC_E2E_CAPABILITY_STATE=GRANTED \
+    SIMCTL_CHILD_APGIC_E2E_COMPATIBILITY_BASE_URL=http://127.0.0.1:43113 \
+    SIMCTL_CHILD_APGIC_E2E_CONTRACT_VERSION=0.7.0-unsupported \
+      xcrun simctl launch --terminate-running-process "$UDID" com.apgic.ci >/dev/null ||
+      fail "unsupported compatibility: app launch failed"
+    for observation in $(seq 1 60); do
+      if "$IDB" ui describe-all --udid "$UDID" --api axbridge --json --nested >"$update_output" 2>/dev/null &&
+         json_has_ax_label "$update_output" "compatibility-e2e:PASS" &&
+         json_has_ax_label "$update_output" "compatibility-status:UPDATE_REQUIRED" &&
+         json_has_ax_label "$update_output" "compatibility-reason:CLIENT_CONTRACT_UNSUPPORTED" &&
+         json_has_ax_label "$update_output" "compatibility-update-reason:INCOMPATIBLE_CRITICAL" &&
+         json_has_ax_label "$update_output" "compatibility-update-action"; then
+        update_verified=1
+        break
+      fi
+      sleep 1
+    done
+    [[ "$update_verified" -eq 1 ]] && break
+    echo "iOS unsupported compatibility attempt $launch_attempt: state evidence incomplete" >&2
+    describe_compatibility_evidence "$update_output"
   done
+  [[ "$update_verified" -eq 1 ]] ||
+    fail "incompatible iOS client did not expose governed update-required UX"
+  echo "iOS installed-app compatibility + governed update path: PASS"
+}
 
-  [[ -f "$update_output" ]] && cat "$update_output" >&2 || true
-  fail "incompatible iOS client did not expose governed update-required UX"
+describe_compatibility_evidence() {
+  local path="$1"
+  if [[ ! -s "$path" ]]; then
+    echo "iOS compatibility AX evidence missing or empty" >&2
+    return 0
+  fi
+  python3 - "$path" <<'PY' >&2 || true
+import json, sys
+try:
+    with open(sys.argv[1], encoding="utf-8") as stream:
+        payload = json.load(stream)
+    labels = []
+    def visit(node):
+        if isinstance(node, dict):
+            label = node.get("AXLabel")
+            if isinstance(label, str) and (label.startswith("installation-e2e") or
+                label.startswith("compatibility-")):
+                labels.append(label)
+            for value in node.values():
+                if isinstance(value, (list, dict)):
+                    visit(value)
+        elif isinstance(node, list):
+            for value in node:
+                visit(value)
+    visit(payload)
+    print("iOS observed compatibility labels:", labels[:30], file=sys.stderr)
+except (OSError, ValueError) as exc:
+    print("iOS compatibility AX JSON unreadable:", type(exc).__name__, file=sys.stderr)
+PY
 }
 
 assert_remote_config_kill_switch() {
