@@ -40,12 +40,38 @@ def validate_parties(client: dict, specialist: dict, client_result: dict,
     return errors
 
 
+
+def validate_timelines(client: dict, specialist: dict, booking_id: str) -> list[str]:
+    """Demand identical durable completion evidence for both authorized roles."""
+    errors = []
+    for role, timeline in (("CLIENT", client), ("SPECIALIST", specialist)):
+        if timeline.get("booking_id") != booking_id or timeline.get("consultation_state") != "COMPLETED":
+            errors.append(role + "_TIMELINE_COMPLETION_NOT_PROVEN")
+        facts = timeline.get("facts")
+        if not isinstance(facts, list) or not any(
+            isinstance(fact, dict) and fact.get("fact_type") == "ENDED"
+            and isinstance(fact.get("evidence_ref"), str) and fact["evidence_ref"].strip()
+            for fact in facts
+        ):
+            errors.append(role + "_TIMELINE_END_EVIDENCE_MISSING")
+    if not errors:
+        def end_refs(timeline):
+            return {fact["evidence_ref"] for fact in timeline["facts"]
+                    if isinstance(fact, dict) and fact.get("fact_type") == "ENDED"
+                    and isinstance(fact.get("evidence_ref"), str) and fact["evidence_ref"].strip()}
+        if not end_refs(client).intersection(end_refs(specialist)):
+            errors.append("CROSS_ROLE_TIMELINE_EVIDENCE_MISMATCH")
+    return errors
+
+
 def denied_for_stranger(api_base: str, booking_id: str, cookie: str) -> bool:
     import urllib.error
     # An unrelated authenticated identity must not learn the appointment's
-    # existence via the readiness or result projections.
-    for path in (f"/v1/consultations/{booking_id}/ready",
-                 f"/v1/consultations/{booking_id}/result"):
+    # existence via the booking, readiness or result projections.
+    for path in (f"/v1/bookings/{booking_id}",
+                 f"/v1/consultations/{booking_id}/ready",
+                 f"/v1/consultations/{booking_id}/result",
+                 f"/v1/consultations/{booking_id}/timeline"):
         base.assert_local_api_base(api_base)
         request = base.urllib.request.Request(
             api_base.rstrip("/") + path, headers={"Cookie": cookie, "Accept": "application/json"})
@@ -88,10 +114,14 @@ def main() -> int:
         ready_path = f"/v1/consultations/{args.booking_id}/ready"
         client = base.fetch_json(args.api_base, ready_path, cookies[0])
         specialist = base.fetch_json(args.api_base, ready_path, cookies[1])
+        timeline_path = f"/v1/consultations/{args.booking_id}/timeline"
+        client_timeline = base.fetch_json(args.api_base, timeline_path, cookies[0])
+        specialist_timeline = base.fetch_json(args.api_base, timeline_path, cookies[1])
         errors = base.verify_observations(meta, directory, booking, client_result,
                                           args.candidate_sha, args.booking_id)
         errors += validate_parties(client, specialist, client_result, specialist_result,
                                    args.booking_id)
+        errors += validate_timelines(client_timeline, specialist_timeline, args.booking_id)
         if not denied_for_stranger(args.api_base, args.booking_id, cookies[2]):
             errors.append("R0_TENANT_PRIVACY_NOT_PROVEN")
     except base.ProbeError as exc:
