@@ -124,3 +124,68 @@ func consume(ctx context.Context, db *sql.DB, e event) error {
  SELECT 1 FROM outbox_events
  WHERE event_id=$1::uuid AND idempotency_key=$2 AND event_type=$3
    AND schema_version=$4 AND aggregate_ref=$5 AND aggregate_version=$6
+   AND producer=$7 AND correlation_id=$8
+   AND COALESCE(causation_id,'')=$9 AND COALESCE(tenant_scope,'')=$10
+   AND payload=$11::jsonb
+ )`, e.EventID, e.IdempotencyKey, e.EventType, e.SchemaVersion, e.AggregateRef,
+		e.AggregateVersion, e.Producer, e.CorrelationID, e.CausationID, e.TenantScope, string(e.Payload)).Scan(&valid)
+	if err != nil {
+		return err
+	}
+	if !valid {
+		return errMismatch
+	}
+	// Canonicalize wire body to make same event stable across JSON whitespace.
+	content, _ := json.Marshal(e)
+	digest := sha256.Sum256(content)
+	sum := hex.EncodeToString(digest[:])
+	var existingID, existingKey, existingDigest string
+	err = tx.QueryRowContext(ctx, `SELECT event_id::text,idempotency_key,payload_digest
+ FROM event_gateway_receipts WHERE event_id=$1::uuid OR idempotency_key=$2
+ FOR UPDATE`, e.EventID, e.IdempotencyKey).Scan(&existingID, &existingKey, &existingDigest)
+	if err == nil {
+		if existingID != e.EventID || existingKey != e.IdempotencyKey || existingDigest != sum {
+			return errMismatch
+		}
+		return tx.Commit()
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, `INSERT INTO event_gateway_receipts
+ (event_id,idempotency_key,event_type,aggregate_ref,payload_digest)
+ VALUES($1::uuid,$2,$3,$4,$5)`, e.EventID, e.IdempotencyKey, e.EventType, e.AggregateRef, sum)
+	if err != nil {
+		return fmt.Errorf("commit gateway receipt: %w", err)
+	}
+	return tx.Commit()
+}
+func main() {
+	url := os.Getenv("APGIC_DATABASE_URL")
+	principal := os.Getenv("APGIC_EVENT_GATEWAY_PRINCIPAL_ID")
+	token := os.Getenv("APGIC_EVENT_GATEWAY_CREDENTIAL")
+	addr := os.Getenv("APGIC_EVENT_GATEWAY_LISTEN_ADDR")
+	if addr == "" {
+		addr = "127.0.0.1:43114"
+	}
+	if url == "" || principal == "" || len(token) < 32 {
+		log.Fatal("gateway requires database, principal and credential")
+	}
+	db, err := sql.Open("pgx", url)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err = db.PingContext(ctx); err != nil {
+		log.Fatal(err)
+	}
+	var ready bool
+	if err = db.QueryRowContext(ctx, `SELECT to_regclass('public.event_gateway_receipts') IS NOT NULL`).Scan(&ready); err != nil || !ready {
+		log.Fatal("gateway migration missing", err)
+	}
+	server := &http.Server{Addr: addr, Handler: handler{db, principal, token}, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second}
+	log.Printf("APGIC booking event receiver on %s", addr)
+	log.Fatal(server.ListenAndServe())
+}
