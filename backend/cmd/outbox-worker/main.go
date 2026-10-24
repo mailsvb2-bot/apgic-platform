@@ -88,7 +88,6 @@ func workerSettings() (int, time.Duration, error) {
 	return batchSize, poll, nil
 }
 
-
 // gatewayHTTPClient routes a named HTTPS gateway to a loopback listener without
 // changing the URL authority, HTTP Host header, TLS SNI or certificate validation.
 // This avoids host-wide /etc/hosts overrides on a dedicated staging VPS.
