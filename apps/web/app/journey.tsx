@@ -1151,7 +1151,7 @@ export function Journey() {
           <div className="journey-stage-heading">
             <span className="journey-stage-kicker">Шаг 4</span>
             <div>
-              <h2 id="hold-title">{activeHoldUnverified ? "Статус брони не проверен" : hold.booking_state === "HELD" ? "Слот удерживается" : "Актуальное состояние брони"}</h2>
+              <h2 id="hold-title">{activeHoldUnverified ? "Статус предварительной записи не проверен" : hold.booking_state === "HELD" ? "Время удерживается — запись не подтверждена" : "Актуальное состояние записи"}</h2>
               <p>{activeHoldUnverified
                 ? "Данные могли устареть. Для продолжения требуется повторно проверить состояние на сервере."
                 : hold.booking_state === "CONFIRMED"
@@ -1162,11 +1162,11 @@ export function Journey() {
             </div>
           </div>
           <div className="booking-summary">
-            <div><span>Бронь</span><strong>{hold.booking_id}</strong></div>
+            <div><span>Идентификатор предварительной записи</span><strong>{hold.booking_id}</strong></div>
             <div><span>{activeHoldUnverified ? "Последний известный статус" : "Статус"}</span><strong>{hold.booking_state}</strong></div>
             <div><span>Удержание до</span><strong>{when(hold.expires_at)}</strong></div>
           </div>
-          <p className="meta">Бронь {hold.booking_id} в состоянии {hold.booking_state}. Удержание {hold.state} до {when(hold.expires_at)}.</p>
+          <p className="meta">Предварительная запись {hold.booking_id}: {hold.booking_state}. Удержание {hold.state} до {when(hold.expires_at)}. Подтверждение появится только после завершения предусмотренного сервером оформления.</p>
           {activeHoldUnverified ? <p role="alert">Актуальный статус на сервере не подтверждён. Показано последнее известное состояние; оно могло измениться. Повторите проверку.</p> : null}
           <button type="button" onClick={refreshActiveHold} disabled={pending || checkingActiveHold}>{checkingActiveHold ? "Проверяем статус…" : "Проверить статус брони"}</button>
           {holdTimeExpired && (hold.booking_state !== "CONFIRMED" || activeHoldUnverified) ? (
