@@ -222,10 +222,11 @@ if [[ "${APGIC_UPDATE_REEXEC:-0}" != "1" ]]; then
   APGIC_UPDATE_REEXEC=1 exec bash "$REPO_ROOT/deploy/staging/update-staging.sh" "$TARGET_SHA"
 fi
 
-echo "=== Build API, outbox worker and finance worker ==="
+echo "=== Build API, event gateway, outbox worker and finance worker ==="
 cd "$REPO_ROOT/backend"
 mkdir -p bin
 go build -o bin/apgic-api ./cmd/api
+go build -o bin/apgic-event-gateway ./cmd/event-gateway
 go build -o bin/apgic-outbox-worker ./cmd/outbox-worker
 go build -o bin/apgic-finance-worker ./cmd/finance-worker
 go build -o bin/apgic-finance-mfa-admin ./cmd/finance-mfa-admin
@@ -243,6 +244,7 @@ cd "$REPO_ROOT"
 
 echo "=== Reconcile staging maintenance units ==="
 maintenance_units=(
+  apgic-event-gateway-staging.service
   apgic-outbox-worker-staging.service
   apgic-finance-worker-staging.service
   apgic-staging-runtime-watchdog.service
