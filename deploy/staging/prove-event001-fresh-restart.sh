@@ -48,13 +48,15 @@ MARKER="$(query 'SELECT clock_timestamp()::text;')"
 export MARKER
 echo "Create a REAL authorized booking-ledger event now; no fixture is generated."
 for i in $(seq 1 60); do
-  FOUND="$(psql "$APGIC_DATABASE_URL" -XAt -v ON_ERROR_STOP=1 -v marker="$MARKER" -c "
+  FOUND="$(psql "$APGIC_DATABASE_URL" -XAt -v ON_ERROR_STOP=1 -v marker="$MARKER" <<\SQL
 SELECT count(*) FROM outbox_events o
 JOIN event_gateway_receipts r ON r.event_id=o.event_id
 WHERE o.event_type='booking.ledger_committed'
 AND o.produced_at > :'marker'::timestamptz
 AND o.delivery_status='DELIVERED' AND o.delivered_at IS NOT NULL
-AND o.attempts >= 1;")"
+AND o.attempts >= 1;
+SQL
+)"
   if [[ "$FOUND" =~ ^[0-9]+$ ]] && (( FOUND > 0 )); then
     echo "FRESH_EVENT_DELIVERY_PASS: $FOUND canonical new event(s) delivered after restart"
     exit 0
