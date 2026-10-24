@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net"
+	"net/url"
 	"os"
 	"os/signal"
 	"strconv"
@@ -32,11 +34,15 @@ func main() {
 	}
 	defer storage.Close()
 
+	httpClient, err := gatewayHTTPClient(os.Getenv("APGIC_EVENT_GATEWAY_URL"), os.Getenv("APGIC_EVENT_GATEWAY_DIAL_ADDR"))
+	if err != nil {
+		log.Fatalf("APGIC gateway dial configuration failed: %v", err)
+	}
 	deliverer, err := eventspine.NewHTTPDeliverer(
 		os.Getenv("APGIC_EVENT_GATEWAY_URL"),
 		os.Getenv("APGIC_EVENT_GATEWAY_PRINCIPAL_ID"),
 		os.Getenv("APGIC_EVENT_GATEWAY_CREDENTIAL"),
-		&http.Client{Timeout: 10 * time.Second},
+		httpClient,
 	)
 	if err != nil {
 		log.Fatalf("APGIC outbox event gateway configuration failed: %v", err)
@@ -80,4 +86,33 @@ func workerSettings() (int, time.Duration, error) {
 		poll = time.Duration(value) * time.Millisecond
 	}
 	return batchSize, poll, nil
+}
+
+
+// gatewayHTTPClient routes a named HTTPS gateway to a loopback listener without
+// changing the URL authority, HTTP Host header, TLS SNI or certificate validation.
+// This avoids host-wide /etc/hosts overrides on a dedicated staging VPS.
+func gatewayHTTPClient(endpoint, localDial string) (*http.Client, error) {
+	if localDial == "" {
+		return &http.Client{Timeout: 10 * time.Second}, nil
+	}
+	host, port, err := net.SplitHostPort(localDial)
+	if err != nil || port != "443" || net.ParseIP(host) == nil || !net.ParseIP(host).IsLoopback() {
+		return nil, fmt.Errorf("APGIC_EVENT_GATEWAY_DIAL_ADDR must be a loopback IP on port 443")
+	}
+	u, err := url.Parse(endpoint)
+	if err != nil || u.Scheme != "https" || u.Hostname() == "" || u.User != nil || u.Port() != "" {
+		return nil, fmt.Errorf("loopback gateway requires a named HTTPS URL without a custom port")
+	}
+	targetHost := net.JoinHostPort(u.Hostname(), "443")
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.Proxy = nil
+	transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+		if network != "tcp" || !strings.EqualFold(addr, targetHost) {
+			return nil, fmt.Errorf("blocked unexpected gateway dial: %s", addr)
+		}
+		var dialer net.Dialer
+		return dialer.DialContext(ctx, "tcp", localDial)
+	}
+	return &http.Client{Timeout: 10 * time.Second, Transport: transport}, nil
 }
