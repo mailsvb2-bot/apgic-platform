@@ -233,3 +233,33 @@ bash deploy/staging/update-staging.sh origin/main
 ```
 
 This path exists specifically to prevent code/schema skew when several migrations land between two deployed commits.
+
+
+## Version-controlled EVENT-001 ingress
+
+The canonical HTTPS gateway location is stored in
+`deploy/staging/nginx-event-gateway-location.conf`. The installer
+`deploy/staging/install-event-gateway-nginx.sh` writes that file to
+`/etc/nginx/snippets/apgic-event-gateway.conf`, adopts only the previously
+approved inline location in the Certbot TLS vhost, and replaces it with an
+explicit `include`. It validates `nginx -t`, reloads Nginx, waits for
+`HTTP 401` on a local unauthenticated HTTPS POST, verifies the website still
+responds `200`, and restores both files on failure. Re-running the installer
+updates the managed snippet without duplicate locations.
+
+`update-staging.sh` reconciles this HTTPS route after building and restarting
+API/Web **only when the gateway principal and credential are provisioned**;
+otherwise it defers gateway activation. It starts the gateway receiver but
+never enables the finance worker. Access remains restricted to
+`127.0.0.1`/`::1` at Nginx, and the gateway independently requires a scoped
+service bearer token. The outbox worker uses
+`APGIC_EVENT_GATEWAY_URL=https://apgic.ru/_internal/apgic-event-gateway`
+and `APGIC_EVENT_GATEWAY_DIAL_ADDR=127.0.0.1:443`. Do **not** change
+`/etc/hosts` or disable TLS verification.
+
+Secrets (`/etc/apgic/staging.env`), live PostgreSQL data, database backups,
+Let's Encrypt private keys, Nginx host certificates, and service logs must
+remain outside GitHub. GitHub versions the provisioning instructions and
+scripts, not a copy of staging user data. A fresh host still requires
+authorized host verification, TLS certificate issuance, private secrets and
+real external event proof before production claims.
