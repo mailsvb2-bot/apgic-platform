@@ -394,6 +394,16 @@ case "$finance_worker_enabled" in
     ;;
 esac
 
+# Reconcile the versioned local-only HTTPS gateway whenever receiver credentials exist.
+# Secrets stay exclusively in /etc/apgic/staging.env; do not start finance.
+if [[ -n "${APGIC_EVENT_GATEWAY_PRINCIPAL_ID:-}" && -n "${APGIC_EVENT_GATEWAY_CREDENTIAL:-}" ]]; then
+  echo "=== Reconcile managed gateway ingress ==="
+  systemctl enable --now apgic-event-gateway-staging.service
+  bash "$REPO_ROOT/deploy/staging/install-event-gateway-nginx.sh"
+else
+  echo "APGIC gateway ingress: deferred until receiver credentials configured"
+fi
+
 echo "=== Verify runtime ==="
 bash "$REPO_ROOT/deploy/staging/check-staging-runtime.sh"
 
