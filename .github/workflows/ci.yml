@@ -904,7 +904,7 @@ jobs:
             # Upstream React Native artifacts are fetched from Maven Central.
             # Retry only proven transient transport errors; a malformed
             # Podfile, checksum mismatch or compile error must fail immediately.
-            if ! grep -Eiq 'Connection reset by peer|curl: \\(56\\)|curl: \\(28\\)|Operation timed out|Read timed out|Could not resolve host|503 Service Unavailable|502 Bad Gateway|network is unreachable' "$log_file"; then
+            if ! grep -Eiq 'Connection reset by peer|curl: \\(56\\)|curl: \\(28\\)|Operation timed out|Read timed out|Could not resolve host|503 Service Unavailable|502 Bad Gateway|network is unreachable|\[Hermes\] Failed to download .* from https://repo1\\.maven\\.org/|Failed to download .* from https://repo1\\.maven\\.org/' "$log_file"; then
               echo "Non-network CocoaPods failure; refusing retry." >&2
               exit 1
             fi
