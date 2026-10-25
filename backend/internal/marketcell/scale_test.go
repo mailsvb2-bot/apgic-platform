@@ -2,6 +2,7 @@ package marketcell
 
 import (
 	"testing"
+	"math"
 	"time"
 )
 
@@ -146,5 +147,42 @@ func TestScaleReadyCannotBeSkippedFromDiscovery(t *testing.T) {
 	}
 	if err := cell.Transition(StateScaleReady, decision); err != ErrScaleTransitionDenied {
 		t.Fatalf("discovery cannot jump directly to scale-ready, got %v", err)
+	}
+}
+
+func TestScaleReadinessRejectsNonFiniteValues(t *testing.T) {
+	for _, value := range []float64{math.NaN(), math.Inf(1), math.Inf(-1)} {
+		t.Run("metric", func(t *testing.T) {
+			ev := passingEvidence()
+			ev.Metrics.BookingConversionPercent = value
+			if decision, err := EvaluateScaleReadiness(policy(), ev); err != ErrInvalidScaleInput || decision.Eligible {
+				t.Fatalf("non-finite conversion should fail closed: decision=%#v err=%v", decision, err)
+			}
+			ev = passingEvidence()
+			ev.Metrics.TimeToAvailableSlotP95Minutes = value
+			if decision, err := EvaluateScaleReadiness(policy(), ev); err != ErrInvalidScaleInput || decision.Eligible {
+				t.Fatalf("non-finite duration should fail closed: decision=%#v err=%v", decision, err)
+			}
+			p := policy()
+			p.Thresholds.ContributionMarginMinPercent = value
+			if decision, err := EvaluateScaleReadiness(p, passingEvidence()); err != ErrInvalidScaleInput || decision.Eligible {
+				t.Fatalf("non-finite threshold should fail closed: decision=%#v err=%v", decision, err)
+			}
+		})
+	}
+}
+
+func TestScaleTransitionRejectsCrossCellAndForgedBreaches(t *testing.T) {
+	decision, err := EvaluateScaleReadiness(policy(), passingEvidence())
+	if err != nil { t.Fatal(err) }
+	other := &MarketCell{ID:"different-cell",State:StateDemandTest}
+	if err := other.Transition(StateScaleReady, decision); err != ErrScaleTransitionDenied {
+		t.Fatalf("cross-cell decision was accepted: %v", err)
+	}
+	if other.State != StateDemandTest { t.Fatal("cross-cell attempt mutated state") }
+	cell := &MarketCell{ID:policy().MarketCellID,State:StateDemandTest}
+	decision.Breaches = []Breach{{Metric:"booking_conversion_percent"}}
+	if err := cell.Transition(StateScaleReady, decision); err != ErrScaleTransitionDenied {
+		t.Fatalf("decision with breaches was accepted: %v", err)
 	}
 }
