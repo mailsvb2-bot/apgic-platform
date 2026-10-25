@@ -1167,7 +1167,7 @@ export function Journey() {
             <div><span>{activeHoldUnverified ? "Последний известный статус" : "Статус"}</span><strong>{hold.booking_state}</strong></div>
             <div><span>Удержание до</span><strong>{when(hold.expires_at)}</strong></div>
           </div>
-          <p className="meta">Предварительная запись {hold.booking_id}: {hold.booking_state}. Удержание {hold.state} до {when(hold.expires_at)}. Подтверждение появится только после завершения предусмотренного сервером оформления.</p>
+          <p className="meta">Бронь {hold.booking_id} в состоянии {hold.booking_state}. Удержание {hold.state} до {when(hold.expires_at)}.</p>
           {activeHoldUnverified ? <p role="alert">Актуальный статус на сервере не подтверждён. Показано последнее известное состояние; оно могло измениться. Повторите проверку.</p> : null}
           <button type="button" onClick={refreshActiveHold} disabled={pending || checkingActiveHold}>{checkingActiveHold ? "Проверяем статус…" : "Проверить статус брони"}</button>
           {holdTimeExpired && (hold.booking_state !== "CONFIRMED" || activeHoldUnverified) ? (
