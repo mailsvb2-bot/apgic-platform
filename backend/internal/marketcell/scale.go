@@ -2,6 +2,7 @@ package marketcell
 
 import (
 	"errors"
+	"math"
 	"strings"
 	"time"
 )
@@ -78,6 +79,7 @@ type ScaleDecision struct {
 	Eligible      bool
 	ReasonCode    string
 	PolicyVersion string
+	MarketCellID  string
 	EvidenceID    string
 	Breaches      []Breach
 }
@@ -86,6 +88,7 @@ func EvaluateScaleReadiness(policy Policy, evidence EvidenceSnapshot) (ScaleDeci
 	base := ScaleDecision{
 		ReasonCode:    ReasonInvalidScaleInput,
 		PolicyVersion: policy.Version,
+		MarketCellID:  policy.MarketCellID,
 		EvidenceID:    evidence.ID,
 	}
 	if err := validatePolicy(policy); err != nil {
@@ -164,10 +167,10 @@ func validatePolicy(policy Policy) error {
 	if t.EligibleVerifiedSupplyMin < 0 ||
 		t.ActiveSpecialistsMin < 0 ||
 		t.DutySupplyMin < 0 ||
-		t.TimeToAvailableSlotMedianMaxMinutes < 0 ||
-		t.TimeToAvailableSlotP95MaxMinutes < 0 ||
-		t.ResponseTimeP95MaxMinutes < 0 ||
-		t.AcceptanceTimeP95MaxMinutes < 0 {
+		!finite(t.TimeToAvailableSlotMedianMaxMinutes) || t.TimeToAvailableSlotMedianMaxMinutes < 0 ||
+		!finite(t.TimeToAvailableSlotP95MaxMinutes) || t.TimeToAvailableSlotP95MaxMinutes < 0 ||
+		!finite(t.ResponseTimeP95MaxMinutes) || t.ResponseTimeP95MaxMinutes < 0 ||
+		!finite(t.AcceptanceTimeP95MaxMinutes) || t.AcceptanceTimeP95MaxMinutes < 0 {
 		return ErrInvalidScaleInput
 	}
 	for _, value := range []float64{
@@ -180,11 +183,11 @@ func validatePolicy(policy Policy) error {
 		t.ComplaintRateMaxPercent,
 		t.SafetyIncidentRateMaxPercent,
 	} {
-		if value < 0 || value > 100 {
+		if !finite(value) || value < 0 || value > 100 {
 			return ErrInvalidScaleInput
 		}
 	}
-	if t.ContributionMarginMinPercent < -100 || t.ContributionMarginMinPercent > 100 {
+	if !finite(t.ContributionMarginMinPercent) || t.ContributionMarginMinPercent < -100 || t.ContributionMarginMinPercent > 100 {
 		return ErrInvalidScaleInput
 	}
 	return nil
@@ -194,10 +197,10 @@ func validateMetrics(metrics Metrics) error {
 	if metrics.EligibleVerifiedSupply < 0 ||
 		metrics.ActiveSpecialists < 0 ||
 		metrics.DutySupply < 0 ||
-		metrics.TimeToAvailableSlotMedianMinutes < 0 ||
-		metrics.TimeToAvailableSlotP95Minutes < 0 ||
-		metrics.ResponseTimeP95Minutes < 0 ||
-		metrics.AcceptanceTimeP95Minutes < 0 {
+		!finite(metrics.TimeToAvailableSlotMedianMinutes) || metrics.TimeToAvailableSlotMedianMinutes < 0 ||
+		!finite(metrics.TimeToAvailableSlotP95Minutes) || metrics.TimeToAvailableSlotP95Minutes < 0 ||
+		!finite(metrics.ResponseTimeP95Minutes) || metrics.ResponseTimeP95Minutes < 0 ||
+		!finite(metrics.AcceptanceTimeP95Minutes) || metrics.AcceptanceTimeP95Minutes < 0 {
 		return ErrInvalidScaleInput
 	}
 	for _, value := range []float64{
@@ -214,11 +217,13 @@ func validateMetrics(metrics Metrics) error {
 			return ErrInvalidScaleInput
 		}
 	}
-	if metrics.ContributionMarginPercent < -100 || metrics.ContributionMarginPercent > 100 {
+	if !finite(metrics.ContributionMarginPercent) || metrics.ContributionMarginPercent < -100 || metrics.ContributionMarginPercent > 100 {
 		return ErrInvalidScaleInput
 	}
 	return nil
 }
+
+func finite(value float64) bool { return !math.IsNaN(value) && !math.IsInf(value, 0) }
 
 type State string
 
@@ -256,6 +261,8 @@ func (m *MarketCell) Transition(to State, decision ScaleDecision) error {
 		if to != StateScaleReady ||
 			!decision.Eligible ||
 			decision.ReasonCode != ReasonScaleReady ||
+			decision.MarketCellID != m.ID ||
+			len(decision.Breaches) != 0 ||
 			strings.TrimSpace(decision.PolicyVersion) == "" ||
 			strings.TrimSpace(decision.EvidenceID) == "" {
 			return ErrScaleTransitionDenied
