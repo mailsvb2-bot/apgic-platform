@@ -1151,7 +1151,7 @@ export function Journey() {
           <div className="journey-stage-heading">
             <span className="journey-stage-kicker">Шаг 4</span>
             <div>
-              <h2 id="hold-title">{activeHoldUnverified ? "Статус предварительной записи не проверен" : hold.booking_state === "HELD" ? "Слот удерживается" : "Актуальное состояние записи"}</h2>
+              <h2 id="hold-title">{activeHoldUnverified ? "Статус предварительной записи не проверен" : hold.booking_state === "HELD" ? "Слот удерживается" : "Актуальное состояние брони"}</h2>
               <p>{activeHoldUnverified
                 ? "Данные могли устареть. Для продолжения требуется повторно проверить состояние на сервере."
                 : hold.booking_state === "CONFIRMED"
