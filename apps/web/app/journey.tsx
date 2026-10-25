@@ -1151,7 +1151,7 @@ export function Journey() {
           <div className="journey-stage-heading">
             <span className="journey-stage-kicker">Шаг 4</span>
             <div>
-              <h2 id="hold-title">{activeHoldUnverified ? "Статус предварительной записи не проверен" : hold.booking_state === "HELD" ? "Время удерживается — запись не подтверждена" : "Актуальное состояние записи"}</h2>
+              <h2 id="hold-title">{activeHoldUnverified ? "Статус предварительной записи не проверен" : hold.booking_state === "HELD" ? "Слот удерживается" : "Актуальное состояние записи"}</h2>
               <p>{activeHoldUnverified
                 ? "Данные могли устареть. Для продолжения требуется повторно проверить состояние на сервере."
                 : hold.booking_state === "CONFIRMED"
@@ -1161,6 +1161,7 @@ export function Journey() {
                     : "Время временно удерживается, но запись ещё не подтверждена. Оплата через внешнего провайдера сейчас недоступна; удержание может истечь без подтверждения."}</p>
             </div>
           </div>
+          {hold.booking_state === "HELD" ? <p role="status" className="journey-payment-unavailable">Время временно удерживается. Это ещё не подтверждённая запись: для завершения требуется действующий внешний платёжный провайдер.</p> : null}
           <div className="booking-summary">
             <div><span>Идентификатор предварительной записи</span><strong>{hold.booking_id}</strong></div>
             <div><span>{activeHoldUnverified ? "Последний известный статус" : "Статус"}</span><strong>{hold.booking_state}</strong></div>
