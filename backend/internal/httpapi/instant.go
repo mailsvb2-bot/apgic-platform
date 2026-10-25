@@ -3,6 +3,7 @@ package httpapi
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"time"
 
@@ -81,7 +82,7 @@ func registerInstant(mux *http.ServeMux, store instant.Store,
 			Available *bool  `json:"available"`
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, 4096)
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Available == nil {
+		if err := decodeInstantCommand(r, &body); err != nil || body.Available == nil {
 			writeInstantError(w, r, instant.ErrInvalid)
 			return
 		}
@@ -118,7 +119,7 @@ func registerInstant(mux *http.ServeMux, store instant.Store,
 			RequestKey   string `json:"request_key"`
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, 4096)
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		if err := decodeInstantCommand(r, &body); err != nil {
 			writeInstantError(w, r, instant.ErrInvalid)
 			return
 		}
@@ -178,7 +179,7 @@ func registerInstant(mux *http.ServeMux, store instant.Store,
 			Accept *bool `json:"accept"`
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, 4096)
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Accept == nil {
+		if err := decodeInstantCommand(r, &body); err != nil || body.Accept == nil {
 			writeInstantError(w, r, instant.ErrInvalid)
 			return
 		}
@@ -204,4 +205,22 @@ func writeInstantError(w http.ResponseWriter, r *http.Request, err error) {
 	default:
 		writeDemandError(w, r, http.StatusServiceUnavailable, "DUTY_STORAGE_UNAVAILABLE", "Не удалось обновить дежурство. Повторите попытку.", true, nil)
 	}
+}
+
+// decodeInstantCommand rejects unknown fields and trailing JSON commands.
+// A single signed request must never smuggle an additional mutation payload.
+func decodeInstantCommand(r *http.Request, target any) error {
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(target); err != nil {
+		return err
+	}
+	var extra any
+	if err := decoder.Decode(&extra); err != io.EOF {
+		if err == nil {
+			return instant.ErrInvalid
+		}
+		return err
+	}
+	return nil
 }
