@@ -213,7 +213,7 @@ func validateMetrics(metrics Metrics) error {
 		metrics.ComplaintRatePercent,
 		metrics.SafetyIncidentRatePercent,
 	} {
-		if value < 0 || value > 100 {
+		if !finite(value) || value < 0 || value > 100 {
 			return ErrInvalidScaleInput
 		}
 	}
