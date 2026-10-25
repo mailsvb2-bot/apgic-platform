@@ -1,8 +1,8 @@
 package marketcell
 
 import (
-	"testing"
 	"math"
+	"testing"
 	"time"
 )
 
@@ -174,14 +174,18 @@ func TestScaleReadinessRejectsNonFiniteValues(t *testing.T) {
 
 func TestScaleTransitionRejectsCrossCellAndForgedBreaches(t *testing.T) {
 	decision, err := EvaluateScaleReadiness(policy(), passingEvidence())
-	if err != nil { t.Fatal(err) }
-	other := &MarketCell{ID:"different-cell",State:StateDemandTest}
+	if err != nil {
+		t.Fatal(err)
+	}
+	other := &MarketCell{ID: "different-cell", State: StateDemandTest}
 	if err := other.Transition(StateScaleReady, decision); err != ErrScaleTransitionDenied {
 		t.Fatalf("cross-cell decision was accepted: %v", err)
 	}
-	if other.State != StateDemandTest { t.Fatal("cross-cell attempt mutated state") }
-	cell := &MarketCell{ID:policy().MarketCellID,State:StateDemandTest}
-	decision.Breaches = []Breach{{Metric:"booking_conversion_percent"}}
+	if other.State != StateDemandTest {
+		t.Fatal("cross-cell attempt mutated state")
+	}
+	cell := &MarketCell{ID: policy().MarketCellID, State: StateDemandTest}
+	decision.Breaches = []Breach{{Metric: "booking_conversion_percent"}}
 	if err := cell.Transition(StateScaleReady, decision); err != ErrScaleTransitionDenied {
 		t.Fatalf("decision with breaches was accepted: %v", err)
 	}
