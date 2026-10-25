@@ -47,6 +47,7 @@ export default function SpecialistPage() {
             <a href="/specialists">Каталог специалистов</a>
             <a href="/organization">Организация</a>
             <a href="#path">Как подключиться</a>
+            <a href="/specialist/now">Принимать сейчас</a>
             <a href="#onboarding">Мой кабинет</a>
           </nav>
         </header>

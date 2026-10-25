@@ -1,0 +1,158 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apgic.ru/contracts/instant-duty-v1.schema.json",
+  "title": "APGIC R6 Duty/Now Prepayment Dispatch",
+  "description": "The accepted dispatch is an agreement to proceed to a real non-custodial payment; no access/booking/room is minted by this contract.",
+  "type": "object",
+  "required": [
+    "id",
+    "request_key",
+    "client_identity_id",
+    "help_intent_id",
+    "state",
+    "next_action",
+    "room_ready"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "request_key": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "client_identity_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "help_intent_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "specialist_identity_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "offer_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "topic_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "price_minor": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "currency": {
+      "const": "RUB"
+    },
+    "state": {
+      "enum": [
+        "UNFILLED",
+        "OFFERED",
+        "ACCEPTED",
+        "DECLINED",
+        "EXPIRED",
+        "CANCELLED",
+        "INVALIDATED"
+      ]
+    },
+    "next_action": {
+      "enum": [
+        "WAIT_SPECIALIST_RESPONSE",
+        "PAY_REAL_PROVIDER_REQUIRED",
+        "RETRY_OR_BOOK_LATER"
+      ]
+    },
+    "room_ready": {
+      "const": false
+    },
+    "offered_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "responded_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "const": "ACCEPTED"
+          }
+        },
+        "required": [
+          "state"
+        ]
+      },
+      "then": {
+        "properties": {
+          "next_action": {
+            "const": "PAY_REAL_PROVIDER_REQUIRED"
+          }
+        },
+        "required": [
+          "specialist_identity_id",
+          "offer_id",
+          "price_minor",
+          "currency"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "const": "OFFERED"
+          }
+        },
+        "required": [
+          "state"
+        ]
+      },
+      "then": {
+        "properties": {
+          "next_action": {
+            "const": "WAIT_SPECIALIST_RESPONSE"
+          }
+        },
+        "required": [
+          "specialist_identity_id",
+          "offer_id",
+          "price_minor",
+          "currency"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "const": "UNFILLED"
+          }
+        },
+        "required": [
+          "state"
+        ]
+      },
+      "then": {
+        "properties": {
+          "next_action": {
+            "const": "RETRY_OR_BOOK_LATER"
+          }
+        }
+      }
+    }
+  ],
+  "additionalProperties": false
+}

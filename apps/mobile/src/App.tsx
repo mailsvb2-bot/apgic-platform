@@ -15,6 +15,7 @@ import {
 
 import {apiContractVersion} from "./api-contract.ts";
 import {NativeSpecialistDirectory} from "./native-specialist-directory.tsx";
+import {InstantNowSurface} from "./instant-now-surface.tsx";
 import {
   decideCapability,
   type CapabilityState,
@@ -254,6 +255,7 @@ export default function App({
     "IDLE" | "RUNNING" | "DRAFT" | "CONFIRMED" | "FAIL"
   >("IDLE");
   const [demandError, setDemandError] = useState("");
+  const [instantPanelMode, setInstantPanelMode] = useState<"client" | "specialist" | null>(null);
   const demandConfirmationInFlight = useRef(false);
   const [demandTouchEvidence, setDemandTouchEvidence] = useState({down: 0, up: 0, press: 0});
   // Explicit private panel: do not displace the primary HelpIntent journey.
@@ -1184,6 +1186,7 @@ export default function App({
                     <Text>Изменить описание или создать новый запрос</Text>
                   </Pressable>
                 ) : null}
+                {demandStatus === "CONFIRMED" ? <Pressable accessibilityRole="button" accessibilityLabel="Консультация сейчас после подтверждения запроса" style={styles.demandAction} onPress={() => setInstantPanelMode("client")}><Text>Поговорить со специалистом сейчас</Text></Pressable> : null}
                 {demandStatus === "CONFIRMED" && demandTopics.length>0 ? (
                   <NativeSpecialistDirectory baseURL={demandAPIBaseURL} topic={demandTopics[0]} />
                 ) : null}
@@ -1228,6 +1231,7 @@ export default function App({
           </View>
         ) : null}
 
+        {!infrastructureE2EActive ? <View><Pressable accessibilityRole="button" accessibilityLabel="Открыть дежурство специалиста" style={styles.demandAction} onPress={() => setInstantPanelMode(instantPanelMode === "specialist" ? null : "specialist")}><Text>Для специалистов: дежурство</Text></Pressable>{instantPanelMode ? <View><Pressable accessibilityRole="button" onPress={() => setInstantPanelMode(null)}><Text>Закрыть раздел дежурства</Text></Pressable><InstantNowSurface key={instantPanelMode} initialMode={instantPanelMode} intentID={demandStatus === "CONFIRMED" ? demandIntent?.id : undefined} options={{baseURL: demandAPIBaseURL, sessionCookie: demandE2ESessionCookie}} enabled={compatibilityAllowsRuntime} /></View> : null}</View> : null}
         {demandE2E.status !== "IDLE" ? (
           <View style={styles.capability} accessibilityRole="summary">
             <Text accessibilityLabel={`demand-e2e:${demandE2E.status}`}>
