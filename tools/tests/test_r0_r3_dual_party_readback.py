@@ -34,6 +34,7 @@ class DualPartyTests(unittest.TestCase):
    (2,"state","JOINED","CLIENT_PROVIDER_COMPLETION_NOT_PROVEN"),
    (3,"completion_evidence_ref","","SPECIALIST_PROVIDER_EVIDENCE_MISSING"),
    (3,"provider_instance_id","other-provider","CROSS_ROLE_PROVIDER_RESULT_MISMATCH"),
+   (2,"provider_instance_id","","CLIENT_PROVIDER_ID_MISSING"),
   ]
   for index,key,value,wanted in cases:
    with self.subTest(wanted=wanted):
