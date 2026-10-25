@@ -34,7 +34,10 @@ def validate_parties(client: dict, specialist: dict, client_result: dict,
         evidence = result.get("completion_evidence_ref")
         if not isinstance(evidence, str) or not evidence.strip():
             errors.append(role + "_PROVIDER_EVIDENCE_MISSING")
-        refs.append((result.get("provider_instance_id"), evidence))
+        provider = result.get("provider_instance_id")
+        if not isinstance(provider, str) or not provider.strip():
+            errors.append(role + "_PROVIDER_ID_MISSING")
+        refs.append((provider, evidence))
     if refs[0] != refs[1]:
         errors.append("CROSS_ROLE_PROVIDER_RESULT_MISMATCH")
     return errors
