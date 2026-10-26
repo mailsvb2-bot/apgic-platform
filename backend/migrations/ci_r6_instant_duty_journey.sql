@@ -120,6 +120,26 @@ BEGIN
       AND specialist_identity_id='00000000-0000-0000-0000-00000000a901') THEN
     RAISE EXCEPTION 'R6 economic proposal lost specialist ownership or canonical price';
   END IF;
+  -- An ordinary canonical R2 hold cannot displace a specialist while
+  -- this verified R6 offer is awaiting acceptance. No second ledger.
+  INSERT INTO booking_slots (id,specialist_identity_id,tenant_scope,starts_at,ends_at)
+  VALUES ('00000000-0000-0000-0000-00000000a951',
+    '00000000-0000-0000-0000-00000000a901','r6-r2-journey',
+    now()+interval '15 minutes',now()+interval '60 minutes');
+  DECLARE
+    held boolean;
+    reason text;
+  BEGIN
+    SELECT h.acquired,h.reason_code INTO held,reason
+      FROM apgic_acquire_slot_hold(
+        '00000000-0000-0000-0000-00000000a952',
+        '00000000-0000-0000-0000-00000000a951',
+        '00000000-0000-0000-0000-00000000a903',
+        now()+interval '5 minutes',now()) h;
+    IF held IS DISTINCT FROM false OR reason <> 'BOOK_SLOT_DUTY_BUSY' THEN
+      RAISE EXCEPTION 'R2 acquired conflicting hold during R6 OFFERED: % %',held,reason;
+    END IF;
+  END;
   outcome := apgic_instant_request(
    '00000000-0000-0000-0000-00000000a932',
    '00000000-0000-0000-0000-00000000a941',
@@ -163,6 +183,25 @@ BEGIN
   IF outcome <> 'DUTY_CANCELLED' THEN
     RAISE EXCEPTION 'R6 owner cannot cancel pending payment: %',outcome;
   END IF;
+  -- After cancellation the same R2 slot may be held normally; this protects
+  -- the legitimate scheduled-booking journey from permanent duty lockout.
+  DECLARE
+    held boolean;
+    reason text;
+  BEGIN
+    SELECT h.acquired,h.reason_code INTO held,reason
+      FROM apgic_acquire_slot_hold(
+        '00000000-0000-0000-0000-00000000a952',
+        '00000000-0000-0000-0000-00000000a951',
+        '00000000-0000-0000-0000-00000000a903',
+        now()+interval '5 minutes',now()) h;
+    IF held IS DISTINCT FROM true OR reason <> 'BOOK_HOLD_ACQUIRED' THEN
+      RAISE EXCEPTION 'R2 booking still blocked after R6 cancellation: % %',held,reason;
+    END IF;
+  END;
+  UPDATE booking_holds SET state='RELEASED',updated_at=now()
+    WHERE id='00000000-0000-0000-0000-00000000a952';
+
   outcome := apgic_instant_cancel(
    '00000000-0000-0000-0000-00000000a931',
    '00000000-0000-0000-0000-00000000a902',now());
