@@ -648,7 +648,8 @@ jobs:
 
   restore-drill:
     name: PostgreSQL isolated restore drill
-    runs-on: ubuntu-latest
+    # Pin the runner OS: ubuntu-latest moved to 26.04 without PG16 client packages.
+    runs-on: ubuntu-24.04
     services:
       postgres:
         image: postgres:16-alpine
