@@ -140,6 +140,21 @@ BEGIN
       RAISE EXCEPTION 'R2 acquired conflicting hold during R6 OFFERED: % %',held,reason;
     END IF;
   END;
+  -- A direct INSERT bypassing the canonical R2 procedure cannot sneak in
+  -- a conflicting hold while R6 owns the specialist's immediate window.
+  BEGIN
+    INSERT INTO booking_holds
+      (id,slot_id,client_identity_id,state,expires_at,created_at,updated_at)
+    VALUES ('00000000-0000-0000-0000-00000000a953',
+      '00000000-0000-0000-0000-00000000a951',
+      '00000000-0000-0000-0000-00000000a903','ACTIVE',
+      now()+interval '5 minutes',now(),now());
+    RAISE EXCEPTION 'direct R2 insert bypassed Duty/Now exclusion';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM NOT LIKE '%booking hold conflicts with active Duty/Now offer%' THEN
+      RAISE;
+    END IF;
+  END;
   outcome := apgic_instant_request(
    '00000000-0000-0000-0000-00000000a932',
    '00000000-0000-0000-0000-00000000a941',
@@ -197,6 +212,20 @@ BEGIN
         now()+interval '5 minutes',now()) h;
     IF held IS DISTINCT FROM true OR reason <> 'BOOK_HOLD_ACQUIRED' THEN
       RAISE EXCEPTION 'R2 booking still blocked after R6 cancellation: % %',held,reason;
+    END IF;
+  END;
+  -- Inverse ordering: R2 acquires the canonical hold first, then R6
+  -- attempts dispatch. The R6 state transition must fail closed.
+  BEGIN
+    outcome := apgic_instant_request(
+      '00000000-0000-0000-0000-00000000a938',
+      '00000000-0000-0000-0000-00000000a948',
+      '00000000-0000-0000-0000-00000000a902',
+      '00000000-0000-0000-0000-00000000a921',now());
+    RAISE EXCEPTION 'R6 dispatched overlapping a canonical R2 hold: %',outcome;
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM NOT LIKE '%Duty/Now dispatch conflicts with existing canonical booking hold%' THEN
+      RAISE;
     END IF;
   END;
   UPDATE booking_holds SET state='RELEASED',updated_at=now()
