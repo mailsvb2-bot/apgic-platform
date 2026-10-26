@@ -78,25 +78,20 @@ func (c *Checker) PrepareCommunicationJoin(ctx context.Context, bookingID, ident
 	if !errors.Is(err, sql.ErrNoRows) && err != nil {
 		return nil, fmt.Errorf("read communication entitlement: %w", err)
 	}
-	// Production participant access requires an immutable signed economic
-	// basis. A self-asserted ACTIVE entitlement cannot bypass the PSP even
-	// if a caller has somehow forged a CONFIRMED booking state.
+	// Production live room admission requires genuine PSP capture with
+	// signed provider receipt, order-matched economic evidence and no refund.
+	// Entitlement alone, a manually confirmed booking or a ledger fixture
+	// cannot grant communication credentials. The same policy applies to
+	// ordinary R2 bookings and Duty/Now handoff bookings.
 	if slotScope == "specialist/live" && entitlementState == "ACTIVE" {
-		var signedCaptureBasis bool
-		err = c.db.QueryRowContext(ctx, `
-			SELECT EXISTS (
-				SELECT 1 FROM bookings b
-				JOIN orders o ON o.booking_id=b.id
-				JOIN ledger_entries l ON l.economic_event_ref=o.id::text
-				WHERE b.id=$1::uuid AND b.state='CONFIRMED'
-					AND $2=('ledger/' || l.id::text)
-					AND l.amount_minor=o.amount_minor AND l.currency=o.currency
-					AND b.ends_at>$3 AND btrim(l.provider_evidence_ref)<>''
-			)`, bookingID, basisRef, now.UTC()).Scan(&signedCaptureBasis)
+		var verified bool
+		err = c.db.QueryRowContext(ctx,
+			"SELECT apgic_live_consultation_payment_authorized($1::uuid,$2,$3)",
+			bookingID, basisRef, now.UTC()).Scan(&verified)
 		if err != nil {
-			return nil, fmt.Errorf("verify live booking media entitlement provenance: %w", err)
+			return nil, fmt.Errorf("verify signed live consultation payment: %w", err)
 		}
-		if !signedCaptureBasis {
+		if !verified {
 			entitlementState = "REVOKED"
 		}
 	}
