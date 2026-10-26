@@ -116,6 +116,7 @@ func main() {
 	handler := httpapi.New(httpapi.Options{
 		CommitSHA:                 os.Getenv("APGIC_COMMIT_SHA"),
 		ConformanceProviderEvents: !runtimepostgres.RequiresDatabase(environment) && os.Getenv("APGIC_CONFORMANCE_PROVIDER_EVENTS") == "1",
+		BlockSyntheticAccountDeletion: runtimepostgres.RequiresDatabase(environment),
 		ProviderWebhookKeys:       providerWebhookKeys,
 		ConsultationProvider:      storage,
 		Finance:                   financeStore(storage),
