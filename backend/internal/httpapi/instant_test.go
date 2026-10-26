@@ -238,11 +238,11 @@ func (s *fakeDutyStore) ReadFulfillment(id, identity string) (instant.Fulfillmen
 		return instant.Fulfillment{}, instant.ErrNotFound
 	}
 	return instant.Fulfillment{
-		DispatchID: id,
-		DispatchState: s.dispatch.State,
-		NextAction: instant.ActionAwaitBooking,
+		DispatchID:      id,
+		DispatchState:   s.dispatch.State,
+		NextAction:      instant.ActionAwaitBooking,
 		PaymentVerified: false,
-		RoomReady: false,
+		RoomReady:       false,
 	}, nil
 }
 
@@ -255,7 +255,9 @@ func TestDutyFulfillmentIsSessionOwnedAndDoesNotMintRoom(t *testing.T) {
 	}}
 	key := []byte(strings.Repeat("s", 32))
 	sessions, err := newClientSessionManager(key, time.Now)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+			t.Fatal(err)
+		}
 	handler := New(Options{Instant: store, InstantEnabled: true, ClientSessionKey: key})
 	path := "/v1/instant/dispatches/" + id + "/fulfillment"
 	read := func(identity string) *httptest.ResponseRecorder {
@@ -263,7 +265,9 @@ func TestDutyFulfillmentIsSessionOwnedAndDoesNotMintRoom(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, path, nil)
 		if identity != "" {
 			cookie, err := sessions.issue(identity)
-			if err != nil { t.Fatal(err) }
+			if err != nil {
+			t.Fatal(err)
+		}
 			req.AddCookie(cookie)
 		}
 		w := httptest.NewRecorder()
@@ -271,18 +275,20 @@ func TestDutyFulfillmentIsSessionOwnedAndDoesNotMintRoom(t *testing.T) {
 		return w
 	}
 	if w := read(""); w.Code != http.StatusUnauthorized {
-		t.Fatalf("unsigned fulfillment read succeeded: %d",w.Code)
+		t.Fatalf("unsigned fulfillment read succeeded: %d", w.Code)
 	}
 	if w := read(stranger); w.Code != http.StatusNotFound {
-		t.Fatalf("foreign fulfillment read succeeded: %d %s",w.Code,w.Body.String())
+		t.Fatalf("foreign fulfillment read succeeded: %d %s", w.Code, w.Body.String())
 	}
 	w := read(owner)
 	if w.Code != http.StatusOK || w.Header().Get("Cache-Control") != "no-store" {
-		t.Fatalf("owner read failed: %d %s",w.Code,w.Body.String())
+		t.Fatalf("owner read failed: %d %s", w.Code, w.Body.String())
 	}
 	var status instant.Fulfillment
-	if err := json.Unmarshal(w.Body.Bytes(), &status); err != nil { t.Fatal(err) }
+	if err := json.Unmarshal(w.Body.Bytes(), &status); err != nil {
+		t.Fatal(err)
+	}
 	if status.BookingID != "" || status.PaymentVerified || status.RoomReady {
-		t.Fatalf("accepted R6 without canonical R2 minted access: %+v",status)
+		t.Fatalf("accepted R6 without canonical R2 minted access: %+v", status)
 	}
 }
