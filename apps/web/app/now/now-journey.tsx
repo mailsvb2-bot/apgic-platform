@@ -3,6 +3,7 @@ import {useEffect,useRef,useState} from "react";
 
 type Intent={id:string;topics:string[];goals:string[];context:Record<string,string>};
 type Duty={id:string;help_intent_id?:string;state:string;topic_id?:string;price_minor?:number;currency?:string;expires_at?:string;next_action:string;room_ready:boolean};
+type Fulfillment={dispatch_id:string;dispatch_state:string;booking_id?:string;booking_state?:string;payment_verified:boolean;next_action:string;room_ready:boolean};
 type ApiError={code?:string;message_safe?:string};
 const styles={panel:{background:"var(--surface, #fff)",border:"1px solid #ccc",borderRadius:14,padding:22,marginTop:16} as const,button:{padding:"0.7rem 1.1rem",borderRadius:8,marginTop:14,cursor:"pointer"} as const};
 async function api<T>(path:string,body?:unknown,method="POST"):Promise<T>{
@@ -16,6 +17,7 @@ export function NowJourney(){
  const [text,setText]=useState("");const [intent,setIntent]=useState<Intent|null>(null);
  const [topic,setTopic]=useState("");const [confirmed,setConfirmed]=useState(false);
  const [dispatch,setDispatch]=useState<Duty|null>(null);const [busy,setBusy]=useState(false);
+ const [fulfillment,setFulfillment]=useState<Fulfillment|null>(null);
  const [error,setError]=useState("");const [notice,setNotice]=useState("");
  const retryKeyRef=useRef<string|null>(null);
  useEffect(()=>{
@@ -25,7 +27,7 @@ export function NowJourney(){
  useEffect(()=>{
   if(!dispatch || (dispatch.state!=="OFFERED" && dispatch.state!=="ACCEPTED"))return;
   const timer=window.setInterval(async()=>{
-   try{const next=await api<Duty>("/instant/dispatches/"+encodeURIComponent(dispatch.id));setDispatch(next);}
+   try{const next=await api<Duty>("/instant/dispatches/"+encodeURIComponent(dispatch.id));setDispatch(next);if(next.state==="ACCEPTED"){const status=await api<Fulfillment>("/instant/dispatches/"+encodeURIComponent(dispatch.id)+"/fulfillment");if(status.room_ready)throw new Error("Некорректное разрешение на комнату.");setFulfillment(status);}}
    catch(e){setError(e instanceof Error?e.message:"Связь потеряна");}
   },3000);
   return ()=>window.clearInterval(timer);
@@ -58,6 +60,7 @@ export function NowJourney(){
    const next=await api<Duty>("/instant/dispatches",{help_intent_id:intent.id,request_key:retryKeyRef.current});
    if(next.room_ready)throw new Error("Недопустимый доступ к неоплаченной консультации.");
    setDispatch(next);
+   setFulfillment(null);
   }catch(e){
    // POST may have committed before the network response was lost.
    // Read the signed owner's durable state instead of double-dispatching.
@@ -104,7 +107,7 @@ export function NowJourney(){
    <h2>{dispatch.state==="OFFERED"?"Ожидаем ответ специалиста":dispatch.state==="ACCEPTED"?"Специалист ответил":dispatch.state==="UNFILLED"?"Свободного специалиста нет":dispatch.state==="DECLINED"?"Специалист не смог принять":dispatch.state==="EXPIRED"?"Предложение истекло":dispatch.state==="INVALIDATED"?"Предложение отозвано":"Статус предложения"}</h2>
    {dispatch.state==="OFFERED"&&<p>Предложение отправлено. Ожидание до {dispatch.expires_at?new Date(dispatch.expires_at).toLocaleTimeString("ru-RU"):"истечения предложения"}.</p>}
    {dispatch.state==="INVALIDATED"&&<p>Статус специалиста изменился. Данное предложение больше недействительно, к оплате или разговору по нему переходить нельзя.</p>}
-   {dispatch.state==="ACCEPTED"&&<p>Специалист принял запрос. Для начала платной консультации требуется подтверждённый платёж через внешнего провайдера. Пока оплата не подключена, доступ к разговору закрыт.</p>}
+   {dispatch.state==="ACCEPTED"&&<><p>Специалист принял запрос. Консультация начнётся только после канонической записи и подтверждённой оплаты.</p>{fulfillment?.booking_id&&<p>Бронь R2: {fulfillment.booking_state}. {fulfillment.payment_verified?"Провайдер подтвердил оплату; доступ к звонку проверяется отдельно в R3.":"Оплата не подтверждена."}</p>}{!fulfillment?.booking_id&&<p>Бронь ещё не оформлена, платёж и комната недоступны.</p>}</>}
    {dispatch.price_minor&&<p>Цена предложения: <strong>{(dispatch.price_minor/100).toLocaleString("ru-RU")} {dispatch.currency}</strong>. Списание сейчас не выполняется.</p>}
    {["OFFERED","ACCEPTED"].includes(dispatch.state)&&<button style={styles.button} type="button" disabled={busy} onClick={cancel}>Отменить обращение</button>}
    {terminal&&(intent ? <button style={styles.button} type="button" disabled={busy} onClick={request}>Попробовать другого</button> : <button type="button" style={styles.button} onClick={()=>{setDispatch(null);setConfirmed(false);}}>Начать новый запрос</button>)}
