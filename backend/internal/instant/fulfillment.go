@@ -1,5 +1,7 @@
 package instant
 
+import "time"
+
 // Fulfillment describes only persisted canonical R2 evidence. An R6 dispatch
 // cannot mint payment or R3 room readiness; joining remains owned by R3.
 type Fulfillment struct {
@@ -23,9 +25,9 @@ type FulfillmentReader interface {
 }
 
 type CanonicalSlot struct {
-	ID string `json:"id"`
+	ID       string    `json:"id"`
 	StartsAt time.Time `json:"starts_at"`
-	EndsAt time.Time `json:"ends_at"`
+	EndsAt   time.Time `json:"ends_at"`
 }
 
 type BookingHandoffStore interface {
