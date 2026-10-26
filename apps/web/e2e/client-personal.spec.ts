@@ -52,3 +52,35 @@ test("signed client can enter personal workspace from the same public landing pa
   await expect(page).toHaveURL(/\/personal$/);
   await expect(page.getByRole("heading",{name:"Предстоящие записи"})).toBeVisible();
 });
+
+test("expired signed session during history paging clears private records and requires sign-in",async({page})=>{
+  await page.route("**/v1/client/personal**",route=>{
+    if(new URL(route.request().url()).pathname!=="/v1/client/personal")return route.fallback();
+    const cursor=new URL(route.request().url()).searchParams.has("history_cursor");
+    return route.fulfill(cursor?
+      {status:401,contentType:"application/json",body:'{"code":"CLIENT_SESSION_EXPIRED"}'}:
+      {status:200,contentType:"application/json",body:JSON.stringify(makeView())});
+  });
+  await page.goto("/personal");
+  await expect(page.getByText("Ирина Тестовая").first()).toBeVisible();
+  await page.getByRole("button",{name:"Показать более ранние записи"}).click();
+  await expect(page.getByRole("alert").filter({hasText:"Нет подтверждённой сессии"})).toBeVisible();
+  await expect(page.getByText("Ирина Тестовая")).toHaveCount(0);
+  await expect(page.getByRole("heading",{name:"Предстоящие записи"})).toHaveCount(0);
+});
+
+test("expired signed session during personal preferences write clears old identity",async({page})=>{
+  await page.route("**/v1/client/personal/preferences",r=>r.fulfill({
+    status:403,contentType:"application/json",body:'{"code":"CLIENT_SESSION_EXPIRED"}',
+  }));
+  await page.route("**/v1/client/personal",r=>r.fulfill({
+    status:200,contentType:"application/json",body:JSON.stringify(makeView()),
+  }));
+  await page.goto("/personal");
+  await expect(page.getByText("Ирина Тестовая").first()).toBeVisible();
+  await page.getByRole("textbox",{name:"Как к вам обращаться"}).fill("Аня");
+  await page.getByRole("button",{name:"Сохранить настройки"}).click();
+  await expect(page.getByRole("alert").filter({hasText:"Нет подтверждённой сессии"})).toBeVisible();
+  await expect(page.getByText("Ирина Тестовая")).toHaveCount(0);
+  await expect(page.getByRole("heading",{name:"Персональные настройки"})).toHaveCount(0);
+});
