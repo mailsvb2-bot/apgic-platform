@@ -104,8 +104,18 @@ func TestDutyTrustsCookieNotCallerProvidedIdentity(t *testing.T) {
 	req.AddCookie(cookie)
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusBadRequest || store.owner != "" {
+		t.Fatalf("forged identity was accepted: status=%d owner=%s", rr.Code, store.owner)
+	}
+	// The canonical identity must still come from the signed cookie, never a
+	// caller-controlled body field.
+	req = httptest.NewRequest(http.MethodPut, "/v1/instant/presence",
+		strings.NewReader(`{"available":true,"offer_id":"f5e7f8e5-e7f5-4b7e-a480-4a407b14daa1"}`))
+	req.AddCookie(cookie)
+	rr = httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
 	if rr.Code != http.StatusOK || store.owner != identity {
-		t.Fatalf("wrong owner or status %d, owner=%s", rr.Code, store.owner)
+		t.Fatalf("signed cookie owner not enforced: status=%d owner=%s", rr.Code, store.owner)
 	}
 	req = httptest.NewRequest(http.MethodPost, "/v1/instant/dispatches",
 		strings.NewReader(`{"help_intent_id":"140d5ba9-d001-47d2-92df-75802170a9fb","request_key":"4030e5e3-12f0-479c-9cb2-dffcc8c1adf2"}`))
