@@ -20,7 +20,8 @@ export default function ClientPersonalPanel({baseURL}:{baseURL:string}) {
   const load=useCallback(async()=>{
     const generation=++epoch.current;
     pagingInFlight.current=false;
-    setPaging(false);
+    mutationInFlight.current=false;
+    setPaging(false);setBusy(false);
     setStatus("loading");setView(null);setEditing(null);setMessage("");
     try{
       const response=await fetch(new URL("/v1/client/personal",baseURL).toString(),{
@@ -87,7 +88,7 @@ export default function ClientPersonalPanel({baseURL}:{baseURL:string}) {
       if(!res.ok)throw new Error();
       await load();
     }catch{if(generation===epoch.current)setMessage("Изменения не сохранены. Повторите попытку.");}
-    finally{mutationInFlight.current=false;if(generation===epoch.current)setBusy(false);}
+    finally{if(generation===epoch.current){mutationInFlight.current=false;setBusy(false);}}
   };
   const checkIn=async(bookingID:string,progress:ClientPersonalCheckInInput["progress_code"])=>{
     if(status!=="ready"||!view||busy||mutationInFlight.current)return;
