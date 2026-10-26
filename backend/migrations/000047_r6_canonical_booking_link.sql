@@ -73,7 +73,10 @@ CREATE FUNCTION apgic_instant_booking_payment_verified(p_booking uuid)
 RETURNS boolean LANGUAGE sql STABLE AS $$
   SELECT EXISTS (
     SELECT 1 FROM bookings b
+    JOIN instant_booking_links link ON link.booking_id=b.id
+    JOIN instant_dispatches d ON d.id=link.dispatch_id
     JOIN orders o ON o.booking_id=b.id
+      AND o.amount_minor=d.price_minor AND o.currency=d.currency
     JOIN payment_attempts a ON a.order_id=o.id
       AND a.amount_minor=o.amount_minor AND a.currency=o.currency
       AND a.state='SUCCEEDED'
