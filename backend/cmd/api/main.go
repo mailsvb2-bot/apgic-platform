@@ -114,16 +114,16 @@ func main() {
 		roomIssuer = roomIssuerConfig
 	}
 	handler := httpapi.New(httpapi.Options{
-		CommitSHA:                        os.Getenv("APGIC_COMMIT_SHA"),
-		ConformanceProviderEvents:        !runtimepostgres.RequiresDatabase(environment) && os.Getenv("APGIC_CONFORMANCE_PROVIDER_EVENTS") == "1",
-		BlockSyntheticAccountDeletion:    runtimepostgres.RequiresDatabase(environment),
-		ProviderWebhookKeys:              providerWebhookKeys,
-		ConsultationProvider:             storage,
-		Finance:                          financeStore(storage),
-		FinanceOperations:                financeOperationsStore(storage),
-		FinanceMFA:                       financeMFAStore(storage),
-		FinanceMFAKey:                    financeMFAKey,
-		ConsultationJourney:              storage,
+		CommitSHA:                     os.Getenv("APGIC_COMMIT_SHA"),
+		ConformanceProviderEvents:     !runtimepostgres.RequiresDatabase(environment) && os.Getenv("APGIC_CONFORMANCE_PROVIDER_EVENTS") == "1",
+		BlockSyntheticAccountDeletion: runtimepostgres.RequiresDatabase(environment),
+		ProviderWebhookKeys:           providerWebhookKeys,
+		ConsultationProvider:          storage,
+		Finance:                       financeStore(storage),
+		FinanceOperations:             financeOperationsStore(storage),
+		FinanceMFA:                    financeMFAStore(storage),
+		FinanceMFAKey:                 financeMFAKey,
+		ConsultationJourney:           storage,
 		ConsultationJoin:                 httpapi.ConsultationJoinOptions{
 			Store: storage, Issuer: roomIssuer,
 			ProviderInstanceID: os.Getenv("APGIC_COMM_JOIN_PROVIDER_INSTANCE_ID"),
