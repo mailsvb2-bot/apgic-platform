@@ -309,7 +309,7 @@ func (s *fakeDutyStore) PrepareCanonicalBooking(id, identity, slot string) (inst
 	}
 	return instant.Fulfillment{
 		DispatchID: id, DispatchState: s.dispatch.State,
-		BookingID: "00000000-0000-0000-0000-00000000a963",
+		BookingID:    "00000000-0000-0000-0000-00000000a963",
 		BookingState: "HELD", PaymentVerified: false,
 		RoomReady: false, NextAction: instant.ActionAwaitProvider,
 	}, nil
