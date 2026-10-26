@@ -440,7 +440,8 @@ jobs:
           APGIC_ANDROID_UPDATE_URL: https://apgic.ru/update
           APGIC_AUTH001_WEB_E2E: '1'
           APGIC_ORG_PROD_WEB_E2E: '1'
-          APGIC_WEB_PORT: '43140'
+          # Playwright assigns a run-scoped non-ephemeral port; fixed 43140
+          # can collide with earlier sibling HTTP tests in this job.
           APGIC_CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
