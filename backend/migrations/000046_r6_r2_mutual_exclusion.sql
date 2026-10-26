@@ -128,7 +128,7 @@ BEGIN
   SELECT p.state INTO v_state FROM instant_presence p
    WHERE p.specialist_identity_id=v_specialist FOR UPDATE;
   IF v_state IN ('OFFERED','RESERVED','IN_CONSULTATION') AND
-     v_starts < NEW.created_at + interval '70 minutes' AND v_ends > NEW.created_at THEN
+     v_starts < clock_timestamp() + interval '70 minutes' AND v_ends > clock_timestamp() THEN
     RAISE EXCEPTION 'booking hold conflicts with active Duty/Now offer';
   END IF;
   RETURN NEW;
@@ -148,9 +148,9 @@ BEGIN
     SELECT 1 FROM booking_holds h
     JOIN booking_slots s ON s.id=h.slot_id
     WHERE s.specialist_identity_id=NEW.specialist_identity_id
-      AND h.state='ACTIVE' AND h.expires_at>NEW.updated_at
-      AND s.starts_at < NEW.updated_at + interval '70 minutes'
-      AND s.ends_at>NEW.updated_at
+      AND h.state='ACTIVE' AND h.expires_at>clock_timestamp()
+      AND s.starts_at < clock_timestamp() + interval '70 minutes'
+      AND s.ends_at>clock_timestamp()
   ) THEN
     RAISE EXCEPTION 'Duty/Now dispatch conflicts with existing canonical booking hold';
   END IF;
