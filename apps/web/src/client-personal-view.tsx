@@ -103,7 +103,14 @@ export default function ClientPersonalView(){
           history:[...previous.history,...value.history.filter(x=>!existing.has(x.booking_id))],
           next_history_cursor:value.next_history_cursor};
       });
-    }catch(e){if(current===epoch.current)setError(e instanceof Error?e.message:"Не удалось загрузить историю.");}
+    }catch(e){
+      if(current===epoch.current){
+        if(e instanceof PersonalAPIError&&e.reason==="SESSION"){
+          epoch.current++;setData(null);setDraft(null);setStatus("unauthorized");
+        }
+        setError(e instanceof Error?e.message:"Не удалось загрузить историю.");
+      }
+    }
     finally{if(current===epoch.current)setLoadingMore(false);}
   };
   const save=async(e:React.FormEvent)=>{
@@ -117,7 +124,14 @@ export default function ClientPersonalView(){
       setData(previous=>previous?.identity_id===data.identity_id?
         {...previous,preferences:actual}:previous);
       setDraft(actual);
-    }catch(e){setError(e instanceof Error?e.message:"Не удалось сохранить настройки.");}
+    }catch(e){
+      if(current===epoch.current){
+        if(e instanceof PersonalAPIError&&e.reason==="SESSION"){
+          epoch.current++;setData(null);setDraft(null);setStatus("unauthorized");
+        }
+        setError(e instanceof Error?e.message:"Не удалось сохранить настройки.");
+      }
+    }
     finally{setSaving(false);}
   };
   return <section className="personal-main" aria-label="Личный кабинет клиента">
