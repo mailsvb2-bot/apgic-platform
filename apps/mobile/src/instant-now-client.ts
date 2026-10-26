@@ -164,3 +164,27 @@ export async function readInstantFulfillment(id:string,options:MobileDemandClien
   }
   return proof;
 }
+
+export type InstantHandoffSlot = {
+  id: string;
+  starts_at: string;
+  ends_at: string;
+};
+
+export async function readInstantHandoffSlots(id:string, options:MobileDemandClientOptions):Promise<InstantHandoffSlot[]> {
+  const data = await instantFetch<{slots:InstantHandoffSlot[]}>(options,
+    "/instant/dispatches/"+encodeURIComponent(id)+"/handoff-slots");
+  return data.slots || [];
+}
+
+export async function prepareInstantCanonicalBooking(
+  dispatchID:string,slotID:string,options:MobileDemandClientOptions,
+):Promise<InstantFulfillment> {
+  const proof = await instantFetch<InstantFulfillment>(options,
+    "/instant/dispatches/"+encodeURIComponent(dispatchID)+"/handoff","POST",{slot_id:slotID});
+  if(proof.dispatch_id!==dispatchID || !proof.booking_id || proof.room_ready!==false ||
+     proof.payment_verified) {
+    throw new Error("DUTY_CANONICAL_BOOKING_NOT_CONFIRMED");
+  }
+  return proof;
+}
