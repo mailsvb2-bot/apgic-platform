@@ -61,12 +61,12 @@ type Options struct {
 }
 
 type metaResponse struct {
-	Service                       string   `json:"service"`
-	ReleaseTrack                  string   `json:"release_track"`
-	Surfaces                      []string `json:"surfaces"`
-	CommitSHA                     string   `json:"commit_sha,omitempty"`
-	ConformanceProviderEvents bool     `json:"conformance_provider_events"`
-	Time                          string   `json:"time"`
+	Service                     string   `json:"service"`
+	ReleaseTrack                string   `json:"release_track"`
+	Surfaces                    []string `json:"surfaces"`
+	CommitSHA                   string   `json:"commit_sha,omitempty"`
+	ConformanceProviderEvents   bool     `json:"conformance_provider_events"`
+	Time                        string   `json:"time"`
 }
 
 type statusResponse struct {
