@@ -9,10 +9,10 @@ CREATE TABLE instant_booking_links (
 CREATE FUNCTION apgic_instant_booking_link_guard()
 RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE d instant_dispatches%ROWTYPE;
-DECLARE b bookings%ROWTYPE;
-DECLARE h booking_holds%ROWTYPE;
-DECLARE s booking_slots%ROWTYPE;
-DECLARE o orders%ROWTYPE;
+        b bookings%ROWTYPE;
+        h booking_holds%ROWTYPE;
+        s booking_slots%ROWTYPE;
+        o orders%ROWTYPE;
 BEGIN
   SELECT * INTO d FROM instant_dispatches WHERE id=NEW.dispatch_id FOR UPDATE;
   SELECT * INTO b FROM bookings WHERE id=NEW.booking_id FOR UPDATE;
