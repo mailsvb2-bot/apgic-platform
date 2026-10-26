@@ -76,13 +76,15 @@ RETURNS boolean LANGUAGE sql STABLE AS $$
     JOIN orders o ON o.booking_id=b.id
     JOIN payment_attempts a ON a.order_id=o.id
       AND a.amount_minor=o.amount_minor AND a.currency=o.currency
+      AND a.state='SUCCEEDED'
     JOIN payment_effects e ON e.attempt_id=a.id AND e.effect_kind='CAPTURED'
       AND e.ledger_entry_id IS NOT NULL
     JOIN payment_webhook_receipts r ON r.id=e.receipt_id AND r.signature_verified=true
     WHERE b.id=p_booking AND b.state='CONFIRMED'
       AND NOT EXISTS (
         SELECT 1 FROM payment_effects reversal
-        WHERE reversal.attempt_id=a.id AND reversal.effect_kind='REFUNDED'
+        JOIN payment_attempts refund_attempt ON refund_attempt.id=reversal.attempt_id
+        WHERE refund_attempt.order_id=o.id AND reversal.effect_kind='REFUNDED'
       )
   )
 $$;
