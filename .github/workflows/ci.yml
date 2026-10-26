@@ -672,8 +672,19 @@ jobs:
       APGIC_CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - uses: actions/checkout@v7
+      - name: Match PostgreSQL client tools to restore server major
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-16
+          test -x /usr/lib/postgresql/16/bin/pg_dump
+          echo "/usr/lib/postgresql/16/bin" >> "$GITHUB_PATH"
       - shell: bash
         run: |
+          set -euo pipefail
+          test "$(pg_dump --version | grep -oE '[0-9]+\\.' | head -1 | tr -d '.')" = "16"
+          test "$(psql -Atqc 'SHOW server_version_num' | cut -c1-2)" = "16"
           for migration in backend/migrations/[0-9][0-9][0-9][0-9][0-9][0-9]_*.sql; do
             psql -v ON_ERROR_STOP=1 -f "$migration"
           done
