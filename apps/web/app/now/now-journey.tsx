@@ -3,6 +3,7 @@ import {useEffect,useRef,useState} from "react";
 
 type Intent={id:string;topics:string[];goals:string[];context:Record<string,string>};
 type Duty={id:string;help_intent_id?:string;state:string;topic_id?:string;price_minor?:number;currency?:string;expires_at?:string;next_action:string;room_ready:boolean};
+type Slot={id:string;starts_at:string;ends_at:string};
 type Fulfillment={dispatch_id:string;dispatch_state:string;booking_id?:string;booking_state?:string;payment_verified:boolean;next_action:string;room_ready:boolean};
 type ApiError={code?:string;message_safe?:string};
 const styles={panel:{background:"var(--surface, #fff)",border:"1px solid #ccc",borderRadius:14,padding:22,marginTop:16} as const,button:{padding:"0.7rem 1.1rem",borderRadius:8,marginTop:14,cursor:"pointer"} as const};
@@ -18,6 +19,8 @@ export function NowJourney(){
  const [topic,setTopic]=useState("");const [confirmed,setConfirmed]=useState(false);
  const [dispatch,setDispatch]=useState<Duty|null>(null);const [busy,setBusy]=useState(false);
  const [fulfillment,setFulfillment]=useState<Fulfillment|null>(null);
+ const [slots,setSlots]=useState<Slot[]>([]);
+ const [chosenSlot,setChosenSlot]=useState("");
  const [error,setError]=useState("");const [notice,setNotice]=useState("");
  const retryKeyRef=useRef<string|null>(null);
  useEffect(()=>{
@@ -27,7 +30,7 @@ export function NowJourney(){
  useEffect(()=>{
   if(!dispatch || (dispatch.state!=="OFFERED" && dispatch.state!=="ACCEPTED"))return;
   const timer=window.setInterval(async()=>{
-   try{const next=await api<Duty>("/instant/dispatches/"+encodeURIComponent(dispatch.id));setDispatch(next);if(next.state==="ACCEPTED"){const status=await api<Fulfillment>("/instant/dispatches/"+encodeURIComponent(dispatch.id)+"/fulfillment");if(status.room_ready)throw new Error("Некорректное разрешение на комнату.");setFulfillment(status);}}
+   try{const next=await api<Duty>("/instant/dispatches/"+encodeURIComponent(dispatch.id));setDispatch(next);if(next.state==="ACCEPTED"){const status=await api<Fulfillment>("/instant/dispatches/"+encodeURIComponent(dispatch.id)+"/fulfillment");if(status.room_ready)throw new Error("Некорректное разрешение на комнату.");setFulfillment(status);if(!status.booking_id){const found=await api<{slots:Slot[]}>("/instant/dispatches/"+encodeURIComponent(dispatch.id)+"/handoff-slots");setSlots(found.slots||[]);}}}
    catch(e){setError(e instanceof Error?e.message:"Связь потеряна");}
   },3000);
   return ()=>window.clearInterval(timer);
@@ -74,6 +77,17 @@ export function NowJourney(){
   }
   finally{setBusy(false);}
  }
+ async function handoff(){
+  if(!dispatch || !chosenSlot || busy)return;
+  setBusy(true);setError("");
+  try{
+   const result=await api<Fulfillment>("/instant/dispatches/"+encodeURIComponent(dispatch.id)+"/handoff",{slot_id:chosenSlot});
+   if(result.room_ready || !result.booking_id)throw new Error("Каноническая бронь не подтверждена.");
+   setFulfillment(result);setSlots([]);
+   setNotice("Бронь R2 сохранена. Для консультации требуется подтверждённая оплата у внешнего провайдера.");
+  }catch(e){setError(e instanceof Error?e.message:"Не удалось создать бронь.");}
+  finally{setBusy(false);}
+ }
  async function cancel(){
   if(!dispatch || busy)return;
   setBusy(true);setError("");
@@ -108,8 +122,18 @@ export function NowJourney(){
    {dispatch.state==="OFFERED"&&<p>Предложение отправлено. Ожидание до {dispatch.expires_at?new Date(dispatch.expires_at).toLocaleTimeString("ru-RU"):"истечения предложения"}.</p>}
    {dispatch.state==="INVALIDATED"&&<p>Статус специалиста изменился. Данное предложение больше недействительно, к оплате или разговору по нему переходить нельзя.</p>}
    {dispatch.state==="ACCEPTED"&&<><p>Специалист принял запрос. Консультация начнётся только после канонической записи и подтверждённой оплаты.</p>{fulfillment?.booking_id&&<p>Бронь R2: {fulfillment.booking_state}. {fulfillment.payment_verified?"Провайдер подтвердил оплату; доступ к звонку проверяется отдельно в R3.":"Оплата не подтверждена."}</p>}{!fulfillment?.booking_id&&<p>Бронь ещё не оформлена, платёж и комната недоступны.</p>}</>}
+   {dispatch.state==="ACCEPTED"&&!fulfillment?.booking_id&&slots.length>0&&<div>
+    <p>Доступные ближайшие слоты специалиста из канонического расписания R2:</p>
+    <label htmlFor="duty-slot">Выберите время</label>
+    <select id="duty-slot" value={chosenSlot} onChange={e=>setChosenSlot(e.target.value)}>
+     <option value="">Выберите реальный слот</option>
+     {slots.map(slot=><option key={slot.id} value={slot.id}>{new Date(slot.starts_at).toLocaleString("ru-RU")}</option>)}
+    </select>
+    <button type="button" style={styles.button} disabled={busy||!chosenSlot} onClick={handoff}>Создать бронь R2</button>
+   </div>}
+   {fulfillment?.booking_id&&<p><a href={"/bookings/"+encodeURIComponent(fulfillment.booking_id)}>Открыть запись R2 и состояние оплаты</a></p>}
    {dispatch.price_minor&&<p>Цена предложения: <strong>{(dispatch.price_minor/100).toLocaleString("ru-RU")} {dispatch.currency}</strong>. Списание сейчас не выполняется.</p>}
-   {["OFFERED","ACCEPTED"].includes(dispatch.state)&&<button style={styles.button} type="button" disabled={busy} onClick={cancel}>Отменить обращение</button>}
+   {["OFFERED","ACCEPTED"].includes(dispatch.state)&&!fulfillment?.booking_id&&<button style={styles.button} type="button" disabled={busy} onClick={cancel}>Отменить обращение</button>}
    {terminal&&(intent ? <button style={styles.button} type="button" disabled={busy} onClick={request}>Попробовать другого</button> : <button type="button" style={styles.button} onClick={()=>{setDispatch(null);setConfirmed(false);}}>Начать новый запрос</button>)}
    <p style={{fontSize:13}}>Состояние: {dispatch.state} · Следующее действие: {dispatch.next_action}</p>
   </div>}
