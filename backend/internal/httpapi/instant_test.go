@@ -256,8 +256,8 @@ func TestDutyFulfillmentIsSessionOwnedAndDoesNotMintRoom(t *testing.T) {
 	key := []byte(strings.Repeat("s", 32))
 	sessions, err := newClientSessionManager(key, time.Now)
 	if err != nil {
-			t.Fatal(err)
-		}
+		t.Fatal(err)
+	}
 	handler := New(Options{Instant: store, InstantEnabled: true, ClientSessionKey: key})
 	path := "/v1/instant/dispatches/" + id + "/fulfillment"
 	read := func(identity string) *httptest.ResponseRecorder {
@@ -266,8 +266,8 @@ func TestDutyFulfillmentIsSessionOwnedAndDoesNotMintRoom(t *testing.T) {
 		if identity != "" {
 			cookie, err := sessions.issue(identity)
 			if err != nil {
-			t.Fatal(err)
-		}
+				t.Fatal(err)
+			}
 			req.AddCookie(cookie)
 		}
 		w := httptest.NewRecorder()
