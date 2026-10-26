@@ -158,6 +158,25 @@ func registerInstant(mux *http.ServeMux, store instant.Store,
 			writeJSON(w, http.StatusOK, dispatch)
 		}
 	})
+	mux.HandleFunc("GET /v1/instant/dispatches/{id}/fulfillment", func(w http.ResponseWriter, r *http.Request) {
+		identity, ok := authorize(w, r)
+		if !ok {
+			return
+		}
+		reader, supported := store.(instant.FulfillmentReader)
+		if !supported {
+			writeDemandError(w, r, http.StatusServiceUnavailable, "DUTY_FULFILLMENT_UNAVAILABLE", "Подтверждение бронирования временно недоступно.", true, nil)
+			return
+		}
+		status, err := reader.ReadFulfillment(r.PathValue("id"), identity)
+		if err != nil {
+			writeInstantError(w, r, err)
+			return
+		}
+		// Only R3 may issue credentials; proof of payment is not room admission.
+		status.RoomReady = false
+		writeJSON(w, http.StatusOK, status)
+	})
 	mux.HandleFunc("POST /v1/instant/dispatches/{id}/cancel", func(w http.ResponseWriter, r *http.Request) {
 		identity, ok := authorize(w, r)
 		if !ok {
