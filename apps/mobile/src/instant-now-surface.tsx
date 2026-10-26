@@ -3,8 +3,8 @@ import {Pressable,StyleSheet,Text,View} from "react-native";
 import type {MobileDemandClientOptions} from "./mobile-demand-client.ts";
 import {
   answerInstantDispatch,cancelInstantDispatch,createInstantDispatch,listInstantInbox,listInstantSpecialistOffers,
-  readActiveInstantDispatch,readInstantDispatch,readInstantPresence,updateInstantPresence,
-  type InstantDispatch,type InstantPresence,type InstantSpecialistDispatch,type InstantSpecialistOffer,
+  readActiveInstantDispatch,readInstantDispatch,readInstantFulfillment,readInstantPresence,updateInstantPresence,
+  type InstantDispatch,type InstantFulfillment,type InstantPresence,type InstantSpecialistDispatch,type InstantSpecialistOffer,
 } from "./instant-now-client.ts";
 
 const styles=StyleSheet.create({
@@ -24,6 +24,7 @@ export function InstantNowSurface({intentID,options,enabled,initialMode="client"
 }) {
  const [mode,setMode]=useState<"client"|"specialist">(initialMode);
  const [dispatch,setDispatch]=useState<InstantDispatch|null>(null);
+ const [fulfillment,setFulfillment]=useState<InstantFulfillment|null>(null);
  const [presence,setPresence]=useState<InstantPresence|null>(null);
  const [offers,setOffers]=useState<InstantSpecialistOffer[]>([]);
  const [selected,setSelected]=useState("");
@@ -55,7 +56,7 @@ export function InstantNowSurface({intentID,options,enabled,initialMode="client"
   const interval=setInterval(()=>{
    if(mode==="specialist"){void specialistRefresh().catch(()=>setError("Нет связи с дежурством"));}
    else if(dispatch && ["OFFERED","ACCEPTED"].includes(dispatch.state)){
-    void readInstantDispatch(dispatch.id,options).then(setDispatch).catch(()=>setError("Нет связи с заявкой"));
+    void readInstantDispatch(dispatch.id,options).then(async next=>{setDispatch(next);if(next.state==="ACCEPTED"){setFulfillment(await readInstantFulfillment(dispatch.id,options));}else{setFulfillment(null);}}).catch(()=>setError("Нет связи с заявкой"));
    }
   },3000);
   return ()=>clearInterval(interval);
@@ -63,7 +64,7 @@ export function InstantNowSurface({intentID,options,enabled,initialMode="client"
  async function send(){
   if(!intentID)return;
   setBusy(true);setError("");setMessage("");
-  try{setDispatch(await createInstantDispatch(intentID,options));}
+  try{setFulfillment(null);setDispatch(await createInstantDispatch(intentID,options));}
   catch(e){setError(e instanceof Error?e.message:"Не удалось обратиться");}
   finally{setBusy(false);}
  }
@@ -72,7 +73,7 @@ export function InstantNowSurface({intentID,options,enabled,initialMode="client"
   setBusy(true);setError("");setMessage("");
   try{
    const next=await cancelInstantDispatch(dispatch.id,options);
-   setDispatch(next);
+   setDispatch(next);setFulfillment(null);
    setMessage("Обращение отменено сервером. Доступ к консультации не предоставлен.");
   }catch(e){setError(e instanceof Error?e.message:"Отмена не подтверждена");}
   finally{setBusy(false);}
@@ -120,6 +121,7 @@ export function InstantNowSurface({intentID,options,enabled,initialMode="client"
        "Предложение отклонено. Попробуйте снова или выберите запись."}
      </Text>
      {dispatch.price_minor? <Text style={styles.detail}>Стоимость предложения: {(dispatch.price_minor/100).toLocaleString("ru-RU")} {dispatch.currency}</Text>:null}
+     {dispatch.state==="ACCEPTED"&&<Text style={styles.detail}>{fulfillment?.booking_id ? ("R2 запись: "+fulfillment.booking_state+" · "+(fulfillment.payment_verified?"Оплата подтверждена; R3 проверяет доступ отдельно.":"Оплата ожидает проверки провайдера.")) : "Каноническая бронь R2 ещё не оформлена."}</Text>}
      <Text style={styles.detail}>Следующий шаг: {dispatch.next_action} · Доступ к комнате: закрыт</Text>
      {["OFFERED","ACCEPTED"].includes(dispatch.state)&&choice("Отменить обращение",()=>void cancelPending(),!enabled)}
     </>}
