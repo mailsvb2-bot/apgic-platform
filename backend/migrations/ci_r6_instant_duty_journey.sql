@@ -214,20 +214,26 @@ BEGIN
       RAISE EXCEPTION 'R2 booking still blocked after R6 cancellation: % %',held,reason;
     END IF;
   END;
-  -- Inverse ordering: R2 acquires the canonical hold first, then R6
-  -- attempts dispatch. The R6 state transition must fail closed.
-  BEGIN
-    outcome := apgic_instant_request(
-      '00000000-0000-0000-0000-00000000a938',
-      '00000000-0000-0000-0000-00000000a948',
-      '00000000-0000-0000-0000-00000000a902',
-      '00000000-0000-0000-0000-00000000a921',now());
-    RAISE EXCEPTION 'R6 dispatched overlapping a canonical R2 hold: %',outcome;
-  EXCEPTION WHEN OTHERS THEN
-    IF SQLERRM NOT LIKE '%Duty/Now dispatch conflicts with existing canonical booking hold%' THEN
-      RAISE;
-    END IF;
-  END;
+  -- R2 was first: the matcher must return NO_SUPPLY without making a
+  -- conflicting offer or an opaque storage error.
+  outcome := apgic_instant_request(
+    '00000000-0000-0000-0000-00000000a938',
+    '00000000-0000-0000-0000-00000000a948',
+    '00000000-0000-0000-0000-00000000a902',
+    '00000000-0000-0000-0000-00000000a921',now());
+  IF outcome <> 'DUTY_NO_SUPPLY' THEN
+    RAISE EXCEPTION 'R6 dispatched overlapping an earlier R2 hold: %',outcome;
+  END IF;
+  IF (SELECT state FROM instant_dispatches
+    WHERE id='00000000-0000-0000-0000-00000000a938') <> 'UNFILLED' THEN
+    RAISE EXCEPTION 'R6 refused R2 hold but did not persist honest NO_SUPPLY';
+  END IF;
+  outcome := apgic_instant_enable(
+    '00000000-0000-0000-0000-00000000a901',
+    '00000000-0000-0000-0000-00000000a917',true,now());
+  IF outcome <> 'DUTY_SCHEDULE_CONFLICT' THEN
+    RAISE EXCEPTION 'R6 availability ignored existing R2 booking hold: %',outcome;
+  END IF;
   UPDATE booking_holds SET state='RELEASED',updated_at=now()
     WHERE id='00000000-0000-0000-0000-00000000a952';
 
