@@ -160,3 +160,141 @@ $$;
 CREATE TRIGGER instant_offer_hold_guard
 BEFORE UPDATE OF state ON instant_presence FOR EACH ROW
 EXECUTE FUNCTION apgic_instant_offer_hold_guard();
+
+-- Check both directions before making a specialist appear available;
+-- a canonical R2 hold is a real commitment before booking persistence.
+CREATE OR REPLACE FUNCTION apgic_instant_enable(p_identity uuid,p_offer uuid,p_available boolean,p_now timestamptz)
+RETURNS text LANGUAGE plpgsql AS $$
+DECLARE existing instant_presence%ROWTYPE;
+BEGIN
+  PERFORM apgic_instant_expire(p_now);
+  SELECT * INTO existing FROM instant_presence WHERE specialist_identity_id=p_identity FOR UPDATE;
+  IF FOUND AND existing.state IN ('OFFERED','RESERVED','IN_CONSULTATION') THEN
+    RETURN 'DUTY_BUSY';
+  END IF;
+  IF NOT p_available THEN
+    UPDATE instant_presence SET state='OFFLINE',available_until=NULL,updated_at=p_now,version=version+1
+      WHERE specialist_identity_id=p_identity;
+    RETURN 'DUTY_OFFLINE';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM specialist_bookable_offers o
+       WHERE o.id=p_offer AND o.specialist_identity_id=p_identity AND apgic_instant_supply_eligible(o.id)) THEN
+    RETURN 'DUTY_NOT_ELIGIBLE';
+  END IF;
+  -- Do not offer a specialist who has an overlapping scheduled booking:
+  -- one owner of time, irrespective of the scheduled or instant sales route.
+  IF EXISTS (
+    SELECT 1 FROM bookings b
+    JOIN booking_slots slot ON slot.id=b.slot_id
+    WHERE slot.specialist_identity_id=p_identity
+      AND b.state IN ('HELD','PENDING_PAYMENT','CONFIRMED')
+      AND b.starts_at < p_now + interval '70 minutes'
+      AND b.ends_at > p_now
+  ) THEN
+    RETURN 'DUTY_SCHEDULE_CONFLICT';
+  END IF;
+  -- An active R2 hold has not necessarily produced its booking row yet.
+  IF EXISTS (
+    SELECT 1 FROM booking_holds h JOIN booking_slots slot ON slot.id=h.slot_id
+    WHERE slot.specialist_identity_id=p_identity AND h.state='ACTIVE'
+      AND h.expires_at>p_now
+      AND slot.starts_at < p_now + interval '70 minutes'
+      AND slot.ends_at>p_now
+  ) THEN
+    RETURN 'DUTY_SCHEDULE_CONFLICT';
+  END IF;
+  -- A specialist chooses one priced offer for the current duty window.
+  INSERT INTO instant_presence(specialist_identity_id,offer_id,state,available_until,updated_at)
+  VALUES(p_identity,p_offer,'AVAILABLE_NOW',p_now + interval '10 minutes',p_now)
+  ON CONFLICT (specialist_identity_id) DO UPDATE
+    SET offer_id=EXCLUDED.offer_id,state='AVAILABLE_NOW',
+        available_until=EXCLUDED.available_until,updated_at=p_now,
+        version=instant_presence.version+1;
+  RETURN 'DUTY_AVAILABLE_NOW';
+END;
+$$;
+CREATE OR REPLACE FUNCTION apgic_instant_request(p_id uuid,p_key uuid,p_identity uuid,p_intent uuid,p_now timestamptz)
+RETURNS text LANGUAGE plpgsql AS $$
+DECLARE selected record; active_id uuid; old_id uuid;
+BEGIN
+  PERFORM pg_advisory_xact_lock(hashtextextended('apgic:duty:client:' || p_identity::text,0));
+  PERFORM apgic_instant_expire(p_now);
+  SELECT id INTO old_id FROM instant_dispatches
+    WHERE client_identity_id=p_identity AND request_key=p_key;
+  IF FOUND THEN
+    IF NOT EXISTS (SELECT 1 FROM instant_dispatches
+      WHERE id=old_id AND help_intent_id=p_intent) THEN
+      RETURN 'DUTY_IDEMPOTENCY_CONFLICT';
+    END IF;
+    RETURN 'DUTY_IDEMPOTENT_REPLAY';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM help_intents h WHERE h.id=p_intent
+    AND h.identity_id=p_identity AND h.state='CONFIRMED'
+    AND cardinality(h.topics)>0
+    AND h.context->>'format'='ONLINE'
+    AND h.context->>'jurisdiction'='RU'
+    AND h.context->>'age_group'='ADULT'
+    AND h.context->>'language'='ru') THEN
+    RETURN 'DUTY_INTENT_NOT_ELIGIBLE';
+  END IF;
+  SELECT id INTO active_id FROM instant_dispatches
+    WHERE client_identity_id=p_identity AND state IN ('OFFERED','ACCEPTED');
+  IF active_id IS NOT NULL THEN RETURN 'DUTY_ALREADY_ACTIVE'; END IF;
+
+  SELECT p.specialist_identity_id,p.offer_id,o.topic_id,o.price_minor,o.currency
+    INTO selected
+    FROM instant_presence p
+    JOIN specialist_bookable_offers o ON o.id=p.offer_id
+    JOIN help_intents h ON h.id=p_intent
+    JOIN specialist_profiles sp ON sp.id=o.specialist_id
+    JOIN LATERAL (
+      SELECT q.decision FROM qualification_evaluations q
+       WHERE q.specialist_id=o.specialist_id AND q.topic_id=o.topic_id
+         AND q.jurisdiction=h.context->>'jurisdiction'
+         AND q.service_format=h.context->>'format'
+         AND q.age_group=h.context->>'age_group'
+       ORDER BY q.evaluated_at DESC,q.id DESC LIMIT 1
+    ) qualification ON qualification.decision='ELIGIBLE'
+    WHERE p.state='AVAILABLE_NOW' AND p.available_until>p_now + interval '90 seconds'
+      AND apgic_instant_supply_eligible(o.id)
+      AND o.topic_id=ANY(h.topics)
+      AND p.specialist_identity_id<>p_identity
+      AND NOT EXISTS (
+        SELECT 1 FROM bookings b
+        JOIN booking_slots scheduled_slot ON scheduled_slot.id=b.slot_id
+        WHERE scheduled_slot.specialist_identity_id=p.specialist_identity_id
+          AND b.state IN ('HELD','PENDING_PAYMENT','CONFIRMED')
+          AND b.starts_at < p_now + interval '70 minutes'
+          AND b.ends_at > p_now
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM booking_holds h JOIN booking_slots hold_slot ON hold_slot.id=h.slot_id
+        WHERE hold_slot.specialist_identity_id=p.specialist_identity_id
+          AND h.state='ACTIVE' AND h.expires_at>p_now
+          AND hold_slot.starts_at < p_now + interval '70 minutes'
+          AND hold_slot.ends_at>p_now
+      )
+      -- A user who explicitly cancelled may choose to try again.
+      -- Never silently re-offer a practitioner who declined, missed the
+      -- deadline, or became ineligible during this HelpIntent.
+      AND NOT EXISTS (SELECT 1 FROM instant_dispatches tried
+        WHERE tried.help_intent_id=p_intent AND tried.specialist_identity_id=p.specialist_identity_id
+          AND tried.state IN ('DECLINED','EXPIRED','OFFERED','ACCEPTED','INVALIDATED'))
+    ORDER BY p.updated_at,p.specialist_identity_id
+    FOR UPDATE OF p SKIP LOCKED LIMIT 1;
+  IF NOT FOUND THEN
+    INSERT INTO instant_dispatches(id,client_identity_id,request_key,help_intent_id,state)
+    VALUES(p_id,p_identity,p_key,p_intent,'UNFILLED');
+    RETURN 'DUTY_NO_SUPPLY';
+  END IF;
+  UPDATE instant_presence SET state='OFFERED',updated_at=p_now,version=version+1
+    WHERE specialist_identity_id=selected.specialist_identity_id;
+  INSERT INTO instant_dispatches
+    (id,client_identity_id,request_key,help_intent_id,specialist_identity_id,
+     offer_id,topic_id,price_minor,currency,state,offered_at,expires_at)
+  VALUES (p_id,p_identity,p_key,p_intent,selected.specialist_identity_id,
+     selected.offer_id,selected.topic_id,selected.price_minor,selected.currency,
+     'OFFERED',p_now,p_now+interval '45 seconds');
+  RETURN 'DUTY_OFFERED';
+END;
+$$;
