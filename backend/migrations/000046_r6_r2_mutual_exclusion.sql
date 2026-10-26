@@ -120,13 +120,13 @@ $$;
 -- owner's live duty commitment under the same presence row lock.
 CREATE FUNCTION apgic_booking_hold_duty_guard()
 RETURNS trigger LANGUAGE plpgsql AS $$
-DECLARE v_state text; v_starts timestamptz; v_ends timestamptz;
+DECLARE v_state text; v_starts timestamptz; v_ends timestamptz; v_specialist uuid;
 BEGIN
-  SELECT p.state, s.starts_at, s.ends_at
-    INTO v_state, v_starts, v_ends
-    FROM booking_slots s
-    LEFT JOIN instant_presence p ON p.specialist_identity_id=s.specialist_identity_id
-   WHERE s.id=NEW.slot_id;
+  SELECT s.starts_at,s.ends_at,s.specialist_identity_id
+    INTO v_starts,v_ends,v_specialist
+    FROM booking_slots s WHERE s.id=NEW.slot_id;
+  SELECT p.state INTO v_state FROM instant_presence p
+   WHERE p.specialist_identity_id=v_specialist FOR UPDATE;
   IF v_state IN ('OFFERED','RESERVED','IN_CONSULTATION') AND
      v_starts < NEW.created_at + interval '70 minutes' AND v_ends > NEW.created_at THEN
     RAISE EXCEPTION 'booking hold conflicts with active Duty/Now offer';
