@@ -232,3 +232,141 @@ func TestDutyCancellationOwnerAndNoUnpaidRoom(t *testing.T) {
 		}
 	}
 }
+
+func (s *fakeDutyStore) ReadFulfillment(id, identity string) (instant.Fulfillment, error) {
+	if id != s.dispatch.ID || identity != s.dispatch.ClientIdentityID {
+		return instant.Fulfillment{}, instant.ErrNotFound
+	}
+	return instant.Fulfillment{
+		DispatchID:      id,
+		DispatchState:   s.dispatch.State,
+		NextAction:      instant.ActionAwaitBooking,
+		PaymentVerified: false,
+		RoomReady:       false,
+	}, nil
+}
+
+func TestDutyFulfillmentIsSessionOwnedAndDoesNotMintRoom(t *testing.T) {
+	const owner = "61f998fe-cd75-4e88-bdc7-2bfc7dc2a07a"
+	const stranger = "68c7c2a5-bf5b-4895-ac4a-d4d9944799ae"
+	const id = "3f898240-2092-4922-a582-e001cd9e378b"
+	store := &fakeDutyStore{dispatch: instant.Dispatch{
+		ID: id, ClientIdentityID: owner, State: instant.DispatchAccepted,
+	}}
+	key := []byte(strings.Repeat("s", 32))
+	sessions, err := newClientSessionManager(key, time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := New(Options{Instant: store, InstantEnabled: true, ClientSessionKey: key})
+	path := "/v1/instant/dispatches/" + id + "/fulfillment"
+	read := func(identity string) *httptest.ResponseRecorder {
+		t.Helper()
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		if identity != "" {
+			cookie, err := sessions.issue(identity)
+			if err != nil {
+				t.Fatal(err)
+			}
+			req.AddCookie(cookie)
+		}
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+		return w
+	}
+	if w := read(""); w.Code != http.StatusUnauthorized {
+		t.Fatalf("unsigned fulfillment read succeeded: %d", w.Code)
+	}
+	if w := read(stranger); w.Code != http.StatusNotFound {
+		t.Fatalf("foreign fulfillment read succeeded: %d %s", w.Code, w.Body.String())
+	}
+	w := read(owner)
+	if w.Code != http.StatusOK || w.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("owner read failed: %d %s", w.Code, w.Body.String())
+	}
+	var status instant.Fulfillment
+	if err := json.Unmarshal(w.Body.Bytes(), &status); err != nil {
+		t.Fatal(err)
+	}
+	if status.BookingID != "" || status.PaymentVerified || status.RoomReady {
+		t.Fatalf("accepted R6 without canonical R2 minted access: %+v", status)
+	}
+}
+
+func (s *fakeDutyStore) HandoffSlots(id, identity string) ([]instant.CanonicalSlot, error) {
+	if id != s.dispatch.ID || identity != s.dispatch.ClientIdentityID {
+		return nil, instant.ErrNotFound
+	}
+	return []instant.CanonicalSlot{}, nil
+}
+
+func (s *fakeDutyStore) PrepareCanonicalBooking(id, identity, slot string) (instant.Fulfillment, error) {
+	if id != s.dispatch.ID || identity != s.dispatch.ClientIdentityID {
+		return instant.Fulfillment{}, instant.ErrNotFound
+	}
+	if !instant.ValidID(slot) {
+		return instant.Fulfillment{}, instant.ErrInvalid
+	}
+	return instant.Fulfillment{
+		DispatchID: id, DispatchState: s.dispatch.State,
+		BookingID:    "00000000-0000-0000-0000-00000000a963",
+		BookingState: "HELD", PaymentVerified: false,
+		RoomReady: false, NextAction: instant.ActionAwaitProvider,
+	}, nil
+}
+
+func TestDutyHandoffRequiresSessionOwnerSlotAndStrictJSON(t *testing.T) {
+	const owner = "61f998fe-cd75-4e88-bdc7-2bfc7dc2a07a"
+	const stranger = "68c7c2a5-bf5b-4895-ac4a-d4d9944799ae"
+	const id = "3f898240-2092-4922-a582-e001cd9e378b"
+	store := &fakeDutyStore{dispatch: instant.Dispatch{
+		ID: id, ClientIdentityID: owner, State: instant.DispatchAccepted,
+	}}
+	key := []byte(strings.Repeat("s", 32))
+	sessions, err := newClientSessionManager(key, time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := New(Options{Instant: store, InstantEnabled: true, ClientSessionKey: key})
+	post := func(identity, jsonBody string) *httptest.ResponseRecorder {
+		t.Helper()
+		req := httptest.NewRequest(http.MethodPost, "/v1/instant/dispatches/"+id+"/handoff", strings.NewReader(jsonBody))
+		if identity != "" {
+			cookie, issueErr := sessions.issue(identity)
+			if issueErr != nil {
+				t.Fatal(issueErr)
+			}
+			req.AddCookie(cookie)
+		}
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+		return w
+	}
+	valid := `{"slot_id":"00000000-0000-0000-0000-00000000a961"}`
+	if w := post("", valid); w.Code != http.StatusUnauthorized {
+		t.Fatalf("unsigned slot mutation accepted: %d", w.Code)
+	}
+	if w := post(stranger, valid); w.Code != http.StatusNotFound {
+		t.Fatalf("cross-owner handoff accepted: %d", w.Code)
+	}
+	for _, payload := range []string{
+		`{}`, `{"slot_id":"invalid"}`,
+		`{"slot_id":"00000000-0000-0000-0000-00000000a961","identity_id":"forged"}`,
+		valid + valid,
+	} {
+		if w := post(owner, payload); w.Code != http.StatusBadRequest {
+			t.Fatalf("bad handoff JSON accepted: %d body=%s", w.Code, w.Body.String())
+		}
+	}
+	w := post(owner, valid)
+	if w.Code != http.StatusOK {
+		t.Fatalf("canonical handoff owner denied: %d %s", w.Code, w.Body.String())
+	}
+	var status instant.Fulfillment
+	if err := json.Unmarshal(w.Body.Bytes(), &status); err != nil {
+		t.Fatal(err)
+	}
+	if status.RoomReady || status.PaymentVerified || status.BookingID == "" {
+		t.Fatalf("R6 handoff minted PSP proof or room: %+v", status)
+	}
+}

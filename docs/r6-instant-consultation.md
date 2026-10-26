@@ -1,6 +1,6 @@
 # R6 Duty/Now — instant consultation (APGIC canonical owner)
 
-**Feature branch:** `feat/instant-consultation`. **Merge:** prohibited until integration review. **Release:** R6 is outside the v7 R0–R4 launch cut.
+**Integration status:** R6/R2 prepayment booking handoff implemented in draft PR #302; external live PSP onboarding and R3 production fulfillment are not yet proven. **Release:** R6 remains outside the R0–R4 launch cut and OFF by default.
 
 ## Product journey and invariants
 
@@ -10,7 +10,7 @@ The UI entry points are `/now` (client), `/specialist/now` (specialist), and the
 2. A specialist has an APGIC-reviewed, active, topic-specific publication, an explicitly priced real Product/Offer with a verified commercial owner, and opts into Duty/Now for at most ten minutes. The opt-in is **not a statement that a realtime room exists**.
 3. APGIC selects a specialist using the canonical offer and latest eligibility decision; it will not dispatch to unqualified, self-declared, incompatible or already busy specialists. An atomic DB row lock (`FOR UPDATE SKIP LOCKED`) and partial unique indexes prevent double dispatch across processes.
 4. One immutable **offered economic snapshot** (specialist, topic, offer, price/currency) is stored. The specialist has 45 seconds to accept or decline. The client polls the authorized request. Expiry and decline release the specialist, and the client may retry or book later.
-5. Acceptance changes **Duty Dispatch** to `ACCEPTED` and holds the prepayment agreement for ten minutes. It does **not** create payment, booking, entitlement, communication session, payout, recorded medical facts, or join token. `next_action=PAY_REAL_PROVIDER_REQUIRED` and `room_ready=false` must remain true until an independently verified, non-custodial provider payment and booking/fulfillment bridge is integrated.
+5. Acceptance changes **Duty Dispatch** to `ACCEPTED` and holds the prepayment agreement for ten minutes. It does **not** create payment, booking, entitlement, communication session, payout, recorded medical facts, or join token. The client may explicitly select an **existing canonical live R2 slot** (15–30 minutes out; legacy live slot minimum lead time is 15 minutes) to atomically create the existing R2 hold and HELD booking. This is a *near-term scheduled fallback*, not instant paid live access. `room_ready=false` remains unchanged.
 6. A reconnect or app restart recovers `GET /v1/instant/active` from durable PostgreSQL, with the signed session as the authorization source.
 
 **State vocabulary**:
@@ -34,9 +34,12 @@ The API is always scoped to the authenticated APGIC `ClientSession`, including w
 | `GET /v1/instant/dispatches/{id}` | Read client/specialist-owned proposal only |
 | `GET /v1/instant/active` | Recover client-owned unexpired offer or accepted pending-payment agreement |
 | `POST /v1/instant/dispatches/{id}/answer` | Specialist answer, only for owned active proposal |
-| `POST /v1/instant/dispatches/{id}/cancel` | Signed client cancels pending offer or unpaid agreement; never claims a refund |
+| `POST /v1/instant/dispatches/{id}/cancel` | Signed client cancels pending offer; after R2 handoff this is rejected and the R2 cancellation owner applies |
+| `GET /v1/instant/dispatches/{id}/handoff-slots` | Signed client views existing near-term bookable R2 slots for the accepted specialist/offer only |
+| `POST /v1/instant/dispatches/{id}/handoff` | Signed client selects canonical R2 slot; atomic existing hold/booking; idempotent after commit; no PSP or room privilege |
+| `GET /v1/instant/dispatches/{id}/fulfillment` | Owner-scoped R2 booking and independently verified PSP receipt/ledger readback; never mints an R3 room grant |
 
-**Versioned response schema:** `contracts/jsonschema/instant-duty-v1.schema.json`. Non-custodial access gate is explicit. No raw consultation content is read or exported by this subsystem. Outgoing notifications are not invented; client and specialist poll durable state until a qualified messaging connector is available.
+**Versioned response schemas:** `contracts/jsonschema/instant-duty-v1.schema.json` and `contracts/jsonschema/instant-fulfillment-v1.schema.json`. Non-custodial access gate is explicit. No raw consultation content is read or exported by this subsystem. Outgoing notifications are not invented; client and specialist poll durable state until a qualified messaging connector is available.
 
 **Production flag:** `APGIC_DUTY_NOW_ENABLED=1` is an explicit opt-in; absence/any other value is disabled. Production requires the canonical PostgreSQL store and signed client sessions. No demo catalog, fake specialists, synthetic payment provider, self-claimed verification or assumed jurisdiction is used in Duty/Now.
 
@@ -72,3 +75,31 @@ Before enabling production, integration owners must prove, without changing the 
 - Release owner documents real contract/test/evidence refs and checks policy/version, age/qualification/jurisdiction, consent/privacy and manual review as appropriate. A green unit test is not a production-provider proof.
 
 **Scope boundary:** This R6 feature deliberately does not implement bank/PSP onboarding, artificial payment confirmation, financial custody, or a competing parallel booking/consultation ledger. Those integrations must be performed against the canonical R2/R3 contracts (in other branches) only after their proof is available.
+
+## Canonical R2/R3 handoff safety (migration 000047–000048)
+
+Accepted R6 requests may be handed to real R2 booking slots only through
+`apgic_instant_prepare_canonical_booking`. This PostgreSQL function verifies
+the signed client, accepted/unexpired dispatch, current published offer, same
+specialist, same offer, genuine exclusive `specialist/live` slot, price and
+identity provenance. It serializes the presence and slot owners, releases duty,
+creates the existing R2 hold and HELD booking, then inserts an immutable
+one-to-one `instant_booking_links` row **within a single transaction**.
+Failure rolls back the entire operation; retry returns the original booking.
+An R6 cancellation after handoff must not cancel an R2 booking or claim a refund.
+
+A real provider-captured payment is recognized only when the existing R2
+`orders`, `payment_attempts` (SUCCEEDED), `payment_effects` (CAPTURED),
+signed `payment_webhook_receipts`, and ledger entry agree with the accepted
+economic snapshot. Any refund for the order invalidates the payment indication.
+A confirmed R2 booking is required. Neither that indication nor an R6
+`ACCEPTED` state grants a room: the existing R3 join admission is still the
+sole authority for room credentials.
+
+**Not yet a launched production journey:** R2 live checkout deliberately
+fails closed until a real independently certified external PSP is integrated;
+no fake bank provider or simulated capture may be used. The immediate-call
+experience additionally needs a canonical near-zero-lead slot policy,
+qualified signed PSP events, R3 live dual-party join and recovery evidence,
+and a full production/staging release gate. The 15–30-minute slot fallback
+is not advertised as an instantaneous call.

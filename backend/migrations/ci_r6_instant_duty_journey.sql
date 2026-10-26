@@ -186,6 +186,80 @@ BEGIN
   IF EXISTS (SELECT 1 FROM bookings WHERE client_identity_id='00000000-0000-0000-0000-00000000a902') THEN
     RAISE EXCEPTION 'R6 created an unpaid booking from specialist acceptance';
   END IF;
+  -- The new R6 -> R2 bridge is real PostgreSQL: one accepted dispatch,
+  -- one canonical specialist/live slot, one canonical R2 hold + booking,
+  -- never fake a PSP capture or a communication grant. Roll back the nested
+  -- subtransaction after proof so the pre-existing cancellation matrix runs.
+  BEGIN
+    INSERT INTO booking_slots
+      (id,specialist_identity_id,tenant_scope,specialist_offer_id,starts_at,ends_at)
+    VALUES (
+      '00000000-0000-0000-0000-00000000a961',
+      '00000000-0000-0000-0000-00000000a901',
+      'specialist/live',
+      '00000000-0000-0000-0000-00000000a917',
+      now()+interval '20 minutes',now()+interval '65 minutes'
+    );
+    outcome := apgic_instant_prepare_canonical_booking(
+      '00000000-0000-0000-0000-00000000a931',
+      '00000000-0000-0000-0000-00000000a903',
+      '00000000-0000-0000-0000-00000000a961',
+      '00000000-0000-0000-0000-00000000a962',
+      '00000000-0000-0000-0000-00000000a963',now());
+    IF outcome <> 'DUTY_NOT_FOUND' THEN
+      RAISE EXCEPTION 'R6 handoff forged client ownership: %',outcome;
+    END IF;
+    outcome := apgic_instant_prepare_canonical_booking(
+      '00000000-0000-0000-0000-00000000a931',
+      '00000000-0000-0000-0000-00000000a902',
+      '00000000-0000-0000-0000-00000000a961',
+      '00000000-0000-0000-0000-00000000a962',
+      '00000000-0000-0000-0000-00000000a963',now());
+    IF outcome <> 'DUTY_BOOKING_LINKED' THEN
+      RAISE EXCEPTION 'R6 could not atomically hand off to R2: %',outcome;
+    END IF;
+    IF NOT EXISTS (
+      SELECT 1 FROM instant_booking_links l
+      JOIN bookings b ON b.id=l.booking_id
+      JOIN booking_holds h ON h.id=b.hold_id
+      WHERE l.dispatch_id='00000000-0000-0000-0000-00000000a931'
+        AND l.booking_id='00000000-0000-0000-0000-00000000a963'
+        AND b.client_identity_id='00000000-0000-0000-0000-00000000a902'
+        AND b.state='HELD' AND h.state='CONSUMED'
+        AND h.specialist_offer_id='00000000-0000-0000-0000-00000000a917'
+        AND h.help_intent_id='00000000-0000-0000-0000-00000000a921'
+    ) THEN
+      RAISE EXCEPTION 'R6 handoff lacks canonical R2 hold, booking or provenance';
+    END IF;
+    IF apgic_instant_booking_payment_verified('00000000-0000-0000-0000-00000000a963') THEN
+      RAISE EXCEPTION 'R6 handoff fabricated paid PSP evidence';
+    END IF;
+    outcome := apgic_instant_prepare_canonical_booking(
+      '00000000-0000-0000-0000-00000000a931',
+      '00000000-0000-0000-0000-00000000a902',
+      '00000000-0000-0000-0000-00000000a961',
+      '00000000-0000-0000-0000-00000000a964',
+      '00000000-0000-0000-0000-00000000a965',now());
+    IF outcome <> 'DUTY_BOOKING_ALREADY_LINKED' THEN
+      RAISE EXCEPTION 'R6 handoff retry created a second booking: %',outcome;
+    END IF;
+    IF (SELECT count(*) FROM instant_booking_links
+        WHERE dispatch_id='00000000-0000-0000-0000-00000000a931') <> 1 THEN
+      RAISE EXCEPTION 'R6 handoff double-linked an accepted dispatch';
+    END IF;
+    outcome := apgic_instant_cancel(
+      '00000000-0000-0000-0000-00000000a931',
+      '00000000-0000-0000-0000-00000000a902',now());
+    IF outcome <> 'DUTY_ALREADY_BOOKED' THEN
+      RAISE EXCEPTION 'R6 cancellation bypassed canonical R2 booking: %',outcome;
+    END IF;
+    RAISE EXCEPTION 'r6-handoff-proof-nested-rollback';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'r6-handoff-proof-nested-rollback' THEN
+      RAISE;
+    END IF;
+  END;
+
   outcome := apgic_instant_cancel(
    '00000000-0000-0000-0000-00000000a931',
    '00000000-0000-0000-0000-00000000a903',now());

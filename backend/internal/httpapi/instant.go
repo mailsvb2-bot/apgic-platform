@@ -158,6 +158,68 @@ func registerInstant(mux *http.ServeMux, store instant.Store,
 			writeJSON(w, http.StatusOK, dispatch)
 		}
 	})
+	mux.HandleFunc("GET /v1/instant/dispatches/{id}/fulfillment", func(w http.ResponseWriter, r *http.Request) {
+		identity, ok := authorize(w, r)
+		if !ok {
+			return
+		}
+		reader, supported := store.(instant.FulfillmentReader)
+		if !supported {
+			writeDemandError(w, r, http.StatusServiceUnavailable, "DUTY_FULFILLMENT_UNAVAILABLE", "Подтверждение бронирования временно недоступно.", true, nil)
+			return
+		}
+		status, err := reader.ReadFulfillment(r.PathValue("id"), identity)
+		if err != nil {
+			writeInstantError(w, r, err)
+			return
+		}
+		// Only R3 may issue credentials; proof of payment is not room admission.
+		status.RoomReady = false
+		writeJSON(w, http.StatusOK, status)
+	})
+	mux.HandleFunc("GET /v1/instant/dispatches/{id}/handoff-slots", func(w http.ResponseWriter, r *http.Request) {
+		identity, ok := authorize(w, r)
+		if !ok {
+			return
+		}
+		store, supported := store.(instant.BookingHandoffStore)
+		if !supported {
+			writeDemandError(w, r, http.StatusServiceUnavailable, "DUTY_HANDOFF_UNAVAILABLE", "Бронирование пока недоступно.", true, nil)
+			return
+		}
+		slots, err := store.HandoffSlots(r.PathValue("id"), identity)
+		if err != nil {
+			writeInstantError(w, r, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"slots": slots})
+	})
+	mux.HandleFunc("POST /v1/instant/dispatches/{id}/handoff", func(w http.ResponseWriter, r *http.Request) {
+		identity, ok := authorize(w, r)
+		if !ok {
+			return
+		}
+		store, supported := store.(instant.BookingHandoffStore)
+		if !supported {
+			writeDemandError(w, r, http.StatusServiceUnavailable, "DUTY_HANDOFF_UNAVAILABLE", "Бронирование пока недоступно.", true, nil)
+			return
+		}
+		var body struct {
+			SlotID string `json:"slot_id"`
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, 4096)
+		if err := decodeInstantCommand(r, &body); err != nil || !instant.ValidID(body.SlotID) {
+			writeInstantError(w, r, instant.ErrInvalid)
+			return
+		}
+		result, err := store.PrepareCanonicalBooking(r.PathValue("id"), identity, body.SlotID)
+		if err != nil {
+			writeInstantError(w, r, err)
+			return
+		}
+		result.RoomReady = false
+		writeJSON(w, http.StatusOK, result)
+	})
 	mux.HandleFunc("POST /v1/instant/dispatches/{id}/cancel", func(w http.ResponseWriter, r *http.Request) {
 		identity, ok := authorize(w, r)
 		if !ok {

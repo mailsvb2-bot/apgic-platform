@@ -3,8 +3,9 @@ import {Pressable,StyleSheet,Text,View} from "react-native";
 import type {MobileDemandClientOptions} from "./mobile-demand-client.ts";
 import {
   answerInstantDispatch,cancelInstantDispatch,createInstantDispatch,listInstantInbox,listInstantSpecialistOffers,
-  readActiveInstantDispatch,readInstantDispatch,readInstantPresence,updateInstantPresence,
-  type InstantDispatch,type InstantPresence,type InstantSpecialistDispatch,type InstantSpecialistOffer,
+  prepareInstantCanonicalBooking,readInstantHandoffSlots,
+  readActiveInstantDispatch,readInstantDispatch,readInstantFulfillment,readInstantPresence,updateInstantPresence,
+  type InstantDispatch,type InstantFulfillment,type InstantHandoffSlot,type InstantPresence,type InstantSpecialistDispatch,type InstantSpecialistOffer,
 } from "./instant-now-client.ts";
 
 const styles=StyleSheet.create({
@@ -24,6 +25,9 @@ export function InstantNowSurface({intentID,options,enabled,initialMode="client"
 }) {
  const [mode,setMode]=useState<"client"|"specialist">(initialMode);
  const [dispatch,setDispatch]=useState<InstantDispatch|null>(null);
+ const [fulfillment,setFulfillment]=useState<InstantFulfillment|null>(null);
+ const [handoffSlots,setHandoffSlots]=useState<InstantHandoffSlot[]>([]);
+ const [selectedSlot,setSelectedSlot]=useState("");
  const [presence,setPresence]=useState<InstantPresence|null>(null);
  const [offers,setOffers]=useState<InstantSpecialistOffer[]>([]);
  const [selected,setSelected]=useState("");
@@ -55,7 +59,7 @@ export function InstantNowSurface({intentID,options,enabled,initialMode="client"
   const interval=setInterval(()=>{
    if(mode==="specialist"){void specialistRefresh().catch(()=>setError("Нет связи с дежурством"));}
    else if(dispatch && ["OFFERED","ACCEPTED"].includes(dispatch.state)){
-    void readInstantDispatch(dispatch.id,options).then(setDispatch).catch(()=>setError("Нет связи с заявкой"));
+    void readInstantDispatch(dispatch.id,options).then(async next=>{setDispatch(next);if(next.state==="ACCEPTED"){const proof=await readInstantFulfillment(dispatch.id,options);setFulfillment(proof);if(!proof.booking_id){setHandoffSlots(await readInstantHandoffSlots(dispatch.id,options));}}else{setFulfillment(null);}}).catch(()=>setError("Нет связи с заявкой"));
    }
   },3000);
   return ()=>clearInterval(interval);
@@ -63,8 +67,18 @@ export function InstantNowSurface({intentID,options,enabled,initialMode="client"
  async function send(){
   if(!intentID)return;
   setBusy(true);setError("");setMessage("");
-  try{setDispatch(await createInstantDispatch(intentID,options));}
+  try{setFulfillment(null);setHandoffSlots([]);setDispatch(await createInstantDispatch(intentID,options));}
   catch(e){setError(e instanceof Error?e.message:"Не удалось обратиться");}
+  finally{setBusy(false);}
+ }
+ async function handoff(){
+  if(!dispatch || !selectedSlot || busy)return;
+  setBusy(true);setError("");setMessage("");
+  try{
+   const proof=await prepareInstantCanonicalBooking(dispatch.id,selectedSlot,options);
+   setFulfillment(proof);setHandoffSlots([]);
+   setMessage("Бронь R2 создана. Подтверждение внешней оплаты требуется отдельно; комната закрыта.");
+  }catch(e){setError(e instanceof Error?e.message:"Не удалось создать бронь R2");}
   finally{setBusy(false);}
  }
  async function cancelPending(){
@@ -72,7 +86,7 @@ export function InstantNowSurface({intentID,options,enabled,initialMode="client"
   setBusy(true);setError("");setMessage("");
   try{
    const next=await cancelInstantDispatch(dispatch.id,options);
-   setDispatch(next);
+   setDispatch(next);setFulfillment(null);setHandoffSlots([]);
    setMessage("Обращение отменено сервером. Доступ к консультации не предоставлен.");
   }catch(e){setError(e instanceof Error?e.message:"Отмена не подтверждена");}
   finally{setBusy(false);}
@@ -120,8 +134,17 @@ export function InstantNowSurface({intentID,options,enabled,initialMode="client"
        "Предложение отклонено. Попробуйте снова или выберите запись."}
      </Text>
      {dispatch.price_minor? <Text style={styles.detail}>Стоимость предложения: {(dispatch.price_minor/100).toLocaleString("ru-RU")} {dispatch.currency}</Text>:null}
+     {dispatch.state==="ACCEPTED"&&<Text style={styles.detail}>{fulfillment?.booking_id ? ("R2 запись: "+fulfillment.booking_state+" · "+(fulfillment.payment_verified?"Оплата подтверждена; R3 проверяет доступ отдельно.":"Оплата ожидает проверки провайдера.")) : "Каноническая бронь R2 ещё не оформлена."}</Text>}
+     {dispatch.state==="ACCEPTED" && !fulfillment?.booking_id && handoffSlots.length>0 && <>
+       <Text style={styles.body}>Выберите ближайшее время из реального расписания R2:</Text>
+       {handoffSlots.map(slot=>choice(
+         new Date(slot.starts_at).toLocaleString("ru-RU"),
+         ()=>setSelectedSlot(slot.id),false,selectedSlot===slot.id,
+       ))}
+       {choice("Создать бронь R2",()=>void handoff(),!selectedSlot)}
+     </>}
      <Text style={styles.detail}>Следующий шаг: {dispatch.next_action} · Доступ к комнате: закрыт</Text>
-     {["OFFERED","ACCEPTED"].includes(dispatch.state)&&choice("Отменить обращение",()=>void cancelPending(),!enabled)}
+     {["OFFERED","ACCEPTED"].includes(dispatch.state)&&!fulfillment?.booking_id&&choice("Отменить обращение",()=>void cancelPending(),!enabled)}
     </>}
   </>:<>
    <Text style={styles.body}>Доступность подтверждается только для действующего квалифицированного предложения.</Text>
