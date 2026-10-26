@@ -21,3 +21,14 @@ const (
 type FulfillmentReader interface {
 	ReadFulfillment(dispatchID, clientIdentityID string) (Fulfillment, error)
 }
+
+type CanonicalSlot struct {
+	ID string `json:"id"`
+	StartsAt time.Time `json:"starts_at"`
+	EndsAt time.Time `json:"ends_at"`
+}
+
+type BookingHandoffStore interface {
+	HandoffSlots(dispatchID, identityID string) ([]CanonicalSlot, error)
+	PrepareCanonicalBooking(dispatchID, identityID, slotID string) (Fulfillment, error)
+}
