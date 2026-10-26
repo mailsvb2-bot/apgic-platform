@@ -1,4 +1,4 @@
-import React,{useCallback,useEffect,useState} from "react";
+import React,{useCallback,useEffect,useRef,useState} from "react";
 import {Pressable,Text,TextInput,View} from "react-native";
 import {
   parseClientPersonalView,personalBookingLabel,personalProgressLabel,
@@ -13,19 +13,61 @@ export default function ClientPersonalPanel({baseURL}:{baseURL:string}) {
   const [message,setMessage]=useState("");
   const [editing,setEditing]=useState<ClientPersonalPreferences|null>(null);
   const [busy,setBusy]=useState(false);
+  const [paging,setPaging]=useState(false);
+  const epoch=useRef(0);
+  const pagingInFlight=useRef(false);
   const load=useCallback(async()=>{
+    const generation=++epoch.current;
+    pagingInFlight.current=false;
+    setPaging(false);
     setStatus("loading");setView(null);setEditing(null);setMessage("");
     try{
       const response=await fetch(new URL("/v1/client/personal",baseURL).toString(),{
         credentials:"include",headers:{Accept:"application/json"},cache:"no-store",
       });
+      if(generation!==epoch.current)return;
       if(response.status===401||response.status===403){setStatus("auth");return;}
       if(!response.ok)throw new Error("Данные кабинета пока недоступны.");
       const value=parseClientPersonalView(await response.json());
+      if(generation!==epoch.current)return;
       setView(value);setEditing(value.preferences);setStatus("ready");
-    }catch{setMessage("Не получилось получить историю с сервера.");setStatus("error");}
+    }catch{
+      if(generation!==epoch.current)return;
+      setMessage("Не получилось получить историю с сервера.");setStatus("error");
+    }
   },[baseURL]);
-  useEffect(()=>{let active=true;void load();return()=>{active=false;void active;};},[load]);
+  useEffect(()=>{void load();return()=>{epoch.current++;};},[load]);
+  const loadMore=async()=>{
+    if(paging||pagingInFlight.current||!view?.next_history_cursor)return;
+    pagingInFlight.current=true;
+    const generation=epoch.current;
+    const originalID=view.identity_id;
+    const cursor=view.next_history_cursor;
+    setPaging(true);setMessage("");
+    try{
+      const url=new URL("/v1/client/personal",baseURL);
+      url.searchParams.set("history_cursor",cursor);
+      const response=await fetch(url.toString(),{
+        credentials:"include",headers:{Accept:"application/json"},cache:"no-store",
+      });
+      if(!response.ok)throw new Error("История недоступна.");
+      const next=parseClientPersonalView(await response.json());
+      if(generation!==epoch.current)return;
+      if(next.identity_id!==originalID){
+        await load();return;
+      }
+      setView(previous=>{
+        if(!previous||previous.identity_id!==originalID)return previous;
+        const existing=new Set(previous.history.map(x=>x.booking_id));
+        return {...previous,history:[...previous.history,...next.history.filter(x=>!existing.has(x.booking_id))],
+          next_history_cursor:next.next_history_cursor};
+      });
+    }catch{
+      if(generation===epoch.current)setMessage("Не удалось загрузить следующую страницу истории.");
+    }finally{
+      if(generation===epoch.current){pagingInFlight.current=false;setPaging(false);}
+    }
+  };
   const save=async()=>{
     if(!editing||busy)return;
     setBusy(true);setMessage("");
@@ -77,6 +119,11 @@ export default function ClientPersonalPanel({baseURL}:{baseURL:string}) {
               </Pressable>)}
           </View>:null}
       </View>)}
+      {view.next_history_cursor?<Pressable accessibilityRole="button" disabled={paging||busy}
+        onPress={()=>void loadMore()}
+        style={{padding:12,minHeight:48,borderWidth:1,borderRadius:8}}>
+        <Text>{paging?"Загружаем историю…":"Показать более ранние записи"}</Text>
+      </Pressable>:null}
       <Text>Последние запросы: {view.requests.length}</Text>
       <TextInput accessibilityLabel="Как к вам обращаться" placeholder="Ваше имя"
         maxLength={80} value={editing?.display_name??""}

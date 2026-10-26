@@ -96,18 +96,27 @@ export default function ClientPersonalView(){
       const value=await loadClientPersonal(cursor);
       if(current!==epoch.current)return;
       if(value.identity_id!==data.identity_id)throw new Error("Сессия изменилась. Обновите страницу.");
-      const existing=new Set(data.history.map(x=>x.booking_id));
-      setData({...data,history:[...data.history,...value.history.filter(x=>!existing.has(x.booking_id))],next_history_cursor:value.next_history_cursor});
+      setData(previous=>{
+        if(!previous||previous.identity_id!==value.identity_id)return previous;
+        const existing=new Set(previous.history.map(x=>x.booking_id));
+        return {...previous,
+          history:[...previous.history,...value.history.filter(x=>!existing.has(x.booking_id))],
+          next_history_cursor:value.next_history_cursor};
+      });
     }catch(e){if(current===epoch.current)setError(e instanceof Error?e.message:"Не удалось загрузить историю.");}
     finally{if(current===epoch.current)setLoadingMore(false);}
   };
   const save=async(e:React.FormEvent)=>{
     e.preventDefault();
     if(!draft||!data||saving)return;
+    const current=epoch.current;
     setSaving(true);setError("");
     try{
       const actual=await saveClientPersonalPreferences(draft);
-      setData({...data,preferences:actual});setDraft(actual);
+      if(current!==epoch.current)return;
+      setData(previous=>previous?.identity_id===data.identity_id?
+        {...previous,preferences:actual}:previous);
+      setDraft(actual);
     }catch(e){setError(e instanceof Error?e.message:"Не удалось сохранить настройки.");}
     finally{setSaving(false);}
   };
