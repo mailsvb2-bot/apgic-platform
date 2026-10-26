@@ -143,3 +143,24 @@ export async function cancelInstantDispatch(id:string, options:MobileDemandClien
   if(d.state!=="CANCELLED")throw new Error("DUTY_CANCEL_UNCONFIRMED");
   return d;
 }
+
+export type InstantFulfillment = {
+  dispatch_id: string;
+  dispatch_state: InstantDispatchState;
+  booking_id?: string;
+  booking_state?: string;
+  payment_verified: boolean;
+  next_action: "AWAIT_CANONICAL_R2_BOOKING" | "AWAIT_VERIFIED_PROVIDER_PAYMENT" | "USE_R3_BOOKING_ACCESS_GATE" | "RETRY_OR_BOOK_LATER";
+  room_ready: false;
+};
+
+export async function readInstantFulfillment(id:string,options:MobileDemandClientOptions):Promise<InstantFulfillment> {
+  const proof = await instantFetch<InstantFulfillment>(options,
+    "/instant/dispatches/"+encodeURIComponent(id)+"/fulfillment");
+  if(proof.dispatch_id!==id || proof.room_ready!==false ||
+     (proof.payment_verified && (!proof.booking_id || proof.next_action!=="USE_R3_BOOKING_ACCESS_GATE")) ||
+     (!proof.booking_id && proof.payment_verified)) {
+    throw new Error("DUTY_FULFILLMENT_CONTRACT_INVALID");
+  }
+  return proof;
+}
