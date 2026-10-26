@@ -84,3 +84,18 @@ test("expired signed session during personal preferences write clears old identi
   await expect(page.getByText("Ирина Тестовая")).toHaveCount(0);
   await expect(page.getByRole("heading",{name:"Персональные настройки"})).toHaveCount(0);
 });
+
+test("expired signed session during a check-in also erases the old client history",async({page})=>{
+  await page.route("**/v1/client/personal/check-ins",r=>r.fulfill({
+    status:401,contentType:"application/json",body:'{"code":"CLIENT_SESSION_EXPIRED"}',
+  }));
+  await page.route("**/v1/client/personal**",r=>{
+    if(new URL(r.request().url()).pathname!=="/v1/client/personal")return r.fallback();
+    return r.fulfill({status:200,contentType:"application/json",body:JSON.stringify(makeView(true))});
+  });
+  await page.goto("/personal");
+  await expect(page.getByText("Ирина Тестовая").first()).toBeVisible();
+  await page.getByRole("button",{name:"Сохранить оценку"}).click();
+  await expect(page.getByRole("alert").filter({hasText:"Нет подтверждённой сессии"})).toBeVisible();
+  await expect(page.getByText("Ирина Тестовая")).toHaveCount(0);
+});
