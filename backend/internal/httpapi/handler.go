@@ -45,6 +45,7 @@ type Options struct {
 	Products                    organizationProductStore
 	ClientPersonal              clientPersonalStore
 	ConformanceProviderEvents   bool
+	BlockSyntheticAccountDeletion bool
 	ProviderWebhookKeys         connector.WebhookPublicKeyResolver
 	ConsultationProvider        ConsultationProviderStore
 	Finance                     FinanceStore
@@ -138,7 +139,7 @@ func New(options Options) http.Handler {
 			stepUp, sessionConfigErr = newStepUpManager(options.ClientSessionKey, options.Now)
 		}
 	}
-	registerDemand(mux, options.Demand, options.Consents, options.ConsentPolicies, sessions, sessionConfigErr, options.ConformanceProviderEvents, options.ProviderWebhookKeys, options.Now)
+	registerDemand(mux, options.Demand, options.Consents, options.ConsentPolicies, sessions, sessionConfigErr, options.ConformanceProviderEvents, options.ProviderWebhookKeys, options.Now, options.BlockSyntheticAccountDeletion)
 	registerInstant(mux, options.Instant, sessions, sessionConfigErr, options.InstantEnabled)
 	registerConsultationProvider(mux, options.ConsultationProvider, options.ProviderWebhookKeys, sessions, sessionConfigErr)
 	registerFinance(mux, options.Finance, options.ProviderWebhookKeys, sessions, sessionConfigErr)
