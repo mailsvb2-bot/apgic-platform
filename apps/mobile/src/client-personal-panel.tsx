@@ -16,10 +16,12 @@ export default function ClientPersonalPanel({baseURL}:{baseURL:string}) {
   const [paging,setPaging]=useState(false);
   const epoch=useRef(0);
   const pagingInFlight=useRef(false);
+  const mutationInFlight=useRef(false);
   const load=useCallback(async()=>{
     const generation=++epoch.current;
     pagingInFlight.current=false;
-    setPaging(false);
+    mutationInFlight.current=false;
+    setPaging(false);setBusy(false);
     setStatus("loading");setView(null);setEditing(null);setMessage("");
     try{
       const response=await fetch(new URL("/v1/client/personal",baseURL).toString(),{
@@ -38,7 +40,7 @@ export default function ClientPersonalPanel({baseURL}:{baseURL:string}) {
   },[baseURL]);
   useEffect(()=>{void load();return()=>{epoch.current++;};},[load]);
   const loadMore=async()=>{
-    if(paging||pagingInFlight.current||!view?.next_history_cursor)return;
+    if(status!=="ready"||busy||paging||pagingInFlight.current||!view?.next_history_cursor)return;
     pagingInFlight.current=true;
     const generation=epoch.current;
     const originalID=view.identity_id;
@@ -50,6 +52,9 @@ export default function ClientPersonalPanel({baseURL}:{baseURL:string}) {
       const response=await fetch(url.toString(),{
         credentials:"include",headers:{Accept:"application/json"},cache:"no-store",
       });
+      if(response.status===401||response.status===403){
+        await load();return;
+      }
       if(!response.ok)throw new Error("История недоступна.");
       const next=parseClientPersonalView(await response.json());
       if(generation!==epoch.current)return;
@@ -69,30 +74,38 @@ export default function ClientPersonalPanel({baseURL}:{baseURL:string}) {
     }
   };
   const save=async()=>{
-    if(!editing||busy)return;
+    if(status!=="ready"||!view||!editing||busy||mutationInFlight.current)return;
+    mutationInFlight.current=true;
+    const generation=epoch.current;
     setBusy(true);setMessage("");
     try{
       const res=await fetch(new URL("/v1/client/personal/preferences",baseURL).toString(),{
         method:"PUT",credentials:"include",headers:{"content-type":"application/json"},
         body:JSON.stringify({display_name:editing.display_name,locale:editing.locale,time_zone:editing.time_zone}),
       });
+      if(generation!==epoch.current)return;
+      if(res.status===401||res.status===403){await load();return;}
       if(!res.ok)throw new Error();
       await load();
-    }catch{setMessage("Изменения не сохранены. Повторите попытку.");}
-    finally{setBusy(false);}
+    }catch{if(generation===epoch.current)setMessage("Изменения не сохранены. Повторите попытку.");}
+    finally{if(generation===epoch.current){mutationInFlight.current=false;setBusy(false);}}
   };
   const checkIn=async(bookingID:string,progress:ClientPersonalCheckInInput["progress_code"])=>{
-    if(busy)return;
+    if(status!=="ready"||!view||busy||mutationInFlight.current)return;
+    mutationInFlight.current=true;
+    const generation=epoch.current;
     setBusy(true);setMessage("");
     try{
       const res=await fetch(new URL("/v1/client/personal/check-ins",baseURL).toString(),{
         method:"POST",credentials:"include",headers:{"content-type":"application/json"},
         body:JSON.stringify({booking_id:bookingID,progress_code:progress}),
       });
+      if(generation!==epoch.current)return;
+      if(res.status===401||res.status===403){await load();return;}
       if(!res.ok)throw new Error("CHECK_IN_NOT_SAVED");
       await load();
-    }catch{setMessage("Ответ не сохранён. Проверьте статус консультации.");}
-    finally{setBusy(false);}
+    }catch{if(generation===epoch.current)setMessage("Ответ не сохранён. Проверьте статус консультации.");}
+    finally{mutationInFlight.current=false;if(generation===epoch.current)setBusy(false);}
   };
   return <View style={{gap:10,padding:14,borderWidth:1,borderColor:"#cbd5cf",borderRadius:14}} accessibilityLabel="Личный кабинет клиента">
     <Text style={{fontWeight:"700",fontSize:20}}>Мой кабинет</Text>

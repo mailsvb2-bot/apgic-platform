@@ -12,7 +12,7 @@ function formatDate(iso:string,zone:string) {
   try{return new Intl.DateTimeFormat("ru-RU",{dateStyle:"medium",timeStyle:"short",timeZone:zone}).format(new Date(iso));}
   catch{return new Date(iso).toLocaleString("ru-RU");}
 }
-function PersonalCheckIn({booking,onSaved}:{booking:ClientPersonalBooking,onSaved:()=>void}){
+function PersonalCheckIn({booking,onSaved,onSessionLost}:{booking:ClientPersonalBooking,onSaved:()=>void,onSessionLost:()=>void}){
   const [progress,setProgress]=useState<ClientPersonalCheckInInput["progress_code"]>("UNSURE");
   const [rating,setRating]=useState("");
   const [busy,setBusy]=useState(false);
@@ -30,7 +30,12 @@ function PersonalCheckIn({booking,onSaved}:{booking:ClientPersonalBooking,onSave
       await recordPersonalCheckIn({booking_id:booking.booking_id,progress_code:progress,
         ...(rating?{match_satisfaction:Number(rating)}:{})});
       onSaved();
-    }catch(cause){setError(cause instanceof Error?cause.message:"Ответ не сохранён.");}
+    }catch(cause){
+      if(cause instanceof PersonalAPIError&&cause.reason==="SESSION"){
+        onSessionLost();return;
+      }
+      setError(cause instanceof Error?cause.message:"Ответ не сохранён.");
+    }
     finally{setBusy(false);}
   };
   return <form className="personal-check-in" onSubmit={e=>void submit(e)}>
@@ -51,7 +56,7 @@ function PersonalCheckIn({booking,onSaved}:{booking:ClientPersonalBooking,onSave
     {error?<p role="alert">{error}</p>:null}
   </form>;
 }
-function BookingList({items,zone,onSaved}:{items:ClientPersonalBooking[],zone:string,onSaved?:()=>void}){
+function BookingList({items,zone,onSaved,onSessionLost}:{items:ClientPersonalBooking[],zone:string,onSaved?:()=>void,onSessionLost?:()=>void}){
   if(!items.length)return <p className="personal-muted">Здесь пока нет записей.</p>;
   return <ul className="personal-booking-list">{items.map(item=>
     <li className="personal-booking" key={item.booking_id}>
@@ -63,7 +68,7 @@ function BookingList({items,zone,onSaved}:{items:ClientPersonalBooking[],zone:st
       </div>
       {item.consultation_state?<p>Консультация: {personalConsultationLabel[item.consultation_state]}</p>:null}
       <a href={`/bookings/${encodeURIComponent(item.booking_id)}`}>Детали записи</a>
-      {onSaved?<PersonalCheckIn booking={item} onSaved={onSaved}/>:null}
+      {onSaved?<PersonalCheckIn booking={item} onSaved={onSaved} onSessionLost={onSessionLost??(()=>{})}/>:null}
     </li>)}</ul>;
 }
 export default function ClientPersonalView(){
@@ -88,6 +93,11 @@ export default function ClientPersonalView(){
     }
   },[]);
   useEffect(()=>{void reload();return ()=>{epoch.current++;};},[reload]);
+  const revokeSession=()=>{
+    epoch.current++;
+    setData(null);setDraft(null);setStatus("unauthorized");
+    setError("Нет подтверждённой сессии. Войдите повторно.");
+  };
   const loadMore=async()=>{
     if(!data?.next_history_cursor||loadingMore)return;
     const cursor=data.next_history_cursor;
@@ -103,7 +113,14 @@ export default function ClientPersonalView(){
           history:[...previous.history,...value.history.filter(x=>!existing.has(x.booking_id))],
           next_history_cursor:value.next_history_cursor};
       });
-    }catch(e){if(current===epoch.current)setError(e instanceof Error?e.message:"Не удалось загрузить историю.");}
+    }catch(e){
+      if(current===epoch.current){
+        if(e instanceof PersonalAPIError&&e.reason==="SESSION"){
+          epoch.current++;setData(null);setDraft(null);setStatus("unauthorized");
+        }
+        setError(e instanceof Error?e.message:"Не удалось загрузить историю.");
+      }
+    }
     finally{if(current===epoch.current)setLoadingMore(false);}
   };
   const save=async(e:React.FormEvent)=>{
@@ -117,7 +134,14 @@ export default function ClientPersonalView(){
       setData(previous=>previous?.identity_id===data.identity_id?
         {...previous,preferences:actual}:previous);
       setDraft(actual);
-    }catch(e){setError(e instanceof Error?e.message:"Не удалось сохранить настройки.");}
+    }catch(e){
+      if(current===epoch.current){
+        if(e instanceof PersonalAPIError&&e.reason==="SESSION"){
+          epoch.current++;setData(null);setDraft(null);setStatus("unauthorized");
+        }
+        setError(e instanceof Error?e.message:"Не удалось сохранить настройки.");
+      }
+    }
     finally{setSaving(false);}
   };
   return <section className="personal-main" aria-label="Личный кабинет клиента">
@@ -147,7 +171,7 @@ export default function ClientPersonalView(){
       </div>
       <section className="personal-section" id="personal-history" aria-labelledby="personal-history">
         <h2 id="personal-history">История встреч</h2>
-        <BookingList items={data.history} zone={data.preferences.time_zone} onSaved={()=>void reload()}/>
+        <BookingList items={data.history} zone={data.preferences.time_zone} onSaved={()=>void reload()} onSessionLost={revokeSession}/>
         {data.next_history_cursor?<button type="button" disabled={loadingMore} onClick={()=>void loadMore()}>
           {loadingMore?"Загружаем…":"Показать более ранние записи"}
         </button>:null}
