@@ -36,14 +36,14 @@ type Options struct {
 	MobileWorkspaces              mobileWorkspaceStore
 	Notifications                 notification.MobileProjectionStore
 	ClientMutations               mutation.Store
-	DeepLinks                   deepLinkResourceStore
+	DeepLinks                     deepLinkResourceStore
 	DeepLinkSigningKey            []byte
 	Specialists                   specialist.Store
 	OrganizationAuth              organizationAuthorizationStore
 	Organizations                 organizationRuntimeStore
-	ProductOwnership            productOwnershipStore
+	ProductOwnership              productOwnershipStore
 	Products                      organizationProductStore
-	ClientPersonal              clientPersonalStore
+	ClientPersonal                clientPersonalStore
 	ConformanceProviderEvents     bool
 	BlockSyntheticAccountDeletion bool
 	ProviderWebhookKeys           connector.WebhookPublicKeyResolver
@@ -55,7 +55,7 @@ type Options struct {
 	ConsultationJourney           ConsultationJourneyStore
 	ConsultationJoin              ConsultationJoinOptions
 	ClientSessionKey              []byte
-	ClientCompatibilityPolicies map[clientcompat.Platform]clientcompat.Policy
+	ClientCompatibilityPolicies   map[clientcompat.Platform]clientcompat.Policy
 	RemoteConfigProvider          func(time.Time) (remoteconfig.SignedEnvelope, error)
 	Now                           func() time.Time
 }
