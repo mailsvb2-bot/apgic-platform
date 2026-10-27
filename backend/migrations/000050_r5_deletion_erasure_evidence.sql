@@ -475,3 +475,41 @@ $$;
 CREATE TRIGGER delete_account_requests_terminal_evidence_required
  BEFORE UPDATE ON delete_account_requests
  FOR EACH ROW EXECUTE FUNCTION apgic_deletion_terminal_evidence_guard();
+
+-- Serialize all client-owned writers with the erasure transaction. Merely
+-- checking a revoked row without an advisory lock allows a late transaction
+-- to re-create deleted personal data after the worker commits.
+CREATE OR REPLACE FUNCTION apgic_block_revoked_client_writes()
+RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE subject uuid;
+BEGIN
+  subject := NULLIF(to_jsonb(NEW)->>TG_ARGV[0],'')::uuid;
+  IF subject IS NULL THEN
+    RETURN NEW;
+  END IF;
+  PERFORM pg_advisory_xact_lock(hashtextextended(subject::text,0));
+  IF EXISTS (SELECT 1 FROM client_deletion_revocations WHERE identity_id=subject) THEN
+    RAISE EXCEPTION 'identity access revoked following verified deletion';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER client_personal_preferences_revoke_writes
+ BEFORE INSERT OR UPDATE ON client_personal_preferences
+ FOR EACH ROW EXECUTE FUNCTION apgic_block_revoked_client_writes('identity_id');
+CREATE TRIGGER help_intents_revoke_writes
+ BEFORE INSERT OR UPDATE ON help_intents
+ FOR EACH ROW EXECUTE FUNCTION apgic_block_revoked_client_writes('identity_id');
+CREATE TRIGGER client_installations_revoke_writes
+ BEFORE INSERT OR UPDATE ON client_installations
+ FOR EACH ROW EXECUTE FUNCTION apgic_block_revoked_client_writes('identity_id');
+CREATE TRIGGER bookings_revoke_client_writes
+ BEFORE INSERT OR UPDATE ON bookings
+ FOR EACH ROW EXECUTE FUNCTION apgic_block_revoked_client_writes('client_identity_id');
+CREATE TRIGGER booking_holds_revoke_client_writes
+ BEFORE INSERT OR UPDATE ON booking_holds
+ FOR EACH ROW EXECUTE FUNCTION apgic_block_revoked_client_writes('client_identity_id');
+CREATE TRIGGER client_checkins_revoke_client_writes
+ BEFORE INSERT OR UPDATE ON client_personal_check_ins
+ FOR EACH ROW EXECUTE FUNCTION apgic_block_revoked_client_writes('client_identity_id');
