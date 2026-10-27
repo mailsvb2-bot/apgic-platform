@@ -1,5 +1,6 @@
 import React,{useCallback,useEffect,useRef,useState} from "react";
-import {Pressable,Text,TextInput,View} from "react-native";
+import {Platform,Pressable,Text,TextInput,View} from "react-native";
+import ClientDeletionRequest from "./client-deletion-request.tsx";
 import {
   parseClientPersonalView,personalBookingLabel,personalProgressLabel,
   type ClientPersonalCheckInInput,
@@ -138,6 +139,7 @@ export default function ClientPersonalPanel({baseURL}:{baseURL:string}) {
         <Text>{paging?"Загружаем историю…":"Показать более ранние записи"}</Text>
       </Pressable>:null}
       <Text>Последние запросы: {view.requests.length}</Text>
+      <ClientDeletionRequest baseURL={baseURL} source={Platform.OS==="ios"?"IOS":"ANDROID"}/>
       <TextInput accessibilityLabel="Как к вам обращаться" placeholder="Ваше имя"
         maxLength={80} value={editing?.display_name??""}
         onChangeText={value=>setEditing(p=>p?{...p,display_name:value}:p)}
