@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
@@ -32,6 +33,11 @@ var (
 type clientSessionManager struct {
 	key []byte
 	now func() time.Time
+	deletions clientIdentityDeletionChecker
+}
+
+type clientIdentityDeletionChecker interface {
+	ClientIdentityDeleted(context.Context, string) (bool, error)
 }
 
 func ValidateClientSessionKey(key []byte) error {
@@ -94,6 +100,12 @@ func (m *clientSessionManager) identityAndReferenceFromRequest(r *http.Request) 
 	identityID, err := m.parse(cookie.Value)
 	if err != nil {
 		return "", "", err
+	}
+	if m.deletions != nil {
+		deleted, lookupErr := m.deletions.ClientIdentityDeleted(r.Context(), identityID)
+		if lookupErr != nil || deleted {
+			return "", "", ErrClientSessionInvalid
+		}
 	}
 	digest := sha256.Sum256([]byte(cookie.Value))
 	return identityID, "session:" + base64.RawURLEncoding.EncodeToString(digest[:]), nil
