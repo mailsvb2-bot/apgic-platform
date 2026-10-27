@@ -26,7 +26,7 @@ func (s *deletionConfirmationFixture) ReadAccountDeletionRequest(_ context.Conte
 	return privacy.AccountDeletionReceipt{ID: "11111111-1111-4111-8111-111111111111", State: "REQUESTED"}, nil
 }
 
-func (s *deletionConfirmationFixture) FinanceMFAActiveAt(_ context.Context, _ string, _ time.Time) (bool, error) {
+func (s *deletionConfirmationFixture) DeletionFactorActiveAt(_ context.Context, _ string, _ time.Time) (bool, error) {
 	return s.active, nil
 }
 
@@ -61,7 +61,7 @@ func TestDeletionReconfirmationRequiresActiveSessionBoundVerifiedFactor(t *testi
 	if err != nil {
 		t.Fatal(err)
 	}
-	verified, err := stepUp.issue(owner, sessionRef, "TOTP", now)
+	verified, err := stepUp.issue(owner, sessionRef, "DELETION_TOTP", now)
 	if err != nil {
 		t.Fatal(err)
 	}
