@@ -94,18 +94,18 @@ func registerAccountDeletionIntake(mux *http.ServeMux, store accountDeletionInta
 			return
 		}
 		evidence := stepUp.evidenceFromRequest(r, owner, sessionRef)
-		if evidence == nil || evidence.Method != "TOTP" || time.Since(evidence.IssuedAt) > stepUpTTL {
+		if evidence == nil || evidence.Method != "DELETION_TOTP" || stepUp.now().UTC().Sub(evidence.IssuedAt) > stepUpTTL {
 			writeDemandError(w, r, http.StatusPreconditionRequired, "DELETION_STEP_UP_REQUIRED", "Требуется действующее подтверждение второго фактора.", false, nil)
 			return
 		}
 		factors, ok := store.(interface {
-			FinanceMFAActiveAt(context.Context, string, time.Time) (bool, error)
+			DeletionFactorActiveAt(context.Context, string, time.Time) (bool, error)
 		})
 		if !ok {
 			writeDemandError(w, r, http.StatusServiceUnavailable, "DELETION_FACTOR_UNAVAILABLE", "Проверка второго фактора недоступна.", true, nil)
 			return
 		}
-		active, err := factors.FinanceMFAActiveAt(r.Context(), owner, evidence.IssuedAt)
+		active, err := factors.DeletionFactorActiveAt(r.Context(), owner, evidence.IssuedAt)
 		if err != nil || !active {
 			writeDemandError(w, r, http.StatusForbidden, "DELETION_STEP_UP_REVOKED", "Подтверждение личности отозвано или недействительно.", false, nil)
 			return
