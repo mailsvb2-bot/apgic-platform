@@ -12,7 +12,7 @@ import (
 )
 
 type deletionIntakeFixture struct {
-	owner string
+	owner   string
 	submits int
 }
 
