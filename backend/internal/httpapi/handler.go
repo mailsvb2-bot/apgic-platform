@@ -21,42 +21,43 @@ import (
 )
 
 type Options struct {
-	CommitSHA                   string
-	ReleaseTrack                string
-	Surfaces                    []string
-	LaunchConfig                launchconfig.Config
-	ReadinessCheck              func(context.Context) error
-	Demand                      *demand.Service
-	Instant                     instant.Store
-	InstantEnabled              bool
-	LegalAcceptances            legal.AcceptanceStore
-	Consents                    privacy.ConsentStore
-	ConsentPolicies             map[string]privacy.ConsentPolicy
-	Installations               mobile.InstallationStore
-	MobileWorkspaces            mobileWorkspaceStore
-	Notifications               notification.MobileProjectionStore
-	ClientMutations             mutation.Store
-	DeepLinks                   deepLinkResourceStore
-	DeepLinkSigningKey          []byte
-	Specialists                 specialist.Store
-	OrganizationAuth            organizationAuthorizationStore
-	Organizations               organizationRuntimeStore
-	ProductOwnership            productOwnershipStore
-	Products                    organizationProductStore
-	ClientPersonal              clientPersonalStore
-	ConformanceProviderEvents   bool
-	ProviderWebhookKeys         connector.WebhookPublicKeyResolver
-	ConsultationProvider        ConsultationProviderStore
-	Finance                     FinanceStore
-	FinanceOperations           FinanceOperationsStore
-	FinanceMFA                  FinanceMFAStore
-	FinanceMFAKey               [32]byte
-	ConsultationJourney         ConsultationJourneyStore
-	ConsultationJoin            ConsultationJoinOptions
-	ClientSessionKey            []byte
-	ClientCompatibilityPolicies map[clientcompat.Platform]clientcompat.Policy
-	RemoteConfigProvider        func(time.Time) (remoteconfig.SignedEnvelope, error)
-	Now                         func() time.Time
+	CommitSHA                     string
+	ReleaseTrack                  string
+	Surfaces                      []string
+	LaunchConfig                  launchconfig.Config
+	ReadinessCheck                func(context.Context) error
+	Demand                        *demand.Service
+	Instant                       instant.Store
+	InstantEnabled                bool
+	LegalAcceptances              legal.AcceptanceStore
+	Consents                      privacy.ConsentStore
+	ConsentPolicies               map[string]privacy.ConsentPolicy
+	Installations                 mobile.InstallationStore
+	MobileWorkspaces              mobileWorkspaceStore
+	Notifications                 notification.MobileProjectionStore
+	ClientMutations               mutation.Store
+	DeepLinks                     deepLinkResourceStore
+	DeepLinkSigningKey            []byte
+	Specialists                   specialist.Store
+	OrganizationAuth              organizationAuthorizationStore
+	Organizations                 organizationRuntimeStore
+	ProductOwnership              productOwnershipStore
+	Products                      organizationProductStore
+	ClientPersonal                clientPersonalStore
+	ConformanceProviderEvents     bool
+	BlockSyntheticAccountDeletion bool
+	ProviderWebhookKeys           connector.WebhookPublicKeyResolver
+	ConsultationProvider          ConsultationProviderStore
+	Finance                       FinanceStore
+	FinanceOperations             FinanceOperationsStore
+	FinanceMFA                    FinanceMFAStore
+	FinanceMFAKey                 [32]byte
+	ConsultationJourney           ConsultationJourneyStore
+	ConsultationJoin              ConsultationJoinOptions
+	ClientSessionKey              []byte
+	ClientCompatibilityPolicies   map[clientcompat.Platform]clientcompat.Policy
+	RemoteConfigProvider          func(time.Time) (remoteconfig.SignedEnvelope, error)
+	Now                           func() time.Time
 }
 
 type metaResponse struct {
@@ -138,7 +139,7 @@ func New(options Options) http.Handler {
 			stepUp, sessionConfigErr = newStepUpManager(options.ClientSessionKey, options.Now)
 		}
 	}
-	registerDemand(mux, options.Demand, options.Consents, options.ConsentPolicies, sessions, sessionConfigErr, options.ConformanceProviderEvents, options.ProviderWebhookKeys, options.Now)
+	registerDemand(mux, options.Demand, options.Consents, options.ConsentPolicies, sessions, sessionConfigErr, options.ConformanceProviderEvents, options.ProviderWebhookKeys, options.Now, options.BlockSyntheticAccountDeletion)
 	registerInstant(mux, options.Instant, sessions, sessionConfigErr, options.InstantEnabled)
 	registerConsultationProvider(mux, options.ConsultationProvider, options.ProviderWebhookKeys, sessions, sessionConfigErr)
 	registerFinance(mux, options.Finance, options.ProviderWebhookKeys, sessions, sessionConfigErr)

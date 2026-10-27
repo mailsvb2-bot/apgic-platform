@@ -66,6 +66,7 @@ func registerDemand(
 	allowConformanceProviderEvents bool,
 	providerWebhookKeys connector.WebhookPublicKeyResolver,
 	now func() time.Time,
+	blockSyntheticAccountDeletion bool,
 ) {
 	mux.HandleFunc("POST /v1/help-intents", func(w http.ResponseWriter, r *http.Request) {
 		if service == nil {
@@ -683,6 +684,13 @@ func registerDemand(
 	})
 
 	mux.HandleFunc("POST /v1/account-deletions", func(w http.ResponseWriter, r *http.Request) {
+		// The legacy demand.DeleteAccount path manufactures provider-erasure
+		// evidence. In persistent deployments, refuse to report erasure until
+		// a durable, independently verified erasure executor is implemented.
+		if blockSyntheticAccountDeletion {
+			writeDemandError(w, r, http.StatusServiceUnavailable, "ACCOUNT_DELETION_EVIDENCE_UNAVAILABLE", "Удаление аккаунта временно недоступно: фактическое стирание данных не подтверждено.", false, nil)
+			return
+		}
 		if service == nil {
 			writeDemandError(w, r, http.StatusServiceUnavailable, "DEMAND_CATALOG_UNAVAILABLE", "Каталог спроса не подключён.", false, nil)
 			return

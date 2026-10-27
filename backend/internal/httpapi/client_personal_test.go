@@ -182,3 +182,28 @@ func TestPersonalAPIFailsClosedWhenPersistenceUnavailable(t *testing.T) {
 		t.Fatalf("no store must not mint history: %d %s", w.Code, w.Body.String())
 	}
 }
+
+func TestPersistentAccountDeletionRejectsSyntheticErasureBeforeStoreMutation(t *testing.T) {
+	const owner = "11111111-1111-4111-8111-111111111111"
+	key := []byte(strings.Repeat("p", 48))
+	sessions, err := newClientSessionManager(key, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cookie, err := sessions.issue(owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := New(Options{ClientSessionKey: key, BlockSyntheticAccountDeletion: true})
+	for _, body := range []string{`{"source":"WEB"}`, `{"source":"IOS"}`, `{"source":"ANDROID"}`} {
+		request := httptest.NewRequest(http.MethodPost, "/v1/account-deletions", strings.NewReader(body))
+		request.AddCookie(cookie)
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, request)
+		if w.Code != http.StatusServiceUnavailable ||
+			!strings.Contains(w.Body.String(), "ACCOUNT_DELETION_EVIDENCE_UNAVAILABLE") ||
+			strings.Contains(w.Body.String(), "profile_erased") {
+			t.Fatalf("persistent deletion must fail closed: status=%d body=%s", w.Code, w.Body.String())
+		}
+	}
+}
