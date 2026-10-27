@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
@@ -30,6 +31,7 @@ var (
 )
 
 type clientSessionManager struct {
+	revoked func(context.Context,string)(bool,error)
 	key []byte
 	now func() time.Time
 }
@@ -94,6 +96,11 @@ func (m *clientSessionManager) identityAndReferenceFromRequest(r *http.Request) 
 	identityID, err := m.parse(cookie.Value)
 	if err != nil {
 		return "", "", err
+	}
+	if m.revoked != nil {
+		closed, checkErr := m.revoked(r.Context(), identityID)
+		if checkErr != nil { return "", "", ErrClientSessionInvalid }
+		if closed { return "", "", ErrClientSessionExpired }
 	}
 	digest := sha256.Sum256([]byte(cookie.Value))
 	return identityID, "session:" + base64.RawURLEncoding.EncodeToString(digest[:]), nil
