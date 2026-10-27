@@ -123,12 +123,18 @@ INSERT INTO deletion_provider_verified_receipts (
   now()
 );
 
+BEGIN;
 UPDATE delete_account_requests
 SET state = 'PARTIALLY_RETAINED_WITH_REASON',
     retained_reason = 'jurisdiction retention policy',
     completed_at = now(),
     updated_at = now()
 WHERE id = '00000000-0000-0000-0000-000000000901';
+INSERT INTO deletion_revoked_identities(identity_id,request_id) VALUES (
+  '00000000-0000-0000-0000-000000000001',
+  '00000000-0000-0000-0000-000000000901'
+);
+COMMIT;
 
 DO $$
 DECLARE
