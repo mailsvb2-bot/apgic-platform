@@ -93,3 +93,12 @@ $$;
 CREATE TRIGGER delete_execution_evidence_guard
 BEFORE UPDATE ON delete_account_requests
 FOR EACH ROW EXECUTE FUNCTION apgic_delete_execution_evidence_guard();
+
+-- Privileged-role and open-booking reviews must not starve unrelated owners.
+-- Failed eligibility is retried durably; no request is discarded.
+CREATE TABLE deletion_processing_holds (
+  request_id uuid PRIMARY KEY REFERENCES delete_account_requests(id),
+  reason_code text NOT NULL,
+  retry_after timestamptz NOT NULL,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
