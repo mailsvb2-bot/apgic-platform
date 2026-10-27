@@ -339,7 +339,7 @@ jobs:
         working-directory: backend
         env:
           APGIC_PERSONAL_TEST_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable
-        run: go test ./internal/runtimepostgres -run TestClientPersonalOwnerIsolationAndRestartReadback -count=1 -v
+        run: go test ./internal/runtimepostgres -run 'TestClientPersonalOwnerIsolationAndRestartReadback|TestAccountDeletionDurableOwnerIsolationAndConcurrency' -count=1 -v
       - name: Prove DATA-001 consent grant revoke and active lookup in PostgreSQL
         working-directory: backend
         env:
