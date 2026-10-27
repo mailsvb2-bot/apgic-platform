@@ -1,6 +1,7 @@
 package runtimepostgres
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -123,58 +124,71 @@ func (c *Checker) ExecuteApprovedAccountDeletion(ctx context.Context, approved p
 	return out,nil
 }
 
-// An external erasure receipt must be verified cryptographically by the
-// provider adapter before any caller can mark a job as SUCCEEDED.
-type SignedProviderErasureReceipt struct {
-	RequestID string `json:"request_id"`
-	ProviderRef string `json:"provider_ref"`
-	EvidenceRef string `json:"evidence_ref"`
-	ErasedAt time.Time `json:"erased_at"`
-}
-
-// MarkVerifiedProviderErasure has no public HTTP route. Only an independently
-// verified provider receipt, enforced by its caller, can enter this method.
-func (c *Checker) MarkVerifiedProviderErasure(ctx context.Context, receipt SignedProviderErasureReceipt) (privacy.AccountDeletionReceipt,error) {
+// MarkVerifiedProviderErasure only accepts the opaque capability returned by
+// ed25519 verification against the pinned provider public key. A caller cannot
+// submit a fabricated string and declare external erasure complete.
+func (c *Checker) MarkVerifiedProviderErasure(ctx context.Context, verified privacy.VerifiedProviderErasureReceipt) (privacy.AccountDeletionReceipt,error) {
 	var out privacy.AccountDeletionReceipt
-	if c==nil||c.db==nil||receipt.RequestID==""||receipt.ProviderRef==""||
-		receipt.EvidenceRef==""||receipt.ErasedAt.IsZero(){
-		return out,errors.New("unverified provider receipt")
+	receipt:=verified.Statement()
+	if c==nil||c.db==nil||len(verified.Signature())!=64||receipt.RequestID==""||
+		receipt.ProviderRef==""||receipt.EvidenceRef==""||receipt.State!="ERASED" {
+		return out,privacy.ErrProviderErasureReceiptInvalid
 	}
 	ctx,cancel:=context.WithTimeout(ctx,clientPersonalTimeout)
 	defer cancel()
 	tx,err:=c.db.BeginTx(ctx,nil)
 	if err!=nil{return out,err}
 	defer tx.Rollback()
-	var owner string
 	var policyJSON []byte
-	err=tx.QueryRowContext(ctx,`SELECT d.id::text,d.identity_id::text,d.state,d.source_surface,d.created_at,d.updated_at,
+	err=tx.QueryRowContext(ctx,`SELECT d.id::text,d.state,d.source_surface,d.created_at,d.updated_at,
 		a.policy_snapshot FROM delete_account_requests d
 		JOIN client_deletion_policy_approvals a ON a.request_id=d.id
-		WHERE d.id=$1::uuid FOR UPDATE`,receipt.RequestID).
-		Scan(&out.ID,&owner,&out.State,&out.Source,&out.CreatedAt,&out.UpdatedAt,&policyJSON)
+		WHERE d.id=$1::uuid FOR UPDATE OF d`,receipt.RequestID).
+		Scan(&out.ID,&out.State,&out.Source,&out.CreatedAt,&out.UpdatedAt,&policyJSON)
 	if err!=nil{return out,err}
-	if out.State!="PROVIDER_ERASURE_PENDING"{return out,errors.New("deletion not awaiting provider receipt")}
-	res,err:=tx.ExecContext(ctx,`UPDATE provider_erasure_jobs
-		SET state='SUCCEEDED',evidence_ref=$3,updated_at=now()
-		WHERE delete_request_id=$1::uuid AND provider_ref=$2 AND state='PENDING'`,
-		receipt.RequestID,receipt.ProviderRef,receipt.EvidenceRef)
-	if err!=nil{return out,err}
-	n,err:=res.RowsAffected()
-	if err!=nil{return out,err}
-	if n!=1{return out,errors.New("provider erasure receipt replay or missing job")}
-	var pending bool
-	if err=tx.QueryRowContext(ctx,`SELECT EXISTS(SELECT 1 FROM provider_erasure_jobs
-		WHERE delete_request_id=$1::uuid AND state<>'SUCCEEDED')`,receipt.RequestID).Scan(&pending);err!=nil{return out,err}
-	if !pending {
-		var policy privacy.ApprovedDeletionPolicy
-		if err=json.Unmarshal(policyJSON,&policy);err!=nil{return out,err}
-		err=tx.QueryRowContext(ctx,`UPDATE delete_account_requests SET
-			state='PARTIALLY_RETAINED_WITH_REASON',
-			retained_reason=$2,completed_at=now(),updated_at=now()
-			WHERE id=$1::uuid AND state='PROVIDER_ERASURE_PENDING'
-			RETURNING state,updated_at`,receipt.RequestID,policy.FinancialRetentionReason).
-			Scan(&out.State,&out.UpdatedAt)
-		if err!=nil{return out,err}
+	var existingSignature []byte
+	err=tx.QueryRowContext(ctx,`SELECT receipt_signature FROM client_deletion_provider_receipts
+		WHERE request_id=$1::uuid AND provider_ref=$2`,receipt.RequestID,receipt.ProviderRef).
+		Scan(&existingSignature)
+	if err==nil{
+		if !bytes.Equal(existingSignature,verified.Signature()){
+			return out,errors.New("conflicting provider receipt replay")
+		}
+		out.Idempotent=true
+	} else if !errors.Is(err,sql.ErrNoRows) {
+		return out,err
+	} else {
+		if out.State!="PROVIDER_ERASURE_PENDING"{return out,errors.New("deletion not awaiting provider receipt")}
+		res,e:=tx.ExecContext(ctx,`UPDATE provider_erasure_jobs
+			SET state='SUCCEEDED',evidence_ref=$3,updated_at=now()
+			WHERE delete_request_id=$1::uuid AND provider_ref=$2 AND state='PENDING'`,
+			receipt.RequestID,receipt.ProviderRef,receipt.EvidenceRef)
+		if e!=nil{return out,e}
+		n,e:=res.RowsAffected()
+		if e!=nil{return out,e}
+		if n!=1{return out,errors.New("provider erasure job missing or already completed")}
+		_,e=tx.ExecContext(ctx,`INSERT INTO client_deletion_provider_receipts
+			(request_id,provider_ref,receipt_json,receipt_signature,signing_key_fingerprint,verified_at)
+			VALUES($1::uuid,$2,$3::jsonb,$4,$5,now())`,
+			receipt.RequestID,receipt.ProviderRef,string(verified.RawJSON()),
+			verified.Signature(),verified.KeyFingerprint())
+		if e!=nil{return out,e}
+	}
+	if out.State=="PROVIDER_ERASURE_PENDING" {
+		var pending bool
+		if err=tx.QueryRowContext(ctx,`SELECT EXISTS(SELECT 1 FROM provider_erasure_jobs
+			WHERE delete_request_id=$1::uuid AND state<>'SUCCEEDED')`,receipt.RequestID).Scan(&pending);err!=nil{return out,err}
+		if !pending {
+			var policy privacy.ApprovedDeletionPolicy
+			if err=json.Unmarshal(policyJSON,&policy);err!=nil{return out,err}
+			err=tx.QueryRowContext(ctx,`UPDATE delete_account_requests SET
+				state='PARTIALLY_RETAINED_WITH_REASON',
+				retained_reason=$2,completed_at=now(),updated_at=now()
+				WHERE id=$1::uuid AND state='PROVIDER_ERASURE_PENDING'
+				RETURNING state,updated_at`,receipt.RequestID,policy.FinancialRetentionReason).
+				Scan(&out.State,&out.UpdatedAt)
+			if err!=nil{return out,err}
+		}
 	}
 	if err=tx.Commit();err!=nil{return privacy.AccountDeletionReceipt{},err}
 	out.Notice="Результат удаления сохранён; обязательные к хранению сведения не стирались."
