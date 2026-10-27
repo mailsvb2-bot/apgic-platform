@@ -79,6 +79,16 @@ func TestR5CanonicalDeletionTransactionAndVerifiedTerminalRevocation(t *testing.
 		(identity_id,display_name) VALUES ($1::uuid,'Секретное имя'),($2::uuid,'Чужой профиль')`, owner, foreign); err != nil {
 		t.Fatal(err)
 	}
+	installationID, err := persistentid.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = db.db.ExecContext(ctx, `INSERT INTO client_installations
+		(id, identity_id, platform, push_endpoint, state, updated_at)
+		VALUES($1::uuid,$2::uuid,'IOS','https://push.example/device-secret','ACTIVE',now())`,
+		installationID, owner); err != nil {
+		t.Fatal(err)
+	}
 	intentID, err := persistentid.New()
 	if err != nil {
 		t.Fatal(err)
@@ -117,6 +127,13 @@ func TestR5CanonicalDeletionTransactionAndVerifiedTerminalRevocation(t *testing.
 	}
 	if err = db.db.QueryRowContext(ctx, "SELECT count(*) FROM client_personal_preferences WHERE identity_id=$1::uuid", foreign).Scan(&count); err != nil || count != 1 {
 		t.Fatalf("foreign preferences mutated count=%d err=%v", count, err)
+	}
+	var pushState string
+	var pushEndpoint sql.NullString
+	if err = db.db.QueryRowContext(ctx, `SELECT state,push_endpoint FROM client_installations
+		WHERE id=$1::uuid`, installationID).Scan(&pushState, &pushEndpoint); err != nil ||
+		pushState != "REVOKED" || pushEndpoint.Valid {
+		t.Fatalf("push credential survived erasure: state=%s endpoint=%v err=%v", pushState, pushEndpoint, err)
 	}
 	var freeText string
 	if err = db.db.QueryRowContext(ctx, "SELECT free_text FROM help_intents WHERE id=$1::uuid", intentID).Scan(&freeText); err != nil || freeText == "личная информация" {
