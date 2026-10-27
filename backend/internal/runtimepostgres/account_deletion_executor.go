@@ -16,10 +16,30 @@ import (
 var ErrDeletionBlockedByActiveObligations = errors.New("cannot erase account with active bookings or entitlements")
 var ErrNoEligibleDeletionRequest = errors.New("no reconfirmed account deletion request")
 
-// ExecuteApprovedAccountDeletion processes one durable REQUESTED->reconfirmed
+// PendingApprovedDeletionRequestIDs supports finite, idempotent worker batches.
+// A blocked request cannot starve unrelated identities.
+func (c *Checker) PendingApprovedDeletionRequestIDs(ctx context.Context, limit int) ([]string,error) {
+	if c==nil||c.db==nil{return nil,errors.New("postgres unavailable")}
+	if limit<1||limit>100{return nil,errors.New("invalid batch size")}
+	ctx,cancel:=context.WithTimeout(ctx,clientPersonalTimeout)
+	defer cancel()
+	rows,err:=c.db.QueryContext(ctx,`SELECT id::text FROM delete_account_requests
+		WHERE state='IDENTITY_RECONFIRMED' ORDER BY created_at,id LIMIT $1`,limit)
+	if err!=nil{return nil,err}
+	defer rows.Close()
+	var ids []string
+	for rows.Next(){
+		var id string
+		if err=rows.Scan(&id);err!=nil{return nil,err}
+		ids=append(ids,id)
+	}
+	return ids,rows.Err()
+}
+
+// ExecuteApprovedAccountDeletionRequest processes one durable REQUESTED->reconfirmed
 // owner. The only accepted authority is the opaque, signature-verified legal
 // policy. It never fabricates provider receipts.
-func (c *Checker) ExecuteApprovedAccountDeletion(ctx context.Context, approved privacy.VerifiedDeletionPolicy) (privacy.AccountDeletionReceipt,error) {
+func (c *Checker) ExecuteApprovedAccountDeletionRequest(ctx context.Context, requestID string, approved privacy.VerifiedDeletionPolicy) (privacy.AccountDeletionReceipt,error) {
 	var out privacy.AccountDeletionReceipt
 	if c==nil||c.db==nil||len(approved.Signature())!=64||len(approved.Digest())!=64 {
 		return out,privacy.ErrDeletionPolicyUnapproved
@@ -37,8 +57,7 @@ func (c *Checker) ExecuteApprovedAccountDeletion(ctx context.Context, approved p
 	// Acquire locks in the same order as signed intake and reconfirmation:
 	// identity advisory lock first, canonical request row lock second.
 	err=tx.QueryRowContext(ctx,`SELECT id::text,identity_id::text
-		FROM delete_account_requests WHERE state='IDENTITY_RECONFIRMED'
-		ORDER BY created_at,id LIMIT 1`).Scan(&out.ID,&owner)
+		FROM delete_account_requests WHERE id=$1::uuid AND state='IDENTITY_RECONFIRMED'`,requestID).Scan(&out.ID,&owner)
 	if errors.Is(err,sql.ErrNoRows){return out,ErrNoEligibleDeletionRequest}
 	if err!=nil{return out,err}
 	if _,err=tx.ExecContext(ctx,"SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",owner);err!=nil{return out,err}
