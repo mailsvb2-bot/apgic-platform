@@ -561,7 +561,7 @@ INSERT INTO store_subscription_exit_actions (
 
 -- Merely pointing the owner to external subscription management is not
 -- independently signed proof of external account/data erasure.
-DO $
+DO $$
 DECLARE invalid_terminal boolean := false;
 BEGIN
   BEGIN
@@ -576,7 +576,7 @@ BEGIN
     RAISE EXCEPTION 'app-store instructions falsely counted as verified deletion';
   END IF;
 END
-$;
+$$;
 
 INSERT INTO device_integrity_evidence (
   id, identity_id, installation_id, provider_kind, provider_evidence_ref,
