@@ -17,6 +17,8 @@ type deletionIntakeFixture struct {
 	factorActive bool
 }
 
+func (s *deletionIntakeFixture) IsAccountAccessRevoked(_ context.Context, _ string) (bool,error) { return false,nil }
+
 func (s *deletionIntakeFixture) FinanceMFAActiveAt(_ context.Context, _ string, _ time.Time) (bool, error) {
 	return s.factorActive, nil
 }
