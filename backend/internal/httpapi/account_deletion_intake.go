@@ -126,8 +126,13 @@ func registerAccountDeletionIntake(mux *http.ServeMux, store accountDeletionInta
 	})
 	mux.HandleFunc("GET /v1/client/account-deletion-requests", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "private, no-store")
-		identity, ok := requiredClientSessionIdentity(w, r, sessions, sessionErr)
-		if !ok {
+		if sessions == nil || sessionErr != nil {
+			writeDemandError(w, r, http.StatusServiceUnavailable, "CLIENT_SESSION_UNAVAILABLE", "Сессия клиента недоступна.", true, nil)
+			return
+		}
+		identity, err := sessions.identityForDeletionReceipt(r)
+		if err != nil {
+			writeDemandError(w, r, http.StatusUnauthorized, "CLIENT_SESSION_REQUIRED", "Недействительная сессия.", false, nil)
 			return
 		}
 		if store == nil {
