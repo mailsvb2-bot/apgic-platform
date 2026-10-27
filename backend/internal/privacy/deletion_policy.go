@@ -35,12 +35,12 @@ type SignedDeletionPolicy struct {
 }
 
 var deletionClasses = map[string]string{
-	"PROFILE": "ERASE",
-	"HELP_INTENT": "ANONYMIZE",
+	"PROFILE":               "ERASE",
+	"HELP_INTENT":           "ANONYMIZE",
 	"CONSULTATION_EVIDENCE": "RETAIN_WITH_REASON",
-	"FINANCIAL_EVIDENCE": "RETAIN_WITH_REASON",
-	"CLIENT_OUTCOME": "RETAIN_WITH_REASON",
-	"CREDENTIAL": "ERASE",
+	"FINANCIAL_EVIDENCE":    "RETAIN_WITH_REASON",
+	"CLIENT_OUTCOME":        "RETAIN_WITH_REASON",
+	"CREDENTIAL":            "ERASE",
 }
 
 // VerifyDeletionPolicy enforces an external signer, class coverage and expiry.
