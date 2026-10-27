@@ -63,6 +63,10 @@ func (c *Checker) ReconfirmAccountDeletionRequest(ctx context.Context, identity,
 	if err = tx.Commit(); err != nil {
 		return privacy.AccountDeletionReceipt{}, err
 	}
-	out.Notice = deletionIdentityReconfirmedNotice
-	return out, nil
+	verified, err := c.ReadAccountDeletionRequest(ctx, identity)
+	if err != nil {
+		return privacy.AccountDeletionReceipt{}, err
+	}
+	verified.Idempotent = out.Idempotent
+	return verified, nil
 }
