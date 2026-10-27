@@ -45,6 +45,17 @@ BEGIN
 END
 $$;
 
+-- Conformance fixture: a signed owner/session step-up proof is inserted first.
+-- Production API never writes this record without verifying a bound assertion.
+INSERT INTO client_deletion_reconfirmations
+  (request_id,identity_id,method,session_ref_hash,verified_at)
+VALUES
+  ('00000000-0000-0000-0000-000000000901',
+   '00000000-0000-0000-0000-000000000001',
+   'WEBAUTHN',
+   repeat('a',64),
+   now());
+
 UPDATE delete_account_requests
 SET state = 'IDENTITY_RECONFIRMED',
     updated_at = now()
