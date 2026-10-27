@@ -79,11 +79,25 @@ func registerAccountDeletionIntake(mux *http.ServeMux, store accountDeletionInta
 			writeDemandError(w, r, http.StatusForbidden, "DELETION_FRESH_STEP_UP_REQUIRED", "Нужно повторное подтверждение личности.", false, nil)
 			return
 		}
-		// TOTP evidence must be validated against the active factor elsewhere:
-		// reject rather than trusting a potentially revoked signed assertion.
+		// A TOTP assertion is not enough by itself: the signing cookie can
+		// outlive factor revocation. Check the factor's canonical active state.
 		if evidence.Method == "TOTP" {
-			writeDemandError(w, r, http.StatusForbidden, "DELETION_VERIFIABLE_FACTOR_REQUIRED", "Необходимо подтверждение действующего фактора.", false, nil)
-			return
+			checker, supported := store.(interface {
+				FinanceMFAActiveAt(context.Context, string, time.Time) (bool, error)
+			})
+			if !supported {
+				writeDemandError(w, r, http.StatusServiceUnavailable, "DELETION_FACTOR_STORE_UNAVAILABLE", "Проверка фактора недоступна.", true, nil)
+				return
+			}
+			active, factorErr := checker.FinanceMFAActiveAt(r.Context(), identity, evidence.IssuedAt)
+			if factorErr != nil {
+				writeDemandError(w, r, http.StatusServiceUnavailable, "DELETION_FACTOR_STORE_UNAVAILABLE", "Проверка фактора недоступна.", true, nil)
+				return
+			}
+			if !active {
+				writeDemandError(w, r, http.StatusForbidden, "DELETION_VERIFIABLE_FACTOR_REQUIRED", "Необходимо подтверждение действующего фактора.", false, nil)
+				return
+			}
 		}
 		value, err := store.ReconfirmAccountDeletion(r.Context(), identity, sessionRef, evidence.Method, evidence.IssuedAt)
 		if err != nil {
