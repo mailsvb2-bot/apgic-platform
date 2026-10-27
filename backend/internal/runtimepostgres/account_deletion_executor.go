@@ -34,12 +34,19 @@ func (c *Checker) ExecuteApprovedAccountDeletion(ctx context.Context, approved p
 	if err!=nil{return out,err}
 	defer tx.Rollback()
 	var owner string
-	err=tx.QueryRowContext(ctx,`SELECT id::text,identity_id::text,state,source_surface,created_at,updated_at
+	// Acquire locks in the same order as signed intake and reconfirmation:
+	// identity advisory lock first, canonical request row lock second.
+	err=tx.QueryRowContext(ctx,`SELECT id::text,identity_id::text
 		FROM delete_account_requests WHERE state='IDENTITY_RECONFIRMED'
-		ORDER BY created_at,id FOR UPDATE SKIP LOCKED LIMIT 1`).
-		Scan(&out.ID,&owner,&out.State,&out.Source,&out.CreatedAt,&out.UpdatedAt)
+		ORDER BY created_at,id LIMIT 1`).Scan(&out.ID,&owner)
 	if errors.Is(err,sql.ErrNoRows){return out,ErrNoEligibleDeletionRequest}
 	if err!=nil{return out,err}
+	if _,err=tx.ExecContext(ctx,"SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",owner);err!=nil{return out,err}
+	err=tx.QueryRowContext(ctx,`SELECT state,source_surface,created_at,updated_at
+		FROM delete_account_requests WHERE id=$1::uuid FOR UPDATE`,out.ID).
+		Scan(&out.State,&out.Source,&out.CreatedAt,&out.UpdatedAt)
+	if err!=nil{return out,err}
+	if out.State!="IDENTITY_RECONFIRMED"{return out,ErrNoEligibleDeletionRequest}
 
 	var active bool
 	if err=tx.QueryRowContext(ctx,`SELECT
