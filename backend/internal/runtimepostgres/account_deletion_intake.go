@@ -39,7 +39,6 @@ func deletionNoticeFor(state, review string, pending int) string {
 	}
 }
 
-
 // SubmitAccountDeletionRequest creates durable, owner-scoped evidence only.
 // It never declares that personal data or external provider data were erased.
 func (c *Checker) SubmitAccountDeletionRequest(ctx context.Context, identity, source string) (privacy.AccountDeletionReceipt, error) {
