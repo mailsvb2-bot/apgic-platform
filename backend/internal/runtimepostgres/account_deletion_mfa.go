@@ -2,16 +2,15 @@ package runtimepostgres
 
 import (
 	"context"
-	"database/sql"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"database/sql"
 	"encoding/base32"
 	"errors"
 	"time"
 
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/privacy"
-
 )
 
 var ErrDeletionFactorInvalid = errors.New("account deletion possession factor is invalid or unavailable")
