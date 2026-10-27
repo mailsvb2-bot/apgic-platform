@@ -99,3 +99,41 @@ test("expired signed session during a check-in also erases the old client histor
   await expect(page.getByRole("alert").filter({hasText:"Нет подтверждённой сессии"})).toBeVisible();
   await expect(page.getByText("Ирина Тестовая")).toHaveCount(0);
 });
+
+test("personal workspace submits persistent deletion request and never claims completed erasure",async({page})=>{
+  let requestRecorded=false;
+  await page.route("**/v1/client/personal",route=>route.fulfill({
+    status:200,contentType:"application/json",body:JSON.stringify(makeView()),
+  }));
+  await page.route("**/v1/client/account-deletion-requests",route=>{
+    if(route.request().method()==="GET"){
+      return route.fulfill(requestRecorded
+        ?{status:200,contentType:"application/json",body:JSON.stringify({
+          id:"123e4567-e89b-42d3-a456-426614174014",state:"REQUESTED",source:"WEB",
+          created_at:"2026-10-27T12:00:00Z",updated_at:"2026-10-27T12:00:00Z",
+          notice:"Стирание данных ещё не выполнено.",idempotent:false,
+        })}
+        :{status:404,contentType:"application/json",body:'{"code":"DELETION_REQUEST_NOT_FOUND"}'});
+    }
+    const body=route.request().postDataJSON();
+    expect(body).toEqual({source:"WEB"});
+    requestRecorded=true;
+    return route.fulfill({status:202,contentType:"application/json",body:JSON.stringify({
+      id:"123e4567-e89b-42d3-a456-426614174014",state:"REQUESTED",source:"WEB",
+      created_at:"2026-10-27T12:00:00Z",updated_at:"2026-10-27T12:00:00Z",
+      notice:"Стирание данных ещё не выполнено.",idempotent:false,
+    })});
+  });
+  await page.goto("/personal");
+  await expect(page.getByRole("heading",{name:"Удаление учётной записи"})).toBeVisible();
+  const submit=page.getByRole("button",{name:"Подать запрос на удаление аккаунта"});
+  await expect(submit).toBeDisabled();
+  await page.getByRole("checkbox",{name:/понимаю/i}).check();
+  await submit.click();
+  await expect(page.getByRole("status").filter({hasText:"REQUESTED"})).toBeVisible();
+  await expect(page.getByText("Стирание данных ещё не выполнено.")).toBeVisible();
+  await page.reload();
+  await page.getByRole("button",{name:"Проверить статус запроса"}).click();
+  await expect(page.getByRole("status").filter({hasText:"REQUESTED"})).toBeVisible();
+  await expect(page.getByRole("button",{name:"Подать запрос на удаление аккаунта"})).toHaveCount(0);
+});

@@ -7,6 +7,7 @@ import {
   type ClientPersonalBooking,type ClientPersonalView,type ClientPersonalPreferences,
 } from "../../../packages/contracts/src/client-personal";
 import {loadClientPersonal,saveClientPersonalPreferences,recordPersonalCheckIn,PersonalAPIError} from "./client-personal-api";
+import ClientDeletionRequest from "./client-deletion-request";
 
 function formatDate(iso:string,zone:string) {
   try{return new Intl.DateTimeFormat("ru-RU",{dateStyle:"medium",timeStyle:"short",timeZone:zone}).format(new Date(iso));}
@@ -93,11 +94,11 @@ export default function ClientPersonalView(){
     }
   },[]);
   useEffect(()=>{void reload();return ()=>{epoch.current++;};},[reload]);
-  const revokeSession=()=>{
+  const revokeSession=useCallback(()=>{
     epoch.current++;
     setData(null);setDraft(null);setStatus("unauthorized");
     setError("Нет подтверждённой сессии. Войдите повторно.");
-  };
+  },[]);
   const loadMore=async()=>{
     if(!data?.next_history_cursor||loadingMore)return;
     const cursor=data.next_history_cursor;
@@ -198,6 +199,7 @@ export default function ClientPersonalView(){
         <p className="personal-muted">История консультаций и сведения об оплатах поступают только из подтверждённых данных APGIC. Содержимое бесед здесь не хранится.</p>
         <p><a href="/#start">Новый запрос</a></p>
       </section>
+      <ClientDeletionRequest onSessionLost={revokeSession}/>
       {error?<p role="alert">{error}</p>:null}
     </>:null}
   </section>;
