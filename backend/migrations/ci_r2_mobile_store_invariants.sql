@@ -492,6 +492,16 @@ INSERT INTO delete_account_requests (
   now()
 );
 
+-- CI-only independent step-up evidence fixture for the canonical transition.
+INSERT INTO client_deletion_reconfirmations
+ (request_id,identity_id,method,session_ref_hash,verified_at)
+VALUES
+ ('00000000-0000-0000-0000-00000000a920',
+  '00000000-0000-0000-0000-00000000b003',
+  'WEBAUTHN',
+  repeat('b',64),
+  now());
+
 UPDATE delete_account_requests
 SET state = 'IDENTITY_RECONFIRMED',
     updated_at = now() + interval '1 second'
