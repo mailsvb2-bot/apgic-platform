@@ -47,6 +47,9 @@ $$;
 
 UPDATE delete_account_requests
 SET state = 'IDENTITY_RECONFIRMED',
+    reconfirmed_at = now(),
+    reconfirmation_method = 'VERIFIED_TOTP',
+    reconfirmation_session_ref = 'session:ci-verified-factor-evidence',
     updated_at = now()
 WHERE id = '00000000-0000-0000-0000-000000000901';
 
