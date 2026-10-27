@@ -102,3 +102,24 @@ CREATE TABLE deletion_processing_holds (
   retry_after timestamptz NOT NULL,
   updated_at timestamptz NOT NULL DEFAULT now()
 );
+
+-- Deferred because the executor writes the terminal state and revocation
+-- marker atomically in the same transaction. A terminal state without revoked
+-- signed sessions cannot be committed.
+CREATE OR REPLACE FUNCTION apgic_delete_terminal_session_guard()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.state IN ('PARTIALLY_RETAINED_WITH_REASON','COMPLETED') AND
+     OLD.state IS DISTINCT FROM NEW.state AND NOT EXISTS (
+       SELECT 1 FROM deletion_revoked_identities x
+       WHERE x.request_id=NEW.id AND x.identity_id=NEW.identity_id
+     ) THEN
+    RAISE EXCEPTION 'terminal deletion requires durable session revocation';
+  END IF;
+  RETURN NULL;
+END;
+$$;
+CREATE CONSTRAINT TRIGGER delete_terminal_session_guard
+AFTER UPDATE ON delete_account_requests
+DEFERRABLE INITIALLY DEFERRED
+FOR EACH ROW EXECUTE FUNCTION apgic_delete_terminal_session_guard();
