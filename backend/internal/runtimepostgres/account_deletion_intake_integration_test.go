@@ -3,10 +3,10 @@ package runtimepostgres
 import (
 	"context"
 	"os"
-	"sync"
 	"strings"
-	"time"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/persistentid"
 )
