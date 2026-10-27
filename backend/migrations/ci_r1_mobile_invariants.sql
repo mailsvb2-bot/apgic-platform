@@ -59,6 +59,17 @@ SET state = 'RETENTION_CLASSIFIED',
     updated_at = now()
 WHERE id = '00000000-0000-0000-0000-000000000901';
 
+-- CI-only synthetic structural receipt; actual signature validity is
+-- enforced by the Go Ed25519 provider adapter before production inserts.
+INSERT INTO deletion_local_erasure_receipts (
+  request_id, policy_version, approval_sha256,
+  preferences_erased, help_intents_anonymized, credentials_erased, no_external_data
+) VALUES (
+  '00000000-0000-0000-0000-000000000901',
+  'ci-retention-fixture',
+  repeat('a',64), 0, 0, 0, false
+);
+
 UPDATE delete_account_requests
 SET state = 'PROVIDER_ERASURE_PENDING',
     updated_at = now()
@@ -99,6 +110,18 @@ SET state = 'SUCCEEDED',
     evidence_ref = 'provider-evidence:erased',
     updated_at = now()
 WHERE id = '00000000-0000-0000-0000-000000000902';
+
+INSERT INTO deletion_provider_verified_receipts (
+  request_id, provider_ref, evidence_ref, signed_payload_sha256,
+  signature_base64, verified_at
+) VALUES (
+  '00000000-0000-0000-0000-000000000901',
+  'object-storage',
+  'provider-evidence:erased',
+  repeat('b',64),
+  repeat('Y',80),
+  now()
+);
 
 UPDATE delete_account_requests
 SET state = 'PARTIALLY_RETAINED_WITH_REASON',
