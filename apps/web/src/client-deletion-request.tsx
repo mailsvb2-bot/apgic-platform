@@ -18,7 +18,6 @@ export default function DeletionRequestPanel({onSessionLost}:{onSessionLost:()=>
   const [confirmed,setConfirmed]=useState(false);
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState("");
-  const [available,setAvailable]=useState(true);
   const epoch=useRef(0);
   const alive=useRef(true);
   const read=useCallback(async()=>{
@@ -62,7 +61,7 @@ export default function DeletionRequestPanel({onSessionLost}:{onSessionLost:()=>
       <label><input type="checkbox" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)}/>
         Я понимаю, что это запрос на удаление, а не подтверждение стирания данных.
       </label>
-      <button type="button" disabled={!confirmed||busy||!available} onClick={()=>void submit()}>
+      <button type="button" disabled={!confirmed||busy} onClick={()=>void submit()}>
         {busy?"Отправляем…":"Подать запрос на удаление аккаунта"}
       </button>
     </div>}
