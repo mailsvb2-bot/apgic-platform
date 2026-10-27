@@ -15,6 +15,7 @@ import (
 type accountDeletionIntakeStore interface {
 	SubmitAccountDeletionRequest(context.Context, string, string) (privacy.AccountDeletionReceipt, error)
 	ReadAccountDeletionRequest(context.Context, string) (privacy.AccountDeletionReceipt, error)
+	IsAccountAccessRevoked(context.Context, string) (bool, error)
 	ReconfirmAccountDeletion(context.Context, string, string, string, time.Time) (privacy.AccountDeletionReceipt, error)
 }
 
@@ -108,8 +109,21 @@ func registerAccountDeletionIntake(mux *http.ServeMux, store accountDeletionInta
 	})
 	mux.HandleFunc("GET /v1/client/account-deletion-requests", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "private, no-store")
-		identity, ok := requiredClientSessionIdentity(w, r, sessions, sessionErr)
-		if !ok {
+		// This read is the sole narrowly scoped exception to session revocation:
+		// an erased client can still see the nonpersonal deletion receipt until
+		// their signed cookie expires. No other account data is exposed.
+		if sessions == nil || sessionErr != nil {
+			writeDemandError(w, r, http.StatusUnauthorized, "CLIENT_SESSION_REQUIRED", "Требуется сессия клиента.", false, nil)
+			return
+		}
+		cookie, cookieErr := r.Cookie(clientSessionCookieName)
+		if cookieErr != nil {
+			writeDemandError(w, r, http.StatusUnauthorized, "CLIENT_SESSION_REQUIRED", "Требуется сессия клиента.", false, nil)
+			return
+		}
+		identity, parseErr := sessions.parse(cookie.Value)
+		if parseErr != nil {
+			writeDemandError(w, r, http.StatusUnauthorized, "CLIENT_SESSION_REQUIRED", "Требуется сессия клиента.", false, nil)
 			return
 		}
 		if store == nil {
