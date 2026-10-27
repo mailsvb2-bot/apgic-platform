@@ -32,7 +32,9 @@ export default function DeletionRequestPanel({onSessionLost}:{onSessionLost:()=>
       if(alive.current&&token===epoch.current)setItem(result);
     }catch(e){if(alive.current&&token===epoch.current)setError(e instanceof Error?e.message:"Ошибка загрузки.");}
   },[onSessionLost]);
-  useEffect(()=>{alive.current=true;void read();return()=>{alive.current=false;epoch.current++;};},[read]);
+  // No background authentication probe: opening a personal profile must not
+  // implicitly perform a second, potentially session-revoking request.
+  useEffect(()=>{alive.current=true;return()=>{alive.current=false;epoch.current++;};},[]);
   const submit=async()=>{
     if(!confirmed||busy||item)return;
     const token=++epoch.current;setBusy(true);setError("");
@@ -53,6 +55,7 @@ export default function DeletionRequestPanel({onSessionLost}:{onSessionLost:()=>
   return <section className="personal-section" aria-labelledby="delete-account-title">
     <h2 id="delete-account-title">Удаление учётной записи</h2>
     <p>Можно подать запрос на удаление. Регистрация запроса не означает, что данные уже стёрты. Часть сведений может сохраняться по закону.</p>
+    <button type="button" disabled={busy} onClick={()=>void read()}>Проверить статус запроса</button>
     {item?<div role="status">
       <p>Запрос № {item.id}</p><p>Статус сервера: <strong>{item.state}</strong></p>
       <p>{item.notice}</p>
