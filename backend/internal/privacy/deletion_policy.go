@@ -32,10 +32,19 @@ type ApprovedDeletionPolicy struct {
 }
 
 type VerifiedDeletionPolicy struct {
-	Policy ApprovedDeletionPolicy
-	Raw []byte
-	Digest string
+	policy ApprovedDeletionPolicy
+	raw []byte
+	digest string
+	signature []byte
+	keyFingerprint string
 }
+
+func (v VerifiedDeletionPolicy) Policy() ApprovedDeletionPolicy { return v.policy }
+func (v VerifiedDeletionPolicy) RawJSON() []byte { return append([]byte(nil),v.raw...) }
+func (v VerifiedDeletionPolicy) Digest() string { return v.digest }
+func (v VerifiedDeletionPolicy) Signature() []byte { return append([]byte(nil),v.signature...) }
+func (v VerifiedDeletionPolicy) KeyFingerprint() string { return v.keyFingerprint }
+
 
 // VerifyDeletionPolicy enforces a real signature over exact policy bytes.
 // A CI-only matrix or an unsigned operator-supplied JSON never enables erasure.
@@ -47,10 +56,10 @@ func VerifyDeletionPolicy(raw, signature []byte, key ed25519.PublicKey, now time
 	}
 	d:=json.NewDecoder(bytes.NewReader(raw))
 	d.DisallowUnknownFields()
-	if err:=d.Decode(&v.Policy);err!=nil{return v,ErrDeletionPolicyUnapproved}
+	if err:=d.Decode(&v.policy);err!=nil{return v,ErrDeletionPolicyUnapproved}
 	var extra any
 	if err:=d.Decode(&extra);err!=io.EOF{return v,ErrDeletionPolicyUnapproved}
-	p:=v.Policy
+	p:=v.policy
 	if !p.ProductionApproved||p.Version==""||p.Jurisdiction==""||p.ApprovedBy==""||
 		p.ApprovedAt.IsZero()||p.ExpiresAt.IsZero()||p.ApprovedAt.After(now)||
 		!p.ExpiresAt.After(now)||p.ExpiresAt.Sub(p.ApprovedAt)>366*24*time.Hour||
@@ -76,7 +85,10 @@ func VerifyDeletionPolicy(raw, signature []byte, key ed25519.PublicKey, now time
 		seen[ref]=true
 	}
 	h:=sha256.Sum256(raw)
-	v.Digest=hex.EncodeToString(h[:])
-	v.Raw=append([]byte(nil),raw...)
+	v.digest=hex.EncodeToString(h[:])
+	v.raw=append([]byte(nil),raw...)
+	v.signature=append([]byte(nil),signature...)
+	pk:=sha256.Sum256(key)
+	v.keyFingerprint=hex.EncodeToString(pk[:])
 	return v,nil
 }
