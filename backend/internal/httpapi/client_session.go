@@ -31,9 +31,9 @@ var (
 )
 
 type clientSessionManager struct {
-	revoked func(context.Context,string)(bool,error)
-	key []byte
-	now func() time.Time
+	revoked func(context.Context, string) (bool, error)
+	key     []byte
+	now     func() time.Time
 }
 
 func ValidateClientSessionKey(key []byte) error {
@@ -99,8 +99,12 @@ func (m *clientSessionManager) identityAndReferenceFromRequest(r *http.Request) 
 	}
 	if m.revoked != nil {
 		closed, checkErr := m.revoked(r.Context(), identityID)
-		if checkErr != nil { return "", "", ErrClientSessionInvalid }
-		if closed { return "", "", ErrClientSessionExpired }
+		if checkErr != nil {
+			return "", "", ErrClientSessionInvalid
+		}
+		if closed {
+			return "", "", ErrClientSessionExpired
+		}
 	}
 	digest := sha256.Sum256([]byte(cookie.Value))
 	return identityID, "session:" + base64.RawURLEncoding.EncodeToString(digest[:]), nil
