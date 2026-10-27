@@ -39,7 +39,11 @@ type VerifiedDeletionPolicy struct {
 	keyFingerprint string
 }
 
-func (v VerifiedDeletionPolicy) Policy() ApprovedDeletionPolicy { return v.policy }
+func (v VerifiedDeletionPolicy) Policy() ApprovedDeletionPolicy {
+	var copy ApprovedDeletionPolicy
+	_ = json.Unmarshal(v.raw, &copy)
+	return copy
+}
 func (v VerifiedDeletionPolicy) RawJSON() []byte { return append([]byte(nil),v.raw...) }
 func (v VerifiedDeletionPolicy) Digest() string { return v.digest }
 func (v VerifiedDeletionPolicy) Signature() []byte { return append([]byte(nil),v.signature...) }
