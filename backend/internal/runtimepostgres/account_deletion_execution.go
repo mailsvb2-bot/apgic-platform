@@ -44,6 +44,8 @@ func (c *Checker) AdvanceApprovedDeletion(ctx context.Context, signedPolicy []by
 	err = tx.QueryRowContext(ctx, `SELECT id::text, identity_id::text
 		FROM delete_account_requests
 		WHERE state='IDENTITY_RECONFIRMED'
+		  AND NOT EXISTS(SELECT 1 FROM deletion_processing_holds h
+		      WHERE h.request_id=delete_account_requests.id AND h.retry_after>now())
 		ORDER BY created_at, id LIMIT 1 FOR UPDATE SKIP LOCKED`).
 		Scan(&requestID, &owner)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -65,7 +67,18 @@ func (c *Checker) AdvanceApprovedDeletion(ctx context.Context, signedPolicy []by
 		return false, err
 	}
 	if blocked {
-		return false, ErrDeletionManualReviewRequired
+		_, err = tx.ExecContext(ctx, `INSERT INTO deletion_processing_holds
+			(request_id,reason_code,retry_after)
+			VALUES($1::uuid,'ACTIVE_OBLIGATION_REVIEW',now()+interval '1 hour')
+			ON CONFLICT(request_id) DO UPDATE SET
+			    retry_after=EXCLUDED.retry_after,updated_at=now()`, requestID)
+		if err != nil {
+			return false, err
+		}
+		if err = tx.Commit(); err != nil {
+			return false, err
+		}
+		return true, nil
 	}
 	_, err = tx.ExecContext(ctx, `UPDATE delete_account_requests
 		SET retention_snapshot=$2::jsonb, retained_reason=$3,
