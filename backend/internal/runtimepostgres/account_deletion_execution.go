@@ -109,10 +109,16 @@ func (c *Checker) AdvanceApprovedDeletion(ctx context.Context, signedPolicy []by
 	if err != nil {
 		return false, fmt.Errorf("erase owned authentication secret: %w", err)
 	}
+	deletionFactor, err := tx.ExecContext(ctx, `DELETE FROM client_deletion_mfa_factors
+		WHERE identity_id=$1::uuid`, owner)
+	if err != nil {
+		return false, fmt.Errorf("erase owned deletion possession factor: %w", err)
+	}
 	var residue bool
 	err = tx.QueryRowContext(ctx, `SELECT
 		EXISTS(SELECT 1 FROM client_personal_preferences WHERE identity_id=$1::uuid)
 		OR EXISTS(SELECT 1 FROM finance_operator_mfa_factors WHERE identity_id=$1::uuid)
+		OR EXISTS(SELECT 1 FROM client_deletion_mfa_factors WHERE identity_id=$1::uuid)
 		OR EXISTS(SELECT 1 FROM help_intents WHERE identity_id=$1::uuid
 			AND (free_text <> '[удалено по запросу владельца]'
 			     OR cardinality(topics)>0 OR cardinality(goals)>0
@@ -123,6 +129,8 @@ func (c *Checker) AdvanceApprovedDeletion(ctx context.Context, signedPolicy []by
 	nPrefs, _ := prefs.RowsAffected()
 	nIntents, _ := intents.RowsAffected()
 	nCreds, _ := creds.RowsAffected()
+	nDeletionFactor, _ := deletionFactor.RowsAffected()
+	nCreds += nDeletionFactor
 	_, err = tx.ExecContext(ctx, `INSERT INTO deletion_local_erasure_receipts
 		(request_id,policy_version,approval_sha256,preferences_erased,
 		 help_intents_anonymized,credentials_erased,no_external_data)
