@@ -114,11 +114,22 @@ func (c *Checker) AdvanceApprovedDeletion(ctx context.Context, signedPolicy []by
 	if err != nil {
 		return false, fmt.Errorf("erase owned deletion possession factor: %w", err)
 	}
+	// Push endpoints are direct device identifiers and delivery credentials.
+	// Revoke them in the same transaction as profile erasure.
+	installations, err := tx.ExecContext(ctx, `UPDATE client_installations
+		SET state='REVOKED', push_endpoint=NULL,
+		    push_generation=push_generation+1, updated_at=now()
+		WHERE identity_id=$1::uuid AND (state<>'REVOKED' OR push_endpoint IS NOT NULL)`, owner)
+	if err != nil {
+		return false, fmt.Errorf("revoke client push installations: %w", err)
+	}
 	var residue bool
 	err = tx.QueryRowContext(ctx, `SELECT
 		EXISTS(SELECT 1 FROM client_personal_preferences WHERE identity_id=$1::uuid)
 		OR EXISTS(SELECT 1 FROM finance_operator_mfa_factors WHERE identity_id=$1::uuid)
 		OR EXISTS(SELECT 1 FROM client_deletion_mfa_factors WHERE identity_id=$1::uuid)
+		OR EXISTS(SELECT 1 FROM client_installations WHERE identity_id=$1::uuid
+			AND (state<>'REVOKED' OR push_endpoint IS NOT NULL))
 		OR EXISTS(SELECT 1 FROM help_intents WHERE identity_id=$1::uuid
 			AND (free_text <> '[удалено по запросу владельца]'
 			     OR cardinality(topics)>0 OR cardinality(goals)>0
@@ -131,6 +142,8 @@ func (c *Checker) AdvanceApprovedDeletion(ctx context.Context, signedPolicy []by
 	nCreds, _ := creds.RowsAffected()
 	nDeletionFactor, _ := deletionFactor.RowsAffected()
 	nCreds += nDeletionFactor
+	nInstallations, _ := installations.RowsAffected()
+	nCreds += nInstallations
 	_, err = tx.ExecContext(ctx, `INSERT INTO deletion_local_erasure_receipts
 		(request_id,policy_version,approval_sha256,preferences_erased,
 		 help_intents_anonymized,credentials_erased,no_external_data)
