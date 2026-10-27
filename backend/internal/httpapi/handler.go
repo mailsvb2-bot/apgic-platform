@@ -44,7 +44,7 @@ type Options struct {
 	ProductOwnership              productOwnershipStore
 	Products                      organizationProductStore
 	ClientPersonal                clientPersonalStore
-	AccountDeletionIntake        accountDeletionIntakeStore
+	AccountDeletionIntake         accountDeletionIntakeStore
 	ConformanceProviderEvents     bool
 	BlockSyntheticAccountDeletion bool
 	ProviderWebhookKeys           connector.WebhookPublicKeyResolver
