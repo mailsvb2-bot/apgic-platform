@@ -8,12 +8,12 @@ import (
  "io"
  "net/http"
 
- "github.com/mailsvb2-bot/apgic-platform/backend/internal/runtimepostgres"
+ "github.com/mailsvb2-bot/apgic-platform/backend/internal/privacy"
 )
 
 type accountDeletionIntakeStore interface {
- SubmitAccountDeletionRequest(context.Context,string,string) (runtimepostgres.AccountDeletionRequest,error)
- ReadAccountDeletionRequest(context.Context,string) (runtimepostgres.AccountDeletionRequest,error)
+ SubmitAccountDeletionRequest(context.Context,string,string) (privacy.AccountDeletionReceipt,error)
+ ReadAccountDeletionRequest(context.Context,string) (privacy.AccountDeletionReceipt,error)
 }
 
 func registerAccountDeletionIntake(mux *http.ServeMux,store accountDeletionIntakeStore,sessions *clientSessionManager,sessionErr error) {
