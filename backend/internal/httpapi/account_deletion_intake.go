@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/privacy"
 )
@@ -14,9 +15,10 @@ import (
 type accountDeletionIntakeStore interface {
 	SubmitAccountDeletionRequest(context.Context, string, string) (privacy.AccountDeletionReceipt, error)
 	ReadAccountDeletionRequest(context.Context, string) (privacy.AccountDeletionReceipt, error)
+	ReconfirmAccountDeletion(context.Context, string, string, string, time.Time) (privacy.AccountDeletionReceipt, error)
 }
 
-func registerAccountDeletionIntake(mux *http.ServeMux, store accountDeletionIntakeStore, sessions *clientSessionManager, sessionErr error) {
+func registerAccountDeletionIntake(mux *http.ServeMux, store accountDeletionIntakeStore, sessions *clientSessionManager, sessionErr error, stepUp *stepUpManager) {
 	mux.HandleFunc("POST /v1/client/account-deletion-requests", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "private, no-store")
 		identity, ok := requiredClientSessionIdentity(w, r, sessions, sessionErr)
@@ -55,6 +57,40 @@ func registerAccountDeletionIntake(mux *http.ServeMux, store accountDeletionInta
 			status = http.StatusOK
 		}
 		writeJSON(w, status, value)
+	})
+
+	mux.HandleFunc("POST /v1/client/account-deletion-requests/reconfirm", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "private, no-store")
+		identity, ok := requiredClientSessionIdentity(w, r, sessions, sessionErr)
+		if !ok {
+			return
+		}
+		if store == nil || stepUp == nil || sessions == nil {
+			writeDemandError(w, r, http.StatusServiceUnavailable, "DELETION_RECONFIRM_UNAVAILABLE", "Подтверждение личности недоступно.", true, nil)
+			return
+		}
+		owner, sessionRef, err := sessions.identityAndReferenceFromRequest(r)
+		if err != nil || owner != identity {
+			writeDemandError(w, r, http.StatusUnauthorized, "CLIENT_SESSION_REQUIRED", "Требуется действующая сессия.", false, nil)
+			return
+		}
+		evidence := stepUp.evidenceFromRequest(r, identity, sessionRef)
+		if evidence == nil || (evidence.Method != "WEBAUTHN" && evidence.Method != "TOTP") {
+			writeDemandError(w, r, http.StatusForbidden, "DELETION_FRESH_STEP_UP_REQUIRED", "Нужно повторное подтверждение личности.", false, nil)
+			return
+		}
+		// TOTP evidence must be validated against the active factor elsewhere:
+		// reject rather than trusting a potentially revoked signed assertion.
+		if evidence.Method == "TOTP" {
+			writeDemandError(w, r, http.StatusForbidden, "DELETION_VERIFIABLE_FACTOR_REQUIRED", "Необходимо подтверждение действующего фактора.", false, nil)
+			return
+		}
+		value, err := store.ReconfirmAccountDeletion(r.Context(), identity, sessionRef, evidence.Method, evidence.IssuedAt)
+		if err != nil {
+			writeDemandError(w, r, http.StatusServiceUnavailable, "DELETION_RECONFIRM_UNAVAILABLE", "Не удалось сохранить подтверждение.", true, nil)
+			return
+		}
+		writeJSON(w, http.StatusOK, value)
 	})
 	mux.HandleFunc("GET /v1/client/account-deletion-requests", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "private, no-store")
