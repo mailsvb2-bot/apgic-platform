@@ -10,16 +10,13 @@ import (
 	"errors"
 	"time"
 
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/privacy"
+
 )
 
 var ErrDeletionFactorInvalid = errors.New("account deletion possession factor is invalid or unavailable")
 var ErrDeletionFactorExists = errors.New("account deletion factor already enrolled")
 var ErrDeletionFactorCoolingDown = errors.New("account deletion factor not yet eligible for confirmation")
-
-type DeletionFactorStatus struct {
-	Enrolled bool      `json:"enrolled"`
-	ReadyAt  time.Time `json:"ready_at,omitempty"`
-}
 
 func deletionFactorEncrypt(key [32]byte, identity string, secret []byte) ([]byte, error) {
 	block, err := aes.NewCipher(key[:])
@@ -55,29 +52,29 @@ func deletionFactorDecrypt(key [32]byte, identity string, ciphertext []byte) ([]
 // EnrollClientDeletionFactor returns the secret exactly once, and only for an
 // existing canonical deletion request belonging to this signed identity.
 // A compromised session cannot use its new factor until a 24-hour cooldown.
-func (c *Checker) EnrollClientDeletionFactor(ctx context.Context, identity string, key [32]byte, at time.Time) (string, DeletionFactorStatus, error) {
+func (c *Checker) EnrollClientDeletionFactor(ctx context.Context, identity string, key [32]byte, at time.Time) (string, privacy.DeletionFactorStatus, error) {
 	var zero [32]byte
 	if c == nil || c.db == nil || key == zero || !financeUUIDPattern.MatchString(identity) {
-		return "", DeletionFactorStatus{}, ErrDeletionFactorInvalid
+		return "", privacy.DeletionFactorStatus{}, ErrDeletionFactorInvalid
 	}
 	secret := make([]byte, 20)
 	if _, err := rand.Read(secret); err != nil {
-		return "", DeletionFactorStatus{}, err
+		return "", privacy.DeletionFactorStatus{}, err
 	}
 	encrypted, err := deletionFactorEncrypt(key, identity, secret)
 	if err != nil {
-		return "", DeletionFactorStatus{}, err
+		return "", privacy.DeletionFactorStatus{}, err
 	}
 	tx, err := c.db.BeginTx(ctx, nil)
 	if err != nil {
-		return "", DeletionFactorStatus{}, err
+		return "", privacy.DeletionFactorStatus{}, err
 	}
 	defer tx.Rollback()
 	var eligible bool
 	err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM delete_account_requests
 		WHERE identity_id=$1::uuid AND state='REQUESTED')`, identity).Scan(&eligible)
 	if err != nil || !eligible {
-		return "", DeletionFactorStatus{}, ErrDeletionFactorInvalid
+		return "", privacy.DeletionFactorStatus{}, ErrDeletionFactorInvalid
 	}
 	ready := at.UTC().Add(24 * time.Hour)
 	result, err := tx.ExecContext(ctx, `INSERT INTO client_deletion_mfa_factors
@@ -85,21 +82,21 @@ func (c *Checker) EnrollClientDeletionFactor(ctx context.Context, identity strin
 		VALUES($1::uuid,$2,$3,$4) ON CONFLICT(identity_id) DO NOTHING`,
 		identity, encrypted, at.UTC(), ready)
 	if err != nil {
-		return "", DeletionFactorStatus{}, err
+		return "", privacy.DeletionFactorStatus{}, err
 	}
 	count, err := result.RowsAffected()
 	if err != nil || count != 1 {
-		return "", DeletionFactorStatus{}, ErrDeletionFactorExists
+		return "", privacy.DeletionFactorStatus{}, ErrDeletionFactorExists
 	}
 	if err = tx.Commit(); err != nil {
-		return "", DeletionFactorStatus{}, err
+		return "", privacy.DeletionFactorStatus{}, err
 	}
 	return base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(secret),
-		DeletionFactorStatus{Enrolled: true, ReadyAt: ready}, nil
+		privacy.DeletionFactorStatus{Enrolled: true, ReadyAt: ready}, nil
 }
 
-func (c *Checker) ClientDeletionFactorStatus(ctx context.Context, identity string) (DeletionFactorStatus, error) {
-	var out DeletionFactorStatus
+func (c *Checker) ClientDeletionFactorStatus(ctx context.Context, identity string) (privacy.DeletionFactorStatus, error) {
+	var out privacy.DeletionFactorStatus
 	if c == nil || c.db == nil || !financeUUIDPattern.MatchString(identity) {
 		return out, ErrDeletionFactorInvalid
 	}
