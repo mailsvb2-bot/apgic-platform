@@ -133,6 +133,7 @@ test("personal workspace submits persistent deletion request and never claims co
   await expect(page.getByRole("status").filter({hasText:"REQUESTED"})).toBeVisible();
   await expect(page.getByText("Стирание данных ещё не выполнено.")).toBeVisible();
   await page.reload();
+  await page.getByRole("button",{name:"Проверить статус запроса"}).click();
   await expect(page.getByRole("status").filter({hasText:"REQUESTED"})).toBeVisible();
   await expect(page.getByRole("button",{name:"Подать запрос на удаление аккаунта"})).toHaveCount(0);
 });
