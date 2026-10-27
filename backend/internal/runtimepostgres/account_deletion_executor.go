@@ -52,7 +52,10 @@ func (c *Checker) ExecuteApprovedAccountDeletion(ctx context.Context, approved p
 	if err=tx.QueryRowContext(ctx,`SELECT
 		EXISTS(SELECT 1 FROM bookings WHERE client_identity_id=$1::uuid
 			AND state IN ('HELD','PENDING_PAYMENT','CONFIRMED'))
-		OR EXISTS(SELECT 1 FROM store_entitlements WHERE identity_id=$1::uuid AND state='ACTIVE')`,owner).
+		OR EXISTS(SELECT 1 FROM store_entitlements WHERE identity_id=$1::uuid AND state='ACTIVE')
+		OR EXISTS(SELECT 1 FROM consultation_sessions WHERE client_identity_id=$1::uuid
+			AND state NOT IN ('COMPLETED','TECHNICAL_FAILURE'))
+		OR EXISTS(SELECT 1 FROM identity_roles WHERE identity_id=$1::uuid AND role_code<>'CLIENT')`,owner).
 		Scan(&active);err!=nil{return out,fmt.Errorf("check outstanding customer obligations: %w",err)}
 	if active{return out,ErrDeletionBlockedByActiveObligations}
 
