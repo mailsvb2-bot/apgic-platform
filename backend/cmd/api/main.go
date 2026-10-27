@@ -152,7 +152,7 @@ func main() {
 		ProductOwnership:            storage,
 		Products:                    storage,
 		ClientPersonal:              storage,
-		AccountDeletionIntake:      storage,
+		AccountDeletionIntake:       storage,
 		LaunchConfig: launchconfig.Config{
 			JurisdictionMatrixVersion: os.Getenv("APGIC_JURISDICTION_MATRIX_VERSION"),
 			RetentionPolicyVersion:    os.Getenv("APGIC_RETENTION_POLICY_VERSION"),
