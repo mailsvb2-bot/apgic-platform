@@ -45,6 +45,7 @@ type Options struct {
 	Products                      organizationProductStore
 	ClientPersonal                clientPersonalStore
 	AccountDeletionIntake         accountDeletionIntakeStore
+	DeletionMFAKey                [32]byte
 	ConformanceProviderEvents     bool
 	BlockSyntheticAccountDeletion bool
 	ProviderWebhookKeys           connector.WebhookPublicKeyResolver
@@ -145,6 +146,7 @@ func New(options Options) http.Handler {
 	}
 	registerDemand(mux, options.Demand, options.Consents, options.ConsentPolicies, sessions, sessionConfigErr, options.ConformanceProviderEvents, options.ProviderWebhookKeys, options.Now, options.BlockSyntheticAccountDeletion)
 	registerAccountDeletionIntake(mux, options.AccountDeletionIntake, sessions, stepUp, sessionConfigErr)
+	registerClientDeletionFactor(mux, options.AccountDeletionIntake, sessions, stepUp, options.DeletionMFAKey, sessionConfigErr, options.Now)
 	registerInstant(mux, options.Instant, sessions, sessionConfigErr, options.InstantEnabled)
 	registerConsultationProvider(mux, options.ConsultationProvider, options.ProviderWebhookKeys, sessions, sessionConfigErr)
 	registerFinance(mux, options.Finance, options.ProviderWebhookKeys, sessions, sessionConfigErr)
