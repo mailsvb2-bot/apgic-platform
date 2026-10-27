@@ -31,8 +31,8 @@ var (
 )
 
 type clientSessionManager struct {
-	key []byte
-	now func() time.Time
+	key       []byte
+	now       func() time.Time
 	deletions clientIdentityDeletionChecker
 }
 
