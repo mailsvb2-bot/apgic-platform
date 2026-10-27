@@ -11,4 +11,8 @@ type AccountDeletionReceipt struct {
 	UpdatedAt  time.Time `json:"updated_at"`
 	Idempotent bool      `json:"idempotent"`
 	Notice     string    `json:"notice"`
+	RetainedReason string `json:"retained_reason,omitempty"`
+	CompletedAt *time.Time `json:"completed_at,omitempty"`
+	PendingProviders int `json:"pending_providers"`
+	ReviewCode string `json:"review_code,omitempty"`
 }
