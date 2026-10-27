@@ -41,6 +41,15 @@ func main() {
 	environment := canonicalEnvironment(os.Getenv("APGIC_ENVIRONMENT"))
 	releaseTrack := envOr("APGIC_RELEASE_TRACK", "R0")
 	clientSessionKey := []byte(os.Getenv("APGIC_CLIENT_SESSION_KEY"))
+	var deletionMFAKey [32]byte
+	if encoded := strings.TrimSpace(os.Getenv("APGIC_DELETION_MFA_KEY_BASE64")); encoded != "" {
+		decoded, err := base64.StdEncoding.Strict().DecodeString(encoded)
+		if err != nil || len(decoded) != len(deletionMFAKey) {
+			log.Fatal("APGIC deletion MFA encryption key must be a separate base64-encoded 32-byte secret")
+		}
+		copy(deletionMFAKey[:], decoded)
+	}
+
 	deepLinkSigningKey := []byte(os.Getenv("APGIC_DEEPLINK_SIGNING_KEY"))
 	var financeMFAKey [32]byte
 	if encoded := strings.TrimSpace(os.Getenv("APGIC_MFA_ENCRYPTION_KEY_BASE64")); encoded != "" {
@@ -200,6 +209,7 @@ func main() {
 		Products:                    storage,
 		ClientPersonal:              storage,
 		AccountDeletionIntake:       storage,
+		DeletionMFAKey:              deletionMFAKey,
 		LaunchConfig: launchconfig.Config{
 			JurisdictionMatrixVersion: os.Getenv("APGIC_JURISDICTION_MATRIX_VERSION"),
 			RetentionPolicyVersion:    os.Getenv("APGIC_RETENTION_POLICY_VERSION"),
