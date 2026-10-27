@@ -84,6 +84,17 @@ func (m *clientSessionManager) issue(identityID string) (*http.Cookie, error) {
 	}, nil
 }
 
+// identityForDeletionReceipt verifies the signed, unexpired cookie without
+// regranting access to the deleted account. Only the minimal deletion receipt
+// endpoint is permitted to use this method after terminal revocation.
+func (m *clientSessionManager) identityForDeletionReceipt(r *http.Request) (string, error) {
+	cookie, err := r.Cookie(clientSessionCookieName)
+	if err != nil {
+		return "", ErrClientSessionMissing
+	}
+	return m.parse(cookie.Value)
+}
+
 func (m *clientSessionManager) identityFromRequest(r *http.Request) (string, error) {
 	identityID, _, err := m.identityAndReferenceFromRequest(r)
 	return identityID, err
