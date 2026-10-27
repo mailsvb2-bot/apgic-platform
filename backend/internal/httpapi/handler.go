@@ -137,6 +137,9 @@ func New(options Options) http.Handler {
 	if len(options.ClientSessionKey) > 0 {
 		sessions, sessionConfigErr = newClientSessionManager(options.ClientSessionKey, options.Now)
 		if sessionConfigErr == nil {
+			if deletions, ok := options.AccountDeletionIntake.(clientIdentityDeletionChecker); ok {
+				sessions.deletions = deletions
+			}
 			stepUp, sessionConfigErr = newStepUpManager(options.ClientSessionKey, options.Now)
 		}
 	}
