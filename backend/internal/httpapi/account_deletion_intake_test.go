@@ -14,6 +14,11 @@ import (
 type deletionIntakeFixture struct {
 	owner   string
 	submits int
+	factorActive bool
+}
+
+func (s *deletionIntakeFixture) FinanceMFAActiveAt(_ context.Context, _ string, _ time.Time) (bool, error) {
+	return s.factorActive, nil
 }
 
 func (s *deletionIntakeFixture) SubmitAccountDeletionRequest(_ context.Context, owner, source string) (privacy.AccountDeletionReceipt, error) {
@@ -82,6 +87,10 @@ func TestDeletionReconfirmationRejectsMissingForeignAndUnsupportedStepUp(t *test
 	}
 	if got := check(true, true, owner, "TOTP"); got.Code != http.StatusForbidden {
 		t.Fatalf("unverified TOTP accepted: %d", got.Code)
+	}
+	st.factorActive = true
+	if got := check(true, true, owner, "TOTP"); got.Code != http.StatusOK {
+		t.Fatalf("verified active TOTP must be permitted: %d %s", got.Code, got.Body.String())
 	}
 	got := check(true, true, owner, "WEBAUTHN")
 	if got.Code != http.StatusOK || st.owner != owner || !strings.Contains(got.Body.String(), "IDENTITY_RECONFIRMED") ||
