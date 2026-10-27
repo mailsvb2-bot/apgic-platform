@@ -1,10 +1,12 @@
 \set ON_ERROR_STOP on
 
+INSERT INTO identities(id) VALUES('00000000-0000-0000-0000-000000000900');
+
 INSERT INTO delete_account_requests (
   id, identity_id, source_surface, state, created_at, updated_at
 ) VALUES (
   '00000000-0000-0000-0000-000000000901',
-  '00000000-0000-0000-0000-000000000001',
+  '00000000-0000-0000-0000-000000000900',
   'IOS',
   'REQUESTED',
   now(),
@@ -44,6 +46,17 @@ BEGIN
   END IF;
 END
 $$;
+
+-- Conformance fixture: a signed owner/session step-up proof is inserted first.
+-- Production API never writes this record without verifying a bound assertion.
+INSERT INTO client_deletion_reconfirmations
+  (request_id,identity_id,method,session_ref_hash,verified_at)
+VALUES
+  ('00000000-0000-0000-0000-000000000901',
+   '00000000-0000-0000-0000-000000000900',
+   'WEBAUTHN',
+   repeat('a',64),
+   now());
 
 UPDATE delete_account_requests
 SET state = 'IDENTITY_RECONFIRMED',
@@ -96,6 +109,18 @@ SET state = 'SUCCEEDED',
     evidence_ref = 'provider-evidence:erased',
     updated_at = now()
 WHERE id = '00000000-0000-0000-0000-000000000902';
+
+-- Explicit CI-only evidence fixture. This is not a legally approved production policy.
+INSERT INTO client_deletion_policy_approvals
+ (request_id,policy_digest,policy_snapshot,approval_signature,signing_key_fingerprint,verified_at,approved_by)
+VALUES ('00000000-0000-0000-0000-000000000901',repeat('c',64),'{"scope":"CI_ONLY"}'::jsonb,
+ decode(repeat('aa',64),'hex'),repeat('b',64),now(),'ci-fixture');
+INSERT INTO client_deletion_local_erasure_receipts
+ (request_id,data_class,affected_rows,policy_digest,executed_at)
+SELECT '00000000-0000-0000-0000-000000000901'::uuid,cls,0,repeat('c',64),now()
+FROM unnest(ARRAY['PERSONAL_PREFERENCES','HELP_INTENT_PERSONAL_DATA','PUSH_ENDPOINTS']) cls;
+INSERT INTO client_deletion_revocations(identity_id,request_id,revoked_at)
+VALUES('00000000-0000-0000-0000-000000000900','00000000-0000-0000-0000-000000000901',now());
 
 UPDATE delete_account_requests
 SET state = 'PARTIALLY_RETAINED_WITH_REASON',

@@ -140,8 +140,11 @@ func New(options Options) http.Handler {
 			stepUp, sessionConfigErr = newStepUpManager(options.ClientSessionKey, options.Now)
 		}
 	}
+	if sessions != nil && options.AccountDeletionIntake != nil {
+		sessions.revoked = options.AccountDeletionIntake.IsAccountAccessRevoked
+	}
 	registerDemand(mux, options.Demand, options.Consents, options.ConsentPolicies, sessions, sessionConfigErr, options.ConformanceProviderEvents, options.ProviderWebhookKeys, options.Now, options.BlockSyntheticAccountDeletion)
-	registerAccountDeletionIntake(mux, options.AccountDeletionIntake, sessions, sessionConfigErr)
+	registerAccountDeletionIntake(mux, options.AccountDeletionIntake, sessions, sessionConfigErr, stepUp)
 	registerInstant(mux, options.Instant, sessions, sessionConfigErr, options.InstantEnabled)
 	registerConsultationProvider(mux, options.ConsultationProvider, options.ProviderWebhookKeys, sessions, sessionConfigErr)
 	registerFinance(mux, options.Finance, options.ProviderWebhookKeys, sessions, sessionConfigErr)

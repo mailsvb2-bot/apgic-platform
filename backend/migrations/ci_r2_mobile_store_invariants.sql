@@ -492,6 +492,16 @@ INSERT INTO delete_account_requests (
   now()
 );
 
+-- CI-only independent step-up evidence fixture for the canonical transition.
+INSERT INTO client_deletion_reconfirmations
+ (request_id,identity_id,method,session_ref_hash,verified_at)
+VALUES
+ ('00000000-0000-0000-0000-00000000a920',
+  '00000000-0000-0000-0000-00000000b003',
+  'WEBAUTHN',
+  repeat('b',64),
+  now());
+
 UPDATE delete_account_requests
 SET state = 'IDENTITY_RECONFIRMED',
     updated_at = now() + interval '1 second'
@@ -508,7 +518,19 @@ SET state = 'PROVIDER_ERASURE_PENDING',
     updated_at = now() + interval '3 seconds'
 WHERE id = '00000000-0000-0000-0000-00000000a920';
 
-DO $$
+-- Explicit CI-only evidence fixture. This is not a legally approved production policy.
+INSERT INTO client_deletion_policy_approvals
+ (request_id,policy_digest,policy_snapshot,approval_signature,signing_key_fingerprint,verified_at,approved_by)
+VALUES ('00000000-0000-0000-0000-00000000a920',repeat('d',64),'{"scope":"CI_ONLY"}'::jsonb,
+ decode(repeat('aa',64),'hex'),repeat('b',64),now(),'ci-fixture');
+INSERT INTO client_deletion_local_erasure_receipts
+ (request_id,data_class,affected_rows,policy_digest,executed_at)
+SELECT '00000000-0000-0000-0000-00000000a920'::uuid,cls,0,repeat('d',64),now()
+FROM unnest(ARRAY['PERSONAL_PREFERENCES','HELP_INTENT_PERSONAL_DATA','PUSH_ENDPOINTS']) cls;
+INSERT INTO client_deletion_revocations(identity_id,request_id,revoked_at)
+VALUES('00000000-0000-0000-0000-00000000b003','00000000-0000-0000-0000-00000000a920',now());
+
+DO $
 DECLARE blocked boolean := false;
 BEGIN
   BEGIN
