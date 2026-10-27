@@ -26,7 +26,6 @@ func (s *deletionIntakeFixture) ReadAccountDeletionRequest(_ context.Context, ow
 	return privacy.AccountDeletionReceipt{ID: "11111111-1111-4111-8111-111111111111", State: "REQUESTED"}, nil
 }
 
-
 func (s *deletionIntakeFixture) ReconfirmAccountDeletion(_ context.Context, owner, sessionRef, method string, verifiedAt time.Time) (privacy.AccountDeletionReceipt, error) {
 	s.owner = owner
 	if sessionRef == "" || method != "WEBAUTHN" || verifiedAt.IsZero() {
