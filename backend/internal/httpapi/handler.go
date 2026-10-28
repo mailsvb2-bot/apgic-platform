@@ -138,8 +138,14 @@ func New(options Options) http.Handler {
 	if len(options.ClientSessionKey) > 0 {
 		sessions, sessionConfigErr = newClientSessionManager(options.ClientSessionKey, options.Now)
 		if sessionConfigErr == nil {
-			if deletions, ok := options.AccountDeletionIntake.(clientIdentityDeletionChecker); ok {
-				sessions.deletions = deletions
+			// The conformance API passes a typed nil *Checker through an
+			// interface. It must not be treated as a running deletion store:
+			// otherwise every unrelated signed session fails closed.
+			// Persistent deployments always configure a readiness check.
+			if options.ReadinessCheck != nil {
+				if deletions, ok := options.AccountDeletionIntake.(clientIdentityDeletionChecker); ok {
+					sessions.deletions = deletions
+				}
 			}
 			stepUp, sessionConfigErr = newStepUpManager(options.ClientSessionKey, options.Now)
 		}
