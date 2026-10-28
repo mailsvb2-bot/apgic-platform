@@ -205,12 +205,19 @@ func (c *Checker) FinalizeVerifiedDeletion(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	_, err = tx.ExecContext(ctx, `UPDATE delete_account_requests
+	transition, err := tx.ExecContext(ctx, `UPDATE delete_account_requests
 		SET state='PARTIALLY_RETAINED_WITH_REASON',completed_at=now(),updated_at=now()
 		WHERE id=$1::uuid AND state='PROVIDER_ERASURE_PENDING'
 		  AND nullif(btrim(retained_reason),'') IS NOT NULL`, requestID)
 	if err != nil {
 		return false, err
+	}
+	affected, err := transition.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	if affected != 1 {
+		return false, errors.New("deletion terminal transition did not update exactly one request")
 	}
 	_, err = tx.ExecContext(ctx, `INSERT INTO deletion_revoked_identities(identity_id,request_id)
 		VALUES($1::uuid,$2::uuid) ON CONFLICT(identity_id) DO NOTHING`, owner, requestID)
