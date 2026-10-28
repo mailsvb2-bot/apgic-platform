@@ -235,7 +235,11 @@ func (c *Checker) ClientIdentityDeleted(ctx context.Context, identity string) (b
 		return false, errors.New("postgres unavailable")
 	}
 	var deleted bool
-	err := c.db.QueryRowContext(ctx, `SELECT EXISTS(
-		SELECT 1 FROM deletion_revoked_identities WHERE identity_id=$1::uuid)`, identity).Scan(&deleted)
+	err := c.db.QueryRowContext(ctx, `SELECT
+		EXISTS(SELECT 1 FROM deletion_revoked_identities
+			WHERE identity_id=$1::uuid)
+		OR EXISTS(SELECT 1 FROM delete_account_requests r
+			JOIN deletion_local_erasure_receipts e ON e.request_id=r.id
+			WHERE r.identity_id=$1::uuid)`, identity).Scan(&deleted)
 	return deleted, err
 }
