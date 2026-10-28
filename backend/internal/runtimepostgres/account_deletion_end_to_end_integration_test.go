@@ -258,6 +258,15 @@ func TestR5ProviderErasureRetrySignedProofAndRestartRecovery(t *testing.T) {
 	if err = reopened.SaveProviderErasure(ctx, *retried, signed, providerPub); err == nil {
 		t.Fatal("expired provider lease accepted a signed receipt")
 	}
+	if err = reopened.FailProviderErasure(ctx, *retried, "HTTP_UNAVAILABLE"); err != nil {
+		t.Fatal(err)
+	}
+	var expiredLeaseStillRecorded bool
+	if err = reopened.db.QueryRowContext(ctx, `SELECT lease_until IS NOT NULL
+		FROM deletion_provider_dispatch WHERE request_id=$1::uuid AND provider_ref=$2`,
+		retried.RequestID, retried.ProviderRef).Scan(&expiredLeaseStillRecorded); err != nil || !expiredLeaseStillRecorded {
+		t.Fatalf("expired worker cleared the lease without owning it: present=%v err=%v", expiredLeaseStillRecorded, err)
+	}
 	reclaimed, err := reopened.ClaimProviderErasure(ctx)
 	if err != nil || reclaimed == nil || reclaimed.Attempt <= retried.Attempt {
 		t.Fatalf("expired provider job could not be safely reclaimed: %#v %v", reclaimed, err)
