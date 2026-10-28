@@ -391,6 +391,16 @@ assert_state() {
   # relaunches, but accept ONLY the fresh requested state and fallback.
   local launch_attempt observation
   for launch_attempt in 1 2 3; do
+    # After an AXBridge transition failure, reset the simulator process too.
+    # Merely reinstalling the app does not reset an unhealthy SpringBoard /
+    # accessibility daemon. Keep the same device and built artifact.
+    if [[ "$launch_attempt" -gt 1 ]]; then
+      xcrun simctl shutdown "$UDID" >/dev/null 2>&1 || true
+      xcrun simctl boot "$UDID" ||
+        fail "state $state: simulator reboot failed"
+      xcrun simctl bootstatus "$UDID" -b ||
+        fail "state $state: simulator did not complete reboot"
+    fi
     xcrun simctl terminate "$UDID" com.apgic.ci >/dev/null 2>&1 || true
     # A fresh container eliminates cached native permission snapshots and AX
     # bridge elements left behind by the previous OS capability scenario.
