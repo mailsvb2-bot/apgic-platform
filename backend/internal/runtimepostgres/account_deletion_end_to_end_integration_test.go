@@ -239,6 +239,15 @@ func TestR5ProviderErasureRetrySignedProofAndRestartRecovery(t *testing.T) {
 	if err = reopened.SaveProviderErasure(ctx, *retried, signed, wrong); err == nil {
 		t.Fatal("untrusted external provider signature accepted")
 	}
+	if err = reopened.SaveProviderErasure(ctx, *job, signed, providerPub); err == nil {
+		t.Fatal("superseded provider worker committed a signed receipt")
+	}
+	var staleReceiptCount int
+	if err = reopened.db.QueryRowContext(ctx, `SELECT count(*) FROM deletion_provider_verified_receipts
+		WHERE request_id=$1::uuid AND provider_ref=$2`,
+		retried.RequestID, retried.ProviderRef).Scan(&staleReceiptCount); err != nil || staleReceiptCount != 0 {
+		t.Fatalf("stale provider worker persisted a receipt: count=%d err=%v", staleReceiptCount, err)
+	}
 	if err = reopened.SaveProviderErasure(ctx, *retried, signed, providerPub); err != nil {
 		t.Fatal(err)
 	}
