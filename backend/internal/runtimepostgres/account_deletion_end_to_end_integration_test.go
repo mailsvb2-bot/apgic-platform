@@ -188,6 +188,16 @@ func TestR5ProviderErasureRetrySignedProofAndRestartRecovery(t *testing.T) {
 	if err != nil || !moved {
 		t.Fatalf("failed to enqueue provider job: %v", err)
 	}
+	// Local erasure and the pending provider job are a single transaction.
+	// Once it commits, no ordinary session may repopulate private records,
+	// even if the provider is offline or the worker restarts.
+	if revoked, err := db.ClientIdentityDeleted(ctx, owner); err != nil || !revoked {
+		t.Fatalf("pending provider erasure left owner session active: revoked=%v err=%v", revoked, err)
+	}
+	pending, err := db.ReadAccountDeletionRequest(ctx, owner)
+	if err != nil || pending.State != "PROVIDER_ERASURE_PENDING" || pending.PendingProviders == 0 {
+		t.Fatalf("pending deletion receipt not readable after session revocation: %#v err=%v", pending, err)
+	}
 	job, err := db.ClaimProviderErasure(ctx)
 	if err != nil || job == nil || job.IdentityID != owner {
 		t.Fatalf("claimed wrong job: %#v %v", job, err)
