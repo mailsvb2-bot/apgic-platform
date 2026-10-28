@@ -132,6 +132,22 @@ func (c *Checker) SaveProviderErasure(ctx context.Context, d ProviderErasureDeli
 	if state != "PENDING" {
 		return privacy.ErrProviderErasureUnverified
 	}
+	// Fence stale workers before accepting provider proof. Once a lease has
+	// expired or another attempt was claimed, the previous worker no longer
+	// owns this dispatch, even if its provider response is correctly signed.
+	var currentAttempt int
+	var leaseActive bool
+	err = tx.QueryRowContext(ctx, `SELECT attempts,
+		lease_until IS NOT NULL AND lease_until > now()
+		FROM deletion_provider_dispatch
+		WHERE request_id=$1::uuid AND provider_ref=$2 FOR UPDATE`,
+		d.RequestID, d.ProviderRef).Scan(&currentAttempt, &leaseActive)
+	if err != nil {
+		return err
+	}
+	if currentAttempt != d.Attempt || !leaseActive {
+		return privacy.ErrProviderErasureUnverified
+	}
 	_, err = tx.ExecContext(ctx, `INSERT INTO deletion_provider_verified_receipts
 		(request_id,provider_ref,evidence_ref,signed_payload_sha256,signature_base64,verified_at)
 		VALUES($1::uuid,$2,$3,$4,$5,now())`,
