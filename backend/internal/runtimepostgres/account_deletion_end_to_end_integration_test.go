@@ -139,8 +139,11 @@ func TestR5CanonicalDeletionTransactionAndVerifiedTerminalRevocation(t *testing.
 	if err = db.db.QueryRowContext(ctx, "SELECT free_text FROM help_intents WHERE id=$1::uuid", intentID).Scan(&freeText); err != nil || freeText == "личная информация" {
 		t.Fatalf("help intent was not anonymized: %q %v", freeText, err)
 	}
-	if revoked, err := db.ClientIdentityDeleted(ctx, owner); err != nil || revoked {
-		t.Fatal("identity revoked before external and terminal verification")
+	if revoked, err := db.ClientIdentityDeleted(ctx, owner); err != nil || !revoked {
+		t.Fatal("normal client session retained access after local erasure")
+	}
+	if revoked, err := db.ClientIdentityDeleted(ctx, foreign); err != nil || revoked {
+		t.Fatal("local erasure revoked unrelated identity")
 	}
 	done, err := db.FinalizeVerifiedDeletion(ctx)
 	if err != nil || !done {
