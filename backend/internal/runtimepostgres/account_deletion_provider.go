@@ -86,7 +86,7 @@ func (c *Checker) FailProviderErasure(ctx context.Context, d ProviderErasureDeli
 	_, err := c.db.ExecContext(ctx, `UPDATE deletion_provider_dispatch SET
 		lease_until=NULL, next_attempt_at=$4, last_error_code=$5, updated_at=now()
 		WHERE request_id=$1::uuid AND provider_ref=$2 AND attempts=$3
-			AND lease_until IS NOT NULL`,
+			AND lease_until > now()`,
 		d.RequestID, d.ProviderRef, d.Attempt, time.Now().UTC().Add(backoff), reason)
 	return err
 }
