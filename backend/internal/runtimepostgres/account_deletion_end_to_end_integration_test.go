@@ -248,7 +248,21 @@ func TestR5ProviderErasureRetrySignedProofAndRestartRecovery(t *testing.T) {
 		retried.RequestID, retried.ProviderRef).Scan(&staleReceiptCount); err != nil || staleReceiptCount != 0 {
 		t.Fatalf("stale provider worker persisted a receipt: count=%d err=%v", staleReceiptCount, err)
 	}
-	if err = reopened.SaveProviderErasure(ctx, *retried, signed, providerPub); err != nil {
+	// A valid signature must not override a lease that has timed out.
+	if _, err = reopened.db.ExecContext(ctx, `UPDATE deletion_provider_dispatch
+		SET lease_until=now()-interval '1 second'
+		WHERE request_id=$1::uuid AND provider_ref=$2`,
+		retried.RequestID, retried.ProviderRef); err != nil {
+		t.Fatal(err)
+	}
+	if err = reopened.SaveProviderErasure(ctx, *retried, signed, providerPub); err == nil {
+		t.Fatal("expired provider lease accepted a signed receipt")
+	}
+	reclaimed, err := reopened.ClaimProviderErasure(ctx)
+	if err != nil || reclaimed == nil || reclaimed.Attempt <= retried.Attempt {
+		t.Fatalf("expired provider job could not be safely reclaimed: %#v %v", reclaimed, err)
+	}
+	if err = reopened.SaveProviderErasure(ctx, *reclaimed, signed, providerPub); err != nil {
 		t.Fatal(err)
 	}
 	if done, err := reopened.FinalizeVerifiedDeletion(ctx); err != nil || !done {
