@@ -29,8 +29,8 @@ func TestConformanceSessionNeverBindsTypedNilDeletionStore(t *testing.T) {
 	key := []byte(strings.Repeat("q", 48))
 	var missing *nilDeletionRuntime
 	handler := New(Options{
-		Demand: demand.NewConformanceService(nil),
-		ClientSessionKey: key,
+		Demand:                demand.NewConformanceService(nil),
+		ClientSessionKey:      key,
 		AccountDeletionIntake: missing,
 	})
 	create := func(cookie *http.Cookie) *httptest.ResponseRecorder {
