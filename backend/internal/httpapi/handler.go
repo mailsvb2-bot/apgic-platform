@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"reflect"
 	"time"
 
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/clientcompat"
@@ -77,6 +78,17 @@ type statusResponse struct {
 }
 
 func New(options Options) http.Handler {
+	// Normalize typed-nil interfaces before binding a deletion store to
+	// sessions or HTTP endpoints. Real store failures remain fail-closed.
+	if options.AccountDeletionIntake != nil {
+		v := reflect.ValueOf(options.AccountDeletionIntake)
+		switch v.Kind() {
+		case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+			if v.IsNil() {
+				options.AccountDeletionIntake = nil
+			}
+		}
+	}
 	if options.Now == nil {
 		options.Now = time.Now
 	}
@@ -138,14 +150,10 @@ func New(options Options) http.Handler {
 	if len(options.ClientSessionKey) > 0 {
 		sessions, sessionConfigErr = newClientSessionManager(options.ClientSessionKey, options.Now)
 		if sessionConfigErr == nil {
-			// The conformance API passes a typed nil *Checker through an
-			// interface. It must not be treated as a running deletion store:
-			// otherwise every unrelated signed session fails closed.
-			// Persistent deployments always configure a readiness check.
-			if options.ReadinessCheck != nil {
-				if deletions, ok := options.AccountDeletionIntake.(clientIdentityDeletionChecker); ok {
-					sessions.deletions = deletions
-				}
+			// Bind revocation to the actual configured store, not readiness.
+			// Missing stores are inert; lookup failures fail closed.
+			if deletions, ok := options.AccountDeletionIntake.(clientIdentityDeletionChecker); ok {
+				sessions.deletions = deletions
 			}
 			stepUp, sessionConfigErr = newStepUpManager(options.ClientSessionKey, options.Now)
 		}
