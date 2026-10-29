@@ -2,7 +2,7 @@
 
 import {useEffect,useRef,useState} from "react";
 
-type Receipt={id:string;state:string;source:string;created_at:string;updated_at:string;notice:string;idempotent:boolean};
+type Receipt={id:string;state:string;source:string;created_at:string;updated_at:string;notice:string;idempotent:boolean;completed_at?:string;retained_reason?:string;pending_providers:number};
 type FactorStatus={enrolled:boolean;ready_at?:string;secret_base32?:string};
 const endpoint="/v1/client/account-deletion-requests";
 
@@ -13,6 +13,16 @@ function receipt(value:unknown):Receipt{
     !x.created_at||!x.updated_at||typeof x.notice!=="string"||typeof x.idempotent!=="boolean")
     throw Error("Сервер не подтвердил регистрацию запроса.");
   return x as Receipt;
+}
+const deletionStates:Record<string,string>={
+  REQUESTED:"Запрос получен. Необходимо подтвердить личность.",
+  IDENTITY_RECONFIRMED:"Личность подтверждена. Ожидается проверка правил хранения.",
+  PROVIDER_ERASURE_PENDING:"Локальное удаление выполнено. Ожидается подтверждение внешних систем.",
+  PARTIALLY_RETAINED_WITH_REASON:"Удаление завершено. Обязательные записи сохранены по правилам хранения.",
+};
+function deletionDate(value:string){
+  const date=new Date(value);
+  return Number.isNaN(date.getTime())?"Дата недоступна":date.toLocaleString("ru-RU");
 }
 function factorStatus(value:unknown):FactorStatus{
   if(!value||typeof value!=="object"||typeof (value as FactorStatus).enrolled!=="boolean")
@@ -116,8 +126,15 @@ export default function DeletionRequestPanel({onSessionLost}:{onSessionLost:()=>
       Запрос не равен стиранию. Часть финансовых и юридических записей может сохраняться.</p>
     <button type="button" disabled={busy} onClick={()=>void read()}>Проверить статус запроса</button>
     {item?<div role="status">
-      <p>Запрос № {item.id}</p><p>Статус сервера: <strong>{item.state}</strong></p>
+      <p>Номер запроса: <code>{item.id}</code></p>
+      <p>Состояние: <strong>{deletionStates[item.state]??"Статус уточняется на сервере"}</strong></p>
+      <p>Получен: {deletionDate(item.created_at)}</p>
+      <p>Последнее изменение: {deletionDate(item.updated_at)}</p>
+      {item.completed_at?<p>Завершён: {deletionDate(item.completed_at)}</p>:null}
+      {item.pending_providers>0?<p>Ожидается подтверждений внешних систем: {item.pending_providers}</p>:null}
+      {item.retained_reason?<p>Причина сохранения обязательных данных: {item.retained_reason}</p>:null}
       <p>{item.notice}</p>
+      <p>Ответ получен от сервера. Заявка сама по себе не доказывает удаления данных.</p>
       {item.state==="REQUESTED"?<div>
         <h3>Повторное подтверждение личности</h3>
         <p>Для защиты аккаунта подключите приложение одноразовых кодов.
