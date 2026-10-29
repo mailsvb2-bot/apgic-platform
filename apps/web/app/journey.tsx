@@ -379,7 +379,6 @@ export function Journey() {
     setCancellation(null);
     setFulfillment(null);
     setSession(null);
-    setDeletion(null);
     try {
       const created = await postJSON<Intent>("/v1/help-intents", { free_text: text });
       setIntent(created);
