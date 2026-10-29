@@ -136,8 +136,12 @@ func TestR5CanonicalDeletionTransactionAndVerifiedTerminalRevocation(t *testing.
 		t.Fatalf("push credential survived erasure: state=%s endpoint=%v err=%v", pushState, pushEndpoint, err)
 	}
 	var freeText string
-	if err = db.db.QueryRowContext(ctx, "SELECT free_text FROM help_intents WHERE id=$1::uuid", intentID).Scan(&freeText); err != nil || freeText == "личная информация" {
-		t.Fatalf("help intent was not anonymized: %q %v", freeText, err)
+	var intentOwner sql.NullString
+	if err = db.db.QueryRowContext(ctx, "SELECT free_text,identity_id::text FROM help_intents WHERE id=$1::uuid", intentID).Scan(&freeText, &intentOwner); err != nil || freeText == "личная информация" || intentOwner.Valid {
+		t.Fatalf("help intent still contains personal data or owner link: text=%q owner=%v err=%v", freeText, intentOwner, err)
+	}
+	if err = db.db.QueryRowContext(ctx, "SELECT count(*) FROM help_intents WHERE identity_id=$1::uuid", owner).Scan(&count); err != nil || count != 0 {
+		t.Fatalf("owned help intents survived local erasure: count=%d err=%v", count, err)
 	}
 	if revoked, err := db.ClientIdentityDeleted(ctx, owner); err != nil || !revoked {
 		t.Fatal("normal client session retained access after local erasure")
