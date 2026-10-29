@@ -94,13 +94,11 @@ func (c *Checker) AdvanceApprovedDeletion(ctx context.Context, signedPolicy []by
 		return false, fmt.Errorf("erase owned preferences: %w", err)
 	}
 	intents, err := tx.ExecContext(ctx, `UPDATE help_intents
-		SET free_text='[удалено по запросу владельца]',
+		SET identity_id=NULL, free_text='[удалено по запросу владельца]',
 		    topics=ARRAY[]::text[], goals=ARRAY[]::text[],
 		    context='{}'::jsonb, updated_at=now()
 		WHERE identity_id=$1::uuid
-		  AND (free_text <> '[удалено по запросу владельца]'
-		       OR cardinality(topics) > 0 OR cardinality(goals) > 0
-		       OR context <> '{}'::jsonb)`, owner)
+		  `, owner)
 	if err != nil {
 		return false, fmt.Errorf("anonymize owned intents: %w", err)
 	}
@@ -130,10 +128,7 @@ func (c *Checker) AdvanceApprovedDeletion(ctx context.Context, signedPolicy []by
 		OR EXISTS(SELECT 1 FROM client_deletion_mfa_factors WHERE identity_id=$1::uuid)
 		OR EXISTS(SELECT 1 FROM client_installations WHERE identity_id=$1::uuid
 			AND (state<>'REVOKED' OR push_endpoint IS NOT NULL))
-		OR EXISTS(SELECT 1 FROM help_intents WHERE identity_id=$1::uuid
-			AND (free_text <> '[удалено по запросу владельца]'
-			     OR cardinality(topics)>0 OR cardinality(goals)>0
-			     OR context <> '{}'::jsonb))`, owner).Scan(&residue)
+		OR EXISTS(SELECT 1 FROM help_intents WHERE identity_id=$1::uuid)`, owner).Scan(&residue)
 	if err != nil || residue {
 		return false, fmt.Errorf("post-erasure verification failed: residual=%v err=%w", residue, err)
 	}
