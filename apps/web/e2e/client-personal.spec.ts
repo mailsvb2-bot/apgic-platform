@@ -137,3 +137,53 @@ test("personal workspace submits persistent deletion request and never claims co
   await expect(page.getByRole("status").filter({hasText:"REQUESTED"})).toBeVisible();
   await expect(page.getByRole("button",{name:"Подать запрос на удаление аккаунта"})).toHaveCount(0);
 });
+
+test("R5 verified deletion confirmation follows real user action, never silently hides cabinet",async({page})=>{
+  const deletion=(state:string)=>({
+    id:"123e4567-e89b-42d3-a456-426614174014",
+    state,source:"WEB",created_at:"2026-10-27T12:00:00Z",
+    updated_at:"2026-10-27T12:00:00Z",
+    notice:state==="REQUESTED"?"Удаление ещё не выполнено.":"Подтверждение принято. Удаление ещё не выполнено.",
+    idempotent:false,
+  });
+  let confirmed=false;
+  await page.route("**/v1/client/personal",r=>r.fulfill({
+    status:200,contentType:"application/json",body:JSON.stringify(makeView()),
+  }));
+  await page.route("**/v1/client/account-deletion-requests**",route=>{
+    const req=route.request();
+    const pathname=new URL(req.url()).pathname;
+    if(pathname.endsWith("/factor")){
+      return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({
+        enrolled:true,ready_at:"2026-10-26T12:00:00Z",
+      })});
+    }
+    if(pathname.endsWith("/factor/verify")){
+      expect(req.headers()["x-apgic-deletion-factor"]).toBe("verify-v1");
+      expect(req.postDataJSON()).toEqual({code:"123456"});
+      return route.fulfill({status:204,body:""});
+    }
+    if(pathname.endsWith("/reconfirm")){
+      expect(req.headers()["x-apgic-deletion-confirmation"]).toBe("verified-step-up-v1");
+      expect(req.postDataJSON()).toEqual({confirm:true});
+      confirmed=true;
+      return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify(deletion("IDENTITY_RECONFIRMED"))});
+    }
+    if(pathname.endsWith("/account-deletion-requests")&&req.method()==="GET"){
+      return route.fulfill({status:200,contentType:"application/json",
+        body:JSON.stringify(deletion(confirmed?"IDENTITY_RECONFIRMED":"REQUESTED"))});
+    }
+    return route.fulfill({status:404});
+  });
+  await page.goto("/personal");
+  await expect(page.getByText("Ирина Тестовая").first()).toBeVisible();
+  await page.getByRole("button",{name:"Проверить статус запроса"}).click();
+  await expect(page.getByRole("status").filter({hasText:"REQUESTED"})).toBeVisible();
+  await page.getByRole("button",{name:"Проверить готовность подтверждения"}).click();
+  await page.getByRole("textbox",{name:"Код из приложения"}).fill("123456");
+  await page.getByRole("button",{name:"Проверить код"}).click();
+  await page.getByRole("button",{name:"Подтвердить личность для удаления"}).click();
+  await expect(page.getByRole("status").filter({hasText:"IDENTITY_RECONFIRMED"})).toBeVisible();
+  await expect(page.getByText("Ирина Тестовая").first()).toBeVisible();
+  await expect(page.getByText("Подтверждение принято. Удаление ещё не выполнено.")).toBeVisible();
+});

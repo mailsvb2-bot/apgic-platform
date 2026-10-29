@@ -41,6 +41,15 @@ func main() {
 	environment := canonicalEnvironment(os.Getenv("APGIC_ENVIRONMENT"))
 	releaseTrack := envOr("APGIC_RELEASE_TRACK", "R0")
 	clientSessionKey := []byte(os.Getenv("APGIC_CLIENT_SESSION_KEY"))
+	var deletionMFAKey [32]byte
+	if encoded := strings.TrimSpace(os.Getenv("APGIC_DELETION_MFA_KEY_BASE64")); encoded != "" {
+		decoded, err := base64.StdEncoding.Strict().DecodeString(encoded)
+		if err != nil || len(decoded) != len(deletionMFAKey) {
+			log.Fatal("APGIC deletion MFA encryption key must be a separate base64-encoded 32-byte secret")
+		}
+		copy(deletionMFAKey[:], decoded)
+	}
+
 	deepLinkSigningKey := []byte(os.Getenv("APGIC_DEEPLINK_SIGNING_KEY"))
 	var financeMFAKey [32]byte
 	if encoded := strings.TrimSpace(os.Getenv("APGIC_MFA_ENCRYPTION_KEY_BASE64")); encoded != "" {
@@ -113,6 +122,53 @@ func main() {
 		}
 		roomIssuer = roomIssuerConfig
 	}
+	// R5 execution is opt-in only after independent legal/policy approval.
+	// A missing or invalid signing key must never silently authorize erasure.
+	var deletionRuntime *runtimepostgres.DeletionRuntime
+	deletionPolicyPath := strings.TrimSpace(os.Getenv("APGIC_DELETION_SIGNED_POLICY_FILE"))
+	deletionApprovalPublic := strings.TrimSpace(os.Getenv("APGIC_DELETION_APPROVAL_PUBLIC_KEY_BASE64"))
+	deletionProvidersPath := strings.TrimSpace(os.Getenv("APGIC_DELETION_PROVIDERS_FILE"))
+	if deletionPolicyPath != "" || deletionApprovalPublic != "" || deletionProvidersPath != "" {
+		if storage == nil || deletionPolicyPath == "" || deletionApprovalPublic == "" {
+			log.Fatal("R5 deletion execution requires PostgreSQL, a signed policy and an independent approval public key")
+		}
+		approvedDocument, err := os.ReadFile(deletionPolicyPath)
+		if err != nil {
+			log.Fatalf("R5 deletion policy cannot be read: %v", err)
+		}
+		approvalPublicKey, err := base64.StdEncoding.Strict().DecodeString(deletionApprovalPublic)
+		if err != nil || len(approvalPublicKey) != ed25519.PublicKeySize {
+			log.Fatal("R5 deletion approval Ed25519 public key is invalid")
+		}
+		var providerDocument []byte
+		if deletionProvidersPath != "" {
+			providerDocument, err = os.ReadFile(deletionProvidersPath)
+			if err != nil {
+				log.Fatalf("R5 deletion provider configuration cannot be read: %v", err)
+			}
+		}
+		deletionRuntime, err = runtimepostgres.NewDeletionRuntime(storage, approvedDocument,
+			ed25519.PublicKey(approvalPublicKey), os.Getenv("APGIC_RETENTION_POLICY_VERSION"), providerDocument)
+		if err != nil {
+			log.Fatalf("R5 deletion execution is not approved or configured: %v", err)
+		}
+	} else if runtimepostgres.RequiresDatabase(environment) {
+		log.Print("R5 account deletion: awaiting independent retention approval; execution disabled, requests remain durable")
+	}
+	if deletionRuntime != nil {
+		go func() {
+			if err := deletionRuntime.Cycle(context.Background()); err != nil {
+				log.Printf("R5 deletion cycle deferred: %v", err)
+			}
+			ticker := time.NewTicker(30 * time.Second)
+			defer ticker.Stop()
+			for range ticker.C {
+				if err := deletionRuntime.Cycle(context.Background()); err != nil {
+					log.Printf("R5 deletion cycle deferred: %v", err)
+				}
+			}
+		}()
+	}
 	handler := httpapi.New(httpapi.Options{
 		CommitSHA:                     os.Getenv("APGIC_COMMIT_SHA"),
 		ConformanceProviderEvents:     !runtimepostgres.RequiresDatabase(environment) && os.Getenv("APGIC_CONFORMANCE_PROVIDER_EVENTS") == "1",
@@ -153,6 +209,7 @@ func main() {
 		Products:                    storage,
 		ClientPersonal:              storage,
 		AccountDeletionIntake:       storage,
+		DeletionMFAKey:              deletionMFAKey,
 		LaunchConfig: launchconfig.Config{
 			JurisdictionMatrixVersion: os.Getenv("APGIC_JURISDICTION_MATRIX_VERSION"),
 			RetentionPolicyVersion:    os.Getenv("APGIC_RETENTION_POLICY_VERSION"),

@@ -10,7 +10,34 @@ import (
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/privacy"
 )
 
-const deletionIntakeNotice = "Ваш запрос зарегистрирован. Стирание данных ещё не выполнено и не подтверждено. Сроки хранения и необходимые проверки будут определены отдельно."
+const deletionIntakeNotice = "Ваш запрос зарегистрирован. Стирание данных ещё не выполнено и не подтверждено."
+
+func deletionNoticeFor(state, review string, pending int) string {
+	switch state {
+	case "REQUESTED":
+		return deletionIntakeNotice
+	case "IDENTITY_RECONFIRMED":
+		if review != "" {
+			return "Личность подтверждена. Выполнение ожидает проверки незавершённых обязательств; данные ещё не стёрты."
+		}
+		return "Личность подтверждена. Ожидается утверждённая политика хранения; данные ещё не стёрты."
+	case "RETENTION_CLASSIFIED":
+		return "Правила хранения определены. Ожидается фактическое исполнение и проверка удаления."
+	case "PROVIDER_ERASURE_PENDING":
+		if pending > 0 {
+			return "Локальная обработка данных проведена. Ожидаются доказательства удаления от внешних систем."
+		}
+		return "Локальная обработка подтверждена. Выполняется финальная проверка и отзыв доступа."
+	case "WAITING_FOR_LEGAL_HOLD_EXPIRY":
+		return "Удаление ожидает истечения юридического ограничения на хранение."
+	case "PARTIALLY_RETAINED_WITH_REASON":
+		return "Обработка завершена и доступ отозван. Обязательные записи сохранены по указанному основанию."
+	case "COMPLETED":
+		return "Удаление завершено и подтверждено независимыми доказательствами."
+	default:
+		return "Статус обработки недоступен. Повторите проверку."
+	}
+}
 
 // SubmitAccountDeletionRequest creates durable, owner-scoped evidence only.
 // It never declares that personal data or external provider data were erased.
@@ -66,8 +93,12 @@ func (c *Checker) SubmitAccountDeletionRequest(ctx context.Context, identity, so
 	if err = tx.Commit(); err != nil {
 		return privacy.AccountDeletionReceipt{}, err
 	}
-	out.Notice = deletionIntakeNotice
-	return out, nil
+	confirmed, err := c.ReadAccountDeletionRequest(ctx, identity)
+	if err != nil {
+		return privacy.AccountDeletionReceipt{}, err
+	}
+	confirmed.Idempotent = out.Idempotent
+	return confirmed, nil
 }
 
 // ReadAccountDeletionRequest returns the canonical request only to its signed owner.
@@ -78,12 +109,22 @@ func (c *Checker) ReadAccountDeletionRequest(ctx context.Context, identity strin
 	}
 	ctx, cancel := context.WithTimeout(ctx, clientPersonalTimeout)
 	defer cancel()
-	err := c.db.QueryRowContext(ctx, `SELECT id::text,state,source_surface,created_at,updated_at
-		FROM delete_account_requests WHERE identity_id=$1::uuid ORDER BY created_at DESC,id DESC LIMIT 1`, identity).
-		Scan(&out.ID, &out.State, &out.Source, &out.CreatedAt, &out.UpdatedAt)
+	var completed sql.NullTime
+	err := c.db.QueryRowContext(ctx, `SELECT
+		r.id::text,r.state,r.source_surface,r.created_at,r.updated_at,
+		COALESCE(r.retained_reason,''),r.completed_at,
+		(SELECT count(*) FROM provider_erasure_jobs p WHERE p.delete_request_id=r.id AND p.state='PENDING'),
+		COALESCE((SELECT h.reason_code FROM deletion_processing_holds h WHERE h.request_id=r.id),'')
+		FROM delete_account_requests r
+		WHERE r.identity_id=$1::uuid ORDER BY r.created_at DESC,r.id DESC LIMIT 1`, identity).
+		Scan(&out.ID, &out.State, &out.Source, &out.CreatedAt, &out.UpdatedAt,
+			&out.RetainedReason, &completed, &out.PendingProviders, &out.ReviewCode)
 	if err != nil {
 		return out, err
 	}
-	out.Notice = deletionIntakeNotice
+	if completed.Valid {
+		out.CompletedAt = &completed.Time
+	}
+	out.Notice = deletionNoticeFor(out.State, out.ReviewCode, out.PendingProviders)
 	return out, nil
 }
