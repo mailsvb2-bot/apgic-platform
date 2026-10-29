@@ -350,16 +350,6 @@ export function Journey() {
   const [providerEventID] = useState(() => clientUUID());
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
-  const [deletion, setDeletion] = useState<{
-    state: string;
-    deactivation: boolean;
-    profile_erased: boolean;
-    ledger_retained: boolean;
-    apgic_deletes_ledger: boolean;
-    notice: string;
-    idempotent: boolean;
-  } | null>(null);
-
   async function interpret(event: FormEvent) {
     event.preventDefault();
     // Starting a different journey invalidates even an in-flight availability
@@ -389,7 +379,6 @@ export function Journey() {
     setCancellation(null);
     setFulfillment(null);
     setSession(null);
-    setDeletion(null);
     try {
       const created = await postJSON<Intent>("/v1/help-intents", { free_text: text });
       setIntent(created);
@@ -825,31 +814,6 @@ export function Journey() {
       await refreshOrderStatus(instruction);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Отмена не выполнена.");
-    } finally {
-      setPending(false);
-    }
-  }
-
-  async function deleteAccount() {
-    if (!intent) return;
-    setError("");
-    setPending(true);
-    try {
-      const created = await postJSON<{
-        state: string;
-        deactivation: boolean;
-        profile_erased: boolean;
-        ledger_retained: boolean;
-        apgic_deletes_ledger: boolean;
-        notice: string;
-        idempotent: boolean;
-      }>("/v1/account-deletions", { source: "WEB" });
-      if (created.deactivation || created.apgic_deletes_ledger || !created.ledger_retained || !created.profile_erased) {
-        throw new Error("Удаление не должно быть деактивацией и не должно уничтожать запись учёта.");
-      }
-      setDeletion(created);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Учётная запись не удалена.");
     } finally {
       setPending(false);
     }
@@ -1343,16 +1307,8 @@ export function Journey() {
           <summary>Управление учётной записью</summary>
           <section aria-labelledby="deletion-title">
             <h2 id="deletion-title">Удаление учётной записи</h2>
-            <p>Профиль стирается, а обязательная финансовая и audit-история сохраняется по правилам хранения.</p>
-            <button type="button" onClick={deleteAccount} disabled={pending}>Удалить учётную запись</button>
-            {deletion ? (
-              <div className="deletion-result">
-                <p>{deletion.notice}</p>
-                <p>Состояние {deletion.state}. Деактивация: {deletion.deactivation ? "да" : "нет"}.</p>
-                <p>Профиль стёрт: {deletion.profile_erased ? "да" : "нет"}. Запись учёта сохранена: {deletion.ledger_retained ? "да" : "нет"}.</p>
-                <p>APGIC уничтожает запись учёта: {deletion.apgic_deletes_ledger ? "да" : "нет"}. Повтор: {deletion.idempotent ? "уже учтён" : "нет"}.</p>
-              </div>
-            ) : null}
+            <p>Запрос на удаление, проверка личности и подтверждённый сервером статус доступны в личном кабинете. Подача запроса не означает, что данные уже стёрты.</p>
+            <a href="/personal">Подать запрос или проверить статус удаления</a>
           </section>
         </details>
       ) : null}
