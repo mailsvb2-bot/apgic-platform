@@ -159,13 +159,10 @@ test("help intent journey stays usable and accessible", async ({ page }) => {
   await page.getByRole("button", { name: "Отменить бронь через внешнего провайдера" }).click();
   await expect(page.getByText("Повтор: уже учтён.").last()).toBeVisible();
   await page.getByText("Управление учётной записью").click();
-  await page.getByRole("button", { name: "Удалить учётную запись" }).click();
-  await expect(page.getByText("PARTIALLY_RETAINED_WITH_REASON")).toBeVisible();
-  await expect(page.getByText("Деактивация: нет.")).toBeVisible();
-  await expect(page.getByText("Запись учёта сохранена: да.")).toBeVisible();
-  await expect(page.getByText("APGIC уничтожает запись учёта: нет.")).toBeVisible();
-  await page.getByRole("button", { name: "Удалить учётную запись" }).click();
-  await expect(page.getByText("Повтор: уже учтён.").last()).toBeVisible();
+  const canonicalDeletion = page.getByRole("link", { name: "Подать запрос или проверить статус удаления" });
+  await expect(canonicalDeletion).toHaveAttribute("href", "/personal");
+  await expect(page.getByRole("button", { name: "Удалить учётную запись" })).toHaveCount(0);
+  await expect(page.getByText("Подача запроса не означает, что данные уже стёрты.", { exact: false })).toBeVisible();
 
   const layout = await page.evaluate(() => ({
     viewportWidth: window.innerWidth,
