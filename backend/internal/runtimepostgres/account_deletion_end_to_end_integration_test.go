@@ -135,10 +135,10 @@ func TestR5CanonicalDeletionTransactionAndVerifiedTerminalRevocation(t *testing.
 		pushState != "REVOKED" || pushEndpoint.Valid {
 		t.Fatalf("push credential survived erasure: state=%s endpoint=%v err=%v", pushState, pushEndpoint, err)
 	}
-	var freeText string
-	var intentOwner sql.NullString
-	if err = db.db.QueryRowContext(ctx, "SELECT free_text,identity_id::text FROM help_intents WHERE id=$1::uuid", intentID).Scan(&freeText, &intentOwner); err != nil || freeText == "личная информация" || intentOwner.Valid {
-		t.Fatalf("help intent still contains personal data or owner link: text=%q owner=%v err=%v", freeText, intentOwner, err)
+	// A help request without canonical downstream references is physically
+	// removed, not merely anonymized or unlinked from the identity.
+	if err = db.db.QueryRowContext(ctx, "SELECT count(*) FROM help_intents WHERE id=$1::uuid", intentID).Scan(&count); err != nil || count != 0 {
+		t.Fatalf("unreferenced personal request must be physically erased: count=%d err=%v", count, err)
 	}
 	if err = db.db.QueryRowContext(ctx, "SELECT count(*) FROM help_intents WHERE identity_id=$1::uuid", owner).Scan(&count); err != nil || count != 0 {
 		t.Fatalf("owned help intents survived local erasure: count=%d err=%v", count, err)
