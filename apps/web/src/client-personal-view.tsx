@@ -148,7 +148,14 @@ export default function ClientPersonalView(){
   return <section className="personal-main" aria-label="Личный кабинет клиента">
     {status==="loading"?<p role="status">Загружаем ваши записи с сервера…</p>:null}
     {status==="unauthorized"?<div role="alert" className="personal-empty"><p>{error}</p><a href="/#start">Начать подбор</a></div>:null}
-    {status==="error"?<div role="alert" className="personal-empty"><p>{error}</p><button onClick={()=>void reload()}>Повторить</button></div>:null}
+    {status==="error"?<>
+      <div role="alert" className="personal-empty">
+        <p>{error}</p>
+        <button type="button" onClick={()=>void reload()}>Повторить</button>
+      </div>
+      <p className="personal-muted">История и настройки сейчас недоступны. Проверка запроса на удаление работает отдельно и не требует загрузки истории.</p>
+      <ClientDeletionRequest onSessionLost={revokeSession}/>
+    </>:null}
     {data&&status==="ready"?<>
       <div className="personal-toolbar">
         <p>Добро пожаловать{data.preferences.display_name?`, ${data.preferences.display_name}`:""}.</p>

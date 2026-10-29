@@ -30,6 +30,26 @@ test("personal workspace loads owner snapshot, saves preferences and advances hi
   await page.getByRole("button",{name:"Сохранить настройки"}).click();
   await expect.poll(()=>saved).toBe(true);
 });
+test("deletion request status remains accessible when personal history API is unavailable",async({page})=>{
+  await page.route("**/v1/client/personal",r=>r.fulfill({
+    status:503,contentType:"application/json",body:'{"code":"PERSONAL_UNAVAILABLE"}',
+  }));
+  await page.route("**/v1/client/account-deletion-requests",r=>r.fulfill({
+    status:200,contentType:"application/json",body:JSON.stringify({
+      id:"123e4567-e89b-42d3-a456-426614174014",
+      state:"REQUESTED",source:"WEB",
+      created_at:"2026-10-27T12:00:00Z",updated_at:"2026-10-27T12:00:00Z",
+      notice:"Стирание данных ещё не выполнено.",idempotent:false,pending_providers:0,
+    }),
+  }));
+  await page.goto("/personal");
+  await expect(page.getByRole("alert").filter({hasText:"Сейчас не удалось получить данные"})).toBeVisible();
+  await expect(page.getByRole("heading",{name:"Удаление учётной записи"})).toBeVisible();
+  await page.getByRole("button",{name:"Проверить статус запроса"}).click();
+  await expect(page.getByRole("status").filter({hasText:"Запрос получен. Необходимо подтвердить личность."})).toBeVisible();
+  await expect(page.getByRole("heading",{name:"Предстоящие записи"})).toHaveCount(0);
+});
+
 test("personal workspace fails closed without signed session",async({page})=>{
   await page.route("**/v1/client/personal",r=>r.fulfill({status:401,body:'{"code":"CLIENT_SESSION_REQUIRED"}'}));
   await page.goto("/personal");
