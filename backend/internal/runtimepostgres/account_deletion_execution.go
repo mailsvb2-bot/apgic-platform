@@ -93,14 +93,12 @@ func (c *Checker) AdvanceApprovedDeletion(ctx context.Context, signedPolicy []by
 	if err != nil {
 		return false, fmt.Errorf("erase owned preferences: %w", err)
 	}
-	intents, err := tx.ExecContext(ctx, `UPDATE help_intents
-		SET identity_id=NULL, free_text='[удалено по запросу владельца]',
-		    topics=ARRAY[]::text[], goals=ARRAY[]::text[],
-		    context='{}'::jsonb, updated_at=now()
-		WHERE identity_id=$1::uuid
-		  `, owner)
+	// PostgreSQL owns the FK-aware erasure: physical removal when safe,
+	// privacy-field scrub and unlink only when immutable bookings reference it.
+	var nIntents int64
+	err = tx.QueryRowContext(ctx, `SELECT apgic_erase_owned_help_intents($1::uuid)`, owner).Scan(&nIntents)
 	if err != nil {
-		return false, fmt.Errorf("anonymize owned intents: %w", err)
+		return false, fmt.Errorf("erase owned help intents: %w", err)
 	}
 	creds, err := tx.ExecContext(ctx, `DELETE FROM finance_operator_mfa_factors
 		WHERE identity_id=$1::uuid`, owner)
@@ -133,7 +131,6 @@ func (c *Checker) AdvanceApprovedDeletion(ctx context.Context, signedPolicy []by
 		return false, fmt.Errorf("post-erasure verification failed: residual=%v err=%w", residue, err)
 	}
 	nPrefs, _ := prefs.RowsAffected()
-	nIntents, _ := intents.RowsAffected()
 	nCreds, _ := creds.RowsAffected()
 	nDeletionFactor, _ := deletionFactor.RowsAffected()
 	nCreds += nDeletionFactor
