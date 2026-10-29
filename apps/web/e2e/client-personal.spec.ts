@@ -130,11 +130,11 @@ test("personal workspace submits persistent deletion request and never claims co
   await expect(submit).toBeDisabled();
   await page.getByRole("checkbox",{name:/понимаю/i}).check();
   await submit.click();
-  await expect(page.getByRole("status").filter({hasText:"REQUESTED"})).toBeVisible();
+  await expect(page.getByRole("status").filter({hasText:"Запрос получен. Необходимо подтвердить личность."})).toBeVisible();
   await expect(page.getByText("Стирание данных ещё не выполнено.")).toBeVisible();
   await page.reload();
   await page.getByRole("button",{name:"Проверить статус запроса"}).click();
-  await expect(page.getByRole("status").filter({hasText:"REQUESTED"})).toBeVisible();
+  await expect(page.getByRole("status").filter({hasText:"Запрос получен. Необходимо подтвердить личность."})).toBeVisible();
   await expect(page.getByRole("button",{name:"Подать запрос на удаление аккаунта"})).toHaveCount(0);
 });
 
@@ -178,12 +178,12 @@ test("R5 verified deletion confirmation follows real user action, never silently
   await page.goto("/personal");
   await expect(page.getByText("Ирина Тестовая").first()).toBeVisible();
   await page.getByRole("button",{name:"Проверить статус запроса"}).click();
-  await expect(page.getByRole("status").filter({hasText:"REQUESTED"})).toBeVisible();
+  await expect(page.getByRole("status").filter({hasText:"Запрос получен. Необходимо подтвердить личность."})).toBeVisible();
   await page.getByRole("button",{name:"Проверить готовность подтверждения"}).click();
   await page.getByRole("textbox",{name:"Код из приложения"}).fill("123456");
   await page.getByRole("button",{name:"Проверить код"}).click();
   await page.getByRole("button",{name:"Подтвердить личность для удаления"}).click();
-  await expect(page.getByRole("status").filter({hasText:"IDENTITY_RECONFIRMED"})).toBeVisible();
+  await expect(page.getByRole("status").filter({hasText:"Личность подтверждена. Ожидается проверка правил хранения."})).toBeVisible();
   await expect(page.getByText("Ирина Тестовая").first()).toBeVisible();
   await expect(page.getByText("Подтверждение принято. Удаление ещё не выполнено.")).toBeVisible();
 });
