@@ -1100,7 +1100,12 @@ assert_organization_product_lifecycle() {
   local staging_session_cookie
   local output="$EVIDENCE_DIR/ios-org-product-e2e.json"
   headers="$(mktemp)"
-  curl -fsS -D "$headers" -o "$EVIDENCE_DIR/ios-org-product-bootstrap.json" \
+  # The remote staging lifecycle must be executed against the REAL HTTPS
+  # endpoint. Retry transient DNS/transport errors only; never substitute
+  # the local fixture or accept an unsuccessful HTTP response.
+  curl -fsS --retry 4 --retry-delay 3 --retry-max-time 60 \
+    --retry-all-errors --connect-timeout 10 --max-time 20 \
+    -D "$headers" -o "$EVIDENCE_DIR/ios-org-product-bootstrap.json" \
     -H 'content-type: application/json' \
     --data '{"free_text":"ios native organization product staging proof"}' \
     https://apgic.ru/v1/help-intents >/dev/null
