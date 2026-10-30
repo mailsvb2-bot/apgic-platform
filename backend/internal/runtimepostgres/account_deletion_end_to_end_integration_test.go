@@ -149,6 +149,26 @@ func TestR5CanonicalDeletionTransactionAndVerifiedTerminalRevocation(t *testing.
 	if revoked, err := db.ClientIdentityDeleted(ctx, foreign); err != nil || revoked {
 		t.Fatal("local erasure revoked unrelated identity")
 	}
+	// A late internal write must not turn a stale local receipt into a
+	// misleading completed deletion status. The terminal gate rechecks
+	// owner-linked personal records before revoking the identity.
+	lateIntentID, err := persistentid.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = db.db.ExecContext(ctx, `INSERT INTO help_intents
+		(id,identity_id,free_text) VALUES($1::uuid,$2::uuid,'late personal request')`, lateIntentID, owner); err != nil {
+		t.Fatal(err)
+	}
+	if done, err := db.FinalizeVerifiedDeletion(ctx); err == nil || done {
+		t.Fatalf("terminal deletion accepted leftover personal request: done=%v err=%v", done, err)
+	}
+	if _, err = db.db.ExecContext(ctx, `UPDATE help_intents
+		SET identity_id=NULL,free_text='[удалено по запросу владельца]',
+		    topics=ARRAY[]::text[],goals=ARRAY[]::text[],context='{}'::jsonb
+		WHERE id=$1::uuid AND identity_id=$2::uuid`, lateIntentID, owner); err != nil {
+		t.Fatal(err)
+	}
 	done, err := db.FinalizeVerifiedDeletion(ctx)
 	if err != nil || !done {
 		t.Fatalf("approved terminal transition failed: %v done=%v", err, done)
