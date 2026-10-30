@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -59,6 +60,63 @@ func registerAccountDeletionIntake(mux *http.ServeMux, store accountDeletionInta
 		writeJSON(w, status, value)
 	})
 
+	// The user confirms deletion in their authenticated first-party session.
+	// Explicit confirmation only authorizes the existing asynchronous erasure
+	// worker; it never represents completed deletion.
+	mux.HandleFunc("POST /v1/client/account-deletion-requests/confirm", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "private, no-store")
+		if sessions == nil || sessionErr != nil || store == nil {
+			writeDemandError(w, r, http.StatusServiceUnavailable, "DELETION_CONFIRMATION_UNAVAILABLE", "Удаление временно недоступно.", true, nil)
+			return
+		}
+		owner, sessionRef, err := sessions.identityAndReferenceFromRequest(r)
+		if err != nil || strings.TrimSpace(owner) == "" {
+			writeDemandError(w, r, http.StatusUnauthorized, "CLIENT_SESSION_REQUIRED", "Недействительная сессия.", false, nil)
+			return
+		}
+		if r.Header.Get("X-APGIC-Deletion-Confirmation") != "explicit-session-v1" ||
+			!strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
+			writeDemandError(w, r, http.StatusUnsupportedMediaType, "DELETION_CONFIRMATION_INVALID", "Требуется явное подтверждение.", false, nil)
+			return
+		}
+		// Check that browser requests originate from our own host, not an
+		// unrelated website sending a destructive request with user cookies.
+		if origin := r.Header.Get("Origin"); origin != "" {
+			base, parseErr := url.Parse(origin)
+			if parseErr != nil || base.Scheme != "https" && base.Scheme != "http" ||
+				!strings.EqualFold(base.Host, r.Host) {
+				writeDemandError(w, r, http.StatusForbidden, "DELETION_ORIGIN_INVALID", "Недопустимый источник запроса.", false, nil)
+				return
+			}
+		}
+		var input struct {
+			Confirm bool `json:"confirm"`
+		}
+		dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 256))
+		dec.DisallowUnknownFields()
+		if dec.Decode(&input) != nil || !input.Confirm {
+			writeDemandError(w, r, http.StatusBadRequest, "DELETION_CONFIRMATION_INVALID", "Необходимо подтвердить удаление.", false, nil)
+			return
+		}
+		var extra any
+		if !errors.Is(dec.Decode(&extra), io.EOF) {
+			writeDemandError(w, r, http.StatusBadRequest, "DELETION_CONFIRMATION_INVALID", "Требуется один объект.", false, nil)
+			return
+		}
+		confirm, ok := store.(interface {
+			ConfirmAccountDeletionFromSession(context.Context, string, string) (privacy.AccountDeletionReceipt, error)
+		})
+		if !ok {
+			writeDemandError(w, r, http.StatusServiceUnavailable, "DELETION_CONFIRMATION_UNAVAILABLE", "Удаление временно недоступно.", true, nil)
+			return
+		}
+		value, err := confirm.ConfirmAccountDeletionFromSession(r.Context(), owner, sessionRef)
+		if err != nil {
+			writeDemandError(w, r, http.StatusServiceUnavailable, "DELETION_CONFIRMATION_UNAVAILABLE", "Не удалось подтвердить удаление.", true, nil)
+			return
+		}
+		writeJSON(w, http.StatusAccepted, value)
+	})
 	// Confirm ownership of the already-created durable request, never erasure.
 	// Proof must originate from a verified second factor bound to this exact
 	// signed client session. A fabricated flag in the request body is ignored.

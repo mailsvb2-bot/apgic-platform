@@ -46,7 +46,7 @@ test("deletion request status remains accessible when personal history API is un
   await expect(page.getByRole("alert").filter({hasText:"Сейчас не удалось получить данные"})).toBeVisible();
   await expect(page.getByRole("heading",{name:"Удаление учётной записи"})).toBeVisible();
   await page.getByRole("button",{name:"Проверить статус запроса"}).click();
-  await expect(page.getByRole("status").filter({hasText:"Запрос получен. Необходимо подтвердить личность."})).toBeVisible();
+  await expect(page.getByRole("status").filter({hasText:"Запрос получен. Подтвердите удаление данных."})).toBeVisible();
   await expect(page.getByRole("heading",{name:"Предстоящие записи"})).toHaveCount(0);
 });
 
@@ -150,11 +150,11 @@ test("personal workspace submits persistent deletion request and never claims co
   await expect(submit).toBeDisabled();
   await page.getByRole("checkbox",{name:/понимаю/i}).check();
   await submit.click();
-  await expect(page.getByRole("status").filter({hasText:"Запрос получен. Необходимо подтвердить личность."})).toBeVisible();
+  await expect(page.getByRole("status").filter({hasText:"Запрос получен. Подтвердите удаление данных."})).toBeVisible();
   await expect(page.getByText("Стирание данных ещё не выполнено.")).toBeVisible();
   await page.reload();
   await page.getByRole("button",{name:"Проверить статус запроса"}).click();
-  await expect(page.getByRole("status").filter({hasText:"Запрос получен. Необходимо подтвердить личность."})).toBeVisible();
+  await expect(page.getByRole("status").filter({hasText:"Запрос получен. Подтвердите удаление данных."})).toBeVisible();
   await expect(page.getByRole("button",{name:"Подать запрос на удаление аккаунта"})).toHaveCount(0);
 });
 
@@ -173,21 +173,11 @@ test("R5 verified deletion confirmation follows real user action, never silently
   await page.route("**/v1/client/account-deletion-requests**",route=>{
     const req=route.request();
     const pathname=new URL(req.url()).pathname;
-    if(pathname.endsWith("/factor")){
-      return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({
-        enrolled:true,ready_at:"2026-10-26T12:00:00Z",
-      })});
-    }
-    if(pathname.endsWith("/factor/verify")){
-      expect(req.headers()["x-apgic-deletion-factor"]).toBe("verify-v1");
-      expect(req.postDataJSON()).toEqual({code:"123456"});
-      return route.fulfill({status:204,body:""});
-    }
-    if(pathname.endsWith("/reconfirm")){
-      expect(req.headers()["x-apgic-deletion-confirmation"]).toBe("verified-step-up-v1");
+    if(pathname.endsWith("/confirm")){
+      expect(req.headers()["x-apgic-deletion-confirmation"]).toBe("explicit-session-v1");
       expect(req.postDataJSON()).toEqual({confirm:true});
       confirmed=true;
-      return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify(deletion("IDENTITY_RECONFIRMED"))});
+      return route.fulfill({status:202,contentType:"application/json",body:JSON.stringify(deletion("IDENTITY_RECONFIRMED"))});
     }
     if(pathname.endsWith("/account-deletion-requests")&&req.method()==="GET"){
       return route.fulfill({status:200,contentType:"application/json",
@@ -198,11 +188,9 @@ test("R5 verified deletion confirmation follows real user action, never silently
   await page.goto("/personal");
   await expect(page.getByText("Ирина Тестовая").first()).toBeVisible();
   await page.getByRole("button",{name:"Проверить статус запроса"}).click();
-  await expect(page.getByRole("status").filter({hasText:"Запрос получен. Необходимо подтвердить личность."})).toBeVisible();
-  await page.getByRole("button",{name:"Проверить готовность подтверждения"}).click();
-  await page.getByRole("textbox",{name:"Код из приложения"}).fill("123456");
-  await page.getByRole("button",{name:"Проверить код"}).click();
-  await page.getByRole("button",{name:"Подтвердить личность для удаления"}).click();
+  await expect(page.getByRole("status").filter({hasText:"Запрос получен. Подтвердите удаление данных."})).toBeVisible();
+  await page.getByRole("checkbox",{name:/подтверждаю удаление/i}).check();
+  await page.getByRole("button",{name:"Подтвердить удаление"}).click();
   await expect(page.getByRole("status").filter({hasText:"Личность подтверждена. Ожидается проверка правил хранения."})).toBeVisible();
   await expect(page.getByText("Ирина Тестовая").first()).toBeVisible();
   await expect(page.getByText("Подтверждение принято. Удаление ещё не выполнено.")).toBeVisible();
