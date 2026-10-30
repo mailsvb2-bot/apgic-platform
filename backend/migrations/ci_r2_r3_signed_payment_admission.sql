@@ -20,3 +20,17 @@ BEGIN
     RAISE EXCEPTION 'missing clock granted R3 live room access';
   END IF;
 END $$;
+
+-- No alternate SQL writer may bypass the prepare-time payment check.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger t
+      JOIN pg_class c ON c.oid=t.tgrelid
+    WHERE c.relname='communication_join_authorizations'
+      AND t.tgname='communication_join_authorizations_signed_capture_guard'
+      AND t.tgenabled='O'
+  ) THEN
+    RAISE EXCEPTION 'persisted live room grants lack signed capture guard';
+  END IF;
+END $$;
