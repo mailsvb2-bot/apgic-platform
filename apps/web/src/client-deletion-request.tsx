@@ -3,7 +3,6 @@
 import {useEffect,useRef,useState} from "react";
 
 type Receipt={id:string;state:string;source:string;created_at:string;updated_at:string;notice:string;idempotent:boolean;completed_at?:string;retained_reason?:string;pending_providers:number};
-type FactorStatus={enrolled:boolean;ready_at?:string;secret_base32?:string};
 const endpoint="/v1/client/account-deletion-requests";
 
 function receipt(value:unknown):Receipt{
@@ -15,7 +14,7 @@ function receipt(value:unknown):Receipt{
   return x as Receipt;
 }
 const deletionStates:Record<string,string>={
-  REQUESTED:"Запрос получен. Необходимо подтвердить личность.",
+  REQUESTED:"Запрос получен. Подтвердите удаление данных.",
   IDENTITY_RECONFIRMED:"Личность подтверждена. Ожидается проверка правил хранения.",
   PROVIDER_ERASURE_PENDING:"Локальное удаление выполнено. Ожидается подтверждение внешних систем.",
   PARTIALLY_RETAINED_WITH_REASON:"Удаление завершено. Обязательные записи сохранены по правилам хранения.",
@@ -24,19 +23,9 @@ function deletionDate(value:string){
   const date=new Date(value);
   return Number.isNaN(date.getTime())?"Дата недоступна":date.toLocaleString("ru-RU");
 }
-function factorStatus(value:unknown):FactorStatus{
-  if(!value||typeof value!=="object"||typeof (value as FactorStatus).enrolled!=="boolean")
-    throw Error("Сервер не подтвердил статус проверки личности.");
-  return value as FactorStatus;
-}
-
 // No local claims of data erasure or duplicate identity storage.
 export default function DeletionRequestPanel({onSessionLost}:{onSessionLost:()=>void}){
   const [item,setItem]=useState<Receipt|null>(null);
-  const [factor,setFactor]=useState<FactorStatus|null>(null);
-  const [secret,setSecret]=useState("");
-  const [otp,setOtp]=useState("");
-  const [verified,setVerified]=useState(false);
   const [confirmed,setConfirmed]=useState(false);
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState("");
@@ -58,10 +47,10 @@ export default function DeletionRequestPanel({onSessionLost}:{onSessionLost:()=>
     const res=await fetch(endpoint,{credentials:"include",cache:"no-store"});
     if(!accepted(token))return;
     if(res.status===401||res.status===403){onSessionLost();return;}
-    if(res.status===404){setItem(null);setFactor(null);setVerified(false);return;}
+    if(res.status===404){setItem(null);return;}
     if(!res.ok)throw Error("Статус удаления временно недоступен.");
     const value=receipt(await res.json());
-    if(accepted(token)){setItem(value);setVerified(false);}
+    if(accepted(token)){setItem(value);}
   });
   const submit=()=>execute(async token=>{
     if(!confirmed||item)return;
@@ -74,51 +63,18 @@ export default function DeletionRequestPanel({onSessionLost}:{onSessionLost:()=>
     const value=receipt(await res.json());
     if(accepted(token))setItem(value);
   });
-  const readFactor=()=>execute(async token=>{
-    const res=await fetch(endpoint+"/factor",{credentials:"include",cache:"no-store"});
-    if(!accepted(token))return;
-    if(res.status===401){onSessionLost();return;}
-    if(!res.ok)throw Error("Подтверждение личности пока недоступно.");
-    const value=factorStatus(await res.json());
-    if(accepted(token))setFactor(value);
-  });
-  const enroll=()=>execute(async token=>{
-    const res=await fetch(endpoint+"/factor/enroll",{
-      method:"POST",credentials:"include",cache:"no-store",
-      headers:{"content-type":"application/json","X-APGIC-Deletion-Factor":"enroll-v1"},
-      body:JSON.stringify({acknowledge:true}),
-    });
-    if(!accepted(token))return;
-    if(res.status===401){onSessionLost();return;}
-    if(!res.ok)throw Error("Фактор уже подключён или регистрация недоступна.");
-    const value=factorStatus(await res.json());
-    if(!value.enrolled||!value.secret_base32)throw Error("Секрет настройки не получен.");
-    if(accepted(token)){setFactor(value);setSecret(value.secret_base32);}
-  });
-  const verify=()=>execute(async token=>{
-    if(!/^\d{6}$/.test(otp))throw Error("Введите шестизначный код.");
-    const res=await fetch(endpoint+"/factor/verify",{
-      method:"POST",credentials:"include",cache:"no-store",
-      headers:{"content-type":"application/json","X-APGIC-Deletion-Factor":"verify-v1"},
-      body:JSON.stringify({code:otp}),
-    });
-    if(!accepted(token))return;
-    if(res.status===401){onSessionLost();return;}
-    if(!res.ok)throw Error("Код не принят или 24-часовой срок ожидания не завершён.");
-    if(accepted(token)){setVerified(true);setOtp("");setSecret("");}
-  });
   const reconfirm=()=>execute(async token=>{
-    if(!verified)return;
-    const res=await fetch(endpoint+"/reconfirm",{
+    if(!confirmed||item?.state!=="REQUESTED")return;
+    const res=await fetch(endpoint+"/confirm",{
       method:"POST",credentials:"include",cache:"no-store",
-      headers:{"content-type":"application/json","X-APGIC-Deletion-Confirmation":"verified-step-up-v1"},
+      headers:{"content-type":"application/json","X-APGIC-Deletion-Confirmation":"explicit-session-v1"},
       body:JSON.stringify({confirm:true}),
     });
     if(!accepted(token))return;
-    if(res.status===401){onSessionLost();return;}
-    if(!res.ok)throw Error("Повторное подтверждение отклонено. Проверьте действительность кода.");
+    if(res.status===401||res.status===403){onSessionLost();return;}
+    if(!res.ok)throw Error("Подтверждение удаления не принято сервером.");
     const value=receipt(await res.json());
-    if(accepted(token)){setItem(value);setVerified(false);}
+    if(accepted(token)){setItem(value);setConfirmed(false);}
   });
   return <section className="personal-section" aria-labelledby="delete-account-title">
     <h2 id="delete-account-title">Удаление учётной записи</h2>
@@ -136,28 +92,15 @@ export default function DeletionRequestPanel({onSessionLost}:{onSessionLost:()=>
       <p>{item.notice}</p>
       <p>Ответ получен от сервера. Заявка сама по себе не доказывает удаления данных.</p>
       {item.state==="REQUESTED"?<div>
-        <h3>Повторное подтверждение личности</h3>
-        <p>Для защиты аккаунта подключите приложение одноразовых кодов.
-          После подключения требуется 24 часа ожидания.</p>
-        <button type="button" disabled={busy} onClick={()=>void readFactor()}>Проверить готовность подтверждения</button>
-        {!factor?.enrolled?<button type="button" disabled={busy} onClick={()=>void enroll()}>
-          Подключить приложение кодов
-        </button>:null}
-        {secret?<p>Сохраните секрет в приложении-аутентификаторе. Он показывается только один раз:
-          <code>{secret}</code></p>:null}
-        {factor?.enrolled?<div>
-          <p>Подтверждение доступно после: {factor.ready_at??"уточните статус"}</p>
-          <label>Код из приложения
-            <input inputMode="numeric" autoComplete="one-time-code" maxLength={6}
-              value={otp} onChange={e=>setOtp(e.target.value.replace(/\D/g,""))}/>
-          </label>
-          <button type="button" disabled={busy||otp.length!==6} onClick={()=>void verify()}>
-            Проверить код
-          </button>
-          {verified?<button type="button" disabled={busy} onClick={()=>void reconfirm()}>
-            Подтвердить личность для удаления
-          </button>:null}
-        </div>:null}
+        <h3>Подтверждение удаления данных</h3>
+        <p>Действие необратимо. Подтвердите удаление в текущей авторизованной сессии.
+          Исполнение и проверка данных могут продолжаться после подтверждения.</p>
+        <label><input type="checkbox" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)}/>
+          Я подтверждаю удаление моей учётной записи и персональных данных.
+        </label>
+        <button type="button" disabled={busy||!confirmed} onClick={()=>void reconfirm()}>
+          Подтвердить удаление
+        </button>
       </div>:null}
       <button type="button" disabled={busy} onClick={()=>void read()}>Обновить статус</button>
     </div>:<div>
