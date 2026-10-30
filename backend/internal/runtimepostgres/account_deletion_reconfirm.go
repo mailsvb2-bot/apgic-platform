@@ -13,10 +13,23 @@ import (
 
 const deletionIdentityReconfirmedNotice = "Личность подтверждена. Удаление ещё не выполнено: требуется утверждённая политика хранения и подтверждение фактического стирания."
 
+// ConfirmAccountDeletionFromSession uses the canonical durable request and
+// session-bound immutable confirmation evidence, without a TOTP enrolment.
+func (c *Checker) ConfirmAccountDeletionFromSession(ctx context.Context, identity, sessionRef string) (privacy.AccountDeletionReceipt, error) {
+	return c.confirmDeletion(ctx, identity, sessionRef, time.Now().UTC(), "SESSION_EXPLICIT")
+}
+
 // ReconfirmAccountDeletionRequest commits immutable, verified factor evidence
 // against the canonical request. It never advances retention or erasure.
 func (c *Checker) ReconfirmAccountDeletionRequest(ctx context.Context, identity, sessionRef string, issuedAt time.Time) (privacy.AccountDeletionReceipt, error) {
+	return c.confirmDeletion(ctx, identity, sessionRef, issuedAt, "VERIFIED_TOTP")
+}
+
+func (c *Checker) confirmDeletion(ctx context.Context, identity, sessionRef string, issuedAt time.Time, method string) (privacy.AccountDeletionReceipt, error) {
 	var out privacy.AccountDeletionReceipt
+	if method != "VERIFIED_TOTP" && method != "SESSION_EXPLICIT" {
+		return out, errors.New("invalid confirmation method")
+	}
 	if c == nil || c.db == nil {
 		return out, errors.New("postgres unavailable")
 	}
@@ -44,11 +57,11 @@ func (c *Checker) ReconfirmAccountDeletionRequest(ctx context.Context, identity,
 	if out.State == "REQUESTED" {
 		err = tx.QueryRowContext(ctx, `UPDATE delete_account_requests
 			SET state='IDENTITY_RECONFIRMED', reconfirmed_at=$3::timestamptz,
-			    reconfirmation_method='VERIFIED_TOTP',
+			    reconfirmation_method=$5,
 			    reconfirmation_session_ref=$4, updated_at=now()
 			WHERE id=$1::uuid AND identity_id=$2::uuid AND state='REQUESTED'
 			RETURNING id::text,state,source_surface,created_at,updated_at`,
-			out.ID, identity, issuedAt.UTC(), sessionRef).
+			out.ID, identity, issuedAt.UTC(), sessionRef, method).
 			Scan(&out.ID, &out.State, &out.Source, &out.CreatedAt, &out.UpdatedAt)
 		if err != nil {
 			return privacy.AccountDeletionReceipt{}, fmt.Errorf("persist verified confirmation: %w", err)
