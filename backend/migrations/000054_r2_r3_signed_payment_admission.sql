@@ -40,3 +40,32 @@ CREATE FUNCTION apgic_live_consultation_payment_authorized(
      )
  )
 $$;
+
+-- Recheck inside the canonical authorization INSERT too. A previously issued
+-- Prepare result cannot outlive a refund or an entitlement change unnoticed.
+CREATE FUNCTION apgic_live_join_signed_capture_insert_guard()
+RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE
+  live_scope text;
+  basis text;
+BEGIN
+  IF NEW.decision <> 'ALLOW' THEN
+    RETURN NEW;
+  END IF;
+  SELECT bs.tenant_scope INTO live_scope
+    FROM bookings b JOIN booking_slots bs ON bs.id=b.slot_id
+    WHERE b.id=NEW.booking_id;
+  IF live_scope = 'specialist/live' THEN
+    SELECT basis_ref INTO basis FROM booking_access_entitlement_versions
+      WHERE id=NEW.entitlement_version_id;
+    IF NOT apgic_live_consultation_payment_authorized(
+       NEW.booking_id, basis, NEW.decided_at) THEN
+      RAISE EXCEPTION 'live room grant requires verified signed payment capture';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+CREATE TRIGGER communication_join_authorizations_signed_capture_guard
+BEFORE INSERT ON communication_join_authorizations
+FOR EACH ROW EXECUTE FUNCTION apgic_live_join_signed_capture_insert_guard();
