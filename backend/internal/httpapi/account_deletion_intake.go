@@ -89,7 +89,9 @@ func registerAccountDeletionIntake(mux *http.ServeMux, store accountDeletionInta
 				return
 			}
 		}
-		var input struct { Confirm bool `json:"confirm"` }
+		var input struct {
+			Confirm bool `json:"confirm"`
+		}
 		dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 256))
 		dec.DisallowUnknownFields()
 		if dec.Decode(&input) != nil || !input.Confirm {
