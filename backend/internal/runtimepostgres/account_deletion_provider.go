@@ -205,6 +205,23 @@ func (c *Checker) FinalizeVerifiedDeletion(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	// Local receipts prove the state at the original erasure transaction.
+	// Recheck direct personal residues immediately before terminal status:
+	// internal concurrent writes must never turn stale evidence into completion.
+	var personalResidue bool
+	err = tx.QueryRowContext(ctx, `SELECT
+		EXISTS(SELECT 1 FROM client_personal_preferences WHERE identity_id=$1::uuid)
+		OR EXISTS(SELECT 1 FROM help_intents WHERE identity_id=$1::uuid)
+		OR EXISTS(SELECT 1 FROM finance_operator_mfa_factors WHERE identity_id=$1::uuid)
+		OR EXISTS(SELECT 1 FROM client_deletion_mfa_factors WHERE identity_id=$1::uuid)
+		OR EXISTS(SELECT 1 FROM client_installations WHERE identity_id=$1::uuid
+			AND (state<>'REVOKED' OR push_endpoint IS NOT NULL))`, owner).Scan(&personalResidue)
+	if err != nil {
+		return false, fmt.Errorf("verify deletion terminal residue: %w", err)
+	}
+	if personalResidue {
+		return false, errors.New("deletion terminal denied: personal data residue detected")
+	}
 	transition, err := tx.ExecContext(ctx, `UPDATE delete_account_requests
 		SET state='PARTIALLY_RETAINED_WITH_REASON',completed_at=now(),updated_at=now()
 		WHERE id=$1::uuid AND state='PROVIDER_ERASURE_PENDING'
