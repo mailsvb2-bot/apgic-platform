@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"testing"
+	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/academy"
@@ -293,6 +294,49 @@ func TestAcademyStoreVerifiedPaidJourneySurvivesRestart(t *testing.T) {
 	}
 	if enrollment.EntitlementID != paidEntitlement || enrollment.State != "ACTIVE" {
 		t.Fatalf("course granted access without bound verified purchase: %+v", enrollment)
+	}
+	// A real store-verified enrollment can join a scheduled cohort, but only
+	// through the canonical Academy writer and within the purchased version.
+	starts := time.Now().UTC().Add(4 * time.Hour)
+	closes := starts.Add(-time.Hour)
+	cohort, err := store.AcademyCreateCohort(author, course.VersionID, "October cohort", 1, &starts, &closes)
+	if err != nil {
+		t.Fatalf("author cannot create scheduled cohort: %v", err)
+	}
+	if _, err = store.AcademyCreateCohort(learner, course.VersionID, "Foreign cohort", 1, &starts, &closes); !errors.Is(err, academy.ErrNotFound) {
+		t.Fatalf("learner created another author's cohort: %v", err)
+	}
+	cohorts, err := store.AcademyListCohorts(author)
+	if err != nil || len(cohorts) == 0 {
+		t.Fatalf("author cannot see cohort: %+v %v", cohorts, err)
+	}
+	if err = store.AcademyJoinCohort(author, cohort.ID, enrollment.ID); !errors.Is(err, academy.ErrEntitlement) {
+		t.Fatalf("foreign identity joined paid cohort: %v", err)
+	}
+	if err = store.AcademyJoinCohort(learner, cohort.ID, enrollment.ID); err != nil {
+		t.Fatalf("paid learner cannot join cohort: %v", err)
+	}
+	if err = store.AcademyJoinCohort(learner, cohort.ID, enrollment.ID); err != nil {
+		t.Fatalf("idempotent cohort replay failed: %v", err)
+	}
+	var members int
+	if err = store.db.QueryRow(`SELECT count(*) FROM academy_cohort_memberships WHERE cohort_id=$1::uuid`, cohort.ID).Scan(&members); err != nil || members != 1 {
+		t.Fatalf("cohort replay created duplicate membership: count=%d err=%v", members, err)
+	}
+	otherCohort, err := store.AcademyCreateCohort(author, course.VersionID, "Parallel cohort", 2, &starts, &closes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = store.AcademyJoinCohort(learner, otherCohort.ID, enrollment.ID); !errors.Is(err, academy.ErrConflict) {
+		t.Fatalf("enrollment admitted to two parallel cohorts: %v", err)
+	}
+	if _, err = store.db.Exec(`INSERT INTO academy_cohort_memberships(cohort_id,enrollment_id)
+ VALUES($1::uuid,$2::uuid)`, otherCohort.ID, enrollment.ID); err == nil {
+		t.Fatal("direct SQL bypassed one-cohort-per-enrollment invariant")
+	}
+	if _, err = store.db.Exec(`DELETE FROM academy_cohort_memberships
+ WHERE cohort_id=$1::uuid AND enrollment_id=$2::uuid`, cohort.ID, enrollment.ID); err == nil {
+		t.Fatal("direct SQL deleted immutable cohort admission evidence")
 	}
 	learnerHistory, err := store.AcademyMyEnrollments(learner)
 	if err != nil {
