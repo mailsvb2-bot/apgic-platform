@@ -953,8 +953,12 @@ func (c *Checker) AcademyMyEnrollments(actor string) ([]academy.Enrollment, erro
 	ctx, cancel := academyContext()
 	defer cancel()
 	rows, err := c.db.QueryContext(ctx, `SELECT e.id::text,e.version_id::text,e.state,e.enrolled_at,e.completed_at,
- CASE WHEN academy_entitlement_is_active(e.entitlement_id) THEN 'ACTIVE' ELSE 'REVOKED' END
- FROM academy_enrollments e WHERE e.identity_id=$1::uuid ORDER BY e.enrolled_at DESC LIMIT 100`, actor)
+ CASE WHEN academy_entitlement_is_active(e.entitlement_id) THEN 'ACTIVE' ELSE 'REVOKED' END,
+ c.id::text,COALESCE(v.title_snapshot,c.title),v.version_no
+ FROM academy_enrollments e
+ JOIN academy_course_versions v ON v.id=e.version_id
+ JOIN academy_courses c ON c.id=v.course_id
+ WHERE e.identity_id=$1::uuid ORDER BY e.enrolled_at DESC LIMIT 100`, actor)
 	if err != nil {
 		return nil, err
 	}
@@ -962,7 +966,7 @@ func (c *Checker) AcademyMyEnrollments(actor string) ([]academy.Enrollment, erro
 	result := []academy.Enrollment{}
 	for rows.Next() {
 		var e academy.Enrollment
-		if err = rows.Scan(&e.ID, &e.VersionID, &e.State, &e.EnrolledAt, &e.CompletedAt, &e.AccessState); err != nil {
+		if err = rows.Scan(&e.ID, &e.VersionID, &e.State, &e.EnrolledAt, &e.CompletedAt, &e.AccessState, &e.CourseID, &e.CourseTitle, &e.VersionNo); err != nil {
 			return nil, err
 		}
 		result = append(result, e)
