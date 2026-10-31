@@ -37,6 +37,7 @@ export async function academyRequest<T>(
 
 export function AcademySurface(){
  const [courses,setCourses]=useState<NativeAcademyCourse[]>([]);
+ const [verifiedCourseIDs,setVerifiedCourseIDs]=useState<string[]>([]);
  const [enrollments,setEnrollments]=useState<NativeAcademyEnrollment[]>([]);
  const [lessons,setLessons]=useState<NativeAcademyLesson[]>([]);
  const [selected,setSelected]=useState<NativeAcademyEnrollment|null>(null);
@@ -91,8 +92,13 @@ export function AcademySurface(){
   </View>}
   <Pressable accessibilityRole="button" disabled={busy}
    onPress={()=>void act(async()=>{
-    const data=await academyRequest<{courses:NativeAcademyCourse[]}>("/v1/academy/courses");
-    setCourses(data.courses);setStatus(data.courses.length?"Выберите курс.":"Опубликованных курсов нет.");
+    const [data,access]=await Promise.all([
+     academyRequest<{courses:NativeAcademyCourse[]}>("/v1/academy/courses"),
+     academyRequest<{course_ids:string[]}>("/v1/academy/me/course-access")
+      .catch(()=>({course_ids:[] as string[]}))
+    ]);
+    setCourses(data.courses);setVerifiedCourseIDs(access.course_ids);
+    setStatus(data.courses.length?"Выберите курс.":"Опубликованных курсов нет.");
    })} style={{minHeight:48,borderWidth:1,borderRadius:9,padding:12}}>
    <Text>Каталог курсов</Text>
   </Pressable>
@@ -107,12 +113,13 @@ export function AcademySurface(){
    <Text style={{fontWeight:"700"}}>{course.title}</Text>
    <Text>{course.description}</Text>
    <Text>Версия {course.version_no}</Text>
-   <Pressable accessibilityRole="button" disabled={busy} style={{minHeight:48,justifyContent:"center"}}
+   {verifiedCourseIDs.includes(course.id)?<Pressable accessibilityRole="button" disabled={busy} style={{minHeight:48,justifyContent:"center"}}
     onPress={()=>void act(async()=>{
      const e=await academyRequest<NativeAcademyEnrollment>(
       `/v1/academy/courses/${encodeURIComponent(course.id)}/enroll`,"POST");
      await loadLearning(e);
-    })}><Text>Открыть по подтверждённому праву</Text></Pressable>
+    })}><Text>Открыть по подтверждённому праву</Text></Pressable>:
+    <Text>Для записи нужна подтверждённая покупка через Commerce. Мобильный кабинет не создаёт оплату или доступ самостоятельно.</Text>}
   </View>)}
   {enrollments.map(item=><Pressable key={item.id} accessibilityRole="button" disabled={busy||item.access_state!=="ACTIVE"}
    style={{minHeight:48,justifyContent:"center"}}
