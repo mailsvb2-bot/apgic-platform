@@ -47,6 +47,7 @@ export default function AcademyPage(){
  const [mine,setMine]=useState<Course[]>([]);
  const [eligibleProducts,setEligibleProducts]=useState<AuthorProduct[]>([]);
  const [enrollments,setEnrollments]=useState<Enrollment[]>([]);
+ const [verifiedCourseIDs,setVerifiedCourseIDs]=useState<string[]>([]);
  const [course,setCourse]=useState<Course|null>(null);
  const [modules,setModules]=useState<Module[]>([]);
  const [lessons,setLessons]=useState<Lesson[]>([]);
@@ -86,13 +87,14 @@ export default function AcademyPage(){
  const refresh=useCallback(async()=>{
   const publicCourses=await api<{courses:Course[]}>("/v1/academy/courses");
   setCatalog(publicCourses.courses);
-  const [owned,learning,reviews,report,cohortList,eligible]=await Promise.allSettled([
+  const [owned,learning,reviews,report,cohortList,eligible,access]=await Promise.allSettled([
    api<{courses:Course[]}>("/v1/academy/my-courses"),
    api<{enrollments:Enrollment[]}>("/v1/academy/my-enrollments"),
    api<{attempts:ReviewAttempt[]}>("/v1/academy/review/attempts"),
    api<AuthorReport>("/v1/academy/author/report"),
    api<{cohorts:Cohort[]}>("/v1/academy/author/cohorts"),
-   api<{products:AuthorProduct[]}>("/v1/academy/author/eligible-products")
+   api<{products:AuthorProduct[]}>("/v1/academy/author/eligible-products"),
+   api<{course_ids:string[]}>("/v1/academy/me/course-access")
   ]);
   if(owned.status==="fulfilled")setMine(owned.value.courses);
   if(learning.status==="fulfilled")setEnrollments(learning.value.enrollments);
@@ -100,6 +102,8 @@ export default function AcademyPage(){
   if(report.status==="fulfilled")setAuthorReport(report.value);
   if(cohortList.status==="fulfilled")setAuthorCohorts(cohortList.value.cohorts);
   if(eligible.status==="fulfilled")setEligibleProducts(eligible.value.products);
+  // Fail closed on expired sessions or unavailable entitlement projection.
+  setVerifiedCourseIDs(access.status==="fulfilled"?access.value.course_ids:[]);
  },[]);
  useEffect(()=>{void refresh().catch(error=>setNotice(String(error)))},[refresh]);
 
@@ -167,9 +171,10 @@ export default function AcademyPage(){
      {catalog.length===0?<p>Опубликованных курсов пока нет.</p>:catalog.map(c=>
       <article key={c.id}><h3>{c.title}</h3><p>{c.description}</p>
        <p>Версия {c.version_no}</p>
-       <button disabled={busy} onClick={()=>void act(
+       {verifiedCourseIDs.includes(c.id)?<button disabled={busy} onClick={()=>void act(
         ()=>api<Enrollment>(`/v1/academy/courses/${c.id}/enroll`,{}),
-        async e=>{setNotice("Подтверждено право доступа.");await loadLearning(e)})}>Начать обучение</button>
+        async e=>{setNotice("Подтверждено право доступа.");await loadLearning(e)})}>Начать обучение</button>:
+        <p>Для записи нужна подтверждённая покупка курса. Эта страница не принимает платежи и не выдаёт доступ без Commerce/Entitlement.</p>}
       </article>)}
      <p>Доступ предоставляется только по подтверждённому entitlement. Если покупки нет, платформа не создаёт фиктивную оплату.</p>
     </section>
