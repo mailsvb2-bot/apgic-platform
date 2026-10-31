@@ -15,6 +15,7 @@ export type NativeAcademyCertificate={
  verification_url:string;state:"ACTIVE"|"REVOKED";evidence_candidate_state:string;
 };
 export type NativeAcademyAttempt={id:string;lesson_id:string;result:"PENDING"|"PASSED"|"FAILED";score?:number;attempt_no:number};
+export type NativeAcademyCohort={id:string;label:string;capacity:number;members:number;starts_at?:string;is_member?:boolean};
 export type NativeAcademyAppeal={id:string;attempt_id:string;state:string;reason:string};
 type AcademyFetch=(url:string,init?:RequestInit)=>Promise<Response>;
 
@@ -41,6 +42,7 @@ export function AcademySurface(){
  const [certificate,setCertificate]=useState<NativeAcademyCertificate|null>(null);
  const [attempts,setAttempts]=useState<NativeAcademyAttempt[]>([]);
  const [appeals,setAppeals]=useState<NativeAcademyAppeal[]>([]);
+ const [cohorts,setCohorts]=useState<NativeAcademyCohort[]>([]);
  const [appealReasons,setAppealReasons]=useState<Record<string,string>>({});
  const [status,setStatus]=useState("Откройте каталог, чтобы посмотреть доступные курсы.");
  const [busy,setBusy]=useState(false);
@@ -57,7 +59,9 @@ export function AcademySurface(){
   const history=await academyRequest<{attempts:NativeAcademyAttempt[]}>(
    `/v1/academy/enrollments/${encodeURIComponent(e.id)}/attempts`);
   const review=await academyRequest<{appeals:NativeAcademyAppeal[]}>("/v1/academy/me/appeals");
-  setSelected(e);setLessons(data.lessons);setAttempts(history.attempts);setAppeals(review.appeals);setCertificate(null);
+  const groups=await academyRequest<{cohorts:NativeAcademyCohort[]}>(
+   `/v1/academy/enrollments/${encodeURIComponent(e.id)}/cohorts`);
+  setSelected(e);setLessons(data.lessons);setAttempts(history.attempts);setAppeals(review.appeals);setCohorts(groups.cohorts);setCertificate(null);
   setStatus("Ваш прогресс синхронизируется с APGIC.");
  },[]);
  return <View style={{gap:12,marginTop:16,padding:16,borderWidth:1,borderRadius:14}}
@@ -96,6 +100,19 @@ export function AcademySurface(){
    <Text>{item.access_state==="REVOKED"?"Доступ отозван":"Продолжить"} {item.course_title||"Курс"} · версия {item.version_no??"—"} · {item.state}</Text>
   </Pressable>)}
   {selected&&<View style={{gap:12}}>
+   <Text style={{fontWeight:"700"}}>Учебные потоки</Text>
+   {cohorts.length===0&&<Text>Для этой версии курса потоки не объявлены.</Text>}
+   {cohorts.map(cohort=><View key={cohort.id} style={{gap:5}}>
+    <Text>{cohort.label} · {cohort.members} из {cohort.capacity} мест</Text>
+    {cohort.is_member?<Text>Вы уже записаны</Text>:<Pressable accessibilityRole="button"
+     disabled={busy||cohort.members>=cohort.capacity}
+     onPress={()=>void act(async()=>{
+      await academyRequest(`/v1/academy/cohorts/${encodeURIComponent(cohort.id)}/join`,
+       "POST",fetch,canonicalAPGICOrigin,{enrollment_id:selected.id});
+      await loadLearning(selected);
+      setStatus("Вы записаны в учебный поток.");
+     })}><Text>Записаться в поток</Text></Pressable>}
+   </View>)}
    {lessons.map(lesson=><View key={lesson.id} style={{gap:8}}>
     <Text style={{fontWeight:"700"}}>{lesson.title}{lesson.completed?" ✓":""}</Text>
     {lesson.available===false&&<Text>Урок пока не открыт или его срок завершился.</Text>}
