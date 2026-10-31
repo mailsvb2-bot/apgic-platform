@@ -310,6 +310,13 @@ func TestAcademyStoreVerifiedPaidJourneySurvivesRestart(t *testing.T) {
 	if err != nil || len(cohorts) == 0 {
 		t.Fatalf("author cannot see cohort: %+v %v", cohorts, err)
 	}
+	available, err := store.AcademyLearnerCohorts(learner, enrollment.ID)
+	if err != nil || len(available) != 1 || available[0].ID != cohort.ID || available[0].IsMember {
+		t.Fatalf("learner cohort discovery did not expose only the paid version before joining: %+v %v", available, err)
+	}
+	if _, err = store.AcademyLearnerCohorts(author, enrollment.ID); !errors.Is(err, academy.ErrNotFound) {
+		t.Fatalf("foreign identity enumerated paid learner's cohorts: %v", err)
+	}
 	if err = store.AcademyJoinCohort(author, cohort.ID, enrollment.ID); !errors.Is(err, academy.ErrEntitlement) {
 		t.Fatalf("foreign identity joined paid cohort: %v", err)
 	}
@@ -318,6 +325,10 @@ func TestAcademyStoreVerifiedPaidJourneySurvivesRestart(t *testing.T) {
 	}
 	if err = store.AcademyJoinCohort(learner, cohort.ID, enrollment.ID); err != nil {
 		t.Fatalf("idempotent cohort replay failed: %v", err)
+	}
+	joined, err := store.AcademyLearnerCohorts(learner, enrollment.ID)
+	if err != nil || len(joined) != 1 || !joined[0].IsMember || joined[0].Members != 1 {
+		t.Fatalf("cohort membership did not persist into learner readback: %+v %v", joined, err)
 	}
 	var members int
 	if err = store.db.QueryRow(`SELECT count(*) FROM academy_cohort_memberships WHERE cohort_id=$1::uuid`, cohort.ID).Scan(&members); err != nil || members != 1 {
@@ -544,6 +555,9 @@ func TestAcademyStoreRefundWithdrawsLearningAccess(t *testing.T) {
 	defer store.Close()
 	if _, err = store.AcademyLearning(learner, enrollmentID); !errors.Is(err, academy.ErrEntitlement) {
 		t.Fatalf("revoked purchased lesson body remains accessible: %v", err)
+	}
+	if _, err = store.AcademyLearnerCohorts(learner, enrollmentID); !errors.Is(err, academy.ErrEntitlement) {
+		t.Fatalf("revoked entitlement still disclosed learner cohort schedule: %v", err)
 	}
 	history, err := store.AcademyMyEnrollments(learner)
 	if err != nil {
