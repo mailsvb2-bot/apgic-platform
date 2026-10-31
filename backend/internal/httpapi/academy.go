@@ -388,7 +388,7 @@ func registerAcademy(mux *http.ServeMux, store academyStore, sessions *clientSes
 		w.Header().Set("Cache-Control", "private, no-store")
 		writeJSON(w, http.StatusOK, report)
 	})
-
+	registerAcademyCohorts(mux, store, sessions, sessionConfigErr)
 }
 
 // Academy requires an authenticated signed Identity on every private route,
@@ -406,7 +406,7 @@ func academyIdentity(w http.ResponseWriter, r *http.Request, sessions *clientSes
 	// Authenticate before validating private resource identifiers, preserving
 	// the canonical 401/503 response for unauthenticated requests.
 	// Once authenticated, reject malformed UUIDs before PostgreSQL casts.
-	for _, key := range []string{"courseID", "versionID", "moduleID", "enrollmentID", "lessonID", "attemptID"} {
+	for _, key := range []string{"courseID", "versionID", "moduleID", "enrollmentID", "lessonID", "attemptID", "cohortID"} {
 		if value := r.PathValue(key); value != "" && !academyUUID(value) {
 			writeDemandError(w, r, http.StatusBadRequest, "ACADEMY_INVALID", "Некорректный идентификатор ресурса.", false, nil)
 			return "", false
