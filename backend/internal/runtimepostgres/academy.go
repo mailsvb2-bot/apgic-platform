@@ -758,6 +758,20 @@ func (c *Checker) AcademySubmitAttempt(actor, enrollmentID, lessonID, response s
 	if state != "ACTIVE" {
 		return academy.Attempt{}, academy.ErrState
 	}
+	// The enrollment row above is locked until commit. Serialize attempt
+	// submission and forbid retakes while human grading is pending or
+	// after a passing evaluation. Fail closed against concurrent requests.
+	var blockingAttempt bool
+	err = tx.QueryRowContext(ctx, `SELECT EXISTS(
+ SELECT 1 FROM academy_attempts
+ WHERE enrollment_id=$1::uuid AND lesson_id=$2::uuid
+ AND result IN ('PENDING','PASSED'))`, enrollmentID, lessonID).Scan(&blockingAttempt)
+	if err != nil {
+		return academy.Attempt{}, err
+	}
+	if blockingAttempt {
+		return academy.Attempt{}, academy.ErrState
+	}
 	var attempts int
 	err = tx.QueryRowContext(ctx, `SELECT COALESCE(MAX(attempt_no),0)+1 FROM academy_attempts
  WHERE enrollment_id=$1::uuid AND lesson_id=$2::uuid`, enrollmentID, lessonID).Scan(&attempts)
