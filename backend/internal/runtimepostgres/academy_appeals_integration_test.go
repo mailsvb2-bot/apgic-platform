@@ -85,7 +85,7 @@ func TestAcademyAppealIndependentReviewerAndImmutableEvidence(t *testing.T) {
 	if err = store.AcademyReviewAppeal(reviewer, appeal.ID, "UPHELD", "academy/appeal/overwrite"); !errors.Is(err, academy.ErrState) {
 		t.Fatalf("immutable resolution was overwritten: %v", err)
 	}
-	if _, err = db.Exec("UPDATE academy_assessment_appeals SET reason='forged' WHERE id=$1::uuid", appeal.ID); err == nil {
+	if _, err = db.Exec("UPDATE academy_assessment_appeals SET reason='This is a valid length but unauthorized rewrite of the appeal' WHERE id=$1::uuid", appeal.ID); err == nil {
 		t.Fatal("direct SQL rewrote learner appeal evidence")
 	}
 	if _, err = db.Exec("DELETE FROM academy_assessment_appeals WHERE id=$1::uuid", appeal.ID); err == nil {
