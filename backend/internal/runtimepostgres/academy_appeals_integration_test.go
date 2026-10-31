@@ -38,7 +38,6 @@ func TestAcademyAppealIndependentReviewerAndImmutableEvidence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer store.Close()
 	reason := "Прошу независимую проверку выставленного результата."
 	if _, err = store.AcademySubmitAppeal(author, attemptID, reason); !errors.Is(err, academy.ErrDenied) {
 		t.Fatalf("author forged learner appeal: %v", err)
