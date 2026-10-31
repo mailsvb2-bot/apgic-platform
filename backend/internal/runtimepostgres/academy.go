@@ -535,13 +535,16 @@ func (c *Checker) AcademyLearning(actor, enrollmentID string) ([]academy.Lesson,
 	}
 	ctx, cancel := academyContext()
 	defer cancel()
-	rows, err := c.db.QueryContext(ctx, `SELECT l.id::text,l.module_id::text,l.ordinal,l.title,l.kind,l.body,
- COALESCE(l.media_asset_ref,''),COALESCE(a.passing_score,0),COALESCE(a.rubric_version,''),
- (p.enrollment_id IS NOT NULL)
+	rows, err := c.db.QueryContext(ctx, `SELECT l.id::text,l.module_id::text,l.ordinal,l.title,l.kind,
+ CASE WHEN (sc.release_at IS NULL OR now()>=sc.release_at) AND (sc.deadline_at IS NULL OR now()<sc.deadline_at) THEN l.body ELSE '' END,
+ CASE WHEN (sc.release_at IS NULL OR now()>=sc.release_at) AND (sc.deadline_at IS NULL OR now()<sc.deadline_at) THEN COALESCE(l.media_asset_ref,'') ELSE '' END,COALESCE(a.passing_score,0),COALESCE(a.rubric_version,''),
+ (p.enrollment_id IS NOT NULL),
+ ((sc.release_at IS NULL OR now()>=sc.release_at) AND (sc.deadline_at IS NULL OR now()<sc.deadline_at))
  FROM academy_enrollments e JOIN store_entitlements t ON t.id=e.entitlement_id
  JOIN academy_modules m ON m.version_id=e.version_id
  JOIN academy_lessons l ON l.module_id=m.id
  LEFT JOIN academy_assessments a ON a.lesson_id=l.id
+ LEFT JOIN academy_lesson_schedules sc ON sc.lesson_id=l.id
  LEFT JOIN academy_progress p ON p.enrollment_id=e.id AND p.lesson_id=l.id
  WHERE e.id=$1::uuid AND e.identity_id=$2::uuid
  AND e.state IN ('ACTIVE','COMPLETED') AND academy_entitlement_is_active(t.id)
@@ -553,7 +556,7 @@ func (c *Checker) AcademyLearning(actor, enrollmentID string) ([]academy.Lesson,
 	lessons := []academy.Lesson{}
 	for rows.Next() {
 		var l academy.Lesson
-		if err = rows.Scan(&l.ID, &l.ModuleID, &l.Ordinal, &l.Title, &l.Kind, &l.Body, &l.MediaAssetRef, &l.PassingScore, &l.RubricVersion, &l.Completed); err != nil {
+		if err = rows.Scan(&l.ID, &l.ModuleID, &l.Ordinal, &l.Title, &l.Kind, &l.Body, &l.MediaAssetRef, &l.PassingScore, &l.RubricVersion, &l.Completed, &l.Available); err != nil {
 			return nil, err
 		}
 		// VIDEO references are opaque media asset identifiers, never signed delivery grants.
