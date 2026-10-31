@@ -17,7 +17,7 @@ type academyHistoryReader interface {
 
 type academyHistoryRecord struct {
 	Enrollment academy.Enrollment `json:"enrollment"`
-	Attempts []academy.Attempt `json:"attempts"`
+	Attempts   []academy.Attempt  `json:"attempts"`
 }
 
 func registerAcademyHistoryExport(mux *http.ServeMux, store academyStore, sessions *clientSessionManager, sessionConfigErr error) {
@@ -54,8 +54,8 @@ func registerAcademyHistoryExport(mux *http.ServeMux, store academyStore, sessio
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		writeJSON(w, http.StatusOK, map[string]any{
 			"schema_version": "academy-learning-export-v1",
-			"generated_at": time.Now().UTC(),
-			"enrollments": records,
+			"generated_at":   time.Now().UTC(),
+			"enrollments":    records,
 		})
 	})
 }
