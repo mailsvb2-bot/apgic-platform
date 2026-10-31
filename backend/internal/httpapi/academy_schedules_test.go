@@ -12,8 +12,8 @@ import (
 
 type academyScheduleStub struct {
 	academyStoreStub
-	calls int
-	actor string
+	calls  int
+	actor  string
 	lesson string
 }
 
