@@ -44,6 +44,7 @@ type Options struct {
 	Organizations                 organizationRuntimeStore
 	ProductOwnership              productOwnershipStore
 	Products                      organizationProductStore
+	Academy                       academyStore
 	ClientPersonal                clientPersonalStore
 	AccountDeletionIntake         accountDeletionIntakeStore
 	DeletionMFAKey                [32]byte
@@ -189,6 +190,7 @@ func New(options Options) http.Handler {
 	registerOrganizationAuthorization(mux, options.OrganizationAuth, sessions, sessionConfigErr, options.Now)
 	registerOrganizationRuntime(mux, options.Organizations, sessions, sessionConfigErr)
 	registerOrganizationProducts(mux, options.Products, sessions, sessionConfigErr, options.Now)
+	registerAcademy(mux, options.Academy, sessions, sessionConfigErr)
 	registerHighRiskProductOwnership(mux, options.ProductOwnership, sessions, stepUp, sessionConfigErr, options.Now)
 	registerClientPersonal(mux, options.ClientPersonal, sessions, sessionConfigErr, options.Now)
 	return observeRuntimeSLI(mux, sli)

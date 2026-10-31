@@ -1,4 +1,5 @@
 import ClientPersonalPanel from "./client-personal-panel.tsx";
+import {AcademySurface} from "./mobile-academy-client.tsx";
 import React, {useCallback, useEffect, useRef, useState} from "react";
 import {
   AccessibilityInfo,
@@ -1216,6 +1217,8 @@ export default function App({
             initialOrderID={financeDeepLinkOrderID}
           />
         ) : null}
+
+        {!infrastructureE2EActive ? <AcademySurface /> : null}
 
         {!infrastructureE2EActive ? (
           <View>
