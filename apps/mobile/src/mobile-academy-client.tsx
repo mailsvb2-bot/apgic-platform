@@ -2,6 +2,7 @@ import React,{useCallback,useState} from "react";
 import {Pressable,Text,TextInput,View} from "react-native";
 import {canonicalAPGICOrigin} from "./mobile-deep-link-client.ts";
 
+export type NativeAcademyNotifications={enabled:boolean;learning_updates:boolean;assessment_results:boolean;certificate_updates:boolean};
 export type NativeAcademyCourse={
  id:string;title:string;description:string;version_no:number;version_id:string;
 };
@@ -9,12 +10,14 @@ export type NativeAcademyEnrollment={
  id:string;version_id:string;course_id?:string;course_title?:string;version_no?:number;state:"ACTIVE"|"COMPLETED"|"REVOKED";access_state?:"ACTIVE"|"REVOKED";
 };
 export type NativeAcademyLesson={
- id:string;title:string;kind:"READING"|"VIDEO"|"ASSESSMENT";body?:string;completed:boolean;
+ id:string;title:string;kind:"READING"|"VIDEO"|"ASSESSMENT";body?:string;completed:boolean;available?:boolean;
 };
 export type NativeAcademyCertificate={
  verification_url:string;state:"ACTIVE"|"REVOKED";evidence_candidate_state:string;
 };
 export type NativeAcademyAttempt={id:string;lesson_id:string;result:"PENDING"|"PASSED"|"FAILED";score?:number;attempt_no:number};
+export type NativeAcademyCohort={id:string;label:string;capacity:number;members:number;starts_at?:string;is_member?:boolean};
+export type NativeAcademyAppeal={id:string;attempt_id:string;state:string;reason:string};
 type AcademyFetch=(url:string,init?:RequestInit)=>Promise<Response>;
 
 export async function academyRequest<T>(
@@ -39,7 +42,11 @@ export function AcademySurface(){
  const [selected,setSelected]=useState<NativeAcademyEnrollment|null>(null);
  const [certificate,setCertificate]=useState<NativeAcademyCertificate|null>(null);
  const [attempts,setAttempts]=useState<NativeAcademyAttempt[]>([]);
+ const [appeals,setAppeals]=useState<NativeAcademyAppeal[]>([]);
+ const [cohorts,setCohorts]=useState<NativeAcademyCohort[]>([]);
+ const [appealReasons,setAppealReasons]=useState<Record<string,string>>({});
  const [status,setStatus]=useState("Откройте каталог, чтобы посмотреть доступные курсы.");
+ const [notifications,setNotifications]=useState<NativeAcademyNotifications|null>(null);
  const [busy,setBusy]=useState(false);
  const [assessmentAnswer,setAssessmentAnswer]=useState("");
  const act=useCallback(async(work:()=>Promise<void>)=>{
@@ -53,7 +60,10 @@ export function AcademySurface(){
    `/v1/academy/enrollments/${encodeURIComponent(e.id)}/learn`);
   const history=await academyRequest<{attempts:NativeAcademyAttempt[]}>(
    `/v1/academy/enrollments/${encodeURIComponent(e.id)}/attempts`);
-  setSelected(e);setLessons(data.lessons);setAttempts(history.attempts);setCertificate(null);
+  const review=await academyRequest<{appeals:NativeAcademyAppeal[]}>("/v1/academy/me/appeals");
+  const groups=await academyRequest<{cohorts:NativeAcademyCohort[]}>(
+   `/v1/academy/enrollments/${encodeURIComponent(e.id)}/cohorts`);
+  setSelected(e);setLessons(data.lessons);setAttempts(history.attempts);setAppeals(review.appeals);setCohorts(groups.cohorts);setCertificate(null);
   setStatus("Ваш прогресс синхронизируется с APGIC.");
  },[]);
  return <View style={{gap:12,marginTop:16,padding:16,borderWidth:1,borderRadius:14}}
@@ -61,6 +71,24 @@ export function AcademySurface(){
   <Text style={{fontSize:22,fontWeight:"700"}}>Курсы и обучение</Text>
   <Text>Один учебный профиль на iOS, Android и Web. Сертификат не равен квалификации.</Text>
   <Text accessibilityRole="alert">{status}</Text>
+  <Pressable accessibilityRole="button" disabled={busy}
+   onPress={()=>void act(async()=>{
+    const value=await academyRequest<NativeAcademyNotifications>("/v1/academy/me/notifications");
+    setNotifications(value);
+   })}><Text>Настройки учебных уведомлений</Text></Pressable>
+  {notifications&&<View style={{gap:8}}>
+   {(["enabled","learning_updates","assessment_results","certificate_updates"] as const).map(field=>
+    <Pressable key={field} accessibilityRole="checkbox" accessibilityState={{checked:notifications[field]}}
+     onPress={()=>setNotifications(prev=>prev?{...prev,[field]:!prev[field]}:prev)}>
+     <Text>{notifications[field]?"☑":"☐"} {{enabled:"Разрешить уведомления",learning_updates:"Новые уроки",assessment_results:"Оценки",certificate_updates:"Сертификаты"}[field]}</Text>
+    </Pressable>)}
+   <Pressable accessibilityRole="button" disabled={busy}
+    onPress={()=>void act(async()=>{
+     const saved=await academyRequest<NativeAcademyNotifications>(
+      "/v1/academy/me/notifications","POST",fetch,canonicalAPGICOrigin,notifications);
+     setNotifications(saved);setStatus("Настройки уведомлений сохранены.");
+    })}><Text>Сохранить согласия</Text></Pressable>
+  </View>}
   <Pressable accessibilityRole="button" disabled={busy}
    onPress={()=>void act(async()=>{
     const data=await academyRequest<{courses:NativeAcademyCourse[]}>("/v1/academy/courses");
@@ -92,12 +120,46 @@ export function AcademySurface(){
    <Text>{item.access_state==="REVOKED"?"Доступ отозван":"Продолжить"} {item.course_title||"Курс"} · версия {item.version_no??"—"} · {item.state}</Text>
   </Pressable>)}
   {selected&&<View style={{gap:12}}>
+   <Text style={{fontWeight:"700"}}>Учебные потоки</Text>
+   {cohorts.length===0&&<Text>Для этой версии курса потоки не объявлены.</Text>}
+   {cohorts.map(cohort=><View key={cohort.id} style={{gap:5}}>
+    <Text>{cohort.label} · {cohort.members} из {cohort.capacity} мест</Text>
+    {cohort.is_member?<Text>Вы уже записаны</Text>:<Pressable accessibilityRole="button"
+     disabled={busy||cohort.members>=cohort.capacity}
+     onPress={()=>void act(async()=>{
+      await academyRequest(`/v1/academy/cohorts/${encodeURIComponent(cohort.id)}/join`,
+       "POST",fetch,canonicalAPGICOrigin,{enrollment_id:selected.id});
+      await loadLearning(selected);
+      setStatus("Вы записаны в учебный поток.");
+     })}><Text>Записаться в поток</Text></Pressable>}
+   </View>)}
    {lessons.map(lesson=><View key={lesson.id} style={{gap:8}}>
     <Text style={{fontWeight:"700"}}>{lesson.title}{lesson.completed?" ✓":""}</Text>
-    {lesson.kind==="READING"&&<Text>{lesson.body}</Text>}
+    {lesson.available===false&&<Text>Урок пока не открыт или его срок завершился.</Text>}
+    {lesson.kind==="READING"&&lesson.available!==false&&<Text>{lesson.body}</Text>}
     {lesson.kind==="VIDEO"&&<Text>Видеоматериал требует подтверждённого media grant.</Text>}
-    {lesson.kind==="ASSESSMENT"&&<View style={{gap:8}}>
+    {lesson.kind==="ASSESSMENT"&&lesson.available!==false&&<View style={{gap:8}}>
       {attempts.filter(a=>a.lesson_id===lesson.id).map(a=><Text key={a.id}>Попытка {a.attempt_no}: {a.result==="PENDING"?"Ожидает проверки":a.result==="PASSED"?"Зачтено":"Не зачтено"}{a.score!==undefined?` · оценка ${a.score}`:""}</Text>)}
+      {attempts.filter(a=>a.lesson_id===lesson.id&&(a.result==="FAILED"||a.result==="PASSED")).map(a=>
+       <View key={`appeal-${a.id}`} style={{gap:6}}>
+        {appeals.some(x=>x.attempt_id===a.id)
+         ?<Text>Апелляция: {appeals.find(x=>x.attempt_id===a.id)?.state}</Text>
+         :<>
+          <TextInput multiline accessibilityLabel="Причина апелляции"
+           value={appealReasons[a.id]||""}
+           onChangeText={value=>setAppealReasons(prev=>({...prev,[a.id]:value}))}
+           placeholder="Почему требуется независимая проверка?"
+           style={{borderWidth:1,borderRadius:8,minHeight:72,padding:8}}/>
+          <Pressable accessibilityRole="button" disabled={busy||(appealReasons[a.id]||"").trim().length<10}
+           onPress={()=>void act(async()=>{
+            await academyRequest(
+             `/v1/academy/attempts/${encodeURIComponent(a.id)}/appeals`,"POST",
+             fetch,canonicalAPGICOrigin,{reason:appealReasons[a.id]});
+            await loadLearning(selected);
+            setStatus("Апелляция подана на независимый пересмотр.");
+           })}><Text>Подать апелляцию</Text></Pressable>
+         </>}
+       </View>)}
       <Text>Письменная работа оценивается преподавателем. Нельзя оценить себя самостоятельно.</Text>
       <TextInput multiline accessibilityLabel="Ответ на письменное задание"
        value={assessmentAnswer} onChangeText={setAssessmentAnswer}
@@ -114,7 +176,7 @@ export function AcademySurface(){
         setStatus(`Работа отправлена на проверку: ${attempt.id}`);
        })}><Text>Отправить задание на оценку</Text></Pressable>
      </View>}
-    {lesson.kind==="READING"&&!lesson.completed&&<Pressable accessibilityRole="button"
+    {lesson.kind==="READING"&&lesson.available!==false&&!lesson.completed&&<Pressable accessibilityRole="button"
      disabled={busy} style={{minHeight:48,justifyContent:"center"}}
      onPress={()=>void act(async()=>{
       await academyRequest(

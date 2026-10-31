@@ -64,6 +64,7 @@ type Lesson struct {
 	PassingScore  int        `json:"passing_score,omitempty"`
 	RubricVersion string     `json:"rubric_version,omitempty"`
 	Completed     bool       `json:"completed,omitempty"`
+	Available     bool       `json:"available"`
 }
 type Enrollment struct {
 	ID            string     `json:"id"`
