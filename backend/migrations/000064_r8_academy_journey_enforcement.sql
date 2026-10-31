@@ -104,6 +104,9 @@ FOR EACH ROW EXECUTE FUNCTION apgic_reject_delete();
 CREATE FUNCTION academy_journey_draft_only_guard() RETURNS trigger LANGUAGE plpgsql AS $guard$
 DECLARE current_version uuid; current_state text;
 BEGIN
+ IF TG_OP='UPDATE' AND NEW.lesson_id IS DISTINCT FROM OLD.lesson_id THEN
+  RAISE EXCEPTION 'academy lesson policy cannot be rebound to another lesson';
+ END IF;
  IF TG_TABLE_NAME='academy_lesson_schedules' THEN
   SELECT m.version_id INTO current_version FROM academy_lessons l
     JOIN academy_modules m ON m.id=l.module_id WHERE l.id=NEW.lesson_id;
