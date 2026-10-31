@@ -16,6 +16,26 @@ type academyCohortStore interface {
 }
 
 func registerAcademyCohorts(mux *http.ServeMux, store academyStore, sessions *clientSessionManager, sessionConfigErr error) {
+	mux.HandleFunc("GET /v1/academy/enrollments/{enrollmentID}/cohorts", func(w http.ResponseWriter, r *http.Request) {
+		actor, ok := academyIdentity(w, r, sessions, sessionConfigErr)
+		if !ok {
+			return
+		}
+		reader, ok := store.(interface {
+			AcademyLearnerCohorts(string, string) ([]academy.Cohort, error)
+		})
+		if !ok {
+			academyHTTPError(w, r, academy.ErrUnavailable)
+			return
+		}
+		items, err := reader.AcademyLearnerCohorts(actor, r.PathValue("enrollmentID"))
+		if err != nil {
+			academyHTTPError(w, r, err)
+			return
+		}
+		w.Header().Set("Cache-Control", "private, no-store")
+		writeJSON(w, http.StatusOK, map[string]any{"cohorts": items})
+	})
 	mux.HandleFunc("GET /v1/academy/author/cohorts", func(w http.ResponseWriter, r *http.Request) {
 		actor, ok := academyIdentity(w, r, sessions, sessionConfigErr)
 		if !ok {
