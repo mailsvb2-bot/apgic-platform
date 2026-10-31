@@ -484,6 +484,7 @@ func (c *Checker) AcademyEnroll(actor, courseID string) (academy.Enrollment, err
   AND t.identity_id=$2::uuid AND academy_entitlement_is_active(t.id)
  JOIN store_transaction_verifications sv ON sv.id=t.verification_id
   AND sv.identity_id=t.identity_id AND sv.product_ref=t.product_ref
+ JOIN orders order_row ON order_row.id=sv.order_id AND order_row.product_id=c.product_id
  JOIN payment_effects paid ON paid.id=sv.payment_effect_id AND paid.effect_kind='CAPTURED'
  WHERE c.id=$1::uuid AND c.state='PUBLISHED'
  ORDER BY v.version_no DESC LIMIT 1`, courseID, actor).Scan(&versionID, &entitlementID)

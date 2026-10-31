@@ -363,6 +363,31 @@ func registerAcademy(mux *http.ServeMux, store academyStore, sessions *clientSes
 		writeJSON(w, 200, map[string]any{"attempts": attempts})
 	})
 
+	mux.HandleFunc("GET /v1/academy/author/report", func(w http.ResponseWriter, r *http.Request) {
+		if store == nil {
+			academyHTTPError(w, r, academy.ErrUnavailable)
+			return
+		}
+		author, ok := academyIdentity(w, r, sessions, sessionConfigErr)
+		if !ok {
+			return
+		}
+		reporter, ok := store.(interface {
+			AcademyAuthorReport(string) (academy.AuthorReport, error)
+		})
+		if !ok {
+			academyHTTPError(w, r, academy.ErrUnavailable)
+			return
+		}
+		report, err := reporter.AcademyAuthorReport(author)
+		if err != nil {
+			academyHTTPError(w, r, err)
+			return
+		}
+		w.Header().Set("Cache-Control", "private, no-store")
+		writeJSON(w, http.StatusOK, report)
+	})
+
 }
 
 // Academy requires an authenticated signed Identity on every private route,

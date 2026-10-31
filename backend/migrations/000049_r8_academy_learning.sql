@@ -286,7 +286,14 @@ BEGIN
   SELECT c.product_id::text, v.state INTO product_ref,version_state
     FROM academy_course_versions v JOIN academy_courses c ON c.id=v.course_id WHERE v.id=NEW.version_id;
   IF NOT FOUND OR ent.id IS NULL OR ent.identity_id<>NEW.identity_id OR
-     NOT academy_entitlement_is_active(ent.id) OR ent.product_ref<>product_ref OR version_state<>'PUBLISHED' THEN
+     NOT academy_entitlement_is_active(ent.id) OR ent.product_ref<>product_ref OR version_state<>'PUBLISHED' OR NOT EXISTS (
+        SELECT 1 FROM store_transaction_verifications verification
+        JOIN orders order_row ON order_row.id=verification.order_id
+        WHERE verification.id=ent.verification_id
+          AND verification.identity_id=ent.identity_id
+          AND verification.product_ref=product_ref
+          AND order_row.product_id::text=product_ref
+      ) THEN
     RAISE EXCEPTION 'academy enrollment requires verified active entitlement for published version';
   END IF;
   RETURN NEW;
