@@ -14,6 +14,7 @@ export type NativeAcademyLesson={
 export type NativeAcademyCertificate={
  verification_url:string;state:"ACTIVE"|"REVOKED";evidence_candidate_state:string;
 };
+export type NativeAcademyAttempt={id:string;lesson_id:string;result:"PENDING"|"PASSED"|"FAILED";score?:number;attempt_no:number};
 type AcademyFetch=(url:string,init?:RequestInit)=>Promise<Response>;
 
 export async function academyRequest<T>(
@@ -37,6 +38,7 @@ export function AcademySurface(){
  const [lessons,setLessons]=useState<NativeAcademyLesson[]>([]);
  const [selected,setSelected]=useState<NativeAcademyEnrollment|null>(null);
  const [certificate,setCertificate]=useState<NativeAcademyCertificate|null>(null);
+ const [attempts,setAttempts]=useState<NativeAcademyAttempt[]>([]);
  const [status,setStatus]=useState("Откройте каталог, чтобы посмотреть доступные курсы.");
  const [busy,setBusy]=useState(false);
  const [assessmentAnswer,setAssessmentAnswer]=useState("");
@@ -49,7 +51,9 @@ export function AcademySurface(){
  const loadLearning=useCallback(async(e:NativeAcademyEnrollment)=>{
   const data=await academyRequest<{lessons:NativeAcademyLesson[]}>(
    `/v1/academy/enrollments/${encodeURIComponent(e.id)}/learn`);
-  setSelected(e);setLessons(data.lessons);setCertificate(null);
+  const history=await academyRequest<{attempts:NativeAcademyAttempt[]}>(
+   `/v1/academy/enrollments/${encodeURIComponent(e.id)}/attempts`);
+  setSelected(e);setLessons(data.lessons);setAttempts(history.attempts);setCertificate(null);
   setStatus("Ваш прогресс синхронизируется с APGIC.");
  },[]);
  return <View style={{gap:12,marginTop:16,padding:16,borderWidth:1,borderRadius:14}}
@@ -93,18 +97,20 @@ export function AcademySurface(){
     {lesson.kind==="READING"&&<Text>{lesson.body}</Text>}
     {lesson.kind==="VIDEO"&&<Text>Видеоматериал требует подтверждённого media grant.</Text>}
     {lesson.kind==="ASSESSMENT"&&<View style={{gap:8}}>
+      {attempts.filter(a=>a.lesson_id===lesson.id).map(a=><Text key={a.id}>Попытка {a.attempt_no}: {a.result==="PENDING"?"Ожидает проверки":a.result==="PASSED"?"Зачтено":"Не зачтено"}{a.score!==undefined?` · оценка ${a.score}`:""}</Text>)}
       <Text>Письменная работа оценивается преподавателем. Нельзя оценить себя самостоятельно.</Text>
       <TextInput multiline accessibilityLabel="Ответ на письменное задание"
        value={assessmentAnswer} onChangeText={setAssessmentAnswer}
        style={{borderWidth:1,borderRadius:9,minHeight:90,padding:10}}
        placeholder="Напишите ответ"/>
-      <Pressable accessibilityRole="button" disabled={busy||!assessmentAnswer.trim()}
+      <Pressable accessibilityRole="button" disabled={busy||!assessmentAnswer.trim()||attempts.some(a=>a.lesson_id===lesson.id&&(a.result==="PENDING"||a.result==="PASSED"))}
        style={{minHeight:48,justifyContent:"center"}}
        onPress={()=>void act(async()=>{
         const attempt=await academyRequest<{id:string}>(
          `/v1/academy/enrollments/${encodeURIComponent(selected.id)}/assessments/${encodeURIComponent(lesson.id)}/attempts`,
          "POST",fetch,canonicalAPGICOrigin,{response:assessmentAnswer});
         setAssessmentAnswer("");
+        await loadLearning(selected);
         setStatus(`Работа отправлена на проверку: ${attempt.id}`);
        })}><Text>Отправить задание на оценку</Text></Pressable>
      </View>}

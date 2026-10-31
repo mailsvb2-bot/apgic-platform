@@ -46,6 +46,7 @@ All EdTech entities are scoped to the **same APGIC Identity** as Client/Speciali
 | Read lessons | GET /v1/academy/enrollments/{enrollmentID}/learn | Signed learner, active entitlement |
 | Confirm reading | POST /v1/academy/enrollments/{enrollmentID}/lessons/{lessonID}/complete | Signed enrolled learner; assessments require reviewed pass; video self-attestation forbidden |
 | Submit assessment | POST /v1/academy/enrollments/{enrollmentID}/assessments/{lessonID}/attempts | Signed enrolled learner |
+| Learner attempt outcomes | GET /v1/academy/enrollments/{enrollmentID}/attempts | Signed owner of enrollment; grading status/score only; no instructor evidence |
 | Instructor review queue | GET /v1/academy/review/attempts | Signed course author; raw student answers stay private |
 | Evaluate attempt | POST /v1/academy/attempts/{attemptID}/evaluate | Signed course author; human evidence/rubric |
 | Complete & issue certificate | POST /v1/academy/enrollments/{enrollmentID}/complete | Signed learner, all lessons complete and entitlement active |
@@ -107,3 +108,16 @@ settlements before any author-income claim is enabled.
 Academy enrollment also checks the canonical order's product binding in
 both Go and PostgreSQL: a store verification carrying a course-like product
 reference but attached to an unrelated order cannot unlock a course.
+
+
+## Learner assessment outcome readback (R8 follow-through)
+
+The Academy PostgreSQL owner now projects bounded attempt history to the enrollment's
+signed Identity. It returns attempt IDs, lesson IDs, submission timestamps, human-reviewed
+results and scores; it deliberately does not expose raw responses or private grading
+evidence. The Web Academy learner view displays PENDING/PASSED/FAILED and suppresses
+retake controls while an attempt is pending or passed; the canonical PostgreSQL writer
+remains the final authority, including for concurrent submissions. PostgreSQL integration
+covers learner/foreign-owner isolation, pending and passed outcomes, duplicate denial,
+and persistence after runtime restart. This readback is **not** independent exam proctoring,
+trusted media playback, live PSP checkout or a production R8 release gate.
