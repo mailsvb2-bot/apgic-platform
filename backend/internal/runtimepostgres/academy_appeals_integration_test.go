@@ -7,8 +7,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/mailsvb2-bot/apgic-platform/backend/internal/academy"
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/academy"
 )
 
 // The isolated CI Academy journey creates a real store-verified enrollment

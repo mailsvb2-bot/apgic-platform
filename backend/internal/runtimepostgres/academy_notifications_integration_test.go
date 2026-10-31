@@ -6,8 +6,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/mailsvb2-bot/apgic-platform/backend/internal/academy"
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/academy"
 )
 
 // TestAcademyNotificationConsentDurableOptOut proves the signed identity's
