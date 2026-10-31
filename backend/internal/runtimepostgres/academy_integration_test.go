@@ -294,7 +294,7 @@ func TestAcademyStoreVerifiedPaidJourneySurvivesRestart(t *testing.T) {
 	if enrollment.EntitlementID != paidEntitlement || enrollment.State != "ACTIVE" {
 		t.Fatalf("course granted access without bound verified purchase: %+v", enrollment)
 	}
-learnerHistory, err := store.AcademyMyEnrollments(learner)
+	learnerHistory, err := store.AcademyMyEnrollments(learner)
 	if err != nil {
 		t.Fatalf("learner history unavailable: %v", err)
 	}
