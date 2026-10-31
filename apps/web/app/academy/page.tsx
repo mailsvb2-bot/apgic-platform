@@ -7,6 +7,7 @@ type Module = {id:string;version_id:string;title:string;ordinal:number};
 type Lesson = {id:string;module_id:string;title:string;kind:"READING"|"VIDEO"|"ASSESSMENT";ordinal:number;body?:string;media_asset_ref?:string;completed?:boolean;passing_score?:number};
 type Enrollment = {id:string;version_id:string;course_id?:string;course_title?:string;version_no?:number;state:string;access_state?:"ACTIVE"|"REVOKED"};
 type Certificate = {verification_url:string;state:string;evidence_candidate_state:string};
+type LearnerAttempt = {id:string;lesson_id:string;attempt_no:number;result:"PENDING"|"PASSED"|"FAILED";score?:number;submitted_at:string;evaluated_at?:string};
 type ReviewAttempt = {attempt_id:string;enrollment_id:string;lesson_id:string;attempt_no:number;response_text:string;submitted_at:string;rubric_version:string;passing_score:number;course_title:string;lesson_title:string};
 type AuthorReport = {courses:{course_id:string;title:string;enrollments:number;completed:number;active_access:number;pending_assessments:number;passed_assessments:number}[];gross_captures:{course_id:string;currency:string;captured_count:number;captured_gross_minor:number}[];revenue_state:string};
 
@@ -40,7 +41,8 @@ export default function AcademyPage(){
  const [lessonKind,setLessonKind]=useState<Lesson["kind"]>("READING");
  const [moduleID,setModuleID]=useState("");
  const [passingScore,setPassingScore]=useState(80);
- const [attemptResponse,setAttemptResponse]=useState("");
+ const [attemptResponse,setAttemptResponse]=useState<Record<string,string>>({});
+ const [learnerAttempts,setLearnerAttempts]=useState<LearnerAttempt[]>([]);
  const [attemptID,setAttemptID]=useState("");
  const [pendingReviews,setPendingReviews]=useState<ReviewAttempt[]>([]);
  const [authorReport,setAuthorReport]=useState<AuthorReport|null>(null);
@@ -73,15 +75,18 @@ export default function AcademyPage(){
   finally{setBusy(false)}
  }
  async function loadOutline(selected:Course){
-  setCourse(selected);setActiveEnrollment(null);setCertificate(null);
+  setCourse(selected);setActiveEnrollment(null);setCertificate(null);setLearnerAttempts([]);
   const d=await api<{state:string;modules:Module[];lessons:Lesson[]}>(
    `/v1/academy/courses/${selected.id}/versions/${selected.version_id}/outline`);
   setModules(d.modules);setLessons(d.lessons);setModuleID(d.modules[0]?.id||"");
  }
  async function loadLearning(item:Enrollment){
+  const [d,history]=await Promise.all([
+   api<{lessons:Lesson[]}>(`/v1/academy/enrollments/${item.id}/learn`),
+   api<{attempts:LearnerAttempt[]}>(`/v1/academy/enrollments/${item.id}/attempts`)
+  ]);
   setActiveEnrollment(item);setCourse(null);setCertificate(null);
-  const d=await api<{lessons:Lesson[]}>(`/v1/academy/enrollments/${item.id}/learn`);
-  setLessons(d.lessons);setModules([]);
+  setLessons(d.lessons);setLearnerAttempts(history.attempts);setModules([]);
  }
  async function createCourse(event:FormEvent){
   event.preventDefault();
@@ -223,12 +228,25 @@ export default function AcademyPage(){
      <h3>{l.title}</h3><p>{l.kind} {l.completed?"· выполнено":""}</p>
      {l.kind==="READING"&&<p style={{whiteSpace:"pre-wrap"}}>{l.body}</p>}
      {l.kind==="VIDEO"&&<p>Видеодоступ выдаётся только через совместимый media provider с подтверждением playback.</p>}
-     {l.kind==="ASSESSMENT"&&<form onSubmit={e=>{e.preventDefault();void act(
-      ()=>api<{id:string}>(`/v1/academy/enrollments/${activeEnrollment.id}/assessments/${l.id}/attempts`,
-      {response:attemptResponse}),async a=>{setNotice(`Работа отправлена на проверку. ID: ${a.id}`);setAttemptResponse("")})}}>
-      <label htmlFor={`attempt-${l.id}`}>Ответ</label>
-      <textarea id={`attempt-${l.id}`} value={attemptResponse} onChange={e=>setAttemptResponse(e.target.value)} required/>
-      <button disabled={busy}>Отправить на проверку</button></form>}
+     {l.kind==="ASSESSMENT"&&<section aria-label={`Результаты: ${l.title}`}>
+      {learnerAttempts.filter(a=>a.lesson_id===l.id).map(a=>
+       <p key={a.id}>Попытка {a.attempt_no}: {a.result==="PENDING"?"Ожидает проверки":a.result==="PASSED"?"Зачтено":"Не зачтено"}
+        {a.score!==undefined?` · ${a.score}/100`:""}</p>)}
+      {learnerAttempts.some(a=>a.lesson_id===l.id&&(a.result==="PENDING"||a.result==="PASSED"))
+       ?<p>Новая попытка недоступна до завершения проверки или после зачёта.</p>
+       :<form onSubmit={e=>{e.preventDefault();void act(
+        ()=>api<{id:string}>(`/v1/academy/enrollments/${activeEnrollment.id}/assessments/${l.id}/attempts`,
+        {response:attemptResponse[l.id]||""}),async a=>{
+         setAttemptResponse(previous=>({...previous,[l.id]:""}));
+         await loadLearning(activeEnrollment);
+         setNotice(`Работа отправлена на проверку. ID: ${a.id}`);
+        })}}>
+        <label htmlFor={`attempt-${l.id}`}>Ответ</label>
+        <textarea id={`attempt-${l.id}`} value={attemptResponse[l.id]||""}
+         onChange={e=>setAttemptResponse(previous=>({...previous,[l.id]:e.target.value}))} required/>
+        <button disabled={busy}>Отправить на проверку</button>
+       </form>}
+     </section>}
      {l.kind==="READING"&&<button disabled={busy||l.completed} onClick={()=>void act(
       ()=>api(`/v1/academy/enrollments/${activeEnrollment.id}/lessons/${l.id}/complete`,{}),
       async()=>{await loadLearning(activeEnrollment)})}>Отметить выполнение</button>}
