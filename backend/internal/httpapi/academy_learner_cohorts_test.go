@@ -32,10 +32,17 @@ func TestAcademyLearnerCohortsIdentityBoundary(t *testing.T) {
 		t.Fatalf("anonymous cohort data request: code=%d calls=%d", w.Code, store.calls)
 	}
 	sessions, err := newClientSessionManager(key, nil)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	cookie, err := sessions.issue("00000000-0000-0000-0000-00000000b001")
-	if err != nil { t.Fatal(err) }
-	for _, tc := range []struct{ path string; code int }{
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		path string
+		code int
+	}{
 		{path: "/v1/academy/enrollments/invalid/cohorts", code: http.StatusBadRequest},
 		{path: path, code: http.StatusOK},
 	} {
@@ -43,7 +50,9 @@ func TestAcademyLearnerCohortsIdentityBoundary(t *testing.T) {
 		req.AddCookie(cookie)
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
-		if w.Code != tc.code { t.Fatalf("path=%s got=%d want=%d: %s", tc.path, w.Code, tc.code, w.Body.String()) }
+		if w.Code != tc.code {
+			t.Fatalf("path=%s got=%d want=%d: %s", tc.path, w.Code, tc.code, w.Body.String())
+		}
 	}
 	if store.calls != 1 || store.actor != "00000000-0000-0000-0000-00000000b001" {
 		t.Fatalf("learner cohort query not bound to signed identity")
