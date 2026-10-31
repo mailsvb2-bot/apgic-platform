@@ -342,6 +342,9 @@ jobs:
           for migration in backend/migrations/[0-9][0-9][0-9][0-9][0-9][0-9]_*.sql; do
             psql -h 127.0.0.1 -U apgic -d apgic_academy_ci -v ON_ERROR_STOP=1 -f "$migration" > /dev/null
           done
+          for fixture in ci_invariants.sql ci_r0_connector_delivery_invariants.sql ci_r1_mobile_invariants.sql ci_r1_marketplace_invariants.sql ci_r2_booking_order_invariants.sql ci_r2_payment_invariants.sql ci_r2_transaction_edge_invariants.sql ci_r2_payment_governance_invariants.sql; do
+            psql -h 127.0.0.1 -U apgic -d apgic_academy_ci -v ON_ERROR_STOP=1 -f "backend/migrations/$fixture" > /dev/null
+          done
           psql -h 127.0.0.1 -U apgic -d apgic_academy_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r2_mobile_store_invariants.sql > /dev/null
           (cd backend && go test ./internal/runtimepostgres -run TestAcademyStoreVerifiedPaidJourneySurvivesRestart -count=1 -v)
           psql -h 127.0.0.1 -U apgic -d apgic_academy_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r4_store_lifecycle_invariants.sql > /dev/null
