@@ -159,13 +159,10 @@ test("help intent journey stays usable and accessible", async ({ page }) => {
   await page.getByRole("button", { name: "Отменить бронь через внешнего провайдера" }).click();
   await expect(page.getByText("Повтор: уже учтён.").last()).toBeVisible();
   await page.getByText("Управление учётной записью").click();
-  await page.getByRole("button", { name: "Удалить учётную запись" }).click();
-  await expect(page.getByText("PARTIALLY_RETAINED_WITH_REASON")).toBeVisible();
-  await expect(page.getByText("Деактивация: нет.")).toBeVisible();
-  await expect(page.getByText("Запись учёта сохранена: да.")).toBeVisible();
-  await expect(page.getByText("APGIC уничтожает запись учёта: нет.")).toBeVisible();
-  await page.getByRole("button", { name: "Удалить учётную запись" }).click();
-  await expect(page.getByText("Повтор: уже учтён.").last()).toBeVisible();
+  const canonicalDeletion = page.getByRole("link", { name: "Подать запрос или проверить статус удаления" });
+  await expect(canonicalDeletion).toHaveAttribute("href", "/personal");
+  await expect(page.getByRole("button", { name: "Удалить учётную запись" })).toHaveCount(0);
+  await expect(page.getByText("Подача запроса не означает, что данные уже стёрты.", { exact: false })).toBeVisible();
 
   const layout = await page.evaluate(() => ({
     viewportWidth: window.innerWidth,
@@ -415,6 +412,108 @@ test("critical journey boots when crypto.randomUUID is unavailable", async ({ pa
 });
 
 
+
+test("registered unverified specialists can be inspected without bypassing booking gate", async ({ page }) => {
+  await page.route("**/v1/specialists/registrations*", route => route.fulfill({
+    status: 200, contentType: "application/json",
+    body: JSON.stringify({ profiles: [
+      { id: "unverified-test", display_name: "Маша", profession_code: "PSYCHOLOGIST", verification_status: "UNVERIFIED" }
+    ] })
+  }));
+  await page.route("**/v1/specialists?*", route => route.fulfill({
+    status: 200, contentType: "application/json",
+    body: JSON.stringify({ profiles: [], has_more: false })
+  }));
+  await page.goto("/specialists");
+  const section = page.getByRole("region", { name: "Зарегистрированные специалисты — без подтверждённой квалификации" });
+  await expect(section.getByRole("heading", { name: "Маша" })).toBeVisible();
+  await section.getByRole("button", { name: "Посмотреть сведения" }).click();
+  await expect(section.getByRole("region", { name: "Сведения о регистрации: Маша" })).toContainText("Анкета ещё не опубликована");
+  await expect(section.getByRole("link", { name: /Описать запрос/ })).toHaveAttribute("href", "/#start");
+  await expect(section.getByRole("link", { name: /записаться|оплатить|выбрать время/i })).toHaveCount(0);
+  await section.getByRole("button", { name: "Скрыть сведения" }).click();
+  await expect(section.getByRole("region", { name: "Сведения о регистрации: Маша" })).toHaveCount(0);
+});
+
+test("specialist registration reports unreachable API without losing the form", async ({ page }) => {
+  await page.route("**/v1/specialist/profile", async route => {
+    if (route.request().method() === "PUT") {
+      await route.abort("failed");
+      return;
+    }
+    await route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({
+      code: "SPECIALIST_PROFILE_NOT_FOUND", message_safe: "Профиль ещё не создан."
+    }) });
+  });
+  await page.goto("/specialist");
+  await page.getByLabel("Имя для публичного профиля").fill("Анна Тестова");
+  await page.getByRole("button", { name: "Сохранить профиль" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Данные не подтверждены сервером" })).toBeVisible();
+  await expect(page.getByLabel("Имя для публичного профиля")).toHaveValue("Анна Тестова");
+  await expect(page.getByRole("region", { name: "Кабинет специалиста" })).toHaveCount(0);
+});
+
+
+test("specialist calendar handles locally grouped entries and refresh races", async ({ page }) => {
+  let calls = 0;
+  await page.route("**/v1/specialist/workspace?**", async route => {
+    calls += 1;
+    const call = calls;
+    if (call === 1) {
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ entries: [] }) });
+      return;
+    }
+    if (call === 2) await new Promise(resolve => setTimeout(resolve, 250));
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
+      entries: call === 2 ? [] : [{
+        slot_id: "slot-new", starts_at: new Date().toISOString(), ends_at: new Date(Date.now() + 3600000).toISOString(),
+        topic_id: "anxiety"
+      }]
+    }) });
+  });
+  await page.goto("/specialist");
+  const section = page.getByRole("region", { name: "Календарь и записи специалиста" });
+  await expect(section.getByText("Свободное время (0)")).toBeVisible();
+  await section.getByRole("button", { name: "Обновить" }).click();
+  // The loading UI disables the button; the next request occurs after completion.
+  await expect(section.getByText("Свободное время (0)")).toBeVisible();
+  await section.getByRole("button", { name: "Обновить" }).click();
+  await expect(section.getByText("Свободное время (1)")).toBeVisible();
+});
+
+
+test("specialist public editor proves saved state with canonical reload", async ({ page }) => {
+  const profile = {
+    id: "specialist-persist", identity_id: "identity-persist", display_name: "Анна",
+    profession_code: "PSYCHOLOGIST", profile_complete: true, review_state: "PENDING",
+    capabilities: [], evidence: [], published_topics: []
+  };
+  let stored = { headline: "", about: "", experience_years: 0, languages: ["ru"], limitations: [] as string[] };
+  let reads = 0;
+  await page.route("**/v1/specialist/profile", route => route.fulfill({
+    status: 200, contentType: "application/json", body: JSON.stringify(profile)
+  }));
+  await page.route("**/v1/specialist/public-details", async route => {
+    if (route.request().method() === "PUT") {
+      const payload = route.request().postDataJSON() as typeof stored;
+      stored = payload;
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(stored) });
+      return;
+    }
+    reads++;
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(stored) });
+  });
+  await page.goto("/specialist");
+  await page.getByLabel("Короткое профессиональное описание").fill("Работа со стрессом");
+  await page.getByLabel("Языки (коды через запятую, например ru, en)").fill("ru, en");
+  await page.getByRole("button", { name: "Сохранить описание" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "повторно загружено с сервера" })).toBeVisible();
+  expect(reads).toBeGreaterThanOrEqual(2);
+  await page.reload();
+  await expect(page.getByLabel("Короткое профессиональное описание")).toHaveValue("Работа со стрессом");
+  await expect(page.getByLabel("Языки (коды через запятую, например ru, en)")).toHaveValue("ru, en");
+});
+
 test("specialist onboarding preserves evidence and publish boundaries", async ({ page }) => {
   type Profile = {
     id: string;
@@ -523,13 +622,27 @@ test("specialist onboarding preserves evidence and publish boundaries", async ({
   });
 
   await page.goto("/specialist");
-  await expect(page.getByRole("heading", { level: 1, name: /Работайте с клиентами/ })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Кабинет специалиста APGIC" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Создайте профессиональный профиль" })).toBeVisible();
 
   await page.getByLabel("Имя для публичного профиля").fill("Анна Тестова");
   await page.getByLabel("Профессия").selectOption("PSYCHOLOGIST");
   await page.getByRole("button", { name: "Сохранить профиль" }).click();
-  await expect(page.getByText("Профиль сохранён. Теперь добавьте направления работы.")).toBeVisible();
+  await expect(page.getByText(/Профиль сохранён\. В каталоге вы отображаетесь со статусом/)).toBeVisible();
+  await expect(page.getByRole("region", { name: "Кабинет специалиста" })).toBeVisible();
+  // After registration, the conditional profile summary must not push the
+  // editable workspace beneath an overlapping sticky heading.
+  const specialistLayout = await page.evaluate(() => {
+    const heading = document.getElementById("onboarding-title")!.getBoundingClientRect();
+    const form = document.getElementById("specialist-profile")!.getBoundingClientRect();
+    return { headingBottom: heading.bottom, formTop: form.top, formWidth: form.width };
+  });
+  expect(specialistLayout.formTop).toBeGreaterThanOrEqual(specialistLayout.headingBottom);
+  expect(specialistLayout.formWidth).toBeGreaterThan(0);
+
+  await expect(page.getByRole("region", { name: "Календарь и записи специалиста" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Разделы кабинета специалиста" }).getByRole("link", { name: "Документы" })).toHaveAttribute("href", "#specialist-documents");
+  await expect(page.getByRole("region", { name: "Кабинет специалиста" }).getByRole("status").filter({ hasText: "Специализация не подтверждена" }).first()).toBeVisible();
 
   await page.getByLabel("Направление").selectOption("anxiety");
   await page.getByRole("button", { name: "Добавить направление" }).click();
@@ -542,7 +655,7 @@ test("specialist onboarding preserves evidence and publish boundaries", async ({
   await expect(page.getByText(/Review профиля:/)).toContainText("MANUAL_REVIEW");
 
   await page.getByRole("button", { name: "Проверить и опубликовать" }).click();
-  await expect(page.getByRole("status")).toContainText("PUBLISH_REVIEW_INCOMPLETE");
+  await expect(page.getByRole("status").filter({ hasText: "PUBLISH_REVIEW_INCOMPLETE" })).toContainText("PUBLISH_REVIEW_INCOMPLETE");
   await expect(page.getByText(/Опубликовано:/)).toContainText("пока ничего");
 
   const layout = await page.evaluate(() => ({
@@ -812,3 +925,4 @@ test("specialist schedule distinguishes provider outage from no availability and
   await expect(page.getByRole("button", {name: /Удержать слот/}).first()).toBeVisible();
   await expect(page.getByRole("button", {name: "Повторить загрузку расписания"})).toHaveCount(0);
 });
+

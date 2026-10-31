@@ -1,0 +1,230 @@
+\set ON_ERROR_STOP on
+
+-- The preceding ci_r3_communication_consultation_invariants.sql created a
+-- provider-evidenced COMPLETED consultation c012. A separate booking d012
+-- exercises the still-open Ready Check window without synthetic JOINED facts.
+
+INSERT INTO booking_slots(id, specialist_identity_id,tenant_scope, starts_at, ends_at, exclusive)
+VALUES('00000000-0000-0000-0000-00000000d010','00000000-0000-0000-0000-00000000b001',
+       'tenant/r3-ready-ci',now()+interval '10 minutes',now()+interval '40 minutes',true);
+
+SELECT * FROM apgic_acquire_slot_hold(
+  '00000000-0000-0000-0000-00000000d011',
+  '00000000-0000-0000-0000-00000000d010',
+  '00000000-0000-0000-0000-00000000b002',
+  now()+interval '5 minutes',now());
+
+SELECT * FROM apgic_create_booking_from_hold(
+  '00000000-0000-0000-0000-00000000d012',
+  '00000000-0000-0000-0000-00000000d011',
+  now()+interval '1 minute');
+
+UPDATE bookings SET state='CONFIRMED',updated_at=now()+interval '2 minutes'
+ WHERE id='00000000-0000-0000-0000-00000000d012';
+
+-- Positive path: both authenticated canonical identities, but no provider
+-- attendance or payment mutations.
+INSERT INTO consultation_participant_readiness (booking_id,identity_id,role,ready_at)
+VALUES
+('00000000-0000-0000-0000-00000000d012','00000000-0000-0000-0000-00000000b002','CLIENT',now()),
+('00000000-0000-0000-0000-00000000d012','00000000-0000-0000-0000-00000000b001','SPECIALIST',now());
+
+INSERT INTO consultation_participant_readiness (booking_id,identity_id,role,ready_at)
+VALUES ('00000000-0000-0000-0000-00000000d012','00000000-0000-0000-0000-00000000b002','CLIENT',now())
+ON CONFLICT (booking_id,identity_id) DO NOTHING;
+
+DO $$
+DECLARE
+  blocked boolean;
+BEGIN
+  IF (SELECT COUNT(*) FROM consultation_participant_readiness
+      WHERE booking_id='00000000-0000-0000-0000-00000000d012')<>2 THEN
+    RAISE EXCEPTION 'R3 ready check not durable/idempotent';
+  END IF;
+  IF EXISTS (SELECT 1 FROM consultation_sessions
+             WHERE booking_id='00000000-0000-0000-0000-00000000d012') THEN
+    RAISE EXCEPTION 'ready check fabricated provider lifecycle';
+  END IF;
+  blocked:=false;
+  BEGIN
+    INSERT INTO consultation_participant_readiness (booking_id,identity_id,role,ready_at)
+    VALUES ('00000000-0000-0000-0000-00000000d012',
+            '00000000-0000-0000-0000-00000000b003','CLIENT',now());
+  EXCEPTION WHEN OTHERS THEN blocked:=true;
+  END;
+  IF NOT blocked THEN RAISE EXCEPTION 'foreign readiness impersonation accepted'; END IF;
+
+  blocked:=false;
+  BEGIN
+    UPDATE consultation_participant_readiness SET ready_at=now()
+     WHERE booking_id='00000000-0000-0000-0000-00000000d012';
+  EXCEPTION WHEN OTHERS THEN blocked:=true;
+  END;
+  IF NOT blocked THEN RAISE EXCEPTION 'ready check was mutable'; END IF;
+
+  blocked:=false;
+  BEGIN
+    INSERT INTO consultation_client_outcomes(id,booking_id,client_identity_id,idempotency_key,
+      progress,match_satisfaction,reported_at)
+    VALUES ('00000000-0000-0000-0000-00000000d020',
+      '00000000-0000-0000-0000-00000000d012',
+      '00000000-0000-0000-0000-00000000b002',
+      'outcome-not-completed-ci',1,5,now());
+  EXCEPTION WHEN OTHERS THEN blocked:=true;
+  END;
+  IF NOT blocked THEN RAISE EXCEPTION 'client outcome without provider completion accepted'; END IF;
+END
+$$;
+
+INSERT INTO consultation_client_outcomes(id,booking_id,client_identity_id,idempotency_key,
+    progress,match_satisfaction,reported_at)
+VALUES('00000000-0000-0000-0000-00000000d021',
+  '00000000-0000-0000-0000-00000000c012',
+  '00000000-0000-0000-0000-00000000b002',
+  'outcome-completed-ci-key',1,5,now());
+
+INSERT INTO consultation_client_outcomes(id,booking_id,client_identity_id,idempotency_key,
+    progress,match_satisfaction,reported_at)
+VALUES('00000000-0000-0000-0000-00000000d022',
+  '00000000-0000-0000-0000-00000000c012',
+  '00000000-0000-0000-0000-00000000b002',
+  'outcome-completed-ci-key',1,5,now())
+ON CONFLICT(booking_id,idempotency_key) DO NOTHING;
+
+DO $$
+DECLARE blocked boolean;
+BEGIN
+  IF (SELECT COUNT(*) FROM consultation_client_outcomes
+      WHERE booking_id='00000000-0000-0000-0000-00000000c012')<>1 THEN
+    RAISE EXCEPTION 'client outcome not idempotent';
+  END IF;
+  blocked:=false;
+  BEGIN
+    INSERT INTO consultation_client_outcomes(id,booking_id,client_identity_id,idempotency_key,
+        progress,match_satisfaction,reported_at)
+    VALUES('00000000-0000-0000-0000-00000000d023',
+      '00000000-0000-0000-0000-00000000c012',
+      '00000000-0000-0000-0000-00000000b001',
+      'outcome-forged-role-ci',2,4,now());
+  EXCEPTION WHEN OTHERS THEN blocked:=true;
+  END;
+  IF NOT blocked THEN RAISE EXCEPTION 'specialist forged client outcome'; END IF;
+
+  blocked:=false;
+  BEGIN
+    INSERT INTO consultation_client_outcomes(id,booking_id,client_identity_id,idempotency_key,
+        progress,match_satisfaction,reported_at)
+    VALUES('00000000-0000-0000-0000-00000000d024',
+      '00000000-0000-0000-0000-00000000c012',
+      '00000000-0000-0000-0000-00000000b002',
+      'outcome-out-of-range-ci',4,4,now());
+  EXCEPTION WHEN OTHERS THEN blocked:=true;
+  END;
+  IF NOT blocked THEN RAISE EXCEPTION 'out of range progress accepted'; END IF;
+
+  blocked:=false;
+  BEGIN
+    UPDATE consultation_client_outcomes SET progress=-2
+     WHERE id='00000000-0000-0000-0000-00000000d021';
+  EXCEPTION WHEN OTHERS THEN blocked:=true;
+  END;
+  IF NOT blocked THEN RAISE EXCEPTION 'client outcome could be rewritten'; END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name IN ('consultation_participant_readiness','consultation_client_outcomes')
+      AND column_name IN ('transcript','recording','raw_audio','raw_video','diagnosis','client_notes')
+  ) THEN RAISE EXCEPTION 'raw consultation content leaked into outcome schema'; END IF;
+END
+$$;
+
+-- Test real cancellation invariants against an active canonical provider
+-- session, without contaminating the d012 fixture for later Go integration.
+-- Nested exception block deliberately rolls the whole synthetic scenario
+-- back after asserting both denied active cancel and permitted terminal cancel.
+DO $r3_cancel$
+DECLARE denied boolean:=false;
+        booking_clock timestamptz;
+BEGIN
+  BEGIN
+    SELECT updated_at INTO STRICT booking_clock FROM bookings
+       WHERE id='00000000-0000-0000-0000-00000000d012';
+    INSERT INTO consultation_sessions(id,booking_id,client_identity_id,specialist_identity_id,
+        provider_instance_id,state,created_at,updated_at)
+    VALUES ('00000000-0000-0000-0000-00000000d301',
+      '00000000-0000-0000-0000-00000000d012',
+      '00000000-0000-0000-0000-00000000b002',
+      '00000000-0000-0000-0000-00000000b001',
+      '00000000-0000-0000-0000-00000000c001',
+      'SCHEDULED',now(),now());
+    INSERT INTO consultation_lifecycle_facts(
+        id,session_id,fact_type,role,identity_id,provider_instance_id,
+        provider_reference,evidence_ref,idempotency_key,occurred_at)
+    VALUES
+      ('00000000-0000-0000-0000-00000000d311',
+       '00000000-0000-0000-0000-00000000d301','JOINED','CLIENT',
+       '00000000-0000-0000-0000-00000000b002',
+       '00000000-0000-0000-0000-00000000c001',
+       'room/cancel-ci','provider-evidence/cancel/client','r3-cancel-client',now()+interval '1 second'),
+      ('00000000-0000-0000-0000-00000000d312',
+       '00000000-0000-0000-0000-00000000d301','JOINED','SPECIALIST',
+       '00000000-0000-0000-0000-00000000b001',
+       '00000000-0000-0000-0000-00000000c001',
+       'room/cancel-ci','provider-evidence/cancel/specialist','r3-cancel-specialist',now()+interval '2 seconds');
+    INSERT INTO consultation_lifecycle_facts(
+        id,session_id,fact_type,role,identity_id,provider_instance_id,
+        provider_reference,evidence_ref,idempotency_key,occurred_at)
+    VALUES ('00000000-0000-0000-0000-00000000d313',
+      '00000000-0000-0000-0000-00000000d301','STARTED','SYSTEM',
+      NULL,'00000000-0000-0000-0000-00000000c001',
+      'room/cancel-ci','provider-evidence/cancel/started','r3-cancel-started',now()+interval '3 seconds');
+
+    denied:=false;
+    BEGIN
+      UPDATE bookings SET state='CANCELLED',updated_at=booking_clock+interval '4 seconds'
+        WHERE id='00000000-0000-0000-0000-00000000d012';
+    EXCEPTION WHEN raise_exception THEN
+      -- Denial must come from the actual active-media guard, not an
+      -- incidental stale timestamp, permission or unrelated trigger.
+      IF SQLERRM <> 'booking cancellation or no-show conflicts with provider session evidence' THEN
+        RAISE;
+      END IF;
+      denied:=true;
+    END;
+    IF NOT denied THEN RAISE EXCEPTION 'in-progress media booking was cancelled'; END IF;
+
+    INSERT INTO consultation_lifecycle_facts(
+        id,session_id,fact_type,role,identity_id,provider_instance_id,
+        provider_reference,evidence_ref,idempotency_key,occurred_at)
+    VALUES ('00000000-0000-0000-0000-00000000d314',
+      '00000000-0000-0000-0000-00000000d301','TECHNICAL_FAILURE','SYSTEM',
+      NULL,'00000000-0000-0000-0000-00000000c001',
+      'room/cancel-ci','provider-evidence/cancel/technical-failure',
+      'r3-cancel-technical-failure',now()+interval '5 seconds');
+
+    denied:=false;
+    BEGIN
+      UPDATE bookings SET state='NO_SHOW',updated_at=booking_clock+interval '6 seconds'
+        WHERE id='00000000-0000-0000-0000-00000000d012';
+    EXCEPTION WHEN raise_exception THEN
+      -- Denial must come from the actual active-media guard, not an
+      -- incidental stale timestamp, permission or unrelated trigger.
+      IF SQLERRM <> 'booking cancellation or no-show conflicts with provider session evidence' THEN
+        RAISE;
+      END IF;
+      denied:=true;
+    END;
+    IF NOT denied THEN RAISE EXCEPTION 'technical failure misclassified as no-show'; END IF;
+
+    UPDATE bookings SET state='CANCELLED',updated_at=booking_clock+interval '7 seconds'
+      WHERE id='00000000-0000-0000-0000-00000000d012';
+    IF (SELECT state FROM bookings WHERE id='00000000-0000-0000-0000-00000000d012')<>'CANCELLED' OR
+       (SELECT state FROM consultation_sessions WHERE id='00000000-0000-0000-0000-00000000d301')<>'TECHNICAL_FAILURE' THEN
+      RAISE EXCEPTION 'valid terminal cancellation erased provider technical evidence';
+    END IF;
+    RAISE EXCEPTION 'r3 cancellation probe rollback';
+  EXCEPTION WHEN raise_exception THEN
+    IF SQLERRM<>'r3 cancellation probe rollback' THEN RAISE; END IF;
+  END;
+END
+$r3_cancel$;

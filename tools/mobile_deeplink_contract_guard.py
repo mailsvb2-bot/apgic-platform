@@ -38,6 +38,16 @@ checks = {
         "appleAppSiteAssociationFromEnv",
         "APP_LINK_ASSOCIATION_NOT_CONFIGURED",
     ],
+    "backend/internal/mobile/deeplink.go": [
+        "LinkFinanceOrder",
+        'return "/orders/" + targetID + "/finance", true',
+    ],
+    "contracts/openapi/apgic-v1.yaml": [
+        "FINANCE_ORDER",
+    ],
+    "packages/contracts/src/generated/apgic-v1.ts": [
+        '"FINANCE_ORDER"',
+    ],
     "backend/internal/mobile/deeplink_token.go": [
         "aes.NewCipher",
         "cipher.NewGCM",

@@ -1,7 +1,6 @@
 name: CI
 
 on:
-  workflow_dispatch:
   pull_request:
   push:
     branches:
@@ -243,6 +242,42 @@ jobs:
         working-directory: backend
         run: go test ./internal/remoteconfig -run TestEmergencyKillSwitchDrill -count=1 -v
 
+  communication-reference:
+    name: R3 real-media reference adapter / room issuer / durable webhook bridge
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.27.1'
+          cache-dependency-path: services/communication-reference/go.mod
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Validate the isolated replaceable media-provider boundary
+        working-directory: services/communication-reference
+        shell: bash
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "Reference media provider requires gofmt:"
+            printf '%s\n' "$unformatted"
+            gofmt -d $unformatted
+            exit 1
+          fi
+          go vet ./...
+          go test -race -count=1 ./...
+          node --check static/room.js
+          test -s static/room.html
+          test -s static/room.css
+      - name: Build deployable LiveKit CommunicationProvider image
+        shell: bash
+        run: |
+          # Go tests alone do not prove the supplied SDK asset actually exists
+          # or that the production container builds with its declared entrypoint.
+          docker build --pull --tag apgic-r3-media-reference:ci \
+            services/communication-reference
+
   postgres-invariants:
     name: PostgreSQL migration / invariant proof
     runs-on: ubuntu-latest
@@ -283,17 +318,40 @@ jobs:
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r2_transaction_edge_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r2_payment_governance_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r2_mobile_store_invariants.sql
-          # Reuse the real R2 synthetic provider-verification and captured-ledger proof
-          # BEFORE R4's deliberately destructive subscription refund/revocation drill.
           (cd backend && APGIC_ORGANIZATION_TEST_DATABASE_URL='postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable' go test ./internal/runtimepostgres -run TestAcademyStoreVerifiedPaidJourneySurvivesRestart -count=1 -v)
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r3_communication_consultation_invariants.sql
+          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r2_r3_signed_payment_admission.sql
+          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r3_consultation_outcome_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r4_store_lifecycle_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r2_refund_invariants.sql
+          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r6_instant_duty_invariants.sql
+          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r6_instant_duty_journey.sql
+          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r4_finance_invariants.sql
           APGIC_DATABASE_URL='postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable' \
             bash deploy/staging/test-staging-migration-ledger.sh
           PGHOST=127.0.0.1 PGUSER=apgic PGDATABASE=apgic_ci bash backend/ci/r0_order_snapshot_baseline_repair.sh
           bash backend/ci/r2_booking_concurrency.sh
           bash backend/ci/r2_mutation_concurrency.sh
+      - name: Prove R8 Academy refund revokes access to paid content
+        working-directory: backend
+        env:
+          APGIC_ORGANIZATION_TEST_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable
+        run: go test ./internal/runtimepostgres -run TestAcademyStoreRefundWithdrawsLearningAccess -count=1 -v
+      - name: Prove R8 Academy owner/version isolation and entitlement gate
+        working-directory: backend
+        env:
+          APGIC_ORGANIZATION_TEST_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable
+        run: go test ./internal/runtimepostgres -run TestAcademyVersioningRequiresVerifiedAccess -count=1 -v
+      - name: Prove R4 revenue convergence (provider-executed, non-custodial, reconciled)
+        working-directory: backend
+        env:
+          APGIC_FINANCE_TEST_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable
+        run: go test ./internal/runtimepostgres -run TestR4RevenueConvergenceIsNonCustodialIdempotentAndReconciled -count=1 -v
+      - name: Prove R5 signed-identity personal isolation and restart readback in PostgreSQL
+        working-directory: backend
+        env:
+          APGIC_PERSONAL_TEST_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable
+        run: go test ./internal/runtimepostgres -run 'TestClientPersonalOwnerIsolationAndRestartReadback|TestAccountDeletionDurableOwnerIsolationAndConcurrency|TestR5CanonicalDeletionTransactionAndVerifiedTerminalRevocation|TestR5ProviderErasureRetrySignedProofAndRestartRecovery|TestR5ClientDeletionTOTPIsEncryptedDelayedBoundedAndNonReplayable' -count=1 -v
       - name: Prove DATA-001 consent grant revoke and active lookup in PostgreSQL
         working-directory: backend
         env:
@@ -394,7 +452,8 @@ jobs:
           APGIC_ANDROID_UPDATE_URL: https://apgic.ru/update
           APGIC_AUTH001_WEB_E2E: '1'
           APGIC_ORG_PROD_WEB_E2E: '1'
-          APGIC_WEB_PORT: '43140'
+          # Playwright assigns a run-scoped non-ephemeral port; fixed 43140
+          # can collide with earlier sibling HTTP tests in this job.
           APGIC_CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
@@ -467,17 +526,6 @@ jobs:
         env:
           APGIC_ORGANIZATION_TEST_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable
         run: go test ./internal/httpapi -run 'TestOrganizationDirectionHTTPPersistsOwnershipAndArchivesInsteadOfDelete|TestOrganizationProductHTTPPublishesExplicitOwnershipSnapshot' -count=1
-      - name: Prove real refund lifecycle withdraws Academy lesson access
-        working-directory: backend
-        env:
-          APGIC_ORGANIZATION_TEST_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable
-        run: go test ./internal/runtimepostgres -run TestAcademyStoreRefundWithdrawsLearningAccess -count=1 -v
-      - name: Prove R8 Academy canonical course versioning, ownership and entitlement gate in PostgreSQL
-        working-directory: backend
-        env:
-          APGIC_ORGANIZATION_TEST_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable
-        run: go test ./internal/runtimepostgres -run TestAcademyVersioningRequiresVerifiedAccess -count=1 -v
-
       - name: Prove AUTH-002 high-risk step-up gate and audit
         working-directory: backend
         env:
@@ -613,7 +661,8 @@ jobs:
 
   restore-drill:
     name: PostgreSQL isolated restore drill
-    runs-on: ubuntu-latest
+    # Pin the runner OS: ubuntu-latest moved to 26.04 without PG16 client packages.
+    runs-on: ubuntu-24.04
     services:
       postgres:
         image: postgres:16-alpine
@@ -637,8 +686,19 @@ jobs:
       APGIC_CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - uses: actions/checkout@v7
+      - name: Match PostgreSQL client tools to restore server major
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-16
+          test -x /usr/lib/postgresql/16/bin/pg_dump
+          echo "/usr/lib/postgresql/16/bin" >> "$GITHUB_PATH"
       - shell: bash
         run: |
+          set -euo pipefail
+          test "$(pg_dump --version | awk '{print $NF}' | cut -d. -f1)" = "16"
+          test "$(psql -Atqc 'SHOW server_version_num' | cut -c1-2)" = "16"
           for migration in backend/migrations/[0-9][0-9][0-9][0-9][0-9][0-9]_*.sql; do
             psql -v ON_ERROR_STOP=1 -f "$migration"
           done
@@ -802,6 +862,7 @@ jobs:
         shell: bash
         run: bash tools/mobile_android_capability_e2e.sh
       - uses: actions/upload-artifact@v7
+        if: always()
         with:
           name: android-native-debug-build
           path: |
@@ -828,10 +889,14 @@ jobs:
             evidence/android-a11y-*.xml
             evidence/android-device-matrix.json
             evidence/android-demand-e2e.xml
+            evidence/android-confirm-failure.xml
+            evidence/android-confirm-before-tap.xml
+            evidence/android-confirm-before-tap.png
+            evidence/android-confirm-failure.png
             evidence/android-deletion-e2e.xml
             evidence/android-org-product-bootstrap.json
             evidence/android-org-product-e2e.xml
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 30
 
   mobile-ios-build:
@@ -851,8 +916,29 @@ jobs:
         run: npm install --ignore-scripts --no-audit --no-fund
       - name: Reject service credentials from iOS client source
         run: python3 tools/client_credential_guard.py --surface IOS
-      - working-directory: apps/mobile/ios
-        run: pod install
+      - name: Install iOS pods with network-only retry, never hide podspec failures
+        working-directory: apps/mobile/ios
+        shell: bash
+        run: |
+          set -euo pipefail
+          log_file="$(mktemp)"
+          trap 'rm -f "$log_file"' EXIT
+          for attempt in 1 2 3; do
+            echo "Installing pinned iOS pods, attempt $attempt/3"
+            if pod install 2>&1 | tee "$log_file"; then
+              exit 0
+            fi
+            # Upstream React Native artifacts are fetched from Maven Central.
+            # Retry only proven transient transport errors; a malformed
+            # Podfile, checksum mismatch or compile error must fail immediately.
+            if ! grep -Eiq 'Connection reset by peer|curl: \\(56\\)|curl: \\(28\\)|Operation timed out|Read timed out|Could not resolve host|503 Service Unavailable|502 Bad Gateway|network is unreachable|\[Hermes\] Failed to download .* from https://repo1\\.maven\\.org/|Failed to download .* from https://repo1\\.maven\\.org/' "$log_file"; then
+              echo "Non-network CocoaPods failure; refusing retry." >&2
+              exit 1
+            fi
+            if [ "$attempt" -lt 3 ]; then sleep $((attempt * 8)); fi
+          done
+          echo "Transient CocoaPods dependency download failed after 3 attempts." >&2
+          exit 1
       - working-directory: apps/mobile/ios
         env:
           FORCE_BUNDLING: "1"

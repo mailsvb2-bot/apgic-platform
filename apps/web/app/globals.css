@@ -482,6 +482,21 @@ fieldset {
   border-top: 1px solid rgba(23,32,25,.12);
   padding: 72px 0;
 }
+/* The profile summary is conditional; never let it shift the workspace into
+   a second grid row beneath a sticky, oversized heading. */
+.specialist-onboarding {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px;
+}
+.specialist-onboarding > .start-heading {
+  position: static;
+  max-width: 780px;
+}
+.specialist-onboarding > .start-heading h2 {
+  font-size: clamp(1.75rem, 3.4vw, 2.75rem);
+  line-height: 1.16;
+  overflow-wrap: break-word;
+}
 .specialist-workspace {
   min-width: 0;
   display: grid;
@@ -1376,3 +1391,26 @@ fieldset {
 .marketplace-offer-card h3{margin:0}
 .marketplace-offer-card ul{margin:0;padding-left:20px}
 .marketplace-offer-price{font-size:1.25rem;font-weight:750;color:#184e35}
+
+/* APGIC Personal: responsive private read-model workspace */
+.personal-shell {max-width:1180px;margin:0 auto;padding:0 clamp(16px,3vw,36px) 64px;}
+.personal-heading {padding:34px 0 26px;}
+.personal-heading h1 {font-size:clamp(2rem,5vw,3.5rem);margin:.25em 0;}
+.personal-heading p:last-child {color:#526a5a;}
+.personal-main {display:grid;gap:22px;}
+.personal-toolbar {display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;}
+.personal-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;}
+.personal-section,.personal-empty {min-width:0;border:1px solid #d8e3d9;border-radius:20px;background:#fff;padding:clamp(16px,3vw,28px);}
+.personal-section h2 {font-size:clamp(1.25rem,3vw,1.65rem);margin:0 0 18px;}
+.personal-booking-list,.personal-request-list {padding:0;list-style:none;display:grid;gap:12px;}
+.personal-booking,.personal-request-list li {border:1px solid #e3e9e5;border-radius:12px;padding:15px;display:grid;gap:8px;}
+.personal-booking div {display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;}
+.personal-booking p,.personal-request-list p {margin:0;}
+.personal-state {display:inline-block;border-radius:8px;padding:4px 8px;background:#e9f5eb;color:#1d5235;font-weight:700;font-size:.83rem;}
+.personal-muted {color:#53685a;line-height:1.55;}
+.personal-preferences {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));align-items:end;gap:14px;}
+.personal-preferences label {font-weight:700;display:grid;gap:7px;}
+.personal-preferences input,.personal-preferences select {width:100%;min-height:44px;border:1px solid #9cad9f;border-radius:10px;padding:9px 12px;background:#fff;color:#192c24;font:inherit;}
+.personal-section button,.personal-toolbar button,.personal-empty button {min-height:44px;border-radius:12px;border:0;background:#163f31;color:#fff;padding:11px 16px;font:inherit;font-weight:700;cursor:pointer;}
+.personal-section button:disabled {opacity:.6;}
+@media(max-width:760px){.personal-grid,.personal-preferences{grid-template-columns:1fr;}.personal-booking div{align-items:flex-start;}}

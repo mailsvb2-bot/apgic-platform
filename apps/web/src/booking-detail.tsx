@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import ConsultationResultView from "./consultation-result";
+import ConsultationJourney from "./consultation-journey";
+import ConsultationHistory from "./consultation-history";
 
 import type { BookingStatus, OrderStatus } from "../../../packages/contracts/src/generated/apgic-v1";
 
@@ -165,12 +167,15 @@ export default function BookingDetail({ bookingID }: { bookingID: string }) {
               {/* Historical outcome is a separate owner-authorized read.
                   An absent/uncertain payment must block a NEW media grant,
                   never erase or conceal an existing provider-confirmed result. */}
+              {paidEntitlement ? <ConsultationJourney key={bookingID + "-journey"} bookingID={bookingID} /> : null}
               <ConsultationResultView key={bookingID} bookingID={bookingID} />
               {!paidEntitlement ? (
                 <p role="status">Вход в защищённую медиакомнату недоступен без подтверждённого права доступа и платежа. Историю проведённой консультации можно проверить отдельно; её достоверность подтверждает сервер.</p>
               ) : null}
             </>
           ) : null}
+          {["CONFIRMED", "COMPLETED", "CANCELLED", "NO_SHOW"].includes(booking.state) ?
+            <ConsultationHistory key={bookingID + "-history"} bookingID={bookingID} /> : null}
         </section>
       ) : null}
       <button type="button" onClick={() => setRetry((value) => value + 1)}

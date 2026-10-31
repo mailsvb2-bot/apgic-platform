@@ -66,6 +66,7 @@ class MobileNativeE2EHarnessTest(unittest.TestCase):
         )
 
     def test_android_e2e_budget_and_new_evidence_are_bounded(self) -> None:
+        app = (ROOT / "apps/mobile/src/App.tsx").read_text(encoding="utf-8")
         workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
         android = self._read("mobile_android_capability_e2e.sh")
 
@@ -85,9 +86,61 @@ class MobileNativeE2EHarnessTest(unittest.TestCase):
             self.assertEqual(android.count("dump_until_labels_visible " + path), 1)
         self.assertIn('local remote="/sdcard/apgic-demand-e2e.xml"', android)
         self.assertIn('APGIC_E2E_DEMAND_SESSION_COOKIE "$SESSION_COOKIE"', android)
-        self.assertIn('tap_accessibility_label "С чем нужна помощь"', android)
-        self.assertIn('tap_accessibility_label "Тема anxiety"', android)
-        self.assertIn('tap_accessibility_label "Подтвердить темы запроса"', android)
+        # Mobile v0.87 renders a long, scrollable user journey. Assert the
+        # native automation checks actual on-screen accessibility nodes and
+        # both states of each checkbox, rather than relying on an obsolete
+        # direct-tap helper that could tap an off-screen coordinate.
+        self.assertIn("seek_demand_accessibility_node() {", android)
+        self.assertIn('"$ADB" shell uiautomator dump "$remote"', android)
+        # The parser exercises actual on-screen bounds, state and visible
+        # human-facing evidence. It must reject clipped/outside-view nodes
+        # while accepting the real lower-edge Android diagnosis node.
+        locator = self._read("android_ui_accessibility.py")
+        self.assertIn('matches_semantics(attributes, label)', locator)
+        self.assertIn('attributes.get("checked") == checked', locator)
+        self.assertIn('action == "observe" or attributes.get("enabled") == "true"', locator)
+        self.assertIn('attributes.get("clickable") == "true"', locator)
+        self.assertIn('minimum_height = 28 if action == "tap" else 12', locator)
+        self.assertIn('intersection(rectangle, viewport)', locator)
+        self.assertIn('android_ui_accessibility.py" "$output" "$label" "$checked" "$action"', android)
+        self.assertIn('seek_demand_accessibility_node "С чем нужна помощь" "" tap', android)
+        self.assertIn("seek_demand_accessibility_node 'native-demand-diagnosis:false' \"\" observe", android)
+        self.assertIn("seek_demand_accessibility_node 'Тема anxiety' true tap", android)
+        self.assertIn("seek_demand_accessibility_node 'Тема anxiety' false observe", android)
+        self.assertIn("seek_demand_accessibility_node 'Тема sleep' true observe", android)
+        self.assertIn('seek_demand_accessibility_node "Подтвердить темы запроса" "" tap', android)
+        self.assertIn("seek_demand_accessibility_node 'native-demand-status:FAIL'", android)
+        self.assertIn("press_accepted", android)
+        # The script must report failure when no real UI status transition
+        # occurs, including the observed native onPress count.
+        self.assertIn('if [[ "$press_accepted" != true ]]; then', android)
+        self.assertIn('fail "Android confirmation did not leave DRAFT', android)
+        self.assertIn('APGIC_CONFIRM_PRESS', android)
+        self.assertIn('dismiss_android_ime || fail', android)
+        self.assertIn('APGIC_CONFIRM_PRESS_IN', android)
+        self.assertIn('APGIC_CONFIRM_PRESS_OUT', android)
+        self.assertIn('android-confirm-failure.png', android)
+        self.assertIn('android-confirm-failure.xml', android)
+        self.assertIn('android-confirm-before-tap.xml', android)
+        self.assertIn('android-confirm-before-tap.png', android)
+        # Real RN debug builds can draw an accessible warning over a clickable
+        # button; the native close control must be dismissed and verified gone.
+        self.assertIn('dismiss_android_debug_warning_overlay() {', android)
+        self.assertIn('Open debugger to view warnings.', android)
+        self.assertIn('shell input touchscreen tap $close_position', android)
+        self.assertIn('dismiss_android_debug_warning_overlay "$remote" "$output" || fail', android)
+
+        self.assertIn('shell input touchscreen tap $position', android)
+        self.assertIn('setDemandTouchEvidence(v => ({...v, down: v.down + 1}))', app)
+        self.assertIn('native-demand-touch:down:', app)
+        self.assertIn('setDemandTouchEvidence(v => ({...v, up: v.up + 1}))', app)
+        self.assertIn('setDemandTouchEvidence(v => ({...v, press: v.press + 1}))', app)
+        self.assertIn('Android UI-visible touch evidence:', android)
+
+        self.assertIn('[[ "$confirm_state" == "CONFIRMED" ]]', android)
+        self.assertIn("seek_demand_accessibility_node 'native-demand-confirmed' \"\" observe", android)
+        self.assertIn("seek_demand_accessibility_node 'Тема anxiety' false observe", android)
+        self.assertIn('fail "Android confirmed HelpIntent silently reselected', android)
 
     def test_demand_e2e_matches_user_help_intent_execution_path(self) -> None:
         app = (ROOT / "apps/mobile/src/App.tsx").read_text(encoding="utf-8")
@@ -104,6 +157,7 @@ class MobileNativeE2EHarnessTest(unittest.TestCase):
 
     def test_production_demand_mutations_fail_closed_and_allow_topic_replacement(self) -> None:
         app = (ROOT / "apps/mobile/src/App.tsx").read_text(encoding="utf-8")
+        android = self._read("mobile_android_capability_e2e.sh")
 
         analyze_start = app.index("  const analyzeDemand = useCallback")
         analyze_end = app.index("  const toggleDemandTopic", analyze_start)
@@ -119,6 +173,47 @@ class MobileNativeE2EHarnessTest(unittest.TestCase):
         self.assertIn("const addDemandTopic = useCallback", app)
         self.assertIn("current.includes(topic) ? current : [...current, topic]", app)
         self.assertIn("...demandTopics", app)
+        self.assertIn('native-demand-status:${demandStatus}', app)
+        self.assertIn('accessibilityLabel="native-demand-error"', app)
+        self.assertIn("confirmed.id !== demandIntent.id", app)
+        self.assertIn("confirmed.client_identity_id !== demandIntent.client_identity_id", app)
+        self.assertIn("!demandIntent ? (", app)
+        self.assertIn("setDemandSuggestedTopics([...intent.topics])", app)
+        self.assertIn("...demandSuggestedTopics", app)
+        self.assertIn('disabled={demandStatus === "CONFIRMED" || demandStatus === "RUNNING"}', app)
+        self.assertIn("setDemandCustomTopicEditing((value) => !value)", app)
+        self.assertIn('disabled={demandStatus === "CONFIRMED" || demandStatus === "RUNNING"}', app)
+        self.assertIn('disabled={!demandCustomTopic.trim() || demandStatus === "RUNNING"}', app)
+        self.assertIn("shell input swipe 300 540 300 180 600", android)
+        self.assertIn("shell input swipe 300 180 300 540 600", android)
+        self.assertNotIn("shell input swipe 160 120 160 555 95", android)
+        # The locator must observe settled native coordinates rather than
+        # relying on a hardcoded legacy sleep interval.
+        self.assertIn('local previous_position="$position" stable=false settle', android)
+        self.assertIn('[[ "$position" == "$previous_position" ]]', android)
+        self.assertIn('[[ "$stable" == true && -n "$position" ]] || continue', android)
+        self.assertIn('confirm_count_after > confirm_count_before', android)
+        self.assertIn('session_cookie_present=true', android)
+        self.assertIn('accessibilityLabel="Создать новый запрос"', app)
+        self.assertIn('keyboardShouldPersistTaps="always"', app)
+        self.assertIn('keyboardDismissMode="on-drag"', app)
+        self.assertIn('style={styles.demandAction}', app)
+        self.assertNotIn('style={styles.demandStickyFooter}', app)
+        self.assertNotIn('demandScrollAboveFooter', app)
+        self.assertIn('APGIC_CONFIRM_PRESS', app)
+        self.assertIn('logcat -c', android)
+        self.assertIn('APGIC_CONFIRM_PRESS', android)
+        self.assertIn('previous_position', android)
+        self.assertNotIn("flexGrow: 0", app)
+        self.assertNotIn("onPressIn={() => void confirmDemand()}", app)
+        self.assertNotIn('keyboardShouldPersistTaps="handled"', app)
+        self.assertEqual(app.count('accessibilityLabel="Подтвердить темы запроса"'), 1)
+        # One real, in-flow confirmation action, before ScrollView closes.
+        label = app.index('accessibilityLabel="Подтвердить темы запроса"')
+        self.assertLess(label, app.index("      </ScrollView>"))
+        control = app[app.rfind("<Pressable", 0, label):app.index("</Pressable>", label)]
+        self.assertIn('void confirmDemand()', control)
+        self.assertIn('disabled={demandStatus === "RUNNING" || demandTopics.length === 0 || !compatibilityAllowsRuntime}', control)
 
     def test_demand_and_deletion_e2e_use_local_compatibility_gate(self) -> None:
         android = self._read("mobile_android_capability_e2e.sh")
@@ -213,7 +308,11 @@ class MobileNativeE2EHarnessTest(unittest.TestCase):
         text = self._read("mobile_ios_capability_e2e.sh")
         realtime = text[text.index("assert_realtime_lifecycle() {"):]
         self.assertIn("ambient_technical_degraded() {", realtime)
-        self.assertIn("for initial_attempt in $(seq 1 3); do", realtime)
+        self.assertIn("local ambient_attempts=5", realtime)
+        self.assertIn('for initial_attempt in $(seq 1 "$ambient_attempts"); do', realtime)
+        self.assertIn('for rejoin_attempt in $(seq 1 "$ambient_attempts"); do', realtime)
+        self.assertIn('sleep "$ambient_settle_seconds"', realtime)
+        self.assertIn('json_has_ax_label "$target" "realtime-phase:CONNECTED"', realtime)
         self.assertIn('json_has_ax_label "$target" "realtime-phase:DEGRADED"', realtime)
         self.assertIn('json_has_ax_label "$target" "realtime-business-transition:NONE"', realtime)
         self.assertIn(

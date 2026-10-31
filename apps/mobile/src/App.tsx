@@ -1,4 +1,6 @@
-import React, {useCallback, useEffect, useState} from "react";
+import ClientPersonalPanel from "./client-personal-panel.tsx";
+import {AcademySurface} from "./mobile-academy-client.tsx";
+import React, {useCallback, useEffect, useRef, useState} from "react";
 import {
   AccessibilityInfo,
   Linking,
@@ -13,8 +15,8 @@ import {
 } from "react-native";
 
 import {apiContractVersion} from "./api-contract.ts";
-import {AcademySurface} from "./mobile-academy-client.tsx";
 import {NativeSpecialistDirectory} from "./native-specialist-directory.tsx";
+import {InstantNowSurface} from "./instant-now-surface.tsx";
 import {
   decideCapability,
   type CapabilityState,
@@ -45,6 +47,8 @@ import {
 import {offlineMutationStorage} from "./offline-mutation-storage.ts";
 import {clearUserScopedLocalState, secureCredentialStorage} from "./secure-local-storage.ts";
 import {runNativeRealtimeE2E, type NativeRealtimeE2EResult} from "./r3-realtime-e2e.ts";
+import NativeConsultationAccess from "./native-consultation-access.tsx";
+import NativeFinanceStatus from "./native-finance-status.tsx";
 import type {HelpIntent} from "../../../packages/contracts/src/generated/apgic-v1.ts";
 import {
   confirmMobileHelpIntent,
@@ -246,16 +250,24 @@ export default function App({
   const [demandIntent, setDemandIntent] = useState<HelpIntent | null>(null);
   const [demandTopics, setDemandTopics] = useState<string[]>([]);
   const [demandCustomTopic, setDemandCustomTopic] = useState("");
+  const [demandCustomTopicEditing, setDemandCustomTopicEditing] = useState(false);
+  const [demandSuggestedTopics, setDemandSuggestedTopics] = useState<string[]>([]);
   const [demandStatus, setDemandStatus] = useState<
     "IDLE" | "RUNNING" | "DRAFT" | "CONFIRMED" | "FAIL"
   >("IDLE");
   const [demandError, setDemandError] = useState("");
+  const [instantPanelMode, setInstantPanelMode] = useState<"client" | "specialist" | null>(null);
+  const demandConfirmationInFlight = useRef(false);
+  const [demandTouchEvidence, setDemandTouchEvidence] = useState({down: 0, up: 0, press: 0});
+  // Explicit private panel: do not displace the primary HelpIntent journey.
+  const [personalPanelOpen, setPersonalPanelOpen] = useState(false);
   const [demandE2E, setDemandE2E] = useState<
     | {status: "IDLE" | "RUNNING"}
     | ({status: "PASS"} & MobileDemandE2EResult)
     | {status: "FAIL"; reason: string}
   >({status: "IDLE"});
 
+  const [financeDeepLinkOrderID, setFinanceDeepLinkOrderID] = useState("");
   const [deepLinkState, setDeepLinkState] = useState<
     | {status: "IDLE" | "RESOLVING"}
     | {status: "OPEN"; target: string}
@@ -369,6 +381,8 @@ export default function App({
       });
       setDemandIntent(intent);
       setDemandTopics([...intent.topics]);
+      setDemandSuggestedTopics([...intent.topics]);
+      setDemandCustomTopicEditing(false);
       setDemandStatus("DRAFT");
     } catch (error: unknown) {
       setDemandStatus("FAIL");
@@ -391,6 +405,7 @@ export default function App({
     if (!topic) return;
     setDemandTopics((current) => current.includes(topic) ? current : [...current, topic]);
     setDemandCustomTopic("");
+    setDemandCustomTopicEditing(false);
   }, [demandCustomTopic]);
 
   const confirmDemand = useCallback(async () => {
@@ -402,6 +417,8 @@ export default function App({
       setDemandError("Оставьте хотя бы одну подходящую тему.");
       return;
     }
+    if (demandConfirmationInFlight.current) return;
+    demandConfirmationInFlight.current = true;
     setDemandError("");
     setDemandStatus("RUNNING");
     try {
@@ -417,6 +434,9 @@ export default function App({
           sessionCookie: demandE2ESessionCookie,
         },
       );
+      if (confirmed.id !== demandIntent.id || confirmed.client_identity_id !== demandIntent.client_identity_id) {
+        throw new Error("Подтверждённый запрос не соответствует вашей сессии.");
+      }
       setDemandIntent(confirmed);
       setDemandTopics([...confirmed.topics]);
       setDemandStatus("CONFIRMED");
@@ -425,6 +445,8 @@ export default function App({
       setDemandError(
         error instanceof Error ? error.message : "Не удалось подтвердить запрос.",
       );
+    } finally {
+      demandConfirmationInFlight.current = false;
     }
   }, [compatibilityAllowsRuntime, demandAPIBaseURL, demandE2ESessionCookie, demandIntent, demandTopics]);
 
@@ -437,6 +459,8 @@ export default function App({
           sessionCookie: deepLinkE2ESessionCookie,
         });
         if (action.action === "OPEN_APP_PATH") {
+          const financeOrder = /^\/orders\/([0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12})\/finance$/.exec(action.target);
+          setFinanceDeepLinkOrderID(financeOrder?.[1] ?? "");
           setDeepLinkState({status: "OPEN", target: action.target});
           return;
         }
@@ -990,15 +1014,32 @@ export default function App({
     deletionE2EPlatform,
   ]);
 
+  // During topic review, show one primary action in the same vertical flow.
+  // No overlay/footer obscures the native hit target during emulator scrolling.
+  const demandReviewPending =
+    !infrastructureE2EActive && demandIntent !== null && demandStatus !== "CONFIRMED";
+
   return (
     <SafeAreaView style={styles.safe}>
+      {/* Keep the actual server-confirmed state in view when the specialist
+          directory extends the scrollable content. This is derived from the
+          canonical response, never from a test-only flag. */}
+      {!infrastructureE2EActive && demandIntent && demandStatus === "CONFIRMED" ? (
+        <View style={styles.demandCard}>
+          <Text accessibilityLabel="native-demand-status:CONFIRMED">
+            Темы сохранены и подтверждены сервером.
+          </Text>
+          <Text accessibilityLabel="native-demand-confirmed">
+            Запрос подтверждён пользователем.
+          </Text>
+        </View>
+      ) : null}
       <ScrollView
         contentContainerStyle={styles.card}
-        keyboardShouldPersistTaps="handled"
-        accessibilityRole="summary"
+        keyboardShouldPersistTaps="always"
+        keyboardDismissMode="on-drag"
       >
         <Text style={styles.eyebrow}>R0 · Foundation</Text>
-        {!infrastructureE2EActive ? <AcademySurface /> : null}
         <Text style={styles.title}>APGIC</Text>
         <Text style={styles.body}>
           Одна Identity и одна server truth для iOS, Android, Web и PWA.
@@ -1006,35 +1047,50 @@ export default function App({
 
         {!infrastructureE2EActive ? (
           <View style={styles.demandCard} accessibilityRole="summary">
-            <Text style={styles.capabilityTitle}>С чем нужна помощь</Text>
-            <Text style={styles.body}>
-              Опишите ситуацию своими словами. APGIC предложит темы, а вы сможете исправить их перед подтверждением.
+            <Text style={styles.capabilityTitle}>
+              {demandIntent ? "Проверьте темы запроса" : "С чем нужна помощь"}
             </Text>
-            <TextInput
-              accessibilityLabel="С чем нужна помощь"
-              multiline
-              value={demandText}
-              onChangeText={setDemandText}
-              placeholder="Например: тревожно перед выступлениями и плохо сплю"
-              style={styles.demandInput}
-            />
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Разобрать запрос"
-              disabled={demandStatus === "RUNNING" || !compatibilityAllowsRuntime}
-              onPress={() => void analyzeDemand()}
-              style={styles.demandAction}
-            >
-              <Text>Разобрать запрос</Text>
-            </Pressable>
+            {!demandIntent ? (
+              <>
+                <Text style={styles.body}>
+                  Опишите ситуацию своими словами. APGIC предложит темы, а вы сможете исправить их перед подтверждением.
+                </Text>
+                <TextInput
+                  accessibilityLabel="С чем нужна помощь"
+                  multiline
+                  value={demandText}
+                  onChangeText={setDemandText}
+                  placeholder="Например: тревожно перед выступлениями и плохо сплю"
+                  style={styles.demandInput}
+                />
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Разобрать запрос"
+                  disabled={demandStatus === "RUNNING" || !compatibilityAllowsRuntime}
+                  onPress={() => void analyzeDemand()}
+                  style={styles.demandAction}
+                >
+                  <Text>Разобрать запрос</Text>
+                </Pressable>
+              </>
+            ) : null}
             {demandIntent ? (
               <View style={styles.capability}>
+                {demandStatus !== "CONFIRMED" ? (
+                <Text accessibilityLabel={`native-demand-status:${demandStatus}`}>
+                  {demandStatus === "RUNNING"
+                    ? "Сохраняем выбранные темы…"
+                    : demandStatus === "FAIL"
+                      ? "Подтверждение не выполнено. Исправьте ошибку и повторите."
+                      : "Проверьте темы перед подтверждением."}
+                </Text>
+                ) : null}
                 <Text accessibilityLabel="native-demand-notice">{demandIntent.notice}</Text>
                 <Text accessibilityLabel={`native-demand-diagnosis:${demandIntent.diagnosis_asserted}`}>
                   Это не диагноз. Диагноз поставлен: {demandIntent.diagnosis_asserted ? "да" : "нет"}.
                 </Text>
                 <Text>Уточните темы запроса:</Text>
-                {Array.from(new Set([...demandIntent.topics, ...demandTopics])).map((topic) => {
+                {Array.from(new Set([...demandSuggestedTopics, ...demandIntent.topics, ...demandTopics])).map((topic) => {
                   const selected = demandTopics.includes(topic);
                   return (
                     <Pressable
@@ -1042,6 +1098,7 @@ export default function App({
                       accessibilityRole="checkbox"
                       accessibilityState={{checked: selected}}
                       accessibilityLabel={`Тема ${topic}`}
+                      disabled={demandStatus === "CONFIRMED" || demandStatus === "RUNNING"}
                       onPress={() => toggleDemandTopic(topic)}
                       style={styles.demandTopic}
                     >
@@ -1049,37 +1106,88 @@ export default function App({
                     </Pressable>
                   );
                 })}
-                <TextInput
-                  accessibilityLabel="Добавить свою тему запроса"
-                  value={demandCustomTopic}
-                  onChangeText={setDemandCustomTopic}
-                  onSubmitEditing={addDemandTopic}
-                  placeholder="Добавить или заменить тему"
-                  style={styles.demandInput}
-                />
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Добавить свою тему запроса"
-                  disabled={!demandCustomTopic.trim()}
-                  onPress={addDemandTopic}
-                  style={styles.demandAction}
-                >
-                  <Text>Добавить тему</Text>
-                </Pressable>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Подтвердить темы запроса"
-                  disabled={demandStatus === "RUNNING" || demandTopics.length === 0 || !compatibilityAllowsRuntime}
-                  onPress={() => void confirmDemand()}
-                  style={styles.demandAction}
-                >
-                  <Text>Подтвердить темы</Text>
-                </Pressable>
-                {demandStatus === "CONFIRMED" ? (
-                  <Text accessibilityLabel="native-demand-confirmed">
-                    Запрос подтверждён пользователем.
+                {!demandReviewPending && demandStatus !== "CONFIRMED" ? (
+                  <>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Изменить или добавить тему запроса"
+                      disabled={demandStatus === "RUNNING"}
+                      onPress={() => setDemandCustomTopicEditing((value) => !value)}
+                      style={styles.demandAction}
+                    >
+                      <Text>{demandCustomTopicEditing ? "Скрыть добавление темы" : "Добавить свою тему"}</Text>
+                    </Pressable>
+                    {demandCustomTopicEditing ? (
+                      <>
+                        <TextInput
+                          accessibilityLabel="Добавить свою тему запроса"
+                          value={demandCustomTopic}
+                          onChangeText={setDemandCustomTopic}
+                          onSubmitEditing={addDemandTopic}
+                          placeholder="Добавить или заменить тему"
+                          style={styles.demandSingleLineInput}
+                        />
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel="Добавить свою тему запроса"
+                          disabled={!demandCustomTopic.trim() || demandStatus === "RUNNING"}
+                          onPress={addDemandTopic}
+                          style={styles.demandAction}
+                        >
+                          <Text>Добавить тему</Text>
+                        </Pressable>
+                      </>
+                    ) : null}
+                  </>
+                ) : null}
+                {demandReviewPending ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Подтвердить темы запроса"
+                    disabled={demandStatus === "RUNNING" || demandTopics.length === 0 || !compatibilityAllowsRuntime}
+                    onPressIn={() => {
+                      if (demandE2ESessionCookie) setDemandTouchEvidence(v => ({...v, down: v.down + 1}));
+                      console.log("APGIC_CONFIRM_PRESS_IN");
+                    }}
+                    onPressOut={() => {
+                      if (demandE2ESessionCookie) setDemandTouchEvidence(v => ({...v, up: v.up + 1}));
+                      console.log("APGIC_CONFIRM_PRESS_OUT");
+                    }}
+                    onPress={() => {
+                      if (demandE2ESessionCookie) setDemandTouchEvidence(v => ({...v, press: v.press + 1}));
+                      console.log("APGIC_CONFIRM_PRESS");
+                      void confirmDemand();
+                    }}
+                    style={styles.demandAction}
+                  >
+                    <Text>{demandStatus === "RUNNING" ? "Сохраняем…" : "Подтвердить темы"}{demandE2ESessionCookie ? ` [касания: ${demandTouchEvidence.down}/${demandTouchEvidence.up}/${demandTouchEvidence.press}]` : ""}</Text>
+                  </Pressable>
+                ) : null}
+                {demandReviewPending && demandE2ESessionCookie ? (
+                  <Text accessibilityLabel={`native-demand-touch:down:${demandTouchEvidence.down}:up:${demandTouchEvidence.up}:press:${demandTouchEvidence.press}`}>
+                    {`Нажатия: ${demandTouchEvidence.down}/${demandTouchEvidence.up}/${demandTouchEvidence.press}`}
                   </Text>
                 ) : null}
+                {!demandReviewPending ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Создать новый запрос"
+                    disabled={demandStatus === "RUNNING"}
+                    onPress={() => {
+                      setDemandIntent(null);
+                      setDemandSuggestedTopics([]);
+                      setDemandTopics([]);
+                      setDemandStatus("IDLE");
+                      setDemandError("");
+                      setDemandCustomTopic("");
+                      setDemandCustomTopicEditing(false);
+                    }}
+                    style={styles.demandAction}
+                  >
+                    <Text>Изменить описание или создать новый запрос</Text>
+                  </Pressable>
+                ) : null}
+                {demandStatus === "CONFIRMED" ? <Pressable accessibilityRole="button" accessibilityLabel="Консультация сейчас после подтверждения запроса" style={styles.demandAction} onPress={() => setInstantPanelMode("client")}><Text>Поговорить со специалистом сейчас</Text></Pressable> : null}
                 {demandStatus === "CONFIRMED" && demandTopics.length>0 ? (
                   <NativeSpecialistDirectory baseURL={demandAPIBaseURL} topic={demandTopics[0]} />
                 ) : null}
@@ -1093,6 +1201,40 @@ export default function App({
           </View>
         ) : null}
 
+        {!infrastructureE2EActive && !demandReviewPending ? (
+          <NativeConsultationAccess
+            baseURL={demandAPIBaseURL}
+            sessionCookie={demandE2ESessionCookie}
+            enabled={compatibilityAllowsRuntime && remoteConfigAllowsRealtime}
+          />
+        ) : null}
+
+        {!infrastructureE2EActive && !demandReviewPending ? (
+          <NativeFinanceStatus
+            baseURL={demandAPIBaseURL}
+            sessionCookie={demandE2ESessionCookie}
+            enabled={compatibilityAllowsRuntime}
+            initialOrderID={financeDeepLinkOrderID}
+          />
+        ) : null}
+
+        {!infrastructureE2EActive ? <AcademySurface /> : null}
+
+        {!infrastructureE2EActive ? (
+          <View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Открыть личный кабинет"
+              style={styles.demandAction}
+              onPress={() => setPersonalPanelOpen((current) => !current)}
+            >
+              <Text>{personalPanelOpen ? "Закрыть личный кабинет" : "Личный кабинет"}</Text>
+            </Pressable>
+            {personalPanelOpen ? <ClientPersonalPanel baseURL={demandAPIBaseURL} /> : null}
+          </View>
+        ) : null}
+
+        {!infrastructureE2EActive ? <View><Pressable accessibilityRole="button" accessibilityLabel="Открыть дежурство специалиста" style={styles.demandAction} onPress={() => setInstantPanelMode(instantPanelMode === "specialist" ? null : "specialist")}><Text>Для специалистов: дежурство</Text></Pressable>{instantPanelMode ? <View><Pressable accessibilityRole="button" onPress={() => setInstantPanelMode(null)}><Text>Закрыть раздел дежурства</Text></Pressable><InstantNowSurface key={instantPanelMode} initialMode={instantPanelMode} intentID={demandStatus === "CONFIRMED" ? demandIntent?.id : undefined} options={{baseURL: demandAPIBaseURL, sessionCookie: demandE2ESessionCookie}} enabled={compatibilityAllowsRuntime} /></View> : null}</View> : null}
         {demandE2E.status !== "IDLE" ? (
           <View style={styles.capability} accessibilityRole="summary">
             <Text accessibilityLabel={`demand-e2e:${demandE2E.status}`}>
@@ -1536,6 +1678,7 @@ const styles = StyleSheet.create({
   capabilityTitle: { fontSize: 20, fontWeight: "700" },
   demandCard: { gap: 10, marginTop: 12 },
   demandInput: { minHeight: 96, borderWidth: 1, borderRadius: 8, padding: 12, textAlignVertical: "top" },
+  demandSingleLineInput: { minHeight: 48, borderWidth: 1, borderRadius: 8, padding: 12 },
   demandAction: { minHeight: 48, justifyContent: "center", paddingHorizontal: 12, borderWidth: 1, borderRadius: 8 },
   demandTopic: { minHeight: 44, justifyContent: "center", paddingHorizontal: 12, borderWidth: 1, borderRadius: 8 },
   accessibilityProbe: { gap: 8, marginTop: 12 },

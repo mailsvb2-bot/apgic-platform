@@ -2,7 +2,7 @@
 // DO NOT EDIT.
 export const apiContractVersion = "0.10.0-r0-remote-config" as const;
 
-export type ApiOperationId = "acquireSlotHold" | "applyProviderEvent" | "applyTrustedProviderWebhook" | "archiveOrganizationDirection" | "cancelOrder" | "completeConsultation" | "confirmHelpIntent" | "createCheckoutInstruction" | "createHelpIntent" | "createMobileCheckoutInstruction" | "createOrganization" | "createOrganizationDirection" | "createOrganizationProduct" | "createSpecialistBookableOffer" | "createSpecialistBookableSlot" | "declareSpecialistCapability" | "deleteAccount" | "exportConsultationToGrowth" | "getBookingFulfillment" | "getBookingStatus" | "getConsultationResult" | "getLegalAcceptanceStatus" | "getMeta" | "getMobileCompatibility" | "getMobileNotificationDelivery" | "getMobileRemoteConfig" | "getMySpecialistPublicDetails" | "getOrderForBooking" | "getOrderStatus" | "getOrganization" | "getPrivateOrganizationProfile" | "getPublicSpecialist" | "getSpecialistProfile" | "health" | "issueMobileDeepLink" | "listCheckoutOptions" | "listHelpIntentMatches" | "listMobileInstallations" | "listMobileWorkspaces" | "listMySpecialistBookableOffers" | "listOrganizationProducts" | "listOrganizations" | "listPublicBookableOffers" | "listPublicSpecialists" | "listSpecialistSlots" | "markSearchProjectionStale" | "pauseSpecialistBookableOffer" | "publishOrganizationProduct" | "publishSpecialistCapability" | "readiness" | "rebuildSearchProjection" | "recordConsent" | "recordConsultationPresence" | "recordLegalAcceptance" | "registerMobileInstallation" | "reportConsultationFailure" | "resolveMobileDeepLink" | "resolveMobileWorkspace" | "revokeConsent" | "revokeMobileInstallation" | "rotateMobilePushEndpoint" | "searchProjection" | "submitSpecialistEvidence" | "submitVerifiedSpecialistFeedback" | "succeedConsultationRecovery" | "unpublishSpecialistCapability" | "updateMySpecialistPublicDetails" | "updateProductCommercialOwner" | "upsertSpecialistProfile";
+export type ApiOperationId = "acquireSlotHold" | "applyProviderEvent" | "applyTrustedProviderWebhook" | "archiveOrganizationDirection" | "cancelOrder" | "completeConsultation" | "confirmConsultationReadiness" | "confirmHelpIntent" | "createCheckoutInstruction" | "createHelpIntent" | "createMobileCheckoutInstruction" | "createOrganization" | "createOrganizationDirection" | "createOrganizationProduct" | "createSpecialistBookableOffer" | "createSpecialistBookableSlot" | "declareSpecialistCapability" | "deleteAccount" | "exportConsultationToGrowth" | "getBookingFulfillment" | "getBookingStatus" | "getClientPersonal" | "getConsultationClientOutcome" | "getConsultationReadiness" | "getConsultationResult" | "getConsultationTimeline" | "getFinanceOrderStatus" | "getLegalAcceptanceStatus" | "getMeta" | "getMobileCompatibility" | "getMobileNotificationDelivery" | "getMobileRemoteConfig" | "getMySpecialistPublicDetails" | "getOrderForBooking" | "getOrderStatus" | "getOrganization" | "getPrivateOrganizationProfile" | "getPublicSpecialist" | "getSpecialistProfile" | "health" | "issueConsultationRoomJoin" | "issueMobileDeepLink" | "listCheckoutOptions" | "listHelpIntentMatches" | "listMobileInstallations" | "listMobileWorkspaces" | "listMySpecialistBookableOffers" | "listOpenFinanceDiscrepancies" | "listOrganizationProducts" | "listOrganizations" | "listPublicBookableOffers" | "listPublicSpecialists" | "listSpecialistSlots" | "markSearchProjectionStale" | "pauseSpecialistBookableOffer" | "postClientPersonalCheckIn" | "publishOrganizationProduct" | "publishSpecialistCapability" | "putClientPersonalPreferences" | "readiness" | "rebuildSearchProjection" | "recordConsent" | "recordConsultationPresence" | "recordLegalAcceptance" | "registerMobileInstallation" | "reportConsultationFailure" | "resolveFinanceDiscrepancy" | "resolveMobileDeepLink" | "resolveMobileWorkspace" | "revokeConsent" | "revokeMobileInstallation" | "rotateMobilePushEndpoint" | "searchProjection" | "submitConsultationClientOutcome" | "submitSpecialistEvidence" | "submitVerifiedSpecialistFeedback" | "succeedConsultationRecovery" | "unpublishSpecialistCapability" | "updateMySpecialistPublicDetails" | "updateProductCommercialOwner" | "upsertSpecialistProfile";
 
 export interface AccountDeletion {
   apgic_deletes_ledger: boolean;
@@ -139,6 +139,63 @@ export interface ClientInstallationList {
   installations: Array<ClientInstallation>;
 }
 
+export interface ClientPersonalBooking {
+  booking_id: string;
+  client_progress?: "IMPROVED" | "UNCHANGED" | "WORSE" | "UNSURE";
+  consultation_state?: "SCHEDULED" | "READY" | "IN_PROGRESS" | "RECOVERING" | "TECHNICAL_FAILURE" | "COMPLETED";
+  ends_at: string;
+  match_satisfaction?: number;
+  order_id?: string;
+  specialist_name: string;
+  specialist_profession: string;
+  starts_at: string;
+  state: "HELD" | "PENDING_PAYMENT" | "CONFIRMED" | "CANCELLED" | "EXPIRED" | "COMPLETED" | "NO_SHOW";
+}
+
+export interface ClientPersonalCheckIn {
+  booking_id: string;
+  idempotent: boolean;
+  match_satisfaction?: number;
+  progress_code: "IMPROVED" | "UNCHANGED" | "WORSE" | "UNSURE";
+  recorded_at: string;
+}
+
+export interface ClientPersonalCheckInInput {
+  booking_id: string;
+  match_satisfaction?: number;
+  progress_code: "IMPROVED" | "UNCHANGED" | "WORSE" | "UNSURE";
+}
+
+export interface ClientPersonalPreferences {
+  display_name: string;
+  locale: "ru" | "en";
+  time_zone: string;
+  updated_at?: string;
+}
+
+export interface ClientPersonalPreferencesInput {
+  display_name: string;
+  locale: "ru" | "en";
+  time_zone: string;
+}
+
+export interface ClientPersonalRequest {
+  created_at: string;
+  id: string;
+  state: "DRAFT" | "CONFIRMED";
+  topics: Array<string>;
+}
+
+export interface ClientPersonalView {
+  as_of: string;
+  history: Array<ClientPersonalBooking>;
+  identity_id: string;
+  next_history_cursor?: string;
+  preferences: ClientPersonalPreferences;
+  requests: Array<ClientPersonalRequest>;
+  upcoming: Array<ClientPersonalBooking>;
+}
+
 export interface CompleteConsultationRequest {
   evidence_ref: string;
 }
@@ -162,10 +219,51 @@ export interface ConsentRecord {
   text_hash_or_version: string;
 }
 
+export interface ConsultationClientOutcome {
+  booking_id: string;
+  idempotent: boolean;
+  match_satisfaction: number;
+  progress: number;
+  reported_at: string;
+}
+
+export interface ConsultationClientOutcomeRequest {
+  idempotency_key: string;
+  match_satisfaction: number;
+  progress: number;
+}
+
 export interface ConsultationFailureRequest {
   evidence_ref: string;
   kind: string;
   recoverable: boolean;
+}
+
+export interface ConsultationJoinGrant {
+  booking_id: string;
+  credential_expires_at: string;
+  credential_scope: "ROOM_JOIN";
+  join_uri: string;
+  provider_instance_id: string;
+  reason_code: string;
+}
+
+export interface ConsultationReadySnapshot {
+  booking_id: string;
+  booking_state: string;
+  client_ready_at?: string;
+  closes_at: string;
+  consultation_state?: string;
+  opens_at: string;
+  role: "CLIENT" | "SPECIALIST";
+  specialist_ready_at?: string;
+}
+
+export interface ConsultationRecoveryFact {
+  action: string;
+  decided_at: string;
+  followup_path_ref?: string;
+  reason_code: string;
 }
 
 export interface ConsultationRecoveryRequest {
@@ -177,6 +275,22 @@ export interface ConsultationResult {
   completion_evidence_ref?: string;
   provider_instance_id: string;
   state: "SCHEDULED" | "READY" | "IN_PROGRESS" | "RECOVERING" | "TECHNICAL_FAILURE" | "COMPLETED";
+}
+
+export interface ConsultationTimeline {
+  booking_id: string;
+  booking_state: string;
+  consultation_state: string;
+  facts: Array<ConsultationTimelineFact>;
+  recovery: Array<ConsultationRecoveryFact>;
+  requires_followup: boolean;
+}
+
+export interface ConsultationTimelineFact {
+  evidence_ref: string;
+  fact_type: string;
+  occurred_at: string;
+  role: string;
 }
 
 export interface ConsultationView {
@@ -223,7 +337,7 @@ export interface CreateOrganizationRequest {
   name: string;
 }
 
-export type DeepLinkKind = "BOOKING" | "SPECIALIST" | "NOTIFICATION";
+export type DeepLinkKind = "BOOKING" | "SPECIALIST" | "NOTIFICATION" | "FINANCE_ORDER";
 
 export interface DeepLinkResolution {
   canonical_path?: string;
@@ -247,6 +361,64 @@ export interface FeedbackSubmission {
   id: string;
   notice: string;
   state: "PENDING";
+}
+
+export interface FinanceDiscrepancyResolution {
+  discrepancy_id: string;
+  kind: "PROVIDER_CORRECTION_CONFIRMED" | "SUPERSEDED_BY_MATCHED_RECONCILIATION" | "OPERATIONAL_EXCEPTION_ACCEPTED";
+  provider_evidence_id?: string;
+  replayed: boolean;
+  resolution_id: string;
+  resolved_at: string;
+  resolved_by: string;
+  superseding_result_id?: string;
+}
+
+export interface FinanceDiscrepancyResolutionRequest {
+  evidence_refs: Array<string>;
+  idempotency_key: string;
+  kind: "PROVIDER_CORRECTION_CONFIRMED" | "SUPERSEDED_BY_MATCHED_RECONCILIATION" | "OPERATIONAL_EXCEPTION_ACCEPTED";
+  provider_evidence_id?: string;
+  reason: string;
+  superseding_result_id?: string;
+}
+
+export interface FinanceOpenDiscrepancy {
+  created_at: string;
+  currency: string;
+  discrepancy_id: string;
+  evidence_refs: Array<string>;
+  expected_fee_minor: number;
+  expected_gross_minor: number;
+  kind: "PROVIDER_LEDGER_MISMATCH" | "STATEMENT_MISSING";
+  provider_fee_minor: number;
+  provider_gross_minor: number;
+  provider_instance_id: string;
+  settlement_instruction_id: string;
+}
+
+export interface FinanceOpenDiscrepancyList {
+  items: Array<FinanceOpenDiscrepancy>;
+}
+
+export interface FinanceOrderStatus {
+  beneficiary_amount_minor?: number;
+  commission_policy_version?: string;
+  currency: string;
+  discrepancy_resolution_kind?: "PROVIDER_CORRECTION_CONFIRMED" | "SUPERSEDED_BY_MATCHED_RECONCILIATION" | "OPERATIONAL_EXCEPTION_ACCEPTED";
+  discrepancy_status: "NONE" | "OPEN" | "RESOLVED";
+  disputed_amount_minor: number;
+  execution_owner: "EXTERNAL_PROVIDER";
+  order_id: string;
+  payout_reason_code?: string;
+  payout_status: "NOT_ELIGIBLE" | "AWAITING_PROVIDER_ELIGIBILITY" | "BLOCKED" | "INSTRUCTED" | "PROVIDER_PAID_OUT";
+  platform_fee_minor?: number;
+  reconciliation_outcome: "NOT_RECONCILED" | "MATCHED" | "MISMATCH";
+  revenue_assurance: "PASS" | "PASS_WITH_EXCEPTION" | "BLOCK";
+  revenue_reason_code: string;
+  settlement_hold_reasons?: Array<string>;
+  settlement_status: "NOT_INSTRUCTED" | "HELD" | "INSTRUCTED" | "PROVIDER_SETTLED";
+  total_amount_minor: number;
 }
 
 export interface GrowthExport {

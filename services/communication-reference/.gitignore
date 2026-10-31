@@ -1,0 +1,7 @@
+state/
+assets/
+node_modules/
+.env
+.env.*
+*.pem
+*.key

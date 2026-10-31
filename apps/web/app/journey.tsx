@@ -350,16 +350,6 @@ export function Journey() {
   const [providerEventID] = useState(() => clientUUID());
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
-  const [deletion, setDeletion] = useState<{
-    state: string;
-    deactivation: boolean;
-    profile_erased: boolean;
-    ledger_retained: boolean;
-    apgic_deletes_ledger: boolean;
-    notice: string;
-    idempotent: boolean;
-  } | null>(null);
-
   async function interpret(event: FormEvent) {
     event.preventDefault();
     // Starting a different journey invalidates even an in-flight availability
@@ -389,11 +379,12 @@ export function Journey() {
     setCancellation(null);
     setFulfillment(null);
     setSession(null);
-    setDeletion(null);
     try {
       const created = await postJSON<Intent>("/v1/help-intents", { free_text: text });
       setIntent(created);
       setTopics(created.topics);
+      // Signed session was issued by server; refresh private navigation.
+      window.dispatchEvent(new Event("apgic:client-session-established"));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Не удалось разобрать запрос.");
     } finally {
@@ -828,31 +819,6 @@ export function Journey() {
     }
   }
 
-  async function deleteAccount() {
-    if (!intent) return;
-    setError("");
-    setPending(true);
-    try {
-      const created = await postJSON<{
-        state: string;
-        deactivation: boolean;
-        profile_erased: boolean;
-        ledger_retained: boolean;
-        apgic_deletes_ledger: boolean;
-        notice: string;
-        idempotent: boolean;
-      }>("/v1/account-deletions", { source: "WEB" });
-      if (created.deactivation || created.apgic_deletes_ledger || !created.ledger_retained || !created.profile_erased) {
-        throw new Error("Удаление не должно быть деактивацией и не должно уничтожать запись учёта.");
-      }
-      setDeletion(created);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Учётная запись не удалена.");
-    } finally {
-      setPending(false);
-    }
-  }
-
   const currentStep = evidence ? 5 : hold ? 4 : specialist ? 3 : matches ? 2 : 1;
   const selectedTopicLabels = TOPICS
     .filter((topic) => topics.includes(topic.id))
@@ -1159,8 +1125,9 @@ export function Journey() {
                     : "Время временно удерживается, но запись ещё не подтверждена. Оплата через внешнего провайдера сейчас недоступна; удержание может истечь без подтверждения."}</p>
             </div>
           </div>
+          {hold.booking_state === "HELD" ? <p role="status" className="journey-payment-unavailable">Время временно удерживается. Это ещё не подтверждённая запись: для завершения требуется действующий внешний платёжный провайдер.</p> : null}
           <div className="booking-summary">
-            <div><span>Бронь</span><strong>{hold.booking_id}</strong></div>
+            <div><span>Идентификатор предварительной записи</span><strong>{hold.booking_id}</strong></div>
             <div><span>{activeHoldUnverified ? "Последний известный статус" : "Статус"}</span><strong>{hold.booking_state}</strong></div>
             <div><span>Удержание до</span><strong>{when(hold.expires_at)}</strong></div>
           </div>
@@ -1340,16 +1307,8 @@ export function Journey() {
           <summary>Управление учётной записью</summary>
           <section aria-labelledby="deletion-title">
             <h2 id="deletion-title">Удаление учётной записи</h2>
-            <p>Профиль стирается, а обязательная финансовая и audit-история сохраняется по правилам хранения.</p>
-            <button type="button" onClick={deleteAccount} disabled={pending}>Удалить учётную запись</button>
-            {deletion ? (
-              <div className="deletion-result">
-                <p>{deletion.notice}</p>
-                <p>Состояние {deletion.state}. Деактивация: {deletion.deactivation ? "да" : "нет"}.</p>
-                <p>Профиль стёрт: {deletion.profile_erased ? "да" : "нет"}. Запись учёта сохранена: {deletion.ledger_retained ? "да" : "нет"}.</p>
-                <p>APGIC уничтожает запись учёта: {deletion.apgic_deletes_ledger ? "да" : "нет"}. Повтор: {deletion.idempotent ? "уже учтён" : "нет"}.</p>
-              </div>
-            ) : null}
+            <p>Запрос на удаление, проверка личности и подтверждённый сервером статус доступны в личном кабинете. Подача запроса не означает, что данные уже стёрты.</p>
+            <a href="/personal">Подать запрос или проверить статус удаления</a>
           </section>
         </details>
       ) : null}

@@ -73,7 +73,7 @@ PostgreSQL integration test `TestPublicSpecialistFullPublicationReviewAndRemoval
 Native specialist cards now expose a separate selection action for each real API-backed priced `offer_id`. The navigation URL carries the canonical specialist and offer UUIDs into the same confirmed HelpIntent workflow used on web; unpriced profiles cannot masquerade as a specific bookable offer. The URL validator rejects arbitrary or injected identifiers. TypeScript and native contract checks cover this path.
 
 The PostgreSQL live-matching query places `slot.specialist_identity_id = specialist_profile.identity_id` on the **inner booking slot join**, not on the optional completed/no-show outcomes left join. Therefore the absence of booking history cannot accidentally relax canonical slot ownership. New specialist outcome metrics remain read-only ranking evidence, not a booking entitlement or money-processing module.
-
+ 
 ## Canonical independently moderated reputation
 
 The PostgreSQL migration `000034_r1_verified_specialist_feedback.sql` creates one immutable rating per **completed, real specialist/live booking**, with exact specialist and client identity derived from canonical booking slots. A database BEFORE INSERT guard independently rejects unfinished, future-dated, cross-owner, wrong-specialist or otherwise fabricated reviews. The only client-write endpoint is `POST /v1/specialist-feedback` with a server-signed client session, canonical `booking_id`, and rating 1–5. Clients cannot send a specialist ID, published flag or reviewer decision. The public response reveals neither client identity nor booking ID.

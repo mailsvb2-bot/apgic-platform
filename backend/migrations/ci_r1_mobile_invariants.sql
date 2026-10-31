@@ -47,6 +47,9 @@ $$;
 
 UPDATE delete_account_requests
 SET state = 'IDENTITY_RECONFIRMED',
+    reconfirmed_at = now(),
+    reconfirmation_method = 'VERIFIED_TOTP',
+    reconfirmation_session_ref = 'session:ci-verified-factor-evidence',
     updated_at = now()
 WHERE id = '00000000-0000-0000-0000-000000000901';
 
@@ -55,6 +58,17 @@ SET state = 'RETENTION_CLASSIFIED',
     retention_snapshot = '{"PROFILE":"ERASE","FINANCIAL_EVIDENCE":"RETAIN_WITH_REASON"}'::jsonb,
     updated_at = now()
 WHERE id = '00000000-0000-0000-0000-000000000901';
+
+-- CI-only synthetic structural receipt; actual signature validity is
+-- enforced by the Go Ed25519 provider adapter before production inserts.
+INSERT INTO deletion_local_erasure_receipts (
+  request_id, policy_version, approval_sha256,
+  preferences_erased, help_intents_anonymized, credentials_erased, no_external_data
+) VALUES (
+  '00000000-0000-0000-0000-000000000901',
+  'ci-retention-fixture',
+  repeat('a',64), 0, 0, 0, false
+);
 
 UPDATE delete_account_requests
 SET state = 'PROVIDER_ERASURE_PENDING',
@@ -97,12 +111,30 @@ SET state = 'SUCCEEDED',
     updated_at = now()
 WHERE id = '00000000-0000-0000-0000-000000000902';
 
+INSERT INTO deletion_provider_verified_receipts (
+  request_id, provider_ref, evidence_ref, signed_payload_sha256,
+  signature_base64, verified_at
+) VALUES (
+  '00000000-0000-0000-0000-000000000901',
+  'object-storage',
+  'provider-evidence:erased',
+  repeat('b',64),
+  repeat('Y',80),
+  now()
+);
+
+BEGIN;
 UPDATE delete_account_requests
 SET state = 'PARTIALLY_RETAINED_WITH_REASON',
     retained_reason = 'jurisdiction retention policy',
     completed_at = now(),
     updated_at = now()
 WHERE id = '00000000-0000-0000-0000-000000000901';
+INSERT INTO deletion_revoked_identities(identity_id,request_id) VALUES (
+  '00000000-0000-0000-0000-000000000001',
+  '00000000-0000-0000-0000-000000000901'
+);
+COMMIT;
 
 DO $$
 DECLARE

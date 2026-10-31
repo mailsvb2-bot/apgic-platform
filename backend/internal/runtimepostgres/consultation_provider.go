@@ -112,6 +112,23 @@ func (c *Checker) ApplyConsultationProviderWebhook(ctx context.Context, envelope
 		if err != nil {
 			return fmt.Errorf("apply consultation lifecycle fact: %w", err)
 		}
+		if body.FactType == "ENDED" {
+			// Keep provider-signed completion and the canonical booking outcome
+			// in one PostgreSQL transaction. Never complete a cancelled booking.
+			changed, updateErr := tx.ExecContext(ctx, `UPDATE bookings
+				SET state='COMPLETED', updated_at=$2
+				WHERE id=$1::uuid AND state='CONFIRMED'
+				  AND EXISTS (SELECT 1 FROM consultation_sessions
+					WHERE booking_id=$1::uuid AND state='COMPLETED')`,
+				body.BookingID, envelope.OccurredAt.UTC())
+			if updateErr != nil {
+				return fmt.Errorf("provider completion booking transition: %w", updateErr)
+			}
+			affected, affectedErr := changed.RowsAffected()
+			if affectedErr != nil || affected != 1 {
+				return ErrConsultationProviderPayload
+			}
+		}
 		return nil
 	})
 }
@@ -132,7 +149,11 @@ func (c *Checker) ReadConsultationResult(ctx context.Context, bookingID, clientI
           WHERE f.session_id=s.id AND f.fact_type='ENDED'
           ORDER BY f.occurred_at DESC, f.id DESC LIMIT 1)
         FROM consultation_sessions s JOIN bookings b ON b.id=s.booking_id
-        WHERE s.booking_id=$1::uuid AND b.client_identity_id=$2::uuid`,
+        WHERE s.booking_id=$1::uuid AND
+          (b.client_identity_id=$2::uuid OR EXISTS (
+             SELECT 1 FROM booking_slots bs
+              WHERE bs.id=b.slot_id AND bs.specialist_identity_id=$2::uuid
+          ))`,
 		bookingID, clientIdentityID).Scan(&result.BookingID, &result.State, &result.ProviderInstanceID, &evidence)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil

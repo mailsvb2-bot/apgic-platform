@@ -26,13 +26,21 @@ func TestRequiresDatabaseOnlyForRuntimeEnvironments(t *testing.T) {
 
 func TestRequiredCanonicalTablesAndIndexesAreStable(t *testing.T) {
 	wantTables := map[string]bool{
-		"identities": true, "identity_roles": true, "client_installations": true, "notification_intents": true, "notification_deliveries": true, "notification_push_dispatches": true, "client_mutation_records": true, "help_intents": true,
+		"identities": true, "identity_roles": true, "client_installations": true, "notification_intents": true, "notification_deliveries": true, "notification_push_dispatches": true, "client_mutation_records": true, "help_intents": true, "client_personal_preferences": true, "client_personal_check_ins": true,
 		"outbox_events": true, "audit_records": true, "consent_records": true, "ledger_entries": true,
 		"booking_slots": true, "booking_holds": true, "bookings": true,
 		"consultation_sessions": true, "consultation_lifecycle_facts": true,
+		"consultation_participant_readiness": true, "consultation_client_outcomes": true,
 		"specialist_profiles": true, "specialist_capabilities": true,
 		"specialist_evidence": true, "qualification_evaluations": true,
 		"specialist_publications": true, "organization_ownerships": true,
+		"finance_commission_rules": true, "finance_provider_execution_profiles": true,
+		"finance_commission_snapshots": true, "finance_settlement_holds": true,
+		"finance_settlement_instructions": true, "finance_provider_evidence": true,
+		"finance_payout_decisions": true, "finance_reconciliation_runs": true,
+		"finance_reconciliation_results": true, "finance_reconciliation_discrepancies": true,
+		"finance_dispute_effects": true, "finance_operator_grants": true,
+		"finance_operator_grant_revocations": true, "finance_discrepancy_resolutions": true, "finance_provider_stream_cursors": true,
 	}
 	if len(requiredTables) != len(wantTables) {
 		t.Fatalf("required tables = %v", requiredTables)

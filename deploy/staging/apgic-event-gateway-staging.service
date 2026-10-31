@@ -1,0 +1,26 @@
+[Unit]
+Description=APGIC staging durable event gateway receiver (booking ledger)
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+DynamicUser=yes
+EnvironmentFile=/etc/apgic/staging.env
+Environment=APGIC_EVENT_GATEWAY_LISTEN_ADDR=127.0.0.1:43114
+WorkingDirectory=/opt/apgic/current/backend
+ExecStart=/opt/apgic/current/backend/bin/apgic-event-gateway
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateDevices=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

@@ -1,5 +1,33 @@
 # APGIC staging boundary
 
+## R0 foundation acceptance — CI versus real deployment
+
+R0 requires trusted Identity → role and tenant permission → protected action →
+durable PostgreSQL/audit/outbox result → replay/readback after restart, across
+Web, iOS and Android. Passing CI cannot substitute for real MFA and installation.
+
+On the **only authorized APGIC host** (92.51.23.254), after deploying the
+exact candidate commit through the canonical updater, run:
+
+```bash
+sudo bash /opt/apgic/current/deploy/staging/prove-r0-foundation-readonly.sh
+```
+
+This read-only probe reuses existing host and watchdog protections, verifies
+runtime SHA, canonical PostgreSQL tables, API/web services, backup/restore
+timers and recent restore evidence. It does not mutate business data or
+certify human authentication, tenant isolation, store builds or production.
+
+The separate `tools/r0_production_admission.py` blocks promotion until
+**all R0 canonical requirements** are VERIFIED/RELEASED and independently
+reviewed exact-candidate evidence exists for multi-surface Identity, tenant
+isolation, real human MFA/audit, staging, measured RPO/RTO, rollback and
+signed iOS/Android installs. The production evidence index is currently
+empty; readiness therefore remains BLOCKED. The config-only preflight
+sets `production_promotion_eligible: false` by design.
+
+Never relabel CI fixtures as operational or production evidence.
+
 ## Authorized host and Remote Desktop Commander boundary
 
 The only authorized APGIC server is **IPv4 `92.51.23.254`**.
@@ -60,6 +88,99 @@ Install the four systemd units/timers from deploy/staging, run systemctl daemon-
 Timeweb VM snapshots complement this logical backup path; they do not replace logical restore verification.
 
 
+## R4: real MFA and finance staging acceptance (release blocking)
+
+**Unverified, not released.** Canon v7 APGIC-AUTH-002 requires actual higher-assurance
+factor verification. The R4 operator path provides a server-verified TOTP
+second factor and ten-minute session-bound step-up cookie; the factor is
+provisioned out of band by a named administrator ONLY after the canonical
+Identity received a finance-operator grant. This code is not a completed
+human staging ceremony and cannot be used as production evidence until
+real enrollment, test devices and audit proof have been independently reviewed.
+
+Configure a 32-byte random AES key in the authorized host secret manager as
+APGIC_MFA_ENCRYPTION_KEY_BASE64 (strict base64, separate from session signing).
+After migration 000042 and grant provisioning, use the **private admin terminal**:
+
+```bash
+cd /opt/apgic/current/backend
+go run ./cmd/finance-mfa-admin \
+  --identity-id "<approved-identity-uuid>" \
+  --approved-by "<named-approver>" \
+  --approval-ref "<approved-change-ticket>"
+```
+
+The CLI outputs the authenticator secret **once**. Do not place it in shell
+history, CI, ticket systems, chat, repository, telemetry or stdout captures.
+Enroll it in the human operator's authenticator through an approved secure
+channel. For high-risk finance actions, the operator enters a six-digit code
+in the finance operations web view. The server checks active finance capability,
+decrypts only on the backend, rejects replay, locks repeated failures and
+emits immutable audit evidence; only success mints an HttpOnly Secure SameSite
+step-up cookie for that exact browser session.
+
+Do not expose a public self-issue endpoint, trust caller-provided identity,
+generate a synthetic positive MFA assertion, or relabel green CI as a
+human MFA success. Factor loss/rotation requires security-administrator review;
+do not bypass the factor or edit economic truth as a recovery workaround.
+
+### Mandatory human operator acceptance (not automatable with CI fixtures)
+
+1. Provision a real finance operator using the existing append-only admin grant,
+   with a named human and an out-of-band provisioned TOTP factor. Authenticate
+   the same Identity and browser session; verify that attempting the high-risk
+   discrepancy resolution WITHOUT fresh MFA returns HTTP 428 and leaves the
+   discrepancy, ledger and audit business effects unchanged. Confirm the deny
+   was audited.
+2. Complete a REAL authenticator-code ceremony. A server-verified,
+   one-time counter and session-bound assertion must be issued by APGIC
+   only AFTER factor verification. A fresh authorized resolution must
+   write exactly one append-only resolution and its actor/audit evidence.
+3. Replay the same idempotency key and identical decision; require one economic
+   effect and replay response. Mutate the decision while reusing the key;
+   require a deterministic conflict. Expired / wrong-session MFA must return 428
+   and create no resolution. Confirm no cross-tenant/operator data leakage.
+4. On the authorized staging host, AFTER approved migration/deployment, run
+   `sudo bash /opt/apgic/current/deploy/staging/prove-r4-finance-readonly.sh`.
+   The probe requires active finance/outbox workers, durable finance tables,
+   same runtime SHA and API health. Capture complete host-signed session logs
+   and repository SHA as separate reviewed evidence. This read-only probe is
+   *not* proof of real money movement or of successful MFA.
+5. For every provider used for release, corroborate settlement, payout, refund
+   and reconciliation with independently obtained PSP/bank/store evidence;
+   synthetic CI events or database fixtures are invalid substitutes.
+
+The production-only R4 payment gate requires `HUMAN_MFA_STEP_UP_E2E`,
+`STAGING_FINANCE_END_TO_END`, `STAGING_FINANCE_WORKER_OUTBOX`, and
+`STAGING_RECONCILIATION_DISCREPANCY_E2E`. These proof records must be
+non-synthetic, bound to the exact candidate SHA, digested, reviewed and listed
+in the immutable production evidence index. The v7 AUTH-002 registry status
+must also be VERIFIED or RELEASED. Never change statuses merely to make CI pass.
+
+The ordinary CI mode intentionally verifies gate mechanics with synthetic
+fixtures; it cannot certify MFA enrollment, PSP payouts, or staging operations.
+
+## R4 finance worker
+
+`apgic-finance-worker-staging.service` is installed by the staging updater but is **disabled by default**. Set `APGIC_FINANCE_WORKER_ENABLED=1` in `/etc/apgic/staging.env` only after the R4 migrations are applied and the staging owner approves settlement/reconciliation processing; the updater then enables and restarts the worker after migration and runtime restart. The worker shares `APGIC_DATABASE_URL` and fails closed unless every R4 finance table is present. Enabling this service is not payment-provider certification or production payout evidence.
+
+### R4 staging activation and proof
+
+Finance worker and outbox delivery are one operational dependency: never enable finance alone. Configure APGIC_FINANCE_WORKER_ENABLED=1 only alongside APGIC_OUTBOX_WORKER_ENABLED=1 and a functioning authorized event gateway. The updater rejects misconfiguration before changing the checkout.
+
+After deploying finance migrations, check both services and the runtime watchdog on the authorized staging host:
+
+```bash
+sudo systemctl is-active apgic-finance-worker-staging.service
+sudo systemctl is-active apgic-outbox-worker-staging.service
+sudo bash /opt/apgic/current/deploy/staging/check-staging-runtime.sh
+sudo journalctl -u apgic-finance-worker-staging.service -n 100 --no-pager
+```
+
+The watchdog fails closed if finance is enabled but the worker is inactive, delivery is unavailable or the canonical finance schema is incomplete. It separately rejects stale pending outbox instructions. A healthy API is insufficient to claim financial readiness.
+
+For a bank-free rehearsal, use the R4 PostgreSQL integration suite with APGIC_FINANCE_TEST_DATABASE_URL pointing to a disposable migrated test database. Its seeded evidence is synthetic and does not certify any PSP or money movement. Keep real provider signed proofs, payout statements, and real-device user journeys as external release gates.
+
 ## Transactional outbox worker
 
 EVENT-001 uses a separate worker process rather than delivering external side effects inside API request handling. It is deliberately disabled unless a real compatible Event Gateway has been configured.
@@ -112,3 +233,33 @@ bash deploy/staging/update-staging.sh origin/main
 ```
 
 This path exists specifically to prevent code/schema skew when several migrations land between two deployed commits.
+
+
+## Version-controlled EVENT-001 ingress
+
+The canonical HTTPS gateway location is stored in
+`deploy/staging/nginx-event-gateway-location.conf`. The installer
+`deploy/staging/install-event-gateway-nginx.sh` writes that file to
+`/etc/nginx/snippets/apgic-event-gateway.conf`, adopts only the previously
+approved inline location in the Certbot TLS vhost, and replaces it with an
+explicit `include`. It validates `nginx -t`, reloads Nginx, waits for
+`HTTP 401` on a local unauthenticated HTTPS POST, verifies the website still
+responds `200`, and restores both files on failure. Re-running the installer
+updates the managed snippet without duplicate locations.
+
+`update-staging.sh` reconciles this HTTPS route after building and restarting
+API/Web **only when the gateway principal and credential are provisioned**;
+otherwise it defers gateway activation. It starts the gateway receiver but
+never enables the finance worker. Access remains restricted to
+`127.0.0.1`/`::1` at Nginx, and the gateway independently requires a scoped
+service bearer token. The outbox worker uses
+`APGIC_EVENT_GATEWAY_URL=https://apgic.ru/_internal/apgic-event-gateway`
+and `APGIC_EVENT_GATEWAY_DIAL_ADDR=127.0.0.1:443`. Do **not** change
+`/etc/hosts` or disable TLS verification.
+
+Secrets (`/etc/apgic/staging.env`), live PostgreSQL data, database backups,
+Let's Encrypt private keys, Nginx host certificates, and service logs must
+remain outside GitHub. GitHub versions the provisioning instructions and
+scripts, not a copy of staging user data. A fresh host still requires
+authorized host verification, TLS certificate issuance, private secrets and
+real external event proof before production claims.

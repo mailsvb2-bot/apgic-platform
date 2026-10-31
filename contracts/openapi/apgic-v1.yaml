@@ -4,6 +4,116 @@ info:
   version: 0.10.0-r0-remote-config
 servers: []
 paths:
+  /v1/client/personal:
+    get:
+      operationId: getClientPersonal
+      description: Private read-only canonical timeline of the authenticated client Identity. Never includes raw consultation content, payment credentials or foreign-tenant facts.
+      security:
+        - ClientSession: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 50 }
+        - name: history_cursor
+          in: query
+          required: false
+          schema: { type: string, maxLength: 200 }
+      responses:
+        '200':
+          description: Owner-scoped personal snapshot and paginated history. Cache-Control private, no-store.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ClientPersonalView' }
+        '400':
+          description: Invalid cursor or page limit.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '401':
+          description: Signed client Identity required.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '503':
+          description: Canonical history storage unavailable; no synthetic fallback.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+  /v1/client/personal/check-ins:
+    post:
+      operationId: postClientPersonalCheckIn
+      description: Record an immutable, neutral self-report only after a provider-confirmed owned consultation. Does not attest medical efficacy or change booking/payment truth.
+      security:
+        - ClientSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ClientPersonalCheckInInput' }
+      responses:
+        '201':
+          description: Immutable client report recorded.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ClientPersonalCheckIn' }
+        '200':
+          description: Identical previously recorded report, returned idempotently.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ClientPersonalCheckIn' }
+        '400':
+          description: Invalid structured report; free text and clinical claims are not allowed.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '401':
+          description: Signed client session required.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '404':
+          description: No owned provider-completed consultation for this booking.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '409':
+          description: Conflicting attempt to change immutable report.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+  /v1/client/personal/preferences:
+    put:
+      operationId: putClientPersonalPreferences
+      description: Replace non-sensitive personal presentation preferences for the signed Identity. Cannot mutate booking, consent, specialist records or payment truth.
+      security:
+        - ClientSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ClientPersonalPreferencesInput' }
+      responses:
+        '200':
+          description: Durable preferences confirmed by PostgreSQL.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ClientPersonalPreferences' }
+        '400':
+          description: Invalid preferences, malformed JSON or unexpected fields.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '401':
+          description: Signed client Identity required.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '503':
+          description: Canonical personal preferences storage unavailable.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
   /healthz:
     get:
       operationId: health
@@ -1635,6 +1745,115 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/BookingFulfillment'
+  /v1/consultations/{bookingID}/ready:
+    get:
+      operationId: getConsultationReadiness
+      summary: Check both real participants' persisted readiness without inferring media presence
+      security:
+        - ClientSession: []
+      parameters:
+        - { name: bookingID, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Authenticated participant readiness from canonical PostgreSQL
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConsultationReadySnapshot' }
+        '401': { description: Signed session required }
+        '404': { description: Booking absent or not accessible to participant }
+        '503': { description: Readiness storage unavailable }
+    post:
+      operationId: confirmConsultationReadiness
+      summary: Idempotently persist own readiness, not media JOINED or STARTED
+      security:
+        - ClientSession: []
+      parameters:
+        - { name: bookingID, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: X-APGIC-Request, in: header, required: true, schema: { type: string, enum: [consultation-v1] } }
+      responses:
+        '200':
+          description: Persisted readiness; second participant must acknowledge independently
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConsultationReadySnapshot' }
+        '403': { description: Not in canonical readiness window or participant mismatch }
+        '404': { description: Booking not accessible }
+        '503': { description: Provider or storage unavailable }
+  /v1/consultations/{bookingID}/join:
+    post:
+      operationId: issueConsultationRoomJoin
+      summary: Issue a short-lived provider-scoped room credential after both participants are ready and entitlement is current
+      description: Requires externally confirmed booking/payment access and a real configured CommunicationProvider. A ready check never creates payment evidence or provider media facts.
+      security:
+        - ClientSession: []
+      parameters:
+        - { name: bookingID, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: X-APGIC-Request, in: header, required: true, schema: { type: string, enum: [consultation-v1] } }
+        - { name: Idempotency-Key, in: header, required: true, schema: { type: string, minLength: 16, maxLength: 128 } }
+      responses:
+        '200':
+          description: Issuer-issued scoped credential, only returned after APGIC persists authorization
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConsultationJoinGrant' }
+        '401': { description: Signed session missing }
+        '403': { description: Unready, revoked, unpaid, wrong participant or out-of-window }
+        '409': { description: Credential was issued but durable grant authorization rejected }
+        '503': { description: CommunicationProvider unavailable or issuer failed }
+  /v1/consultations/{bookingID}/timeline:
+    get:
+      operationId: getConsultationTimeline
+      summary: Read durable signed provider facts and technical failure history without media or transcript
+      security:
+        - ClientSession: []
+      parameters:
+        - { name: bookingID, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Canonical immutable facts and recovery decisions from PostgreSQL
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConsultationTimeline' }
+        '404': { description: Booking absent or foreign }
+        '503': { description: PostgreSQL unavailable }
+  /v1/consultations/{bookingID}/outcome:
+    get:
+      operationId: getConsultationClientOutcome
+      summary: Read personal self-reported progress after verified provider completion
+      security:
+        - ClientSession: []
+      parameters:
+        - { name: bookingID, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Owner-only self-report; not medical evidence
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConsultationClientOutcome' }
+        '404': { description: Outcome missing, not completed or foreign }
+    post:
+      operationId: submitConsultationClientOutcome
+      summary: Append bounded client feedback after signed provider completion, idempotent by key
+      security:
+        - ClientSession: []
+      parameters:
+        - { name: bookingID, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: X-APGIC-Request, in: header, required: true, schema: { type: string, enum: [consultation-v1] } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ConsultationClientOutcomeRequest' }
+      responses:
+        '200':
+          description: Immutable client-only outcome or exact idempotent replay
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConsultationClientOutcome' }
+        '401': { description: Signed client session required }
+        '404': { description: Booking absent or not owned }
+        '409': { description: Outcome not completed or key reused with changed fields }
+        '503': { description: Canonical outcome storage unavailable }
   /v1/consultations/{bookingID}/result:
     get:
       operationId: getConsultationResult
@@ -1667,6 +1886,166 @@ paths:
                 $ref: '#/components/schemas/ErrorEnvelope'
         '503':
           description: Canonical consultation storage or session validation is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /v1/finance/orders/{orderID}/status:
+    get:
+      operationId: getFinanceOrderStatus
+      summary: Read owner-scoped, provider-executed R4 financial status (non-custodial)
+      security:
+        - ClientSession: []
+      parameters:
+        - name: orderID
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: No-store commission, provider settlement/payout, reconciliation and revenue-assurance status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FinanceOrderStatus'
+        '401':
+          description: Trusted client session is required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Order is not owned by the session identity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '503':
+          description: Canonical finance storage or session validation is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /v1/finance/operations/discrepancies:
+    get:
+      operationId: listOpenFinanceDiscrepancies
+      summary: Finance-operations queue of open, typed reconciliation discrepancies
+      description: Requires the signed client session of an identity holding an active, append-only FINANCE_DISCREPANCY_RESOLVE operator grant. Every authorization decision is audited.
+      security:
+        - ClientSession: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 200 }
+        - in: header
+          name: X-Correlation-Id
+          required: false
+          schema: { type: string }
+      responses:
+        '200':
+          description: No-store list of unresolved discrepancies
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FinanceOpenDiscrepancyList'
+        '401':
+          description: Trusted client session is required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Identity holds no active finance operator grant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '503':
+          description: Finance operations, session validation or audit evidence is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /v1/finance/operations/discrepancies/{discrepancyID}/resolutions:
+    post:
+      operationId: resolveFinanceDiscrepancy
+      summary: Append exactly one typed resolution to a reconciliation discrepancy
+      description: HIGH_RISK finance-operations mutation. Requires an active operator grant and a fresh signed step-up assertion bound to the signed Identity and current session. Operator, step-up session, audit reference and time are bound by the server, never by the body. The discrepancy itself is never mutated.
+      security:
+        - ClientSession: []
+      parameters:
+        - name: discrepancyID
+          in: path
+          required: true
+          schema: { type: string }
+        - in: header
+          name: X-Correlation-Id
+          required: false
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FinanceDiscrepancyResolutionRequest'
+      responses:
+        '200':
+          description: Idempotent replay of the original resolution
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FinanceDiscrepancyResolution'
+        '201':
+          description: Resolution appended
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FinanceDiscrepancyResolution'
+        '400':
+          description: Malformed request or caller-supplied server-bound field
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Trusted client session is required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Identity holds no active finance operator grant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Discrepancy not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Discrepancy already resolved or idempotency key reused with different content
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '422':
+          description: Resolution kind and evidence do not satisfy the typed invariants
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '428':
+          description: Fresh step-up assertion is required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '503':
+          description: Finance operations, session validation or audit evidence is unavailable
           content:
             application/json:
               schema:
@@ -1822,6 +2201,85 @@ components:
       name: __Host-apgic_session
       description: Server-signed trusted client session. Caller-supplied identity fields are never an authorization source.
   schemas:
+    ClientPersonalCheckIn:
+      type: object
+      additionalProperties: false
+      required: [booking_id, progress_code, recorded_at, idempotent]
+      properties:
+        booking_id: { type: string, format: uuid }
+        progress_code: { type: string, enum: [IMPROVED, UNCHANGED, WORSE, UNSURE] }
+        match_satisfaction: { type: integer, minimum: 1, maximum: 5 }
+        recorded_at: { type: string, format: date-time }
+        idempotent: { type: boolean }
+    ClientPersonalCheckInInput:
+      type: object
+      additionalProperties: false
+      required: [booking_id, progress_code]
+      properties:
+        booking_id: { type: string, format: uuid }
+        progress_code: { type: string, enum: [IMPROVED, UNCHANGED, WORSE, UNSURE] }
+        match_satisfaction: { type: integer, minimum: 1, maximum: 5 }
+    ClientPersonalBooking:
+      type: object
+      additionalProperties: false
+      required: [booking_id, state, starts_at, ends_at, specialist_name, specialist_profession]
+      properties:
+        booking_id: { type: string, format: uuid }
+        client_progress: { type: string, enum: [IMPROVED, UNCHANGED, WORSE, UNSURE] }
+        match_satisfaction: { type: integer, minimum: 1, maximum: 5 }
+        state: { type: string, enum: [HELD, PENDING_PAYMENT, CONFIRMED, CANCELLED, EXPIRED, COMPLETED, NO_SHOW] }
+        starts_at: { type: string, format: date-time }
+        ends_at: { type: string, format: date-time }
+        specialist_name: { type: string }
+        specialist_profession: { type: string }
+        consultation_state: { type: string, enum: [SCHEDULED, READY, IN_PROGRESS, RECOVERING, TECHNICAL_FAILURE, COMPLETED] }
+        order_id: { type: string, format: uuid }
+    ClientPersonalPreferences:
+      type: object
+      additionalProperties: false
+      required: [display_name, locale, time_zone]
+      properties:
+        display_name: { type: string, maxLength: 80 }
+        locale: { type: string, enum: [ru, en] }
+        time_zone: { type: string }
+        updated_at: { type: string, format: date-time }
+    ClientPersonalPreferencesInput:
+      type: object
+      additionalProperties: false
+      required: [display_name, locale, time_zone]
+      properties:
+        display_name: { type: string, maxLength: 80 }
+        locale: { type: string, enum: [ru, en] }
+        time_zone: { type: string }
+    ClientPersonalRequest:
+      type: object
+      additionalProperties: false
+      required: [id, state, topics, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        state: { type: string, enum: [DRAFT, CONFIRMED] }
+        topics:
+          type: array
+          items: { type: string }
+        created_at: { type: string, format: date-time }
+    ClientPersonalView:
+      type: object
+      additionalProperties: false
+      required: [identity_id, as_of, preferences, upcoming, history, requests]
+      properties:
+        identity_id: { type: string, format: uuid }
+        as_of: { type: string, format: date-time }
+        preferences: { $ref: '#/components/schemas/ClientPersonalPreferences' }
+        upcoming:
+          type: array
+          items: { $ref: '#/components/schemas/ClientPersonalBooking' }
+        history:
+          type: array
+          items: { $ref: '#/components/schemas/ClientPersonalBooking' }
+        requests:
+          type: array
+          items: { $ref: '#/components/schemas/ClientPersonalRequest' }
+        next_history_cursor: { type: string }
     PublicBookableSlot:
       type: object
       additionalProperties: false
@@ -2087,7 +2545,7 @@ components:
           $ref: '#/components/schemas/AuthorizedMobileWorkspace'
     DeepLinkKind:
       type: string
-      enum: [BOOKING, SPECIALIST, NOTIFICATION]
+      enum: [BOOKING, SPECIALIST, NOTIFICATION, FINANCE_ORDER]
     DeepLinkResolution:
       type: object
       additionalProperties: false
@@ -2851,6 +3309,77 @@ components:
       required: [evidence_ref]
       properties:
         evidence_ref: { type: string }
+    ConsultationReadySnapshot:
+      type: object
+      additionalProperties: false
+      required: [booking_id, role, booking_state, opens_at, closes_at]
+      properties:
+        booking_id: { type: string, format: uuid }
+        role: { type: string, enum: [CLIENT, SPECIALIST] }
+        booking_state: { type: string }
+        consultation_state: { type: string }
+        opens_at: { type: string, format: date-time }
+        closes_at: { type: string, format: date-time }
+        client_ready_at: { type: string, format: date-time }
+        specialist_ready_at: { type: string, format: date-time }
+    ConsultationJoinGrant:
+      type: object
+      additionalProperties: false
+      required: [booking_id, provider_instance_id, join_uri, credential_scope, credential_expires_at, reason_code]
+      properties:
+        booking_id: { type: string, format: uuid }
+        provider_instance_id: { type: string, format: uuid }
+        join_uri: { type: string, format: uri }
+        credential_scope: { type: string, enum: [ROOM_JOIN] }
+        credential_expires_at: { type: string, format: date-time }
+        reason_code: { type: string }
+    ConsultationTimeline:
+      type: object
+      additionalProperties: false
+      required: [booking_id, booking_state, consultation_state, facts, recovery, requires_followup]
+      properties:
+        booking_id: { type: string, format: uuid }
+        booking_state: { type: string }
+        consultation_state: { type: string }
+        facts: { type: array, items: { $ref: '#/components/schemas/ConsultationTimelineFact' } }
+        recovery: { type: array, items: { $ref: '#/components/schemas/ConsultationRecoveryFact' } }
+        requires_followup: { type: boolean }
+    ConsultationTimelineFact:
+      type: object
+      additionalProperties: false
+      required: [fact_type, role, evidence_ref, occurred_at]
+      properties:
+        fact_type: { type: string }
+        role: { type: string }
+        evidence_ref: { type: string }
+        occurred_at: { type: string, format: date-time }
+    ConsultationRecoveryFact:
+      type: object
+      additionalProperties: false
+      required: [action, reason_code, decided_at]
+      properties:
+        action: { type: string }
+        reason_code: { type: string }
+        followup_path_ref: { type: string }
+        decided_at: { type: string, format: date-time }
+    ConsultationClientOutcomeRequest:
+      type: object
+      additionalProperties: false
+      required: [progress, match_satisfaction, idempotency_key]
+      properties:
+        progress: { type: integer, minimum: -2, maximum: 2 }
+        match_satisfaction: { type: integer, minimum: 1, maximum: 5 }
+        idempotency_key: { type: string, minLength: 16, maxLength: 128 }
+    ConsultationClientOutcome:
+      type: object
+      additionalProperties: false
+      required: [booking_id, progress, match_satisfaction, reported_at, idempotent]
+      properties:
+        booking_id: { type: string, format: uuid }
+        progress: { type: integer, minimum: -2, maximum: 2 }
+        match_satisfaction: { type: integer, minimum: 1, maximum: 5 }
+        reported_at: { type: string, format: date-time }
+        idempotent: { type: boolean }
     ConsultationResult:
       type: object
       additionalProperties: false
@@ -2862,6 +3391,108 @@ components:
           enum: [SCHEDULED, READY, IN_PROGRESS, RECOVERING, TECHNICAL_FAILURE, COMPLETED]
         provider_instance_id: { type: string }
         completion_evidence_ref: { type: string }
+    FinanceOrderStatus:
+      type: object
+      additionalProperties: false
+      required: [order_id, currency, total_amount_minor, settlement_status, payout_status, reconciliation_outcome, discrepancy_status, disputed_amount_minor, revenue_assurance, revenue_reason_code, execution_owner]
+      properties:
+        order_id: { type: string }
+        currency: { type: string }
+        total_amount_minor: { type: integer }
+        commission_policy_version: { type: string }
+        platform_fee_minor: { type: integer }
+        beneficiary_amount_minor: { type: integer }
+        settlement_status:
+          type: string
+          enum: [NOT_INSTRUCTED, HELD, INSTRUCTED, PROVIDER_SETTLED]
+        settlement_hold_reasons:
+          type: array
+          items: { type: string }
+        payout_status:
+          type: string
+          enum: [NOT_ELIGIBLE, AWAITING_PROVIDER_ELIGIBILITY, BLOCKED, INSTRUCTED, PROVIDER_PAID_OUT]
+        payout_reason_code: { type: string }
+        reconciliation_outcome:
+          type: string
+          enum: [NOT_RECONCILED, MATCHED, MISMATCH]
+        discrepancy_status:
+          type: string
+          enum: [NONE, OPEN, RESOLVED]
+        discrepancy_resolution_kind:
+          type: string
+          enum: [PROVIDER_CORRECTION_CONFIRMED, SUPERSEDED_BY_MATCHED_RECONCILIATION, OPERATIONAL_EXCEPTION_ACCEPTED]
+        disputed_amount_minor: { type: integer }
+        revenue_assurance:
+          type: string
+          enum: [PASS, PASS_WITH_EXCEPTION, BLOCK]
+        revenue_reason_code: { type: string }
+        execution_owner:
+          type: string
+          enum: [EXTERNAL_PROVIDER]
+    FinanceDiscrepancyResolutionRequest:
+      type: object
+      additionalProperties: false
+      required: [idempotency_key, kind, reason, evidence_refs]
+      properties:
+        idempotency_key: { type: string, minLength: 1 }
+        kind:
+          type: string
+          enum: [PROVIDER_CORRECTION_CONFIRMED, SUPERSEDED_BY_MATCHED_RECONCILIATION, OPERATIONAL_EXCEPTION_ACCEPTED]
+        provider_evidence_id:
+          type: string
+          description: Required iff kind is PROVIDER_CORRECTION_CONFIRMED; a new STATEMENT_LINE from the same provider for the same settlement.
+        superseding_result_id:
+          type: string
+          description: Required iff kind is SUPERSEDED_BY_MATCHED_RECONCILIATION; a later MATCHED result for the same settlement.
+        reason: { type: string, minLength: 10 }
+        evidence_refs:
+          type: array
+          minItems: 1
+          items: { type: string, minLength: 1 }
+    FinanceDiscrepancyResolution:
+      type: object
+      additionalProperties: false
+      required: [resolution_id, discrepancy_id, kind, resolved_by, resolved_at, replayed]
+      properties:
+        resolution_id: { type: string }
+        discrepancy_id: { type: string }
+        kind:
+          type: string
+          enum: [PROVIDER_CORRECTION_CONFIRMED, SUPERSEDED_BY_MATCHED_RECONCILIATION, OPERATIONAL_EXCEPTION_ACCEPTED]
+        resolved_by: { type: string }
+        resolved_at: { type: string, format: date-time }
+        provider_evidence_id: { type: string }
+        superseding_result_id: { type: string }
+        replayed: { type: boolean }
+    FinanceOpenDiscrepancy:
+      type: object
+      additionalProperties: false
+      required: [discrepancy_id, kind, settlement_instruction_id, provider_instance_id, expected_fee_minor, provider_fee_minor, expected_gross_minor, provider_gross_minor, currency, evidence_refs, created_at]
+      properties:
+        discrepancy_id: { type: string }
+        kind:
+          type: string
+          enum: [PROVIDER_LEDGER_MISMATCH, STATEMENT_MISSING]
+        settlement_instruction_id: { type: string }
+        provider_instance_id: { type: string }
+        expected_fee_minor: { type: integer }
+        provider_fee_minor: { type: integer }
+        expected_gross_minor: { type: integer }
+        provider_gross_minor: { type: integer }
+        currency: { type: string }
+        evidence_refs:
+          type: array
+          items: { type: string }
+        created_at: { type: string, format: date-time }
+    FinanceOpenDiscrepancyList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/FinanceOpenDiscrepancy'
     ConsultationView:
       type: object
       additionalProperties: false

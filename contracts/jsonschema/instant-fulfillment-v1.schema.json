@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apgic.ru/contracts/instant-fulfillment-v1.schema.json",
+  "title": "R6 Canonical Fulfillment",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "dispatch_id",
+    "dispatch_state",
+    "payment_verified",
+    "next_action",
+    "room_ready"
+  ],
+  "properties": {
+    "dispatch_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "dispatch_state": {
+      "enum": [
+        "UNFILLED",
+        "OFFERED",
+        "ACCEPTED",
+        "DECLINED",
+        "EXPIRED",
+        "CANCELLED",
+        "INVALIDATED"
+      ]
+    },
+    "booking_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "booking_state": {
+      "enum": [
+        "HELD",
+        "PENDING_PAYMENT",
+        "CONFIRMED",
+        "CANCELLED",
+        "EXPIRED",
+        "COMPLETED",
+        "NO_SHOW"
+      ]
+    },
+    "payment_verified": {
+      "type": "boolean"
+    },
+    "next_action": {
+      "enum": [
+        "AWAIT_CANONICAL_R2_BOOKING",
+        "AWAIT_VERIFIED_PROVIDER_PAYMENT",
+        "USE_R3_BOOKING_ACCESS_GATE",
+        "RETRY_OR_BOOK_LATER"
+      ]
+    },
+    "room_ready": {
+      "const": false
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "payment_verified": {
+            "const": true
+          }
+        },
+        "required": [
+          "payment_verified"
+        ]
+      },
+      "then": {
+        "required": [
+          "booking_id",
+          "booking_state"
+        ],
+        "properties": {
+          "next_action": {
+            "const": "USE_R3_BOOKING_ACCESS_GATE"
+          },
+          "booking_state": {
+            "const": "CONFIRMED"
+          }
+        }
+      }
+    }
+  ]
+}

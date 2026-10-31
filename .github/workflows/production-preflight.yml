@@ -63,6 +63,12 @@ jobs:
         run: |
           set -euo pipefail
           python tools/production_preflight_evidence.py             --candidate-sha "$GITHUB_SHA"             --profile "$APGIC_PROFILE"             --config "$APGIC_LAUNCH_CONFIG"             --output evidence/production-preflight.json
+      - name: R0 live production admission gate
+        # Configuration and simulated CI can never promote an unverified R0.
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/r0_production_admission.py --candidate-sha "$GITHUB_SHA"
       - uses: actions/upload-artifact@v7
         with:
           name: production-preflight-${{ inputs.profile }}-${{ github.sha }}

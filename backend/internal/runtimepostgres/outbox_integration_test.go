@@ -128,27 +128,20 @@ func TestTransactionalOutboxSurvivesRollbackRestartAndRetry(t *testing.T) {
 
 	// A failed provider attempt must leave the event pending for retry.
 	expectedDeliveryErr := errors.New("simulated provider outage")
-	// This integration database also contains other valid domain events.
-	// Count all non-target acknowledgements instead of treating unrelated
-	// deliveries as a failure of the target provider's retry guarantee.
-	deliveredOther := 0
-	failedTargetAttempts := 0
 	delivered, err := store.DeliverPendingOutbox(context.Background(), 100, func(_ context.Context, candidate eventspine.EventEnvelope) error {
 		if candidate.EventID == eventID {
 			if candidate.IdempotencyKey != event.IdempotencyKey {
 				t.Fatalf("delivery idempotency key=%q want %q", candidate.IdempotencyKey, event.IdempotencyKey)
 			}
-			failedTargetAttempts++
 			return expectedDeliveryErr
 		}
-		deliveredOther++
 		return nil
 	})
 	if err == nil || !errors.Is(err, expectedDeliveryErr) {
 		t.Fatalf("delivery error=%v want simulated provider outage", err)
 	}
-	if failedTargetAttempts != 1 || delivered != deliveredOther {
-		t.Fatalf("failed target attempts=%d, delivered=%d, other acknowledgements=%d", failedTargetAttempts, delivered, deliveredOther)
+	if delivered != 0 {
+		t.Fatalf("delivered=%d want 0 after provider failure", delivered)
 	}
 	assertOutboxState(t, store.db, eventID, "PENDING", 1)
 
@@ -162,10 +155,8 @@ func TestTransactionalOutboxSurvivesRollbackRestartAndRetry(t *testing.T) {
 	}
 
 	deliveryCalls := 0
-	deliveredOther = 0
 	delivered, err = store.DeliverPendingOutbox(context.Background(), 100, func(_ context.Context, candidate eventspine.EventEnvelope) error {
 		if candidate.EventID != eventID {
-			deliveredOther++
 			return nil
 		}
 		deliveryCalls++
@@ -177,26 +168,23 @@ func TestTransactionalOutboxSurvivesRollbackRestartAndRetry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if deliveryCalls != 1 || delivered != deliveredOther+1 {
-		t.Fatalf("target successful deliveries=%d, total=%d, other=%d", deliveryCalls, delivered, deliveredOther)
+	if delivered != 1 || deliveryCalls != 1 {
+		t.Fatalf("delivered=%d deliveryCalls=%d want 1/1", delivered, deliveryCalls)
 	}
 	assertOutboxState(t, store.db, eventID, "DELIVERED", 2)
 
-	// Terminal delivery must not be emitted again; unrelated aggregates may
-	// still be eligible for delivery in this shared production-like database.
-	deliveredOther = 0
+	// Terminal delivery must not be emitted again.
 	delivered, err = store.DeliverPendingOutbox(context.Background(), 100, func(_ context.Context, candidate eventspine.EventEnvelope) error {
 		if candidate.EventID == eventID {
 			t.Fatal("terminal outbox event was delivered twice")
 		}
-		deliveredOther++
 		return nil
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if delivered != deliveredOther {
-		t.Fatalf("terminal target event affected delivery totals: delivered=%d unrelated=%d", delivered, deliveredOther)
+	if delivered != 0 {
+		t.Fatalf("second terminal delivery count=%d want 0", delivered)
 	}
 	assertEvent001Counts(t, store.db, auditID, eventID, 1, 1)
 }

@@ -58,7 +58,7 @@ func journeyReasonError(reason string) error {
 		return ErrSlotNotFound
 	case "BOOK_SLOT_NOT_EXCLUSIVE":
 		return ErrSlotNotExclusive
-	case "BOOK_SLOT_NOT_AVAILABLE":
+	case "BOOK_SLOT_NOT_AVAILABLE", "BOOK_SLOT_DUTY_BUSY":
 		return ErrSlotUnavailable
 	case "BOOK_SLOT_BOOKED":
 		return ErrSlotBooked

@@ -212,3 +212,52 @@ func (c *Checker) SavePublicDetails(ctx context.Context, identityID string, valu
 	}
 	return p, nil
 }
+
+// RegisteredProfiles shows new, not-yet-reviewed registrations without
+// publishing private identity/evidence, unreviewed biography or any offer.
+// Previously published/revoked profiles are NOT reintroduced via this path.
+func (c *Checker) RegisteredProfiles(ctx context.Context, topic string, limit int) ([]specialist.RegisteredProfile, error) {
+	if c == nil || c.db == nil {
+		return nil, errors.New("postgres checker is not initialized")
+	}
+	if topic != "" {
+		normalized, err := specialist.NormalizeTopic(topic)
+		if err != nil {
+			return nil, err
+		}
+		topic = normalized
+	}
+	if limit < 1 || limit > 100 {
+		return nil, specialist.ErrPublicDetailsInvalid
+	}
+	ctx, cancel := context.WithTimeout(ctx, specialistWriteTimeout)
+	defer cancel()
+	rows, err := c.db.QueryContext(ctx, `
+ SELECT p.id::text, p.display_name, p.profession_code
+ FROM specialist_profiles p
+ WHERE p.profile_complete
+   AND p.review_state <> 'REJECTED'
+   AND NOT EXISTS (SELECT 1 FROM specialist_publications pub WHERE pub.specialist_id=p.id)
+   AND ($1::text='' OR EXISTS (
+     SELECT 1 FROM specialist_capabilities cap
+     WHERE cap.specialist_id=p.id AND cap.topic_id=$1::text))
+ ORDER BY p.display_name, p.id
+ LIMIT $2`, topic, limit)
+	if err != nil {
+		return nil, fmt.Errorf("query registered specialists: %w", err)
+	}
+	defer rows.Close()
+	result := make([]specialist.RegisteredProfile, 0)
+	for rows.Next() {
+		var p specialist.RegisteredProfile
+		if err := rows.Scan(&p.ID, &p.DisplayName, &p.ProfessionCode); err != nil {
+			return nil, err
+		}
+		p.VerificationStatus = "UNVERIFIED"
+		result = append(result, p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return result, nil
+}

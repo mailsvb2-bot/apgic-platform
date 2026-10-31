@@ -352,22 +352,98 @@ IDB="$(command -v idb || true)"
 
 mkdir -p "$EVIDENCE_DIR"
 
+json_has_ax_label() {
+  local file="$1"
+  local expected="$2"
+  python3 - "$file" "$expected" <<'PY'
+import json
+import sys
+
+try:
+    with open(sys.argv[1], encoding="utf-8") as stream:
+        payload = json.load(stream)
+except (OSError, json.JSONDecodeError):
+    # idb may produce empty or partial JSON while AXBridge reconnects.
+    # That observation must be retried, never misreported as a passed state.
+    raise SystemExit(1)
+expected = sys.argv[2]
+
+def walk(value):
+    if isinstance(value, dict):
+        if value.get("AXLabel") == expected:
+            return True
+        return any(walk(item) for item in value.values())
+    if isinstance(value, list):
+        return any(walk(item) for item in value)
+    return False
+
+raise SystemExit(0 if walk(payload) else 1)
+PY
+}
+
 assert_state() {
   local state="$1"
   local reason="$2"
   local output="$EVIDENCE_DIR/ios-capability-e2e-${state}.json"
 
-  xcrun simctl terminate "$UDID" com.apgic.ci >/dev/null 2>&1 || true
-  SIMCTL_CHILD_APGIC_E2E_CAPABILITY_STATE="$state"     xcrun simctl launch "$UDID" com.apgic.ci >/dev/null
-
-  for _ in $(seq 1 30); do
-    if "$IDB" ui describe-all --udid "$UDID" --api axbridge --json --nested >"$output" 2>/dev/null &&
-       grep -q "capability-state:${state}" "$output" &&
-       grep -q "capability-fallback:${reason}" "$output"; then
-      echo "iOS native E2E state $state: PASS"
-      return 0
+  # simctl termination is asynchronous and AXBridge can briefly return a
+  # stale accessibility tree from the prior app process. Use bounded, real
+  # relaunches, but accept ONLY the fresh requested state and fallback.
+  local launch_attempt observation
+  for launch_attempt in 1 2 3; do
+    # After an AXBridge transition failure, reset the simulator process too.
+    # Merely reinstalling the app does not reset an unhealthy SpringBoard /
+    # accessibility daemon. Keep the same device and built artifact.
+    if [[ "$launch_attempt" -gt 1 ]]; then
+      xcrun simctl shutdown "$UDID" >/dev/null 2>&1 || true
+      xcrun simctl boot "$UDID" ||
+        fail "state $state: simulator reboot failed"
+      xcrun simctl bootstatus "$UDID" -b ||
+        fail "state $state: simulator did not complete reboot"
     fi
-    sleep 1
+    xcrun simctl terminate "$UDID" com.apgic.ci >/dev/null 2>&1 || true
+    # A fresh container eliminates cached native permission snapshots and AX
+    # bridge elements left behind by the previous OS capability scenario.
+    # Reinstall the same already-built app; never synthesize an AX result.
+    xcrun simctl uninstall "$UDID" com.apgic.ci >/dev/null 2>&1 || true
+    xcrun simctl install "$UDID" "$APP" ||
+      fail "state $state: failed to reinstall isolated simulator app"
+    rm -f "$output"
+    SIMCTL_CHILD_APGIC_E2E_CAPABILITY_STATE="$state" \
+      xcrun simctl launch --terminate-running-process "$UDID" com.apgic.ci >/dev/null ||
+      fail "state $state: simulator could not launch app"
+    for observation in $(seq 1 30); do
+      if "$IDB" ui describe-all --udid "$UDID" --api axbridge --json --nested >"$output" 2>/dev/null &&
+         json_has_ax_label "$output" "capability-state:${state}" &&
+         json_has_ax_label "$output" "capability-fallback:${reason}"; then
+        echo "iOS native E2E state $state: PASS"
+        return 0
+      fi
+      sleep 1
+    done
+    echo "iOS state $state attempt $launch_attempt: no verified accessibility transition" >&2
+    xcrun simctl spawn "$UDID" launchctl list 2>/dev/null | grep -F "com.apgic.ci" >&2 || true
+    if [[ -s "$output" ]]; then
+      python3 - "$output" <<'PY' >&2 || true
+import json,sys
+try:
+    data=json.load(open(sys.argv[1]))
+    found=[]
+    def walk(node):
+        if isinstance(node,dict):
+            for key,value in node.items():
+                if isinstance(value,str) and ("capability-state:" in value or "capability-fallback:" in value):
+                    found.append((key,value[:180]))
+                elif isinstance(value,(dict,list)):
+                    walk(value)
+        elif isinstance(node,list):
+            for value in node: walk(value)
+    walk(data)
+    print("iOS observed capability AX labels:",found[:12],file=sys.stderr)
+except (OSError,ValueError) as exc:
+    print("iOS AX evidence unreadable:",type(exc).__name__,file=sys.stderr)
+PY
+    fi
   done
 
   [[ -f "$output" ]] && cat "$output" >&2 || true
@@ -383,54 +459,106 @@ assert_compatibility_policy() {
   local update_output="$EVIDENCE_DIR/ios-compatibility-update-required.json"
   local supported_installation_id
   supported_installation_id="$(python3 -c 'import uuid; print(uuid.uuid4())')"
+  local launch_attempt observation supported_verified=0 update_verified=0
 
-  xcrun simctl terminate "$UDID" com.apgic.ci >/dev/null 2>&1 || true
-  SIMCTL_CHILD_APGIC_E2E_CAPABILITY_STATE=GRANTED \
-  SIMCTL_CHILD_APGIC_E2E_COMPATIBILITY_BASE_URL=http://127.0.0.1:43113 \
-  SIMCTL_CHILD_APGIC_E2E_CONTRACT_VERSION=0.8.0-r2-offline-sync \
-  SIMCTL_CHILD_APGIC_E2E_INSTALLATION_BASE_URL=http://127.0.0.1:43113 \
-  SIMCTL_CHILD_APGIC_E2E_SESSION_COOKIE="$SESSION_COOKIE" \
-  SIMCTL_CHILD_APGIC_E2E_INSTALLATION_ID="$supported_installation_id" \
-  SIMCTL_CHILD_APGIC_E2E_INSTALLATION_PLATFORM=IOS \
-    xcrun simctl launch "$UDID" com.apgic.ci >/dev/null
-
-  for _ in $(seq 1 60); do
-    if "$IDB" ui describe-all --udid "$UDID" --api axbridge --json --nested >"$supported_output" 2>/dev/null &&
-       json_has_ax_label "$supported_output" "installation-e2e:PASS" &&
-       json_has_ax_label "$supported_output" "installation-e2e-state:REVOKED" &&
-       json_has_ax_label "$supported_output" "installation-e2e-generation:2" &&
-       ! json_has_ax_label "$supported_output" "compatibility-status:UPDATE_REQUIRED"; then
-      echo "iOS supported previous contract remained operational: PASS"
-      break
-    fi
-    sleep 1
-  done
-  if ! json_has_ax_label "$supported_output" "installation-e2e:PASS"; then
+  # Do not reuse the preceding capability scenario's app container or AX tree.
+  # A fresh install and unique installation ID are mandatory on each attempt.
+  for launch_attempt in 1 2 3; do
+    xcrun simctl terminate "$UDID" com.apgic.ci >/dev/null 2>&1 || true
+    xcrun simctl uninstall "$UDID" com.apgic.ci >/dev/null 2>&1 || true
+    xcrun simctl install "$UDID" "$APP" ||
+      fail "supported compatibility: simulator app install failed"
+    rm -f "$supported_output"
+    SIMCTL_CHILD_APGIC_E2E_CAPABILITY_STATE=GRANTED \
+    SIMCTL_CHILD_APGIC_E2E_COMPATIBILITY_BASE_URL=http://127.0.0.1:43113 \
+    SIMCTL_CHILD_APGIC_E2E_CONTRACT_VERSION=0.8.0-r2-offline-sync \
+    SIMCTL_CHILD_APGIC_E2E_INSTALLATION_BASE_URL=http://127.0.0.1:43113 \
+    SIMCTL_CHILD_APGIC_E2E_SESSION_COOKIE="$SESSION_COOKIE" \
+    SIMCTL_CHILD_APGIC_E2E_INSTALLATION_ID="$supported_installation_id" \
+    SIMCTL_CHILD_APGIC_E2E_INSTALLATION_PLATFORM=IOS \
+      xcrun simctl launch --terminate-running-process "$UDID" com.apgic.ci >/dev/null ||
+      fail "supported compatibility: app launch failed"
+    for observation in $(seq 1 60); do
+      if "$IDB" ui describe-all --udid "$UDID" --api axbridge --json --nested >"$supported_output" 2>/dev/null &&
+         json_has_ax_label "$supported_output" "installation-e2e:PASS" &&
+         json_has_ax_label "$supported_output" "installation-e2e-state:REVOKED" &&
+         json_has_ax_label "$supported_output" "installation-e2e-generation:2" &&
+         ! json_has_ax_label "$supported_output" "compatibility-status:UPDATE_REQUIRED"; then
+        supported_verified=1
+        break
+      fi
+      sleep 1
+    done
+    [[ "$supported_verified" -eq 1 ]] && break
+    echo "iOS supported compatibility attempt $launch_attempt: state evidence incomplete" >&2
+    describe_compatibility_evidence "$supported_output"
     [[ -f "$supported_output" ]] && cat "$supported_output" >&2 || true
-    fail "supported previous iOS contract did not remain usable under the updated backend contract"
-  fi
-
-  xcrun simctl terminate "$UDID" com.apgic.ci >/dev/null 2>&1 || true
-  SIMCTL_CHILD_APGIC_E2E_CAPABILITY_STATE=GRANTED \
-  SIMCTL_CHILD_APGIC_E2E_COMPATIBILITY_BASE_URL=http://127.0.0.1:43113 \
-  SIMCTL_CHILD_APGIC_E2E_CONTRACT_VERSION=0.7.0-unsupported \
-    xcrun simctl launch "$UDID" com.apgic.ci >/dev/null
-
-  for _ in $(seq 1 60); do
-    if "$IDB" ui describe-all --udid "$UDID" --api axbridge --json --nested >"$update_output" 2>/dev/null &&
-       json_has_ax_label "$update_output" "compatibility-e2e:PASS" &&
-       json_has_ax_label "$update_output" "compatibility-status:UPDATE_REQUIRED" &&
-       json_has_ax_label "$update_output" "compatibility-reason:CLIENT_CONTRACT_UNSUPPORTED" &&
-       json_has_ax_label "$update_output" "compatibility-update-reason:INCOMPATIBLE_CRITICAL" &&
-       json_has_ax_label "$update_output" "compatibility-update-action"; then
-      echo "iOS installed-app compatibility + governed update path: PASS"
-      return 0
-    fi
-    sleep 1
   done
+  [[ "$supported_verified" -eq 1 ]] ||
+    fail "supported previous iOS contract did not remain usable under the updated backend contract"
+  echo "iOS supported previous contract remained operational: PASS"
 
-  [[ -f "$update_output" ]] && cat "$update_output" >&2 || true
-  fail "incompatible iOS client did not expose governed update-required UX"
+  for launch_attempt in 1 2 3; do
+    xcrun simctl terminate "$UDID" com.apgic.ci >/dev/null 2>&1 || true
+    xcrun simctl uninstall "$UDID" com.apgic.ci >/dev/null 2>&1 || true
+    xcrun simctl install "$UDID" "$APP" ||
+      fail "unsupported compatibility: simulator app install failed"
+    rm -f "$update_output"
+    SIMCTL_CHILD_APGIC_E2E_CAPABILITY_STATE=GRANTED \
+    SIMCTL_CHILD_APGIC_E2E_COMPATIBILITY_BASE_URL=http://127.0.0.1:43113 \
+    SIMCTL_CHILD_APGIC_E2E_CONTRACT_VERSION=0.7.0-unsupported \
+      xcrun simctl launch --terminate-running-process "$UDID" com.apgic.ci >/dev/null ||
+      fail "unsupported compatibility: app launch failed"
+    for observation in $(seq 1 60); do
+      if "$IDB" ui describe-all --udid "$UDID" --api axbridge --json --nested >"$update_output" 2>/dev/null &&
+         json_has_ax_label "$update_output" "compatibility-e2e:PASS" &&
+         json_has_ax_label "$update_output" "compatibility-status:UPDATE_REQUIRED" &&
+         json_has_ax_label "$update_output" "compatibility-reason:CLIENT_CONTRACT_UNSUPPORTED" &&
+         json_has_ax_label "$update_output" "compatibility-update-reason:INCOMPATIBLE_CRITICAL" &&
+         json_has_ax_label "$update_output" "compatibility-update-action"; then
+        update_verified=1
+        break
+      fi
+      sleep 1
+    done
+    [[ "$update_verified" -eq 1 ]] && break
+    echo "iOS unsupported compatibility attempt $launch_attempt: state evidence incomplete" >&2
+    describe_compatibility_evidence "$update_output"
+  done
+  [[ "$update_verified" -eq 1 ]] ||
+    fail "incompatible iOS client did not expose governed update-required UX"
+  echo "iOS installed-app compatibility + governed update path: PASS"
+}
+
+describe_compatibility_evidence() {
+  local path="$1"
+  if [[ ! -s "$path" ]]; then
+    echo "iOS compatibility AX evidence missing or empty" >&2
+    return 0
+  fi
+  python3 - "$path" <<'PY' >&2 || true
+import json, sys
+try:
+    with open(sys.argv[1], encoding="utf-8") as stream:
+        payload = json.load(stream)
+    labels = []
+    def visit(node):
+        if isinstance(node, dict):
+            label = node.get("AXLabel")
+            if isinstance(label, str) and (label.startswith("installation-e2e") or
+                label.startswith("compatibility-")):
+                labels.append(label)
+            for value in node.values():
+                if isinstance(value, (list, dict)):
+                    visit(value)
+        elif isinstance(node, list):
+            for value in node:
+                visit(value)
+    visit(payload)
+    print("iOS observed compatibility labels:", labels[:30], file=sys.stderr)
+except (OSError, ValueError) as exc:
+    print("iOS compatibility AX JSON unreadable:", type(exc).__name__, file=sys.stderr)
+PY
 }
 
 assert_remote_config_kill_switch() {
@@ -521,29 +649,6 @@ PY
   fail "installed app did not complete register/rotate/revoke lifecycle"
 }
 
-
-json_has_ax_label() {
-  local file="$1"
-  local expected="$2"
-  python3 - "$file" "$expected" <<'PY'
-import json
-import sys
-
-payload = json.load(open(sys.argv[1], encoding="utf-8"))
-expected = sys.argv[2]
-
-def walk(value):
-    if isinstance(value, dict):
-        if value.get("AXLabel") == expected:
-            return True
-        return any(walk(item) for item in value.values())
-    if isinstance(value, list):
-        return any(walk(item) for item in value)
-    return False
-
-raise SystemExit(0 if walk(payload) else 1)
-PY
-}
 
 json_has_ax_label_fragment() {
   local file="$1"
@@ -667,8 +772,31 @@ assert_offline_mutation_restart() {
     fi
     sleep 1
   done
-  json_has_ax_label "$pending_output" "offline-mutation-e2e:LOCAL_PENDING" ||
+  if ! json_has_ax_label "$pending_output" "offline-mutation-e2e:LOCAL_PENDING"; then
+    echo "iOS offline checkout failed to expose LOCAL_PENDING; final genuine AX snapshot:" >&2
+    if [[ -s "$pending_output" ]]; then
+      python3 - "$pending_output" <<'PY' >&2 || true
+import json,sys
+try:
+    data=json.load(open(sys.argv[1],encoding="utf-8"))
+except (OSError,json.JSONDecodeError) as exc:
+    print("iOS AX snapshot unavailable:",exc)
+    raise SystemExit(0)
+def walk(v):
+    if isinstance(v,dict):
+        label=v.get("AXLabel")
+        if isinstance(label,str) and ("offline-mutation" in label or "Offline mutation" in label):
+            print(label)
+        for item in v.values(): walk(item)
+    elif isinstance(v,list):
+        for item in v: walk(item)
+walk(data)
+PY
+    else
+      echo "iOS idb produced no usable accessibility snapshot" >&2
+    fi
     fail "offline checkout did not remain LOCAL_PENDING after committed response was lost"
+  fi
 
   xcrun simctl terminate "$UDID" com.apgic.ci >/dev/null 2>&1 || true
   SIMCTL_CHILD_APGIC_E2E_CAPABILITY_STATE=GRANTED \
@@ -778,9 +906,14 @@ assert_realtime_lifecycle() {
   # the scripted lifecycle reaches its terminal state. Do not accept DEGRADED
   # as success: retry the exact same canonical consultation only when every
   # other expected invariant is already proven, and keep CONNECTED mandatory.
+  # Hosted simulators can transiently interrupt AVAudioSession; retry only
+  # when the existing ambient-DEGRADED predicate proves all other invariants.
+  # CONNECTED remains mandatory; non-ambient deviations fail immediately.
+  local ambient_attempts=5
+  local ambient_settle_seconds=10
   local first_pass=false
   local initial_attempt
-  for initial_attempt in $(seq 1 3); do
+  for initial_attempt in $(seq 1 "$ambient_attempts"); do
     launch_realtime
     for _ in $(seq 1 60); do
       if realtime_ready "$output"; then
@@ -792,6 +925,7 @@ assert_realtime_lifecycle() {
 
     if ambient_technical_degraded "$output"; then
       echo "iOS initial realtime attempt $initial_attempt ended in ambient technical DEGRADED state; retrying same consultation"
+      sleep "$ambient_settle_seconds"
       continue
     fi
 
@@ -804,7 +938,7 @@ assert_realtime_lifecycle() {
   fi
 
   local rejoin_attempt
-  for rejoin_attempt in $(seq 1 3); do
+  for rejoin_attempt in $(seq 1 "$ambient_attempts"); do
     launch_realtime
     for _ in $(seq 1 60); do
       if realtime_ready "$rejoin_output"; then
@@ -816,6 +950,7 @@ assert_realtime_lifecycle() {
 
     if ambient_technical_degraded "$rejoin_output"; then
       echo "iOS rejoin attempt $rejoin_attempt ended in ambient technical DEGRADED state; retrying same consultation"
+      sleep "$ambient_settle_seconds"
       continue
     fi
 
@@ -965,7 +1100,12 @@ assert_organization_product_lifecycle() {
   local staging_session_cookie
   local output="$EVIDENCE_DIR/ios-org-product-e2e.json"
   headers="$(mktemp)"
-  curl -fsS -D "$headers" -o "$EVIDENCE_DIR/ios-org-product-bootstrap.json" \
+  # The remote staging lifecycle must be executed against the REAL HTTPS
+  # endpoint. Retry transient DNS/transport errors only; never substitute
+  # the local fixture or accept an unsuccessful HTTP response.
+  curl -fsS --retry 4 --retry-delay 3 --retry-max-time 60 \
+    --retry-all-errors --connect-timeout 10 --max-time 20 \
+    -D "$headers" -o "$EVIDENCE_DIR/ios-org-product-bootstrap.json" \
     -H 'content-type: application/json' \
     --data '{"free_text":"ios native organization product staging proof"}' \
     https://apgic.ru/v1/help-intents >/dev/null

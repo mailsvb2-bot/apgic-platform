@@ -494,6 +494,9 @@ INSERT INTO delete_account_requests (
 
 UPDATE delete_account_requests
 SET state = 'IDENTITY_RECONFIRMED',
+    reconfirmed_at = now(),
+    reconfirmation_method = 'VERIFIED_TOTP',
+    reconfirmation_session_ref = 'session:ci-verified-factor-evidence',
     updated_at = now() + interval '1 second'
 WHERE id = '00000000-0000-0000-0000-00000000a920';
 
@@ -503,10 +506,26 @@ SET state = 'RETENTION_CLASSIFIED',
     updated_at = now() + interval '2 seconds'
 WHERE id = '00000000-0000-0000-0000-00000000a920';
 
+-- CI structural receipt: production creates this only after Ed25519 policy
+-- verification and transactional, independently checked local PII erasure.
+INSERT INTO deletion_local_erasure_receipts (
+  request_id,policy_version,approval_sha256,
+  preferences_erased,help_intents_anonymized,credentials_erased,no_external_data
+) VALUES (
+  '00000000-0000-0000-0000-00000000a920',
+  'ci-retention-fixture',repeat('c',64),0,0,0,false
+);
 UPDATE delete_account_requests
 SET state = 'PROVIDER_ERASURE_PENDING',
     updated_at = now() + interval '3 seconds'
 WHERE id = '00000000-0000-0000-0000-00000000a920';
+INSERT INTO provider_erasure_jobs (
+  id,delete_request_id,provider_ref,state,updated_at
+) VALUES (
+  '00000000-0000-0000-0000-00000000a922',
+  '00000000-0000-0000-0000-00000000a920',
+  'app-store','PENDING',now()
+);
 
 DO $$
 DECLARE blocked boolean := false;
@@ -540,11 +559,24 @@ INSERT INTO store_subscription_exit_actions (
   now() + interval '4 seconds'
 );
 
-UPDATE delete_account_requests
-SET state = 'COMPLETED',
-    updated_at = now() + interval '5 seconds',
-    completed_at = now() + interval '5 seconds'
-WHERE id = '00000000-0000-0000-0000-00000000a920';
+-- Merely pointing the owner to external subscription management is not
+-- independently signed proof of external account/data erasure.
+DO $$
+DECLARE invalid_terminal boolean := false;
+BEGIN
+  BEGIN
+    UPDATE delete_account_requests
+    SET state='COMPLETED',updated_at=now()+interval '5 seconds',
+        completed_at=now()+interval '5 seconds'
+    WHERE id='00000000-0000-0000-0000-00000000a920';
+  EXCEPTION WHEN raise_exception THEN
+    invalid_terminal := true;
+  END;
+  IF NOT invalid_terminal THEN
+    RAISE EXCEPTION 'app-store instructions falsely counted as verified deletion';
+  END IF;
+END
+$$;
 
 INSERT INTO device_integrity_evidence (
   id, identity_id, installation_id, provider_kind, provider_evidence_ref,

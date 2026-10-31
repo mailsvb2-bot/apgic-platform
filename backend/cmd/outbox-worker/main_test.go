@@ -32,3 +32,26 @@ func TestWorkerSettingsDefaultsAndBounds(t *testing.T) {
 		t.Fatal("too-fast poll interval must fail")
 	}
 }
+
+func TestGatewayHTTPClientLoopbackSafety(t *testing.T) {
+	for _, address := range []string{"127.0.0.1:43114", "0.0.0.0:443", "192.0.2.10:443", "example.com:443", "[::]:443", "garbage"} {
+		if _, err := gatewayHTTPClient("https://apgic.ru/_internal/apgic-event-gateway", address); err == nil {
+			t.Errorf("unsafe gateway dial address accepted: %s", address)
+		}
+	}
+	for _, endpoint := range []string{"http://apgic.ru/", "https://user:pass@apgic.ru/", "https://apgic.ru:8443/"} {
+		if _, err := gatewayHTTPClient(endpoint, "127.0.0.1:443"); err == nil {
+			t.Errorf("unsafe gateway endpoint accepted: %s", endpoint)
+		}
+	}
+	c, err := gatewayHTTPClient("https://apgic.ru/_internal/apgic-event-gateway", "127.0.0.1:443")
+	if err != nil || c == nil || c.Transport == nil {
+		t.Fatalf("loopback TLS client: %v", err)
+	}
+	if _, err := gatewayHTTPClient("https://apgic.ru/", "[::1]:443"); err != nil {
+		t.Fatalf("IPv6 loopback rejected: %v", err)
+	}
+	if _, err := gatewayHTTPClient("https://apgic.ru/", ""); err != nil {
+		t.Fatalf("default client rejected: %v", err)
+	}
+}

@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"reflect"
 	"time"
 
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/clientcompat"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/connector"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/demand"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/instant"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/launchconfig"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/legal"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/mobile"
@@ -20,34 +22,46 @@ import (
 )
 
 type Options struct {
-	Academy                     academyStore
-	CommitSHA                   string
-	ReleaseTrack                string
-	Surfaces                    []string
-	LaunchConfig                launchconfig.Config
-	ReadinessCheck              func(context.Context) error
-	Demand                      *demand.Service
-	LegalAcceptances            legal.AcceptanceStore
-	Consents                    privacy.ConsentStore
-	ConsentPolicies             map[string]privacy.ConsentPolicy
-	Installations               mobile.InstallationStore
-	MobileWorkspaces            mobileWorkspaceStore
-	Notifications               notification.MobileProjectionStore
-	ClientMutations             mutation.Store
-	DeepLinks                   deepLinkResourceStore
-	DeepLinkSigningKey          []byte
-	Specialists                 specialist.Store
-	OrganizationAuth            organizationAuthorizationStore
-	Organizations               organizationRuntimeStore
-	ProductOwnership            productOwnershipStore
-	Products                    organizationProductStore
-	ConformanceProviderEvents   bool
-	ProviderWebhookKeys         connector.WebhookPublicKeyResolver
-	ConsultationProvider        ConsultationProviderStore
-	ClientSessionKey            []byte
-	ClientCompatibilityPolicies map[clientcompat.Platform]clientcompat.Policy
-	RemoteConfigProvider        func(time.Time) (remoteconfig.SignedEnvelope, error)
-	Now                         func() time.Time
+	CommitSHA                     string
+	ReleaseTrack                  string
+	Surfaces                      []string
+	LaunchConfig                  launchconfig.Config
+	ReadinessCheck                func(context.Context) error
+	Demand                        *demand.Service
+	Instant                       instant.Store
+	InstantEnabled                bool
+	LegalAcceptances              legal.AcceptanceStore
+	Consents                      privacy.ConsentStore
+	ConsentPolicies               map[string]privacy.ConsentPolicy
+	Installations                 mobile.InstallationStore
+	MobileWorkspaces              mobileWorkspaceStore
+	Notifications                 notification.MobileProjectionStore
+	ClientMutations               mutation.Store
+	DeepLinks                     deepLinkResourceStore
+	DeepLinkSigningKey            []byte
+	Specialists                   specialist.Store
+	OrganizationAuth              organizationAuthorizationStore
+	Organizations                 organizationRuntimeStore
+	ProductOwnership              productOwnershipStore
+	Products                      organizationProductStore
+	Academy                       academyStore
+	ClientPersonal                clientPersonalStore
+	AccountDeletionIntake         accountDeletionIntakeStore
+	DeletionMFAKey                [32]byte
+	ConformanceProviderEvents     bool
+	BlockSyntheticAccountDeletion bool
+	ProviderWebhookKeys           connector.WebhookPublicKeyResolver
+	ConsultationProvider          ConsultationProviderStore
+	Finance                       FinanceStore
+	FinanceOperations             FinanceOperationsStore
+	FinanceMFA                    FinanceMFAStore
+	FinanceMFAKey                 [32]byte
+	ConsultationJourney           ConsultationJourneyStore
+	ConsultationJoin              ConsultationJoinOptions
+	ClientSessionKey              []byte
+	ClientCompatibilityPolicies   map[clientcompat.Platform]clientcompat.Policy
+	RemoteConfigProvider          func(time.Time) (remoteconfig.SignedEnvelope, error)
+	Now                           func() time.Time
 }
 
 type metaResponse struct {
@@ -65,6 +79,17 @@ type statusResponse struct {
 }
 
 func New(options Options) http.Handler {
+	// Normalize typed-nil interfaces before binding a deletion store to
+	// sessions or HTTP endpoints. Real store failures remain fail-closed.
+	if options.AccountDeletionIntake != nil {
+		v := reflect.ValueOf(options.AccountDeletionIntake)
+		switch v.Kind() {
+		case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+			if v.IsNil() {
+				options.AccountDeletionIntake = nil
+			}
+		}
+	}
 	if options.Now == nil {
 		options.Now = time.Now
 	}
@@ -126,11 +151,24 @@ func New(options Options) http.Handler {
 	if len(options.ClientSessionKey) > 0 {
 		sessions, sessionConfigErr = newClientSessionManager(options.ClientSessionKey, options.Now)
 		if sessionConfigErr == nil {
+			// Bind revocation to the actual configured store, not readiness.
+			// Missing stores are inert; lookup failures fail closed.
+			if deletions, ok := options.AccountDeletionIntake.(clientIdentityDeletionChecker); ok {
+				sessions.deletions = deletions
+			}
 			stepUp, sessionConfigErr = newStepUpManager(options.ClientSessionKey, options.Now)
 		}
 	}
-	registerDemand(mux, options.Demand, options.Consents, options.ConsentPolicies, sessions, sessionConfigErr, options.ConformanceProviderEvents, options.ProviderWebhookKeys, options.Now)
+	registerDemand(mux, options.Demand, options.Consents, options.ConsentPolicies, sessions, sessionConfigErr, options.ConformanceProviderEvents, options.ProviderWebhookKeys, options.Now, options.BlockSyntheticAccountDeletion)
+	registerAccountDeletionIntake(mux, options.AccountDeletionIntake, sessions, stepUp, sessionConfigErr)
+	registerClientDeletionFactor(mux, options.AccountDeletionIntake, sessions, stepUp, options.DeletionMFAKey, sessionConfigErr, options.Now)
+	registerInstant(mux, options.Instant, sessions, sessionConfigErr, options.InstantEnabled)
 	registerConsultationProvider(mux, options.ConsultationProvider, options.ProviderWebhookKeys, sessions, sessionConfigErr)
+	registerFinance(mux, options.Finance, options.ProviderWebhookKeys, sessions, sessionConfigErr)
+	registerFinanceOperations(mux, options.FinanceOperations, sessions, stepUp, sessionConfigErr, options.Now)
+	registerFinanceMFA(mux, options.FinanceMFA, sessions, stepUp, options.FinanceMFAKey, sessionConfigErr, options.Now)
+	registerConsultationJourney(mux, options.ConsultationJourney, sessions, sessionConfigErr, options.Now)
+	registerConsultationJoin(mux, options.ConsultationJoin, sessions, sessionConfigErr, options.Now)
 	registerLegalAcceptance(mux, options.LegalAcceptances, sessions, sessionConfigErr, options.Now)
 	registerConsents(mux, options.Consents, options.ConsentPolicies, sessions, sessionConfigErr, options.Now)
 	registerMobileCompatibility(mux, options.ClientCompatibilityPolicies)
@@ -154,6 +192,7 @@ func New(options Options) http.Handler {
 	registerOrganizationProducts(mux, options.Products, sessions, sessionConfigErr, options.Now)
 	registerAcademy(mux, options.Academy, sessions, sessionConfigErr)
 	registerHighRiskProductOwnership(mux, options.ProductOwnership, sessions, stepUp, sessionConfigErr, options.Now)
+	registerClientPersonal(mux, options.ClientPersonal, sessions, sessionConfigErr, options.Now)
 	return observeRuntimeSLI(mux, sli)
 }
 

@@ -74,3 +74,19 @@ test("verified reputation is shown only with independent sufficient evidence",as
  await page.goto("/specialist/"+p.id);
  await expect(page.getByText(/Подтверждённый рейтинг: 4.5 \/ 5/)).toBeVisible();
 });
+
+test("new specialist registration appears explicitly unverified with no booking access",async({page})=>{
+ const id="00000000-0000-4000-8000-000000001234";
+ await page.route("**/v1/specialists/registrations?*",r=>r.fulfill({json:{profiles:[{
+  id,display_name:"Сергей",profession_code:"PSYCHOLOGIST",verification_status:"UNVERIFIED"
+ }]}}));
+ await page.route("**/v1/specialists?*",r=>r.fulfill({json:{
+  profiles:[],has_more:false,limit:10,offset:0,policy_version:"qualification-v1",sort:"DISPLAY_NAME_ASC",topic:""
+ }}));
+ await page.goto("/specialists");
+ await expect(page.getByRole("heading",{name:"Сергей"})).toBeVisible();
+ await expect(page.getByRole("status").getByText("Специализация не подтверждена")).toBeVisible();
+ await expect(page.getByRole("link",{name:"Посмотреть анкету"})).toHaveCount(0);
+ await expect(page.getByText("Сейчас нет опубликованных проверенных анкет")).toHaveCount(0);
+ await expect(page.getByRole("button",{name:/Забронировать/})).toHaveCount(0);
+});

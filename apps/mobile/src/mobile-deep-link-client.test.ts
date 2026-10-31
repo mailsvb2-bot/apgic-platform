@@ -165,3 +165,23 @@ test("native client rejects alternate API origins and malformed ALLOW payloads",
     assert.deepEqual(action, {action: "BLOCK"});
   }
 });
+
+test("native client accepts canonical owner-scoped finance order path", async () => {
+  const action = await resolveCanonicalUniversalLink(`https://apgic.ru/l/${token}`, {
+    apiOrigin: "http://127.0.0.1:43114",
+    sessionCookie: "__Host-apgic_session=signed",
+    request: async () => ({
+      status: 200,
+      async json() {
+        return {
+          decision: "ALLOW",
+          reason_code: "DEEPLINK_ALLOWED",
+          canonical_path: "/orders/00000000-0000-0000-0000-000000000711/finance",
+          canonical_web_fallback: "https://apgic.ru/orders/00000000-0000-0000-0000-000000000711/finance",
+          expires_at: "2026-10-15T12:15:00Z",
+        };
+      },
+    }),
+  });
+  assert.deepEqual(action, {action: "OPEN_APP_PATH", target: "/orders/00000000-0000-0000-0000-000000000711/finance"});
+});

@@ -107,17 +107,21 @@ export function SpecialistOnboarding() {
   }, [profile?.id]);
 
   async function loadProfile() {
-    const response = await fetch("/v1/specialist/profile", { cache: "no-store" });
-    if (response.ok) {
-      const loaded = (await response.json()) as Profile;
-      setProfile(loaded);
-      setDisplayName(loaded.display_name);
-      setProfessionCode(loaded.profession_code);
-      setNotice("Профиль загружен.");
-      return;
-    }
-    if (response.status !== 401 && response.status !== 404) {
-      setNotice("Профиль пока не удалось загрузить.");
+    try {
+      const response = await fetch("/v1/specialist/profile", { cache: "no-store" });
+      if (response.ok) {
+        const loaded = (await response.json()) as Profile;
+        setProfile(loaded);
+        setDisplayName(loaded.display_name);
+        setProfessionCode(loaded.profession_code);
+        setNotice("Профиль загружен.");
+        return;
+      }
+      if (response.status !== 401 && response.status !== 404) {
+        setNotice("Профиль пока не удалось загрузить. Повторите попытку.");
+      }
+    } catch {
+      setNotice("Нет соединения с APGIC. Проверьте сеть и повторите попытку.");
     }
   }
 
@@ -139,6 +143,9 @@ export function SpecialistOnboarding() {
       setProfessionCode(updated.profession_code);
       setNotice(success);
       return updated;
+    } catch {
+      setNotice("Не удалось связаться с APGIC. Данные не подтверждены сервером; повторите попытку.");
+      return null;
     } finally {
       setBusy(false);
     }
@@ -149,7 +156,7 @@ export function SpecialistOnboarding() {
     await callProfile("/v1/specialist/profile", {
       method: "PUT",
       body: JSON.stringify({ display_name: displayName, profession_code: professionCode }),
-    }, "Профиль сохранён. Теперь добавьте направления работы.");
+    }, "Профиль сохранён. В каталоге вы отображаетесь со статусом «Специализация не подтверждена». Чтобы получить подтверждение и возможность записи, добавьте направления и документы.");
   }
 
   async function declareCapability() {
@@ -337,10 +344,27 @@ export function SpecialistOnboarding() {
         </p>
       </div>
 
+      {profile ? <section className="panel" aria-label="Кабинет специалиста">
+        <p className="section-kicker">Личный кабинет специалиста</p>
+        <h3>{profile.display_name}</h3>
+        <p>{profile.profession_code === "PSYCHOLOGIST" ? "Психолог" : profile.profession_code === "CAREER_COACH" ? "Карьерный консультант" : "Специалист"}</p>
+        <p role="status"><strong>{profile.published_topics.length > 0 ? "Профессионализм подтверждён по опубликованным направлениям" : "Специализация не подтверждена"}</strong></p>
+        <p>Ваша анкета сохраняется в APGIC. Без подтверждения квалификации она отображается среди зарегистрированных специалистов; платная запись станет доступна после проверки.</p>
+        <nav aria-label="Разделы кабинета специалиста">
+          <a href="#specialist-profile">Моя анкета</a>{" · "}
+          <a href="#specialist-topics">Направления</a>{" · "}
+          <a href="#specialist-documents">Документы</a>{" · "}
+          <a href="#specialist-publication">Подтверждение</a>{" · "}
+          <a href="#specialist-offers">Услуги и расписание</a>{" · "}
+          <a href="#specialist-consultations">Консультации</a>{" · "}
+          <a href="/specialists">Каталог специалистов</a>
+        </nav>
+        <p className="form-help">Статус проверки профиля: {profile.review_state}. Подтверждённые направления: {profile.published_topics.length ? profile.published_topics.map(t => topicNames[t] || t).join(", ") : "пока нет"}.</p>
+      </section> : null}
       <div className="specialist-workspace">
         <p className="onboarding-notice" role="status">{notice}</p>
 
-        <form className="panel specialist-form" onSubmit={saveProfile}>
+        <form className="panel specialist-form" id="specialist-profile" onSubmit={saveProfile}>
           <h3>1. Профиль</h3>
           <label htmlFor="specialist-name">Имя для публичного профиля</label>
           <input
@@ -365,7 +389,7 @@ export function SpecialistOnboarding() {
         {profile && (
           <>
             <SpecialistPublicEditor />
-            <section className="panel specialist-form" aria-labelledby="capability-title">
+            <section className="panel specialist-form" id="specialist-topics" aria-labelledby="capability-title">
               <h3 id="capability-title">2. Направления работы</h3>
               <label htmlFor="specialist-topic">Направление</label>
               <select id="specialist-topic" value={topicID} onChange={(event) => setTopicID(event.target.value)}>
@@ -384,7 +408,7 @@ export function SpecialistOnboarding() {
               </ul>
             </section>
 
-            <form className="panel specialist-form" onSubmit={submitEvidence}>
+            <form className="panel specialist-form" id="specialist-documents" onSubmit={submitEvidence}>
               <h3>3. Подтверждение компетенции</h3>
               <p className="form-help">
                 Сейчас APGIC принимает ссылку или номер подтверждающего материала. Сами файлы через этот экран не загружаются.
@@ -415,7 +439,7 @@ export function SpecialistOnboarding() {
               </ul>
             </form>
 
-            <section className="panel specialist-form" aria-labelledby="publish-title">
+            <section className="panel specialist-form" id="specialist-publication" aria-labelledby="publish-title">
               <h3 id="publish-title">4. Публикация</h3>
               <p>
                 Review профиля: <strong>{profile.review_state}</strong>. Публикация разрешается только после
@@ -433,7 +457,7 @@ export function SpecialistOnboarding() {
                   : "пока ничего"}.
               </p>
             </section>
-            <section className="panel specialist-form" aria-labelledby="offer-title">
+            <section className="panel specialist-form" id="specialist-offers" aria-labelledby="offer-title">
               <h3 id="offer-title">5. Реальная цена и доступное время</h3>
               <p className="form-help">
                 Для платной консультации нужен уже опубликованный продукт вашей организации,
