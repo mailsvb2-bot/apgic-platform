@@ -291,8 +291,8 @@ BEGIN
         JOIN orders order_row ON order_row.id=verification.order_id
         WHERE verification.id=ent.verification_id
           AND verification.identity_id=ent.identity_id
-          AND verification.product_ref=product_ref
-          AND order_row.product_id::text=product_ref
+          AND verification.product_ref=ent.product_ref
+          AND order_row.product_id::text=ent.product_ref
       ) THEN
     RAISE EXCEPTION 'academy enrollment requires verified active entitlement for published version';
   END IF;
