@@ -3,6 +3,7 @@
 import {useCallback,useEffect,useState,type FormEvent} from "react";
 
 type AcademyNotifications = {enabled:boolean;learning_updates:boolean;assessment_results:boolean;certificate_updates:boolean};
+type AuthorProduct = {id:string;name:string};
 type Course = {id:string;product_id:string;title:string;description:string;state:string;version_id:string;version_no:number};
 type Module = {id:string;version_id:string;title:string;ordinal:number};
 type Lesson = {id:string;module_id:string;title:string;kind:"READING"|"VIDEO"|"ASSESSMENT";ordinal:number;body?:string;media_asset_ref?:string;completed?:boolean;passing_score?:number;available?:boolean};
@@ -44,6 +45,7 @@ async function downloadAcademyHistory():Promise<void>{
 export default function AcademyPage(){
  const [catalog,setCatalog]=useState<Course[]>([]);
  const [mine,setMine]=useState<Course[]>([]);
+ const [eligibleProducts,setEligibleProducts]=useState<AuthorProduct[]>([]);
  const [enrollments,setEnrollments]=useState<Enrollment[]>([]);
  const [course,setCourse]=useState<Course|null>(null);
  const [modules,setModules]=useState<Module[]>([]);
@@ -84,18 +86,20 @@ export default function AcademyPage(){
  const refresh=useCallback(async()=>{
   const publicCourses=await api<{courses:Course[]}>("/v1/academy/courses");
   setCatalog(publicCourses.courses);
-  const [owned,learning,reviews,report,cohortList]=await Promise.allSettled([
+  const [owned,learning,reviews,report,cohortList,eligible]=await Promise.allSettled([
    api<{courses:Course[]}>("/v1/academy/my-courses"),
    api<{enrollments:Enrollment[]}>("/v1/academy/my-enrollments"),
    api<{attempts:ReviewAttempt[]}>("/v1/academy/review/attempts"),
    api<AuthorReport>("/v1/academy/author/report"),
-   api<{cohorts:Cohort[]}>("/v1/academy/author/cohorts")
+   api<{cohorts:Cohort[]}>("/v1/academy/author/cohorts"),
+   api<{products:AuthorProduct[]}>("/v1/academy/author/eligible-products")
   ]);
   if(owned.status==="fulfilled")setMine(owned.value.courses);
   if(learning.status==="fulfilled")setEnrollments(learning.value.enrollments);
   if(reviews.status==="fulfilled")setPendingReviews(reviews.value.attempts);
   if(report.status==="fulfilled")setAuthorReport(report.value);
   if(cohortList.status==="fulfilled")setAuthorCohorts(cohortList.value.cohorts);
+  if(eligible.status==="fulfilled")setEligibleProducts(eligible.value.products);
  },[]);
  useEffect(()=>{void refresh().catch(error=>setNotice(String(error)))},[refresh]);
 
@@ -192,11 +196,15 @@ export default function AcademyPage(){
         async()=>{await loadLearning(e)})}>Продолжить</button>
       </div>)}
     </section>
-    <form className="panel specialist-form" onSubmit={createCourse}>
+    <form id="academy-author" className="panel specialist-form" onSubmit={createCourse}>
      <h2>Автору: создать курс</h2>
-     <p>Сначала опубликуйте принадлежащий вам Product/Offer в APGIC. Курс сохраняет его юридического и коммерческого владельца.</p>
-     <label htmlFor="academy-product">UUID опубликованного продукта</label>
-     <input id="academy-product" value={productID} onChange={e=>setProductID(e.target.value)} required/>
+     <p>Курс привязывается к опубликованному продукту действующего Commerce. Выберите принадлежащий вам продукт — вводить технический UUID не нужно.</p>
+     <label htmlFor="academy-product">Опубликованный продукт</label>
+     <select id="academy-product" value={productID} onChange={e=>setProductID(e.target.value)} required>
+      <option value="">Выберите продукт</option>
+      {eligibleProducts.map(product=><option key={product.id} value={product.id}>{product.name}</option>)}
+     </select>
+     {eligibleProducts.length===0&&<p>Нет доступных опубликованных продуктов. Создайте и опубликуйте продукт в <a href="/organization">кабинете организации</a> или обновите список после публикации.</p>}
      <label htmlFor="academy-title">Название</label>
      <input id="academy-title" value={title} onChange={e=>setTitle(e.target.value)} required minLength={3}/>
      <label htmlFor="academy-description">Описание</label>
@@ -388,7 +396,7 @@ export default function AcademyPage(){
    </article>)}</div>
    <p>Валовая сумма подтверждённых списаний не является доходом автора. Возвраты, комиссии, доли правообладателей и выплаты рассчитывает только канонический финансовый контур. До его сверки чистый доход не показывается.</p>
   </section>}
-  <section className="how-section"><h2>Проверка заданий преподавателем</h2>
+  <section id="academy-reviews" className="how-section"><h2>Проверка заданий преподавателем</h2>
    <div className="how-grid">{pendingReviews.map(item=><article className="panel" key={item.attempt_id}>
     <h3>{item.course_title} — {item.lesson_title}</h3>
     <p>Попытка {item.attempt_no}, рубрика {item.rubric_version}, порог {item.passing_score}/100</p>

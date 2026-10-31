@@ -3,7 +3,7 @@
 import {useCallback,useEffect,useState} from "react";
 
 type Course={id:string;title:string;state:string;version_no:number};
-type Report={courses:Array<{course_id:string;title:string;enrollments:number;completed:number;pending_assessments:number;passed_assessments:number}>;revenue_state:string};
+type Report={courses:Array<{course_id:string;title:string;enrollments:number;completed:number;pending_assessments:number;passed_assessments:number}>;gross_captures:Array<{course_id:string;currency:string;captured_count:number;captured_gross_minor:number}>;revenue_state:string};
 
 async function getAcademy<T>(path:string):Promise<T>{
  const response=await fetch(path,{credentials:"same-origin",cache:"no-store",headers:{"Accept":"application/json"}});
@@ -40,8 +40,8 @@ export function SpecialistAcademyWorkspace(){
   <p>Тот же аккаунт специалиста: создавайте программы, публикуйте версии, принимайте учеников и проверяйте работы. Финансовые права и обучение управляются каноническими сервисами APGIC.</p>
   <p role="status" aria-live="polite">{notice}</p>
   <div className="hero-actions">
-   <a className="button-link primary-action" href="/academy">Создать или редактировать курс</a>
-   <a className="button-link secondary-action" href="/academy">Проверить работы {pending>0?`(${pending})`:""}</a>
+   <a className="button-link primary-action" href="/academy#academy-author">Создать или редактировать курс</a>
+   <a className="button-link secondary-action" href="/academy#academy-reviews">Проверить работы {pending>0?`(${pending})`:""}</a>
    <button type="button" onClick={()=>void refresh()} disabled={busy}>Обновить данные</button>
   </div>
   <div className="how-grid specialist-grid">
@@ -55,7 +55,12 @@ export function SpecialistAcademyWorkspace(){
    </article>
    <article className="panel"><h3>Задания и доходы</h3>
     <p>Ожидают проверки: {report?pending:"—"}</p>
-    <p>Доход показывается только после канонической финансовой сверки; подтверждённые списания не равны выплате специалисту.</p>
+    {report?.gross_captures.length?report.gross_captures.map(item=>
+     <p key={item.course_id+"-"+item.currency}>
+      {courses.find(c=>c.id===item.course_id)?.title??"Курс"}: подтверждено оплат {item.captured_count};
+      валовая сумма {item.captured_gross_minor} {item.currency} (минимальные денежные единицы).
+     </p>):<p>Подтверждённые оплаты курсов пока не отображаются.</p>}
+    <p>Это подтверждённые валовые списания Commerce, а не доход к выплате. Чистый доход, возвраты, комиссии и расчёты с автором подтверждает только Finance.</p>
    </article>
   </div>
  </section>;

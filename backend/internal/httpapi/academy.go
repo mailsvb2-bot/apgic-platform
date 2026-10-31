@@ -31,6 +31,7 @@ type academyStore interface {
 }
 
 func registerAcademy(mux *http.ServeMux, store academyStore, sessions *clientSessionManager, sessionConfigErr error) {
+	registerAcademyAuthorProducts(mux, store, sessions, sessionConfigErr)
 	registerAcademyHistoryExport(mux, store, sessions, sessionConfigErr)
 	registerAcademyNotificationPreferences(mux, store, sessions, sessionConfigErr)
 	registerAcademyAppeals(mux, store, sessions, sessionConfigErr)
