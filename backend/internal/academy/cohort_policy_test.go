@@ -13,12 +13,15 @@ func TestAuthorizeCohortAdmission(t *testing.T) {
 	if err := AuthorizeCohortAdmission(base, facts); err != nil {
 		t.Fatalf("valid learner denied: %v", err)
 	}
-	cases := map[string]struct{ policy CohortPolicy; facts CohortAdmissionFacts }{
-		"full": {CohortPolicy{Capacity: 1, Enrolled: 1}, facts},
-		"no right": {base, CohortAdmissionFacts{Now: now}},
-		"duplicate": {base, CohortAdmissionFacts{Now: now, EntitlementActive: true, AlreadyEnrolled: true}},
-		"closed": {CohortPolicy{Capacity: 2, EnrollmentClosesAt: now}, facts},
-		"prerequisite": {CohortPolicy{Capacity: 2, PrerequisitesRequired: true}, CohortAdmissionFacts{Now: now, EntitlementActive: true}},
+	cases := map[string]struct {
+		policy CohortPolicy
+		facts  CohortAdmissionFacts
+	}{
+		"full":          {CohortPolicy{Capacity: 1, Enrolled: 1}, facts},
+		"no right":      {base, CohortAdmissionFacts{Now: now}},
+		"duplicate":     {base, CohortAdmissionFacts{Now: now, EntitlementActive: true, AlreadyEnrolled: true}},
+		"closed":        {CohortPolicy{Capacity: 2, EnrollmentClosesAt: now}, facts},
+		"prerequisite":  {CohortPolicy{Capacity: 2, PrerequisitesRequired: true}, CohortAdmissionFacts{Now: now, EntitlementActive: true}},
 		"invalid clock": {base, CohortAdmissionFacts{EntitlementActive: true}},
 	}
 	for name, tc := range cases {
