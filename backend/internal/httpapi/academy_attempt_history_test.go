@@ -48,4 +48,13 @@ func TestAcademyLearnerAttemptHistoryRequiresSignedSession(t *testing.T) {
 		w.Header().Get("Cache-Control") != "private, no-store" {
 		t.Fatalf("signed result projection failure: code=%d calls=%d", w.Code, stub.calls)
 	}
+
+	// Malformed enrollment IDs must fail before the canonical store sees them.
+	req = httptest.NewRequest(http.MethodGet, "/v1/academy/enrollments/invalid/attempts", nil)
+	req.AddCookie(cookie)
+	w = httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest || stub.calls != 1 {
+		t.Fatalf("malformed enrollment reached store: code=%d calls=%d", w.Code, stub.calls)
+	}
 }
