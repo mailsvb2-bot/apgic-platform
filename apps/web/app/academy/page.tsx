@@ -4,7 +4,7 @@ import {useCallback,useEffect,useState,type FormEvent} from "react";
 
 type Course = {id:string;product_id:string;title:string;description:string;state:string;version_id:string;version_no:number};
 type Module = {id:string;version_id:string;title:string;ordinal:number};
-type Lesson = {id:string;module_id:string;title:string;kind:"READING"|"VIDEO"|"ASSESSMENT";ordinal:number;body?:string;media_asset_ref?:string;completed?:boolean;passing_score?:number};
+type Lesson = {id:string;module_id:string;title:string;kind:"READING"|"VIDEO"|"ASSESSMENT";ordinal:number;body?:string;media_asset_ref?:string;completed?:boolean;passing_score?:number;available?:boolean};
 type Enrollment = {id:string;version_id:string;course_id?:string;course_title?:string;version_no?:number;state:string;access_state?:"ACTIVE"|"REVOKED"};
 type Certificate = {verification_url:string;state:string;evidence_candidate_state:string};
 type Cohort = {id:string;version_id:string;label:string;capacity:number;members:number;is_member?:boolean;starts_at?:string;enrollment_closes_at?:string};
@@ -212,6 +212,33 @@ export default function AcademyPage(){
      {modules.map(m=><article key={m.id}><h4>{m.ordinal}. {m.title}</h4>
       <ul>{lessons.filter(l=>l.module_id===m.id).map(l=><li key={l.id}>{l.title} · {l.kind}</li>)}</ul>
      </article>)}
+     {course.state==="DRAFT"&&<section aria-label="Расписание и лимиты уроков">
+      <h4>Расписание уроков и пересдачи</h4>
+      {lessons.map(lesson=><div key={lesson.id}>
+       <h5>{lesson.title}</h5>
+       <form onSubmit={event=>{event.preventDefault();const data=new FormData(event.currentTarget);
+        const release=String(data.get("release")||"");
+        const due=String(data.get("deadline")||"");
+        void act(()=>api(`/v1/academy/lessons/${lesson.id}/schedule`,{
+         release_at:release?new Date(release).toISOString():null,
+         deadline_at:due?new Date(due).toISOString():null
+        }),()=>setNotice("Расписание урока сохранено."))}}>
+        <label>Открыть урок <input name="release" type="datetime-local" required/></label>
+        <label>Закрыть урок (необязательно) <input name="deadline" type="datetime-local"/></label>
+        <button disabled={busy}>Сохранить расписание</button>
+       </form>
+       {lesson.kind==="ASSESSMENT"&&<form onSubmit={event=>{event.preventDefault();
+        const data=new FormData(event.currentTarget);const due=String(data.get("deadline")||"");
+        void act(()=>api(`/v1/academy/lessons/${lesson.id}/assessment-limits`,{
+         max_attempts:Number(data.get("max_attempts")),
+         submission_deadline:due?new Date(due).toISOString():null
+        }),()=>setNotice("Ограничения экзамена сохранены."))}}>
+        <label>Максимум попыток <input name="max_attempts" type="number" min={1} max={100} defaultValue={1} required/></label>
+        <label>Последний срок сдачи <input name="deadline" type="datetime-local"/></label>
+        <button disabled={busy}>Сохранить правила экзамена</button>
+       </form>}
+      </div>)}
+     </section>}
      <section aria-label="Декларация авторских прав">
       <h4>Авторские права на материалы курса</h4>
       <p>Подтвердите авторство оригинального содержания. Сторонняя лицензия требует отдельной проверки.</p>
@@ -269,9 +296,10 @@ export default function AcademyPage(){
    <div className="how-grid">
     {lessons.map(l=><article className="panel" key={l.id}>
      <h3>{l.title}</h3><p>{l.kind} {l.completed?"· выполнено":""}</p>
-     {l.kind==="READING"&&<p style={{whiteSpace:"pre-wrap"}}>{l.body}</p>}
+     {l.available===false&&<p role="status">Урок ещё не открыт или срок его изучения истёк.</p>}
+     {l.available!==false&&l.kind==="READING"&&<p style={{whiteSpace:"pre-wrap"}}>{l.body}</p>}
      {l.kind==="VIDEO"&&<p>Видеодоступ выдаётся только через совместимый media provider с подтверждением playback.</p>}
-     {l.kind==="ASSESSMENT"&&<section aria-label={`Результаты: ${l.title}`}>
+     {l.available!==false&&l.kind==="ASSESSMENT"&&<section aria-label={`Результаты: ${l.title}`}>
       {learnerAttempts.filter(a=>a.lesson_id===l.id).map(a=>
        <p key={a.id}>Попытка {a.attempt_no}: {a.result==="PENDING"?"Ожидает проверки":a.result==="PASSED"?"Зачтено":"Не зачтено"}
         {a.score!==undefined?` · ${a.score}/100`:""}</p>)}
@@ -290,7 +318,7 @@ export default function AcademyPage(){
         <button disabled={busy}>Отправить на проверку</button>
        </form>}
      </section>}
-     {l.kind==="READING"&&<button disabled={busy||l.completed} onClick={()=>void act(
+     {l.available!==false&&l.kind==="READING"&&<button disabled={busy||l.completed} onClick={()=>void act(
       ()=>api(`/v1/academy/enrollments/${activeEnrollment.id}/lessons/${l.id}/complete`,{}),
       async()=>{await loadLearning(activeEnrollment)})}>Отметить выполнение</button>}
     </article>)}
