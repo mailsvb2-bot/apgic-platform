@@ -67,6 +67,9 @@ type Lesson struct {
 }
 type Enrollment struct {
 	ID            string     `json:"id"`
+	CourseID      string     `json:"course_id,omitempty"`
+	CourseTitle   string     `json:"course_title,omitempty"`
+	VersionNo     int        `json:"version_no,omitempty"`
 	IdentityID    string     `json:"identity_id,omitempty"`
 	VersionID     string     `json:"version_id"`
 	EntitlementID string     `json:"entitlement_id,omitempty"`
