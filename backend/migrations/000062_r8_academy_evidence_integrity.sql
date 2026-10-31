@@ -30,7 +30,7 @@ BEGIN
     )
   ) THEN RAISE EXCEPTION 'academy cohort prerequisites not completed'; END IF;
   RETURN NEW;
-END; $;
+END; $$;
 CREATE TRIGGER academy_cohort_membership_insert_guard
   BEFORE INSERT ON academy_cohort_memberships FOR EACH ROW
   EXECUTE FUNCTION academy_cohort_membership_guard();
