@@ -1,27 +1,36 @@
 -- R8 hardening for evidence added in 000061. Run only after 000060 and 000061.
 CREATE FUNCTION academy_cohort_membership_guard() RETURNS trigger LANGUAGE plpgsql AS $$
-DECLARE cohort_version uuid; current_capacity integer; enrolled_version uuid; enrolled_state text; current_count bigint;
+DECLARE cohort_version uuid; current_capacity integer; enrolled_version uuid; enrolled_state text; current_count bigint; learner uuid; entitlement_active boolean;
 BEGIN
   PERFORM pg_advisory_xact_lock(hashtextextended(NEW.cohort_id::text, 82748));
   SELECT version_id, capacity INTO cohort_version, current_capacity
     FROM academy_cohorts WHERE id=NEW.cohort_id FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'academy cohort not found'; END IF;
-  SELECT version_id, state INTO enrolled_version, enrolled_state
+  SELECT version_id, state, identity_id, academy_entitlement_is_active(entitlement_id)
+    INTO enrolled_version, enrolled_state, learner, entitlement_active
     FROM academy_enrollments WHERE id=NEW.enrollment_id FOR UPDATE;
-  IF NOT FOUND OR enrolled_version IS DISTINCT FROM cohort_version OR enrolled_state <> 'ACTIVE' THEN
+  IF NOT FOUND OR enrolled_version IS DISTINCT FROM cohort_version OR enrolled_state <> 'ACTIVE' OR entitlement_active IS DISTINCT FROM TRUE THEN
     RAISE EXCEPTION 'academy cohort enrollment version/state mismatch';
   END IF;
   IF EXISTS (SELECT 1 FROM academy_cohort_memberships WHERE cohort_id=NEW.cohort_id AND enrollment_id=NEW.enrollment_id) THEN
-    RAISE EXCEPTION 'academy cohort membership already exists';
+    RETURN NEW; -- ON CONFLICT DO NOTHING remains idempotent after the trigger.
   END IF;
   SELECT count(*) INTO current_count FROM academy_cohort_memberships WHERE cohort_id=NEW.cohort_id;
-  IF current_count >= current_capacity THEN RAISE EXCEPTION 'academy cohort capacity exceeded'; END IF;
+  IF current_capacity IS NULL OR current_count >= current_capacity THEN RAISE EXCEPTION 'academy cohort capacity exceeded'; END IF;
   IF EXISTS (SELECT 1 FROM academy_cohorts
     WHERE id=NEW.cohort_id AND (enrollment_closes_at <= now() OR starts_at <= now())) THEN
     RAISE EXCEPTION 'academy cohort enrollment is closed';
   END IF;
+  IF EXISTS (
+    SELECT 1 FROM academy_prerequisites p
+    WHERE p.version_id=cohort_version AND NOT EXISTS (
+      SELECT 1 FROM academy_enrollments prior
+      WHERE prior.identity_id=learner AND prior.version_id=p.prerequisite_version_id
+        AND prior.state='COMPLETED'
+    )
+  ) THEN RAISE EXCEPTION 'academy cohort prerequisites not completed'; END IF;
   RETURN NEW;
-END; $$;
+END; $;
 CREATE TRIGGER academy_cohort_membership_insert_guard
   BEFORE INSERT ON academy_cohort_memberships FOR EACH ROW
   EXECUTE FUNCTION academy_cohort_membership_guard();
@@ -64,7 +73,9 @@ BEGIN
   IF btrim(NEW.step_up_audit_ref)='' OR btrim(NEW.evidence_ref)='' THEN
     RAISE EXCEPTION 'academy certificate revocation requires audit evidence';
   END IF;
-  UPDATE academy_certificates SET state='REVOKED' WHERE id=NEW.certificate_id;
+  UPDATE academy_certificates
+    SET state='REVOKED',revoked_at=NEW.decided_at,revocation_reason=NEW.reason_code
+    WHERE id=NEW.certificate_id;
   RETURN NEW;
 END; $$;
 CREATE TRIGGER academy_certificate_revocation_apply BEFORE INSERT ON academy_cert_revocation_decisions
