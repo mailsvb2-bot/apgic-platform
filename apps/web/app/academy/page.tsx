@@ -22,6 +22,23 @@ async function api<T>(path:string,body?:unknown):Promise<T>{
  return data as T;
 }
 
+async function downloadAcademyHistory():Promise<void>{
+ const response=await fetch("/v1/academy/me/history/export",{
+  method:"GET",credentials:"same-origin",cache:"no-store",headers:{"Accept":"application/json"}
+ });
+ if(!response.ok){
+  const problem=await response.json().catch(()=>({}));
+  throw new Error(problem.message_safe||problem.code||"Экспорт недоступен");
+ }
+ const blob=await response.blob();
+ const url=URL.createObjectURL(blob);
+ try{
+  const link=document.createElement("a");
+  link.href=url;link.download="apgic-academy-history.json";
+  document.body.appendChild(link);link.click();link.remove();
+ }finally{URL.revokeObjectURL(url)}
+}
+
 export default function AcademyPage(){
  const [catalog,setCatalog]=useState<Course[]>([]);
  const [mine,setMine]=useState<Course[]>([]);
@@ -148,6 +165,7 @@ export default function AcademyPage(){
      <p>Доступ предоставляется только по подтверждённому entitlement. Если покупки нет, платформа не создаёт фиктивную оплату.</p>
     </section>
     <section className="panel"><h2>Мои обучения</h2>
+     <button disabled={busy} onClick={()=>void act(()=>downloadAcademyHistory(),async()=>{setNotice("История обучения выгружена.")})}>Скачать историю обучения (JSON)</button>
      {enrollments.length===0?<p>Пока нет зачислений.</p>:enrollments.map(e=>
       <div key={e.id}><p>{e.course_title||"Курс"} · версия {e.version_no??"—"} · {e.state} · доступ {e.access_state??"неизвестен"}</p>
        <button disabled={busy||e.access_state!=="ACTIVE"} onClick={()=>void act(
