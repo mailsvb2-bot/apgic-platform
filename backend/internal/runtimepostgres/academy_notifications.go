@@ -1,6 +1,8 @@
 package runtimepostgres
 
 import (
+ "database/sql"
+ "errors"
  "github.com/mailsvb2-bot/apgic-platform/backend/internal/academy"
 )
 
@@ -13,7 +15,7 @@ func (c *Checker) AcademyNotificationPreferences(actor string) (academy.Notifica
  Scan(&p.Enabled,&p.LearningUpdates,&p.AssessmentResults,&p.CertificateUpdates)
  if err!=nil {
   // No preferences means opt-out, never an implicit opt-in.
-  if err.Error()=="sql: no rows in result set"{return academy.NotificationPreferences{},nil}
+  if errors.Is(err,sql.ErrNoRows){return academy.NotificationPreferences{},nil}
   return academy.NotificationPreferences{},err
  }
  return p,nil
