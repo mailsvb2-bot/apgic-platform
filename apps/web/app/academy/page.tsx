@@ -5,7 +5,7 @@ import {useCallback,useEffect,useState,type FormEvent} from "react";
 type Course = {id:string;product_id:string;title:string;description:string;state:string;version_id:string;version_no:number};
 type Module = {id:string;version_id:string;title:string;ordinal:number};
 type Lesson = {id:string;module_id:string;title:string;kind:"READING"|"VIDEO"|"ASSESSMENT";ordinal:number;body?:string;media_asset_ref?:string;completed?:boolean;passing_score?:number};
-type Enrollment = {id:string;version_id:string;state:string;access_state?:"ACTIVE"|"REVOKED"};
+type Enrollment = {id:string;version_id:string;course_id?:string;course_title?:string;version_no?:number;state:string;access_state?:"ACTIVE"|"REVOKED"};
 type Certificate = {verification_url:string;state:string;evidence_candidate_state:string};
 type ReviewAttempt = {attempt_id:string;enrollment_id:string;lesson_id:string;attempt_no:number;response_text:string;submitted_at:string;rubric_version:string;passing_score:number;course_title:string;lesson_title:string};
 type AuthorReport = {courses:{course_id:string;title:string;enrollments:number;completed:number;active_access:number;pending_assessments:number;passed_assessments:number}[];gross_captures:{course_id:string;currency:string;captured_count:number;captured_gross_minor:number}[];revenue_state:string};
@@ -131,7 +131,7 @@ export default function AcademyPage(){
     </section>
     <section className="panel"><h2>Мои обучения</h2>
      {enrollments.length===0?<p>Пока нет зачислений.</p>:enrollments.map(e=>
-      <div key={e.id}><p>Зачисление {e.id.slice(0,8)} · {e.state} · доступ {e.access_state??"неизвестен"}</p>
+      <div key={e.id}><p>{e.course_title||"Курс"} · версия {e.version_no??"—"} · {e.state} · доступ {e.access_state??"неизвестен"}</p>
        <button disabled={busy||e.access_state!=="ACTIVE"} onClick={()=>void act(
         ()=>api<{lessons:Lesson[]}>(`/v1/academy/enrollments/${e.id}/learn`),
         async()=>{await loadLearning(e)})}>Продолжить</button>
@@ -229,7 +229,7 @@ export default function AcademyPage(){
       <label htmlFor={`attempt-${l.id}`}>Ответ</label>
       <textarea id={`attempt-${l.id}`} value={attemptResponse} onChange={e=>setAttemptResponse(e.target.value)} required/>
       <button disabled={busy}>Отправить на проверку</button></form>}
-     {l.kind!=="VIDEO"&&<button disabled={busy||l.completed} onClick={()=>void act(
+     {l.kind==="READING"&&<button disabled={busy||l.completed} onClick={()=>void act(
       ()=>api(`/v1/academy/enrollments/${activeEnrollment.id}/lessons/${l.id}/complete`,{}),
       async()=>{await loadLearning(activeEnrollment)})}>Отметить выполнение</button>}
     </article>)}
