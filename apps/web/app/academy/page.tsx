@@ -55,6 +55,7 @@ export default function AcademyPage(){
  const [certificate,setCertificate]=useState<Certificate|null>(null);
  const [cohorts,setCohorts]=useState<Cohort[]>([]);
  const [cohortError,setCohortError]=useState(false);
+ const [appealError,setAppealError]=useState(false);
  const [authorCohorts,setAuthorCohorts]=useState<Cohort[]>([]);
  const [cohortTitle,setCohortTitle]=useState("");
  const [cohortCapacity,setCohortCapacity]=useState(20);
@@ -126,10 +127,11 @@ export default function AcademyPage(){
    api<{cohorts:Cohort[]}>(`/v1/academy/enrollments/${item.id}/cohorts`)
     .then(value=>({ok:true,items:value.cohorts})).catch(()=>({ok:false,items:[] as Cohort[]})),
    api<{appeals:LearnerAppeal[]}>("/v1/academy/me/appeals")
+    .then(value=>({ok:true,items:value.appeals})).catch(()=>({ok:false,items:[] as LearnerAppeal[]}))
   ]);
   setActiveEnrollment(item);setCourse(null);setCertificate(null);
-  setLessons(d.lessons);setLearnerAttempts(history.attempts);setLearnerAppeals(appealList.appeals);setModules([]);
-  setCohorts(cohortResult.items);setCohortError(!cohortResult.ok);
+  setLessons(d.lessons);setLearnerAttempts(history.attempts);setLearnerAppeals(appealList.items);setModules([]);
+  setCohorts(cohortResult.items);setCohortError(!cohortResult.ok);setAppealError(!appealList.ok);
  }
  async function createCourse(event:FormEvent){
   event.preventDefault();
@@ -356,7 +358,8 @@ export default function AcademyPage(){
       {learnerAttempts.filter(a=>a.lesson_id===l.id&&(a.result==="FAILED"||a.result==="PASSED")).map(a=>
        <div key={`appeal-${a.id}`}>
         {learnerAppeals.some(x=>x.attempt_id===a.id)?
-         <p>Апелляция: {learnerAppeals.find(x=>x.attempt_id===a.id)?.state}</p>:
+         <p>Апелляция: {learnerAppeals.find(x=>x.attempt_id===a.id)?.state}</p>:appealError?
+         <p role="alert">История апелляций временно недоступна. Повторная подача заблокирована до проверки.</p>:
          <form onSubmit={event=>{event.preventDefault();const form=new FormData(event.currentTarget);
           void act(()=>api<LearnerAppeal>(`/v1/academy/attempts/${a.id}/appeals`,{
            reason:String(form.get("reason")||"")
