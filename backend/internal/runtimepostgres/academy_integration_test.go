@@ -379,12 +379,35 @@ func TestAcademyStoreVerifiedPaidJourneySurvivesRestart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("student assessment not submitted: %v", err)
 	}
+
+	// The learner sees their own pending work but a foreign identity cannot
+	// enumerate grading outcomes. No instructor evidence is projected.
+	if _, err = store.AcademyLearnerAttempts(author, enrollment.ID); !errors.Is(err, academy.ErrDenied) {
+		t.Fatalf("foreign identity read learner assessment history: %v", err)
+	}
+	pendingHistory, err := store.AcademyLearnerAttempts(learner, enrollment.ID)
+	if err != nil || len(pendingHistory) != 1 || pendingHistory[0].ID != attempt.ID ||
+		pendingHistory[0].Result != "PENDING" || pendingHistory[0].Score != nil {
+		t.Fatalf("pending attempt history is incorrect: %+v %v", pendingHistory, err)
+	}
+	if _, err = store.AcademySubmitAttempt(learner, enrollment.ID, assessment.ID, "duplicate before review"); !errors.Is(err, academy.ErrState) {
+		t.Fatalf("pending review accepted duplicate submission: %v", err)
+	}
 	if _, err = store.AcademyEvaluateAttempt(learner, attempt.ID, "review/unauthorized", 95); !errors.Is(err, academy.ErrDenied) {
 		t.Fatalf("learner graded their own submission: %v", err)
 	}
 	evaluated, err := store.AcademyEvaluateAttempt(author, attempt.ID, "academy/human-review/ci", 95)
 	if err != nil || evaluated.Result != "PASSED" {
 		t.Fatalf("instructor review did not persist: %+v: %v", evaluated, err)
+	}
+
+	passedHistory, err := store.AcademyLearnerAttempts(learner, enrollment.ID)
+	if err != nil || len(passedHistory) != 1 || passedHistory[0].Result != "PASSED" ||
+		passedHistory[0].Score == nil || *passedHistory[0].Score != 95 || passedHistory[0].EvaluatedAt == nil {
+		t.Fatalf("evaluated result not visible to owner: %+v %v", passedHistory, err)
+	}
+	if _, err = store.AcademySubmitAttempt(learner, enrollment.ID, assessment.ID, "duplicate after pass"); !errors.Is(err, academy.ErrState) {
+		t.Fatalf("passed assessment accepted duplicate submission: %v", err)
 	}
 	// Drop the runtime before completing the course: progress must NOT depend
 	// on any process-local cache or React Native/Web application memory.
@@ -394,6 +417,11 @@ func TestAcademyStoreVerifiedPaidJourneySurvivesRestart(t *testing.T) {
 	store, err = Open(ctx, dsn)
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	restartedHistory, err := store.AcademyLearnerAttempts(learner, enrollment.ID)
+	if err != nil || len(restartedHistory) != 1 || restartedHistory[0].Result != "PASSED" {
+		t.Fatalf("restart lost learner grading evidence: %+v %v", restartedHistory, err)
 	}
 	lessons, err := store.AcademyLearning(learner, enrollment.ID)
 	if err != nil {
