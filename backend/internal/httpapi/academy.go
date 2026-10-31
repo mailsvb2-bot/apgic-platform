@@ -31,6 +31,7 @@ type academyStore interface {
 }
 
 func registerAcademy(mux *http.ServeMux, store academyStore, sessions *clientSessionManager, sessionConfigErr error) {
+	registerAcademyLearnerAttempts(mux, store, sessions, sessionConfigErr)
 	mux.HandleFunc("GET /v1/academy/courses", func(w http.ResponseWriter, r *http.Request) {
 		if store == nil {
 			writeDemandError(w, r, 503, "ACADEMY_UNAVAILABLE", "Обучение недоступно.", true, nil)
