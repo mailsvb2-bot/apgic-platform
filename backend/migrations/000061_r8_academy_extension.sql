@@ -16,20 +16,19 @@ CREATE TABLE IF NOT EXISTS academy_media_playback_facts (
 );
 CREATE INDEX IF NOT EXISTS academy_media_playback_enrollment_idx ON academy_media_playback_facts(enrollment_id,lesson_id);
 
-CREATE TABLE IF NOT EXISTS academy_cohorts (
- id uuid PRIMARY KEY,
- version_id uuid NOT NULL REFERENCES academy_course_versions(id),
- label text NOT NULL CHECK (char_length(btrim(label)) BETWEEN 1 AND 160),
- capacity integer NOT NULL CHECK (capacity > 0),
- starts_at timestamptz,
- enrollment_closes_at timestamptz,
- created_at timestamptz NOT NULL DEFAULT now()
-);
+-- The canonical cohort already exists in 000060. Extend it; do not shadow
+-- its title/starts_at/ends_at/capacity columns with an incompatible table.
+ALTER TABLE academy_cohorts
+ ADD COLUMN enrollment_closes_at timestamptz;
+ALTER TABLE academy_cohorts
+ ADD CONSTRAINT academy_cohort_enrollment_closes_before_start
+ CHECK (enrollment_closes_at IS NULL OR enrollment_closes_at <= starts_at);
 CREATE TABLE IF NOT EXISTS academy_cohort_memberships (
  cohort_id uuid NOT NULL REFERENCES academy_cohorts(id),
  enrollment_id uuid NOT NULL REFERENCES academy_enrollments(id),
  admitted_at timestamptz NOT NULL DEFAULT now(),
- PRIMARY KEY(cohort_id,enrollment_id)
+ PRIMARY KEY(cohort_id,enrollment_id),
+ UNIQUE(enrollment_id)
 );
 
 CREATE TABLE IF NOT EXISTS academy_cert_revocation_decisions (
