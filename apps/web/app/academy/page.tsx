@@ -2,6 +2,7 @@
 
 import {useCallback,useEffect,useState,type FormEvent} from "react";
 
+type AcademyNotifications = {enabled:boolean;learning_updates:boolean;assessment_results:boolean;certificate_updates:boolean};
 type Course = {id:string;product_id:string;title:string;description:string;state:string;version_id:string;version_no:number};
 type Module = {id:string;version_id:string;title:string;ordinal:number};
 type Lesson = {id:string;module_id:string;title:string;kind:"READING"|"VIDEO"|"ASSESSMENT";ordinal:number;body?:string;media_asset_ref?:string;completed?:boolean;passing_score?:number;available?:boolean};
@@ -41,6 +42,7 @@ export default function AcademyPage(){
  const [cohortCloses,setCohortCloses]=useState("");
  const [notice,setNotice]=useState("");
  const [busy,setBusy]=useState(false);
+ const [notifications,setNotifications]=useState<AcademyNotifications|null>(null);
  const [productID,setProductID]=useState("");
  const [title,setTitle]=useState("");
  const [description,setDescription]=useState("");
@@ -151,6 +153,20 @@ export default function AcademyPage(){
      <p>Доступ предоставляется только по подтверждённому entitlement. Если покупки нет, платформа не создаёт фиктивную оплату.</p>
     </section>
     <section className="panel"><h2>Мои обучения</h2>
+     <section aria-label="Уведомления об обучении">
+      <h3>Уведомления</h3>
+      <button disabled={busy} onClick={()=>void act(
+       ()=>api<AcademyNotifications>("/v1/academy/me/notifications"),setNotifications)}>Настроить уведомления</button>
+      {notifications&&<form onSubmit={event=>{event.preventDefault();void act(
+       ()=>api<AcademyNotifications>("/v1/academy/me/notifications",notifications),
+       setNotifications)}}>
+       {(["enabled","learning_updates","assessment_results","certificate_updates"] as const).map(field=>
+        <label key={field}><input type="checkbox" checked={notifications[field]}
+         onChange={event=>setNotifications(prev=>prev?{...prev,[field]:event.target.checked}:prev)}/>
+         {{enabled:"Разрешить уведомления",learning_updates:"Новые уроки",assessment_results:"Оценки",certificate_updates:"Сертификаты"}[field]}</label>)}
+       <button disabled={busy}>Сохранить согласия</button>
+      </form>}
+     </section>
      {enrollments.length===0?<p>Пока нет зачислений.</p>:enrollments.map(e=>
       <div key={e.id}><p>{e.course_title||"Курс"} · версия {e.version_no??"—"} · {e.state} · доступ {e.access_state??"неизвестен"}</p>
        <button disabled={busy||e.access_state!=="ACTIVE"} onClick={()=>void act(
