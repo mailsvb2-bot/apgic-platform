@@ -20,7 +20,7 @@ All EdTech entities are scoped to the **same APGIC Identity** as Client/Speciali
 
 ## Implemented source files
 
-- `backend/migrations/000049_r8_academy_learning.sql`: relations, immutable version/progress/attempt evidence, verified entitlement guards, cohorts and schedule structural model.
+- `backend/migrations/000060_r8_academy_learning.sql`: relations, immutable version/progress/attempt evidence, verified entitlement guards, cohorts and schedule structural model.
 - `backend/internal/academy/`: Go domain contracts and safety invariants.
 - `backend/internal/runtimepostgres/academy.go`: atomic writes, transactional outbox, authorization, lesson/activity state, human-graded attempts and review queue, credential verification.
 - `backend/internal/httpapi/academy.go`: versioned `/v1/academy/*` API, signed session, safe reason codes, no public raw-lesson bodies.
