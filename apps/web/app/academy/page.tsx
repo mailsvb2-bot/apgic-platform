@@ -7,6 +7,7 @@ type Module = {id:string;version_id:string;title:string;ordinal:number};
 type Lesson = {id:string;module_id:string;title:string;kind:"READING"|"VIDEO"|"ASSESSMENT";ordinal:number;body?:string;media_asset_ref?:string;completed?:boolean;passing_score?:number};
 type Enrollment = {id:string;version_id:string;course_id?:string;course_title?:string;version_no?:number;state:string;access_state?:"ACTIVE"|"REVOKED"};
 type Certificate = {verification_url:string;state:string;evidence_candidate_state:string};
+type Cohort = {id:string;version_id:string;label:string;capacity:number;members:number;is_member?:boolean;starts_at?:string;enrollment_closes_at?:string};
 type LearnerAttempt = {id:string;lesson_id:string;attempt_no:number;result:"PENDING"|"PASSED"|"FAILED";score?:number;submitted_at:string;evaluated_at?:string};
 type ReviewAttempt = {attempt_id:string;enrollment_id:string;lesson_id:string;attempt_no:number;response_text:string;submitted_at:string;rubric_version:string;passing_score:number;course_title:string;lesson_title:string};
 type AuthorReport = {courses:{course_id:string;title:string;enrollments:number;completed:number;active_access:number;pending_assessments:number;passed_assessments:number}[];gross_captures:{course_id:string;currency:string;captured_count:number;captured_gross_minor:number}[];revenue_state:string};
@@ -30,6 +31,13 @@ export default function AcademyPage(){
  const [lessons,setLessons]=useState<Lesson[]>([]);
  const [activeEnrollment,setActiveEnrollment]=useState<Enrollment|null>(null);
  const [certificate,setCertificate]=useState<Certificate|null>(null);
+ const [cohorts,setCohorts]=useState<Cohort[]>([]);
+ const [cohortError,setCohortError]=useState(false);
+ const [authorCohorts,setAuthorCohorts]=useState<Cohort[]>([]);
+ const [cohortTitle,setCohortTitle]=useState("");
+ const [cohortCapacity,setCohortCapacity]=useState(20);
+ const [cohortStarts,setCohortStarts]=useState("");
+ const [cohortCloses,setCohortCloses]=useState("");
  const [notice,setNotice]=useState("");
  const [busy,setBusy]=useState(false);
  const [productID,setProductID]=useState("");
@@ -55,16 +63,18 @@ export default function AcademyPage(){
  const refresh=useCallback(async()=>{
   const publicCourses=await api<{courses:Course[]}>("/v1/academy/courses");
   setCatalog(publicCourses.courses);
-  const [owned,learning,reviews,report]=await Promise.allSettled([
+  const [owned,learning,reviews,report,cohortList]=await Promise.allSettled([
    api<{courses:Course[]}>("/v1/academy/my-courses"),
    api<{enrollments:Enrollment[]}>("/v1/academy/my-enrollments"),
    api<{attempts:ReviewAttempt[]}>("/v1/academy/review/attempts"),
-   api<AuthorReport>("/v1/academy/author/report")
+   api<AuthorReport>("/v1/academy/author/report"),
+   api<{cohorts:Cohort[]}>("/v1/academy/author/cohorts")
   ]);
   if(owned.status==="fulfilled")setMine(owned.value.courses);
   if(learning.status==="fulfilled")setEnrollments(learning.value.enrollments);
   if(reviews.status==="fulfilled")setPendingReviews(reviews.value.attempts);
   if(report.status==="fulfilled")setAuthorReport(report.value);
+  if(cohortList.status==="fulfilled")setAuthorCohorts(cohortList.value.cohorts);
  },[]);
  useEffect(()=>{void refresh().catch(error=>setNotice(String(error)))},[refresh]);
 
@@ -75,18 +85,21 @@ export default function AcademyPage(){
   finally{setBusy(false)}
  }
  async function loadOutline(selected:Course){
-  setCourse(selected);setActiveEnrollment(null);setCertificate(null);setLearnerAttempts([]);
+  setCourse(selected);setActiveEnrollment(null);setCertificate(null);setLearnerAttempts([]);setCohorts([]);
   const d=await api<{state:string;modules:Module[];lessons:Lesson[]}>(
    `/v1/academy/courses/${selected.id}/versions/${selected.version_id}/outline`);
   setModules(d.modules);setLessons(d.lessons);setModuleID(d.modules[0]?.id||"");
  }
  async function loadLearning(item:Enrollment){
-  const [d,history]=await Promise.all([
+  const [d,history,cohortResult]=await Promise.all([
    api<{lessons:Lesson[]}>(`/v1/academy/enrollments/${item.id}/learn`),
-   api<{attempts:LearnerAttempt[]}>(`/v1/academy/enrollments/${item.id}/attempts`)
+   api<{attempts:LearnerAttempt[]}>(`/v1/academy/enrollments/${item.id}/attempts`),
+   api<{cohorts:Cohort[]}>(`/v1/academy/enrollments/${item.id}/cohorts`)
+    .then(value=>({ok:true,items:value.cohorts})).catch(()=>({ok:false,items:[] as Cohort[]}))
   ]);
   setActiveEnrollment(item);setCourse(null);setCertificate(null);
   setLessons(d.lessons);setLearnerAttempts(history.attempts);setModules([]);
+  setCohorts(cohortResult.items);setCohortError(!cohortResult.ok);
  }
  async function createCourse(event:FormEvent){
   event.preventDefault();
@@ -220,8 +233,38 @@ export default function AcademyPage(){
     </section>
    </div>
   </section>}
+  {course&&course.state==="PUBLISHED"&&<section className="how-section">
+   <h2>Учебные потоки преподавателя</h2>
+   <form className="panel specialist-form" onSubmit={e=>{e.preventDefault();void act(
+    ()=>api<Cohort>(`/v1/academy/versions/${course.version_id}/cohorts`,{
+     label:cohortTitle,capacity:cohortCapacity,starts_at:new Date(cohortStarts).toISOString(),
+     enrollment_closes_at:cohortCloses?new Date(cohortCloses).toISOString():null
+    }),async()=>{setCohortTitle("");setNotice("Учебный поток создан.")})}}>
+    <label htmlFor="r8-cohort-title">Название потока</label>
+    <input id="r8-cohort-title" value={cohortTitle} onChange={e=>setCohortTitle(e.target.value)} required/>
+    <label htmlFor="r8-cohort-capacity">Количество мест</label>
+    <input id="r8-cohort-capacity" type="number" min={1} max={100000} value={cohortCapacity}
+     onChange={e=>setCohortCapacity(Number(e.target.value))} required/>
+    <label htmlFor="r8-cohort-start">Начало занятий</label>
+    <input id="r8-cohort-start" type="datetime-local" value={cohortStarts}
+     onChange={e=>setCohortStarts(e.target.value)} required/>
+    <label htmlFor="r8-cohort-close">Конец записи (необязательно)</label>
+    <input id="r8-cohort-close" type="datetime-local" value={cohortCloses}
+     onChange={e=>setCohortCloses(e.target.value)}/>
+    <button disabled={busy||!cohortStarts}>Создать поток</button>
+   </form>
+   {authorCohorts.filter(h=>h.version_id===course.version_id).map(h=><p key={h.id}>{h.label}: {h.members} из {h.capacity} мест</p>)}
+  </section>}
   {activeEnrollment&&<section className="how-section">
    <h2>Прохождение курса</h2>
+   <h3>Доступные учебные потоки</h3>
+   {cohortError?<p role="alert">Список потоков временно недоступен; обучение продолжается.</p>:cohorts.length===0?<p>Потоки для этой версии курса ещё не объявлены.</p>:cohorts.map(h=><article className="panel" key={h.id}>
+    <strong>{h.label}</strong><p>Мест: {h.members} из {h.capacity}; начало: {h.starts_at?new Date(h.starts_at).toLocaleString("ru-RU"):"не задано"}</p>
+    <button disabled={busy||h.is_member||h.members>=h.capacity} onClick={()=>void act(
+     ()=>api(`/v1/academy/cohorts/${h.id}/join`,{enrollment_id:activeEnrollment.id}),
+     async()=>{setNotice("Зачисление в поток подтверждено.");await loadLearning(activeEnrollment)})}>{h.is_member?"Вы уже записаны":"Записаться в поток"}</button>
+   </article>)}
+
    <p>Материал доступен только владельцу активного права обучения.</p>
    <div className="how-grid">
     {lessons.map(l=><article className="panel" key={l.id}>
