@@ -8,6 +8,7 @@ type Lesson = {id:string;module_id:string;title:string;kind:"READING"|"VIDEO"|"A
 type Enrollment = {id:string;version_id:string;course_id?:string;course_title?:string;version_no?:number;state:string;access_state?:"ACTIVE"|"REVOKED"};
 type Certificate = {verification_url:string;state:string;evidence_candidate_state:string};
 type Cohort = {id:string;version_id:string;label:string;capacity:number;members:number;is_member?:boolean;starts_at?:string;enrollment_closes_at?:string};
+type LearnerAppeal = {id:string;attempt_id:string;state:string;reason:string;submitted_at:string};
 type LearnerAttempt = {id:string;lesson_id:string;attempt_no:number;result:"PENDING"|"PASSED"|"FAILED";score?:number;submitted_at:string;evaluated_at?:string};
 type ReviewAttempt = {attempt_id:string;enrollment_id:string;lesson_id:string;attempt_no:number;response_text:string;submitted_at:string;rubric_version:string;passing_score:number;course_title:string;lesson_title:string};
 type AuthorReport = {courses:{course_id:string;title:string;enrollments:number;completed:number;active_access:number;pending_assessments:number;passed_assessments:number}[];gross_captures:{course_id:string;currency:string;captured_count:number;captured_gross_minor:number}[];revenue_state:string};
@@ -51,6 +52,7 @@ export default function AcademyPage(){
  const [passingScore,setPassingScore]=useState(80);
  const [attemptResponse,setAttemptResponse]=useState<Record<string,string>>({});
  const [learnerAttempts,setLearnerAttempts]=useState<LearnerAttempt[]>([]);
+ const [learnerAppeals,setLearnerAppeals]=useState<LearnerAppeal[]>([]);
  const [attemptID,setAttemptID]=useState("");
  const [pendingReviews,setPendingReviews]=useState<ReviewAttempt[]>([]);
  const [authorReport,setAuthorReport]=useState<AuthorReport|null>(null);
@@ -91,14 +93,15 @@ export default function AcademyPage(){
   setModules(d.modules);setLessons(d.lessons);setModuleID(d.modules[0]?.id||"");
  }
  async function loadLearning(item:Enrollment){
-  const [d,history,cohortResult]=await Promise.all([
+  const [d,history,cohortResult,appealList]=await Promise.all([
    api<{lessons:Lesson[]}>(`/v1/academy/enrollments/${item.id}/learn`),
    api<{attempts:LearnerAttempt[]}>(`/v1/academy/enrollments/${item.id}/attempts`),
    api<{cohorts:Cohort[]}>(`/v1/academy/enrollments/${item.id}/cohorts`)
-    .then(value=>({ok:true,items:value.cohorts})).catch(()=>({ok:false,items:[] as Cohort[]}))
+    .then(value=>({ok:true,items:value.cohorts})).catch(()=>({ok:false,items:[] as Cohort[]})),
+   api<{appeals:LearnerAppeal[]}>("/v1/academy/me/appeals")
   ]);
   setActiveEnrollment(item);setCourse(null);setCertificate(null);
-  setLessons(d.lessons);setLearnerAttempts(history.attempts);setModules([]);
+  setLessons(d.lessons);setLearnerAttempts(history.attempts);setLearnerAppeals(appealList.appeals);setModules([]);
   setCohorts(cohortResult.items);setCohortError(!cohortResult.ok);
  }
  async function createCourse(event:FormEvent){
@@ -303,6 +306,18 @@ export default function AcademyPage(){
       {learnerAttempts.filter(a=>a.lesson_id===l.id).map(a=>
        <p key={a.id}>Попытка {a.attempt_no}: {a.result==="PENDING"?"Ожидает проверки":a.result==="PASSED"?"Зачтено":"Не зачтено"}
         {a.score!==undefined?` · ${a.score}/100`:""}</p>)}
+      {learnerAttempts.filter(a=>a.lesson_id===l.id&&(a.result==="FAILED"||a.result==="PASSED")).map(a=>
+       <div key={`appeal-${a.id}`}>
+        {learnerAppeals.some(x=>x.attempt_id===a.id)?
+         <p>Апелляция: {learnerAppeals.find(x=>x.attempt_id===a.id)?.state}</p>:
+         <form onSubmit={event=>{event.preventDefault();const form=new FormData(event.currentTarget);
+          void act(()=>api<LearnerAppeal>(`/v1/academy/attempts/${a.id}/appeals`,{
+           reason:String(form.get("reason")||"")
+          }),async()=>{await loadLearning(activeEnrollment);setNotice("Апелляция подана.")})}}>
+          <label>Причина апелляции <textarea name="reason" minLength={10} maxLength={2000} required/></label>
+          <button disabled={busy}>Оспорить оценку</button>
+         </form>}
+       </div>)}
       {learnerAttempts.some(a=>a.lesson_id===l.id&&(a.result==="PENDING"||a.result==="PASSED"))
        ?<p>Новая попытка недоступна до завершения проверки или после зачёта.</p>
        :<form onSubmit={e=>{e.preventDefault();void act(
