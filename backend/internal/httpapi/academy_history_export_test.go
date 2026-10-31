@@ -11,8 +11,8 @@ import (
 
 type academyExportStub struct {
 	academyStoreStub
-	calls int
-	actor string
+	calls        int
+	actor        string
 	attemptCalls int
 }
 
