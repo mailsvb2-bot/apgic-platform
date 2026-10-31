@@ -11,15 +11,7 @@ import (
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/academy"
 )
 
-type AcademyCohort struct {
-	ID                 string     `json:"id"`
-	VersionID          string     `json:"version_id"`
-	Label              string     `json:"label"`
-	Capacity           int        `json:"capacity"`
-	Members            int        `json:"members"`
-	StartsAt           *time.Time `json:"starts_at,omitempty"`
-	EnrollmentClosesAt *time.Time `json:"enrollment_closes_at,omitempty"`
-}
+type AcademyCohort = academy.Cohort
 
 func (c *Checker) AcademyListCohorts(actor string) ([]AcademyCohort, error) {
 	if c == nil || c.db == nil {
@@ -27,12 +19,12 @@ func (c *Checker) AcademyListCohorts(actor string) ([]AcademyCohort, error) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), academyTimeout)
 	defer cancel()
-	rows, err := c.db.QueryContext(ctx, `SELECT h.id::text,h.version_id::text,h.label,h.capacity,
+	rows, err := c.db.QueryContext(ctx, `SELECT h.id::text,h.version_id::text,h.title,h.capacity,
   (SELECT count(*) FROM academy_cohort_memberships m WHERE m.cohort_id=h.id),
   h.starts_at,h.enrollment_closes_at
   FROM academy_cohorts h JOIN academy_course_versions v ON v.id=h.version_id
   JOIN academy_courses c ON c.id=v.course_id
-  WHERE c.author_id=$1::uuid ORDER BY h.created_at,h.id`, actor)
+  WHERE c.author_id=$1::uuid ORDER BY h.starts_at,h.id`, actor)
 	if err != nil {
 		return nil, err
 	}
@@ -78,14 +70,14 @@ func (c *Checker) AcademyCreateCohort(actor, versionID, label string, capacity i
 	if state != "PUBLISHED" {
 		return AcademyCohort{}, academy.ErrState
 	}
-	if startsAt != nil && enrollmentClosesAt != nil && !enrollmentClosesAt.Before(*startsAt) {
+	if startsAt == nil || !startsAt.After(time.Now().UTC()) || (enrollmentClosesAt != nil && (enrollmentClosesAt.After(*startsAt) || !enrollmentClosesAt.After(time.Now().UTC()))) {
 		return AcademyCohort{}, academy.ErrInvalid
 	}
 	id, err := academyID()
 	if err != nil {
 		return AcademyCohort{}, err
 	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO academy_cohorts(id,version_id,label,capacity,starts_at,enrollment_closes_at)
+	_, err = tx.ExecContext(ctx, `INSERT INTO academy_cohorts(id,version_id,title,capacity,starts_at,enrollment_closes_at)
  VALUES($1::uuid,$2::uuid,$3,$4,$5,$6)`, id, versionID, label, capacity, startsAt, enrollmentClosesAt)
 	if err != nil {
 		return AcademyCohort{}, fmt.Errorf("create academy cohort: %w", err)
