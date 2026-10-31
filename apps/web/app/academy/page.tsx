@@ -7,6 +7,7 @@ type Module = {id:string;version_id:string;title:string;ordinal:number};
 type Lesson = {id:string;module_id:string;title:string;kind:"READING"|"VIDEO"|"ASSESSMENT";ordinal:number;body?:string;media_asset_ref?:string;completed?:boolean;passing_score?:number};
 type Enrollment = {id:string;version_id:string;course_id?:string;course_title?:string;version_no?:number;state:string;access_state?:"ACTIVE"|"REVOKED"};
 type Certificate = {verification_url:string;state:string;evidence_candidate_state:string};
+type Cohort = {id:string;version_id:string;label:string;capacity:number;members:number;starts_at?:string;enrollment_closes_at?:string};
 type ReviewAttempt = {attempt_id:string;enrollment_id:string;lesson_id:string;attempt_no:number;response_text:string;submitted_at:string;rubric_version:string;passing_score:number;course_title:string;lesson_title:string};
 type AuthorReport = {courses:{course_id:string;title:string;enrollments:number;completed:number;active_access:number;pending_assessments:number;passed_assessments:number}[];gross_captures:{course_id:string;currency:string;captured_count:number;captured_gross_minor:number}[];revenue_state:string};
 
@@ -29,6 +30,11 @@ export default function AcademyPage(){
  const [lessons,setLessons]=useState<Lesson[]>([]);
  const [activeEnrollment,setActiveEnrollment]=useState<Enrollment|null>(null);
  const [certificate,setCertificate]=useState<Certificate|null>(null);
+ const [cohorts,setCohorts]=useState<Cohort[]>([]);
+ const [cohortTitle,setCohortTitle]=useState("");
+ const [cohortCapacity,setCohortCapacity]=useState(20);
+ const [cohortStarts,setCohortStarts]=useState("");
+ const [cohortCloses,setCohortCloses]=useState("");
  const [notice,setNotice]=useState("");
  const [busy,setBusy]=useState(false);
  const [productID,setProductID]=useState("");
@@ -79,6 +85,8 @@ export default function AcademyPage(){
   setModules(d.modules);setLessons(d.lessons);setModuleID(d.modules[0]?.id||"");
  }
  async function loadLearning(item:Enrollment){
+  const available=await api<{cohorts:Cohort[]}>(`/v1/academy/enrollments/${item.id}/cohorts`);
+  setCohorts(available.cohorts);
   setActiveEnrollment(item);setCourse(null);setCertificate(null);
   const d=await api<{lessons:Lesson[]}>(`/v1/academy/enrollments/${item.id}/learn`);
   setLessons(d.lessons);setModules([]);
@@ -215,8 +223,36 @@ export default function AcademyPage(){
     </section>
    </div>
   </section>}
+  {course&&course.state==="PUBLISHED"&&<section className="how-section">
+   <h2>Учебные потоки преподавателя</h2>
+   <form className="panel specialist-form" onSubmit={e=>{e.preventDefault();void act(
+    ()=>api<Cohort>(`/v1/academy/versions/${course.version_id}/cohorts`,{
+     label:cohortTitle,capacity:cohortCapacity,starts_at:new Date(cohortStarts).toISOString(),
+     enrollment_closes_at:cohortCloses?new Date(cohortCloses).toISOString():null
+    }),async()=>{setCohortTitle("");setNotice("Учебный поток создан.")})}}>
+    <label htmlFor="r8-cohort-title">Название потока</label>
+    <input id="r8-cohort-title" value={cohortTitle} onChange={e=>setCohortTitle(e.target.value)} required/>
+    <label htmlFor="r8-cohort-capacity">Количество мест</label>
+    <input id="r8-cohort-capacity" type="number" min={1} max={100000} value={cohortCapacity}
+     onChange={e=>setCohortCapacity(Number(e.target.value))} required/>
+    <label htmlFor="r8-cohort-start">Начало занятий</label>
+    <input id="r8-cohort-start" type="datetime-local" value={cohortStarts}
+     onChange={e=>setCohortStarts(e.target.value)} required/>
+    <label htmlFor="r8-cohort-close">Конец записи (необязательно)</label>
+    <input id="r8-cohort-close" type="datetime-local" value={cohortCloses}
+     onChange={e=>setCohortCloses(e.target.value)}/>
+    <button disabled={busy||!cohortStarts}>Создать поток</button>
+   </form>
+  </section>}
   {activeEnrollment&&<section className="how-section">
    <h2>Прохождение курса</h2>
+   <h3>Доступные учебные потоки</h3>
+   {cohorts.length===0?<p>Потоки для этой версии курса ещё не объявлены.</p>:cohorts.map(h=><article className="panel" key={h.id}>
+    <strong>{h.label}</strong><p>Мест: {h.members} из {h.capacity}; начало: {h.starts_at?new Date(h.starts_at).toLocaleString("ru-RU"):"не задано"}</p>
+    <button disabled={busy||h.members>=h.capacity} onClick={()=>void act(
+     ()=>api(`/v1/academy/cohorts/${h.id}/join`,{enrollment_id:activeEnrollment.id}),
+     async()=>{setNotice("Зачисление в поток подтверждено.");await loadLearning(activeEnrollment)})}>Записаться в поток</button>
+   </article>)}
    <p>Материал доступен только владельцу активного права обучения.</p>
    <div className="how-grid">
     {lessons.map(l=><article className="panel" key={l.id}>
