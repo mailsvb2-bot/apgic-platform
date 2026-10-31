@@ -373,6 +373,38 @@ func TestAcademyStoreVerifiedPaidJourneySurvivesRestart(t *testing.T) {
 	if err != nil || count != 2 {
 		t.Fatalf("missing durable lesson evidence, count=%d: %v", count, err)
 	}
+	report, err := store.AcademyAuthorReport(author)
+	if err != nil {
+		t.Fatalf("author report after restart: %v", err)
+	}
+	foundCourse := false
+	for _, row := range report.Courses {
+		if row.CourseID == course.ID {
+			foundCourse = true
+			if row.Enrollments != 1 || row.Completed != 1 || row.ActiveAccess != 1 || row.PassedAssessments != 1 {
+				t.Fatalf("incorrect persisted author metrics: %+v", row)
+			}
+		}
+	}
+	if !foundCourse || report.RevenueState != academy.RevenueGrossOnly {
+		t.Fatalf("author report missing course or unsafe revenue claim: %+v", report)
+	}
+	foundCapture := false
+	for _, capture := range report.GrossCaptures {
+		if capture.CourseID == course.ID {
+			foundCapture = true
+			if capture.Currency != "RUB" || capture.CapturedCount != 1 || capture.CapturedGrossMinor != 10000 {
+				t.Fatalf("captured amount must match canonical order evidence: %+v", capture)
+			}
+		}
+	}
+	if !foundCapture {
+		t.Fatal("canonical captured order was not reflected in author report")
+	}
+	foreignReport, err := store.AcademyAuthorReport(learner)
+	if err != nil || len(foreignReport.Courses) != 0 || len(foreignReport.GrossCaptures) != 0 {
+		t.Fatalf("learner accessed foreign author's report: %+v %v", foreignReport, err)
+	}
 }
 
 // TestAcademyStoreRefundWithdrawsLearningAccess proves that an external store

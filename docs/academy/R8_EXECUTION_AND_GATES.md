@@ -89,3 +89,21 @@ PostgreSQL integration now exercises repeated signed attestations (same immutabl
 ## Canonical subscription revocation and refund
 
 A store-verified transaction can leave its original `store_entitlements.state=ACTIVE` forever, while the later canonical R4 lifecycle projects `store_subscription_projections.entitlement_state=REVOKED` on a refund, chargeback or revocation. **Academy must consult both**, not just the original payment. `academy_entitlement_is_active(entitlement_id)` is now the single PostgreSQL access predicate used by enrollment, learning, progress, assessments, grading, completion, certificates and the signed-in author review queue. Subscription GRACE/HOLD events preserve access only when the canonical lifecycle projection's **entitlement** state remains `ACTIVE`. PostgreSQL regression proves a real R4 store refund removes access to protected lessons and disables re-enrollment, without falsifying the learner's historical completed course or already-issued certificate. Web and native surface expose a separate derived `access_state` and disable resumed learning after revocation.
+
+## Author-scoped results and canonical gross capture evidence
+
+The signed-author-only `GET /v1/academy/author/report` projects enrollment, completion,
+entitlement access and reviewed assessment counts from Academy PostgreSQL.
+The same endpoint exposes only **gross captured Store transactions** where
+`store_transaction_verifications.product_ref` AND the immutable
+`orders.product_id` match the Academy product, and the canonical payment
+attempt, CAPTURED effect and ledger evidence all agree. No student identity,
+answer text or payout account is returned. `revenue_state` is explicitly
+`GROSS_CAPTURED_ONLY_NO_REFUND_COMMISSION_OR_PAYOUT_RECONCILIATION`.
+Gross captures are **not** author income, net sales, royalties or payout.
+The independent Finance owner must reconcile refunds, commissions and
+settlements before any author-income claim is enabled.
+
+Academy enrollment also checks the canonical order's product binding in
+both Go and PostgreSQL: a store verification carrying a course-like product
+reference but attached to an unrelated order cannot unlock a course.
