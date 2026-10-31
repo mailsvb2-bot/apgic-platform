@@ -56,6 +56,45 @@ func TestAcademyVersioningRequiresVerifiedAccess(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The author picker must use the exact same Commerce ownership rule as
+	// AcademyCreateCourse, and must never offer an unpublished draft.
+	draftProduct, err := academyID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = db.Exec(`INSERT INTO products(
+ id,owner_type,owner_id,commercial_owner_ref,revenue_beneficiary_ref,
+ author_refs,name,status
+ ) VALUES($1::uuid,'IDENTITY',$2::uuid,$3,$4,ARRAY[$3]::text[],
+ 'Unpublished course product','DRAFT')`,
+		draftProduct, author, "identity/"+author, "identity/"+author); err != nil {
+		t.Fatal(err)
+	}
+	eligible, err := store.AcademyAuthorProducts(author)
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundPublished, foundDraft := false, false
+	for _, p := range eligible {
+		if p.ID == product && p.Name == "Learning contract" {
+			foundPublished = true
+		}
+		if p.ID == draftProduct {
+			foundDraft = true
+		}
+	}
+	if !foundPublished || foundDraft {
+		t.Fatalf("author Commerce product picker leaked draft or hid published product: %+v", eligible)
+	}
+	foreignProducts, err := store.AcademyAuthorProducts(foreign)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range foreignProducts {
+		if p.ID == product || p.ID == draftProduct {
+			t.Fatalf("foreign identity discovered another owner's Commerce product: %+v", p)
+		}
+	}
 	if _, err = store.AcademyCreateCourse(foreign, academy.Course{ProductID: product, Title: "Foreign course"}); !errors.Is(err, academy.ErrDenied) {
 		t.Fatalf("foreign author must not publish other user's product: %v", err)
 	}
