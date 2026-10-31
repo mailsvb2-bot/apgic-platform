@@ -294,6 +294,31 @@ func TestAcademyStoreVerifiedPaidJourneySurvivesRestart(t *testing.T) {
 	if enrollment.EntitlementID != paidEntitlement || enrollment.State != "ACTIVE" {
 		t.Fatalf("course granted access without bound verified purchase: %+v", enrollment)
 	}
+learnerHistory, err := store.AcademyMyEnrollments(learner)
+	if err != nil {
+		t.Fatalf("learner history unavailable: %v", err)
+	}
+	seenCourse := false
+	for _, item := range learnerHistory {
+		if item.ID == enrollment.ID {
+			seenCourse = true
+			if item.CourseID != course.ID || item.CourseTitle != "Verified paid course" || item.VersionNo != 1 {
+				t.Fatalf("learner history lost the immutable published course identity: %+v", item)
+			}
+		}
+	}
+	if !seenCourse {
+		t.Fatal("paid course missing from learner history")
+	}
+	foreignHistory, err := store.AcademyMyEnrollments(author)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, item := range foreignHistory {
+		if item.ID == enrollment.ID {
+			t.Fatalf("learner history leaked to unrelated identity: %+v", item)
+		}
+	}
 	if _, err = store.AcademyLearning(author, enrollment.ID); err == nil {
 		t.Fatal("non-learner read purchased content")
 	}
