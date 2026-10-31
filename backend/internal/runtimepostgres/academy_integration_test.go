@@ -205,6 +205,16 @@ func TestAcademyVersioningRequiresVerifiedAccess(t *testing.T) {
 	if _, err = db.Exec("UPDATE academy_lessons SET body='tampered' WHERE id=$1::uuid", l.ID); err == nil {
 		t.Fatal("direct SQL changed immutable published lesson")
 	}
+	// Unpaid course must not appear as purchasable access to any identity.
+	unpaid, err := store.AcademyMyCourseAccess(foreign)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range unpaid {
+		if id == created.ID {
+			t.Fatal("unverified course appeared as purchased access")
+		}
+	}
 	if _, err = store.AcademyEnroll(author, created.ID); !errors.Is(err, academy.ErrEntitlement) {
 		t.Fatalf("enrollment without provider verified entitlement accepted: %v", err)
 	}
@@ -340,6 +350,30 @@ func TestAcademyStoreVerifiedPaidJourneySurvivesRestart(t *testing.T) {
 	}
 	if _, err = store.AcademyEnroll(author, course.ID); !errors.Is(err, academy.ErrEntitlement) {
 		t.Fatalf("author without purchased entitlement enrolled: %v", err)
+	}
+	// The learner-facing catalog projection must agree with the exact
+	// canonical verification predicate used by the enrollment writer.
+	verifiedCourses, err := store.AcademyMyCourseAccess(learner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundPaidCourse := false
+	for _, id := range verifiedCourses {
+		if id == course.ID {
+			foundPaidCourse = true
+		}
+	}
+	if !foundPaidCourse {
+		t.Fatal("verified captured course missing from learner purchase readback")
+	}
+	foreignAccess, err := store.AcademyMyCourseAccess(author)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range foreignAccess {
+		if id == course.ID {
+			t.Fatal("unpaid author saw another identity's purchased course")
+		}
 	}
 	enrollment, err := store.AcademyEnroll(learner, course.ID)
 	if err != nil {
@@ -633,6 +667,17 @@ func TestAcademyStoreRefundWithdrawsLearningAccess(t *testing.T) {
 	if err = db.QueryRow(`SELECT v.course_id::text FROM academy_enrollments e
  JOIN academy_course_versions v ON v.id=e.version_id WHERE e.id=$1::uuid`, enrollmentID).Scan(&courseID); err != nil {
 		t.Fatal(err)
+	}
+	// A refund must immediately remove the course from the read-only
+	// learner catalog projection, without erasing historical completion.
+	stillPurchased, err := store.AcademyMyCourseAccess(learner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range stillPurchased {
+		if id == courseID {
+			t.Fatal("refunded course still appears as verified learner access")
+		}
 	}
 	if _, err = store.AcademyEnroll(learner, courseID); !errors.Is(err, academy.ErrEntitlement) {
 		t.Fatalf("revoked purchase reopened course enrollment: %v", err)
