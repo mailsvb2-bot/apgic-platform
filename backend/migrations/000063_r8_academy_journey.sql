@@ -55,5 +55,7 @@ CREATE TABLE academy_notification_preferences (
   learning_updates boolean NOT NULL DEFAULT false,
   assessment_results boolean NOT NULL DEFAULT false,
   certificate_updates boolean NOT NULL DEFAULT false,
-  updated_at timestamptz NOT NULL DEFAULT now()
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT academy_notifications_disabled_means_no_categories
+    CHECK (enabled OR NOT (learning_updates OR assessment_results OR certificate_updates))
 );
