@@ -75,15 +75,8 @@ func academyAuthor(ctx context.Context, tx *sql.Tx, actor, courseID string) (boo
 func academyPublishedProductOwner(ctx context.Context, tx *sql.Tx, actor, productID string) (bool, error) {
 	var allowed bool
 	err := tx.QueryRowContext(ctx, `SELECT EXISTS(
-  SELECT 1 FROM products p WHERE p.id=$1::uuid AND p.status='PUBLISHED'
-    AND ((p.owner_type='IDENTITY' AND p.owner_id=$2::uuid)
-    OR (p.owner_type='ORGANIZATION' AND EXISTS(
-      SELECT 1 FROM organization_ownerships o JOIN organization_memberships m
-       ON m.organization_id=o.organization_id AND m.identity_id=o.identity_id
-      WHERE o.organization_id=p.owner_id AND o.identity_id=$2::uuid
-       AND o.status='ACTIVE' AND m.status='ACTIVE'
-    )))
- )`, productID, actor).Scan(&allowed)
+ SELECT 1 FROM products p WHERE p.id=$2::uuid AND `+academyPublishedProductEligibility+`
+ )`, actor, productID).Scan(&allowed)
 	return allowed, err
 }
 func (c *Checker) AcademyCreateCourse(actor string, input academy.Course) (academy.Course, error) {
