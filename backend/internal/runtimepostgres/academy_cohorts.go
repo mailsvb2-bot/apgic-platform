@@ -141,8 +141,8 @@ func (c *Checker) AcademyJoinCohort(actor, cohortID, enrollmentID string) error 
 		return academy.ErrConflict
 	}
 	policy := academy.CohortPolicy{
-		Enrolled: members,
-		StartsAt: startsAt,
+		Enrolled:              members,
+		StartsAt:              startsAt,
 		PrerequisitesRequired: !prerequisitesComplete,
 	}
 	if capacity.Valid {
