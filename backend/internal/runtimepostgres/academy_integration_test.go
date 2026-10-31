@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"testing"
+	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/academy"
@@ -293,6 +294,30 @@ func TestAcademyStoreVerifiedPaidJourneySurvivesRestart(t *testing.T) {
 	}
 	if enrollment.EntitlementID != paidEntitlement || enrollment.State != "ACTIVE" {
 		t.Fatalf("course granted access without bound verified purchase: %+v", enrollment)
+	}
+	// A real store-verified enrollment can join a scheduled cohort, but only
+	// through the canonical Academy writer and within the purchased version.
+	starts := time.Now().UTC().Add(4 * time.Hour)
+	closes := starts.Add(-time.Hour)
+	cohort, err := store.AcademyCreateCohort(author, course.VersionID, "October cohort", 1, &starts, &closes)
+	if err != nil {
+		t.Fatalf("author cannot create scheduled cohort: %v", err)
+	}
+	if _, err = store.AcademyCreateCohort(learner, course.VersionID, "Foreign cohort", 1, &starts, &closes); !errors.Is(err, academy.ErrNotFound) {
+		t.Fatalf("learner created another author's cohort: %v", err)
+	}
+	cohorts, err := store.AcademyListCohorts(author)
+	if err != nil || len(cohorts) == 0 {
+		t.Fatalf("author cannot see cohort: %+v %v", cohorts, err)
+	}
+	if err = store.AcademyJoinCohort(author, cohort.ID, enrollment.ID); !errors.Is(err, academy.ErrEntitlement) {
+		t.Fatalf("foreign identity joined paid cohort: %v", err)
+	}
+	if err = store.AcademyJoinCohort(learner, cohort.ID, enrollment.ID); err != nil {
+		t.Fatalf("paid learner cannot join cohort: %v", err)
+	}
+	if err = store.AcademyJoinCohort(learner, cohort.ID, enrollment.ID); err != nil {
+		t.Fatalf("idempotent cohort replay failed: %v", err)
 	}
 	learnerHistory, err := store.AcademyMyEnrollments(learner)
 	if err != nil {
