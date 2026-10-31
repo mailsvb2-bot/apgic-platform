@@ -83,6 +83,14 @@ func TestAcademyVersioningRequiresVerifiedAccess(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Draft-only scheduling uses the same author and immutable version owner.
+	releaseAt := time.Now().UTC().Add(time.Hour)
+	if err = store.AcademySetLessonSchedule(foreign, l.ID, &releaseAt, nil); !errors.Is(err, academy.ErrNotFound) {
+		t.Fatalf("foreign author changed lesson schedule: %v", err)
+	}
+	if err = store.AcademySetLessonSchedule(author, l.ID, &releaseAt, nil); err != nil {
+		t.Fatalf("draft author could not schedule lesson: %v", err)
+	}
 	_, err = store.AcademyAddLesson(foreign, created.ID, created.VersionID, m.ID,
 		academy.Lesson{Title: "Hijack", Kind: academy.Reading, Ordinal: 2, Body: "attack"})
 	if !errors.Is(err, academy.ErrDenied) {
@@ -148,6 +156,12 @@ func TestAcademyVersioningRequiresVerifiedAccess(t *testing.T) {
 		academy.Lesson{Title: "Retcon", Kind: academy.Reading, Ordinal: 2, Body: "rewrite"})
 	if !errors.Is(err, academy.ErrState) {
 		t.Fatalf("published lesson changed: %v", err)
+	}
+	if err = store.AcademySetLessonSchedule(author, l.ID, &releaseAt, nil); !errors.Is(err, academy.ErrState) {
+		t.Fatalf("published lesson schedule could be changed: %v", err)
+	}
+	if _, err = db.Exec("UPDATE academy_lesson_schedules SET release_at=now() WHERE lesson_id=$1::uuid", l.ID); err == nil {
+		t.Fatal("direct SQL changed published schedule")
 	}
 	if _, err = db.Exec("UPDATE academy_lessons SET body='tampered' WHERE id=$1::uuid", l.ID); err == nil {
 		t.Fatal("direct SQL changed immutable published lesson")
