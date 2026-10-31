@@ -6,7 +6,7 @@ export type NativeAcademyCourse={
  id:string;title:string;description:string;version_no:number;version_id:string;
 };
 export type NativeAcademyEnrollment={
- id:string;version_id:string;state:"ACTIVE"|"COMPLETED"|"REVOKED";access_state?:"ACTIVE"|"REVOKED";
+ id:string;version_id:string;course_id?:string;course_title?:string;version_no?:number;state:"ACTIVE"|"COMPLETED"|"REVOKED";access_state?:"ACTIVE"|"REVOKED";
 };
 export type NativeAcademyLesson={
  id:string;title:string;kind:"READING"|"VIDEO"|"ASSESSMENT";body?:string;completed:boolean;
@@ -85,7 +85,7 @@ export function AcademySurface(){
   {enrollments.map(item=><Pressable key={item.id} accessibilityRole="button" disabled={busy||item.access_state!=="ACTIVE"}
    style={{minHeight:48,justifyContent:"center"}}
    onPress={()=>void act(()=>loadLearning(item))}>
-   <Text>{item.access_state==="REVOKED"?"Доступ отозван":"Продолжить"} {item.id.slice(0,8)} · {item.state}</Text>
+   <Text>{item.access_state==="REVOKED"?"Доступ отозван":"Продолжить"} {item.course_title||"Курс"} · версия {item.version_no??"—"} · {item.state}</Text>
   </Pressable>)}
   {selected&&<View style={{gap:12}}>
    {lessons.map(lesson=><View key={lesson.id} style={{gap:8}}>
