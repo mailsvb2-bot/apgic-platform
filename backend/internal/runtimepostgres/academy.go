@@ -769,8 +769,8 @@ func (c *Checker) AcademySubmitAttempt(actor, enrollmentID, lessonID, response s
 	if err != nil {
 		return academy.Attempt{}, err
 	}
-	if blockingAttempt {
-		return academy.Attempt{}, academy.ErrState
+	if err = academy.CanSubmitAssessmentAttempt(blockingAttempt); err != nil {
+		return academy.Attempt{}, err
 	}
 	var attempts int
 	err = tx.QueryRowContext(ctx, `SELECT COALESCE(MAX(attempt_no),0)+1 FROM academy_attempts
