@@ -395,15 +395,6 @@ func registerAcademy(mux *http.ServeMux, store academyStore, sessions *clientSes
 // including conformance instances that intentionally run without a signing key.
 // Never fall back to untrusted client-provided identity or a blank principal.
 func academyIdentity(w http.ResponseWriter, r *http.Request, sessions *clientSessionManager, sessionConfigErr error) (string, bool) {
-	// Reject malformed resource identifiers at the HTTP boundary. Passing untrusted
-	// strings to PostgreSQL ::uuid casts turns a client error into a 5xx and
-	// bypasses the deterministic Academy error contract.
-	for _, key := range []string{"courseID", "versionID", "moduleID", "enrollmentID", "lessonID", "attemptID"} {
-		if value := r.PathValue(key); value != "" && !academyUUID(value) {
-			writeDemandError(w, r, http.StatusBadRequest, "ACADEMY_INVALID", "Некорректный идентификатор ресурса.", false, nil)
-			return "", false
-		}
-	}
 	if sessionConfigErr != nil || sessions == nil {
 		writeDemandError(w, r, http.StatusServiceUnavailable, "ACADEMY_SESSION_UNAVAILABLE", "Подписанная сессия недоступна.", true, nil)
 		return "", false
@@ -411,6 +402,15 @@ func academyIdentity(w http.ResponseWriter, r *http.Request, sessions *clientSes
 	identity, ok := trustedClientIdentity(w, r, sessions, sessionConfigErr, "")
 	if !ok || identity == "" {
 		return "", false
+	}
+	// Authenticate before validating private resource identifiers, preserving
+	// the canonical 401/503 response for unauthenticated requests.
+	// Once authenticated, reject malformed UUIDs before PostgreSQL casts.
+	for _, key := range []string{"courseID", "versionID", "moduleID", "enrollmentID", "lessonID", "attemptID"} {
+		if value := r.PathValue(key); value != "" && !academyUUID(value) {
+			writeDemandError(w, r, http.StatusBadRequest, "ACADEMY_INVALID", "Некорректный идентификатор ресурса.", false, nil)
+			return "", false
+		}
 	}
 	return identity, true
 }
