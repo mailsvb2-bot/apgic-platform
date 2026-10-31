@@ -27,6 +27,15 @@ func (s *academyAppealStub) AcademyMyAppeals(actor string) ([]academy.Appeal, er
 	return []academy.Appeal{}, nil
 }
 
+func (s *academyAppealStub) AcademyReviewAppeal(actor, appealID, decision, evidence string) error {
+	s.calls++
+	s.actor = actor
+	if decision != "UNDER_REVIEW" && evidence == "" {
+		return academy.ErrInvalid
+	}
+	return nil
+}
+
 func TestAcademyAppealsRequireSignedLearner(t *testing.T) {
 	key := []byte(strings.Repeat("y", 48))
 	store := &academyAppealStub{}
@@ -55,6 +64,8 @@ func TestAcademyAppealsRequireSignedLearner(t *testing.T) {
 		{method: http.MethodPost, path: "/v1/academy/attempts/wrong/appeals", body: body, status: http.StatusBadRequest},
 		{method: http.MethodPost, path: path, body: body, status: http.StatusCreated},
 		{method: http.MethodGet, path: "/v1/academy/me/appeals", status: http.StatusOK},
+		{method: http.MethodPost, path: "/v1/academy/review/appeals/invalid", body: `{"decision":"UNDER_REVIEW"}`, status: http.StatusBadRequest},
+		{method: http.MethodPost, path: "/v1/academy/review/appeals/00000000-0000-0000-0000-000000000012", body: `{"decision":"UNDER_REVIEW"}`, status: http.StatusOK},
 	} {
 		req := httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body))
 		req.AddCookie(cookie)
@@ -64,7 +75,7 @@ func TestAcademyAppealsRequireSignedLearner(t *testing.T) {
 			t.Fatalf("unexpected %s %s status %d: %s", tc.method, tc.path, w.Code, w.Body.String())
 		}
 	}
-	if store.calls != 2 || store.actor != "00000000-0000-0000-0000-00000000b001" {
+	if store.calls != 3 || store.actor != "00000000-0000-0000-0000-00000000b001" {
 		t.Fatalf("signed appeal was not bound to learner")
 	}
 }
