@@ -23,7 +23,7 @@ type CohortAdmissionFacts struct {
 }
 
 func AuthorizeCohortAdmission(c CohortPolicy, f CohortAdmissionFacts) error {
-	if c.Capacity <= 0 || c.Enrolled < 0 || c.Enrolled >= c.Capacity || f.Now.IsZero() || !f.EntitlementActive || f.AlreadyEnrolled {
+	if c.Capacity <= 0 || c.Enrolled < 0 || c.Enrolled >= c.Capacity || f.Now.IsZero() || !f.EntitlementActive || f.AlreadyEnrolled || c.StartsAt.IsZero() || !f.Now.Before(c.StartsAt) {
 		return ErrCohortAdmission
 	}
 	if c.PrerequisitesRequired && !f.PrerequisitesComplete {
