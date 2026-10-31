@@ -10,6 +10,7 @@ type Cohort struct {
 	Label              string     `json:"label"`
 	Capacity           int        `json:"capacity"`
 	Members            int        `json:"members"`
+	IsMember           bool       `json:"is_member,omitempty"`
 	StartsAt           *time.Time `json:"starts_at,omitempty"`
 	EnrollmentClosesAt *time.Time `json:"enrollment_closes_at,omitempty"`
 }

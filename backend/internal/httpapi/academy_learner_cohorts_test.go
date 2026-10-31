@@ -18,7 +18,7 @@ type learnerCohortStub struct {
 func (s *learnerCohortStub) AcademyLearnerCohorts(actor, enrollmentID string) ([]academy.Cohort, error) {
 	s.calls++
 	s.actor = actor
-	return []academy.Cohort{}, nil
+	return []academy.Cohort{{ID: "00000000-0000-0000-0000-000000000012", IsMember: true}}, nil
 }
 
 func TestAcademyLearnerCohortsIdentityBoundary(t *testing.T) {
@@ -52,6 +52,9 @@ func TestAcademyLearnerCohortsIdentityBoundary(t *testing.T) {
 		handler.ServeHTTP(w, req)
 		if w.Code != tc.code {
 			t.Fatalf("path=%s got=%d want=%d: %s", tc.path, w.Code, tc.code, w.Body.String())
+		}
+		if tc.code == http.StatusOK && !strings.Contains(w.Body.String(), `"is_member":true`) {
+			t.Fatalf("member status missing: %s", w.Body.String())
 		}
 	}
 	if store.calls != 1 || store.actor != "00000000-0000-0000-0000-00000000b001" {

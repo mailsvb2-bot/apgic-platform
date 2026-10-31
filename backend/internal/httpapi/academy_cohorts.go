@@ -28,6 +28,10 @@ func registerAcademyCohorts(mux *http.ServeMux, store academyStore, sessions *cl
 			academyHTTPError(w, r, academy.ErrUnavailable)
 			return
 		}
+		if !academyUUID(r.PathValue("enrollmentID")) {
+			academyHTTPError(w, r, academy.ErrInvalid)
+			return
+		}
 		items, err := reader.AcademyLearnerCohorts(actor, r.PathValue("enrollmentID"))
 		if err != nil {
 			academyHTTPError(w, r, err)

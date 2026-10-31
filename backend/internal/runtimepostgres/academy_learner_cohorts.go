@@ -30,7 +30,8 @@ func (c *Checker) AcademyLearnerCohorts(actor, enrollmentID string) ([]academy.C
 	}
 	rows, err := c.db.QueryContext(ctx, `SELECT h.id::text,h.version_id::text,h.title,COALESCE(h.capacity,0),
  (SELECT count(*) FROM academy_cohort_memberships m WHERE m.cohort_id=h.id),
- h.starts_at,h.enrollment_closes_at
+ h.starts_at,h.enrollment_closes_at,
+ EXISTS(SELECT 1 FROM academy_cohort_memberships m WHERE m.cohort_id=h.id AND m.enrollment_id=e.id)
  FROM academy_cohorts h
  JOIN academy_enrollments e ON e.version_id=h.version_id
  WHERE e.id=$1::uuid AND e.identity_id=$2::uuid
@@ -43,7 +44,7 @@ func (c *Checker) AcademyLearnerCohorts(actor, enrollmentID string) ([]academy.C
 	for rows.Next() {
 		var item academy.Cohort
 		var starts, closes sql.NullTime
-		if err = rows.Scan(&item.ID, &item.VersionID, &item.Label, &item.Capacity, &item.Members, &starts, &closes); err != nil {
+		if err = rows.Scan(&item.ID, &item.VersionID, &item.Label, &item.Capacity, &item.Members, &starts, &closes, &item.IsMember); err != nil {
 			return nil, err
 		}
 		if starts.Valid {
