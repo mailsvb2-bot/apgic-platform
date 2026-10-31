@@ -19,7 +19,7 @@ func (c *Checker) AcademyListCohorts(actor string) ([]AcademyCohort, error) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), academyTimeout)
 	defer cancel()
-	rows, err := c.db.QueryContext(ctx, `SELECT h.id::text,h.version_id::text,h.title,h.capacity,
+	rows, err := c.db.QueryContext(ctx, `SELECT h.id::text,h.version_id::text,h.title,COALESCE(h.capacity,0),
   (SELECT count(*) FROM academy_cohort_memberships m WHERE m.cohort_id=h.id),
   h.starts_at,h.enrollment_closes_at
   FROM academy_cohorts h JOIN academy_course_versions v ON v.id=h.version_id
