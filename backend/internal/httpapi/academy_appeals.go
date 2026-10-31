@@ -12,6 +12,37 @@ type academyAppealStore interface {
 }
 
 func registerAcademyAppeals(mux *http.ServeMux, store academyStore, sessions *clientSessionManager, sessionConfigErr error) {
+	mux.HandleFunc("POST /v1/academy/review/appeals/{appealID}", func(w http.ResponseWriter, r *http.Request) {
+		actor, ok := academyIdentity(w, r, sessions, sessionConfigErr)
+		if !ok {
+			return
+		}
+		id := r.PathValue("appealID")
+		if !academyUUID(id) {
+			academyHTTPError(w, r, academy.ErrInvalid)
+			return
+		}
+		reviewer, ok := store.(interface {
+			AcademyReviewAppeal(string, string, string, string) error
+		})
+		if !ok {
+			academyHTTPError(w, r, academy.ErrUnavailable)
+			return
+		}
+		var input struct {
+			Decision    string `json:"decision"`
+			EvidenceRef string `json:"evidence_ref"`
+		}
+		if !academyRead(w, r, &input) {
+			return
+		}
+		if err := reviewer.AcademyReviewAppeal(actor, id, input.Decision, input.EvidenceRef); err != nil {
+			academyHTTPError(w, r, err)
+			return
+		}
+		w.Header().Set("Cache-Control", "private, no-store")
+		writeJSON(w, http.StatusOK, map[string]string{"state": input.Decision})
+	})
 	mux.HandleFunc("POST /v1/academy/attempts/{attemptID}/appeals", func(w http.ResponseWriter, r *http.Request) {
 		actor, ok := academyIdentity(w, r, sessions, sessionConfigErr)
 		if !ok {
