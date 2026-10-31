@@ -101,30 +101,70 @@ func (c *Checker) AcademyJoinCohort(actor, cohortID, enrollmentID string) error 
 		return err
 	}
 	defer tx.Rollback()
-	var active bool
-	err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM academy_enrollments e
- JOIN academy_cohorts h ON h.version_id=e.version_id
+
+	// Lock the canonical cohort row for capacity and schedule decisions.
+	// The SQL trigger independently enforces these invariants on direct writes.
+	var state string
+	var entitlementActive, memberAlready, otherMembership, prerequisitesComplete bool
+	var capacity sql.NullInt64
+	var startsAt time.Time
+	var closesAt sql.NullTime
+	var members int
+	err = tx.QueryRowContext(ctx, `SELECT e.state, academy_entitlement_is_active(e.entitlement_id),
+ h.capacity, h.starts_at, h.enrollment_closes_at,
+ (SELECT count(*) FROM academy_cohort_memberships m WHERE m.cohort_id=h.id),
+ EXISTS(SELECT 1 FROM academy_cohort_memberships m WHERE m.cohort_id=h.id AND m.enrollment_id=e.id),
+ EXISTS(SELECT 1 FROM academy_cohort_memberships m WHERE m.enrollment_id=e.id AND m.cohort_id<>h.id),
+ NOT EXISTS(SELECT 1 FROM academy_prerequisites p WHERE p.version_id=h.version_id
+   AND NOT EXISTS(SELECT 1 FROM academy_enrollments prior
+     WHERE prior.identity_id=e.identity_id AND prior.version_id=p.prerequisite_version_id
+       AND prior.state='COMPLETED'))
+ FROM academy_cohorts h
+ JOIN academy_enrollments e ON e.version_id=h.version_id
  WHERE h.id=$1::uuid AND e.id=$2::uuid AND e.identity_id=$3::uuid
- AND e.state='ACTIVE' AND academy_entitlement_is_active(e.entitlement_id))`, cohortID, enrollmentID, actor).Scan(&active)
+ FOR UPDATE OF h,e`, cohortID, enrollmentID, actor).Scan(
+		&state, &entitlementActive, &capacity, &startsAt, &closesAt,
+		&members, &memberAlready, &otherMembership, &prerequisitesComplete)
+	if errors.Is(err, sql.ErrNoRows) {
+		return academy.ErrEntitlement
+	}
 	if err != nil {
 		return err
 	}
-	if !active {
+	if state != "ACTIVE" || !entitlementActive {
 		return academy.ErrEntitlement
 	}
-	result, err := tx.ExecContext(ctx, `INSERT INTO academy_cohort_memberships(cohort_id,enrollment_id)
- VALUES($1::uuid,$2::uuid) ON CONFLICT DO NOTHING`, cohortID, enrollmentID)
+	if memberAlready {
+		return tx.Commit()
+	}
+	if otherMembership {
+		return academy.ErrConflict
+	}
+	policy := academy.CohortPolicy{
+		Enrolled: members,
+		StartsAt: startsAt,
+		PrerequisitesRequired: !prerequisitesComplete,
+	}
+	if capacity.Valid {
+		policy.Capacity = int(capacity.Int64)
+	}
+	if closesAt.Valid {
+		policy.EnrollmentClosesAt = closesAt.Time
+	}
+	if err = academy.AuthorizeCohortAdmission(policy, academy.CohortAdmissionFacts{
+		Now: time.Now().UTC(), EntitlementActive: entitlementActive,
+		PrerequisitesComplete: prerequisitesComplete,
+	}); err != nil {
+		return academy.ErrState
+	}
+	_, err = tx.ExecContext(ctx, `INSERT INTO academy_cohort_memberships(cohort_id,enrollment_id)
+ VALUES($1::uuid,$2::uuid)`, cohortID, enrollmentID)
 	if err != nil {
 		return fmt.Errorf("academy cohort admission: %w", err)
 	}
-	changed, err := result.RowsAffected()
-	if err != nil {
+	if err = academyEvent(ctx, tx, actor, "academy/cohort/"+cohortID,
+		"academy.cohort.joined", map[string]string{"enrollment_id": enrollmentID}); err != nil {
 		return err
-	}
-	if changed > 0 {
-		if err = academyEvent(ctx, tx, actor, "academy/cohort/"+cohortID, "academy.cohort.joined", map[string]string{"enrollment_id": enrollmentID}); err != nil {
-			return err
-		}
 	}
 	return tx.Commit()
 }
