@@ -318,7 +318,6 @@ jobs:
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r2_transaction_edge_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r2_payment_governance_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r2_mobile_store_invariants.sql
-          (cd backend && APGIC_ORGANIZATION_TEST_DATABASE_URL='postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable' go test ./internal/runtimepostgres -run TestAcademyStoreVerifiedPaidJourneySurvivesRestart -count=1 -v)
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r3_communication_consultation_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r2_r3_signed_payment_admission.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r3_consultation_outcome_invariants.sql
@@ -332,16 +331,22 @@ jobs:
           PGHOST=127.0.0.1 PGUSER=apgic PGDATABASE=apgic_ci bash backend/ci/r0_order_snapshot_baseline_repair.sh
           bash backend/ci/r2_booking_concurrency.sh
           bash backend/ci/r2_mutation_concurrency.sh
-      - name: Prove R8 Academy refund revokes access to paid content
-        working-directory: backend
+      - name: Prove R8 isolated paid course journey, refund revocation and author reports
+        shell: bash
         env:
-          APGIC_ORGANIZATION_TEST_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable
-        run: go test ./internal/runtimepostgres -run TestAcademyStoreRefundWithdrawsLearningAccess -count=1 -v
-      - name: Prove R8 Academy owner/version isolation and entitlement gate
-        working-directory: backend
-        env:
-          APGIC_ORGANIZATION_TEST_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_ci?sslmode=disable
-        run: go test ./internal/runtimepostgres -run TestAcademyVersioningRequiresVerifiedAccess -count=1 -v
+          PGPASSWORD: apgic
+          APGIC_ORGANIZATION_TEST_DATABASE_URL: postgres://apgic:apgic@127.0.0.1:5432/apgic_academy_ci?sslmode=disable
+        run: |
+          set -euo pipefail
+          psql -h 127.0.0.1 -U apgic -d postgres -v ON_ERROR_STOP=1 -c 'CREATE DATABASE apgic_academy_ci'
+          for migration in backend/migrations/[0-9][0-9][0-9][0-9][0-9][0-9]_*.sql; do
+            psql -h 127.0.0.1 -U apgic -d apgic_academy_ci -v ON_ERROR_STOP=1 -f "$migration" > /dev/null
+          done
+          psql -h 127.0.0.1 -U apgic -d apgic_academy_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r2_mobile_store_invariants.sql > /dev/null
+          (cd backend && go test ./internal/runtimepostgres -run TestAcademyStoreVerifiedPaidJourneySurvivesRestart -count=1 -v)
+          psql -h 127.0.0.1 -U apgic -d apgic_academy_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r4_store_lifecycle_invariants.sql > /dev/null
+          (cd backend && go test ./internal/runtimepostgres -run TestAcademyStoreRefundWithdrawsLearningAccess -count=1 -v)
+          (cd backend && go test ./internal/runtimepostgres -run TestAcademyVersioningRequiresVerifiedAccess -count=1 -v)
       - name: Prove R4 revenue convergence (provider-executed, non-custodial, reconciled)
         working-directory: backend
         env:
