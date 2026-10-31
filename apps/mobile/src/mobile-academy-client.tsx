@@ -2,6 +2,7 @@ import React,{useCallback,useState} from "react";
 import {Pressable,Text,TextInput,View} from "react-native";
 import {canonicalAPGICOrigin} from "./mobile-deep-link-client.ts";
 
+export type NativeAcademyNotifications={enabled:boolean;learning_updates:boolean;assessment_results:boolean;certificate_updates:boolean};
 export type NativeAcademyCourse={
  id:string;title:string;description:string;version_no:number;version_id:string;
 };
@@ -45,6 +46,7 @@ export function AcademySurface(){
  const [cohorts,setCohorts]=useState<NativeAcademyCohort[]>([]);
  const [appealReasons,setAppealReasons]=useState<Record<string,string>>({});
  const [status,setStatus]=useState("Откройте каталог, чтобы посмотреть доступные курсы.");
+ const [notifications,setNotifications]=useState<NativeAcademyNotifications|null>(null);
  const [busy,setBusy]=useState(false);
  const [assessmentAnswer,setAssessmentAnswer]=useState("");
  const act=useCallback(async(work:()=>Promise<void>)=>{
@@ -69,6 +71,24 @@ export function AcademySurface(){
   <Text style={{fontSize:22,fontWeight:"700"}}>Курсы и обучение</Text>
   <Text>Один учебный профиль на iOS, Android и Web. Сертификат не равен квалификации.</Text>
   <Text accessibilityRole="alert">{status}</Text>
+  <Pressable accessibilityRole="button" disabled={busy}
+   onPress={()=>void act(async()=>{
+    const value=await academyRequest<NativeAcademyNotifications>("/v1/academy/me/notifications");
+    setNotifications(value);
+   })}><Text>Настройки учебных уведомлений</Text></Pressable>
+  {notifications&&<View style={{gap:8}}>
+   {(["enabled","learning_updates","assessment_results","certificate_updates"] as const).map(field=>
+    <Pressable key={field} accessibilityRole="checkbox" accessibilityState={{checked:notifications[field]}}
+     onPress={()=>setNotifications(prev=>prev?{...prev,[field]:!prev[field]}:prev)}>
+     <Text>{notifications[field]?"☑":"☐"} {{enabled:"Разрешить уведомления",learning_updates:"Новые уроки",assessment_results:"Оценки",certificate_updates:"Сертификаты"}[field]}</Text>
+    </Pressable>)}
+   <Pressable accessibilityRole="button" disabled={busy}
+    onPress={()=>void act(async()=>{
+     const saved=await academyRequest<NativeAcademyNotifications>(
+      "/v1/academy/me/notifications","POST",fetch,canonicalAPGICOrigin,notifications);
+     setNotifications(saved);setStatus("Настройки уведомлений сохранены.");
+    })}><Text>Сохранить согласия</Text></Pressable>
+  </View>}
   <Pressable accessibilityRole="button" disabled={busy}
    onPress={()=>void act(async()=>{
     const data=await academyRequest<{courses:NativeAcademyCourse[]}>("/v1/academy/courses");
