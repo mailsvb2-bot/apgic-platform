@@ -44,6 +44,7 @@ export function AcademySurface(){
  const [certificate,setCertificate]=useState<NativeAcademyCertificate|null>(null);
  const [attempts,setAttempts]=useState<NativeAcademyAttempt[]>([]);
  const [appeals,setAppeals]=useState<NativeAcademyAppeal[]>([]);
+ const [appealsUnavailable,setAppealsUnavailable]=useState(false);
  const [cohorts,setCohorts]=useState<NativeAcademyCohort[]>([]);
  const [appealReasons,setAppealReasons]=useState<Record<string,string>>({});
  const [status,setStatus]=useState("Откройте каталог, чтобы посмотреть доступные курсы.");
@@ -57,15 +58,17 @@ export function AcademySurface(){
   }finally{setBusy(false)}
  },[]);
  const loadLearning=useCallback(async(e:NativeAcademyEnrollment)=>{
-  const data=await academyRequest<{lessons:NativeAcademyLesson[]}>(
-   `/v1/academy/enrollments/${encodeURIComponent(e.id)}/learn`);
-  const history=await academyRequest<{attempts:NativeAcademyAttempt[]}>(
-   `/v1/academy/enrollments/${encodeURIComponent(e.id)}/attempts`);
-  const review=await academyRequest<{appeals:NativeAcademyAppeal[]}>("/v1/academy/me/appeals");
-  const groups=await academyRequest<{cohorts:NativeAcademyCohort[]}>(
-   `/v1/academy/enrollments/${encodeURIComponent(e.id)}/cohorts`);
-  setSelected(e);setLessons(data.lessons);setAttempts(history.attempts);setAppeals(review.appeals);setCohorts(groups.cohorts);setCertificate(null);
-  setStatus("Ваш прогресс синхронизируется с APGIC.");
+  const [data,history,review,groups]=await Promise.all([
+   academyRequest<{lessons:NativeAcademyLesson[]}>(`/v1/academy/enrollments/${encodeURIComponent(e.id)}/learn`),
+   academyRequest<{attempts:NativeAcademyAttempt[]}>(`/v1/academy/enrollments/${encodeURIComponent(e.id)}/attempts`),
+   academyRequest<{appeals:NativeAcademyAppeal[]}>("/v1/academy/me/appeals")
+    .then(value=>({ok:true,items:value.appeals})).catch(()=>({ok:false,items:[] as NativeAcademyAppeal[]})),
+   academyRequest<{cohorts:NativeAcademyCohort[]}>(`/v1/academy/enrollments/${encodeURIComponent(e.id)}/cohorts`)
+    .then(value=>({ok:true,items:value.cohorts})).catch(()=>({ok:false,items:[] as NativeAcademyCohort[]}))
+  ]);
+  setSelected(e);setLessons(data.lessons);setAttempts(history.attempts);
+  setAppeals(review.items);setAppealsUnavailable(!review.ok);setCohorts(groups.items);setCertificate(null);
+  setStatus(review.ok&&groups.ok?"Ваш прогресс синхронизируется с APGIC.":"Уроки доступны. Дополнительные сведения временно недоступны.");
  },[]);
  return <View style={{gap:12,marginTop:16,padding:16,borderWidth:1,borderRadius:14}}
   accessibilityLabel="APGIC Academy">
@@ -151,7 +154,7 @@ export function AcademySurface(){
        <View key={`appeal-${a.id}`} style={{gap:6}}>
         {appeals.some(x=>x.attempt_id===a.id)
          ?<Text>Апелляция: {appeals.find(x=>x.attempt_id===a.id)?.state}</Text>
-         :<>
+         :appealsUnavailable?<Text>История апелляций недоступна. Повторная подача временно заблокирована.</Text>:<>
           <TextInput multiline accessibilityLabel="Причина апелляции"
            value={appealReasons[a.id]||""}
            onChangeText={value=>setAppealReasons(prev=>({...prev,[a.id]:value}))}
