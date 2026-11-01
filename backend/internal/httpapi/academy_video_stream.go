@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -96,32 +97,11 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 		}
 		w.Header().Set("Accept-Ranges", "bytes")
 		w.WriteHeader(response.StatusCode)
-		// Bound each delivered chunk and re-evaluate entitlement periodically.
-		// A revoked course cannot keep streaming indefinitely on an old request.
-		buf := make([]byte, 64<<10)
-		lastCheck := time.Now()
-		bytesSinceCheck := 0
-		for {
-			n, readErr := response.Body.Read(buf)
-			if n > 0 {
-				bytesSinceCheck += n
-				if bytesSinceCheck >= 512<<10 || time.Since(lastCheck) >= time.Second {
-					_, _, currentPath, permissionErr := owner.AcademyLearnerVideoSource(actor,
-						r.PathValue("enrollmentID"), r.PathValue("lessonID"), r.PathValue("mediaID"))
-					if permissionErr != nil || currentPath != path {
-						return // Abort response immediately; never send further bytes.
-					}
-					lastCheck = time.Now()
-					bytesSinceCheck = 0
-				}
-				if _, writeErr := w.Write(buf[:n]); writeErr != nil {
-					return
-				}
-			}
-			if readErr != nil {
-				return
-			}
-		}
+		_ = academyCopyVideoAuthorized(w, response.Body, func() bool {
+			_, _, currentPath, permissionErr := owner.AcademyLearnerVideoSource(actor,
+				r.PathValue("enrollmentID"), r.PathValue("lessonID"), r.PathValue("mediaID"))
+			return permissionErr == nil && currentPath == path
+		}, 512<<10, time.Second)
 	})
 }
 
