@@ -53,6 +53,18 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 		}
 		streamCtx, stopStream := context.WithCancel(r.Context())
 		defer stopStream()
+		// The same canonical access check guards startup, byte copying and
+		// idle upstream reads. A stalled provider must not outlive revocation.
+		allowed := func() bool {
+			currentAuthor, currentProvider, currentPath, permissionErr := owner.AcademyLearnerVideoSource(actor,
+				r.PathValue("enrollmentID"), r.PathValue("lessonID"), r.PathValue("mediaID"))
+			return permissionErr == nil && currentAuthor == author && currentProvider == provider && currentPath == path
+		}
+		if !allowed() {
+			academyHTTPError(w, r, academy.ErrEntitlement)
+			return
+		}
+		go academyWatchVideoEntitlement(streamCtx, stopStream, time.Second, allowed)
 		request, err := http.NewRequestWithContext(streamCtx, http.MethodGet, download, nil)
 		if err != nil {
 			academyHTTPError(w, r, academy.ErrUnavailable)
@@ -86,6 +98,10 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 			academyHTTPError(w, r, academy.ErrUnavailable)
 			return
 		}
+		if !allowed() {
+			academyHTTPError(w, r, academy.ErrEntitlement)
+			return
+		}
 		ct := response.Header.Get("Content-Type")
 		w.Header().Set("Content-Type", ct)
 		if v := response.Header.Get("Content-Length"); v != "" {
@@ -96,11 +112,7 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 		}
 		w.Header().Set("Accept-Ranges", "bytes")
 		w.WriteHeader(response.StatusCode)
-		_ = academyCopyVideoAuthorized(w, response.Body, func() bool {
-			_, _, currentPath, permissionErr := owner.AcademyLearnerVideoSource(actor,
-				r.PathValue("enrollmentID"), r.PathValue("lessonID"), r.PathValue("mediaID"))
-			return permissionErr == nil && currentPath == path
-		}, 512<<10, time.Second)
+		_ = academyCopyVideoAuthorized(w, response.Body, allowed, 512<<10, time.Second)
 	})
 }
 
