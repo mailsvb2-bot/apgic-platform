@@ -84,6 +84,8 @@ export default function AcademyPage(){
  const [cohortCloses,setCohortCloses]=useState("");
  const [notice,setNotice]=useState("");
  const [busy,setBusy]=useState(false);
+ // A lost HTTP response must not lead to a second, non-idempotent draft POST.
+ const [pendingDraft,setPendingDraft]=useState<{title:string;description:string;baseline:string[]}|null>(null);
  const [notifications,setNotifications]=useState<AcademyNotifications|null>(null);
  const [productID,setProductID]=useState("");
  const [title,setTitle]=useState("");
@@ -258,36 +260,60 @@ export default function AcademyPage(){
   }catch(e){setProductStepError(e instanceof Error?e.message:String(e))}
   finally{setProductBusy(false)}
  }
+ async function reconcileDraft(requested:{title:string;description:string;baseline:string[]}){
+  const owned=await api<{courses:Course[]}>("/v1/academy/my-courses");
+  setMine(owned.courses);
+  const matches=owned.courses.filter(item=>!requested.baseline.includes(item.id)&&
+   item.title===requested.title&&item.description===requested.description);
+  if(matches.length===1){
+   setPendingDraft(null);
+   await loadOutline(matches[0]);
+   setNotice("Черновик найден в сохранённых данных. Повторное создание не требуется.");
+   return;
+  }
+  setPendingDraft(requested);
+  setNotice(matches.length>1?
+   "Найдено несколько новых похожих черновиков. Выберите нужный в «Мои курсы»; повторное создание заблокировано.":
+   "Ответ создания не подтверждён. Проверьте «Мои курсы»; повторное создание заблокировано во избежание дубля.");
+ }
+ async function verifyDraft(){
+  if(!pendingDraft||busy)return;
+  setBusy(true);
+  try{await reconcileDraft(pendingDraft)}
+  catch(error){setNotice("Проверка сохранения недоступна. Повторное создание заблокировано: "+String(error))}
+  finally{setBusy(false)}
+ }
  async function createCourse(event:FormEvent){
   event.preventDefault();
-  if(busy||!productID)return;
-  // The POST may commit even if its response is lost. Never automatically
-  // repeat it: reconcile the existing canonical Academy author readback.
-  const requested={product_id:productID,title:title.trim(),description};
+  if(busy||pendingDraft||title.trim().length<3)return;
   setBusy(true);setNotice("");
+  const requested={title:title.trim(),description,baseline:[] as string[]};
   try{
-   const created=await api<Course>("/v1/academy/courses",requested);
-   await loadOutline(created);
-   await refresh();
-   setNotice("Черновик курса сохранён.");
-  }catch(error){
-   const reason=error instanceof Error?error.message:"Ответ создания курса не получен";
+   // Read before writing: distinguish a new draft from an older same-title course.
+   const owned=await api<{courses:Course[]}>("/v1/academy/my-courses");
+   requested.baseline=owned.courses.map(item=>item.id);
+   const created=await api<Course>("/v1/academy/drafts",
+    {title:requested.title,description:requested.description}).catch(async error=>{
+     setPendingDraft(requested);
+     try{await reconcileDraft(requested)}
+     catch(readError){setNotice("Результат создания неизвестен ("+String(error)+
+      "). Проверка сохранения недоступна ("+String(readError)+"). Повторное создание заблокировано.")}
+     return null;
+    });
+   if(!created)return;
+   setPendingDraft(null);
    try{
-    const readback=await api<{courses:Course[]}>("/v1/academy/my-courses");
-    setMine(readback.courses);
-    const existing=readback.courses.find(item=>item.product_id===requested.product_id);
-    if(existing){
-     await loadOutline(existing);
-     setNotice(existing.title===requested.title&&existing.description===requested.description?
-      "Курс найден в сохранённых данных. Повторное создание не требуется.":
-      "К этому Commerce-продукту уже привязан другой курс. Открыт существующий курс; новый не создавался.");
-    }else{
-     setNotice("Создание курса не подтверждено ("+reason+"). Проверьте список курсов перед повторной попыткой.");
-    }
-   }catch(readError){
-    setNotice("Не удалось подтвердить результат создания ("+reason+"). Сохранение могло состояться. Проверьте «Мои курсы» после восстановления соединения; не меняйте продукт для повтора. "+
-     (readError instanceof Error?readError.message:""));
+    await loadOutline(created);
+    await refresh();
+    setNotice("Черновик курса сохранён.");
+   }catch(error){
+    // The server returned a durable ID; never call create again.
+    setNotice("Черновик создан, но загрузка данных не завершена: "+String(error)+
+     ". Откройте его в «Мои курсы».");
    }
+  }catch(error){
+   // Preflight failed before POST: no write was attempted.
+   setNotice("Не удалось проверить список курсов перед созданием: "+String(error));
   }finally{setBusy(false)}
  }
  async function addModule(event:FormEvent){
@@ -363,68 +389,15 @@ export default function AcademyPage(){
       </div>)}
     </section>
     <form id="academy-author" className="panel specialist-form" onSubmit={createCourse}>
-     <h2>Автору: создать курс</h2>
-     <p>Курс привязывается к опубликованному продукту действующего Commerce. Выберите принадлежащий вам продукт — вводить технический UUID не нужно.</p>
-     <label htmlFor="academy-product">Опубликованный продукт</label>
-     <select id="academy-product" value={productID} onChange={e=>setProductID(e.target.value)} required>
-      <option value="">Выберите продукт</option>
-      {eligibleProducts.map(product=><option key={product.id} value={product.id}>{product.name}</option>)}
-     </select>
-     {productLoadError?<p role="alert">Ошибка загрузки продуктов: {productLoadError}</p>:
-       eligibleProducts.length===0?<p>Опубликованных продуктов нет. Подготовьте продукт в мастере ниже.</p>:null}
-     <button type="button" disabled={busy||productBusy} onClick={()=>void refresh().catch(e=>setProductLoadError(String(e)))}>Обновить продукты</button>
-     <label htmlFor="academy-title">Название</label>
-     <input id="academy-title" value={title} onChange={e=>setTitle(e.target.value)} required minLength={3}/>
-     <label htmlFor="academy-description">Описание</label>
+     <h2>Создать курс</h2>
+     <p>Сначала содержание. Продажи и платежи можно настроить позже, когда курс будет готов.</p>
+     <label htmlFor="academy-title">Название курса</label>
+     <input id="academy-title" value={title} onChange={e=>setTitle(e.target.value)} required minLength={3} maxLength={200} placeholder="Например: Гипноз с нуля"/>
+     <label htmlFor="academy-description">Описание (необязательно)</label>
      <textarea id="academy-description" value={description} onChange={e=>setDescription(e.target.value)}/>
-     <button disabled={busy}>Создать черновик</button>
+     <button disabled={busy||pendingDraft!==null||title.trim().length<3}>Создать курс</button>
+     {pendingDraft&&<button type="button" disabled={busy} onClick={()=>void verifyDraft()}>Проверить сохранение черновика</button>}
     </form>
-    <section className="panel specialist-form" aria-label="Подготовить продукт курса">
-     <h2>Подготовить Commerce-продукт курса</h2>
-     <p>Операции выполняются существующим Commerce API. Публикация требует явного подтверждения владельца, авторов и получателя выручки.</p>
-     <button type="button" disabled={productBusy} onClick={()=>void loadOrganizations()}>Загрузить мои организации</button>
-     {productStepError&&<p role="alert">{productStepError}</p>}
-     <form className="specialist-form" onSubmit={createAcademyOrganization}>
-      <label htmlFor="academy-new-org">Новая организация</label>
-      <input id="academy-new-org" value={newOrgName} onChange={e=>setNewOrgName(e.target.value)} required/>
-      <button disabled={productBusy||orgMutationUncertain||!newOrgName.trim()}>Создать организацию</button>
-     </form>
-     <button type="button" disabled={productBusy} onClick={()=>void reloadAcademyOrganization()}>Проверить сохранённое состояние</button>
-     {orgs.length===0?<p>Организаций пока нет. Создайте её выше — уходить из Academy не требуется.</p>:
-     <form className="specialist-form" onSubmit={prepareCommerceProduct}>
-      <label htmlFor="academy-org">Организация</label>
-      <select id="academy-org" value={orgID} onChange={e=>{
-       const id=e.target.value;setOrgID(id);setDirectionID("");setOrgProducts([]);setPreparedProductID("");
-       void loadOrgProducts(id).catch(error=>setProductStepError(String(error)));
-      }} required>
-       {orgs.map(o=><option key={o.id} value={o.id}>{o.name}</option>)}
-      </select>
-      <label htmlFor="academy-direction">Активное направление</label>
-      <select id="academy-direction" value={directionID} onChange={e=>setDirectionID(e.target.value)} required>
-       <option value="">Выберите направление</option>
-       {orgs.find(o=>o.id===orgID)?.directions.filter(d=>d.status==="ACTIVE").map(d=><option key={d.id} value={d.id}>{d.name}</option>)}
-      </select>
-      <label htmlFor="academy-commerce-owner">Коммерческий владелец</label>
-      <input id="academy-commerce-owner" value={commercialRef} onChange={e=>setCommercialRef(e.target.value)} placeholder={`organization/${orgID}`} required/>
-      <label htmlFor="academy-commerce-authors">Авторы (через запятую)</label>
-      <input id="academy-commerce-authors" value={authorRefs} onChange={e=>setAuthorRefs(e.target.value)} placeholder="identity/..." required/>
-      <label htmlFor="academy-commerce-beneficiary">Получатель выручки</label>
-      <input id="academy-commerce-beneficiary" value={beneficiaryRef} onChange={e=>setBeneficiaryRef(e.target.value)} placeholder={`organization/${orgID}`} required/>
-      <button disabled={productBusy||productMutationUncertain||!directionID||!title.trim()}>Создать черновик Commerce-продукта</button>
-     </form>}
-     {orgID&&<><form className="specialist-form" onSubmit={createAcademyDirection}>
-      <label htmlFor="academy-new-direction">Новое направление обучения</label>
-      <input id="academy-new-direction" value={newDirectionName} onChange={e=>setNewDirectionName(e.target.value)} required/>
-      <button disabled={productBusy||directionMutationUncertain||!newDirectionName.trim()}>Создать направление</button>
-     </form><h3>Мои продукты организации</h3>
-      <button type="button" disabled={productBusy} onClick={()=>void loadOrgProducts(orgID).catch(e=>setProductStepError(String(e)))}>Обновить список</button>
-      <select aria-label="Продукт для публикации" value={preparedProductID} onChange={e=>setPreparedProductID(e.target.value)}>
-       <option value="">Выберите созданный продукт</option>
-       {orgProducts.map(p=><option key={p.id} value={p.id}>{p.name} · {p.status}</option>)}
-      </select>
-      <button type="button" disabled={productBusy||!preparedProductID} onClick={()=>void publishPreparedProduct()}>Подтвердить публикацию и выбрать для курса</button>
-     </>}
-    </section>
    </div>
   </section>
   <section className="how-section">
