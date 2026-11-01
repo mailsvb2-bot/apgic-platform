@@ -109,9 +109,9 @@ func (c *Checker) AcademyAuthorReport(author string) (academy.AuthorReport, erro
 	// An entitlement product_ref alone is not proof of a course sale. Require
 	// the immutable canonical order's product_id to match the course product.
 	// Each store verification and entitlement is unique, so no JOIN multiplication.
-	// Report the captured historical gross alongside its current entitlement
-	// subset; never subtract this subset from gross and call it a refund or net
-	// author income. Canonical Finance still owns all monetary reconciliation.
+	// Report historical captured gross alongside currently enrolled, entitled
+	// access. Never subtract this subset from gross and call it a refund or net
+	// author income. Canonical Finance owns all monetary reconciliation.
 	rows, err = tx.QueryContext(ctx, academyAuthorCapturedGrossQuery, author)
 	if err != nil {
 		return academy.AuthorReport{}, err
