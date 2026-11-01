@@ -51,6 +51,11 @@ export default function AcademyPage(){
  const [eligibleProducts,setEligibleProducts]=useState<AuthorProduct[]>([]);
  const [productLoadError,setProductLoadError]=useState("");
  const [orgs,setOrgs]=useState<AcademyOrg[]>([]);
+ const [newOrgName,setNewOrgName]=useState("");
+ const [newDirectionName,setNewDirectionName]=useState("Обучение");
+ const [orgMutationUncertain,setOrgMutationUncertain]=useState(false);
+ const [directionMutationUncertain,setDirectionMutationUncertain]=useState(false);
+ const [productMutationUncertain,setProductMutationUncertain]=useState(false);
  const [orgID,setOrgID]=useState("");
  const [directionID,setDirectionID]=useState("");
  const [orgProducts,setOrgProducts]=useState<AcademyOrgProduct[]>([]);
@@ -169,14 +174,52 @@ export default function AcademyPage(){
   try{
    const result=await api<{organizations:AcademyOrg[]}>("/v1/organizations");
    setOrgs(result.organizations);
+   setOrgMutationUncertain(false);
    const first=result.organizations.find(o=>o.id===orgID)||result.organizations[0];
    setOrgID(first?.id||"");
    if(first){await loadOrgProducts(first.id)}else{setOrgProducts([])}
   }catch(e){setProductStepError(e instanceof Error?e.message:String(e))}
  }
+ async function createAcademyOrganization(event:FormEvent){
+  event.preventDefault();if(orgMutationUncertain||productBusy)return;
+  setProductBusy(true);setProductStepError("");
+  try{
+   const created=await api<AcademyOrg>("/v1/organizations",{name:newOrgName});
+   setOrgs(current=>[...current,created]);setOrgID(created.id);setNewOrgName("");
+   setDirectionID("");setOrgProducts([]);
+  }catch(e){
+   setOrgMutationUncertain(true);
+   setProductStepError("Создание организации не подтверждено. Обновите организации перед повтором: "+String(e));
+  }finally{setProductBusy(false)}
+ }
+ async function createAcademyDirection(event:FormEvent){
+  event.preventDefault();if(directionMutationUncertain||productBusy||!orgID)return;
+  setProductBusy(true);setProductStepError("");
+  try{
+   const updated=await api<AcademyOrg>(`/v1/organizations/${orgID}/directions`,{
+    name:newDirectionName,direction_type:"EDUCATION"
+   });
+   setOrgs(current=>current.map(o=>o.id===updated.id?updated:o));
+   const found=updated.directions.find(d=>d.status==="ACTIVE"&&d.name===newDirectionName);
+   if(found)setDirectionID(found.id);
+  }catch(e){
+   setDirectionMutationUncertain(true);
+   setProductStepError("Создание направления не подтверждено. Проверьте список направлений перед повтором: "+String(e));
+  }finally{setProductBusy(false)}
+ }
+ async function reloadAcademyOrganization(){
+  try{
+   const data=await api<{organizations:AcademyOrg[]}>("/v1/organizations");
+   setOrgs(data.organizations);setOrgMutationUncertain(false);setDirectionMutationUncertain(false);
+   const selected=data.organizations.find(o=>o.id===orgID)||data.organizations[0];
+   if(selected){setOrgID(selected.id);await loadOrgProducts(selected.id)}
+   else{setOrgID("");setOrgProducts([])}
+   setProductMutationUncertain(false);setProductStepError("");
+  }catch(e){setProductStepError("Не удалось проверить сохранённое состояние: "+String(e))}
+ }
  async function prepareCommerceProduct(event:FormEvent){
   event.preventDefault();
-  if(!orgID||!directionID||!title.trim()||!commercialRef.trim()||!beneficiaryRef.trim()||!authorRefs.trim())return;
+  if(productMutationUncertain||!orgID||!directionID||!title.trim()||!commercialRef.trim()||!beneficiaryRef.trim()||!authorRefs.trim())return;
   setProductBusy(true);setProductStepError("");
   try{
    // On ambiguous errors never automatically retry this non-idempotent POST.
@@ -189,7 +232,8 @@ export default function AcademyPage(){
    setPreparedProductID(created.id);
    await loadOrgProducts(orgID);
   }catch(e){
-   setProductStepError("Не удалось подтвердить создание продукта. Проверьте список продуктов ниже перед новой попыткой: "+(e instanceof Error?e.message:String(e)));
+   setProductMutationUncertain(true);
+   setProductStepError("Создание продукта не подтверждено. Обновите список продуктов и выберите существующий черновик прежде чем повторять: "+(e instanceof Error?e.message:String(e)));
    try{await loadOrgProducts(orgID)}catch{/* Preserve original error */ }
   }finally{setProductBusy(false)}
  }
@@ -315,7 +359,13 @@ export default function AcademyPage(){
      <p>Операции выполняются существующим Commerce API. Публикация требует явного подтверждения владельца, авторов и получателя выручки.</p>
      <button type="button" disabled={productBusy} onClick={()=>void loadOrganizations()}>Загрузить мои организации</button>
      {productStepError&&<p role="alert">{productStepError}</p>}
-     {orgs.length===0?<p>Сначала создайте организацию и направление «Обучение» в <a href="/organization">кабинете организации</a>.</p>:
+     <form className="specialist-form" onSubmit={createAcademyOrganization}>
+      <label htmlFor="academy-new-org">Новая организация</label>
+      <input id="academy-new-org" value={newOrgName} onChange={e=>setNewOrgName(e.target.value)} required/>
+      <button disabled={productBusy||orgMutationUncertain||!newOrgName.trim()}>Создать организацию</button>
+     </form>
+     <button type="button" disabled={productBusy} onClick={()=>void reloadAcademyOrganization()}>Проверить сохранённое состояние</button>
+     {orgs.length===0?<p>Организаций пока нет. Создайте её выше — уходить из Academy не требуется.</p>:
      <form className="specialist-form" onSubmit={prepareCommerceProduct}>
       <label htmlFor="academy-org">Организация</label>
       <select id="academy-org" value={orgID} onChange={e=>{
@@ -335,9 +385,13 @@ export default function AcademyPage(){
       <input id="academy-commerce-authors" value={authorRefs} onChange={e=>setAuthorRefs(e.target.value)} placeholder="identity/..." required/>
       <label htmlFor="academy-commerce-beneficiary">Получатель выручки</label>
       <input id="academy-commerce-beneficiary" value={beneficiaryRef} onChange={e=>setBeneficiaryRef(e.target.value)} placeholder={`organization/${orgID}`} required/>
-      <button disabled={productBusy||!directionID||!title.trim()}>Создать черновик Commerce-продукта</button>
+      <button disabled={productBusy||productMutationUncertain||!directionID||!title.trim()}>Создать черновик Commerce-продукта</button>
      </form>}
-     {orgID&&<><h3>Мои продукты организации</h3>
+     {orgID&&<><form className="specialist-form" onSubmit={createAcademyDirection}>
+      <label htmlFor="academy-new-direction">Новое направление обучения</label>
+      <input id="academy-new-direction" value={newDirectionName} onChange={e=>setNewDirectionName(e.target.value)} required/>
+      <button disabled={productBusy||directionMutationUncertain||!newDirectionName.trim()}>Создать направление</button>
+     </form><h3>Мои продукты организации</h3>
       <button type="button" disabled={productBusy} onClick={()=>void loadOrgProducts(orgID).catch(e=>setProductStepError(String(e)))}>Обновить список</button>
       <select aria-label="Продукт для публикации" value={preparedProductID} onChange={e=>setPreparedProductID(e.target.value)}>
        <option value="">Выберите созданный продукт</option>
