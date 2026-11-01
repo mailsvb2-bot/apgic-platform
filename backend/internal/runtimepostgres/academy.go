@@ -17,6 +17,16 @@ import (
 
 const academyTimeout = 5 * time.Second
 
+// These SQL predicates are shared by learner readback and mutation preflight.
+// PostgreSQL's immutable published schedules and insertion triggers remain the
+// final authority at the actual write boundary (including deadline races).
+const academyScheduleOpenSQL = `(sc.release_at IS NULL OR now()>=sc.release_at)
+ AND (sc.deadline_at IS NULL OR now()<sc.deadline_at)`
+const academyAssessmentOpenSQL = `(` + academyScheduleOpenSQL + `
+ AND (l.kind<>'ASSESSMENT' OR limits.submission_deadline IS NULL
+      OR now()<limits.submission_deadline))`
+
+
 func academyID() (string, error) { return persistentid.New() }
 func academyToken() (string, error) {
 	b := make([]byte, 32)
@@ -543,12 +553,7 @@ func (c *Checker) AcademyLearning(actor, enrollmentID string) ([]academy.Lesson,
  LEFT JOIN academy_lesson_schedules sc ON sc.lesson_id=l.id
  LEFT JOIN academy_assessment_limits limits ON limits.lesson_id=l.id
  LEFT JOIN academy_progress p ON p.enrollment_id=e.id AND p.lesson_id=l.id
- CROSS JOIN LATERAL (SELECT
-   ( (sc.release_at IS NULL OR now()>=sc.release_at)
-     AND (sc.deadline_at IS NULL OR now()<sc.deadline_at)
-     AND (l.kind<>'ASSESSMENT' OR limits.submission_deadline IS NULL
-          OR now()<limits.submission_deadline)
-   ) AS allowed) availability
+ CROSS JOIN LATERAL (SELECT (`+academyAssessmentOpenSQL+`) AS allowed) availability
  WHERE e.id=$1::uuid AND e.identity_id=$2::uuid
  AND e.state IN ('ACTIVE','COMPLETED') AND academy_entitlement_is_active(t.id)
  ORDER BY m.ordinal,l.ordinal`, enrollmentID, actor)
@@ -583,7 +588,7 @@ func (c *Checker) AcademyMarkProgress(actor, enrollmentID, lessonID string) erro
 	var kind, versionID, entitlementState, enrollmentState string
 	var lessonOpen bool
 	err = tx.QueryRowContext(ctx, `SELECT l.kind,e.version_id::text,CASE WHEN academy_entitlement_is_active(t.id) THEN 'ACTIVE' ELSE 'REVOKED' END,e.state,
- (sc.release_at IS NULL OR now()>=sc.release_at) AND (sc.deadline_at IS NULL OR now()<sc.deadline_at)
+ (`+academyScheduleOpenSQL+`)
  FROM academy_enrollments e JOIN store_entitlements t ON t.id=e.entitlement_id
  JOIN academy_modules m ON m.version_id=e.version_id
  JOIN academy_lessons l ON l.module_id=m.id
@@ -753,9 +758,7 @@ func (c *Checker) AcademySubmitAttempt(actor, enrollmentID, lessonID, response s
 	var submissionOpen bool
 	err = tx.QueryRowContext(ctx, `SELECT a.rubric_version,e.state,CASE WHEN academy_entitlement_is_active(t.id) THEN 'ACTIVE' ELSE 'REVOKED' END,
  COALESCE(limits.max_attempts,1),
- (sc.release_at IS NULL OR now()>=sc.release_at)
- AND (sc.deadline_at IS NULL OR now()<sc.deadline_at)
- AND (limits.submission_deadline IS NULL OR now()<limits.submission_deadline)
+ (`+academyAssessmentOpenSQL+`)
  FROM academy_enrollments e JOIN store_entitlements t ON t.id=e.entitlement_id
  JOIN academy_modules m ON m.version_id=e.version_id
  JOIN academy_lessons l ON l.module_id=m.id JOIN academy_assessments a ON a.lesson_id=l.id
