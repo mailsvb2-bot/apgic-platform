@@ -1,5 +1,5 @@
 import React,{useCallback,useState} from "react";
-import {Pressable,Text,TextInput,View} from "react-native";
+import {Linking,Pressable,Text,TextInput,View} from "react-native";
 import {canonicalAPGICOrigin} from "./mobile-deep-link-client.ts";
 
 export type NativeAcademyNotifications={enabled:boolean;learning_updates:boolean;assessment_results:boolean;certificate_updates:boolean};
@@ -14,6 +14,11 @@ export type NativeAcademyLesson={
 };
 export type NativeAcademyCertificate={
  verification_url:string;state:"ACTIVE"|"REVOKED";evidence_candidate_state:string;
+};
+export type NativeLearnerCertificate={
+ id:string;enrollment_id:string;course_title:string;course_version:number;
+ state:"ACTIVE"|"REVOKED";learning_access_state:"ACTIVE"|"REVOKED";
+ verification_url:string;evidence_candidate_state:string;issued_at:string;
 };
 export type NativeAcademyAttempt={id:string;lesson_id:string;result:"PENDING"|"PASSED"|"FAILED";score?:number;attempt_no:number};
 export type NativeAcademyCohort={id:string;label:string;capacity:number;members:number;starts_at?:string;is_member?:boolean};
@@ -42,6 +47,7 @@ export function AcademySurface(){
  const [lessons,setLessons]=useState<NativeAcademyLesson[]>([]);
  const [selected,setSelected]=useState<NativeAcademyEnrollment|null>(null);
  const [certificate,setCertificate]=useState<NativeAcademyCertificate|null>(null);
+ const [certificates,setCertificates]=useState<NativeLearnerCertificate[]>([]);
  const [attempts,setAttempts]=useState<NativeAcademyAttempt[]>([]);
  const [appeals,setAppeals]=useState<NativeAcademyAppeal[]>([]);
  const [appealsUnavailable,setAppealsUnavailable]=useState(false);
@@ -112,6 +118,24 @@ export function AcademySurface(){
    })} style={{minHeight:48,borderWidth:1,borderRadius:9,padding:12}}>
    <Text>Мои обучения</Text>
   </Pressable>
+  <Pressable accessibilityRole="button" disabled={busy}
+   onPress={()=>void act(async()=>{
+    const data=await academyRequest<{certificates:NativeLearnerCertificate[]}>("/v1/academy/me/certificates");
+    setCertificates(data.certificates);
+    setStatus(data.certificates.length?"Ваши выданные сертификаты.":"Сертификатов пока нет.");
+   })} style={{minHeight:48,borderWidth:1,borderRadius:9,padding:12}}>
+   <Text>Мои сертификаты</Text>
+  </Pressable>
+  {certificates.map(item=><View key={item.id} style={{gap:6,padding:8}}>
+   <Text>{item.course_title} · версия {item.course_version} · {item.state==="REVOKED"?"Сертификат отозван":"Сертификат действует"}</Text>
+   <Text>Доступ к урокам: {item.learning_access_state==="ACTIVE"?"активен":"отозван"}</Text>
+   <Pressable accessibilityRole="link" onPress={()=>void act(async()=>{
+    if(!item.verification_url.startsWith("/v1/academy/certificates/verify/")){
+     throw new Error("Некорректная ссылка сертификата.");
+    }
+    await Linking.openURL(new URL(item.verification_url,canonicalAPGICOrigin).toString());
+   })}><Text>Проверить сертификат</Text></Pressable>
+  </View>)}
   {courses.map(course=><View key={course.id} style={{gap:6,padding:8}}>
    <Text style={{fontWeight:"700"}}>{course.title}</Text>
    <Text>{course.description}</Text>

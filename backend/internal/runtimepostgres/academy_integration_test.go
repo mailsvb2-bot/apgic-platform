@@ -653,6 +653,21 @@ func TestAcademyStoreVerifiedPaidJourneySurvivesRestart(t *testing.T) {
 	if err != nil || certificateAgain.ID != certificate.ID {
 		t.Fatalf("certificate is not idempotent after restart: %+v %v", certificateAgain, err)
 	}
+	// The certificate remains discoverable after a process restart without
+	// calling the completion mutation again. Another identity sees no token.
+	ownedCertificates, err := store.AcademyMyCertificates(learner)
+	if err != nil || len(ownedCertificates) != 1 ||
+		ownedCertificates[0].ID != certificate.ID ||
+		ownedCertificates[0].State != "ACTIVE" ||
+		ownedCertificates[0].LearningAccessState != "ACTIVE" ||
+		ownedCertificates[0].VerificationURL != certificate.VerificationURL ||
+		ownedCertificates[0].EvidenceCandidateState != academy.EvidenceCandidateStatus {
+		t.Fatalf("durable learner certificate readback failed: %+v %v", ownedCertificates, err)
+	}
+	foreignCertificates, err := store.AcademyMyCertificates(author)
+	if err != nil || len(foreignCertificates) != 0 {
+		t.Fatalf("foreign identity read learner certificate: %+v %v", foreignCertificates, err)
+	}
 	verified, err := store.AcademyVerify(certificate.VerificationToken)
 	if err != nil || verified["state"] != "ACTIVE" || verified["qualification_status"] != "NOT_GRANTED" {
 		t.Fatalf("public verification does not match durable certificate: %+v %v", verified, err)
@@ -768,6 +783,15 @@ func TestAcademyStoreRefundWithdrawsLearningAccess(t *testing.T) {
 	}
 	if !seenRevoked {
 		t.Fatal("refunded course disappeared from learner's historical enrollment list")
+	}
+	// Refund must not hide the earned credential or falsely mark the old
+	// entitlement active. Certificate state is independent of learning access.
+	refundedCertificates, err := store.AcademyMyCertificates(learner)
+	if err != nil || len(refundedCertificates) != 1 ||
+		refundedCertificates[0].EnrollmentID != enrollmentID ||
+		refundedCertificates[0].State != "ACTIVE" ||
+		refundedCertificates[0].LearningAccessState != "REVOKED" {
+		t.Fatalf("refund erased or misrepresented historical credential: %+v %v", refundedCertificates, err)
 	}
 
 	var courseID string

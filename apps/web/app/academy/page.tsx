@@ -9,6 +9,7 @@ type Module = {id:string;version_id:string;title:string;ordinal:number};
 type Lesson = {id:string;module_id:string;title:string;kind:"READING"|"VIDEO"|"ASSESSMENT";ordinal:number;body?:string;media_asset_ref?:string;completed?:boolean;passing_score?:number;available?:boolean};
 type Enrollment = {id:string;version_id:string;course_id?:string;course_title?:string;version_no?:number;state:string;access_state?:"ACTIVE"|"REVOKED"};
 type Certificate = {verification_url:string;state:string;evidence_candidate_state:string};
+type LearnerCertificate = {id:string;enrollment_id:string;course_title:string;course_version:number;state:string;learning_access_state:string;verification_url:string;evidence_candidate_state:string;issued_at:string};
 type Cohort = {id:string;version_id:string;label:string;capacity:number;members:number;is_member?:boolean;starts_at?:string;enrollment_closes_at?:string};
 type LearnerAppeal = {id:string;attempt_id:string;state:string;reason:string;submitted_at:string};
 type LearnerAttempt = {id:string;lesson_id:string;attempt_no:number;result:"PENDING"|"PASSED"|"FAILED";score?:number;submitted_at:string;evaluated_at?:string};
@@ -53,6 +54,8 @@ export default function AcademyPage(){
  const [lessons,setLessons]=useState<Lesson[]>([]);
  const [activeEnrollment,setActiveEnrollment]=useState<Enrollment|null>(null);
  const [certificate,setCertificate]=useState<Certificate|null>(null);
+ const [certificates,setCertificates]=useState<LearnerCertificate[]>([]);
+ const [certificatesUnavailable,setCertificatesUnavailable]=useState(false);
  const [cohorts,setCohorts]=useState<Cohort[]>([]);
  const [cohortError,setCohortError]=useState(false);
  const [appealError,setAppealError]=useState(false);
@@ -88,14 +91,15 @@ export default function AcademyPage(){
  const refresh=useCallback(async()=>{
   const publicCourses=await api<{courses:Course[]}>("/v1/academy/courses");
   setCatalog(publicCourses.courses);
-  const [owned,learning,reviews,report,cohortList,eligible,access]=await Promise.allSettled([
+  const [owned,learning,reviews,report,cohortList,eligible,access,credentials]=await Promise.allSettled([
    api<{courses:Course[]}>("/v1/academy/my-courses"),
    api<{enrollments:Enrollment[]}>("/v1/academy/my-enrollments"),
    api<{attempts:ReviewAttempt[]}>("/v1/academy/review/attempts"),
    api<AuthorReport>("/v1/academy/author/report"),
    api<{cohorts:Cohort[]}>("/v1/academy/author/cohorts"),
    api<{products:AuthorProduct[]}>("/v1/academy/author/eligible-products"),
-   api<{course_ids:string[]}>("/v1/academy/me/course-access")
+   api<{course_ids:string[]}>("/v1/academy/me/course-access"),
+   api<{certificates:LearnerCertificate[]}>("/v1/academy/me/certificates")
   ]);
   if(owned.status==="fulfilled")setMine(owned.value.courses);
   if(learning.status==="fulfilled")setEnrollments(learning.value.enrollments);
@@ -105,6 +109,8 @@ export default function AcademyPage(){
   if(eligible.status==="fulfilled")setEligibleProducts(eligible.value.products);
   // Fail closed on expired sessions or unavailable entitlement projection.
   setVerifiedCourseIDs(access.status==="fulfilled"?access.value.course_ids:[]);
+  setCertificates(credentials.status==="fulfilled"?credentials.value.certificates:[]);
+  setCertificatesUnavailable(credentials.status!=="fulfilled");
  },[]);
  useEffect(()=>{void refresh().catch(error=>setNotice(String(error)))},[refresh]);
 
@@ -195,6 +201,15 @@ export default function AcademyPage(){
          {{enabled:"Разрешить уведомления",learning_updates:"Новые уроки",assessment_results:"Оценки",certificate_updates:"Сертификаты"}[field]}</label>)}
        <button disabled={busy}>Сохранить согласия</button>
       </form>}
+     </section>
+     <section aria-label="Мои сертификаты">
+      <h3>Мои сертификаты</h3>
+      {certificatesUnavailable?<p role="alert">История сертификатов временно недоступна.</p>:
+       certificates.length===0?<p>Выданных сертификатов пока нет.</p>:
+       certificates.map(item=><p key={item.id}>
+        {item.course_title} · версия {item.course_version} · сертификат {item.state==="REVOKED"?"отозван":"действует"} · доступ к урокам {item.learning_access_state==="ACTIVE"?"активен":"отозван"}.
+        {" "}<a href={item.verification_url} rel="noreferrer">Проверить сертификат</a>
+       </p>)}
      </section>
      {enrollments.length===0?<p>Пока нет зачислений.</p>:enrollments.map(e=>
       <div key={e.id}><p>{e.course_title||"Курс"} · версия {e.version_no??"—"} · {e.state} · доступ {e.access_state??"неизвестен"}</p>
