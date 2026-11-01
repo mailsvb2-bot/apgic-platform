@@ -12,8 +12,6 @@ import (
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/academy"
 )
 
-// This test deliberately requires the existing isolated, migrated PostgreSQL CI
-// database; skipped runs do not establish real concurrency evidence.
 func TestAcademyCreateCourseConcurrentRetry(t *testing.T) {
 	dsn := os.Getenv("APGIC_ORGANIZATION_TEST_DATABASE_URL")
 	if dsn == "" {
@@ -24,13 +22,11 @@ func TestAcademyCreateCourseConcurrentRetry(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-
 	store, err := Open(context.Background(), dsn)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer store.Close()
-
 	author, err := academyID()
 	if err != nil {
 		t.Fatal(err)
@@ -47,7 +43,6 @@ func TestAcademyCreateCourseConcurrentRetry(t *testing.T) {
 		product, author, "identity/"+author); err != nil {
 		t.Fatal(err)
 	}
-
 	input := academy.Course{ProductID: product, Title: "Concurrent author course", Description: "Canonical retry"}
 	const count = 12
 	results := make([]academy.Course, count)
@@ -66,7 +61,6 @@ func TestAcademyCreateCourseConcurrentRetry(t *testing.T) {
 			t.Fatalf("request %d: course=%+v err=%v", i, results[i], errs[i])
 		}
 	}
-
 	var n int
 	if err = db.QueryRow("SELECT count(*) FROM academy_courses WHERE product_id=$1::uuid", product).Scan(&n); err != nil || n != 1 {
 		t.Fatalf("course count=%d err=%v", n, err)
