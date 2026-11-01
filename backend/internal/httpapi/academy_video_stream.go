@@ -124,7 +124,7 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 		}
 		w.Header().Set("Accept-Ranges", "bytes")
 		w.WriteHeader(response.StatusCode)
-		_ = academyCopyVideoAuthorized(w, response.Body, allowed, 512<<10, time.Second)
+		_ = academyCopyVideoAuthorized(w, response.Body, allowed)
 	})
 }
 
