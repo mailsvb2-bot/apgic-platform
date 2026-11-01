@@ -99,12 +99,41 @@ func (c *Checker) AcademyCreateCourse(actor string, input academy.Course) (acade
 		return academy.Course{}, err
 	}
 	defer tx.Rollback()
+	// Serialize retries by canonical UUID, not by caller-supplied spelling.
+	// PostgreSQL accepts uppercase and alternate UUID representations for the
+	// same Commerce product; those must never acquire different locks.
+	if _, err = tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended('academy/course/product/' || ($1::uuid)::text, 84173))`, input.ProductID); err != nil {
+		return academy.Course{}, err
+	}
 	owner, err := academyPublishedProductOwner(ctx, tx, actor, input.ProductID)
 	if err != nil {
 		return academy.Course{}, err
 	}
 	if !owner {
 		return academy.Course{}, academy.ErrDenied
+	}
+	// Reuse the original course after an uncertain HTTP response. Never create
+	// a second course or replay academy.course.created for the same product.
+	var existing academy.Course
+	err = tx.QueryRowContext(ctx, `SELECT c.id::text,c.product_id::text,c.author_id::text,
+	 c.title,c.description,c.state,v.id::text,v.version_no
+	 FROM academy_courses c
+	 JOIN LATERAL (SELECT id,version_no FROM academy_course_versions
+	 WHERE course_id=c.id ORDER BY version_no DESC LIMIT 1) v ON true
+	 WHERE c.product_id=$1::uuid`, input.ProductID).Scan(
+		&existing.ID, &existing.ProductID, &existing.AuthorID, &existing.Title,
+		&existing.Description, &existing.State, &existing.VersionID, &existing.VersionNo)
+	if err == nil {
+		if existing.AuthorID != actor {
+			return academy.Course{}, academy.ErrDenied
+		}
+		if existing.Title != input.Title || existing.Description != input.Description {
+			return academy.Course{}, academy.ErrConflict
+		}
+		return existing, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return academy.Course{}, err
 	}
 	courseID, err := academyID()
 	if err != nil {
