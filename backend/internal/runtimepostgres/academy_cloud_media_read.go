@@ -4,15 +4,7 @@ import (
  "github.com/mailsvb2-bot/apgic-platform/backend/internal/academy"
 )
 
-type AcademyLessonMediaView struct {
- LessonID string `json:"lesson_id"`
- MediaID string `json:"media_id"`
- Ordinal int `json:"ordinal"`
- Title string `json:"title"`
- Provider string `json:"provider"`
- ProviderFileRef string `json:"provider_file_ref"`
- SourceURL string `json:"source_url,omitempty"`
-}
+type AcademyLessonMediaView = academy.LessonMediaView
 
 // Author-only projection: learner APIs never invoke this method.
 func(c *Checker) AcademyAuthorLessonMedia(actor,courseID,versionID string)([]AcademyLessonMediaView,error){
