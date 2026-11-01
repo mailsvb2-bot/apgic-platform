@@ -83,6 +83,20 @@ func TestAcademyCloudMediaDraftOwnerAndVideoBoundaryPostgres(t *testing.T) {
 	if err := store.AcademyAssignCloudMedia(author, course.ID, course.VersionID, assignment); err != nil {
 		t.Fatalf("draft VIDEO assignment failed: %v", err)
 	}
+	var firstEvents int
+	if err := db.QueryRow("SELECT count(*) FROM outbox_events WHERE aggregate_ref=$1 AND event_type='academy.media.assigned'", "academy/version/"+course.VersionID).Scan(&firstEvents); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.AcademyAssignCloudMedia(author, course.ID, course.VersionID, assignment); err != nil {
+		t.Fatalf("identical assignment retry failed: %v", err)
+	}
+	var retryEvents int
+	if err := db.QueryRow("SELECT count(*) FROM outbox_events WHERE aggregate_ref=$1 AND event_type='academy.media.assigned'", "academy/version/"+course.VersionID).Scan(&retryEvents); err != nil {
+		t.Fatal(err)
+	}
+	if retryEvents != firstEvents {
+		t.Fatalf("identical retry generated another event: before=%d after=%d", firstEvents, retryEvents)
+	}
 	view, err := store.AcademyAuthorLessonMedia(author, course.ID, course.VersionID)
 	if err != nil || len(view) != 1 || view[0].MediaID != owned[0].ID {
 		t.Fatalf("author readback: %+v err=%v", view, err)
