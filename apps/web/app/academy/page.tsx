@@ -84,6 +84,8 @@ export default function AcademyPage(){
  const [cohortCloses,setCohortCloses]=useState("");
  const [notice,setNotice]=useState("");
  const [busy,setBusy]=useState(false);
+ // A lost HTTP response must not lead to a second, non-idempotent draft POST.
+ const [pendingDraft,setPendingDraft]=useState<{title:string;description:string;baseline:string[]}|null>(null);
  const [notifications,setNotifications]=useState<AcademyNotifications|null>(null);
  const [productID,setProductID]=useState("");
  const [title,setTitle]=useState("");
@@ -258,12 +260,69 @@ export default function AcademyPage(){
   }catch(e){setProductStepError(e instanceof Error?e.message:String(e))}
   finally{setProductBusy(false)}
  }
+ async function reconcileDraft(requested:{title:string;description:string;baseline:string[]}){
+  const owned=await api<{courses:Course[]}>("/v1/academy/my-courses");
+  setMine(owned.courses);
+  const matches=owned.courses.filter(item=>!requested.baseline.includes(item.id)&&
+   item.title===requested.title&&item.description===requested.description);
+  if(matches.length===1){
+   await loadOutline(matches[0]);
+   setPendingDraft(null);
+   setNotice("Черновик найден в сохранённых данных. Повторное создание не требуется.");
+   return;
+  }
+  setPendingDraft(requested);
+  setNotice(matches.length>1?
+   "Найдено несколько новых похожих черновиков. Выберите нужный в «Мои курсы»; повторное создание заблокировано.":
+   "Ответ создания не подтверждён. Проверьте «Мои курсы»; повторное создание заблокировано во избежание дубля.");
+ }
+ async function verifyDraft(){
+  if(!pendingDraft||busy)return;
+  setBusy(true);
+  try{await reconcileDraft(pendingDraft)}
+  catch(error){setNotice("Проверка сохранения недоступна. Повторное создание заблокировано: "+String(error))}
+  finally{setBusy(false)}
+ }
  async function createCourse(event:FormEvent){
   event.preventDefault();
-  await act(()=>api<Course>("/v1/academy/drafts",
-   {title:title.trim(),description}),async c=>{
-   setNotice("Черновик курса создан.");await loadOutline(c);
-  });
+  if(busy||pendingDraft||title.trim().length<3)return;
+  setBusy(true);setNotice("");
+  const requested={title:title.trim(),description,baseline:[] as string[]};
+  try{
+   // Read before writing: distinguish a new draft from an older same-title course.
+   const owned=await api<{courses:Course[]}>("/v1/academy/my-courses");
+   requested.baseline=owned.courses.map(item=>item.id);
+   const created=await api<Course>("/v1/academy/drafts",
+    {title:requested.title,description:requested.description}).catch(async error=>{
+     setPendingDraft(requested);
+     try{await reconcileDraft(requested)}
+     catch(readError){setNotice("Результат создания неизвестен ("+String(error)+
+      "). Проверка сохранения недоступна ("+String(readError)+"). Повторное создание заблокировано.")}
+     return null;
+    });
+   if(!created)return;
+   if(!created.id||!created.version_id||!created.product_id){
+    // A successful status with an incomplete body is also an ambiguous write.
+    setPendingDraft(requested);
+    try{await reconcileDraft(requested)}
+    catch(error){setNotice("Ответ создания неполон. Проверка сохранения недоступна: "+String(error))}
+    return;
+   }
+   setPendingDraft(null);
+   try{
+    await loadOutline(created);
+    await refresh();
+    setNotice("Черновик курса сохранён.");
+   }catch(error){
+    // The server returned an ID, but the UI has not confirmed the readback.
+    setPendingDraft(requested);
+    setNotice("Черновик создан, но загрузка данных не завершена: "+String(error)+
+     ". Проверьте сохранение перед повторной попыткой.");
+   }
+  }catch(error){
+   // Preflight failed before POST: no write was attempted.
+   setNotice("Не удалось проверить список курсов перед созданием: "+String(error));
+  }finally{setBusy(false)}
  }
  async function addModule(event:FormEvent){
   event.preventDefault();if(!course)return;
@@ -344,7 +403,8 @@ export default function AcademyPage(){
      <input id="academy-title" value={title} onChange={e=>setTitle(e.target.value)} required minLength={3} maxLength={200} placeholder="Например: Гипноз с нуля"/>
      <label htmlFor="academy-description">Описание (необязательно)</label>
      <textarea id="academy-description" value={description} onChange={e=>setDescription(e.target.value)}/>
-     <button disabled={busy||title.trim().length<3}>Создать курс</button>
+     <button disabled={busy||pendingDraft!==null||title.trim().length<3}>Создать курс</button>
+     {pendingDraft&&<button type="button" disabled={busy} onClick={()=>void verifyDraft()}>Проверить сохранение черновика</button>}
     </form>
    </div>
   </section>
