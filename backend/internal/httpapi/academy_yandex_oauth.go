@@ -84,13 +84,12 @@ func registerAcademyYandexOAuth(mux *http.ServeMux,store academyStore,sessions *
  })
  mux.HandleFunc("GET /v1/academy/author/cloud/yandex/callback",func(w http.ResponseWriter,r *http.Request){
   w.Header().Set("Cache-Control","no-store")
-  actor,ok:=academyIdentity(w,r,sessions,sessionErr);if !ok{return}
   cookie,err:=r.Cookie(cookieName)
   http.SetCookie(w,&http.Cookie{Name:cookieName,Path:"/v1/academy/author/cloud/yandex",Value:"",MaxAge:-1,Secure:true,HttpOnly:true,SameSite:http.SameSiteLaxMode})
   if err!=nil{academyHTTPError(w,r,academy.ErrDenied);return}
   key,err:=cloudStateKey();if err!=nil{academyHTTPError(w,r,academy.ErrUnavailable);return}
   state,err:=cloudOpen(cookie.Value,key)
-  if err!=nil||state.Actor!=actor||r.URL.Query().Get("state")!=state.Nonce||r.URL.Query().Get("code")==""||len(r.URL.Query().Get("code"))>2048 {
+  if err!=nil||r.URL.Query().Get("state")!=state.Nonce||r.URL.Query().Get("code")==""||len(r.URL.Query().Get("code"))>2048 {
    academyHTTPError(w,r,academy.ErrDenied);return
   }
   writer,ok:=store.(academyCloudCredentialWriter);if !ok{academyHTTPError(w,r,academy.ErrUnavailable);return}
@@ -107,7 +106,7 @@ func registerAcademyYandexOAuth(mux *http.ServeMux,store academyStore,sessions *
   var token struct{AccessToken string `json:"access_token"`}
   decoder:=json.NewDecoder(io.LimitReader(response.Body,16384))
   if decoder.Decode(&token)!=nil||token.AccessToken==""||len(token.AccessToken)>8192{academyHTTPError(w,r,academy.ErrUnavailable);return}
-  if writer.AcademyStoreCloudCredential(actor,"YANDEX_DISK",token.AccessToken)!=nil{academyHTTPError(w,r,academy.ErrUnavailable);return}
+  if writer.AcademyStoreCloudCredential(state.Actor,"YANDEX_DISK",token.AccessToken)!=nil{academyHTTPError(w,r,academy.ErrUnavailable);return}
   http.Redirect(w,r,"/academy?cloud_connected=yandex",http.StatusSeeOther)
  })
 }
