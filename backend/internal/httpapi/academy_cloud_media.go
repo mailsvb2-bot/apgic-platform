@@ -20,6 +20,23 @@ type academyCloudMediaVerifier interface {
 	AcademyVerifyYandexDiskMedia(context.Context, string, []academy.CloudMedia) error
 }
 
+// academyVerifyCloudImport is deliberately fail-closed: an author cannot
+// insert an arbitrary external URL or unverified disk path through HTTP.
+func academyVerifyCloudImport(ctx context.Context, actor string, items []academy.CloudMedia, verifier academyCloudMediaVerifier) error {
+	if len(items) == 0 || len(items) > 100 {
+		return academy.ErrInvalid
+	}
+	for _, item := range items {
+		if item.Provider != "YANDEX_DISK" || item.SourceURL != "" {
+			return academy.ErrInvalid
+		}
+	}
+	if verifier == nil {
+		return academy.ErrUnavailable
+	}
+	return verifier.AcademyVerifyYandexDiskMedia(ctx, actor, items)
+}
+
 func registerAcademyCloudMedia(mux *http.ServeMux, store academyStore, sessions *clientSessionManager, sessionErr error) {
 	mux.HandleFunc("GET /v1/academy/author/cloud-media", func(w http.ResponseWriter, r *http.Request) {
 		actor, ok := academyIdentity(w, r, sessions, sessionErr)
@@ -59,22 +76,12 @@ func registerAcademyCloudMedia(mux *http.ServeMux, store academyStore, sessions 
 		// Verify the entire bounded batch with the author's OAuth token
 		// before writing any catalog row. EXTERNAL links are not playable
 		// through the protected Yandex gateway and are denied here.
-		if len(body.Items) == 0 || len(body.Items) > 100 {
-			http.Error(w, "Invalid video batch", http.StatusBadRequest)
-			return
-		}
-		for _, item := range body.Items {
-			if item.Provider != "YANDEX_DISK" || item.SourceURL != "" {
-				http.Error(w, "Unsupported cloud video source", http.StatusBadRequest)
-				return
-			}
-		}
 		verifier, ok := store.(academyCloudMediaVerifier)
 		if !ok {
 			http.Error(w, "Cloud verification unavailable", http.StatusServiceUnavailable)
 			return
 		}
-		if err := verifier.AcademyVerifyYandexDiskMedia(r.Context(), actor, body.Items); err != nil {
+		if err := academyVerifyCloudImport(r.Context(), actor, body.Items, verifier); err != nil {
 			http.Error(w, "Cloud video could not be verified", http.StatusBadRequest)
 			return
 		}
