@@ -3,10 +3,10 @@ package httpapi
 import (
 	"context"
 	"net"
-	"strings"
-	"time"
 	"net/netip"
+	"strings"
 	"testing"
+	"time"
 )
 
 func TestAcademyVideoPublicDownloadIP(t *testing.T) {
