@@ -105,6 +105,11 @@ func TestAcademyCloudMediaDraftOwnerAndVideoBoundaryPostgres(t *testing.T) {
 	if err != nil || len(foreignView) != 0 {
 		t.Fatalf("foreign identity saw private media: %+v err=%v", foreignView, err)
 	}
+	// The existence of private cloud assignments alone never grants playback
+	// or even video metadata to an unenrolled identity.
+	if videos, err := store.AcademyLearnerVideoManifest(outsider, course.ID, video.ID); !errors.Is(err, academy.ErrEntitlement) || len(videos) != 0 {
+		t.Fatalf("unenrolled user received private video metadata: %+v err=%v", videos, err)
+	}
 	// Direct SQL cannot bypass the VIDEO-only invariant or owner isolation.
 	if _, err := db.Exec("INSERT INTO academy_lesson_media(lesson_id,media_id,ordinal) VALUES($1::uuid,$2::uuid,1)",
 		reading.ID, owned[0].ID); err == nil {
