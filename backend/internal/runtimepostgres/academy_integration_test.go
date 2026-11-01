@@ -746,8 +746,9 @@ func TestAcademyStoreVerifiedPaidJourneySurvivesRestart(t *testing.T) {
 	for _, capture := range report.GrossCaptures {
 		if capture.CourseID == course.ID {
 			foundCapture = true
-			if capture.Currency != "RUB" || capture.CapturedCount != 1 || capture.CapturedGrossMinor != 10000 {
-				t.Fatalf("captured amount must match canonical order evidence: %+v", capture)
+			if capture.Currency != "RUB" || capture.CapturedCount != 1 || capture.CapturedGrossMinor != 10000 ||
+				capture.ActiveCount != 1 || capture.ActiveGrossMinor != 10000 {
+				t.Fatalf("captured amount and effective access must match canonical order evidence: %+v", capture)
 			}
 		}
 	}
@@ -890,8 +891,9 @@ func TestAcademyStoreRefundWithdrawsLearningAccess(t *testing.T) {
 			continue
 		}
 		foundHistoricalCapture = true
-		if capture.Currency != "RUB" || capture.CapturedCount != 1 || capture.CapturedGrossMinor != 10000 {
-			t.Fatalf("refund rewrote immutable gross capture evidence: %+v", capture)
+		if capture.Currency != "RUB" || capture.CapturedCount != 1 || capture.CapturedGrossMinor != 10000 ||
+			capture.ActiveCount != 0 || capture.ActiveGrossMinor != 0 {
+			t.Fatalf("refund rewrote historical capture or retained effective captured access: %+v", capture)
 		}
 	}
 	if !foundHistoricalCapture {
