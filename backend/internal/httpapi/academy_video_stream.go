@@ -90,7 +90,8 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 			academyHTTPError(w, r, academy.ErrUnavailable)
 			return
 		}
-		if response.StatusCode == http.StatusPartialContent && response.Header.Get("Content-Range") == "" {
+		if response.StatusCode == http.StatusPartialContent &&
+			!academyVideoPartialMatchesRequest(r.Header.Get("Range"), response.Header.Get("Content-Range"), response.Header.Get("Content-Length")) {
 			academyHTTPError(w, r, academy.ErrUnavailable)
 			return
 		}
