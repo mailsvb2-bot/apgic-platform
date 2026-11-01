@@ -532,16 +532,23 @@ func (c *Checker) AcademyLearning(actor, enrollmentID string) ([]academy.Lesson,
 	ctx, cancel := academyContext()
 	defer cancel()
 	rows, err := c.db.QueryContext(ctx, `SELECT l.id::text,l.module_id::text,l.ordinal,l.title,l.kind,
- CASE WHEN (sc.release_at IS NULL OR now()>=sc.release_at) AND (sc.deadline_at IS NULL OR now()<sc.deadline_at) THEN l.body ELSE '' END,
- CASE WHEN (sc.release_at IS NULL OR now()>=sc.release_at) AND (sc.deadline_at IS NULL OR now()<sc.deadline_at) THEN COALESCE(l.media_asset_ref,'') ELSE '' END,COALESCE(a.passing_score,0),COALESCE(a.rubric_version,''),
- (p.enrollment_id IS NOT NULL),
- ((sc.release_at IS NULL OR now()>=sc.release_at) AND (sc.deadline_at IS NULL OR now()<sc.deadline_at))
+ CASE WHEN availability.allowed THEN l.body ELSE '' END,
+ CASE WHEN availability.allowed THEN COALESCE(l.media_asset_ref,'') ELSE '' END,
+ COALESCE(a.passing_score,0),COALESCE(a.rubric_version,''),
+ (p.enrollment_id IS NOT NULL), availability.allowed
  FROM academy_enrollments e JOIN store_entitlements t ON t.id=e.entitlement_id
  JOIN academy_modules m ON m.version_id=e.version_id
  JOIN academy_lessons l ON l.module_id=m.id
  LEFT JOIN academy_assessments a ON a.lesson_id=l.id
  LEFT JOIN academy_lesson_schedules sc ON sc.lesson_id=l.id
+ LEFT JOIN academy_assessment_limits limits ON limits.lesson_id=l.id
  LEFT JOIN academy_progress p ON p.enrollment_id=e.id AND p.lesson_id=l.id
+ CROSS JOIN LATERAL (SELECT
+   ( (sc.release_at IS NULL OR now()>=sc.release_at)
+     AND (sc.deadline_at IS NULL OR now()<sc.deadline_at)
+     AND (l.kind<>'ASSESSMENT' OR limits.submission_deadline IS NULL
+          OR now()<limits.submission_deadline)
+   ) AS allowed) availability
  WHERE e.id=$1::uuid AND e.identity_id=$2::uuid
  AND e.state IN ('ACTIVE','COMPLETED') AND academy_entitlement_is_active(t.id)
  ORDER BY m.ordinal,l.ordinal`, enrollmentID, actor)
@@ -574,12 +581,15 @@ func (c *Checker) AcademyMarkProgress(actor, enrollmentID, lessonID string) erro
 	}
 	defer tx.Rollback()
 	var kind, versionID, entitlementState, enrollmentState string
-	err = tx.QueryRowContext(ctx, `SELECT l.kind,e.version_id::text,CASE WHEN academy_entitlement_is_active(t.id) THEN 'ACTIVE' ELSE 'REVOKED' END,e.state
+	var lessonOpen bool
+	err = tx.QueryRowContext(ctx, `SELECT l.kind,e.version_id::text,CASE WHEN academy_entitlement_is_active(t.id) THEN 'ACTIVE' ELSE 'REVOKED' END,e.state,
+ (sc.release_at IS NULL OR now()>=sc.release_at) AND (sc.deadline_at IS NULL OR now()<sc.deadline_at)
  FROM academy_enrollments e JOIN store_entitlements t ON t.id=e.entitlement_id
  JOIN academy_modules m ON m.version_id=e.version_id
  JOIN academy_lessons l ON l.module_id=m.id
+ LEFT JOIN academy_lesson_schedules sc ON sc.lesson_id=l.id
  WHERE e.id=$1::uuid AND e.identity_id=$2::uuid AND l.id=$3::uuid
- FOR UPDATE OF e`, enrollmentID, actor, lessonID).Scan(&kind, &versionID, &entitlementState, &enrollmentState)
+ FOR UPDATE OF e`, enrollmentID, actor, lessonID).Scan(&kind, &versionID, &entitlementState, &enrollmentState, &lessonOpen)
 	if errors.Is(err, sql.ErrNoRows) {
 		return academy.ErrNotFound
 	}
@@ -589,7 +599,7 @@ func (c *Checker) AcademyMarkProgress(actor, enrollmentID, lessonID string) erro
 	if entitlementState != "ACTIVE" {
 		return academy.ErrEntitlement
 	}
-	if enrollmentState != "ACTIVE" {
+	if enrollmentState != "ACTIVE" || !lessonOpen {
 		return academy.ErrState
 	}
 	var passed bool
@@ -739,12 +749,20 @@ func (c *Checker) AcademySubmitAttempt(actor, enrollmentID, lessonID, response s
 	}
 	defer tx.Rollback()
 	var rubric, state, entitlementState string
-	err = tx.QueryRowContext(ctx, `SELECT a.rubric_version,e.state,CASE WHEN academy_entitlement_is_active(t.id) THEN 'ACTIVE' ELSE 'REVOKED' END
+	var maxAttempts int
+	var submissionOpen bool
+	err = tx.QueryRowContext(ctx, `SELECT a.rubric_version,e.state,CASE WHEN academy_entitlement_is_active(t.id) THEN 'ACTIVE' ELSE 'REVOKED' END,
+ COALESCE(limits.max_attempts,1),
+ (sc.release_at IS NULL OR now()>=sc.release_at)
+ AND (sc.deadline_at IS NULL OR now()<sc.deadline_at)
+ AND (limits.submission_deadline IS NULL OR now()<limits.submission_deadline)
  FROM academy_enrollments e JOIN store_entitlements t ON t.id=e.entitlement_id
  JOIN academy_modules m ON m.version_id=e.version_id
  JOIN academy_lessons l ON l.module_id=m.id JOIN academy_assessments a ON a.lesson_id=l.id
+ LEFT JOIN academy_lesson_schedules sc ON sc.lesson_id=l.id
+ LEFT JOIN academy_assessment_limits limits ON limits.lesson_id=l.id
  WHERE e.id=$1::uuid AND e.identity_id=$2::uuid AND l.id=$3::uuid
- FOR UPDATE OF e`, enrollmentID, actor, lessonID).Scan(&rubric, &state, &entitlementState)
+ FOR UPDATE OF e`, enrollmentID, actor, lessonID).Scan(&rubric, &state, &entitlementState, &maxAttempts, &submissionOpen)
 	if errors.Is(err, sql.ErrNoRows) {
 		return academy.Attempt{}, academy.ErrNotFound
 	}
@@ -754,19 +772,22 @@ func (c *Checker) AcademySubmitAttempt(actor, enrollmentID, lessonID, response s
 	if entitlementState != "ACTIVE" {
 		return academy.Attempt{}, academy.ErrEntitlement
 	}
-	if state != "ACTIVE" {
+	if state != "ACTIVE" || !submissionOpen {
 		return academy.Attempt{}, academy.ErrState
 	}
 	// The enrollment row above is locked until commit. Serialize attempt
 	// submission and forbid retakes while human grading is pending or
 	// after a passing evaluation. Fail closed against concurrent requests.
 	var blockingAttempt bool
-	err = tx.QueryRowContext(ctx, `SELECT EXISTS(
- SELECT 1 FROM academy_attempts
- WHERE enrollment_id=$1::uuid AND lesson_id=$2::uuid
- AND result IN ('PENDING','PASSED'))`, enrollmentID, lessonID).Scan(&blockingAttempt)
+	var attemptCount int
+	err = tx.QueryRowContext(ctx, `SELECT count(*),COALESCE(bool_or(result IN ('PENDING','PASSED')),false)
+ FROM academy_attempts
+ WHERE enrollment_id=$1::uuid AND lesson_id=$2::uuid`, enrollmentID, lessonID).Scan(&attemptCount, &blockingAttempt)
 	if err != nil {
 		return academy.Attempt{}, err
+	}
+	if !submissionOpen || attemptCount >= maxAttempts {
+		return academy.Attempt{}, academy.ErrState
 	}
 	if err = academy.CanSubmitAssessmentAttempt(blockingAttempt); err != nil {
 		return academy.Attempt{}, err
