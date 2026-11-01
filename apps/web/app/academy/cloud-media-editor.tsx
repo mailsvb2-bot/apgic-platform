@@ -25,6 +25,7 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
  const [diskOffset,setDiskOffset]=useState(0);
  const [diskTotal,setDiskTotal]=useState(0);
  const [diskSelection,setDiskSelection]=useState<string[]>([]);
+ const [diskSelectedFiles,setDiskSelectedFiles]=useState<Record<string,DiskFile>>({});
  const [rows,setRows]=useState("");
  const [selected,setSelected]=useState<string[]>([]);
  const [lessonId,setLessonId]=useState("");
@@ -39,7 +40,6 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
    const query=new URLSearchParams({path,offset:String(offset)});
    const result=await request<{files:DiskFile[];total:number;offset:number}>("/v1/academy/author/cloud/yandex/files?"+query);
    setDiskPath(path);setDiskFiles(result.files);setDiskTotal(result.total);setDiskOffset(offset);
-   setDiskSelection([]);
   }catch(error){setMessage("Яндекс Диск: "+String(error))}
   finally{setBusy(false)}
  }
@@ -47,12 +47,13 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
   if(!diskSelection.length)return;
   setBusy(true);setMessage("");
   try{
-   const chosen=diskFiles.filter(f=>diskSelection.includes(f.path)&&f.type==="file");
+   const chosen=Object.values(diskSelectedFiles).filter(f=>f.type==="file");
    if(!chosen.length)throw new Error("Выбери видеофайлы");
+   if(chosen.length>2000)throw new Error("За одну операцию можно добавить до 2000 файлов");
    await request("/v1/academy/author/cloud-media/import",{items:chosen.map(f=>({
     provider:"YANDEX_DISK",provider_file_ref:f.path,title:f.name
    }))});
-   await reload();setDiskSelection([]);setMessage("Выбранные видео добавлены в медиатеку");
+   await reload();setDiskSelection([]);setDiskSelectedFiles({});setMessage("Выбранные видео добавлены в медиатеку");
   }catch(error){setMessage(String(error))}finally{setBusy(false)}
  }
  async function reload(){
@@ -121,8 +122,8 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
    {diskFiles.map(file=><div key={file.path}>
     {file.type==="dir"
       ?<button type="button" disabled={busy} onClick={()=>void browseDisk(file.path)}>Папка: {file.name}</button>
-      :<label><input type="checkbox" checked={diskSelection.includes(file.path)}
-        onChange={e=>setDiskSelection(old=>e.target.checked?[...old,file.path]:old.filter(p=>p!==file.path))}/>
+      :<label><input type="checkbox" checked={Boolean(diskSelectedFiles[file.path])}
+        onChange={e=>{setDiskSelectedFiles(old=>{const next={...old};if(e.target.checked)next[file.path]=file;else delete next[file.path];return next;});}}/>
         {file.name}</label>}
    </div>)}
   </div>
@@ -131,7 +132,7 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
    <span>{diskOffset+1}–{Math.min(diskOffset+100,diskTotal)} из {diskTotal}</span>
    <button type="button" disabled={busy||diskOffset+100>=diskTotal} onClick={()=>void browseDisk(diskPath,diskOffset+100)}>Далее</button>
   </div>}
-  <button type="button" disabled={busy||!diskSelection.length} onClick={()=>void importDiskSelection()}>Добавить выбранные видео ({diskSelection.length})</button>
+  <button type="button" disabled={busy||!Object.keys(diskSelectedFiles).length} onClick={()=>void importDiskSelection()}>Добавить выбранные видео ({Object.keys(diskSelectedFiles).length})</button>
   <p role="status">{message}</p>
   <form onSubmit={importRows}>
    <label htmlFor="cloud-media-rows">Список файлов: ID файла | название (каждый файл с новой строки)</label>
