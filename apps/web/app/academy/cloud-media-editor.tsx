@@ -16,6 +16,14 @@ async function request<T>(url:string,body?:unknown):Promise<T>{
  if(!r.ok)throw new Error(data.message_safe||data.code||"Операция не выполнена");
  return data as T;
 }
+// The provider verifies each selected file on the server before saving it.
+// Chunking preserves the existing 2,000-file author workflow while keeping
+// each authenticated verification request bounded and safely retryable.
+async function importVerifiedMedia(items:Array<{provider:string;provider_file_ref:string;title:string}>){
+ for(let i=0;i<items.length;i+=100){
+  await request("/v1/academy/author/cloud-media/import",{items:items.slice(i,i+100)});
+ }
+}
 export default function CloudMediaEditor({courseId,versionId,lessons}:{
  courseId:string;versionId:string;lessons:VideoLesson[];
 }){
@@ -49,9 +57,9 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
    const chosen=Object.values(diskSelectedFiles).filter(f=>f.type==="file");
    if(!chosen.length)throw new Error("Выбери видеофайлы");
    if(chosen.length>2000)throw new Error("За одну операцию можно добавить до 2000 файлов");
-   await request("/v1/academy/author/cloud-media/import",{items:chosen.map(f=>({
+   await importVerifiedMedia(chosen.map(f=>({
     provider:"YANDEX_DISK",provider_file_ref:f.path,title:f.name
-   }))});
+   })));
    await reload();setDiskSelectedFiles({});setMessage("Выбранные видео добавлены в медиатеку");
   }catch(error){setMessage(String(error))}finally{setBusy(false)}
  }
@@ -72,7 +80,7 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
     return {provider:"YANDEX_DISK",provider_file_ref:parts[0].trim(),title:parts.slice(1).join("|").trim()||parts[0].trim()};
    });
    if(items.some(x=>!x.provider_file_ref))throw new Error("Пустой идентификатор файла");
-   await request("/v1/academy/author/cloud-media/import",{items});
+   await importVerifiedMedia(items);
    await reload();setRows("");setMessage("Видеозаписи добавлены в медиатеку");
   }catch(error){setMessage(String(error))}finally{setBusy(false)}
  }
