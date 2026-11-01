@@ -60,8 +60,8 @@ func (transport yandexStaticDownloadTransport) RoundTrip(req *http.Request) (*ht
 
 func TestYandexDiskTemporaryDownloadRejectsUnapprovedTargets(t *testing.T) {
 	cases := []struct {
-		name string
-		href string
+		name  string
+		href  string
 		allow bool
 	}{
 		{"known provider", "https://downloader.disk.yandex.net/get?token=opaque", true},
