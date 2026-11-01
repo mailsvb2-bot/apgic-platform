@@ -1,9 +1,6 @@
 package runtimepostgres
 
 import (
- "context"
- "database/sql"
- "errors"
  "fmt"
  "strings"
 
@@ -15,7 +12,7 @@ import (
 // grants learning access, issues an entitlement, or creates a sale.
 func (c *Checker) AcademyCreateStandaloneDraft(actor, title, description string) (academy.Course, error) {
  title = strings.TrimSpace(title)
- if !academyUUID(actor) || len(title)<3 || len(title)>200 {return academy.Course{},academy.ErrInvalid}
+ if actor == "" || len(title)<3 || len(title)>200 {return academy.Course{},academy.ErrInvalid}
  ctx,cancel,tx,err:=academyBegin(c)
  defer cancel()
  if err!=nil{return academy.Course{},err}
@@ -41,6 +38,3 @@ func (c *Checker) AcademyCreateStandaloneDraft(actor, title, description string)
  return academy.Course{ID:courseID,ProductID:productID,Title:title,Description:description,AuthorID:actor,
  State:"DRAFT",VersionID:versionID,VersionNo:1},nil
 }
-var _ = context.Background
-var _ = sql.ErrNoRows
-var _ = errors.Is
