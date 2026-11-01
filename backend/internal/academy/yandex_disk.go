@@ -94,8 +94,7 @@ func (c YandexDiskClient) TemporaryDownload(ctx context.Context, token, path str
 	if err := c.do(ctx, token, yandexDiskAPI+"/download?"+q.Encode(), &d); err != nil {
 		return "", err
 	}
-	u, err := url.Parse(d.Href)
-	if err != nil || u.Scheme != "https" || u.User != nil || (u.Port() != "" && u.Port() != "443") || !trustedYandexDownloadHost(u.Hostname()) || d.Method != "GET" || d.Templated {
+	if !ValidateYandexDownloadURL(d.Href) || d.Method != "GET" || d.Templated {
 		return "", errors.New("invalid download address")
 	}
 	return d.Href, nil
@@ -106,4 +105,12 @@ func (c YandexDiskClient) TemporaryDownload(ctx context.Context, token, path str
 func trustedYandexDownloadHost(host string) bool {
 	host = strings.ToLower(strings.TrimSuffix(host, "."))
 	return host == "downloader.disk.yandex.net" || host == "downloader.disk.yandex.ru"
+}
+
+// ValidateYandexDownloadURL blocks SSRF via malicious provider hrefs.
+// The downloader is always contacted without following redirects.
+func ValidateYandexDownloadURL(raw string) bool {
+	u, err := url.Parse(raw)
+	return err == nil && u.Scheme == "https" && u.User == nil && u.Fragment == "" &&
+		(u.Port() == "" || u.Port() == "443") && trustedYandexDownloadHost(u.Hostname())
 }

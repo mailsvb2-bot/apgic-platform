@@ -3,7 +3,6 @@ package httpapi
 import (
 	"context"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
@@ -48,8 +47,7 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 			academyHTTPError(w, r, academy.ErrUnavailable)
 			return
 		}
-		u, err := url.Parse(download)
-		if err != nil || u.Scheme != "https" || u.Hostname() == "" {
+		if !academy.ValidateYandexDownloadURL(download) {
 			academyHTTPError(w, r, academy.ErrUnavailable)
 			return
 		}
