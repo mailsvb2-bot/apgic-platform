@@ -2,6 +2,7 @@
 
 import {useCallback,useEffect,useState,type FormEvent} from "react";
 import CloudMediaEditor from "./cloud-media-editor";
+import AcademyLessonVideos from "./academy-lesson-videos";
 
 type AcademyNotifications = {enabled:boolean;learning_updates:boolean;assessment_results:boolean;certificate_updates:boolean};
 type AuthorProduct = {id:string;name:string};
@@ -480,7 +481,7 @@ export default function AcademyPage(){
      <h3>{l.title}</h3><p>{l.kind} {l.completed?"· выполнено":""}</p>
      {l.available===false&&<p role="status">Урок ещё не открыт или срок его изучения истёк.</p>}
      {l.available!==false&&l.kind==="READING"&&<p style={{whiteSpace:"pre-wrap"}}>{l.body}</p>}
-     {l.kind==="VIDEO"&&<p>Видеодоступ выдаётся только через совместимый media provider с подтверждением playback.</p>}
+     {l.kind==="VIDEO"&&<AcademyLessonVideos enrollmentId={activeEnrollment.id} lessonId={l.id} available={l.available!==false}/>}
      {l.available!==false&&l.kind==="ASSESSMENT"&&<section aria-label={`Результаты: ${l.title}`}>
       {learnerAttempts.filter(a=>a.lesson_id===l.id).map(a=>
        <p key={a.id}>Попытка {a.attempt_no}: {a.result==="PENDING"?"Ожидает проверки":a.result==="PASSED"?"Зачтено":"Не зачтено"}
