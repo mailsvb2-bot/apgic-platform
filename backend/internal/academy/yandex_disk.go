@@ -52,7 +52,13 @@ func (c YandexDiskClient) do(ctx context.Context, token, endpoint string, dst an
 	if client == nil {
 		client = &http.Client{Timeout: 15 * time.Second}
 	}
-	resp, err := client.Do(req)
+	// A provider redirect must never receive the author's OAuth credential.
+	// Clone the client to enforce this even when an injected client permits redirects.
+	protected := *client
+	protected.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	resp, err := protected.Do(req)
 	if err != nil {
 		return err
 	}
