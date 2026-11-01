@@ -338,6 +338,19 @@ func TestAcademyStoreVerifiedPaidJourneySurvivesRestart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// A paid lesson's immutable draft schedule and assessment cutoff must
+	// survive publication and agree with both learner readback and writes.
+	released := time.Now().UTC().Add(-time.Hour)
+	closesAt := time.Now().UTC().Add(2 * time.Hour)
+	if err = store.AcademySetLessonSchedule(author, reading.ID, &released, &closesAt); err != nil {
+		t.Fatalf("author could not schedule paid reading: %v", err)
+	}
+	if err = store.AcademySetLessonSchedule(author, assessment.ID, &released, &closesAt); err != nil {
+		t.Fatalf("author could not schedule paid assessment: %v", err)
+	}
+	if err = store.AcademySetAssessmentLimits(author, assessment.ID, 1, &closesAt); err != nil {
+		t.Fatalf("author could not set paid assessment deadline: %v", err)
+	}
 	if _, err = store.AcademyPublish(author, course.ID, course.VersionID); !errors.Is(err, academy.ErrState) {
 		t.Fatalf("paid course published without author rights attestation: %v", err)
 	}
@@ -381,6 +394,12 @@ func TestAcademyStoreVerifiedPaidJourneySurvivesRestart(t *testing.T) {
 	}
 	if enrollment.EntitlementID != paidEntitlement || enrollment.State != "ACTIVE" {
 		t.Fatalf("course granted access without bound verified purchase: %+v", enrollment)
+	}
+	scheduledLessons, err := store.AcademyLearning(learner, enrollment.ID)
+	if err != nil || len(scheduledLessons) != 2 ||
+		!scheduledLessons[0].Available || !scheduledLessons[1].Available ||
+		scheduledLessons[0].Body != "Knowledge persists after a restart." {
+		t.Fatalf("published paid lesson schedule did not unlock readback: %+v %v", scheduledLessons, err)
 	}
 	// Replay must preserve the exact historical purchase basis and enrollment ID.
 	// A second enrollment may not silently attach a different payment.
