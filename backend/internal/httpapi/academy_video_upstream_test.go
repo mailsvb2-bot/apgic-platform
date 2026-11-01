@@ -30,3 +30,34 @@ func TestAcademyVideoUpstreamResponseAllowed(t *testing.T) {
 		})
 	}
 }
+
+func TestAcademyVideoUnsatisfiedRangeAllowed(t *testing.T) {
+	for _, tc := range []struct {
+		name, requested, returned string
+		allowed                  bool
+	}{
+		{"seek past end", "bytes=9999-", "bytes */1024", true},
+		{"bounded past end", "bytes=9999-10000", "bytes */1024", true},
+		{"empty video", "bytes=0-", "bytes */0", true},
+		{"empty video suffix", "bytes=-5", "bytes */0", true},
+		{"ordinary valid seek", "bytes=100-", "bytes */1024", false},
+		{"last byte seek", "bytes=1023-", "bytes */1024", false},
+		{"suffix within content", "bytes=-100", "bytes */1024", false},
+		{"zero suffix", "bytes=-0", "bytes */0", false},
+		{"no requested range", "", "bytes */1024", false},
+		{"reversed range", "bytes=2000-1000", "bytes */1024", false},
+		{"provider redirect content", "bytes=9999-", "bytes 0-100/1024", false},
+		{"missing total", "bytes=9999-", "bytes */", false},
+		{"unknown total", "bytes=9999-", "bytes */*", false},
+		{"injected header", "bytes=9999-", "bytes */1024\r\nLocation: https://evil.invalid", false},
+		{"negative total", "bytes=9999-", "bytes */-1", false},
+		{"numeric overflow", "bytes=9999-", "bytes */18446744073709551616", false},
+		{"request overflow", "bytes=18446744073709551616-", "bytes */1024", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := academyVideoUnsatisfiedRangeAllowed(tc.requested, tc.returned); got != tc.allowed {
+				t.Fatalf("unsatisfied range validation: got %v, want %v", got, tc.allowed)
+			}
+		})
+	}
+}
