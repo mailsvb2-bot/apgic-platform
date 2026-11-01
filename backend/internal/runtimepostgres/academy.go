@@ -959,6 +959,7 @@ func (c *Checker) AcademyOutline(actor, courseID, versionID string) (map[string]
 	rows.Close()
 	return map[string]any{"state": state, "version_id": versionID, "modules": modules, "lessons": lessons}, nil
 }
+
 // academyMyEnrollmentsSQL must project actionable lesson access, not merely
 // the historical captured purchase. A terminal enrollment never reopens via
 // an otherwise active Entitlement. Keep this predicate aligned with
