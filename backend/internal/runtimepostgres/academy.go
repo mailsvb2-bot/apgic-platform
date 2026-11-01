@@ -99,8 +99,10 @@ func (c *Checker) AcademyCreateCourse(actor string, input academy.Course) (acade
 		return academy.Course{}, err
 	}
 	defer tx.Rollback()
-	// Serialize retries for one canonical Commerce product.
-	if _, err = tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 84173))`, "academy/course/product/"+input.ProductID); err != nil {
+	// Serialize retries by canonical UUID, not by caller-supplied spelling.
+	// PostgreSQL accepts uppercase and alternate UUID representations for the
+	// same Commerce product; those must never acquire different locks.
+	if _, err = tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended('academy/course/product/' || ($1::uuid)::text, 84173))`, input.ProductID); err != nil {
 		return academy.Course{}, err
 	}
 	owner, err := academyPublishedProductOwner(ctx, tx, actor, input.ProductID)
