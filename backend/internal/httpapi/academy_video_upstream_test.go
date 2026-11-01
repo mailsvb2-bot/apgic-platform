@@ -34,7 +34,7 @@ func TestAcademyVideoUpstreamResponseAllowed(t *testing.T) {
 func TestAcademyVideoUnsatisfiedRangeAllowed(t *testing.T) {
 	for _, tc := range []struct {
 		name, requested, returned string
-		allowed                  bool
+		allowed                   bool
 	}{
 		{"seek past end", "bytes=9999-", "bytes */1024", true},
 		{"bounded past end", "bytes=9999-10000", "bytes */1024", true},
