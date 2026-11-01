@@ -21,11 +21,16 @@ type CourseReport struct {
 // CapturedGrossEvidence is sourced from canonical captured Store transactions
 // with a matching immutable order.product_id, not from client assertions.
 // It is gross payment volume, NOT net revenue, author royalties or a payout.
+// ActiveCount/ActiveGrossMinor are the historical captured orders whose
+// canonical entitlement still grants access at read time. They are NOT
+// refund amounts, settled receipts, commission-adjusted income or payout.
 type CapturedGrossEvidence struct {
 	CourseID           string `json:"course_id"`
 	Currency           string `json:"currency"`
 	CapturedCount      int64  `json:"captured_count"`
 	CapturedGrossMinor int64  `json:"captured_gross_minor"`
+	ActiveCount        int64  `json:"active_count"`
+	ActiveGrossMinor   int64  `json:"active_gross_minor"`
 }
 
 const RevenueGrossOnly = "GROSS_CAPTURED_ONLY_NO_REFUND_COMMISSION_OR_PAYOUT_RECONCILIATION"
