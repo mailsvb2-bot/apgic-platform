@@ -388,6 +388,26 @@ func TestAcademyStoreVerifiedPaidJourneySurvivesRestart(t *testing.T) {
 			t.Fatal("unpaid author saw another identity's purchased course")
 		}
 	}
+	// A verified purchase can be eligible for enrollment without yet being
+	// an active learning seat. Preserve historical gross, but do not label
+	// this unstarted course as current access in the author's report.
+	unenrolledReport, err := store.AcademyAuthorReport(author)
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundUnenrolledPurchase := false
+	for _, capture := range unenrolledReport.GrossCaptures {
+		if capture.CourseID == course.ID {
+			foundUnenrolledPurchase = true
+			if capture.CapturedCount != 1 || capture.CapturedGrossMinor != 10000 ||
+				capture.ActiveCount != 0 || capture.ActiveGrossMinor != 0 {
+				t.Fatalf("unenrolled purchase falsely shown as active learning: %+v", capture)
+			}
+		}
+	}
+	if !foundUnenrolledPurchase {
+		t.Fatal("verified purchase missing from historical gross before enrollment")
+	}
 	enrollment, err := store.AcademyEnroll(learner, course.ID)
 	if err != nil {
 		t.Fatalf("store-verified purchase did not unlock enrollment: %v", err)
