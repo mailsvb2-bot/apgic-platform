@@ -35,6 +35,12 @@ def main() -> int:
     # Staging records full filenames, but two files with the same numeric
     # version make upgrade order ambiguous across branches and deploy tooling.
     # Reject collisions before any production migration is attempted.
+    # These two pre-existing 000042 migrations have already shipped. Renaming
+    # either would break the immutable filename/checksum staging ledger.
+    historical_collision = frozenset({
+        "000042_event_gateway_receipts.sql",
+        "000042_r4_finance_mfa_totp.sql",
+    })
     seen_numbers: dict[int, str] = {}
     for path in sorted(MIGRATIONS.glob("[0-9][0-9][0-9][0-9][0-9][0-9]_*.sql")):
         match = pattern.match(path.name)
@@ -42,9 +48,12 @@ def main() -> int:
             continue
         number = int(match.group(1))
         if number in seen_numbers:
-            fail(f"duplicate migration version {number:06d}: "
-                 f"{seen_numbers[number]} and {path.name}")
-        seen_numbers[number] = path.name
+            pair = frozenset({seen_numbers[number], path.name})
+            if number != 42 or pair != historical_collision:
+                fail(f"duplicate migration version {number:06d}: "
+                     f"{seen_numbers[number]} and {path.name}")
+        else:
+            seen_numbers[number] = path.name
         if number <= LEGACY_TRANSACTIONAL_CUTOFF:
             continue
         text = path.read_text(encoding="utf-8")
