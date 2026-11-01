@@ -35,6 +35,7 @@ func registerAcademy(mux *http.ServeMux, store academyStore, sessions *clientSes
 	registerAcademyLearnerCertificates(mux, store, sessions, sessionConfigErr)
 	registerAcademyAuthorProducts(mux, store, sessions, sessionConfigErr)
 	registerAcademyStandaloneDraft(mux, store, sessions, sessionConfigErr)
+	registerAcademyCloudMedia(mux, store, sessions, sessionConfigErr)
 	registerAcademyHistoryExport(mux, store, sessions, sessionConfigErr)
 	registerAcademyNotificationPreferences(mux, store, sessions, sessionConfigErr)
 	registerAcademyAppeals(mux, store, sessions, sessionConfigErr)
