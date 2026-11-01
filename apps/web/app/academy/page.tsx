@@ -4,6 +4,8 @@ import {useCallback,useEffect,useState,type FormEvent} from "react";
 
 type AcademyNotifications = {enabled:boolean;learning_updates:boolean;assessment_results:boolean;certificate_updates:boolean};
 type AuthorProduct = {id:string;name:string};
+type AcademyOrg = {id:string;name:string;directions:{id:string;name:string;status:string}[]};
+type AcademyOrgProduct = {id:string;name:string;status:string};
 type Course = {id:string;product_id:string;title:string;description:string;state:string;version_id:string;version_no:number};
 type Module = {id:string;version_id:string;title:string;ordinal:number};
 type Lesson = {id:string;module_id:string;title:string;kind:"READING"|"VIDEO"|"ASSESSMENT";ordinal:number;body?:string;media_asset_ref?:string;completed?:boolean;passing_score?:number;available?:boolean};
@@ -47,6 +49,17 @@ export default function AcademyPage(){
  const [catalog,setCatalog]=useState<Course[]>([]);
  const [mine,setMine]=useState<Course[]>([]);
  const [eligibleProducts,setEligibleProducts]=useState<AuthorProduct[]>([]);
+ const [productLoadError,setProductLoadError]=useState("");
+ const [orgs,setOrgs]=useState<AcademyOrg[]>([]);
+ const [orgID,setOrgID]=useState("");
+ const [directionID,setDirectionID]=useState("");
+ const [orgProducts,setOrgProducts]=useState<AcademyOrgProduct[]>([]);
+ const [preparedProductID,setPreparedProductID]=useState("");
+ const [commercialRef,setCommercialRef]=useState("");
+ const [authorRefs,setAuthorRefs]=useState("");
+ const [beneficiaryRef,setBeneficiaryRef]=useState("");
+ const [productStepError,setProductStepError]=useState("");
+ const [productBusy,setProductBusy]=useState(false);
  const [enrollments,setEnrollments]=useState<Enrollment[]>([]);
  const [verifiedCourseIDs,setVerifiedCourseIDs]=useState<string[]>([]);
  const [course,setCourse]=useState<Course|null>(null);
@@ -106,7 +119,14 @@ export default function AcademyPage(){
   if(reviews.status==="fulfilled")setPendingReviews(reviews.value.attempts);
   if(report.status==="fulfilled")setAuthorReport(report.value);
   if(cohortList.status==="fulfilled")setAuthorCohorts(cohortList.value.cohorts);
-  if(eligible.status==="fulfilled")setEligibleProducts(eligible.value.products);
+  if(eligible.status==="fulfilled"){
+   setEligibleProducts(eligible.value.products);
+   setProductLoadError("");
+  }else{
+   setEligibleProducts([]);
+   setProductID("");
+   setProductLoadError(eligible.reason instanceof Error?eligible.reason.message:"Не удалось загрузить Commerce-продукты");
+  }
   // Fail closed on expired sessions or unavailable entitlement projection.
   setVerifiedCourseIDs(access.status==="fulfilled"?access.value.course_ids:[]);
   setCertificates(credentials.status==="fulfilled"?credentials.value.certificates:[]);
@@ -138,6 +158,61 @@ export default function AcademyPage(){
   setActiveEnrollment(item);setCourse(null);setCertificate(null);
   setLessons(d.lessons);setLearnerAttempts(history.attempts);setLearnerAppeals(appealList.items);setModules([]);
   setCohorts(cohortResult.items);setCohortError(!cohortResult.ok);setAppealError(!appealList.ok);
+ }
+ async function loadOrgProducts(id:string){
+  if(!id){setOrgProducts([]);return;}
+  const data=await api<{products:AcademyOrgProduct[]}>(`/v1/organizations/${id}/products`);
+  setOrgProducts(data.products);
+ }
+ async function loadOrganizations(){
+  setProductStepError("");
+  try{
+   const result=await api<{organizations:AcademyOrg[]}>("/v1/organizations");
+   setOrgs(result.organizations);
+   const first=result.organizations.find(o=>o.id===orgID)||result.organizations[0];
+   setOrgID(first?.id||"");
+   if(first){await loadOrgProducts(first.id)}else{setOrgProducts([])}
+  }catch(e){setProductStepError(e instanceof Error?e.message:String(e))}
+ }
+ async function prepareCommerceProduct(event:FormEvent){
+  event.preventDefault();
+  if(!orgID||!directionID||!title.trim()||!commercialRef.trim()||!beneficiaryRef.trim()||!authorRefs.trim())return;
+  setProductBusy(true);setProductStepError("");
+  try{
+   // On ambiguous errors never automatically retry this non-idempotent POST.
+   // Reload canonical products so the author can recover a persisted draft.
+   const created=await api<AcademyOrgProduct>(`/v1/organizations/${orgID}/products`,{
+    name:title, direction_id:directionID, commercial_owner_ref:commercialRef.trim(),
+    author_refs:authorRefs.split(",").map(x=>x.trim()).filter(Boolean),
+    revenue_beneficiary_ref:beneficiaryRef.trim()
+   });
+   setPreparedProductID(created.id);
+   await loadOrgProducts(orgID);
+  }catch(e){
+   setProductStepError("Не удалось подтвердить создание продукта. Проверьте список продуктов ниже перед новой попыткой: "+(e instanceof Error?e.message:String(e)));
+   try{await loadOrgProducts(orgID)}catch{/* Preserve original error */ }
+  }finally{setProductBusy(false)}
+ }
+ async function publishPreparedProduct(){
+  if(!orgID||!preparedProductID)return;
+  setProductBusy(true);setProductStepError("");
+  try{
+   const found=orgProducts.find(p=>p.id===preparedProductID);
+   if(found?.status!=="PUBLISHED"){
+    try{await api(`/v1/organizations/${orgID}/products/${preparedProductID}/publish`,{})}
+    catch(e){
+     // Publication may have committed even when the response was lost.
+     await loadOrgProducts(orgID);
+     setProductStepError("Публикация не подтверждена. Проверьте статус продукта и повторите только если он остался черновиком: "+(e instanceof Error?e.message:String(e)));
+     return;
+    }
+   }
+   await loadOrgProducts(orgID);
+   await refresh();
+   setProductID(preparedProductID);
+   setNotice("Продукт опубликован. Теперь создайте курс.");
+  }catch(e){setProductStepError(e instanceof Error?e.message:String(e))}
+  finally{setProductBusy(false)}
  }
  async function createCourse(event:FormEvent){
   event.preventDefault();
@@ -226,13 +301,51 @@ export default function AcademyPage(){
       <option value="">Выберите продукт</option>
       {eligibleProducts.map(product=><option key={product.id} value={product.id}>{product.name}</option>)}
      </select>
-     {eligibleProducts.length===0&&<p>Нет доступных опубликованных продуктов. Создайте и опубликуйте продукт в <a href="/organization">кабинете организации</a> или обновите список после публикации.</p>}
+     {productLoadError?<p role="alert">Ошибка загрузки продуктов: {productLoadError}</p>:
+       eligibleProducts.length===0?<p>Опубликованных продуктов нет. Подготовьте продукт в мастере ниже.</p>:null}
+     <button type="button" disabled={busy||productBusy} onClick={()=>void refresh().catch(e=>setProductLoadError(String(e)))}>Обновить продукты</button>
      <label htmlFor="academy-title">Название</label>
      <input id="academy-title" value={title} onChange={e=>setTitle(e.target.value)} required minLength={3}/>
      <label htmlFor="academy-description">Описание</label>
      <textarea id="academy-description" value={description} onChange={e=>setDescription(e.target.value)}/>
      <button disabled={busy}>Создать черновик</button>
     </form>
+    <section className="panel specialist-form" aria-label="Подготовить продукт курса">
+     <h2>Подготовить Commerce-продукт курса</h2>
+     <p>Операции выполняются существующим Commerce API. Публикация требует явного подтверждения владельца, авторов и получателя выручки.</p>
+     <button type="button" disabled={productBusy} onClick={()=>void loadOrganizations()}>Загрузить мои организации</button>
+     {productStepError&&<p role="alert">{productStepError}</p>}
+     {orgs.length===0?<p>Сначала создайте организацию и направление «Обучение» в <a href="/organization">кабинете организации</a>.</p>:
+     <form className="specialist-form" onSubmit={prepareCommerceProduct}>
+      <label htmlFor="academy-org">Организация</label>
+      <select id="academy-org" value={orgID} onChange={e=>{
+       const id=e.target.value;setOrgID(id);setDirectionID("");setOrgProducts([]);setPreparedProductID("");
+       void loadOrgProducts(id).catch(error=>setProductStepError(String(error)));
+      }} required>
+       {orgs.map(o=><option key={o.id} value={o.id}>{o.name}</option>)}
+      </select>
+      <label htmlFor="academy-direction">Активное направление</label>
+      <select id="academy-direction" value={directionID} onChange={e=>setDirectionID(e.target.value)} required>
+       <option value="">Выберите направление</option>
+       {orgs.find(o=>o.id===orgID)?.directions.filter(d=>d.status==="ACTIVE").map(d=><option key={d.id} value={d.id}>{d.name}</option>)}
+      </select>
+      <label htmlFor="academy-commerce-owner">Коммерческий владелец</label>
+      <input id="academy-commerce-owner" value={commercialRef} onChange={e=>setCommercialRef(e.target.value)} placeholder={`organization/${orgID}`} required/>
+      <label htmlFor="academy-commerce-authors">Авторы (через запятую)</label>
+      <input id="academy-commerce-authors" value={authorRefs} onChange={e=>setAuthorRefs(e.target.value)} placeholder="identity/..." required/>
+      <label htmlFor="academy-commerce-beneficiary">Получатель выручки</label>
+      <input id="academy-commerce-beneficiary" value={beneficiaryRef} onChange={e=>setBeneficiaryRef(e.target.value)} placeholder={`organization/${orgID}`} required/>
+      <button disabled={productBusy||!directionID||!title.trim()}>Создать черновик Commerce-продукта</button>
+     </form>}
+     {orgID&&<><h3>Мои продукты организации</h3>
+      <button type="button" disabled={productBusy} onClick={()=>void loadOrgProducts(orgID).catch(e=>setProductStepError(String(e)))}>Обновить список</button>
+      <select aria-label="Продукт для публикации" value={preparedProductID} onChange={e=>setPreparedProductID(e.target.value)}>
+       <option value="">Выберите созданный продукт</option>
+       {orgProducts.map(p=><option key={p.id} value={p.id}>{p.name} · {p.status}</option>)}
+      </select>
+      <button type="button" disabled={productBusy||!preparedProductID} onClick={()=>void publishPreparedProduct()}>Подтвердить публикацию и выбрать для курса</button>
+     </>}
+    </section>
    </div>
   </section>
   <section className="how-section">
