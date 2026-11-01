@@ -37,12 +37,14 @@ export async function academyRequest<T>(
 
 export function AcademySurface(){
  const [courses,setCourses]=useState<NativeAcademyCourse[]>([]);
+ const [verifiedCourseIDs,setVerifiedCourseIDs]=useState<string[]>([]);
  const [enrollments,setEnrollments]=useState<NativeAcademyEnrollment[]>([]);
  const [lessons,setLessons]=useState<NativeAcademyLesson[]>([]);
  const [selected,setSelected]=useState<NativeAcademyEnrollment|null>(null);
  const [certificate,setCertificate]=useState<NativeAcademyCertificate|null>(null);
  const [attempts,setAttempts]=useState<NativeAcademyAttempt[]>([]);
  const [appeals,setAppeals]=useState<NativeAcademyAppeal[]>([]);
+ const [appealsUnavailable,setAppealsUnavailable]=useState(false);
  const [cohorts,setCohorts]=useState<NativeAcademyCohort[]>([]);
  const [appealReasons,setAppealReasons]=useState<Record<string,string>>({});
  const [status,setStatus]=useState("Откройте каталог, чтобы посмотреть доступные курсы.");
@@ -56,15 +58,17 @@ export function AcademySurface(){
   }finally{setBusy(false)}
  },[]);
  const loadLearning=useCallback(async(e:NativeAcademyEnrollment)=>{
-  const data=await academyRequest<{lessons:NativeAcademyLesson[]}>(
-   `/v1/academy/enrollments/${encodeURIComponent(e.id)}/learn`);
-  const history=await academyRequest<{attempts:NativeAcademyAttempt[]}>(
-   `/v1/academy/enrollments/${encodeURIComponent(e.id)}/attempts`);
-  const review=await academyRequest<{appeals:NativeAcademyAppeal[]}>("/v1/academy/me/appeals");
-  const groups=await academyRequest<{cohorts:NativeAcademyCohort[]}>(
-   `/v1/academy/enrollments/${encodeURIComponent(e.id)}/cohorts`);
-  setSelected(e);setLessons(data.lessons);setAttempts(history.attempts);setAppeals(review.appeals);setCohorts(groups.cohorts);setCertificate(null);
-  setStatus("Ваш прогресс синхронизируется с APGIC.");
+  const [data,history,review,groups]=await Promise.all([
+   academyRequest<{lessons:NativeAcademyLesson[]}>(`/v1/academy/enrollments/${encodeURIComponent(e.id)}/learn`),
+   academyRequest<{attempts:NativeAcademyAttempt[]}>(`/v1/academy/enrollments/${encodeURIComponent(e.id)}/attempts`),
+   academyRequest<{appeals:NativeAcademyAppeal[]}>("/v1/academy/me/appeals")
+    .then(value=>({ok:true,items:value.appeals})).catch(()=>({ok:false,items:[] as NativeAcademyAppeal[]})),
+   academyRequest<{cohorts:NativeAcademyCohort[]}>(`/v1/academy/enrollments/${encodeURIComponent(e.id)}/cohorts`)
+    .then(value=>({ok:true,items:value.cohorts})).catch(()=>({ok:false,items:[] as NativeAcademyCohort[]}))
+  ]);
+  setSelected(e);setLessons(data.lessons);setAttempts(history.attempts);
+  setAppeals(review.items);setAppealsUnavailable(!review.ok);setCohorts(groups.items);setCertificate(null);
+  setStatus(review.ok&&groups.ok?"Ваш прогресс синхронизируется с APGIC.":"Уроки доступны. Дополнительные сведения временно недоступны.");
  },[]);
  return <View style={{gap:12,marginTop:16,padding:16,borderWidth:1,borderRadius:14}}
   accessibilityLabel="APGIC Academy">
@@ -91,8 +95,13 @@ export function AcademySurface(){
   </View>}
   <Pressable accessibilityRole="button" disabled={busy}
    onPress={()=>void act(async()=>{
-    const data=await academyRequest<{courses:NativeAcademyCourse[]}>("/v1/academy/courses");
-    setCourses(data.courses);setStatus(data.courses.length?"Выберите курс.":"Опубликованных курсов нет.");
+    const [data,access]=await Promise.all([
+     academyRequest<{courses:NativeAcademyCourse[]}>("/v1/academy/courses"),
+     academyRequest<{course_ids:string[]}>("/v1/academy/me/course-access")
+      .catch(()=>({course_ids:[] as string[]}))
+    ]);
+    setCourses(data.courses);setVerifiedCourseIDs(access.course_ids);
+    setStatus(data.courses.length?"Выберите курс.":"Опубликованных курсов нет.");
    })} style={{minHeight:48,borderWidth:1,borderRadius:9,padding:12}}>
    <Text>Каталог курсов</Text>
   </Pressable>
@@ -107,12 +116,13 @@ export function AcademySurface(){
    <Text style={{fontWeight:"700"}}>{course.title}</Text>
    <Text>{course.description}</Text>
    <Text>Версия {course.version_no}</Text>
-   <Pressable accessibilityRole="button" disabled={busy} style={{minHeight:48,justifyContent:"center"}}
+   {verifiedCourseIDs.includes(course.id)?<Pressable accessibilityRole="button" disabled={busy} style={{minHeight:48,justifyContent:"center"}}
     onPress={()=>void act(async()=>{
      const e=await academyRequest<NativeAcademyEnrollment>(
       `/v1/academy/courses/${encodeURIComponent(course.id)}/enroll`,"POST");
      await loadLearning(e);
-    })}><Text>Открыть по подтверждённому праву</Text></Pressable>
+    })}><Text>Открыть по подтверждённому праву</Text></Pressable>:
+    <Text>Для записи нужна подтверждённая покупка через Commerce. Мобильный кабинет не создаёт оплату или доступ самостоятельно.</Text>}
   </View>)}
   {enrollments.map(item=><Pressable key={item.id} accessibilityRole="button" disabled={busy||item.access_state!=="ACTIVE"}
    style={{minHeight:48,justifyContent:"center"}}
@@ -144,7 +154,7 @@ export function AcademySurface(){
        <View key={`appeal-${a.id}`} style={{gap:6}}>
         {appeals.some(x=>x.attempt_id===a.id)
          ?<Text>Апелляция: {appeals.find(x=>x.attempt_id===a.id)?.state}</Text>
-         :<>
+         :appealsUnavailable?<Text>История апелляций недоступна. Повторная подача временно заблокирована.</Text>:<>
           <TextInput multiline accessibilityLabel="Причина апелляции"
            value={appealReasons[a.id]||""}
            onChangeText={value=>setAppealReasons(prev=>({...prev,[a.id]:value}))}
