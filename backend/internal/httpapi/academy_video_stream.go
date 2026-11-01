@@ -87,9 +87,16 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 		}
 		defer response.Body.Close()
 		if response.StatusCode == http.StatusRequestedRangeNotSatisfiable {
-			if value := response.Header.Get("Content-Range"); value != "" {
-				w.Header().Set("Content-Range", value)
+			value := response.Header.Get("Content-Range")
+			if !academyVideoUnsatisfiedRangeAllowed(r.Header.Get("Range"), value) {
+				academyHTTPError(w, r, academy.ErrUnavailable)
+				return
 			}
+			if !allowed() {
+				academyHTTPError(w, r, academy.ErrEntitlement)
+				return
+			}
+			w.Header().Set("Content-Range", value)
 			w.WriteHeader(http.StatusRequestedRangeNotSatisfiable)
 			return
 		}
@@ -104,9 +111,7 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 		ct := response.Header.Get("Content-Type")
 		// Reauthorize immediately before committing response headers; entitlement
 		// might have been revoked while the cloud provider was resolving.
-		_, _, currentPath, permissionErr := owner.AcademyLearnerVideoSource(actor,
-			r.PathValue("enrollmentID"), r.PathValue("lessonID"), r.PathValue("mediaID"))
-		if permissionErr != nil || currentPath != path {
+		if !allowed() {
 			academyHTTPError(w, r, academy.ErrEntitlement)
 			return
 		}
