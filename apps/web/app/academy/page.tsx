@@ -260,8 +260,8 @@ export default function AcademyPage(){
  }
  async function createCourse(event:FormEvent){
   event.preventDefault();
-  await act(()=>api<Course>("/v1/academy/courses",
-   {product_id:productID,title,description}),async c=>{
+  await act(()=>api<Course>("/v1/academy/drafts",
+   {title:title.trim(),description}),async c=>{
    setNotice("Черновик курса создан.");await loadOutline(c);
   });
  }
@@ -338,68 +338,14 @@ export default function AcademyPage(){
       </div>)}
     </section>
     <form id="academy-author" className="panel specialist-form" onSubmit={createCourse}>
-     <h2>Автору: создать курс</h2>
-     <p>Курс привязывается к опубликованному продукту действующего Commerce. Выберите принадлежащий вам продукт — вводить технический UUID не нужно.</p>
-     <label htmlFor="academy-product">Опубликованный продукт</label>
-     <select id="academy-product" value={productID} onChange={e=>setProductID(e.target.value)} required>
-      <option value="">Выберите продукт</option>
-      {eligibleProducts.map(product=><option key={product.id} value={product.id}>{product.name}</option>)}
-     </select>
-     {productLoadError?<p role="alert">Ошибка загрузки продуктов: {productLoadError}</p>:
-       eligibleProducts.length===0?<p>Опубликованных продуктов нет. Подготовьте продукт в мастере ниже.</p>:null}
-     <button type="button" disabled={busy||productBusy} onClick={()=>void refresh().catch(e=>setProductLoadError(String(e)))}>Обновить продукты</button>
-     <label htmlFor="academy-title">Название</label>
-     <input id="academy-title" value={title} onChange={e=>setTitle(e.target.value)} required minLength={3}/>
-     <label htmlFor="academy-description">Описание</label>
+     <h2>Создать курс</h2>
+     <p>Сначала содержание. Продажи и платежи можно настроить позже, когда курс будет готов.</p>
+     <label htmlFor="academy-title">Название курса</label>
+     <input id="academy-title" value={title} onChange={e=>setTitle(e.target.value)} required minLength={3} maxLength={200} placeholder="Например: Гипноз с нуля"/>
+     <label htmlFor="academy-description">Описание (необязательно)</label>
      <textarea id="academy-description" value={description} onChange={e=>setDescription(e.target.value)}/>
-     <button disabled={busy}>Создать черновик</button>
+     <button disabled={busy||title.trim().length<3}>Создать курс</button>
     </form>
-    <section className="panel specialist-form" aria-label="Подготовить продукт курса">
-     <h2>Подготовить Commerce-продукт курса</h2>
-     <p>Операции выполняются существующим Commerce API. Публикация требует явного подтверждения владельца, авторов и получателя выручки.</p>
-     <button type="button" disabled={productBusy} onClick={()=>void loadOrganizations()}>Загрузить мои организации</button>
-     {productStepError&&<p role="alert">{productStepError}</p>}
-     <form className="specialist-form" onSubmit={createAcademyOrganization}>
-      <label htmlFor="academy-new-org">Новая организация</label>
-      <input id="academy-new-org" value={newOrgName} onChange={e=>setNewOrgName(e.target.value)} required/>
-      <button disabled={productBusy||orgMutationUncertain||!newOrgName.trim()}>Создать организацию</button>
-     </form>
-     <button type="button" disabled={productBusy} onClick={()=>void reloadAcademyOrganization()}>Проверить сохранённое состояние</button>
-     {orgs.length===0?<p>Организаций пока нет. Создайте её выше — уходить из Academy не требуется.</p>:
-     <form className="specialist-form" onSubmit={prepareCommerceProduct}>
-      <label htmlFor="academy-org">Организация</label>
-      <select id="academy-org" value={orgID} onChange={e=>{
-       const id=e.target.value;setOrgID(id);setDirectionID("");setOrgProducts([]);setPreparedProductID("");
-       void loadOrgProducts(id).catch(error=>setProductStepError(String(error)));
-      }} required>
-       {orgs.map(o=><option key={o.id} value={o.id}>{o.name}</option>)}
-      </select>
-      <label htmlFor="academy-direction">Активное направление</label>
-      <select id="academy-direction" value={directionID} onChange={e=>setDirectionID(e.target.value)} required>
-       <option value="">Выберите направление</option>
-       {orgs.find(o=>o.id===orgID)?.directions.filter(d=>d.status==="ACTIVE").map(d=><option key={d.id} value={d.id}>{d.name}</option>)}
-      </select>
-      <label htmlFor="academy-commerce-owner">Коммерческий владелец</label>
-      <input id="academy-commerce-owner" value={commercialRef} onChange={e=>setCommercialRef(e.target.value)} placeholder={`organization/${orgID}`} required/>
-      <label htmlFor="academy-commerce-authors">Авторы (через запятую)</label>
-      <input id="academy-commerce-authors" value={authorRefs} onChange={e=>setAuthorRefs(e.target.value)} placeholder="identity/..." required/>
-      <label htmlFor="academy-commerce-beneficiary">Получатель выручки</label>
-      <input id="academy-commerce-beneficiary" value={beneficiaryRef} onChange={e=>setBeneficiaryRef(e.target.value)} placeholder={`organization/${orgID}`} required/>
-      <button disabled={productBusy||productMutationUncertain||!directionID||!title.trim()}>Создать черновик Commerce-продукта</button>
-     </form>}
-     {orgID&&<><form className="specialist-form" onSubmit={createAcademyDirection}>
-      <label htmlFor="academy-new-direction">Новое направление обучения</label>
-      <input id="academy-new-direction" value={newDirectionName} onChange={e=>setNewDirectionName(e.target.value)} required/>
-      <button disabled={productBusy||directionMutationUncertain||!newDirectionName.trim()}>Создать направление</button>
-     </form><h3>Мои продукты организации</h3>
-      <button type="button" disabled={productBusy} onClick={()=>void loadOrgProducts(orgID).catch(e=>setProductStepError(String(e)))}>Обновить список</button>
-      <select aria-label="Продукт для публикации" value={preparedProductID} onChange={e=>setPreparedProductID(e.target.value)}>
-       <option value="">Выберите созданный продукт</option>
-       {orgProducts.map(p=><option key={p.id} value={p.id}>{p.name} · {p.status}</option>)}
-      </select>
-      <button type="button" disabled={productBusy||!preparedProductID} onClick={()=>void publishPreparedProduct()}>Подтвердить публикацию и выбрать для курса</button>
-     </>}
-    </section>
    </div>
   </section>
   <section className="how-section">
