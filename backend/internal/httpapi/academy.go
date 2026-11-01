@@ -39,6 +39,7 @@ func registerAcademy(mux *http.ServeMux, store academyStore, sessions *clientSes
 	registerAcademyCloudBrowser(mux, store, sessions, sessionConfigErr)
 	registerAcademyYandexOAuth(mux, store, sessions, sessionConfigErr)
 	registerAcademyLearnerVideoManifest(mux, store, sessions, sessionConfigErr)
+	registerAcademyVideoStream(mux, store, sessions, sessionConfigErr)
 	registerAcademyHistoryExport(mux, store, sessions, sessionConfigErr)
 	registerAcademyNotificationPreferences(mux, store, sessions, sessionConfigErr)
 	registerAcademyAppeals(mux, store, sessions, sessionConfigErr)
