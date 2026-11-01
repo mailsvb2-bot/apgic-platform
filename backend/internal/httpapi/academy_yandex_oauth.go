@@ -75,6 +75,13 @@ func cloudOpen(value string, key []byte) (cloudOAuthState, error) {
 	}
 	return state, nil
 }
+// A callback may finish only under the same signed APGIC identity that
+// initiated the OAuth flow. Switching accounts must never attach another
+// person's cloud credentials to the original author.
+func cloudOAuthActorMatches(state cloudOAuthState, actor string) bool {
+	return actor != "" && state.Actor != "" && state.Actor == actor
+}
+
 func academyYandexOAuthConfig() (string, string, string, error) {
 	id := os.Getenv("APGIC_YANDEX_OAUTH_CLIENT_ID")
 	secret := os.Getenv("APGIC_YANDEX_OAUTH_CLIENT_SECRET")
@@ -138,6 +145,14 @@ func registerAcademyYandexOAuth(mux *http.ServeMux, store academyStore, sessions
 		}
 		state, err := cloudOpen(cookie.Value, key)
 		if err != nil || r.URL.Query().Get("state") != state.Nonce || r.URL.Query().Get("code") == "" || len(r.URL.Query().Get("code")) > 2048 {
+			academyHTTPError(w, r, academy.ErrDenied)
+			return
+		}
+		actor, authenticated := academyIdentity(w, r, sessions, sessionErr)
+		if !authenticated {
+			return
+		}
+		if !cloudOAuthActorMatches(state, actor) {
 			academyHTTPError(w, r, academy.ErrDenied)
 			return
 		}
