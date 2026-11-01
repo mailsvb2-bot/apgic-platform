@@ -51,7 +51,9 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 			academyHTTPError(w, r, academy.ErrUnavailable)
 			return
 		}
-		request, err := http.NewRequestWithContext(r.Context(), http.MethodGet, download, nil)
+		streamCtx, stopStream := context.WithCancel(r.Context())
+		defer stopStream()
+		request, err := http.NewRequestWithContext(streamCtx, http.MethodGet, download, nil)
 		if err != nil {
 			academyHTTPError(w, r, academy.ErrUnavailable)
 			return
@@ -100,6 +102,13 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 			academyHTTPError(w, r, academy.ErrUnavailable)
 			return
 		}
+		// Independent entitlement watchdog also works while the upstream Read
+		// stalls. Canceling the request unblocks a blocked network read.
+		go academyWatchVideoEntitlement(streamCtx, stopStream, time.Second, func() bool {
+			_, _, currentPath, permissionErr := owner.AcademyLearnerVideoSource(actor,
+				r.PathValue("enrollmentID"), r.PathValue("lessonID"), r.PathValue("mediaID"))
+			return permissionErr == nil && currentPath == path
+		})
 		w.Header().Set("Content-Type", ct)
 		if v := response.Header.Get("Content-Length"); v != "" {
 			w.Header().Set("Content-Length", v)
@@ -158,4 +167,23 @@ func academyVideoSingleRange(value string) bool {
 		}
 	}
 	return true
+}
+
+ 
+// academyWatchVideoEntitlement watches idle, stalled and active video streams.
+// A revocation cancels the HTTP request even if the provider stops sending.
+func academyWatchVideoEntitlement(ctx context.Context, cancel context.CancelFunc, interval time.Duration, allowed func() bool) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if !allowed() {
+				cancel()
+				return
+			}
+		}
+	}
 }
