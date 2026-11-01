@@ -102,6 +102,14 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 			return
 		}
 		ct := response.Header.Get("Content-Type")
+		// Reauthorize immediately before committing response headers; entitlement
+		// might have been revoked while the cloud provider was resolving.
+		_, _, currentPath, permissionErr := owner.AcademyLearnerVideoSource(actor,
+			r.PathValue("enrollmentID"), r.PathValue("lessonID"), r.PathValue("mediaID"))
+		if permissionErr != nil || currentPath != path {
+			academyHTTPError(w, r, academy.ErrEntitlement)
+			return
+		}
 		w.Header().Set("Content-Type", ct)
 		if v := response.Header.Get("Content-Length"); v != "" {
 			w.Header().Set("Content-Length", v)
