@@ -19,10 +19,10 @@ func (s *academyCertificatesStub) AcademyMyCertificates(actor string) ([]academy
 	s.calls++
 	s.actor = actor
 	return []academy.LearnerCertificate{{
-		ID: "owned-certificate",
-		State: "ACTIVE",
-		LearningAccessState: "REVOKED",
-		VerificationURL: "/v1/academy/certificates/verify/opaque-test-token",
+		ID:                     "owned-certificate",
+		State:                  "ACTIVE",
+		LearningAccessState:    "REVOKED",
+		VerificationURL:        "/v1/academy/certificates/verify/opaque-test-token",
 		EvidenceCandidateState: academy.EvidenceCandidateStatus,
 	}}, nil
 }
