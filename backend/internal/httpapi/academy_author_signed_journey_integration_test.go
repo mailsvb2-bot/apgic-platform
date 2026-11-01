@@ -240,9 +240,15 @@ func TestAcademyAuthorSignedCommerceToPublishedCoursePostgres(t *testing.T) {
 
 	// The newly merged one-click route must use the same signed Identity,
 	// persist a private Commerce draft, and never publish or grant access.
-	standalone := request("POST", "/v1/academy/drafts", authorCookie, map[string]any{
+	// This route has a strict input schema: forged author_id must be
+	// rejected, not silently accepted or trusted.
+	forgedDraft := request("POST", "/v1/academy/drafts", authorCookie, map[string]any{
 		"title": "One-click signed course", "description": "Original unsold draft",
 		"author_id": "00000000-0000-0000-0000-00000000b003",
+	})
+	require(forgedDraft, http.StatusBadRequest)
+	standalone := request("POST", "/v1/academy/drafts", authorCookie, map[string]any{
+		"title": "One-click signed course", "description": "Original unsold draft",
 	})
 	require(standalone, http.StatusCreated)
 	var draft academy.Course
