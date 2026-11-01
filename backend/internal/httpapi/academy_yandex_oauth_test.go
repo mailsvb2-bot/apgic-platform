@@ -9,10 +9,10 @@ import (
 func TestCloudOAuthSignedStateRejectsTamperingAndExpiry(t *testing.T) {
 	key := []byte("0123456789abcdef0123456789abcdef")
 	state := cloudOAuthState{
-		Actor: "author-one",
+		Actor:    "author-one",
 		Verifier: strings.Repeat("v", 43),
-		Nonce: "random-nonce",
-		Expires: time.Now().Add(time.Minute).Unix(),
+		Nonce:    "random-nonce",
+		Expires:  time.Now().Add(time.Minute).Unix(),
 	}
 	sealed, err := cloudSeal(state, key)
 	if err != nil {
