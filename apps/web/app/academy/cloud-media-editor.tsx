@@ -3,6 +3,7 @@
 import {useState,type FormEvent} from "react";
 
 type CloudMedia={id:string;title:string;provider:string;provider_file_ref:string;source_url?:string};
+type DiskFile={name:string;path:string;type:string;mime_type:string;size:number};
 type VideoLesson={id:string;title:string;kind:string};
 type Mapping={lesson_id:string;media_id:string;ordinal:number};
 type AuthorMediaAssignment=Mapping&{title:string;provider:string;provider_file_ref:string;source_url?:string};
@@ -19,6 +20,11 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
  courseId:string;versionId:string;lessons:VideoLesson[];
 }){
  const [media,setMedia]=useState<CloudMedia[]>([]);
+ const [diskPath,setDiskPath]=useState("disk:/");
+ const [diskFiles,setDiskFiles]=useState<DiskFile[]>([]);
+ const [diskOffset,setDiskOffset]=useState(0);
+ const [diskTotal,setDiskTotal]=useState(0);
+ const [diskSelection,setDiskSelection]=useState<string[]>([]);
  const [rows,setRows]=useState("");
  const [selected,setSelected]=useState<string[]>([]);
  const [lessonId,setLessonId]=useState("");
@@ -27,6 +33,28 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
  const [saved,setSaved]=useState<AuthorMediaAssignment[]>([]);
  const [message,setMessage]=useState("");
  const [busy,setBusy]=useState(false);
+ async function browseDisk(path:string,offset=0){
+  setBusy(true);setMessage("");
+  try {
+   const query=new URLSearchParams({path,offset:String(offset)});
+   const result=await request<{files:DiskFile[];total:number;offset:number}>("/v1/academy/author/cloud/yandex/files?"+query);
+   setDiskPath(path);setDiskFiles(result.files);setDiskTotal(result.total);setDiskOffset(offset);
+   setDiskSelection([]);
+  }catch(error){setMessage("Яндекс Диск: "+String(error))}
+  finally{setBusy(false)}
+ }
+ async function importDiskSelection(){
+  if(!diskSelection.length)return;
+  setBusy(true);setMessage("");
+  try{
+   const chosen=diskFiles.filter(f=>diskSelection.includes(f.path)&&f.type==="file");
+   if(!chosen.length)throw new Error("Выбери видеофайлы");
+   await request("/v1/academy/author/cloud-media/import",{items:chosen.map(f=>({
+    provider:"YANDEX_DISK",provider_file_ref:f.path,title:f.name
+   }))});
+   await reload();setDiskSelection([]);setMessage("Выбранные видео добавлены в медиатеку");
+  }catch(error){setMessage(String(error))}finally{setBusy(false)}
+ }
  async function reload(){
   const [d,a]=await Promise.all([
    request<{media:CloudMedia[]}>("/v1/academy/author/cloud-media"),
@@ -84,6 +112,26 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
   <h3>Медиатека автора</h3>
   <p>Импорт списка облачных файлов и распределение по видеоурокам. OAuth-выбор файлов в Яндекс Диске и ученическое воспроизведение пока не подключены.</p>
   <button type="button" disabled={busy} onClick={()=>void reload().catch(e=>setMessage(String(e)))}>Загрузить медиатеку</button>
+  <h4>Выбрать файлы из Яндекс Диска</h4>
+  <p>После подключения облака можно открыть папку, отметить сразу несколько видео и добавить их одним нажатием.</p>
+  <button type="button" disabled={busy} onClick={()=>void browseDisk("disk:/")}>Открыть Яндекс Диск</button>
+  <p>Папка: {diskPath}</p>
+  {diskPath!=="disk:/"&&<button type="button" disabled={busy} onClick={()=>void browseDisk(diskPath.split("/").slice(0,-1).join("/")||"disk:/")}>На уровень выше</button>}
+  <div style={{maxHeight:240,overflowY:"auto"}}>
+   {diskFiles.map(file=><div key={file.path}>
+    {file.type==="dir"
+      ?<button type="button" disabled={busy} onClick={()=>void browseDisk(file.path)}>Папка: {file.name}</button>
+      :<label><input type="checkbox" checked={diskSelection.includes(file.path)}
+        onChange={e=>setDiskSelection(old=>e.target.checked?[...old,file.path]:old.filter(p=>p!==file.path))}/>
+        {file.name}</label>}
+   </div>)}
+  </div>
+  {diskTotal>100&&<div>
+   <button type="button" disabled={busy||diskOffset===0} onClick={()=>void browseDisk(diskPath,Math.max(0,diskOffset-100))}>Назад</button>
+   <span>{diskOffset+1}–{Math.min(diskOffset+100,diskTotal)} из {diskTotal}</span>
+   <button type="button" disabled={busy||diskOffset+100>=diskTotal} onClick={()=>void browseDisk(diskPath,diskOffset+100)}>Далее</button>
+  </div>}
+  <button type="button" disabled={busy||!diskSelection.length} onClick={()=>void importDiskSelection()}>Добавить выбранные видео ({diskSelection.length})</button>
   <p role="status">{message}</p>
   <form onSubmit={importRows}>
    <label htmlFor="cloud-media-rows">Список файлов: ID файла | название (каждый файл с новой строки)</label>
