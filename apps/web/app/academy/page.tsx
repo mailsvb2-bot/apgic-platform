@@ -266,8 +266,8 @@ export default function AcademyPage(){
   const matches=owned.courses.filter(item=>!requested.baseline.includes(item.id)&&
    item.title===requested.title&&item.description===requested.description);
   if(matches.length===1){
-   setPendingDraft(null);
    await loadOutline(matches[0]);
+   setPendingDraft(null);
    setNotice("Черновик найден в сохранённых данных. Повторное создание не требуется.");
    return;
   }
@@ -301,15 +301,23 @@ export default function AcademyPage(){
      return null;
     });
    if(!created)return;
+   if(!created.id||!created.version_id||!created.product_id){
+    // A successful status with an incomplete body is also an ambiguous write.
+    setPendingDraft(requested);
+    try{await reconcileDraft(requested)}
+    catch(error){setNotice("Ответ создания неполон. Проверка сохранения недоступна: "+String(error))}
+    return;
+   }
    setPendingDraft(null);
    try{
     await loadOutline(created);
     await refresh();
     setNotice("Черновик курса сохранён.");
    }catch(error){
-    // The server returned a durable ID; never call create again.
+    // The server returned an ID, but the UI has not confirmed the readback.
+    setPendingDraft(requested);
     setNotice("Черновик создан, но загрузка данных не завершена: "+String(error)+
-     ". Откройте его в «Мои курсы».");
+     ". Проверьте сохранение перед повторной попыткой.");
    }
   }catch(error){
    // Preflight failed before POST: no write was attempted.
