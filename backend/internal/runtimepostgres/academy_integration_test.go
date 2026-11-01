@@ -775,6 +775,44 @@ func TestAcademyStoreRefundWithdrawsLearningAccess(t *testing.T) {
  JOIN academy_course_versions v ON v.id=e.version_id WHERE e.id=$1::uuid`, enrollmentID).Scan(&courseID); err != nil {
 		t.Fatal(err)
 	}
+	// A canonical refund must also remove actionable author access, while
+	// retaining the immutable course completion and historical gross capture.
+	// Gross captured volume is not net author revenue after refund.
+	const author = "00000000-0000-0000-0000-00000000b001"
+	authorReport, err := store.AcademyAuthorReport(author)
+	if err != nil {
+		t.Fatalf("author report after canonical refund: %v", err)
+	}
+	if authorReport.RevenueState != academy.RevenueGrossOnly {
+		t.Fatalf("refund was misrepresented as reconciled author revenue: %q", authorReport.RevenueState)
+	}
+	foundHistoricalCourse := false
+	for _, row := range authorReport.Courses {
+		if row.CourseID != courseID {
+			continue
+		}
+		foundHistoricalCourse = true
+		if row.Enrollments != 1 || row.Completed != 1 || row.ActiveAccess != 0 ||
+			row.PendingAssessments != 0 || row.PassedAssessments != 1 {
+			t.Fatalf("refunded enrollment inflated actionable author metrics or lost history: %+v", row)
+		}
+	}
+	if !foundHistoricalCourse {
+		t.Fatal("refunded completed course disappeared from author history")
+	}
+	foundHistoricalCapture := false
+	for _, capture := range authorReport.GrossCaptures {
+		if capture.CourseID != courseID {
+			continue
+		}
+		foundHistoricalCapture = true
+		if capture.Currency != "RUB" || capture.CapturedCount != 1 || capture.CapturedGrossMinor != 10000 {
+			t.Fatalf("refund rewrote immutable gross capture evidence: %+v", capture)
+		}
+	}
+	if !foundHistoricalCapture {
+		t.Fatal("refunded course lost original canonical capture evidence")
+	}
 	// A refund must immediately remove the course from the read-only
 	// learner catalog projection, without erasing historical completion.
 	stillPurchased, err := store.AcademyMyCourseAccess(learner)
