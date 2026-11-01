@@ -28,11 +28,9 @@ const academyAuthorCourseMetricsQuery = `SELECT c.id::text, c.title,
  GROUP BY c.id,c.title,c.created_at
  ORDER BY c.created_at DESC LIMIT 100`
 
-// A captured entitlement is not the same as an actionable learning seat:
-// terminal enrollment cannot be reactivated by a still-ACTIVE entitlement.
-// Keep the report's current-access subset aligned with the learner's
-// enrollment AND canonical entitlement gates. Unenrolled purchases remain
-// visible in historical gross but do not count as active learners.
+// Captured payments and current enrolled access are distinct. A terminal
+// Academy enrollment must not appear actionable merely because its original
+// Commerce entitlement remains active. An unenrolled purchase stays in gross.
 const academyAuthorCapturedGrossQuery = `SELECT c.id::text, o.currency,
 	 COUNT(sv.id), COALESCE(SUM(o.amount_minor),0),
 	 COUNT(sv.id) FILTER (WHERE academy_entitlement_is_active(ent.id)
@@ -65,7 +63,36 @@ const academyAuthorCapturedGrossQuery = `SELECT c.id::text, o.currency,
 	 WHERE c.author_id=$1::uuid
 	 GROUP BY c.id,o.currency ORDER BY c.id,o.currency`
 
-/rows, err = tx.QueryContext(ctx, academyAuthorCapturedGrossQuery, author)m.Title, &item.Enrollments,
+// AcademyAuthorReport reads only the signed author's own courses. Financial
+// amounts are verified gross captures for the exact order product, not income.
+// A read-only repeatable-read transaction keeps metrics and captures coherent.
+func (c *Checker) AcademyAuthorReport(author string) (academy.AuthorReport, error) {
+	if c == nil || c.db == nil {
+		return academy.AuthorReport{}, academy.ErrUnavailable
+	}
+	if author == "" {
+		return academy.AuthorReport{}, academy.ErrDenied
+	}
+	ctx, cancel := academyContext()
+	defer cancel()
+	tx, err := c.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true})
+	if err != nil {
+		return academy.AuthorReport{}, err
+	}
+	defer tx.Rollback()
+
+	report := academy.AuthorReport{
+		Courses:       []academy.CourseReport{},
+		GrossCaptures: []academy.CapturedGrossEvidence{},
+		RevenueState:  academy.RevenueGrossOnly,
+	}
+	rows, err := tx.QueryContext(ctx, academyAuthorCourseMetricsQuery, author)
+	if err != nil {
+		return academy.AuthorReport{}, err
+	}
+	for rows.Next() {
+		var item academy.CourseReport
+		if err = rows.Scan(&item.CourseID, &item.Title, &item.Enrollments,
 			&item.Completed, &item.ActiveAccess, &item.PendingAssessments,
 			&item.PassedAssessments); err != nil {
 			rows.Close()
@@ -85,25 +112,7 @@ const academyAuthorCapturedGrossQuery = `SELECT c.id::text, o.currency,
 	// Report the captured historical gross alongside its current entitlement
 	// subset; never subtract this subset from gross and call it a refund or net
 	// author income. Canonical Finance still owns all monetary reconciliation.
-	rows, err = tx.QueryContext(ctx, `SELECT c.id::text, o.currency,
-	 COUNT(sv.id), COALESCE(SUM(o.amount_minor),0),
-	 COUNT(sv.id) FILTER (WHERE academy_entitlement_is_active(ent.id)),
-	 COALESCE(SUM(o.amount_minor) FILTER (WHERE academy_entitlement_is_active(ent.id)),0)
-	 FROM academy_courses c
-	 JOIN store_transaction_verifications sv ON sv.product_ref=c.product_id::text
-	 JOIN store_entitlements ent ON ent.verification_id=sv.id
-	   AND ent.identity_id=sv.identity_id AND ent.product_ref=sv.product_ref
-	 JOIN orders o ON o.id=sv.order_id AND o.product_id=c.product_id
-	 JOIN payment_attempts pa ON pa.id=sv.payment_attempt_id
-	   AND pa.order_id=o.id AND pa.state='SUCCEEDED'
-	   AND pa.amount_minor=o.amount_minor AND pa.currency=o.currency
-	 JOIN payment_effects pe ON pe.id=sv.payment_effect_id
-	   AND pe.attempt_id=pa.id AND pe.effect_kind='CAPTURED'
-	   AND pe.ledger_entry_id=sv.ledger_entry_id
-	 JOIN ledger_entries le ON le.id=sv.ledger_entry_id
-	   AND le.provider_evidence_ref=pe.provider_evidence_ref
-	 WHERE c.author_id=$1::uuid
-	 GROUP BY c.id,o.currency ORDER BY c.id,o.currency`, author)
+	rows, err = tx.QueryContext(ctx, academyAuthorCapturedGrossQuery, author)
 	if err != nil {
 		return academy.AuthorReport{}, err
 	}
