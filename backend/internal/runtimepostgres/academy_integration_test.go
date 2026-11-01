@@ -416,6 +416,22 @@ func TestAcademyStoreVerifiedPaidJourneySurvivesRestart(t *testing.T) {
 	if incorrectlyOffered {
 		t.Fatal("terminal historical enrollment was offered again despite immutable purchase binding")
 	}
+	// Read the exact production enrollment-history SQL inside the rollback
+	// probe. A captured purchase cannot make a REVOKED enrollment actionable
+	// in Web or native, even though its underlying entitlement remains ACTIVE.
+	var terminalHistory academy.Enrollment
+	err = probeTx.QueryRowContext(ctx, academyMyEnrollmentsSQL, learner).Scan(
+		&terminalHistory.ID, &terminalHistory.VersionID, &terminalHistory.State,
+		&terminalHistory.EnrolledAt, &terminalHistory.CompletedAt,
+		&terminalHistory.AccessState, &terminalHistory.CourseID,
+		&terminalHistory.CourseTitle, &terminalHistory.VersionNo)
+	if err != nil {
+		t.Fatalf("terminal enrollment history projection failed: %v", err)
+	}
+	if terminalHistory.ID != enrollment.ID || terminalHistory.State != "REVOKED" ||
+		terminalHistory.AccessState != "REVOKED" {
+		t.Fatalf("terminal enrollment falsely offered lesson access: %+v", terminalHistory)
+	}
 	if err = probeTx.Rollback(); err != nil {
 		t.Fatal(err)
 	}
@@ -481,7 +497,8 @@ func TestAcademyStoreVerifiedPaidJourneySurvivesRestart(t *testing.T) {
 	for _, item := range learnerHistory {
 		if item.ID == enrollment.ID {
 			seenCourse = true
-			if item.CourseID != course.ID || item.CourseTitle != "Verified paid course" || item.VersionNo != 1 {
+			if item.CourseID != course.ID || item.CourseTitle != "Verified paid course" ||
+				item.VersionNo != 1 || item.State != "ACTIVE" || item.AccessState != "ACTIVE" {
 				t.Fatalf("learner history lost the immutable published course identity: %+v", item)
 			}
 		}

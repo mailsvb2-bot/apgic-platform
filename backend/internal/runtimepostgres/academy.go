@@ -959,19 +959,27 @@ func (c *Checker) AcademyOutline(actor, courseID, versionID string) (map[string]
 	rows.Close()
 	return map[string]any{"state": state, "version_id": versionID, "modules": modules, "lessons": lessons}, nil
 }
+
+// academyMyEnrollmentsSQL must project actionable lesson access, not merely
+// the historical captured purchase. A terminal enrollment never reopens via
+// an otherwise active Entitlement. Keep this predicate aligned with
+// AcademyLearning and the learner certificate projection.
+const academyMyEnrollmentsSQL = `SELECT e.id::text,e.version_id::text,e.state,e.enrolled_at,e.completed_at,
+ CASE WHEN e.state IN ('ACTIVE','COMPLETED') AND academy_entitlement_is_active(e.entitlement_id)
+   THEN 'ACTIVE' ELSE 'REVOKED' END,
+ c.id::text,COALESCE(v.title_snapshot,c.title),v.version_no
+ FROM academy_enrollments e
+ JOIN academy_course_versions v ON v.id=e.version_id
+ JOIN academy_courses c ON c.id=v.course_id
+ WHERE e.identity_id=$1::uuid ORDER BY e.enrolled_at DESC LIMIT 100`
+
 func (c *Checker) AcademyMyEnrollments(actor string) ([]academy.Enrollment, error) {
 	if c == nil || c.db == nil {
 		return nil, academy.ErrUnavailable
 	}
 	ctx, cancel := academyContext()
 	defer cancel()
-	rows, err := c.db.QueryContext(ctx, `SELECT e.id::text,e.version_id::text,e.state,e.enrolled_at,e.completed_at,
- CASE WHEN academy_entitlement_is_active(e.entitlement_id) THEN 'ACTIVE' ELSE 'REVOKED' END,
- c.id::text,COALESCE(v.title_snapshot,c.title),v.version_no
- FROM academy_enrollments e
- JOIN academy_course_versions v ON v.id=e.version_id
- JOIN academy_courses c ON c.id=v.course_id
- WHERE e.identity_id=$1::uuid ORDER BY e.enrolled_at DESC LIMIT 100`, actor)
+	rows, err := c.db.QueryContext(ctx, academyMyEnrollmentsSQL, actor)
 	if err != nil {
 		return nil, err
 	}
