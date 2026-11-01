@@ -75,6 +75,7 @@ func cloudOpen(value string, key []byte) (cloudOAuthState, error) {
 	}
 	return state, nil
 }
+
 // A callback may finish only under the same signed APGIC identity that
 // initiated the OAuth flow. Switching accounts must never attach another
 // person's cloud credentials to the original author.
