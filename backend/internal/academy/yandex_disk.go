@@ -83,6 +83,31 @@ func (c YandexDiskClient) ListFiles(ctx context.Context, token, path string, off
 	return d.Embedded.Items, d.Embedded.Total, nil
 }
 
+// VerifyVideo resolves a selected file using the author's OAuth credential
+// before accepting it into the private Academy catalog. Client-supplied names,
+// paths and MIME types are never proof that the file exists or is playable.
+func (c YandexDiskClient) VerifyVideo(ctx context.Context, token, path string) (YandexDiskFile, error) {
+	if !strings.HasPrefix(path, "disk:/") || len(path) > 2048 {
+		return YandexDiskFile{}, errors.New("invalid cloud video path")
+	}
+	q := url.Values{"path": {path}, "fields": {"name,path,type,mime_type,size"}}
+	return c.verifyVideoAt(ctx, token, path, yandexDiskAPI+"?"+q.Encode())
+}
+
+// The private helper allows a real HTTP test server to exercise the exact
+// provider response validation without contacting a production OAuth account.
+func (c YandexDiskClient) verifyVideoAt(ctx context.Context, token, path, endpoint string) (YandexDiskFile, error) {
+	var file YandexDiskFile
+	if err := c.do(ctx, token, endpoint, &file); err != nil {
+		return YandexDiskFile{}, err
+	}
+	if file.Path != path || file.Type != "file" || file.Size <= 0 ||
+		!strings.HasPrefix(strings.ToLower(file.MimeType), "video/") {
+		return YandexDiskFile{}, errors.New("cloud file is not a verified video")
+	}
+	return file, nil
+}
+
 // TemporaryDownload is used ONLY server-side by the media gateway.
 // The result must never be included in an author or learner API JSON response.
 func (c YandexDiskClient) TemporaryDownload(ctx context.Context, token, path string) (string, error) {
