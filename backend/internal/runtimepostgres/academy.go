@@ -491,6 +491,9 @@ func (c *Checker) AcademyEnroll(actor, courseID string) (academy.Enrollment, err
 		if !boundAccessActive {
 			return academy.Enrollment{}, academy.ErrEntitlement
 		}
+		if e.State != "ACTIVE" && e.State != "COMPLETED" {
+			return academy.Enrollment{}, academy.ErrState
+		}
 		e.VersionID = versionID
 		e.IdentityID = actor
 		e.AccessState = "ACTIVE"
