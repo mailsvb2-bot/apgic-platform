@@ -479,9 +479,18 @@ func (c *Checker) AcademyEnroll(actor, courseID string) (academy.Enrollment, err
 		return academy.Enrollment{}, err
 	}
 	var e academy.Enrollment
-	err = tx.QueryRowContext(ctx, `SELECT id::text,state,enrolled_at,completed_at,entitlement_id::text
- FROM academy_enrollments WHERE identity_id=$1::uuid AND version_id=$2::uuid`, actor, versionID).Scan(&e.ID, &e.State, &e.EnrolledAt, &e.CompletedAt, &e.EntitlementID)
+	var boundAccessActive bool
+	err = tx.QueryRowContext(ctx, `SELECT id::text,state,enrolled_at,completed_at,entitlement_id::text,
+ academy_entitlement_is_active(entitlement_id)
+ FROM academy_enrollments WHERE identity_id=$1::uuid AND version_id=$2::uuid
+ FOR UPDATE`, actor, versionID).Scan(&e.ID, &e.State, &e.EnrolledAt, &e.CompletedAt, &e.EntitlementID, &boundAccessActive)
 	if err == nil {
+		// An independently verified newer purchase cannot silently reactivate
+		// an immutable historical enrollment bound to a refunded purchase.
+		// A future repurchase policy must preserve both purchase evidences.
+		if !boundAccessActive {
+			return academy.Enrollment{}, academy.ErrEntitlement
+		}
 		e.VersionID = versionID
 		e.IdentityID = actor
 		e.AccessState = "ACTIVE"
