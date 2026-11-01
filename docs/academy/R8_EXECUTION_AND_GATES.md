@@ -134,3 +134,26 @@ identity of other students, or professional qualification is exposed. Web and
 native learner surfaces expose historical certificates without repeating the
 completion mutation. The PostgreSQL paid-journey and refund tests assert
 restart persistence, foreign-identity isolation and revoked lesson access.
+
+## R8 ↔ R4 Finance: no consultation settlement for Academy orders
+
+The canonical R4 settlement/payout worker is consultation-only: it requires a
+completed consultation session and a consultation commission policy. Some
+Academy Store purchase fixtures still carry a legacy `orders.booking_id`.
+That Booking association is **not** consultation fulfillment or authority to
+settle educational revenue. Finance now excludes any order whose immutable
+`orders.product_id` belongs to `academy_courses` from consultation settlement
+candidate discovery, rejects direct `SettleOrder` attempts (including replay)
+before reading an existing instruction, and repeats the exclusion when loading
+consultation settlement facts. The isolated paid Academy PostgreSQL journey
+asserts that a verified course purchase cannot produce a consultation
+settlement instruction; existing R4 consultation convergence tests remain
+required.
+
+This is a **fail-closed safety boundary**, not a course revenue settlement
+implementation. No Academy payout, provider execution or net author-income
+claim is enabled. A future governed R8 Finance integration must supply
+course-specific fulfillment, rights/royalty and refund evidence, a certified
+provider capability, provider statements and reconciliation before a true
+revenue figure can be displayed. Until then Academy exposes only captured
+gross with explicit `GROSS_CAPTURED_ONLY_NO_REFUND_COMMISSION_OR_PAYOUT_RECONCILIATION`.

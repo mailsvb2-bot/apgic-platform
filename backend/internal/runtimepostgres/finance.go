@@ -47,6 +47,11 @@ var (
 	ErrFinanceNotFound         = errors.New("finance record not found")
 )
 
+// Academy sales must never be interpreted as completed consultations.
+// The R4 settlement/payout path is consultation-only until a governed
+// course-specific Finance reconciliation and provider capability exist.
+var ErrFinanceAcademySettlementBlocked = errors.New("academy sale cannot use consultation settlement")
+
 type FinanceSettlementOutcome struct {
 	OrderID                 string `json:"order_id"`
 	Status                  string `json:"status"` // INSTRUCTED, ALREADY_INSTRUCTED, HELD
@@ -128,7 +133,8 @@ SELECT o.id::text
   JOIN consultation_sessions s ON s.booking_id = o.booking_id AND s.state = 'COMPLETED'
   JOIN payment_attempts a ON a.order_id = o.id AND a.state = 'SUCCEEDED'
   JOIN payment_effects e ON e.attempt_id = a.id AND e.effect_kind = 'CAPTURED'
- WHERE NOT EXISTS (SELECT 1 FROM finance_settlement_instructions i WHERE i.order_id = o.id)
+ WHERE NOT EXISTS (SELECT 1 FROM academy_courses ac WHERE ac.product_id = o.product_id)
+   AND NOT EXISTS (SELECT 1 FROM finance_settlement_instructions i WHERE i.order_id = o.id)
    AND NOT EXISTS (SELECT 1 FROM finance_settlement_holds h WHERE h.order_id = o.id)
  ORDER BY o.captured_at, o.id
  LIMIT $1`
@@ -177,7 +183,8 @@ SELECT o.id::text, o.booking_id::text, o.currency, o.commission_policy_version, 
   JOIN payment_effects e ON e.attempt_id = a.id AND e.effect_kind = 'CAPTURED'
   JOIN payment_routing_decisions d ON d.id = a.routing_decision_id
   JOIN payment_provider_config_versions p ON p.id = d.provider_config_id
- WHERE o.id = $1::uuid`, orderID).Scan(
+ WHERE o.id = $1::uuid
+   AND NOT EXISTS (SELECT 1 FROM academy_courses ac WHERE ac.product_id=o.product_id)`, orderID).Scan(
 		&f.OrderID, &f.BookingID, &f.Currency, &f.CommissionPolicyVersion, &f.PlatformRole,
 		&f.BeneficiaryRef, &f.AmountMinor, &f.CommissionMinor,
 		&f.SessionID, &completion,
@@ -199,6 +206,18 @@ func settleOrderTx(ctx context.Context, tx *sql.Tx, orderID string, now time.Tim
 		return FinanceSettlementOutcome{}, fmt.Errorf("lock finance settlement: %w", err)
 	}
 	outcome := FinanceSettlementOutcome{OrderID: orderID}
+	// Direct SettleOrder calls and replays must not bypass the batch filter.
+	// Even a pre-existing instruction cannot authorize another payout attempt
+	// through consultation Finance for a product now bound to Academy.
+	var academySale bool
+	if err := tx.QueryRowContext(ctx, `SELECT EXISTS (
+ SELECT 1 FROM orders o JOIN academy_courses c ON c.product_id=o.product_id
+ WHERE o.id=$1::uuid)`, orderID).Scan(&academySale); err != nil {
+		return outcome, fmt.Errorf("classify finance order: %w", err)
+	}
+	if academySale {
+		return outcome, ErrFinanceAcademySettlementBlocked
+	}
 	var existing string
 	err := tx.QueryRowContext(ctx, `SELECT id::text FROM finance_settlement_instructions WHERE order_id = $1::uuid`, orderID).Scan(&existing)
 	if err == nil {
