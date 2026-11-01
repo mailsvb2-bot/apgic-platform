@@ -722,6 +722,29 @@ func TestAcademyStoreVerifiedPaidJourneySurvivesRestart(t *testing.T) {
 	if err != nil || len(foreignReport.Courses) != 0 || len(foreignReport.GrossCaptures) != 0 {
 		t.Fatalf("learner accessed foreign author's report: %+v %v", foreignReport, err)
 	}
+	// A terminal enrollment cannot grant lessons even if its original captured
+	// Commerce entitlement remains active. Exercise the exact readback SQL in
+	// an isolated rollback transaction; never rewrite the historical record.
+	terminalProbe, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer terminalProbe.Rollback()
+	if _, err = terminalProbe.ExecContext(ctx,
+		"UPDATE academy_enrollments SET state='REVOKED' WHERE id=$1::uuid", enrollment.ID); err != nil {
+		t.Fatalf("terminal certificate probe update failed: %v", err)
+	}
+	var probeID, probeEnrollmentID, probeTitle, probeState, probeToken, probeCandidate, probeAccess string
+	var probeVersion int
+	var probeIssued time.Time
+	err = terminalProbe.QueryRowContext(ctx, academyMyCertificatesSQL, learner).Scan(
+		&probeID, &probeEnrollmentID, &probeTitle, &probeVersion, &probeState,
+		&probeToken, &probeCandidate, &probeIssued, &probeAccess)
+	if err != nil || probeID != certificate.ID || probeEnrollmentID != enrollment.ID ||
+		probeState != "ACTIVE" || probeAccess != "REVOKED" {
+		t.Fatalf("terminal enrollment falsely advertised active lessons for historical certificate: id=%s enrollment=%s state=%s access=%s err=%v",
+			probeID, probeEnrollmentID, probeState, probeAccess, err)
+	}
 }
 
 // TestAcademyStoreRefundWithdrawsLearningAccess proves that an external store
