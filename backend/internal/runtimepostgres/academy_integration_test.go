@@ -322,6 +322,43 @@ func TestAcademyStoreVerifiedPaidJourneySurvivesRestart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("author cannot create the store-bound course: %v", err)
 	}
+	// The same Commerce order used for a verified course purchase still has a
+	// legacy Booking reference. It must never enter the consultation-only
+	// Finance settlement/payout worker, even via a direct SettleOrder call.
+	// Academy author income requires independent Finance reconciliation.
+	const courseOrderID = "00000000-0000-0000-0000-00000000a501"
+	if outcome, err := store.SettleOrder(ctx, courseOrderID); !errors.Is(err, ErrFinanceAcademySettlementBlocked) ||
+		outcome.Status != "" || outcome.SettlementInstructionID != "" {
+		t.Fatalf("academy order entered consultation settlement: %+v %v", outcome, err)
+	}
+	var settlementCount int
+	if err := store.db.QueryRowContext(ctx,
+		"SELECT count(*) FROM finance_settlement_instructions WHERE order_id=$1::uuid", courseOrderID).
+		Scan(&settlementCount); err != nil || settlementCount != 0 {
+		t.Fatalf("academy settlement side effect: count=%d err=%v", settlementCount, err)
+	}
+	// The candidate scan must also exclude the Academy product before any
+	// future consultation lifecycle event could accidentally make it eligible.
+	candidates, err := store.db.QueryContext(ctx, financeCandidateSQL, 1000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for candidates.Next() {
+		var orderID string
+		if err := candidates.Scan(&orderID); err != nil {
+			candidates.Close()
+			t.Fatal(err)
+		}
+		if orderID == courseOrderID {
+			candidates.Close()
+			t.Fatal("Academy sale leaked into consultation settlement batch")
+		}
+	}
+	if err := candidates.Err(); err != nil {
+		candidates.Close()
+		t.Fatal(err)
+	}
+	candidates.Close()
 	module, err := store.AcademyAddModule(author, course.ID, course.VersionID, academy.Module{Title: "Module A", Ordinal: 1})
 	if err != nil {
 		t.Fatal(err)
