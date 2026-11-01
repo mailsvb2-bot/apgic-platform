@@ -389,6 +389,36 @@ func TestAcademyStoreVerifiedPaidJourneySurvivesRestart(t *testing.T) {
 		replayedEnrollment.EntitlementID != paidEntitlement || replayedEnrollment.AccessState != "ACTIVE" {
 		t.Fatalf("verified enrollment replay changed immutable payment basis: %+v %v", replayedEnrollment, err)
 	}
+	// A newer independent purchase must not make a terminal enrollment
+	// look actionable in the learner catalog. Probe the exact shared SQL
+	// inside a rollback-only transaction: immutable production history stays
+	// untouched for the remainder of the complete paid learning journey.
+	probeTx, err := store.db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer probeTx.Rollback()
+	var canonicalCaptureActive bool
+	if err = probeTx.QueryRowContext(ctx,
+		"SELECT academy_entitlement_is_active($1::uuid)", paidEntitlement).Scan(&canonicalCaptureActive); err != nil || !canonicalCaptureActive {
+		t.Fatalf("verified captured purchase not accepted by shared Academy gate: active=%v err=%v", canonicalCaptureActive, err)
+	}
+	if _, err = probeTx.ExecContext(ctx,
+		"UPDATE academy_enrollments SET state='REVOKED' WHERE id=$1::uuid", enrollment.ID); err != nil {
+		t.Fatalf("terminal enrollment probe failed: %v", err)
+	}
+	var incorrectlyOffered bool
+	if err = probeTx.QueryRowContext(ctx,
+		`SELECT EXISTS(SELECT 1 `+academyVerifiedEnrollmentFrom+`
+		 AND c.id=$2::uuid)`, learner, course.ID).Scan(&incorrectlyOffered); err != nil {
+		t.Fatal(err)
+	}
+	if incorrectlyOffered {
+		t.Fatal("terminal historical enrollment was offered again despite immutable purchase binding")
+	}
+	if err = probeTx.Rollback(); err != nil {
+		t.Fatal(err)
+	}
 	// A real store-verified enrollment can join a scheduled cohort, but only
 	// through the canonical Academy writer and within the purchased version.
 	starts := time.Now().UTC().Add(4 * time.Hour)
