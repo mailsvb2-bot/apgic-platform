@@ -69,7 +69,7 @@ func TestAcademyVideoGatewayHTTPTransport(t *testing.T) {
 				t.Fatal("valid upstream HTTP response rejected")
 			}
 			var output bytes.Buffer
-			err = academyCopyVideoAuthorized(&output, response.Body, func() bool { return true }, 512, time.Second)
+			err = academyCopyVideoAuthorized(&output, response.Body, func() bool { return true })
 			if err != nil {
 				t.Fatal(err)
 			}
