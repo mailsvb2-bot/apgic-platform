@@ -26,7 +26,6 @@ const academyAssessmentOpenSQL = `(` + academyScheduleOpenSQL + `
  AND (l.kind<>'ASSESSMENT' OR limits.submission_deadline IS NULL
       OR now()<limits.submission_deadline))`
 
-
 func academyID() (string, error) { return persistentid.New() }
 func academyToken() (string, error) {
 	b := make([]byte, 32)
