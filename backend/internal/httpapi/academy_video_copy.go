@@ -3,31 +3,21 @@ package httpapi
 import (
 	"errors"
 	"io"
-	"time"
 )
 
 var errAcademyVideoRevoked = errors.New("academy media access revoked")
 
-// academyCopyVideoAuthorized never writes a freshly read chunk once the
-// canonical entitlement checker denies it. Rechecks occur by bytes or time.
-// The independent watcher cancels blocked upstream reads.
-func academyCopyVideoAuthorized(dst io.Writer, src io.Reader, authorized func() bool, maxBytes int, interval time.Duration) error {
-	if maxBytes <= 0 || interval <= 0 {
-		return errors.New("invalid media authorization interval")
-	}
+// academyCopyVideoAuthorized rechecks canonical access before EVERY 64 KiB
+// write, including the first. A revoked enrollment must not receive the
+// remainder of a previously authorized chunk. The independent watcher in
+// the HTTP handler cancels stalled upstream reads between chunks.
+func academyCopyVideoAuthorized(dst io.Writer, src io.Reader, authorized func() bool) error {
 	buffer := make([]byte, 64<<10)
-	sinceCheck := 0
-	lastCheck := time.Now()
 	for {
 		n, readErr := src.Read(buffer)
 		if n > 0 {
-			sinceCheck += n
-			if sinceCheck >= maxBytes || time.Since(lastCheck) >= interval {
-				if !authorized() {
-					return errAcademyVideoRevoked
-				}
-				sinceCheck = 0
-				lastCheck = time.Now()
+			if !authorized() {
+				return errAcademyVideoRevoked
 			}
 			written, writeErr := dst.Write(buffer[:n])
 			if writeErr != nil {
