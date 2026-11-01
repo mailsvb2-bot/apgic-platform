@@ -22,6 +22,7 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
  const [rows,setRows]=useState("");
  const [selected,setSelected]=useState<string[]>([]);
  const [lessonId,setLessonId]=useState("");
+ const [perLesson,setPerLesson]=useState(10);
  const [assignments,setAssignments]=useState<Mapping[]>([]);
  const [saved,setSaved]=useState<AuthorMediaAssignment[]>([]);
  const [message,setMessage]=useState("");
@@ -46,6 +47,20 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
    await request("/v1/academy/author/cloud-media/import",{items});
    await reload();setRows("");setMessage("Видеозаписи добавлены в медиатеку");
   }catch(error){setMessage(String(error))}finally{setBusy(false)}
+ }
+ function allocateAll(){
+  const targets=lessons.filter(l=>l.kind==="VIDEO");
+  const ids=selected.length?selected:media.map(m=>m.id);
+  if(!targets.length||!ids.length){setMessage("Нужны видеоуроки и выбранные материалы");return}
+  if(perLesson<1||perLesson>100||!Number.isInteger(perLesson)){setMessage("Видео на урок: от 1 до 100");return}
+  if(ids.length>targets.length*perLesson){setMessage("Видео больше, чем свободных мест в выбранных уроках");return}
+  const all=ids.map((id,i)=>({
+   lesson_id:targets[Math.floor(i/perLesson)].id,
+   media_id:id,ordinal:(i%perLesson)+1
+  }));
+  if(all.length>2000){setMessage("Разбейте импорт на группы до 2000 файлов");return}
+  setAssignments(all);
+  setMessage(`Подготовлено ${all.length} назначений для ${Math.ceil(all.length/perLesson)} уроков. Проверьте перед сохранением.`);
  }
  function allocate(){
   if(!lessonId||!selected.length)return;
@@ -81,13 +96,23 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
     {m.source_url&&<a href={m.source_url} rel="noreferrer" target="_blank">Оригинал</a>}
    </label>)}
   </div>
-  <label htmlFor="cloud-target-lesson">Назначить выбранные видео уроку</label>
+  <h4>Массовое автоматическое распределение</h4>
+  <p>Выделите все видео (или оставьте список без выделения), выберите число видео на урок. Порядок определяется списком медиатеки и уроков.</p>
+  <label htmlFor="cloud-per-lesson">Видео на урок</label>
+  <input id="cloud-per-lesson" type="number" min={1} max={100} value={perLesson} onChange={e=>setPerLesson(Number(e.target.value))}/>
+  <button type="button" disabled={busy||!media.length} onClick={allocateAll}>Распределить по всем видеоурокам</button>
+  <label htmlFor="cloud-target-lesson">Или назначить выбранные видео одному уроку</label>
   <select id="cloud-target-lesson" value={lessonId} onChange={e=>setLessonId(e.target.value)}>
    <option value="">Выберите урок</option>
    {lessons.filter(l=>l.kind==="VIDEO").map(l=><option key={l.id} value={l.id}>{l.title}</option>)}
   </select>
   <button type="button" disabled={busy||!selected.length||!lessonId} onClick={allocate}>Назначить выбранные</button>
   <p>Подготовлено назначений: {assignments.length}</p>
+  <div style={{maxHeight:220,overflowY:"auto"}}>
+   {assignments.map((a,i)=><p key={a.lesson_id+":"+a.media_id+":"+i}>
+    {lessons.find(l=>l.id===a.lesson_id)?.title||"Урок"} · {a.ordinal}. {media.find(m=>m.id===a.media_id)?.title||"Видео"}
+   </p>)}
+  </div>
   <h4>Сохранённые материалы уроков</h4>
   {saved.map(a=><p key={a.lesson_id+":"+a.media_id}>
     {lessons.find(l=>l.id===a.lesson_id)?.title||"Урок"} · {a.ordinal}. {a.title}
