@@ -2,7 +2,6 @@ package httpapi
 
 import (
 	"context"
-	"io"
 	"net/http"
 	"strings"
 	"time"
