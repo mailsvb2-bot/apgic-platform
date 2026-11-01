@@ -42,3 +42,25 @@ func TestCloudOAuthSignedStateRejectsTamperingAndExpiry(t *testing.T) {
 		t.Fatal("expired OAuth flow accepted")
 	}
 }
+
+func TestCloudOAuthCallbackRejectsSessionSwitch(t *testing.T) {
+	state := cloudOAuthState{Actor: "author-one"}
+	for _, tc := range []struct {
+		name  string
+		actor string
+		allow bool
+	}{
+		{name: "same signed author", actor: "author-one", allow: true},
+		{name: "another signed author", actor: "author-two", allow: false},
+		{name: "logged out", actor: "", allow: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := cloudOAuthActorMatches(state, tc.actor); got != tc.allow {
+				t.Fatalf("callback actor match=%v, want %v", got, tc.allow)
+			}
+		})
+	}
+	if cloudOAuthActorMatches(cloudOAuthState{}, "author-one") {
+		t.Fatal("empty state actor accepted")
+	}
+}
