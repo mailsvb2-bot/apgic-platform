@@ -21,9 +21,12 @@ type CourseReport struct {
 // CapturedGrossEvidence is sourced from canonical captured Store transactions
 // with a matching immutable order.product_id, not from client assertions.
 // It is gross payment volume, NOT net revenue, author royalties or a payout.
-// ActiveCount/ActiveGrossMinor are the historical captured orders whose
-// canonical entitlement still grants access at read time. They are NOT
-// refund amounts, settled receipts, commission-adjusted income or payout.
+// ActiveCount/ActiveGrossMinor are the historical captured orders linked
+// to an ACTIVE/COMPLETED Academy enrollment whose canonical entitlement is
+// still valid at read time. A paid but not yet enrolled learner, or a revoked
+// enrollment with an otherwise active entitlement, is not counted here.
+// They are NOT refund amounts, settled receipts, commission-adjusted income
+// or payout.
 type CapturedGrossEvidence struct {
 	CourseID           string `json:"course_id"`
 	Currency           string `json:"currency"`
