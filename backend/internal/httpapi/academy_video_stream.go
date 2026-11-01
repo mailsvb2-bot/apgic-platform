@@ -59,7 +59,7 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 			return
 		}
 		if value := r.Header.Get("Range"); value != "" {
-			if len(value) > 128 || !strings.HasPrefix(value, "bytes=") || strings.Contains(value, ",") {
+			if !academyVideoSingleRange(value) {
 				http.Error(w, "Invalid range", http.StatusRequestedRangeNotSatisfiable)
 				return
 			}
@@ -127,4 +127,26 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 			}
 		}
 	})
+}
+
+func academyVideoSingleRange(value string) bool {
+	if len(value) > 128 || !strings.HasPrefix(value, "bytes=") {
+		return false
+	}
+	spec := strings.TrimPrefix(value, "bytes=")
+	if strings.Count(spec, "-") != 1 || strings.Contains(spec, ",") {
+		return false
+	}
+	parts := strings.SplitN(spec, "-", 2)
+	if parts[0] == "" && parts[1] == "" {
+		return false
+	}
+	for _, part := range parts {
+		for _, digit := range part {
+			if digit < '0' || digit > '9' {
+				return false
+			}
+		}
+	}
+	return true
 }
