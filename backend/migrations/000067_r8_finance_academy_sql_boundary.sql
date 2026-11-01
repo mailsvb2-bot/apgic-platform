@@ -2,11 +2,13 @@
 -- at PostgreSQL, including direct SQL and late course registration.
 -- No Academy settlement, payout, or revenue reconciliation is enabled.
 
--- Freeze both writers while checking existing facts and installing guards.
-LOCK TABLE finance_settlement_instructions, academy_courses IN SHARE ROW EXCLUSIVE MODE;
-
-DO $$
+-- The canonical staging migrator wraps this file in a transaction, so
+-- these locks remain held through trigger installation in production. The
+-- isolated restore drill executes each statement separately; DO supplies
+-- its own statement transaction for the historical preflight.
+DO $
 BEGIN
+  LOCK TABLE finance_settlement_instructions, academy_courses IN SHARE ROW EXCLUSIVE MODE;
   IF EXISTS (
     SELECT 1 FROM finance_settlement_instructions i
     JOIN orders o ON o.id = i.order_id
