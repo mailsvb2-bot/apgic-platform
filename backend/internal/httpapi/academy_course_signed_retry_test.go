@@ -27,14 +27,14 @@ func (s *academySignedCourseStore) AcademyCreateCourse(actor string, input acade
 		return academy.Course{}, academy.ErrInvalid
 	}
 	return academy.Course{
-		ID: "00000000-0000-0000-0000-00000000c002",
-		ProductID: input.ProductID,
-		AuthorID: actor,
-		Title: input.Title,
+		ID:          "00000000-0000-0000-0000-00000000c002",
+		ProductID:   input.ProductID,
+		AuthorID:    actor,
+		Title:       input.Title,
 		Description: input.Description,
-		State: "DRAFT",
-		VersionID: "00000000-0000-0000-0000-00000000c003",
-		VersionNo: 1,
+		State:       "DRAFT",
+		VersionID:   "00000000-0000-0000-0000-00000000c003",
+		VersionNo:   1,
 	}, nil
 }
 
