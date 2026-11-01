@@ -1,7 +1,7 @@
 package runtimepostgres
 
 import (
- "github.com/mailsvb2-bot/apgic-platform/backend/internal/academy"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/academy"
 )
 
 // AcademyLearnerVideoManifest exposes strictly APGIC-owned IDs and display
@@ -9,11 +9,15 @@ import (
 // credential. Every read uses the canonical active enrollment entitlement
 // and checks release windows in PostgreSQL on that same request.
 func (c *Checker) AcademyLearnerVideoManifest(actor, enrollmentID, lessonID string) ([]academy.LearnerVideo, error) {
- if c == nil || c.db == nil { return nil, academy.ErrUnavailable }
- if !academyMediaUUID(actor) || !academyMediaUUID(enrollmentID) || !academyMediaUUID(lessonID) { return nil, academy.ErrInvalid }
- ctx,cancel:=academyContext()
- defer cancel()
- rows,err:=c.db.QueryContext(ctx,`SELECT media.id::text,media.title,lm.ordinal
+	if c == nil || c.db == nil {
+		return nil, academy.ErrUnavailable
+	}
+	if !academyMediaUUID(actor) || !academyMediaUUID(enrollmentID) || !academyMediaUUID(lessonID) {
+		return nil, academy.ErrInvalid
+	}
+	ctx, cancel := academyContext()
+	defer cancel()
+	rows, err := c.db.QueryContext(ctx, `SELECT media.id::text,media.title,lm.ordinal
  FROM academy_enrollments e
  JOIN store_entitlements t ON t.id=e.entitlement_id
  JOIN academy_course_versions v ON v.id=e.version_id AND v.state='PUBLISHED'
@@ -27,15 +31,24 @@ func (c *Checker) AcademyLearnerVideoManifest(actor, enrollmentID, lessonID stri
  WHERE e.id=$1::uuid AND e.identity_id=$2::uuid AND l.id=$3::uuid
  AND e.state IN ('ACTIVE','COMPLETED') AND academy_entitlement_is_active(t.id)
  AND `+academyAssessmentOpenSQL+`
- ORDER BY lm.ordinal`,enrollmentID,actor,lessonID)
- if err!=nil{return nil,err}
- defer rows.Close()
- out:=[]academy.LearnerVideo{}
- for rows.Next(){var item academy.LearnerVideo
-  if err=rows.Scan(&item.ID,&item.Title,&item.Ordinal);err!=nil{return nil,err}
-  out=append(out,item)
- }
- if err=rows.Err();err!=nil{return nil,err}
- if len(out)==0 {return nil,academy.ErrEntitlement}
- return out,nil
+ ORDER BY lm.ordinal`, enrollmentID, actor, lessonID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []academy.LearnerVideo{}
+	for rows.Next() {
+		var item academy.LearnerVideo
+		if err = rows.Scan(&item.ID, &item.Title, &item.Ordinal); err != nil {
+			return nil, err
+		}
+		out = append(out, item)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+	if len(out) == 0 {
+		return nil, academy.ErrEntitlement
+	}
+	return out, nil
 }
