@@ -50,7 +50,8 @@ func academyVideoPartialMatchesRequest(requestRange, contentRange, contentLength
 		return false
 	}
 	if last == "" {
-		return end == total-1
+		// Providers may cap the size of an open-ended range response.
+		return true
 	}
 	requestedEnd, err := strconv.ParseUint(last, 10, 64)
 	if err != nil || requestedEnd < requestedStart {
@@ -59,5 +60,5 @@ func academyVideoPartialMatchesRequest(requestRange, contentRange, contentLength
 	if requestedEnd >= total {
 		requestedEnd = total - 1
 	}
-	return end == requestedEnd
+	return end <= requestedEnd
 }

@@ -7,6 +7,8 @@ func TestAcademyVideoPartialMatchesRequest(t *testing.T) {
 		{"bytes=0-99", "bytes 0-99/1000", "100"},
 		{"bytes=900-2000", "bytes 900-999/1000", "100"},
 		{"bytes=500-", "bytes 500-999/1000", "500"},
+		{"bytes=500-", "bytes 500-799/1000", "300"},
+		{"bytes=0-99", "bytes 0-49/1000", "50"},
 		{"bytes=-100", "bytes 900-999/1000", "100"},
 		{"bytes=-2000", "bytes 0-999/1000", "1000"},
 		{"bytes=0-99", "bytes 0-99/1000", ""},
