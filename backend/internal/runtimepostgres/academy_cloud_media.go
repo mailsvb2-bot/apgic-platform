@@ -43,6 +43,7 @@ func (c *Checker) AcademyAssignCloudMedia(actor, courseID, versionID string, ite
 		return academy.ErrState
 	}
 	used := map[string]map[int]bool{}
+	seenMedia := map[string]map[string]bool{}
 	for _, item := range items {
 		if item.Ordinal < 1 || item.Ordinal > 2000 || !academyMediaUUID(item.LessonID) || !academyMediaUUID(item.MediaID) {
 			return academy.ErrInvalid
@@ -54,6 +55,13 @@ func (c *Checker) AcademyAssignCloudMedia(actor, courseID, versionID string, ite
 			return academy.ErrConflict
 		}
 		used[item.LessonID][item.Ordinal] = true
+		if seenMedia[item.LessonID] == nil {
+			seenMedia[item.LessonID] = map[string]bool{}
+		}
+		if seenMedia[item.LessonID][item.MediaID] {
+			return academy.ErrConflict
+		}
+		seenMedia[item.LessonID][item.MediaID] = true
 		var exists bool
 		err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM academy_lessons l JOIN academy_modules m ON m.id=l.module_id
    JOIN academy_cloud_media media ON media.id=$3::uuid AND media.author_id=$4::uuid
@@ -104,6 +112,9 @@ func (c *Checker) AcademyImportCloudMedia(actor string, items []AcademyCloudMedi
 		it.ProviderFileRef = strings.TrimSpace(it.ProviderFileRef)
 		it.Title = strings.TrimSpace(it.Title)
 		if len(it.ProviderFileRef) < 1 || len(it.ProviderFileRef) > 2048 || len(it.Title) < 1 || len(it.Title) > 300 || len(it.SourceURL) > 4096 {
+			return nil, academy.ErrInvalid
+		}
+		if it.Provider == "YANDEX_DISK" && !strings.HasPrefix(it.ProviderFileRef, "disk:/") {
 			return nil, academy.ErrInvalid
 		}
 		if it.SourceURL != "" && !strings.HasPrefix(it.SourceURL, "https://") {

@@ -73,6 +73,8 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
   if(!assignments.length)return;
   setBusy(true);setMessage("");
   try{
+   const source=assignments.reduce((map,a)=>{const values=map.get(a.lesson_id)||[];values.push(a);map.set(a.lesson_id,values);return map},new Map<string,Mapping[]>());
+   if([...source.values()].some(rows=>new Set(rows.map(x=>x.media_id)).size!==rows.length))throw new Error("Одно видео назначено уроку дважды");
    await request(`/v1/academy/courses/${courseId}/versions/${versionId}/media/assign`,{items:assignments});
    await reload();
    setMessage("Распределение сохранено");
