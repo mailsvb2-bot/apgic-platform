@@ -38,10 +38,10 @@ func TestAcademyAuthorSignedCommerceToPublishedCoursePostgres(t *testing.T) {
 	defer store.Close()
 	handler := New(Options{
 		ClientSessionKey: []byte(strings.Repeat("a", 48)),
-		Organizations: store,
-		Products: store,
-		Academy: store,
-		Now: func() time.Time { return time.Date(2026, 11, 1, 15, 0, 0, 0, time.UTC) },
+		Organizations:    store,
+		Products:         store,
+		Academy:          store,
+		Now:              func() time.Time { return time.Date(2026, 11, 1, 15, 0, 0, 0, time.UTC) },
 	})
 	request := func(method, path string, cookie *http.Cookie, body any) *httptest.ResponseRecorder {
 		t.Helper()
@@ -99,8 +99,8 @@ func TestAcademyAuthorSignedCommerceToPublishedCoursePostgres(t *testing.T) {
 	}
 	productResponse := request("POST", "/v1/organizations/"+org.ID+"/products", authorCookie, map[string]any{
 		"name": "Academy author product", "direction_id": directed.Directions[0].ID,
-		"commercial_owner_ref": "organization/" + org.ID,
-		"author_refs": []string{"identity/original-author"},
+		"commercial_owner_ref":    "organization/" + org.ID,
+		"author_refs":             []string{"identity/original-author"},
 		"revenue_beneficiary_ref": "organization/" + org.ID,
 	})
 	require(productResponse, http.StatusCreated)
@@ -117,7 +117,9 @@ func TestAcademyAuthorSignedCommerceToPublishedCoursePostgres(t *testing.T) {
 	}
 	eligible := request("GET", "/v1/academy/author/eligible-products", authorCookie, nil)
 	require(eligible, http.StatusOK)
-	var eligibleProducts struct { Products []academy.AuthorProduct `json:"products"` }
+	var eligibleProducts struct {
+		Products []academy.AuthorProduct `json:"products"`
+	}
 	decode(eligible, &eligibleProducts)
 	found := false
 	for _, p := range eligibleProducts.Products {
@@ -197,7 +199,9 @@ func TestAcademyAuthorSignedCommerceToPublishedCoursePostgres(t *testing.T) {
 	foreignCookie := foreignCookies[0]
 	foreignEligible := request("GET", "/v1/academy/author/eligible-products", foreignCookie, nil)
 	require(foreignEligible, http.StatusOK)
-	var foreignProducts struct { Products []academy.AuthorProduct `json:"products"` }
+	var foreignProducts struct {
+		Products []academy.AuthorProduct `json:"products"`
+	}
 	decode(foreignEligible, &foreignProducts)
 	for _, p := range foreignProducts.Products {
 		if p.ID == product.ID {
