@@ -37,6 +37,13 @@ func (c *Checker) AcademyVerifyYandexDiskMedia(ctx context.Context, actor string
 			// request details or authorization information.
 			return academy.ErrDenied
 		}
+		// Metadata alone is insufficient: confirm that the same authorized
+		// provider can issue a validated private download for this video.
+		// The temporary URL is deliberately discarded, never persisted or
+		// returned to an author/learner response.
+		if _, err := provider.TemporaryDownload(ctx, token, item.ProviderFileRef); err != nil {
+			return academy.ErrDenied
+		}
 	}
 	return nil
 }
