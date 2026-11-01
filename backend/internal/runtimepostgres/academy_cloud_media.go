@@ -74,6 +74,47 @@ func (c *Checker) AcademyAssignCloudMedia(actor, courseID, versionID string, ite
 			return academy.ErrDenied
 		}
 	}
+	// Exact retry after a lost HTTP response must not rewrite rows or emit a
+	// duplicate academy.media.assigned event. The course version row lock
+	// serializes concurrent retries from the same author.
+	var current []AcademyMediaAssignment
+	for lesson := range used {
+		rows, queryErr := tx.QueryContext(ctx, `SELECT lesson_id::text,media_id::text,ordinal
+ FROM academy_lesson_media WHERE lesson_id=$1::uuid ORDER BY ordinal`, lesson)
+		if queryErr != nil {
+			return queryErr
+		}
+		for rows.Next() {
+			var item AcademyMediaAssignment
+			if scanErr := rows.Scan(&item.LessonID, &item.MediaID, &item.Ordinal); scanErr != nil {
+				rows.Close()
+				return scanErr
+			}
+			current = append(current, item)
+		}
+		if rowsErr := rows.Err(); rowsErr != nil {
+			rows.Close()
+			return rowsErr
+		}
+		rows.Close()
+	}
+	equal := len(current) == len(items)
+	if equal {
+		lookup := make(map[string]AcademyMediaAssignment, len(current))
+		for _, item := range current {
+			lookup[item.LessonID+"/"+item.MediaID] = item
+		}
+		for _, item := range items {
+			existing, ok := lookup[item.LessonID+"/"+item.MediaID]
+			if !ok || existing.Ordinal != item.Ordinal {
+				equal = false
+				break
+			}
+		}
+	}
+	if equal {
+		return tx.Commit()
+	}
 	for lesson := range used {
 		if _, err = tx.ExecContext(ctx, `DELETE FROM academy_lesson_media WHERE lesson_id=$1::uuid`, lesson); err != nil {
 			return err
