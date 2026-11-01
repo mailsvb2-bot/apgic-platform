@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 
@@ -48,13 +49,20 @@ func TestAcademyCreateCourseConcurrentRetry(t *testing.T) {
 	results := make([]academy.Course, count)
 	errs := make([]error, count)
 	var wg sync.WaitGroup
+	start := make(chan struct{})
 	for i := 0; i < count; i++ {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			results[i], errs[i] = store.AcademyCreateCourse(author, input)
+			<-start
+			request := input
+			if i%2 == 1 {
+				request.ProductID = strings.ToUpper(product)
+			}
+			results[i], errs[i] = store.AcademyCreateCourse(author, request)
 		}(i)
 	}
+	close(start)
 	wg.Wait()
 	for i := 0; i < count; i++ {
 		if errs[i] != nil || results[i].ID == "" || results[i].ID != results[0].ID {
