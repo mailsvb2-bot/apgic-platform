@@ -1,0 +1,87 @@
+"use client";
+
+import {useState,type FormEvent} from "react";
+
+type CloudMedia={id:string;title:string;provider:string;provider_file_ref:string;source_url?:string};
+type VideoLesson={id:string;title:string;kind:string};
+type Mapping={lesson_id:string;media_id:string;ordinal:number};
+
+async function request<T>(url:string,body?:unknown):Promise<T>{
+ const r=await fetch(url,{method:body===undefined?"GET":"POST",credentials:"same-origin",
+  cache:"no-store",headers:{"Content-Type":"application/json"},
+  body:body===undefined?undefined:JSON.stringify(body)});
+ const data=await r.json().catch(()=>({}));
+ if(!r.ok)throw new Error(data.message_safe||data.code||"Операция не выполнена");
+ return data as T;
+}
+export default function CloudMediaEditor({courseId,versionId,lessons}:{
+ courseId:string;versionId:string;lessons:VideoLesson[];
+}){
+ const [media,setMedia]=useState<CloudMedia[]>([]);
+ const [rows,setRows]=useState("");
+ const [selected,setSelected]=useState<string[]>([]);
+ const [lessonId,setLessonId]=useState("");
+ const [assignments,setAssignments]=useState<Mapping[]>([]);
+ const [message,setMessage]=useState("");
+ const [busy,setBusy]=useState(false);
+ async function reload(){
+  const d=await request<{media:CloudMedia[]}>("/v1/academy/author/cloud-media");
+  setMedia(d.media);
+ }
+ async function importRows(e:FormEvent){
+  e.preventDefault();setBusy(true);setMessage("");
+  try{
+   const lines=rows.trim().split(/\r?\n/).filter(Boolean);
+   if(!lines.length||lines.length>2000)throw new Error("Введите от 1 до 2000 файлов");
+   const items=lines.map(line=>{
+    const parts=line.split("|");
+    return {provider:"YANDEX_DISK",provider_file_ref:parts[0].trim(),title:parts.slice(1).join("|").trim()||parts[0].trim()};
+   });
+   if(items.some(x=>!x.provider_file_ref))throw new Error("Пустой идентификатор файла");
+   await request("/v1/academy/author/cloud-media/import",{items});
+   await reload();setRows("");setMessage("Видеозаписи добавлены в медиатеку");
+  }catch(error){setMessage(String(error))}finally{setBusy(false)}
+ }
+ function allocate(){
+  if(!lessonId||!selected.length)return;
+  const known=assignments.filter(a=>a.lesson_id!==lessonId);
+  const incoming=selected.map((id,i)=>({lesson_id:lessonId,media_id:id,ordinal:i+1}));
+  setAssignments([...known,...incoming]);
+  setMessage("Распределение подготовлено. Нажмите «Сохранить распределение»");
+ }
+ async function persist(){
+  if(!assignments.length)return;
+  setBusy(true);setMessage("");
+  try{
+   await request(`/v1/academy/courses/${courseId}/versions/${versionId}/media/assign`,{items:assignments});
+   setMessage("Распределение сохранено");
+  }catch(error){setMessage(String(error))}finally{setBusy(false)}
+ }
+ return <section className="panel" aria-label="Массовое назначение видео">
+  <h3>Медиатека автора</h3>
+  <p>Импорт списка облачных файлов и распределение по видеоурокам. OAuth-выбор файлов в Яндекс Диске и ученическое воспроизведение пока не подключены.</p>
+  <button type="button" disabled={busy} onClick={()=>void reload().catch(e=>setMessage(String(e)))}>Загрузить медиатеку</button>
+  <p role="status">{message}</p>
+  <form onSubmit={importRows}>
+   <label htmlFor="cloud-media-rows">Список файлов: ID файла | название (каждый файл с новой строки)</label>
+   <textarea id="cloud-media-rows" rows={5} value={rows} onChange={e=>setRows(e.target.value)} placeholder={"disk:/videos/001.mp4 | Видео 1\ndisk:/videos/002.mp4 | Видео 2"}/>
+   <button disabled={busy}>Добавить файлы</button>
+  </form>
+  <h4>Выбрать сразу несколько видео</h4>
+  <div style={{maxHeight:220,overflowY:"auto"}}>
+   {media.map(m=><label key={m.id} style={{display:"block"}}>
+    <input type="checkbox" checked={selected.includes(m.id)} onChange={e=>setSelected(old=>e.target.checked?[...old,m.id]:old.filter(id=>id!==m.id))}/>
+    {m.title} · {m.provider_file_ref}
+    {m.source_url&&<a href={m.source_url} rel="noreferrer" target="_blank">Оригинал</a>}
+   </label>)}
+  </div>
+  <label htmlFor="cloud-target-lesson">Назначить выбранные видео уроку</label>
+  <select id="cloud-target-lesson" value={lessonId} onChange={e=>setLessonId(e.target.value)}>
+   <option value="">Выберите урок</option>
+   {lessons.filter(l=>l.kind==="VIDEO").map(l=><option key={l.id} value={l.id}>{l.title}</option>)}
+  </select>
+  <button type="button" disabled={busy||!selected.length||!lessonId} onClick={allocate}>Назначить выбранные</button>
+  <p>Подготовлено назначений: {assignments.length}</p>
+  <button type="button" disabled={busy||!assignments.length} onClick={()=>void persist()}>Сохранить распределение</button>
+ </section>;
+}

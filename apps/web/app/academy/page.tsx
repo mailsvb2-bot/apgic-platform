@@ -1,6 +1,7 @@
 "use client";
 
 import {useCallback,useEffect,useState,type FormEvent} from "react";
+import CloudMediaEditor from "./cloud-media-editor";
 
 type AcademyNotifications = {enabled:boolean;learning_updates:boolean;assessment_results:boolean;certificate_updates:boolean};
 type AuthorProduct = {id:string;name:string};
@@ -364,6 +365,7 @@ export default function AcademyPage(){
   </section>
   {course&&<section className="how-section">
    <h2>Редактор: {course.title} — версия {course.version_no}</h2>
+   {course.state==="DRAFT"&&<CloudMediaEditor courseId={course.id} versionId={course.version_id} lessons={lessons.map(l=>({id:l.id,title:l.title,kind:l.kind}))}/>}
    <div className="how-grid">
     <form className="panel specialist-form" onSubmit={addModule}>
      <h3>Модуль</h3><label htmlFor="academy-module">Название</label>
