@@ -75,7 +75,14 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 			return
 		}
 		defer response.Body.Close()
-		if response.StatusCode != http.StatusOK && response.StatusCode != http.StatusPartialContent && response.StatusCode != http.StatusRequestedRangeNotSatisfiable {
+		if response.StatusCode == http.StatusRequestedRangeNotSatisfiable {
+			if value := response.Header.Get("Content-Range"); value != "" {
+				w.Header().Set("Content-Range", value)
+			}
+			w.WriteHeader(http.StatusRequestedRangeNotSatisfiable)
+			return
+		}
+		if response.StatusCode != http.StatusOK && response.StatusCode != http.StatusPartialContent {
 			academyHTTPError(w, r, academy.ErrUnavailable)
 			return
 		}
