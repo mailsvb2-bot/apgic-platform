@@ -117,7 +117,7 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
   <p>После подключения облака можно открыть папку, отметить сразу несколько видео и добавить их одним нажатием.</p>
   <button type="button" disabled={busy} onClick={()=>void browseDisk("disk:/")}>Открыть Яндекс Диск</button>
   <p>Папка: {diskPath}</p>
-  {diskPath!=="disk:/"&&<button type="button" disabled={busy} onClick={()=>void browseDisk(diskPath.split("/").slice(0,-1).join("/")||"disk:/")}>На уровень выше</button>}
+  {diskPath!=="disk:/"&&<button type="button" disabled={busy} onClick={()=>void browseDisk(diskPath.slice(0,diskPath.lastIndexOf("/"))==="disk:"?"disk:/":diskPath.slice(0,diskPath.lastIndexOf("/")))}>На уровень выше</button>}
   <div style={{maxHeight:240,overflowY:"auto"}}>
    {diskFiles.map(file=><div key={file.path}>
     {file.type==="dir"
