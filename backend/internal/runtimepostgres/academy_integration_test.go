@@ -722,28 +722,29 @@ func TestAcademyStoreVerifiedPaidJourneySurvivesRestart(t *testing.T) {
 	if err != nil || len(foreignReport.Courses) != 0 || len(foreignReport.GrossCaptures) != 0 {
 		t.Fatalf("learner accessed foreign author's report: %+v %v", foreignReport, err)
 	}
-	// A terminal enrollment cannot grant lessons even if its original captured
-	// Commerce entitlement remains active. Exercise the exact readback SQL in
-	// an isolated rollback transaction; never rewrite the historical record.
+	// An issued certificate belongs to a COMPLETED enrollment. The canonical
+	// transition guard makes this state terminal: directly rewriting it to
+	// REVOKED is not a valid test fixture and must fail even in a transaction.
+	// The refund test below exercises real lesson-access revocation instead.
 	terminalProbe, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer terminalProbe.Rollback()
 	if _, err = terminalProbe.ExecContext(ctx,
-		"UPDATE academy_enrollments SET state='REVOKED' WHERE id=$1::uuid", enrollment.ID); err != nil {
-		t.Fatalf("terminal certificate probe update failed: %v", err)
+		"UPDATE academy_enrollments SET state='REVOKED' WHERE id=$1::uuid", enrollment.ID); err == nil {
+		_ = terminalProbe.Rollback()
+		t.Fatal("completed enrollment unexpectedly allowed terminal-state rewrite")
 	}
-	var probeID, probeEnrollmentID, probeTitle, probeState, probeToken, probeCandidate, probeAccess string
-	var probeVersion int
-	var probeIssued time.Time
-	err = terminalProbe.QueryRowContext(ctx, academyMyCertificatesSQL, learner).Scan(
-		&probeID, &probeEnrollmentID, &probeTitle, &probeVersion, &probeState,
-		&probeToken, &probeCandidate, &probeIssued, &probeAccess)
-	if err != nil || probeID != certificate.ID || probeEnrollmentID != enrollment.ID ||
-		probeState != "ACTIVE" || probeAccess != "REVOKED" {
-		t.Fatalf("terminal enrollment falsely advertised active lessons for historical certificate: id=%s enrollment=%s state=%s access=%s err=%v",
-			probeID, probeEnrollmentID, probeState, probeAccess, err)
+	if rollbackErr := terminalProbe.Rollback(); rollbackErr != nil {
+		t.Fatalf("rollback of rejected terminal transition failed: %v", rollbackErr)
+	}
+	// Rejected transitions must not erase or change the durable certificate.
+	unchangedCertificates, err := store.AcademyMyCertificates(learner)
+	if err != nil || len(unchangedCertificates) != 1 ||
+		unchangedCertificates[0].ID != certificate.ID ||
+		unchangedCertificates[0].State != "ACTIVE" ||
+		unchangedCertificates[0].LearningAccessState != "ACTIVE" {
+		t.Fatalf("rejected terminal transition corrupted certificate history: %+v %v", unchangedCertificates, err)
 	}
 }
 
