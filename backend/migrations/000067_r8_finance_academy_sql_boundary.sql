@@ -6,7 +6,7 @@
 -- these locks remain held through trigger installation in production. The
 -- isolated restore drill executes each statement separately; DO supplies
 -- its own statement transaction for the historical preflight.
-DO $
+DO $$
 BEGIN
   LOCK TABLE finance_settlement_instructions, academy_courses IN SHARE ROW EXCLUSIVE MODE;
   IF EXISTS (
