@@ -45,11 +45,12 @@ var (
 	ErrFinanceEvidenceInvalid  = errors.New("finance provider evidence is invalid")
 	ErrFinanceEvidenceConflict = errors.New("finance provider event id reused with different content")
 	ErrFinanceNotFound         = errors.New("finance record not found")
-	// Academy sales must never be interpreted as completed consultations.
-	// The R4 settlement/payout path is consultation-only until a governed
-	// course-specific Finance reconciliation and provider capability exist.
-	ErrFinanceAcademySettlementBlocked = errors.New("academy sale cannot use consultation settlement")
 )
+
+// Academy sales must never be interpreted as completed consultations.
+// The R4 settlement/payout path is consultation-only until a governed
+// course-specific Finance reconciliation and provider capability exist.
+var ErrFinanceAcademySettlementBlocked = errors.New("academy sale cannot use consultation settlement")
 
 type FinanceSettlementOutcome struct {
 	OrderID                 string `json:"order_id"`
