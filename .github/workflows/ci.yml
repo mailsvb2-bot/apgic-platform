@@ -352,6 +352,7 @@ jobs:
           psql -h 127.0.0.1 -U apgic -d apgic_academy_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r4_store_lifecycle_invariants.sql > /dev/null
           (cd backend && go test ./internal/runtimepostgres -run TestAcademyStoreRefundWithdrawsLearningAccess -count=1 -v)
           (cd backend && go test ./internal/runtimepostgres -run TestAcademyVersioningRequiresVerifiedAccess -count=1 -v)
+          (cd backend && go test ./internal/runtimepostgres -run TestAcademyCloudMediaDraftOwnerAndVideoBoundaryPostgres -count=1 -v)
           (cd backend && go test ./internal/runtimepostgres -run TestAcademyNotificationConsentDurableOptOut -count=1 -v)
       - name: Prove R4 revenue convergence (provider-executed, non-custodial, reconciled)
         working-directory: backend
