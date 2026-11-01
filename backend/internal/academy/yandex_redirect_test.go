@@ -2,6 +2,8 @@ package academy
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -39,5 +41,49 @@ func TestYandexDiskClientRejectsOAuthRedirectEvenWithPermissiveClient(t *testing
 	}
 	if redirected.Load() != 0 {
 		t.Fatal("redirect target was contacted")
+	}
+}
+
+type yandexStaticDownloadTransport struct {
+	href string
+}
+
+func (transport yandexStaticDownloadTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	body := fmt.Sprintf(`{"href":%q,"method":"GET"}`, transport.href)
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(strings.NewReader(body)),
+		Header:     make(http.Header),
+		Request:    req,
+	}, nil
+}
+
+func TestYandexDiskTemporaryDownloadRejectsUnapprovedTargets(t *testing.T) {
+	cases := []struct {
+		name string
+		href string
+		allow bool
+	}{
+		{"known provider", "https://downloader.disk.yandex.net/get?token=opaque", true},
+		{"known provider explicit TLS", "https://downloader.disk.yandex.ru:443/get", true},
+		{"unexpected port", "https://downloader.disk.yandex.net:4444/get", false},
+		{"unapproved subdomain", "https://other.disk.yandex.net/get", false},
+		{"host suffix spoof", "https://downloader.disk.yandex.net.evil.invalid/get", false},
+		{"credential in URL", "https://user:pass@downloader.disk.yandex.net/get", false},
+		{"plain HTTP", "http://downloader.disk.yandex.net/get", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			client := YandexDiskClient{Client: &http.Client{
+				Transport: yandexStaticDownloadTransport{href: tc.href},
+			}}
+			href, err := client.TemporaryDownload(context.Background(), "secret", "disk:/video.mp4")
+			if tc.allow && (err != nil || href != tc.href) {
+				t.Fatalf("approved download rejected: %v", err)
+			}
+			if !tc.allow && (err == nil || href != "") {
+				t.Fatalf("unsafe download accepted: %q", href)
+			}
+		})
 	}
 }
