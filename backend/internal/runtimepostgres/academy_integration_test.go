@@ -525,6 +525,76 @@ func TestAcademyStoreVerifiedPaidJourneySurvivesRestart(t *testing.T) {
 		pendingHistory[0].Result != "PENDING" || pendingHistory[0].Score != nil {
 		t.Fatalf("pending attempt history is incorrect: %+v %v", pendingHistory, err)
 	}
+	// Author reporting must distinguish immutable historical enrollment from
+	// actionable access and review work. A terminal enrollment with an
+	// otherwise still captured entitlement cannot be counted as active or
+	// eligible for grading. Exercise the production query under rollback so
+	// the learner can continue the real paid journey afterward.
+	beforeReport, err := store.AcademyAuthorReport(author)
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundActionable := false
+	for _, item := range beforeReport.Courses {
+		if item.CourseID == course.ID {
+			foundActionable = true
+			if item.ActiveAccess != 1 || item.PendingAssessments != 1 {
+				t.Fatalf("paid learner's active access and pending review not reported: %+v", item)
+			}
+		}
+	}
+	if !foundActionable {
+		t.Fatal("published paid course missing from author report")
+	}
+	metricsProbeTx, err := store.db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer metricsProbeTx.Rollback()
+	if _, err = metricsProbeTx.ExecContext(ctx,
+		"UPDATE academy_enrollments SET state='REVOKED' WHERE id=$1::uuid", enrollment.ID); err != nil {
+		t.Fatalf("cannot probe terminal enrollment report: %v", err)
+	}
+	metricsRows, err := metricsProbeTx.QueryContext(ctx, academyAuthorCourseMetricsQuery, author)
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundHistorical := false
+	for metricsRows.Next() {
+		var id, title string
+		var total, completed, active, pending, passed int
+		if err = metricsRows.Scan(&id, &title, &total, &completed, &active, &pending, &passed); err != nil {
+			metricsRows.Close()
+			t.Fatal(err)
+		}
+		if id == course.ID {
+			foundHistorical = true
+			if total != 1 || completed != 0 || active != 0 || pending != 0 || passed != 0 {
+				metricsRows.Close()
+				t.Fatalf("terminal enrollment inflated actionable author metrics: total=%d completed=%d active=%d pending=%d passed=%d", total, completed, active, pending, passed)
+			}
+		}
+	}
+	if err = metricsRows.Err(); err != nil {
+		metricsRows.Close()
+		t.Fatal(err)
+	}
+	metricsRows.Close()
+	if !foundHistorical {
+		t.Fatal("terminal historical enrollment disappeared from author reporting")
+	}
+	if err = metricsProbeTx.Rollback(); err != nil {
+		t.Fatal(err)
+	}
+	afterReport, err := store.AcademyAuthorReport(author)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, item := range afterReport.Courses {
+		if item.CourseID == course.ID && (item.ActiveAccess != 1 || item.PendingAssessments != 1) {
+			t.Fatalf("rollback did not restore actionable author reporting: %+v", item)
+		}
+	}
 	if _, err = store.AcademySubmitAttempt(learner, enrollment.ID, assessment.ID, "duplicate before review"); !errors.Is(err, academy.ErrState) {
 		t.Fatalf("pending review accepted duplicate submission: %v", err)
 	}

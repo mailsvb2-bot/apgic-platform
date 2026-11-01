@@ -6,6 +6,28 @@ import (
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/academy"
 )
 
+// Keep the author's actionable metrics aligned with the same captured Commerce
+// entitlement gate as learner access. Historical enrollments and graded work
+// remain counted, but revoked enrollment cannot inflate active access or the
+// instructor's pending grading queue.
+const academyAuthorCourseMetricsQuery = `SELECT c.id::text, c.title,
+ COUNT(DISTINCT e.id),
+ COUNT(DISTINCT e.id) FILTER (WHERE e.state='COMPLETED'),
+ COUNT(DISTINCT e.id) FILTER (
+   WHERE e.state IN ('ACTIVE','COMPLETED')
+     AND academy_entitlement_is_active(e.entitlement_id)),
+ COUNT(DISTINCT a.id) FILTER (
+   WHERE a.result='PENDING' AND e.state='ACTIVE'
+     AND academy_entitlement_is_active(e.entitlement_id)),
+ COUNT(DISTINCT a.id) FILTER (WHERE a.result='PASSED')
+ FROM academy_courses c
+ LEFT JOIN academy_course_versions v ON v.course_id=c.id
+ LEFT JOIN academy_enrollments e ON e.version_id=v.id
+ LEFT JOIN academy_attempts a ON a.enrollment_id=e.id
+ WHERE c.author_id=$1::uuid
+ GROUP BY c.id,c.title,c.created_at
+ ORDER BY c.created_at DESC LIMIT 100`
+
 // AcademyAuthorReport reads only the signed author's own courses. Financial
 // amounts are verified gross captures for the exact order product, not income.
 // A read-only repeatable-read transaction keeps metrics and captures coherent.
@@ -29,19 +51,7 @@ func (c *Checker) AcademyAuthorReport(author string) (academy.AuthorReport, erro
 		GrossCaptures: []academy.CapturedGrossEvidence{},
 		RevenueState:  academy.RevenueGrossOnly,
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT c.id::text, c.title,
-	 COUNT(DISTINCT e.id),
-	 COUNT(DISTINCT e.id) FILTER (WHERE e.state='COMPLETED'),
-	 COUNT(DISTINCT e.id) FILTER (WHERE academy_entitlement_is_active(e.entitlement_id)),
-	 COUNT(DISTINCT a.id) FILTER (WHERE a.result='PENDING'),
-	 COUNT(DISTINCT a.id) FILTER (WHERE a.result='PASSED')
-	 FROM academy_courses c
-	 LEFT JOIN academy_course_versions v ON v.course_id=c.id
-	 LEFT JOIN academy_enrollments e ON e.version_id=v.id
-	 LEFT JOIN academy_attempts a ON a.enrollment_id=e.id
-	 WHERE c.author_id=$1::uuid
-	 GROUP BY c.id,c.title,c.created_at
-	 ORDER BY c.created_at DESC LIMIT 100`, author)
+	rows, err := tx.QueryContext(ctx, academyAuthorCourseMetricsQuery, author)
 	if err != nil {
 		return academy.AuthorReport{}, err
 	}
