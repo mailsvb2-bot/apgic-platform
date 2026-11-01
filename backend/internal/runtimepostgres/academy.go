@@ -788,18 +788,15 @@ func (c *Checker) AcademySubmitAttempt(actor, enrollmentID, lessonID, response s
 	if err != nil {
 		return academy.Attempt{}, err
 	}
-	if !submissionOpen || attemptCount >= maxAttempts {
+	if attemptCount >= maxAttempts {
 		return academy.Attempt{}, academy.ErrState
 	}
 	if err = academy.CanSubmitAssessmentAttempt(blockingAttempt); err != nil {
 		return academy.Attempt{}, err
 	}
-	var attempts int
-	err = tx.QueryRowContext(ctx, `SELECT COALESCE(MAX(attempt_no),0)+1 FROM academy_attempts
- WHERE enrollment_id=$1::uuid AND lesson_id=$2::uuid`, enrollmentID, lessonID).Scan(&attempts)
-	if err != nil {
-		return academy.Attempt{}, err
-	}
+	// The enrollment lock serializes submissions; the PostgreSQL trigger
+	// independently enforces this exact count+1 sequence at insertion.
+	attempts := attemptCount + 1
 	id, err := academyID()
 	if err != nil {
 		return academy.Attempt{}, err
