@@ -89,4 +89,3 @@ func (c *Checker) AcademyDisconnectCloud(actor, provider string) error {
 	}
 	return nil
 }
-
