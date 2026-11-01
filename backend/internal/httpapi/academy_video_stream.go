@@ -84,6 +84,16 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 			academyHTTPError(w, r, academy.ErrUnavailable)
 			return
 		}
+		// A provider that ignores Range must not send the entire file to a
+		// seeking browser. Reject malformed partial responses before headers.
+		if r.Header.Get("Range") != "" && response.StatusCode != http.StatusPartialContent {
+			academyHTTPError(w, r, academy.ErrUnavailable)
+			return
+		}
+		if response.StatusCode == http.StatusPartialContent && response.Header.Get("Content-Range") == "" {
+			academyHTTPError(w, r, academy.ErrUnavailable)
+			return
+		}
 		ct := response.Header.Get("Content-Type")
 		if !strings.HasPrefix(ct, "video/") && !strings.HasPrefix(ct, "application/octet-stream") {
 			academyHTTPError(w, r, academy.ErrUnavailable)
