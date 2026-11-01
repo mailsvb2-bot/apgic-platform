@@ -38,8 +38,8 @@ func TestAcademyVideoGatewayHTTPTransport(t *testing.T) {
 	defer provider.Close()
 	for _, tc := range []struct {
 		name, requested string
-		status int
-		want string
+		status          int
+		want            string
 	}{
 		{"full", "", 200, body},
 		{"seek", "bytes=100-199", 206, body[100:200]},
@@ -47,14 +47,22 @@ func TestAcademyVideoGatewayHTTPTransport(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			request, err := http.NewRequestWithContext(context.Background(), http.MethodGet, provider.URL, nil)
-			if err != nil { t.Fatal(err) }
+			if err != nil {
+				t.Fatal(err)
+			}
 			request.Header.Set("Range", tc.requested)
 			response, err := provider.Client().Do(request)
-			if err != nil { t.Fatal(err) }
+			if err != nil {
+				t.Fatal(err)
+			}
 			defer response.Body.Close()
-			if response.StatusCode != tc.status { t.Fatalf("status %d, want %d", response.StatusCode, tc.status) }
+			if response.StatusCode != tc.status {
+				t.Fatalf("status %d, want %d", response.StatusCode, tc.status)
+			}
 			if response.StatusCode == 416 {
-				if response.Header.Get("Content-Range") != "bytes */1024" { t.Fatal("missing unsatisfied content range") }
+				if response.Header.Get("Content-Range") != "bytes */1024" {
+					t.Fatal("missing unsatisfied content range")
+				}
 				return
 			}
 			if !academyVideoUpstreamResponseAllowed(tc.requested, response.StatusCode, response.Header) {
@@ -62,18 +70,26 @@ func TestAcademyVideoGatewayHTTPTransport(t *testing.T) {
 			}
 			var output bytes.Buffer
 			err = academyCopyVideoAuthorized(&output, response.Body, func() bool { return true }, 512, time.Second)
-			if err != nil { t.Fatal(err) }
-			if output.String() != tc.want { t.Fatal("wrong bytes") }
+			if err != nil {
+				t.Fatal(err)
+			}
+			if output.String() != tc.want {
+				t.Fatal("wrong bytes")
+			}
 		})
 	}
-	if calls.Load() != 3 { t.Fatalf("requests: %d", calls.Load()) }
+	if calls.Load() != 3 {
+		t.Fatalf("requests: %d", calls.Load())
+	}
 }
 
 func TestAcademyVideoHTTPReadStopsAfterRevocation(t *testing.T) {
 	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "video/mp4")
 		flusher, ok := w.(http.Flusher)
-		if !ok { t.Fatal("no HTTP flusher") }
+		if !ok {
+			t.Fatal("no HTTP flusher")
+		}
 		_, _ = io.WriteString(w, strings.Repeat("x", 65536))
 		flusher.Flush()
 		<-r.Context().Done()
@@ -82,9 +98,13 @@ func TestAcademyVideoHTTPReadStopsAfterRevocation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, provider.URL, nil)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	response, err := provider.Client().Do(req)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer response.Body.Close()
 	var allowed atomic.Bool
 	allowed.Store(true)
