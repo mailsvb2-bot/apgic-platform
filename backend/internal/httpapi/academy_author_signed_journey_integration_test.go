@@ -237,4 +237,45 @@ func TestAcademyAuthorSignedCommerceToPublishedCoursePostgres(t *testing.T) {
 		t.Fatalf("author journey side effects: courses=%d created_events=%d enrollments=%d verifications=%d",
 			courses, createdEvents, enrollments, verifications)
 	}
+
+	// The newly merged one-click route must use the same signed Identity,
+	// persist a private Commerce draft, and never publish or grant access.
+	standalone := request("POST", "/v1/academy/drafts", authorCookie, map[string]any{
+		"title": "One-click signed course", "description": "Original unsold draft",
+		"author_id": "00000000-0000-0000-0000-00000000b003",
+	})
+	require(standalone, http.StatusCreated)
+	var draft academy.Course
+	decode(standalone, &draft)
+	if draft.ID == "" || draft.ProductID == "" || draft.State != "DRAFT" ||
+		draft.AuthorID != created.AuthorID || draft.ProductID == product.ID {
+		t.Fatalf("one-click draft did not preserve signed author and private product: %+v", draft)
+	}
+	var draftProductStatus string
+	if err := db.QueryRow("SELECT status FROM products WHERE id=$1::uuid", draft.ProductID).
+		Scan(&draftProductStatus); err != nil {
+		t.Fatal(err)
+	}
+	if draftProductStatus != "DRAFT" {
+		t.Fatalf("one-click Commerce product unexpectedly published: %s", draftProductStatus)
+	}
+	ownedDrafts := request("GET", "/v1/academy/my-courses", authorCookie, nil)
+	require(ownedDrafts, http.StatusOK)
+	if !strings.Contains(ownedDrafts.Body.String(), draft.ID) {
+		t.Fatalf("one-click draft absent from signed author readback: %s", ownedDrafts.Body.String())
+	}
+	publicCatalog := request("GET", "/v1/academy/courses", nil, nil)
+	require(publicCatalog, http.StatusOK)
+	if strings.Contains(publicCatalog.Body.String(), draft.ID) {
+		t.Fatalf("private one-click draft leaked into public catalog: %s", publicCatalog.Body.String())
+	}
+	draftAccess := request("GET", "/v1/academy/me/course-access", authorCookie, nil)
+	require(draftAccess, http.StatusOK)
+	if strings.Contains(draftAccess.Body.String(), draft.ID) {
+		t.Fatalf("unpaid one-click draft granted access: %s", draftAccess.Body.String())
+	}
+	draftEnroll := request("POST", "/v1/academy/courses/"+draft.ID+"/enroll", authorCookie, map[string]any{})
+	if draftEnroll.Code >= 200 && draftEnroll.Code < 300 {
+		t.Fatalf("unpaid one-click draft enrollment accepted: %s", draftEnroll.Body.String())
+	}
 }
