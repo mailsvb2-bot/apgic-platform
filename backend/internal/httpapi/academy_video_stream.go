@@ -82,33 +82,11 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 			w.WriteHeader(http.StatusRequestedRangeNotSatisfiable)
 			return
 		}
-		if response.StatusCode != http.StatusOK && response.StatusCode != http.StatusPartialContent {
-			academyHTTPError(w, r, academy.ErrUnavailable)
-			return
-		}
-		// A provider that ignores Range must not send the entire file to a
-		// seeking browser. Reject malformed partial responses before headers.
-		if r.Header.Get("Range") != "" && response.StatusCode != http.StatusPartialContent {
-			academyHTTPError(w, r, academy.ErrUnavailable)
-			return
-		}
-		if response.StatusCode == http.StatusPartialContent &&
-			!academyVideoPartialMatchesRequest(r.Header.Get("Range"), response.Header.Get("Content-Range"), response.Header.Get("Content-Length")) {
+		if !academyVideoUpstreamResponseAllowed(r.Header.Get("Range"), response.StatusCode, response.Header) {
 			academyHTTPError(w, r, academy.ErrUnavailable)
 			return
 		}
 		ct := response.Header.Get("Content-Type")
-		if !strings.HasPrefix(ct, "video/") && !strings.HasPrefix(ct, "application/octet-stream") {
-			academyHTTPError(w, r, academy.ErrUnavailable)
-			return
-		}
-		// Independent entitlement watchdog also works while the upstream Read
-		// stalls. Canceling the request unblocks a blocked network read.
-		go academyWatchVideoEntitlement(streamCtx, stopStream, time.Second, func() bool {
-			_, _, currentPath, permissionErr := owner.AcademyLearnerVideoSource(actor,
-				r.PathValue("enrollmentID"), r.PathValue("lessonID"), r.PathValue("mediaID"))
-			return permissionErr == nil && currentPath == path
-		})
 		w.Header().Set("Content-Type", ct)
 		if v := response.Header.Get("Content-Length"); v != "" {
 			w.Header().Set("Content-Length", v)
