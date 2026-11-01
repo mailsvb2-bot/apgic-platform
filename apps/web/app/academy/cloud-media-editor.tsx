@@ -5,6 +5,7 @@ import {useState,type FormEvent} from "react";
 type CloudMedia={id:string;title:string;provider:string;provider_file_ref:string;source_url?:string};
 type VideoLesson={id:string;title:string;kind:string};
 type Mapping={lesson_id:string;media_id:string;ordinal:number};
+type AuthorMediaAssignment=Mapping&{title:string;provider:string;provider_file_ref:string;source_url?:string};
 
 async function request<T>(url:string,body?:unknown):Promise<T>{
  const r=await fetch(url,{method:body===undefined?"GET":"POST",credentials:"same-origin",
@@ -22,11 +23,15 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
  const [selected,setSelected]=useState<string[]>([]);
  const [lessonId,setLessonId]=useState("");
  const [assignments,setAssignments]=useState<Mapping[]>([]);
+ const [saved,setSaved]=useState<AuthorMediaAssignment[]>([]);
  const [message,setMessage]=useState("");
  const [busy,setBusy]=useState(false);
  async function reload(){
-  const d=await request<{media:CloudMedia[]}>("/v1/academy/author/cloud-media");
-  setMedia(d.media);
+  const [d,a]=await Promise.all([
+   request<{media:CloudMedia[]}>("/v1/academy/author/cloud-media"),
+   request<{assignments:AuthorMediaAssignment[]}>(`/v1/academy/author/courses/${courseId}/versions/${versionId}/media`)
+  ]);
+  setMedia(d.media);setSaved(a.assignments);
  }
  async function importRows(e:FormEvent){
   e.preventDefault();setBusy(true);setMessage("");
@@ -54,6 +59,7 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
   setBusy(true);setMessage("");
   try{
    await request(`/v1/academy/courses/${courseId}/versions/${versionId}/media/assign`,{items:assignments});
+   await reload();
    setMessage("Распределение сохранено");
   }catch(error){setMessage(String(error))}finally{setBusy(false)}
  }
@@ -82,6 +88,12 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
   </select>
   <button type="button" disabled={busy||!selected.length||!lessonId} onClick={allocate}>Назначить выбранные</button>
   <p>Подготовлено назначений: {assignments.length}</p>
+  <h4>Сохранённые материалы уроков</h4>
+  {saved.map(a=><p key={a.lesson_id+":"+a.media_id}>
+    {lessons.find(l=>l.id===a.lesson_id)?.title||"Урок"} · {a.ordinal}. {a.title}
+    {" · "}{a.provider_file_ref}
+    {a.source_url&&<a href={a.source_url} target="_blank" rel="noreferrer">Оригинал</a>}
+   </p>)}
   <button type="button" disabled={busy||!assignments.length} onClick={()=>void persist()}>Сохранить распределение</button>
  </section>;
 }
