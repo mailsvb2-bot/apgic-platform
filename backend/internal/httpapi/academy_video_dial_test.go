@@ -2,6 +2,9 @@ package httpapi
 
 import (
 	"context"
+	"net"
+	"strings"
+	"time"
 	"net/netip"
 	"testing"
 )
@@ -39,5 +42,22 @@ func TestAcademyVideoDialControlBlocksPrivateResolvedAddresses(t *testing.T) {
 		if err := academyVideoDialControl(context.Background(), "tcp", address, nil); err != nil {
 			t.Fatalf("public resolved destination rejected: %s: %v", address, err)
 		}
+	}
+}
+
+func TestAcademyVideoDialerRejectsLiveLoopbackSocket(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	dialer := net.Dialer{Timeout: time.Second, ControlContext: academyVideoDialControl}
+	connection, err := dialer.DialContext(context.Background(), "tcp", listener.Addr().String())
+	if connection != nil {
+		connection.Close()
+		t.Fatal("media gateway dialed a local service")
+	}
+	if err == nil || !strings.Contains(err.Error(), "non-public cloud media destination") {
+		t.Fatalf("local service must be blocked before connection: %v", err)
 	}
 }
