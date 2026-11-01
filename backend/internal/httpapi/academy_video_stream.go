@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -77,7 +78,12 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 			request.Header.Set("Range", value)
 		}
 		transport := &http.Client{
-			Transport:     &http.Transport{Proxy: nil, ResponseHeaderTimeout: 15 * time.Second, DisableCompression: true},
+			Transport: &http.Transport{
+				Proxy:                 nil,
+				DialContext:           (&net.Dialer{Timeout: 10 * time.Second, ControlContext: academyVideoDialControl}).DialContext,
+				ResponseHeaderTimeout: 15 * time.Second,
+				DisableCompression:    true,
+			},
 			CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse },
 		}
 		response, err := transport.Do(request)
