@@ -260,10 +260,35 @@ export default function AcademyPage(){
  }
  async function createCourse(event:FormEvent){
   event.preventDefault();
-  await act(()=>api<Course>("/v1/academy/courses",
-   {product_id:productID,title,description}),async c=>{
-   setNotice("Черновик курса создан.");await loadOutline(c);
-  });
+  if(busy||!productID)return;
+  // The POST may commit even if its response is lost. Never automatically
+  // repeat it: reconcile the existing canonical Academy author readback.
+  const requested={product_id:productID,title:title.trim(),description};
+  setBusy(true);setNotice("");
+  try{
+   const created=await api<Course>("/v1/academy/courses",requested);
+   await loadOutline(created);
+   await refresh();
+   setNotice("Черновик курса сохранён.");
+  }catch(error){
+   const reason=error instanceof Error?error.message:"Ответ создания курса не получен";
+   try{
+    const readback=await api<{courses:Course[]}>("/v1/academy/my-courses");
+    setMine(readback.courses);
+    const existing=readback.courses.find(item=>item.product_id===requested.product_id);
+    if(existing){
+     await loadOutline(existing);
+     setNotice(existing.title===requested.title&&existing.description===requested.description?
+      "Курс найден в сохранённых данных. Повторное создание не требуется.":
+      "К этому Commerce-продукту уже привязан другой курс. Открыт существующий курс; новый не создавался.");
+    }else{
+     setNotice("Создание курса не подтверждено ("+reason+"). Проверьте список курсов перед повторной попыткой.");
+    }
+   }catch(readError){
+    setNotice("Не удалось подтвердить результат создания ("+reason+"). Сохранение могло состояться. Проверьте «Мои курсы» после восстановления соединения; не меняйте продукт для повтора. "+
+     (readError instanceof Error?readError.message:""));
+   }
+  }finally{setBusy(false)}
  }
  async function addModule(event:FormEvent){
   event.preventDefault();if(!course)return;
