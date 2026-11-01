@@ -1,8 +1,10 @@
 package httpapi
 
 import (
-	"github.com/mailsvb2-bot/apgic-platform/backend/internal/academy"
+	"context"
 	"net/http"
+
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/academy"
 )
 
 type academyCloudMediaStore interface {
@@ -10,6 +12,12 @@ type academyCloudMediaStore interface {
 	AcademyAuthorCloudMedia(string) ([]academy.CloudMedia, error)
 	AcademyAssignCloudMedia(string, string, string, []academy.MediaAssignment) error
 	AcademyAuthorLessonMedia(string, string, string) ([]academy.LessonMediaView, error)
+}
+
+// Verification belongs to the existing cloud provider owner, not the
+// browser or the Academy catalog persistence layer.
+type academyCloudMediaVerifier interface {
+	AcademyVerifyYandexDiskMedia(context.Context, string, []academy.CloudMedia) error
 }
 
 func registerAcademyCloudMedia(mux *http.ServeMux, store academyStore, sessions *clientSessionManager, sessionErr error) {
@@ -47,9 +55,32 @@ func registerAcademyCloudMedia(mux *http.ServeMux, store academyStore, sessions 
 		if !academyRead(w, r, &body) {
 			return
 		}
+		// A browser-supplied disk path is not evidence of a real video.
+		// Verify the entire bounded batch with the author's OAuth token
+		// before writing any catalog row. EXTERNAL links are not playable
+		// through the protected Yandex gateway and are denied here.
+		if len(body.Items) == 0 || len(body.Items) > 100 {
+			http.Error(w, "Invalid video batch", http.StatusBadRequest)
+			return
+		}
+		for _, item := range body.Items {
+			if item.Provider != "YANDEX_DISK" || item.SourceURL != "" {
+				http.Error(w, "Unsupported cloud video source", http.StatusBadRequest)
+				return
+			}
+		}
+		verifier, ok := store.(academyCloudMediaVerifier)
+		if !ok {
+			http.Error(w, "Cloud verification unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		if err := verifier.AcademyVerifyYandexDiskMedia(r.Context(), actor, body.Items); err != nil {
+			http.Error(w, "Cloud video could not be verified", http.StatusBadRequest)
+			return
+		}
 		out, err := owner.AcademyImportCloudMedia(actor, body.Items)
 		if err != nil {
-			http.Error(w, "Import failed", 400)
+			http.Error(w, "Import failed", http.StatusBadRequest)
 			return
 		}
 		w.Header().Set("Cache-Control", "private, no-store")
