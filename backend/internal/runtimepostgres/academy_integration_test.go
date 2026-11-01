@@ -382,6 +382,13 @@ func TestAcademyStoreVerifiedPaidJourneySurvivesRestart(t *testing.T) {
 	if enrollment.EntitlementID != paidEntitlement || enrollment.State != "ACTIVE" {
 		t.Fatalf("course granted access without bound verified purchase: %+v", enrollment)
 	}
+	// Replay must preserve the exact historical purchase basis and enrollment ID.
+	// A second enrollment may not silently attach a different payment.
+	replayedEnrollment, err := store.AcademyEnroll(learner, course.ID)
+	if err != nil || replayedEnrollment.ID != enrollment.ID ||
+		replayedEnrollment.EntitlementID != paidEntitlement || replayedEnrollment.AccessState != "ACTIVE" {
+		t.Fatalf("verified enrollment replay changed immutable payment basis: %+v %v", replayedEnrollment, err)
+	}
 	// A real store-verified enrollment can join a scheduled cohort, but only
 	// through the canonical Academy writer and within the purchased version.
 	starts := time.Now().UTC().Add(4 * time.Hour)
