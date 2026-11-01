@@ -8,9 +8,9 @@ import (
 func TestAcademyVideoUpstreamResponseAllowed(t *testing.T) {
 	for _, tc := range []struct {
 		name, requestRange string
-		status int
-		headers http.Header
-		allowed bool
+		status             int
+		headers            http.Header
+		allowed            bool
 	}{
 		{"full video", "", 200, http.Header{"Content-Type": {"video/mp4"}}, true},
 		{"full octet stream", "", 200, http.Header{"Content-Type": {"application/octet-stream"}}, true},
