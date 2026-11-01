@@ -348,6 +348,7 @@ jobs:
           psql -h 127.0.0.1 -U apgic -d apgic_academy_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r2_mobile_store_invariants.sql > /dev/null
           (cd backend && go test ./internal/runtimepostgres -run TestAcademyStoreVerifiedPaidJourneySurvivesRestart -count=1 -v)
           (cd backend && go test ./internal/runtimepostgres -run TestAcademyCreateCourseConcurrentRetry -count=1 -v)
+          (cd backend && go test ./internal/httpapi -run TestAcademyAuthorSignedCommerceToPublishedCoursePostgres -count=1 -v)
           (cd backend && go test ./internal/runtimepostgres -run TestAcademyAppealIndependentReviewerAndImmutableEvidence -count=1 -v)
           psql -h 127.0.0.1 -U apgic -d apgic_academy_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r4_store_lifecycle_invariants.sql > /dev/null
           (cd backend && go test ./internal/runtimepostgres -run TestAcademyStoreRefundWithdrawsLearningAccess -count=1 -v)
