@@ -121,3 +121,16 @@ remains the final authority, including for concurrent submissions. PostgreSQL in
 covers learner/foreign-owner isolation, pending and passed outcomes, duplicate denial,
 and persistence after runtime restart. This readback is **not** independent exam proctoring,
 trusted media playback, live PSP checkout or a production R8 release gate.
+
+## Durable learner certificate readback
+
+The signed learner's `GET /v1/academy/me/certificates` projects the existing
+Academy certificate and immutable course-version title after reload, process
+restart and Commerce refund. The credential state and the current **learning**
+access state are separate: a refunded enrollment loses lessons, but does not
+erase an earned certificate. The opaque public verification URL is visible only
+to the learner through a `private, no-store` response. No raw answers,
+identity of other students, or professional qualification is exposed. Web and
+native learner surfaces expose historical certificates without repeating the
+completion mutation. The PostgreSQL paid-journey and refund tests assert
+restart persistence, foreign-identity isolation and revoked lesson access.

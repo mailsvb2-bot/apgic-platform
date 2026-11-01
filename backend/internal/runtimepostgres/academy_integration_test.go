@@ -653,6 +653,21 @@ func TestAcademyStoreVerifiedPaidJourneySurvivesRestart(t *testing.T) {
 	if err != nil || certificateAgain.ID != certificate.ID {
 		t.Fatalf("certificate is not idempotent after restart: %+v %v", certificateAgain, err)
 	}
+	// The certificate remains discoverable after a process restart without
+	// calling the completion mutation again. Another identity sees no token.
+	ownedCertificates, err := store.AcademyMyCertificates(learner)
+	if err != nil || len(ownedCertificates) != 1 ||
+		ownedCertificates[0].ID != certificate.ID ||
+		ownedCertificates[0].State != "ACTIVE" ||
+		ownedCertificates[0].LearningAccessState != "ACTIVE" ||
+		ownedCertificates[0].VerificationURL != certificate.VerificationURL ||
+		ownedCertificates[0].EvidenceCandidateState != academy.EvidenceCandidateStatus {
+		t.Fatalf("durable learner certificate readback failed: %+v %v", ownedCertificates, err)
+	}
+	foreignCertificates, err := store.AcademyMyCertificates(author)
+	if err != nil || len(foreignCertificates) != 0 {
+		t.Fatalf("foreign identity read learner certificate: %+v %v", foreignCertificates, err)
+	}
 	verified, err := store.AcademyVerify(certificate.VerificationToken)
 	if err != nil || verified["state"] != "ACTIVE" || verified["qualification_status"] != "NOT_GRANTED" {
 		t.Fatalf("public verification does not match durable certificate: %+v %v", verified, err)
@@ -706,6 +721,30 @@ func TestAcademyStoreVerifiedPaidJourneySurvivesRestart(t *testing.T) {
 	foreignReport, err := store.AcademyAuthorReport(learner)
 	if err != nil || len(foreignReport.Courses) != 0 || len(foreignReport.GrossCaptures) != 0 {
 		t.Fatalf("learner accessed foreign author's report: %+v %v", foreignReport, err)
+	}
+	// An issued certificate belongs to a COMPLETED enrollment. The canonical
+	// transition guard makes this state terminal: directly rewriting it to
+	// REVOKED is not a valid test fixture and must fail even in a transaction.
+	// The refund test below exercises real lesson-access revocation instead.
+	terminalProbe, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = terminalProbe.ExecContext(ctx,
+		"UPDATE academy_enrollments SET state='REVOKED' WHERE id=$1::uuid", enrollment.ID); err == nil {
+		_ = terminalProbe.Rollback()
+		t.Fatal("completed enrollment unexpectedly allowed terminal-state rewrite")
+	}
+	if rollbackErr := terminalProbe.Rollback(); rollbackErr != nil {
+		t.Fatalf("rollback of rejected terminal transition failed: %v", rollbackErr)
+	}
+	// Rejected transitions must not erase or change the durable certificate.
+	unchangedCertificates, err := store.AcademyMyCertificates(learner)
+	if err != nil || len(unchangedCertificates) != 1 ||
+		unchangedCertificates[0].ID != certificate.ID ||
+		unchangedCertificates[0].State != "ACTIVE" ||
+		unchangedCertificates[0].LearningAccessState != "ACTIVE" {
+		t.Fatalf("rejected terminal transition corrupted certificate history: %+v %v", unchangedCertificates, err)
 	}
 }
 
@@ -768,6 +807,15 @@ func TestAcademyStoreRefundWithdrawsLearningAccess(t *testing.T) {
 	}
 	if !seenRevoked {
 		t.Fatal("refunded course disappeared from learner's historical enrollment list")
+	}
+	// Refund must not hide the earned credential or falsely mark the old
+	// entitlement active. Certificate state is independent of learning access.
+	refundedCertificates, err := store.AcademyMyCertificates(learner)
+	if err != nil || len(refundedCertificates) != 1 ||
+		refundedCertificates[0].EnrollmentID != enrollmentID ||
+		refundedCertificates[0].State != "ACTIVE" ||
+		refundedCertificates[0].LearningAccessState != "REVOKED" {
+		t.Fatalf("refund erased or misrepresented historical credential: %+v %v", refundedCertificates, err)
 	}
 
 	var courseID string
