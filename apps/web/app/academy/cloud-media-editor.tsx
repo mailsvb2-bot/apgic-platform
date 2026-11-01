@@ -24,7 +24,6 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
  const [diskFiles,setDiskFiles]=useState<DiskFile[]>([]);
  const [diskOffset,setDiskOffset]=useState(0);
  const [diskTotal,setDiskTotal]=useState(0);
- const [diskSelection,setDiskSelection]=useState<string[]>([]);
  const [diskSelectedFiles,setDiskSelectedFiles]=useState<Record<string,DiskFile>>({});
  const [rows,setRows]=useState("");
  const [selected,setSelected]=useState<string[]>([]);
@@ -44,7 +43,7 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
   finally{setBusy(false)}
  }
  async function importDiskSelection(){
-  if(!diskSelection.length)return;
+  if(!Object.keys(diskSelectedFiles).length)return;
   setBusy(true);setMessage("");
   try{
    const chosen=Object.values(diskSelectedFiles).filter(f=>f.type==="file");
@@ -53,7 +52,7 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
    await request("/v1/academy/author/cloud-media/import",{items:chosen.map(f=>({
     provider:"YANDEX_DISK",provider_file_ref:f.path,title:f.name
    }))});
-   await reload();setDiskSelection([]);setDiskSelectedFiles({});setMessage("Выбранные видео добавлены в медиатеку");
+   await reload();setDiskSelectedFiles({});setMessage("Выбранные видео добавлены в медиатеку");
   }catch(error){setMessage(String(error))}finally{setBusy(false)}
  }
  async function reload(){
@@ -111,9 +110,10 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
  }
  return <section className="panel" aria-label="Массовое назначение видео">
   <h3>Медиатека автора</h3>
-  <p>Импорт списка облачных файлов и распределение по видеоурокам. OAuth-выбор файлов в Яндекс Диске и ученическое воспроизведение пока не подключены.</p>
+  <p>Импорт облачных файлов и распределение по видеоурокам. Воспроизведение доступно только после проверки доступа через серверный медиашлюз.</p>
   <button type="button" disabled={busy} onClick={()=>void reload().catch(e=>setMessage(String(e)))}>Загрузить медиатеку</button>
-  <h4>Выбрать файлы из Яндекс Диска</h4>\n  <a href="/v1/academy/author/cloud/yandex/connect">Подключить Яндекс Диск</a>
+  <h4>Выбрать файлы из Яндекс Диска</h4>
+  <a href="/v1/academy/author/cloud/yandex/connect">Подключить Яндекс Диск</a>
   <p>После подключения облака можно открыть папку, отметить сразу несколько видео и добавить их одним нажатием.</p>
   <button type="button" disabled={busy} onClick={()=>void browseDisk("disk:/")}>Открыть Яндекс Диск</button>
   <p>Папка: {diskPath}</p>
