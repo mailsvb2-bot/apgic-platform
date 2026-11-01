@@ -5,7 +5,6 @@ import (
 	"errors"
 	"strings"
 	"testing"
-	"time"
 )
 
 func TestAcademyCopyVideoAuthorizedStopsBeforeRevokedChunk(t *testing.T) {
@@ -14,7 +13,7 @@ func TestAcademyCopyVideoAuthorizedStopsBeforeRevokedChunk(t *testing.T) {
 	err := academyCopyVideoAuthorized(&output, strings.NewReader(strings.Repeat("v", 196608)), func() bool {
 		calls++
 		return calls == 1
-	}, 65536, time.Hour)
+	})
 	if !errors.Is(err, errAcademyVideoRevoked) {
 		t.Fatalf("expected revoked error, got %v", err)
 	}
@@ -26,10 +25,18 @@ func TestAcademyCopyVideoAuthorizedStopsBeforeRevokedChunk(t *testing.T) {
 func TestAcademyCopyVideoAuthorizedAllowsFullContent(t *testing.T) {
 	input := strings.Repeat("v", 131072)
 	var output bytes.Buffer
-	if err := academyCopyVideoAuthorized(&output, strings.NewReader(input), func() bool { return true }, 65536, time.Second); err != nil {
+	if err := academyCopyVideoAuthorized(&output, strings.NewReader(input), func() bool { return true }); err != nil {
 		t.Fatal(err)
 	}
 	if output.String() != input {
 		t.Fatal("authorized output was truncated")
+	}
+}
+
+func TestAcademyCopyVideoAuthorizedChecksFirstChunk(t *testing.T) {
+	var output bytes.Buffer
+	err := academyCopyVideoAuthorized(&output, strings.NewReader("private"), func() bool { return false })
+	if !errors.Is(err, errAcademyVideoRevoked) || output.Len() != 0 {
+		t.Fatalf("revoked learner received bytes: error=%v bytes=%d", err, output.Len())
 	}
 }
