@@ -74,8 +74,13 @@ func (c *Checker) AcademyAuthorReport(author string) (academy.AuthorReport, erro
 	// An entitlement product_ref alone is not proof of a course sale. Require
 	// the immutable canonical order's product_id to match the course product.
 	// Each store verification and entitlement is unique, so no JOIN multiplication.
+	// Report the captured historical gross alongside its current entitlement
+	// subset; never subtract this subset from gross and call it a refund or net
+	// author income. Canonical Finance still owns all monetary reconciliation.
 	rows, err = tx.QueryContext(ctx, `SELECT c.id::text, o.currency,
-	 COUNT(sv.id), COALESCE(SUM(o.amount_minor),0)
+	 COUNT(sv.id), COALESCE(SUM(o.amount_minor),0),
+	 COUNT(sv.id) FILTER (WHERE academy_entitlement_is_active(ent.id)),
+	 COALESCE(SUM(o.amount_minor) FILTER (WHERE academy_entitlement_is_active(ent.id)),0)
 	 FROM academy_courses c
 	 JOIN store_transaction_verifications sv ON sv.product_ref=c.product_id::text
 	 JOIN store_entitlements ent ON ent.verification_id=sv.id
@@ -96,7 +101,8 @@ func (c *Checker) AcademyAuthorReport(author string) (academy.AuthorReport, erro
 	}
 	for rows.Next() {
 		var item academy.CapturedGrossEvidence
-		if err = rows.Scan(&item.CourseID, &item.Currency, &item.CapturedCount, &item.CapturedGrossMinor); err != nil {
+		if err = rows.Scan(&item.CourseID, &item.Currency, &item.CapturedCount, &item.CapturedGrossMinor,
+			&item.ActiveCount, &item.ActiveGrossMinor); err != nil {
 			rows.Close()
 			return academy.AuthorReport{}, err
 		}

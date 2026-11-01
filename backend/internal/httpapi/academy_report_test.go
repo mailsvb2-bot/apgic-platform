@@ -20,7 +20,7 @@ func (s *academyReportStub) AcademyAuthorReport(author string) (academy.AuthorRe
 	s.author = author
 	return academy.AuthorReport{
 		Courses:       []academy.CourseReport{{CourseID: "owned-course", Enrollments: 1}},
-		GrossCaptures: []academy.CapturedGrossEvidence{},
+		GrossCaptures: []academy.CapturedGrossEvidence{{CourseID: "owned-course", Currency: "RUB", CapturedCount: 1, CapturedGrossMinor: 10000, ActiveCount: 1, ActiveGrossMinor: 10000}},
 		RevenueState:  academy.RevenueGrossOnly,
 	}, nil
 }
@@ -53,6 +53,8 @@ func TestAcademyAuthorReportRequiresSignedOwner(t *testing.T) {
 		t.Fatalf("signed author not bound: HTTP %d calls=%d author=%s", w.Code, fake.calls, fake.author)
 	}
 	if !strings.Contains(w.Body.String(), academy.RevenueGrossOnly) ||
+		!strings.Contains(w.Body.String(), `"active_count":1`) ||
+		!strings.Contains(w.Body.String(), `"active_gross_minor":10000`) ||
 		strings.Contains(w.Body.String(), "response_text") ||
 		w.Header().Get("Cache-Control") != "private, no-store" {
 		t.Fatalf("unsafe report projection: %s", w.Body.String())

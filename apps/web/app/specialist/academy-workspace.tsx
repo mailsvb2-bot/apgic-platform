@@ -3,7 +3,7 @@
 import {useCallback,useEffect,useState} from "react";
 
 type Course={id:string;title:string;state:string;version_no:number};
-type Report={courses:Array<{course_id:string;title:string;enrollments:number;completed:number;pending_assessments:number;passed_assessments:number}>;gross_captures:Array<{course_id:string;currency:string;captured_count:number;captured_gross_minor:number}>;revenue_state:string};
+type Report={courses:Array<{course_id:string;title:string;enrollments:number;completed:number;pending_assessments:number;passed_assessments:number}>;gross_captures:Array<{course_id:string;currency:string;captured_count:number;captured_gross_minor:number;active_count:number;active_gross_minor:number}>;revenue_state:string};
 
 async function getAcademy<T>(path:string):Promise<T>{
  const response=await fetch(path,{credentials:"same-origin",cache:"no-store",headers:{"Accept":"application/json"}});
@@ -59,8 +59,9 @@ export function SpecialistAcademyWorkspace(){
      <p key={item.course_id+"-"+item.currency}>
       {courses.find(c=>c.id===item.course_id)?.title??"Курс"}: подтверждено оплат {item.captured_count};
       валовая сумма {item.captured_gross_minor} {item.currency} (минимальные денежные единицы).
+      <br/>Из этих исторических оплат сейчас дают доступ: {item.active_count}, сумма исходных списаний {item.active_gross_minor} {item.currency}.
      </p>):<p>Подтверждённые оплаты курсов пока не отображаются.</p>}
-    <p>Это подтверждённые валовые списания Commerce, а не доход к выплате. Чистый доход, возвраты, комиссии и расчёты с автором подтверждает только Finance.</p>
+    <p>Это исторические подтверждённые валовые списания Commerce и текущий статус прав доступа, а не доход к выплате. Разница между суммами не равна возвратам: доступ может быть отозван или истечь по другой причине. Чистый доход, возвраты, комиссии и расчёты с автором подтверждает только Finance.</p>
    </article>
   </div>
  </section>;
