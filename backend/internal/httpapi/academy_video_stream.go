@@ -56,9 +56,8 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 		// The same canonical access check guards startup, byte copying and
 		// idle upstream reads. A stalled provider must not outlive revocation.
 		allowed := func() bool {
-			currentAuthor, currentProvider, currentPath, permissionErr := owner.AcademyLearnerVideoSource(actor,
-				r.PathValue("enrollmentID"), r.PathValue("lessonID"), r.PathValue("mediaID"))
-			return permissionErr == nil && currentAuthor == author && currentProvider == provider && currentPath == path
+			return academyVideoSourceStillAllowed(owner, actor,
+				r.PathValue("enrollmentID"), r.PathValue("lessonID"), r.PathValue("mediaID"), author, provider, path)
 		}
 		if !allowed() {
 			academyHTTPError(w, r, academy.ErrEntitlement)
@@ -114,6 +113,13 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 		w.WriteHeader(response.StatusCode)
 		_ = academyCopyVideoAuthorized(w, response.Body, allowed, 512<<10, time.Second)
 	})
+}
+
+// academyVideoSourceStillAllowed binds every recheck to the original author,
+// provider and source, not merely to a still-existing media path.
+func academyVideoSourceStillAllowed(owner academyVideoStreamingStore, actor, enrollmentID, lessonID, mediaID, author, provider, path string) bool {
+	currentAuthor, currentProvider, currentPath, err := owner.AcademyLearnerVideoSource(actor, enrollmentID, lessonID, mediaID)
+	return err == nil && currentAuthor == author && currentProvider == provider && currentPath == path
 }
 
 func academyVideoSingleRange(value string) bool {
