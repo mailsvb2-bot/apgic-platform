@@ -89,8 +89,23 @@ func (c YandexDiskClient) TemporaryDownload(ctx context.Context, token, path str
 		return "", err
 	}
 	u, err := url.Parse(d.Href)
-	if err != nil || u.Scheme != "https" || u.User != nil || u.Hostname() == "" || d.Method != "GET" {
+	if err != nil || u.Scheme != "https" || u.User != nil || !trustedYandexDownloadHost(u.Hostname()) || d.Method != "GET" || d.Templated {
 		return "", errors.New("invalid download address")
 	}
 	return d.Href, nil
+}
+
+ 
+// Only provider-controlled hosts can supply video bytes. Never trust a
+// provider href as a generic HTTP proxy destination.
+func trustedYandexDownloadHost(host string) bool {
+ host = strings.ToLower(strings.TrimSuffix(host, "."))
+ if host == "yandex.net" || host == "yandex.ru" { return false }
+ for _, suffix := range []string{".disk.yandex.net", ".disk.yandex.ru"} {
+  if strings.HasSuffix(host, suffix) {
+   prefix := strings.TrimSuffix(host, suffix)
+   return prefix != "" && !strings.Contains(prefix, "..")
+  }
+ }
+ return false
 }
