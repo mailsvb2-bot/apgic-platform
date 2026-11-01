@@ -388,6 +388,26 @@ func TestAcademyStoreVerifiedPaidJourneySurvivesRestart(t *testing.T) {
 			t.Fatal("unpaid author saw another identity's purchased course")
 		}
 	}
+	// A verified purchase can be eligible for enrollment without yet being
+	// an active learning seat. Preserve historical gross, but do not label
+	// this unstarted course as current access in the author's report.
+	unenrolledReport, err := store.AcademyAuthorReport(author)
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundUnenrolledPurchase := false
+	for _, capture := range unenrolledReport.GrossCaptures {
+		if capture.CourseID == course.ID {
+			foundUnenrolledPurchase = true
+			if capture.CapturedCount != 1 || capture.CapturedGrossMinor != 10000 ||
+				capture.ActiveCount != 0 || capture.ActiveGrossMinor != 0 {
+				t.Fatalf("unenrolled purchase falsely shown as active learning: %+v", capture)
+			}
+		}
+	}
+	if !foundUnenrolledPurchase {
+		t.Fatal("verified purchase missing from historical gross before enrollment")
+	}
 	enrollment, err := store.AcademyEnroll(learner, course.ID)
 	if err != nil {
 		t.Fatalf("store-verified purchase did not unlock enrollment: %v", err)
@@ -616,6 +636,41 @@ func TestAcademyStoreVerifiedPaidJourneySurvivesRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 	metricsRows.Close()
+	// The original CAPTURED order remains financial history, but a
+	// REVOKED enrollment is not an active learning seat even when its
+	// canonical entitlement remains ACTIVE. Query the production SQL
+	// inside this rollback-only transaction to catch misleading reports.
+	captureRows, err := metricsProbeTx.QueryContext(ctx, academyAuthorCapturedGrossQuery, author)
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundCaptured := false
+	for captureRows.Next() {
+		var capture academy.CapturedGrossEvidence
+		if err = captureRows.Scan(&capture.CourseID, &capture.Currency,
+			&capture.CapturedCount, &capture.CapturedGrossMinor,
+			&capture.ActiveCount, &capture.ActiveGrossMinor); err != nil {
+			captureRows.Close()
+			t.Fatal(err)
+		}
+		if capture.CourseID == course.ID {
+			foundCaptured = true
+			if capture.Currency != "RUB" || capture.CapturedCount != 1 ||
+				capture.CapturedGrossMinor != 10000 || capture.ActiveCount != 0 ||
+				capture.ActiveGrossMinor != 0 {
+				captureRows.Close()
+				t.Fatalf("terminal enrollment inflated effective captured learning access: %+v", capture)
+			}
+		}
+	}
+	if err = captureRows.Err(); err != nil {
+		captureRows.Close()
+		t.Fatal(err)
+	}
+	captureRows.Close()
+	if !foundCaptured {
+		t.Fatal("terminal enrollment erased historical captured purchase")
+	}
 	if !foundHistorical {
 		t.Fatal("terminal historical enrollment disappeared from author reporting")
 	}
@@ -629,6 +684,13 @@ func TestAcademyStoreVerifiedPaidJourneySurvivesRestart(t *testing.T) {
 	for _, item := range afterReport.Courses {
 		if item.CourseID == course.ID && (item.ActiveAccess != 1 || item.PendingAssessments != 1) {
 			t.Fatalf("rollback did not restore actionable author reporting: %+v", item)
+		}
+	}
+	for _, capture := range afterReport.GrossCaptures {
+		if capture.CourseID == course.ID &&
+			(capture.CapturedCount != 1 || capture.CapturedGrossMinor != 10000 ||
+				capture.ActiveCount != 1 || capture.ActiveGrossMinor != 10000) {
+			t.Fatalf("rollback did not restore effective captured learning access: %+v", capture)
 		}
 	}
 	if _, err = store.AcademySubmitAttempt(learner, enrollment.ID, assessment.ID, "duplicate before review"); !errors.Is(err, academy.ErrState) {
