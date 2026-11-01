@@ -4,6 +4,7 @@ CREATE FUNCTION academy_lesson_media_draft_guard() RETURNS trigger LANGUAGE plpg
 DECLARE
   target_lesson uuid;
   version_state text;
+  lesson_kind text;
   lesson_author uuid;
   asset_author uuid;
 BEGIN
@@ -11,7 +12,7 @@ BEGIN
     RAISE EXCEPTION 'academy media attachment identity is immutable';
   END IF;
   target_lesson := CASE WHEN TG_OP='DELETE' THEN OLD.lesson_id ELSE NEW.lesson_id END;
-  SELECT v.state,c.author_id INTO version_state,lesson_author
+  SELECT v.state,c.author_id,l.kind INTO version_state,lesson_author,lesson_kind
   FROM academy_lessons l JOIN academy_modules m ON m.id=l.module_id
   JOIN academy_course_versions v ON v.id=m.version_id
   JOIN academy_courses c ON c.id=v.course_id
@@ -20,6 +21,9 @@ BEGIN
     RAISE EXCEPTION 'academy media assignments are immutable outside draft';
   END IF;
   IF TG_OP<>'DELETE' THEN
+    IF lesson_kind IS DISTINCT FROM 'VIDEO' THEN
+      RAISE EXCEPTION 'academy media may attach only to video lessons';
+    END IF;
     SELECT author_id INTO asset_author FROM academy_cloud_media WHERE id=NEW.media_id;
     IF asset_author IS DISTINCT FROM lesson_author THEN
       RAISE EXCEPTION 'academy media author mismatch';
