@@ -1,7 +1,6 @@
 -- R8/R4: protect the canonical Finance consultation-only settlement boundary
 -- at PostgreSQL, including direct SQL and late course registration.
 -- No Academy settlement, payout, or revenue reconciliation is enabled.
-BEGIN;
 
 -- Freeze both writers while checking existing facts and installing guards.
 LOCK TABLE finance_settlement_instructions, academy_courses IN SHARE ROW EXCLUSIVE MODE;
@@ -63,4 +62,3 @@ CREATE TRIGGER academy_courses_finance_boundary_guard
 BEFORE INSERT ON academy_courses
 FOR EACH ROW EXECUTE FUNCTION apgic_academy_course_finance_boundary();
 
-COMMIT;
