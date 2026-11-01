@@ -157,3 +157,19 @@ course-specific fulfillment, rights/royalty and refund evidence, a certified
 provider capability, provider statements and reconciliation before a true
 revenue figure can be displayed. Until then Academy exposes only captured
 gross with explicit `GROSS_CAPTURED_ONLY_NO_REFUND_COMMISSION_OR_PAYOUT_RECONCILIATION`.
+
+## PostgreSQL-enforced Finance settlement boundary (R8/R4)
+
+Migration `000067_r8_finance_academy_sql_boundary.sql` adds two fail-closed
+database guards around the **existing** consultation-only Finance settlement
+instructions. A direct SQL insert for an Academy product is rejected even if
+a caller bypasses `SettleOrder`; the reverse operation (registering a course
+against a product with an existing consultation settlement) is rejected too.
+Both paths lock the same canonical Product row before checking the other
+table, preventing a concurrent check/insert race. The migration refuses to
+install over already-contradictory historical settlement facts.
+
+This is defense in depth for the R4 consultation boundary, **not** an Academy
+Finance owner, net author-income reconciliation, or authorization to pay.
+Existing course sales still require external PSP capture, refund/chargeback
+and provider-statement evidence before reconciled author revenue is possible.

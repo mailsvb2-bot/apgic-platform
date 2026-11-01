@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -327,6 +328,27 @@ func TestAcademyStoreVerifiedPaidJourneySurvivesRestart(t *testing.T) {
 	// Finance settlement/payout worker, even via a direct SettleOrder call.
 	// Academy author income requires independent Finance reconciliation.
 	const courseOrderID = "00000000-0000-0000-0000-00000000a501"
+	// A direct SQL writer must not bypass the Go Finance guard. The new
+	// PostgreSQL trigger runs before the consultation settlement guard and
+	// foreign-key checks, even if an external worker uses raw SQL.
+	_, directErr := store.db.ExecContext(ctx, `INSERT INTO finance_settlement_instructions (
+	 id,idempotency_key,order_id,commission_snapshot_id,payment_attempt_id,
+	 capture_payment_effect_id,capture_ledger_entry_id,provider_config_id,
+	 provider_profile_id,execution_owner,consultation_session_id,
+	 completion_evidence_ref,currency,total_amount_minor,beneficiary_ref,
+	 beneficiary_amount_minor,platform_fee_recipient_ref,platform_fee_minor,created_at
+	) VALUES (
+	 '00000000-0000-0000-0000-00000000a999','academy-sql-settlement-denied',$1::uuid,
+	 '00000000-0000-0000-0000-00000000a999','00000000-0000-0000-0000-00000000a999',
+	 '00000000-0000-0000-0000-00000000a999','00000000-0000-0000-0000-00000000a999',
+	 '00000000-0000-0000-0000-00000000a999','00000000-0000-0000-0000-00000000a999',
+	 'EXTERNAL_PROVIDER','00000000-0000-0000-0000-00000000a999',
+	 'academy-must-not-settle','RUB',10000,'identity/academy-author',10000,
+	 'platform/none',0,now()
+	)`, courseOrderID)
+	if directErr == nil || !strings.Contains(directErr.Error(), "academy order cannot use consultation settlement") {
+		t.Fatalf("direct SQL bypassed Academy Finance boundary or failed for another reason: %v", directErr)
+	}
 	if outcome, err := store.SettleOrder(ctx, courseOrderID); !errors.Is(err, ErrFinanceAcademySettlementBlocked) ||
 		outcome.Status != "" || outcome.SettlementInstructionID != "" {
 		t.Fatalf("academy order entered consultation settlement: %+v %v", outcome, err)
