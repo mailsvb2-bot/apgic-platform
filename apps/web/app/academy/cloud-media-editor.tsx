@@ -8,6 +8,12 @@ type VideoLesson={id:string;title:string;kind:string};
 type Mapping={lesson_id:string;media_id:string;ordinal:number};
 type AuthorMediaAssignment=Mapping&{title:string;provider:string;provider_file_ref:string;source_url?:string};
 
+// Match the canonical provider's video verification before bulk selection.
+// Non-video files must not invalidate a whole 100-file import batch.
+function isImportableVideo(file:DiskFile):boolean{
+ return file.type==="file"&&file.size>0&&file.mime_type.toLowerCase().startsWith("video/");
+}
+
 async function request<T>(url:string,body?:unknown,signal?:AbortSignal):Promise<T>{
  const r=await fetch(url,{method:body===undefined?"GET":"POST",credentials:"same-origin",
   cache:"no-store",signal,headers:{"Content-Type":"application/json"},
@@ -54,8 +60,8 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
   if(!Object.keys(diskSelectedFiles).length)return;
   setBusy(true);setMessage("");
   try{
-   const chosen=Object.values(diskSelectedFiles).filter(f=>f.type==="file");
-   if(!chosen.length)throw new Error("Выбери видеофайлы");
+   const chosen=Object.values(diskSelectedFiles).filter(isImportableVideo);
+   if(!chosen.length||chosen.length!==Object.keys(diskSelectedFiles).length)throw new Error("Выбери только непустые видеофайлы");
    if(chosen.length>2000)throw new Error("За одну операцию можно добавить до 2000 файлов");
    await importVerifiedMedia(chosen.map(f=>({
     provider:"YANDEX_DISK",provider_file_ref:f.path,title:f.name
@@ -147,9 +153,11 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
    {diskFiles.map(file=><div key={file.path}>
     {file.type==="dir"
       ?<button type="button" disabled={busy} onClick={()=>void browseDisk(file.path)}>Папка: {file.name}</button>
-      :<label><input type="checkbox" checked={Boolean(diskSelectedFiles[file.path])}
+      :isImportableVideo(file)
+      ? <label><input type="checkbox" checked={Boolean(diskSelectedFiles[file.path])}
         onChange={e=>{setDiskSelectedFiles(old=>{const next={...old};if(e.target.checked)next[file.path]=file;else delete next[file.path];return next;});}}/>
-        {file.name}</label>}
+        {file.name}</label>
+      : <span>{file.name} · не является доступным видеофайлом</span>}
    </div>)}
   </div>
   {diskTotal>100&&<div>
