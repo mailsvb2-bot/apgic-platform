@@ -448,7 +448,8 @@ curl -fsS --max-time 120 "http://127.0.0.1:8081/index.bundle?platform=android&de
 
 start_installation_server
 bootstrap_installation_session
-prepare_offline_checkout
+# Reserve the checkout hold only when the offline mutation test starts:
+# the preceding native capability checks can exceed the hold TTL.
 issue_deep_link
 
 "$ADB" reverse tcp:8081 tcp:8081
@@ -1509,6 +1510,7 @@ assert_workspace_switch
 assert_tenant_isolation
 assert_deep_link_runtime
 assert_notification_runtime
+prepare_offline_checkout
 assert_offline_mutation_restart
 assert_realtime_lifecycle
 assert_accessibility_and_device_matrix
