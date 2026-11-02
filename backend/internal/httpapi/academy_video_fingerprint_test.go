@@ -19,7 +19,7 @@ func TestAcademyVideoFingerprintRejectsReplacedCloudFile(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		file academy.YandexDiskFile
-		id string
+		id   string
 		hash string
 		size int64
 	}{
