@@ -95,3 +95,24 @@ func TestAcademyYandexOAuthCodeExchangeTransport(t *testing.T) {
 		})
 	}
 }
+
+func TestCloudOAuthCallbackRejectsMalformedRawQuery(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		raw   string
+		valid bool
+	}{
+		{"valid", "state=nonce&code=one-time-code", true},
+		{"malformed escape after valid code", "state=nonce&code=one-time-code&%ZZ=ignored", false},
+		{"malformed escape in code", "state=nonce&code=bad%ZZ", false},
+		{"ambiguous duplicate", "state=nonce&code=first&code=second", false},
+		{"invalid semicolon separator", "state=nonce&code=one-time-code&extra=1;other=2", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			code, ok := cloudOAuthCallbackCodeFromRaw(tc.raw, "nonce")
+			if ok != tc.valid || (ok && code != "one-time-code") {
+				t.Fatalf("raw callback accepted=%v code=%q, want valid=%v", ok, code, tc.valid)
+			}
+		})
+	}
+}

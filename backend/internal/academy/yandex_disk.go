@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -66,7 +67,17 @@ func (c YandexDiskClient) do(ctx context.Context, token, endpoint string, dst an
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("cloud provider response %d", resp.StatusCode)
 	}
-	return json.NewDecoder(http.MaxBytesReader(nil, resp.Body, 2<<20)).Decode(dst)
+	// Decode one bounded JSON document, not merely a valid prefix followed
+	// by another object or malformed provider data.
+	decoder := json.NewDecoder(http.MaxBytesReader(nil, resp.Body, 2<<20))
+	if err := decoder.Decode(dst); err != nil {
+		return err
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		return errors.New("invalid cloud provider response")
+	}
+	return nil
 }
 
 // ListFiles uses bounded pagination: a browser can batch-select an entire

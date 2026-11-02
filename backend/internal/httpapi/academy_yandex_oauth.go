@@ -94,6 +94,18 @@ func academyYandexOAuthConfig() (string, string, string, error) {
 	}
 	return id, secret, redirect, nil
 }
+
+// cloudOAuthCallbackCodeFromRaw rejects malformed query escapes instead of
+// silently ignoring them as url.URL.Query does. OAuth callbacks must have
+// an unambiguous, fully parsed state/code pair.
+func cloudOAuthCallbackCodeFromRaw(rawQuery, expectedState string) (string, bool) {
+	query, err := url.ParseQuery(rawQuery)
+	if err != nil {
+		return "", false
+	}
+	return cloudOAuthCallbackCode(query, expectedState)
+}
+
 // cloudOAuthCallbackCode accepts exactly one state and one code. url.Values.Get
 // silently picks the first value, which can make an OAuth callback ambiguous.
 func cloudOAuthCallbackCode(query url.Values, expectedState string) (string, bool) {
@@ -206,7 +218,7 @@ func registerAcademyYandexOAuth(mux *http.ServeMux, store academyStore, sessions
 			return
 		}
 		state, err := cloudOpen(cookie.Value, key)
-		code, validCode := cloudOAuthCallbackCode(r.URL.Query(), state.Nonce)
+		code, validCode := cloudOAuthCallbackCodeFromRaw(r.URL.RawQuery, state.Nonce)
 		if err != nil || !validCode {
 			academyHTTPError(w, r, academy.ErrDenied)
 			return
