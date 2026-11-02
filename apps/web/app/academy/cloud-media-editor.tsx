@@ -190,7 +190,14 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
    <textarea id="cloud-media-rows" rows={5} value={rows} onChange={e=>setRows(e.target.value)} placeholder={"disk:/videos/001.mp4 | Видео 1\ndisk:/videos/002.mp4 | Видео 2"}/>
    <button disabled={busy}>Добавить файлы</button>
   </form>
-  {saved.some(a=>!media.some(m=>m.id===a.media_id))&&<p role="alert">В сохранённых уроках есть видео от прежнего подключения Яндекс Диска. Они недоступны ученикам. Повторно импортируйте актуальные файлы и переназначьте их перед публикацией.</p>}
+  {saved.some(a=>!media.some(m=>m.id===a.media_id))&&<div role="alert">
+   <p>В сохранённых уроках есть видео от прежнего подключения Яндекс Диска. Они недоступны ученикам. Повторно импортируйте актуальные файлы и переназначьте их перед публикацией.</p>
+   {assignments.some(a=>!media.some(m=>m.id===a.media_id))&&<button type="button" disabled={busy} onClick={()=>{
+    const activeIDs=new Set(media.map(m=>m.id));
+    setAssignments(current=>current.filter(a=>activeIDs.has(a.media_id)));
+    setMessage("Устаревшие назначения убраны из черновика. Нажмите «Сохранить распределение», чтобы применить изменения.");
+   }}>Убрать все устаревшие назначения</button>}
+  </div>}
   <h4>Выбрать сразу несколько видео</h4>
   <div style={{maxHeight:220,overflowY:"auto"}}>
    {media.map(m=><label key={m.id} style={{display:"block"}}>
