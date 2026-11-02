@@ -281,7 +281,9 @@ func registerAcademyYandexOAuth(mux *http.ServeMux, store academyStore, sessions
 			academyHTTPError(w, r, err)
 			return
 		}
-		client := &http.Client{Timeout: 12 * time.Second}
+		// OAuth codes and client secrets must not traverse an environment
+		// proxy or a DNS-rebound private endpoint.
+		client := academy.NewYandexSecureClient(12 * time.Second)
 		accessToken, err := academyExchangeYandexOAuthCode(r.Context(), client, "https://oauth.yandex.ru/token", id, secret, code, state.Verifier)
 		if err != nil {
 			academyHTTPError(w, r, err)
