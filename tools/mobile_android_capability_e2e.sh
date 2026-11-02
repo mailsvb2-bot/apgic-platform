@@ -401,11 +401,24 @@ echo "no" | "$AVDMANAGER" create avd --force -n "$AVD_NAME" -k "$SYSTEM_IMAGE"
 "$EMULATOR" -list-avds | grep -Fxq "$AVD_NAME" ||
   fail "AVD $AVD_NAME was created outside emulator search path $ANDROID_AVD_HOME"
 
+# GitHub hosted runners can have less than 7 GiB free after installing
+# the pinned NDK and building the APK. Android 36's default AVD userdata
+# partition may exceed that free space, causing the emulator to exit before
+# adb ever sees it. Size the real userdata partition explicitly instead of
+# masking a deterministic disk failure with longer adb timeouts.
+ANDROID_E2E_USERDATA_MB=2048
+available_avd_mb="$(df -Pm "$ANDROID_AVD_HOME" | awk 'END {print $4}')"
+[[ "$available_avd_mb" =~ ^[0-9]+$ ]] ||
+  fail "cannot determine free disk space for Android emulator"
+if (( available_avd_mb < ANDROID_E2E_USERDATA_MB + 1024 )); then
+  fail "insufficient disk for Android emulator: available=${available_avd_mb}MiB, userdata=${ANDROID_E2E_USERDATA_MB}MiB, required reserve=1024MiB"
+fi
+
 if [[ -e /dev/kvm ]]; then
   sudo chmod 666 /dev/kvm
 fi
 
-"$EMULATOR"   -avd "$AVD_NAME"   -no-window   -no-audio   -no-snapshot   -no-boot-anim   -gpu swiftshader_indirect   >"$EMULATOR_LOG" 2>&1 &
+"$EMULATOR"   -avd "$AVD_NAME"   -partition-size "$ANDROID_E2E_USERDATA_MB"   -no-window   -no-audio   -no-snapshot   -no-boot-anim   -gpu swiftshader_indirect   >"$EMULATOR_LOG" 2>&1 &
 EMULATOR_PID=$!
 
 if ! timeout 120 "$ADB" wait-for-device; then
