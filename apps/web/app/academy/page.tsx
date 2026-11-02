@@ -147,12 +147,29 @@ export default function AcademyPage(){
   catch(error){setNotice(error instanceof Error?error.message:"Операция не выполнена")}
   finally{setBusy(false)}
  }
- async function loadOutline(selected:Course){
+ const loadOutline=useCallback(async (selected:Course)=>{
   setCourse(selected);setActiveEnrollment(null);setCertificate(null);setLearnerAttempts([]);setCohorts([]);
   const d=await api<{state:string;modules:Module[];lessons:Lesson[]}>(
    `/v1/academy/courses/${selected.id}/versions/${selected.version_id}/outline`);
   setModules(d.modules);setLessons(d.lessons);setModuleID(d.modules[0]?.id||"");
- }
+ },[]);
+ // After the signed OAuth callback, reopen only a course/version returned
+ // by the authenticated author catalog. Never trust query IDs as ownership.
+ useEffect(()=>{
+  const params=new URLSearchParams(window.location.search);
+  if(params.get("cloud_connected")!=="yandex")return;
+  const courseId=params.get("course_id"),versionId=params.get("version_id");
+  if(!courseId||!versionId)return;
+  const selected=mine.find(c=>c.id===courseId&&c.version_id===versionId&&c.state==="DRAFT");
+  if(!selected)return;
+  let cancelled=false;
+  void loadOutline(selected).then(()=>{
+   if(!cancelled)window.history.replaceState(null,"","/academy?cloud_connected=yandex");
+  }).catch(()=>{
+   if(!cancelled)setNotice("Облако подключено, но редактор не удалось открыть. Выберите курс в разделе «Мои курсы».");
+  });
+  return ()=>{cancelled=true};
+ },[mine,loadOutline]);
  async function loadLearning(item:Enrollment){
   const [d,history,cohortResult,appealList]=await Promise.all([
    api<{lessons:Lesson[]}>(`/v1/academy/enrollments/${item.id}/learn`),

@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"os"
 	"strings"
 	"time"
@@ -25,6 +26,8 @@ type cloudOAuthState struct {
 	Actor    string `json:"actor"`
 	Verifier string `json:"verifier"`
 	Nonce    string `json:"nonce"`
+	ReturnCourse  string `json:"return_course,omitempty"`
+	ReturnVersion string `json:"return_version,omitempty"`
 	Expires  int64  `json:"expires"`
 }
 
@@ -71,7 +74,9 @@ func cloudOpen(value string, key []byte) (cloudOAuthState, error) {
 	if !hmac.Equal(signature, mac.Sum(nil)) {
 		return state, academy.ErrDenied
 	}
-	if json.Unmarshal(raw, &state) != nil || state.Actor == "" || state.Verifier == "" || state.Nonce == "" || state.Expires < time.Now().Unix() {
+	if json.Unmarshal(raw, &state) != nil || state.Actor == "" || state.Verifier == "" || state.Nonce == "" || state.Expires < time.Now().Unix() ||
+		(state.ReturnCourse == "") != (state.ReturnVersion == "") ||
+		(state.ReturnCourse != "" && (!cloudOAuthEditorIDPattern.MatchString(state.ReturnCourse) || !cloudOAuthEditorIDPattern.MatchString(state.ReturnVersion))) {
 		return state, academy.ErrDenied
 	}
 	return state, nil
@@ -82,6 +87,127 @@ func cloudOpen(value string, key []byte) (cloudOAuthState, error) {
 // person's cloud credentials to the original author.
 func cloudOAuthActorMatches(state cloudOAuthState, actor string) bool {
 	return actor != "" && state.Actor != "" && state.Actor == actor
+}
+
+// Only a pair of canonical course/version UUIDs may survive the OAuth
+// round-trip. No browser-controlled return URL or open redirect is accepted.
+var cloudOAuthEditorIDPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}package httpapi
+
+import (
+	"context"
+	"crypto/hmac"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/json"
+	"errors"
+	"io"
+	"net/http"
+	"net/url"
+	"regexp"
+	"os"
+	"strings"
+	"time"
+
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/academy"
+)
+
+type academyCloudCredentialWriter interface {
+	AcademyStoreCloudCredential(actor, provider, token string) error
+}
+type cloudOAuthState struct {
+	Actor    string `json:"actor"`
+	Verifier string `json:"verifier"`
+	Nonce    string `json:"nonce"`
+	ReturnCourse  string `json:"return_course,omitempty"`
+	ReturnVersion string `json:"return_version,omitempty"`
+	Expires  int64  `json:"expires"`
+}
+
+func cloudRandom(n int) (string, error) {
+	b := make([]byte, n)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(b), nil
+}
+func cloudStateKey() ([]byte, error) {
+	s := os.Getenv("APGIC_ACADEMY_OAUTH_STATE_KEY")
+	key, err := base64.StdEncoding.DecodeString(s)
+	if err != nil || len(key) < 32 {
+		return nil, errors.New("OAuth state key is unavailable")
+	}
+	return key, nil
+}
+func cloudSeal(state cloudOAuthState, key []byte) (string, error) {
+	raw, err := json.Marshal(state)
+	if err != nil {
+		return "", err
+	}
+	mac := hmac.New(sha256.New, key)
+	mac.Write(raw)
+	return base64.RawURLEncoding.EncodeToString(raw) + "." + base64.RawURLEncoding.EncodeToString(mac.Sum(nil)), nil
+}
+func cloudOpen(value string, key []byte) (cloudOAuthState, error) {
+	var state cloudOAuthState
+	parts := strings.Split(value, ".")
+	if len(parts) != 2 {
+		return state, academy.ErrDenied
+	}
+	raw, err := base64.RawURLEncoding.DecodeString(parts[0])
+	if err != nil || len(raw) > 2048 {
+		return state, academy.ErrDenied
+	}
+	signature, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return state, academy.ErrDenied
+	}
+	mac := hmac.New(sha256.New, key)
+	mac.Write(raw)
+	if !hmac.Equal(signature, mac.Sum(nil)) {
+		return state, academy.ErrDenied
+	}
+	if json.Unmarshal(raw, &state) != nil || state.Actor == "" || state.Verifier == "" || state.Nonce == "" || state.Expires < time.Now().Unix() ||
+		(state.ReturnCourse == "") != (state.ReturnVersion == "") ||
+		(state.ReturnCourse != "" && (!cloudOAuthEditorIDPattern.MatchString(state.ReturnCourse) || !cloudOAuthEditorIDPattern.MatchString(state.ReturnVersion))) {
+		return state, academy.ErrDenied
+	}
+	return state, nil
+}
+
+// A callback may finish only under the same signed APGIC identity that
+// initiated the OAuth flow. Switching accounts must never attach another
+// person's cloud credentials to the original author.
+func cloudOAuthActorMatches(state cloudOAuthState, actor string) bool {
+	return actor != "" && state.Actor != "" && state.Actor == actor
+}
+
+)
+
+func cloudOAuthEditorReturnIDs(rawQuery string) (string, string, bool) {
+	query, err := url.ParseQuery(rawQuery)
+	if err != nil || len(query) > 2 {
+		return "", "", false
+	}
+	if len(query) == 0 {
+		return "", "", true
+	}
+	course, version := query["course_id"], query["version_id"]
+	if len(course) != 1 || len(version) != 1 ||
+		!cloudOAuthEditorIDPattern.MatchString(course[0]) ||
+		!cloudOAuthEditorIDPattern.MatchString(version[0]) {
+		return "", "", false
+	}
+	return course[0], version[0], true
+}
+
+func cloudOAuthCallbackDestination(state cloudOAuthState) string {
+	query := url.Values{"cloud_connected": {"yandex"}}
+	if state.ReturnCourse != "" && state.ReturnVersion != "" {
+		query.Set("course_id", state.ReturnCourse)
+		query.Set("version_id", state.ReturnVersion)
+	}
+	return "/academy?" + query.Encode()
 }
 
 func academyYandexOAuthConfig() (string, string, string, error) {
@@ -169,6 +295,11 @@ func academyExchangeYandexOAuthCode(ctx context.Context, client *http.Client, en
 func registerAcademyYandexOAuth(mux *http.ServeMux, store academyStore, sessions *clientSessionManager, sessionErr error) {
 	const cookieName = "apgic_academy_yandex_oauth"
 	mux.HandleFunc("GET /v1/academy/author/cloud/yandex/connect", func(w http.ResponseWriter, r *http.Request) {
+		returnCourse, returnVersion, validReturn := cloudOAuthEditorReturnIDs(r.URL.RawQuery)
+		if !validReturn {
+			academyHTTPError(w, r, academy.ErrInvalid)
+			return
+		}
 		actor, ok := academyIdentity(w, r, sessions, sessionErr)
 		if !ok {
 			return
@@ -193,7 +324,7 @@ func registerAcademyYandexOAuth(mux *http.ServeMux, store academyStore, sessions
 			academyHTTPError(w, r, academy.ErrUnavailable)
 			return
 		}
-		value, err := cloudSeal(cloudOAuthState{Actor: actor, Verifier: verifier, Nonce: nonce, Expires: time.Now().Add(10 * time.Minute).Unix()}, key)
+		value, err := cloudSeal(cloudOAuthState{Actor: actor, Verifier: verifier, Nonce: nonce, Expires: time.Now().Add(10 * time.Minute).Unix(), ReturnCourse: returnCourse, ReturnVersion: returnVersion}, key)
 		if err != nil {
 			academyHTTPError(w, r, academy.ErrUnavailable)
 			return
@@ -251,6 +382,6 @@ func registerAcademyYandexOAuth(mux *http.ServeMux, store academyStore, sessions
 			academyHTTPError(w, r, academy.ErrUnavailable)
 			return
 		}
-		http.Redirect(w, r, "/academy?cloud_connected=yandex", http.StatusSeeOther)
+		http.Redirect(w, r, cloudOAuthCallbackDestination(state), http.StatusSeeOther)
 	})
 }

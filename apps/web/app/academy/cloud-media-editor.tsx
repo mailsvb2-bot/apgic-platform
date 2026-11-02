@@ -144,7 +144,7 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
   <p>Импорт облачных файлов и распределение по видеоурокам. Воспроизведение доступно только после проверки доступа через серверный медиашлюз.</p>
   <button type="button" disabled={busy} onClick={()=>void reload(undefined,true).catch(e=>setMessage(String(e)))}>Загрузить медиатеку</button>
   <h4>Выбрать файлы из Яндекс Диска</h4>
-  <a href="/v1/academy/author/cloud/yandex/connect">Подключить Яндекс Диск</a>
+  <a href={`/v1/academy/author/cloud/yandex/connect?course_id=${encodeURIComponent(courseId)}&version_id=${encodeURIComponent(versionId)}`}>Подключить Яндекс Диск</a>
   <p>После подключения облака можно открыть папку, отметить сразу несколько видео и добавить их одним нажатием.</p>
   <button type="button" disabled={busy} onClick={()=>void browseDisk("disk:/")}>Открыть Яндекс Диск</button>
   <p>Папка: {diskPath}</p>
