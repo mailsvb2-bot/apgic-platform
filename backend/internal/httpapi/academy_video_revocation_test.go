@@ -35,8 +35,8 @@ func TestAcademyWatchVideoEntitlementCancelsStalledStream(t *testing.T) {
 }
 
 type academyVideoRevocationSource struct {
-	author   string
-	provider string
+	author       string
+	provider     string
 	path         string
 	revoked      bool
 	disconnected bool
