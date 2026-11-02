@@ -37,12 +37,13 @@ func TestAcademyWatchVideoEntitlementCancelsStalledStream(t *testing.T) {
 type academyVideoRevocationSource struct {
 	author   string
 	provider string
-	path     string
-	revoked  bool
+	path         string
+	revoked      bool
+	disconnected bool
 }
 
 func (s *academyVideoRevocationSource) AcademyLearnerVideoSource(actor, enrollmentID, lessonID, mediaID string) (string, string, string, error) {
-	if s.revoked || actor != "learner" || enrollmentID != "enrollment" || lessonID != "lesson" || mediaID != "media" {
+	if s.revoked || s.disconnected || actor != "learner" || enrollmentID != "enrollment" || lessonID != "lesson" || mediaID != "media" {
 		return "", "", "", errors.New("access denied")
 	}
 	return s.author, s.provider, s.path, nil
@@ -83,6 +84,11 @@ func TestAcademyVideoSourceBindingRejectsRevocationAndRebinding(t *testing.T) {
 	source.revoked = true
 	if allowed() {
 		t.Fatal("revoked entitlement still allowed source access")
+	}
+	source.revoked = false
+	source.disconnected = true
+	if allowed() {
+		t.Fatal("disconnected cloud account still allowed source access")
 	}
 }
 
