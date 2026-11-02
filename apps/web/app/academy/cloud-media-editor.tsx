@@ -123,7 +123,7 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
   setMessage("Распределение подготовлено. Нажмите «Сохранить распределение»");
  }
  async function persist(){
-  if(!assignments.length)return;
+  if(!assignments.length&&!saved.length)return;
   setBusy(true);setMessage("");
   try{
    const source=assignments.reduce((map,a)=>{const values=map.get(a.lesson_id)||[];values.push(a);map.set(a.lesson_id,values);return map},new Map<string,Mapping[]>());
@@ -183,7 +183,7 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
    {lessons.filter(l=>l.kind==="VIDEO").map(l=><option key={l.id} value={l.id}>{l.title}</option>)}
   </select>
   <button type="button" disabled={busy||!selected.length||!lessonId} onClick={allocate}>Назначить выбранные</button>
-  <p>Подготовлено назначений: {assignments.length}. Сохранённые назначения восстанавливаются при повторном входе; изменения вступят в силу только после сохранения.</p>
+  <p>Подготовлено назначений: {assignments.length}. Сохранённые назначения восстанавливаются при повторном входе; изменения вступят в силу только после сохранения. Удаление всех назначений очищает видеопривязки черновика.</p>
   <button type="button" disabled={busy} onClick={()=>{
    setAssignments(saved.map(({lesson_id,media_id,ordinal})=>({lesson_id,media_id,ordinal})));
    setMessage("Несохранённые изменения отменены");
@@ -191,6 +191,7 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
   <div style={{maxHeight:220,overflowY:"auto"}}>
    {assignments.map((a,i)=><p key={a.lesson_id+":"+a.media_id+":"+i}>
     {lessons.find(l=>l.id===a.lesson_id)?.title||"Урок"} · {a.ordinal}. {media.find(m=>m.id===a.media_id)?.title||"Видео"}
+    <button type="button" disabled={busy} onClick={()=>setAssignments(old=>old.filter((_,index)=>index!==i))}>Убрать из урока</button>
    </p>)}
   </div>
   <h4>Сохранённые материалы уроков</h4>
@@ -199,6 +200,6 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
     {" · "}{a.provider_file_ref}
 
    </p>)}
-  <button type="button" disabled={busy||!assignments.length} onClick={()=>void persist()}>Сохранить распределение</button>
+  <button type="button" disabled={busy||(!assignments.length&&!saved.length)} onClick={()=>void persist()}>Сохранить распределение</button>
  </section>;
 }
