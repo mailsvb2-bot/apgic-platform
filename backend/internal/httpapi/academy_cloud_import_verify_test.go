@@ -44,7 +44,7 @@ func TestAcademyCloudImportRequiresVerifiedPrivateVideo(t *testing.T) {
 			Provider: "YANDEX_DISK", ProviderFileRef: " disk:/lectures/one.mp4", Title: "Lesson",
 		}}, false, 0},
 		{"embedded NUL path", []academy.CloudMedia{{
-			Provider: "YANDEX_DISK", ProviderFileRef: "disk:/lectures/one.mp4\\x00", Title: "Lesson",
+			Provider: "YANDEX_DISK", ProviderFileRef: "disk:/lectures/one.mp4\x00", Title: "Lesson",
 		}}, false, 0},
 		{"oversized batch", make([]academy.CloudMedia, 101), false, 0},
 	}
