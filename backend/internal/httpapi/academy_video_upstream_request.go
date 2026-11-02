@@ -22,6 +22,9 @@ func academyVideoUpstreamRequest(ctx context.Context, sourceURL, requestedRange 
 	if err != nil {
 		return nil, err
 	}
+	// A byte range is defined over the identity representation. Explicitly
+	// decline content encoding so cloud/CDN compression cannot alter offsets.
+	request.Header.Set("Accept-Encoding", "identity")
 	if requestedRange != "" {
 		request.Header.Set("Range", requestedRange)
 	}
