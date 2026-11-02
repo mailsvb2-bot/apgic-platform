@@ -148,3 +148,29 @@ func TestAcademyVideoFullBodyRequiresFiniteVerifiedLength(t *testing.T) {
 		t.Fatalf("full video leaked extra bytes: %q, %v", got, err)
 	}
 }
+
+func TestAcademyVideoBodyReportsTruncatedUpstream(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		status  int
+		headers http.Header
+	}{
+		{"full 200", http.StatusOK, http.Header{"Content-Length": {"4"}}},
+		{"seek 206", http.StatusPartialContent, http.Header{"Content-Range": {"bytes 100-103/1000"}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			body, err := academyVideoBodyForLearner(tc.status, tc.headers, strings.NewReader("AB"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var forwarded bytes.Buffer
+			err = academyCopyVideoAuthorized(&forwarded, body, func() bool { return true })
+			if !errors.Is(err, io.ErrUnexpectedEOF) {
+				t.Fatalf("truncated provider transfer must fail: %v", err)
+			}
+			if forwarded.String() != "AB" {
+				t.Fatalf("unexpected bytes after truncated transfer: %q", forwarded.String())
+			}
+		})
+	}
+}

@@ -26,7 +26,7 @@ func academyVideoBodyForLearner(status int, headers http.Header, body io.Reader)
 	if err != nil {
 		return nil, err
 	}
-	return io.LimitReader(body, length), nil
+	return &academyExactVideoReader{remaining: io.LimitedReader{R: body, N: length}}, nil
 }
 
 // academyVideoFullLength rejects unbounded or ambiguous HTTP 200 responses.
@@ -70,4 +70,22 @@ func academyVideoPartialLength(contentRange string) (int64, error) {
 		return 0, errors.New("invalid partial video response")
 	}
 	return int64(end - start + 1), nil
+}
+
+// academyExactVideoReader treats a prematurely closed provider response as an
+// upstream failure, not a successful video transfer. io.LimitReader alone
+// silently returns EOF when fewer than the promised 200/206 bytes arrive.
+type academyExactVideoReader struct {
+	remaining io.LimitedReader
+}
+
+func (r *academyExactVideoReader) Read(p []byte) (int, error) {
+	if r.remaining.N == 0 {
+		return 0, io.EOF
+	}
+	n, err := r.remaining.Read(p)
+	if err == io.EOF && r.remaining.N > 0 {
+		return n, io.ErrUnexpectedEOF
+	}
+	return n, err
 }
