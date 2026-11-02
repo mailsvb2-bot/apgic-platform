@@ -32,7 +32,7 @@ func (c *Checker) AcademyStoreCloudCredential(actor, provider, token string) err
  author_id,provider,encrypted_access_token)
  VALUES($1::uuid,$2,$3)
  ON CONFLICT(author_id,provider) DO UPDATE SET
- encrypted_access_token=EXCLUDED.encrypted_access_token,updated_at=now()`,
+ encrypted_access_token=EXCLUDED.encrypted_access_token,updated_at=now(),generation=gen_random_uuid()`,
 		actor, provider, encrypted)
 	return err
 }
@@ -40,11 +40,19 @@ func (c *Checker) AcademyStoreCloudCredential(actor, provider, token string) err
 // AcademyReadCloudCredential is server-side only and must NEVER be exposed
 // through a response DTO, error trace, observability event or log.
 func (c *Checker) AcademyReadCloudCredential(actor, provider string) (string, error) {
+ token, _, err := c.academyCloudCredentialSnapshot(actor, provider)
+ return token, err
+}
+
+// Read token and immutable generation from the SAME row snapshot. OAuth
+// reconnect rotates generation, so imports can never bind a verified path
+// to credentials from a different cloud account.
+func (c *Checker) academyCloudCredentialSnapshot(actor, provider string) (string, string, error) {
 	if c == nil || c.db == nil {
-		return "", academy.ErrUnavailable
+		return "", "", academy.ErrUnavailable
 	}
 	if !academyMediaUUID(actor) || provider != "YANDEX_DISK" {
-		return "", academy.ErrDenied
+		return "", "", academy.ErrDenied
 	}
 	codec, err := academy.NewCloudTokenCipher(os.Getenv("APGIC_ACADEMY_CLOUD_TOKEN_KEY"))
 	if err != nil {
@@ -52,10 +60,10 @@ func (c *Checker) AcademyReadCloudCredential(actor, provider string) (string, er
 	}
 	ctx, cancel := academyContext()
 	defer cancel()
-	var encrypted string
-	err = c.db.QueryRowContext(ctx, `SELECT encrypted_access_token
+	var encrypted, generation string
+	err = c.db.QueryRowContext(ctx, `SELECT encrypted_access_token,generation::text
  FROM academy_cloud_connections WHERE author_id=$1::uuid AND provider=$2`,
-		actor, provider).Scan(&encrypted)
+		actor, provider).Scan(&encrypted, &generation)
 	if err != nil {
 		return "", academy.ErrDenied
 	}
@@ -63,7 +71,7 @@ func (c *Checker) AcademyReadCloudCredential(actor, provider string) (string, er
 	if err != nil {
 		return "", academy.ErrUnavailable
 	}
-	return token, nil
+	return token, generation, nil
 }
 
 func (c *Checker) AcademyDisconnectCloud(actor, provider string) error {
