@@ -383,7 +383,7 @@ export default function AcademyPage(){
   </section>
   {course&&<section className="how-section">
    <h2>Редактор: {course.title} — версия {course.version_no}</h2>
-   {course.state==="DRAFT"&&<CloudMediaEditor courseId={course.id} versionId={course.version_id} lessons={lessons.map(l=>({id:l.id,title:l.title,kind:l.kind}))}/>}
+   {course.state==="DRAFT"&&<CloudMediaEditor key={`${course.id}:${course.version_id}`} courseId={course.id} versionId={course.version_id} lessons={lessons.map(l=>({id:l.id,title:l.title,kind:l.kind}))}/>}
    <div className="how-grid">
     <form className="panel specialist-form" onSubmit={addModule}>
      <h3>Модуль</h3><label htmlFor="academy-module">Название</label>
