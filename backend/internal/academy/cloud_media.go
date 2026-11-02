@@ -17,8 +17,8 @@ type CloudMedia struct {
 	SourceURL       string `json:"source_url,omitempty"`
 	Title           string `json:"title"`
 	Active          bool   `json:"active"` // author-only: currently verified OAuth generation
-	ResourceID      string `json:"-"` // verified server-side, never accepted from JSON
-	SHA256          string `json:"-"` // immutable provider content digest
+	ResourceID      string `json:"-"`      // verified server-side, never accepted from JSON
+	SHA256          string `json:"-"`      // immutable provider content digest
 	FileSize        int64  `json:"-"`
 }
 type MediaAssignment struct {
