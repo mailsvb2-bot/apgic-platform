@@ -73,16 +73,14 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 			return
 		}
 		go academyWatchVideoEntitlement(streamCtx, stopStream, time.Second, allowed)
-		request, err := http.NewRequestWithContext(streamCtx, http.MethodGet, download, nil)
+		request, err := academyVideoUpstreamRequest(streamCtx, download, requestedRange)
 		if err != nil {
 			academyHTTPError(w, r, academy.ErrUnavailable)
 			return
 		}
-		if requestedRange != "" {
-			request.Header.Set("Range", requestedRange)
-		}
 		transport := &http.Client{
 			Transport: &http.Transport{
+				DisableKeepAlives:     true,
 				Proxy:                 nil,
 				DialContext:           (&net.Dialer{Timeout: 10 * time.Second, ControlContext: academyVideoDialControl}).DialContext,
 				ResponseHeaderTimeout: 15 * time.Second,
