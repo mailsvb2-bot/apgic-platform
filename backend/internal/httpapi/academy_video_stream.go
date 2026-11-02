@@ -110,6 +110,13 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 			academyHTTPError(w, r, academy.ErrUnavailable)
 			return
 		}
+		// Content-Range alone does not constrain a chunked upstream body.
+		// Never forward bytes beyond the approved partial representation.
+		videoBody, err := academyVideoBodyForLearner(response.StatusCode, response.Header, response.Body)
+		if err != nil {
+			academyHTTPError(w, r, academy.ErrUnavailable)
+			return
+		}
 		if !allowed() {
 			academyHTTPError(w, r, academy.ErrEntitlement)
 			return
@@ -130,7 +137,7 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 		}
 		w.Header().Set("Accept-Ranges", "bytes")
 		w.WriteHeader(response.StatusCode)
-		_ = academyCopyVideoAuthorized(w, response.Body, allowed)
+		_ = academyCopyVideoAuthorized(w, videoBody, allowed)
 	})
 }
 
