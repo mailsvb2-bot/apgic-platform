@@ -79,3 +79,10 @@ func academyVideoUnsatisfiedRangeAllowed(requestRange, contentRange string) bool
 	}
 	return start >= total
 }
+
+// academyVideoUnsatisfiedRangeHeadersAllowed checks the complete upstream
+// header set, not just Header.Get (which hides duplicate Content-Range fields).
+func academyVideoUnsatisfiedRangeHeadersAllowed(requestRange string, headers http.Header) bool {
+	values := headers.Values("Content-Range")
+	return len(values) == 1 && academyVideoUnsatisfiedRangeAllowed(requestRange, values[0])
+}
