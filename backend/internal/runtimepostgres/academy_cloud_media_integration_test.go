@@ -202,3 +202,68 @@ func TestAcademyCloudMediaDraftOwnerAndVideoBoundaryPostgres(t *testing.T) {
 		t.Fatalf("cleared snapshot retry emitted duplicate event: before=%d after=%d", clearEvents, clearedRetryEvents)
 	}
 }
+
+
+// A cloud reconnect must never reinterpret an already verified disk:/ path.
+// This uses real migrated PostgreSQL constraints and the canonical import
+// transaction, not an in-memory mock of the connection generation.
+func TestAcademyCloudMediaGenerationReconnectionPostgres(t *testing.T) {
+	dsn := os.Getenv("APGIC_ORGANIZATION_TEST_DATABASE_URL")
+	if dsn == "" {
+		t.Skip("isolated migrated PostgreSQL required")
+	}
+	db, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	store, err := Open(context.Background(), dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	author, err := academyID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec("INSERT INTO identities(id) VALUES($1::uuid)", author); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`INSERT INTO academy_cloud_connections(author_id,provider,encrypted_access_token)
+VALUES($1::uuid,'YANDEX_DISK',$2)`, author, "encrypted-test-only-placeholder-credential-000000000000000000000"); err != nil {
+		t.Fatal(err)
+	}
+	var original string
+	if err := db.QueryRow(`SELECT generation::text FROM academy_cloud_connections WHERE author_id=$1::uuid`, author).Scan(&original); err != nil {
+		t.Fatal(err)
+	}
+	items := []academy.CloudMedia{{Provider: "YANDEX_DISK", ProviderFileRef: "disk:/same-path.mp4", Title: "Bound video"}}
+	first, err := store.academyImportCloudMediaWithGeneration(author, items, original)
+	if err != nil || len(first) != 1 {
+		t.Fatalf("first generation import: %+v err=%v", first, err)
+	}
+	if _, err := db.Exec(`UPDATE academy_cloud_media SET connection_generation=gen_random_uuid() WHERE id=$1::uuid`, first[0].ID); err == nil {
+		t.Fatal("provider identity changed outside immutable import")
+	}
+	if _, err := db.Exec(`UPDATE academy_cloud_connections SET generation=gen_random_uuid() WHERE author_id=$1::uuid`, author); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.academyImportCloudMediaWithGeneration(author, items, original); !errors.Is(err, academy.ErrDenied) {
+		t.Fatalf("stale OAuth generation was accepted: %v", err)
+	}
+	var current string
+	if err := db.QueryRow(`SELECT generation::text FROM academy_cloud_connections WHERE author_id=$1::uuid`, author).Scan(&current); err != nil {
+		t.Fatal(err)
+	}
+	second, err := store.academyImportCloudMediaWithGeneration(author, items, current)
+	if err != nil || len(second) != 1 || first[0].ID == second[0].ID {
+		t.Fatalf("new OAuth account reused old media identity: %+v %+v err=%v", first, second, err)
+	}
+	var active int
+	if err := db.QueryRow(`SELECT count(*) FROM academy_cloud_media media
+JOIN academy_cloud_connections connection ON connection.author_id=media.author_id
+ AND connection.provider=media.provider AND connection.generation=media.connection_generation
+WHERE media.author_id=$1::uuid AND media.provider_file_ref=$2`, author, items[0].ProviderFileRef).Scan(&active); err != nil || active != 1 {
+		t.Fatalf("reconnected path must have exactly one active source: count=%d err=%v", active, err)
+	}
+}
