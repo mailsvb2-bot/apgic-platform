@@ -53,7 +53,7 @@ func TestAcademyYandexOAuthCodeExchangeTransport(t *testing.T) {
 		{"wrong token type", 200, `{"access_token":"private-token","token_type":"mac"}`, false},
 		{"missing token", 200, `{"token_type":"bearer"}`, false},
 		{"oversized body", 200, `{"access_token":"private-token","extra":"` + strings.Repeat("x", 17000) + `"}`, false},
-		{"newline token", 200, `{"access_token":"bad\\ntoken"}`, false},
+		{"newline token", 200, `{"access_token":"bad\ntoken"}`, false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
