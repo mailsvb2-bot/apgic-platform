@@ -16,6 +16,7 @@ func TestAcademyVideoPublicDownloadIP(t *testing.T) {
 		}
 	}
 	for _, addr := range []string{
+		"0.0.0.1", "0.1.2.3", "::ffff:0.0.0.1",
 		"127.0.0.1", "10.1.2.3", "172.16.0.1", "192.168.1.1",
 		"169.254.169.254", "100.64.1.1", "192.0.2.1", "198.18.0.1",
 		"203.0.113.1", "240.0.0.1", "::1", "fc00::1", "fe80::1",
@@ -30,6 +31,7 @@ func TestAcademyVideoPublicDownloadIP(t *testing.T) {
 
 func TestAcademyVideoDialControlBlocksPrivateResolvedAddresses(t *testing.T) {
 	for _, address := range []string{
+		"0.0.0.1:443", "0.1.2.3:443", "[::ffff:0.0.0.1]:443",
 		"127.0.0.1:443", "10.0.0.1:443", "169.254.169.254:443",
 		"[::1]:443", "[::ffff:127.0.0.1]:443", "downloader.disk.yandex.net:443",
 		"not-a-socket-address",
