@@ -34,6 +34,10 @@ func TestYandexSharedOutboundPolicyBlocksNonPublicIPs(t *testing.T) {
 		"127.0.0.1", "::1", "10.0.0.1", "169.254.169.254",
 		"::ffff:127.0.0.1", "100.64.1.1", "192.0.2.1",
 		"2001:db8::1", "2002:c0a8:101::", "64:ff9b::a9fe:a9fe",
+		// netip.IsGlobalUnicast returns true for these non-routable IPv6
+		// destinations. They must be denied at the resolved-IP dial boundary.
+		"fec0::1", "feff::1", "100::1", "2001:2::1",
+		"2001:10::1", "2001:20::1",
 	} {
 		if YandexPublicIP(netip.MustParseAddr(value)) {
 			t.Fatalf("non-public Yandex destination allowed: %s", value)
