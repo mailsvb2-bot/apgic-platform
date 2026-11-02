@@ -123,6 +123,45 @@ func TestAcademyVideoCredentialBindingRejectsReconnect(t *testing.T) {
 	}
 }
 
+// The live stream watcher must also stop when a new OAuth connection replaces
+// the original credential while the same disk:/ path remains in the catalog.
+type academyRotatingCredentialSource struct {
+	token atomic.Value
+}
+
+func (s *academyRotatingCredentialSource) AcademyLearnerVideoSource(actor, enrollmentID, lessonID, mediaID string) (string, string, string, error) {
+	return "author", "YANDEX_DISK", "disk:/private/video.mp4", nil
+}
+
+func (s *academyRotatingCredentialSource) AcademyReadCloudCredential(actor, provider string) (string, error) {
+	return s.token.Load().(string), nil
+}
+
+func TestAcademyVideoWatcherCancelsAfterOAuthCredentialRotation(t *testing.T) {
+	source := &academyRotatingCredentialSource{}
+	source.token.Store("original-secret")
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		academyWatchVideoEntitlement(ctx, cancel, 5*time.Millisecond, func() bool {
+			return academyVideoCloudConnectionStillAllowed(source, "author", "YANDEX_DISK", "original-secret")
+		})
+	}()
+	source.token.Store("new-account-secret")
+	select {
+	case <-ctx.Done():
+	case <-time.After(time.Second):
+		t.Fatal("rotated cloud credential did not cancel the active stream")
+	}
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("credential revocation watcher did not terminate")
+	}
+}
+
 type academyBlockingVideoResponseWriter struct {
 	header    http.Header
 	entered   chan struct{}
