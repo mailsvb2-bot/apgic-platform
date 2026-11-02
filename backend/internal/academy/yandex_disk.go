@@ -94,19 +94,27 @@ func (c YandexDiskClient) ListFiles(ctx context.Context, token, path string, off
 	// Provider metadata is not an authorization decision. Reject malformed
 	// folder entries before they become browser navigation/import candidates.
 	// Only direct children of the requested folder may be displayed.
-	if d.Embedded.Total < 0 || len(d.Embedded.Items) > limit {
+	if d.Embedded.Total < 0 || len(d.Embedded.Items) > limit ||
+		(len(d.Embedded.Items) > 0 && (offset > d.Embedded.Total || len(d.Embedded.Items) > d.Embedded.Total-offset)) {
 		return nil, 0, errors.New("invalid cloud folder listing")
 	}
 	prefix := strings.TrimSuffix(path, "/") + "/"
+	seen := make(map[string]struct{}, len(d.Embedded.Items))
 	for _, file := range d.Embedded.Items {
 		if !ValidYandexDiskPath(file.Path) || !strings.HasPrefix(file.Path, prefix) ||
 			(file.Type != "file" && file.Type != "dir") || file.Name == "" || file.Size < 0 {
 			return nil, 0, errors.New("invalid cloud folder entry")
 		}
 		child := strings.TrimPrefix(file.Path, prefix)
-		if child == "" || strings.Contains(child, "/") {
+		if child == "" || strings.Contains(child, "/") || file.Name != child {
 			return nil, 0, errors.New("invalid cloud folder entry")
 		}
+		// A duplicate path or a display name inconsistent with the verified
+		// provider path can mislead the author into selecting another asset.
+		if _, exists := seen[file.Path]; exists {
+			return nil, 0, errors.New("duplicate cloud folder entry")
+		}
+		seen[file.Path] = struct{}{}
 	}
 	return d.Embedded.Items, d.Embedded.Total, nil
 }
