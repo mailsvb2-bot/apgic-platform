@@ -146,10 +146,10 @@ func (c *Checker) AcademyImportCloudMedia(actor string, items []AcademyCloudMedi
 	}
 	defer tx.Rollback()
 	output := make([]AcademyCloudMedia, 0, len(items))
-	// The verification layer deduplicates provider calls, but PostgreSQL
-	// rejects multiple ON CONFLICT updates of the same row in one INSERT
-	// command. Keep the first occurrence of each author/provider/path in
-	// a batch so retries and pasted duplicate rows remain deterministic.
+	// The verification layer deduplicates provider calls, but without this
+	// guard repeated rows still perform redundant database updates and return
+	// the same media ID multiple times. Keep the first occurrence so the
+	// batch result and title selection are stable across retries.
 	seen := make(map[string]struct{}, len(items))
 	for _, it := range items {
 		if it.Provider != "YANDEX_DISK" && it.Provider != "EXTERNAL" {
