@@ -125,7 +125,6 @@ func TestAcademyVideoHTTPReadStopsAfterRevocation(t *testing.T) {
 	}
 }
 
-
 // Unlike a helper-only revocation test, this exercises real HTTP sockets on
 // BOTH sides of the gateway. A learner that already received a full first
 // chunk must not receive the second one after canonical access is revoked.
