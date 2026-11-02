@@ -44,7 +44,7 @@ func TestYandexDiskClientRejectsTrailingProviderJSON(t *testing.T) {
 		ok   bool
 	}{
 		{"single document", `{"path":"disk:/video.mp4"}`, true},
-		{"whitespace after document", " {\\\"path\\\":\\\"disk:/video.mp4\\\"} \\n", true},
+		{"whitespace after document", " {\"path\":\"disk:/video.mp4\"} \n", true},
 		{"second JSON document", `{"path":"disk:/video.mp4"}{"path":"disk:/other.mp4"}`, false},
 		{"trailing malformed bytes", `{"path":"disk:/video.mp4"} garbage`, false},
 	} {
