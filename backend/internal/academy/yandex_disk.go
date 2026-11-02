@@ -19,11 +19,11 @@ type YandexDiskClient struct {
 }
 
 type YandexDiskFile struct {
-	Name     string `json:"name"`
-	Path     string `json:"path"`
-	Type     string `json:"type"`
-	MimeType string `json:"mime_type"`
-	Size     int64  `json:"size"`
+	Name       string `json:"name"`
+	Path       string `json:"path"`
+	Type       string `json:"type"`
+	MimeType   string `json:"mime_type"`
+	Size       int64  `json:"size"`
 	ResourceID string `json:"resource_id"`
 	SHA256     string `json:"sha256"`
 }
