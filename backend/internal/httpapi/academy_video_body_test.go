@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"bytes"
 	"io"
 	"net/http"
 	"strings"
@@ -38,5 +39,31 @@ func TestAcademyVideoBodyForLearnerRejectsInvalidOrUnboundedPartial(t *testing.T
 		if _, err := academyVideoBodyForLearner(http.StatusPartialContent, http.Header{"Content-Range": {value}}, strings.NewReader("x")); err == nil {
 			t.Fatalf("invalid partial range %q accepted", value)
 		}
+	}
+}
+
+func TestAcademyVideoBoundedBodyWithAuthorizedCopy(t *testing.T) {
+	upstream := strings.NewReader("ABCDUNAUTHORIZED-TAIL")
+	body, err := academyVideoBodyForLearner(http.StatusPartialContent,
+		http.Header{"Content-Range": {"bytes 100-103/1000"}}, upstream)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var output bytes.Buffer
+	if err := academyCopyVideoAuthorized(&output, body, func() bool { return true }); err != nil {
+		t.Fatal(err)
+	}
+	if output.String() != "ABCD" {
+		t.Fatalf("unapproved bytes escaped: %q", output.String())
+	}
+
+	revoked, err := academyVideoBodyForLearner(http.StatusPartialContent,
+		http.Header{"Content-Range": {"bytes 100-103/1000"}}, strings.NewReader("ABCDSECRET"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	output.Reset()
+	if err := academyCopyVideoAuthorized(&output, revoked, func() bool { return false }); err != errAcademyVideoRevoked || output.Len() != 0 {
+		t.Fatalf("revoked access leaked bytes: %q, %v", output.String(), err)
 	}
 }
