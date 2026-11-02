@@ -149,6 +149,20 @@ func TestAcademyCloudMediaDraftOwnerAndVideoBoundaryPostgres(t *testing.T) {
 		t.Fatalf("VIDEO course became publicly sellable without protected playback: %v", err)
 	}
 
+	// Even if an operator explicitly enables the VIDEO flag, a legacy
+	// unverified disk:/ catalog row must not satisfy the publication gate.
+	// This proves the SQL release boundary, not just the default env flag.
+	t.Setenv("APGIC_ACADEMY_VIDEO_PUBLISH_ENABLED", "true")
+	gateTx, err := db.BeginTx(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ready, gateErr := academyVideoPublicationReady(context.Background(), gateTx, author, course.VersionID)
+	_ = gateTx.Rollback()
+	if gateErr != nil || ready {
+		t.Fatalf("unverified VIDEO passed enabled publication gate: ready=%v err=%v", ready, gateErr)
+	}
+
 	// Saving the editor's full draft snapshot must remove omitted VIDEO
 	// assignments. Previously the database only replaced lessons present
 	// in the incoming items, so removed videos remained attached.
