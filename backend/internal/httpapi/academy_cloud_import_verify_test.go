@@ -37,6 +37,15 @@ func TestAcademyCloudImportRequiresVerifiedPrivateVideo(t *testing.T) {
 		{"Yandex with source URL", []academy.CloudMedia{{
 			Provider: "YANDEX_DISK", ProviderFileRef: "disk:/lectures/one.mp4", SourceURL: "https://example.org/video.mp4",
 		}}, false, 0},
+		{"trailing whitespace changes verified identity", []academy.CloudMedia{{
+			Provider: "YANDEX_DISK", ProviderFileRef: "disk:/lectures/one.mp4 ", Title: "Lesson",
+		}}, false, 0},
+		{"leading whitespace changes verified identity", []academy.CloudMedia{{
+			Provider: "YANDEX_DISK", ProviderFileRef: " disk:/lectures/one.mp4", Title: "Lesson",
+		}}, false, 0},
+		{"embedded NUL path", []academy.CloudMedia{{
+			Provider: "YANDEX_DISK", ProviderFileRef: "disk:/lectures/one.mp4\\x00", Title: "Lesson",
+		}}, false, 0},
 		{"oversized batch", make([]academy.CloudMedia, 101), false, 0},
 	}
 	for _, tt := range tests {
