@@ -148,4 +148,57 @@ func TestAcademyCloudMediaDraftOwnerAndVideoBoundaryPostgres(t *testing.T) {
 	if _, err := store.AcademyPublish(author, course.ID, course.VersionID); !errors.Is(err, academy.ErrState) {
 		t.Fatalf("VIDEO course became publicly sellable without protected playback: %v", err)
 	}
+
+	// Saving the editor's full draft snapshot must remove omitted VIDEO
+	// assignments. Previously the database only replaced lessons present
+	// in the incoming items, so removed videos remained attached.
+	secondVideo, err := store.AcademyAddLesson(author, course.ID, course.VersionID, module.ID,
+		academy.Lesson{Title: "Second video", Kind: academy.Video, Ordinal: 3, MediaAssetRef: "private/pending-two"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	twoLessons := []academy.MediaAssignment{
+		{LessonID: video.ID, MediaID: owned[0].ID, Ordinal: 1},
+		{LessonID: secondVideo.ID, MediaID: owned[0].ID, Ordinal: 1},
+	}
+	if err := store.AcademyAssignCloudMedia(author, course.ID, course.VersionID, twoLessons); err != nil {
+		t.Fatalf("assign two video lessons: %v", err)
+	}
+	view, err = store.AcademyAuthorLessonMedia(author, course.ID, course.VersionID)
+	if err != nil || len(view) != 2 {
+		t.Fatalf("two-lesson readback: %+v err=%v", view, err)
+	}
+	if err := store.AcademyAssignCloudMedia(author, course.ID, course.VersionID, assignment); err != nil {
+		t.Fatalf("remove omitted lesson assignment: %v", err)
+	}
+	view, err = store.AcademyAuthorLessonMedia(author, course.ID, course.VersionID)
+	if err != nil || len(view) != 1 || view[0].LessonID != video.ID {
+		t.Fatalf("omitted lesson retained a ghost video: %+v err=%v", view, err)
+	}
+	if err := store.AcademyAssignCloudMedia(outsider, course.ID, course.VersionID, nil); !errors.Is(err, academy.ErrDenied) {
+		t.Fatalf("foreign identity cleared author's media: %v", err)
+	}
+	if err := store.AcademyAssignCloudMedia(author, course.ID, course.VersionID, nil); err != nil {
+		t.Fatalf("clear last draft video assignment: %v", err)
+	}
+	view, err = store.AcademyAuthorLessonMedia(author, course.ID, course.VersionID)
+	if err != nil || len(view) != 0 {
+		t.Fatalf("cleared draft retained videos: %+v err=%v", view, err)
+	}
+	var clearEvents int
+	if err := db.QueryRow("SELECT count(*) FROM outbox_events WHERE aggregate_ref=$1 AND event_type='academy.media.assigned'",
+		"academy/version/"+course.VersionID).Scan(&clearEvents); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.AcademyAssignCloudMedia(author, course.ID, course.VersionID, nil); err != nil {
+		t.Fatalf("idempotent clear retry: %v", err)
+	}
+	var clearedRetryEvents int
+	if err := db.QueryRow("SELECT count(*) FROM outbox_events WHERE aggregate_ref=$1 AND event_type='academy.media.assigned'",
+		"academy/version/"+course.VersionID).Scan(&clearedRetryEvents); err != nil {
+		t.Fatal(err)
+	}
+	if clearedRetryEvents != clearEvents {
+		t.Fatalf("cleared snapshot retry emitted duplicate event: before=%d after=%d", clearEvents, clearedRetryEvents)
+	}
 }
