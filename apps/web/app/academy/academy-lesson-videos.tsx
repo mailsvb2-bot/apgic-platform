@@ -11,10 +11,10 @@ export default function AcademyLessonVideos({enrollmentId,lessonId,available}:{
  const [error,setError]=useState("");
  const [playbackError,setPlaybackError]=useState<Record<string,string>>({});
  const [reloadVersion,setReloadVersion]=useState(0);
- const [playingIds,setPlayingIds]=useState<string[]>([]);
+ const [openedIds,setOpenedIds]=useState<string[]>([]);
  const refs=useRef<Record<string,HTMLVideoElement|null>>({});
  useEffect(()=>{
-  setPlayingIds([]);
+  setOpenedIds([]);
   if(!available){setVideos([]);setError("");return}
   const controller=new AbortController();
   void (async()=>{
@@ -32,11 +32,11 @@ export default function AcademyLessonVideos({enrollmentId,lessonId,available}:{
    for(const video of Object.values(refs.current)){if(video){video.pause();video.removeAttribute("src");video.load()}}
   };
  },[available,enrollmentId,lessonId,reloadVersion]);
- // A previously buffered HTML5 video can continue playing even after the
- // server closes its current stream. Recheck canonical learner access while
- // playback is active and discard buffered bytes if it is no longer proven.
+ // A previously buffered HTML5 video can continue playing after the server
+ // closes its stream. Once a video has started, recheck canonical access even
+ // while paused, and discard buffered bytes if access is no longer proven.
  useEffect(()=>{
-  if(!available||playingIds.length===0)return;
+  if(!available||openedIds.length===0)return;
   let disposed=false;
   let checking=false;
   const controller=new AbortController();
@@ -50,7 +50,7 @@ export default function AcademyLessonVideos({enrollmentId,lessonId,available}:{
     });
     if(!response.ok)throw new Error("Access unavailable");
     const data=await response.json() as {videos?:LessonVideo[]};
-    if(!Array.isArray(data.videos)||playingIds.some(id=>!data.videos?.some(video=>video.id===id))){
+    if(!Array.isArray(data.videos)||openedIds.some(id=>!data.videos?.some(video=>video.id===id))){
      throw new Error("Video no longer authorized");
     }
    }catch{
@@ -59,7 +59,7 @@ export default function AcademyLessonVideos({enrollmentId,lessonId,available}:{
      for(const video of Object.values(refs.current)){
       if(video){video.pause();video.removeAttribute("src");video.load()}
      }
-     setPlayingIds([]);
+     setOpenedIds([]);
      setVideos([]);
      setError("Доступ к видео не подтверждён или был отозван. Проверьте доступ повторно.");
     }
@@ -71,7 +71,7 @@ export default function AcademyLessonVideos({enrollmentId,lessonId,available}:{
   void revalidate();
   const timer=window.setInterval(()=>{void revalidate()},1000);
   return ()=>{disposed=true;window.clearInterval(timer);controller.abort()};
- },[available,enrollmentId,lessonId,playingIds]);
+ },[available,enrollmentId,lessonId,openedIds]);
  function retryVideo(id:string){
   const player=refs.current[id];
   if(!player)return;
@@ -91,13 +91,11 @@ export default function AcademyLessonVideos({enrollmentId,lessonId,available}:{
   {videos.map(video=><div key={video.id}>
    <h4>{video.ordinal}. {video.title}</h4>
    <div style={{position:"relative",maxWidth:900,background:"#101827",borderRadius:12,overflow:"hidden"}}>
-    <video controls playsInline preload="metadata" controlsList="nodownload"
+    <video controls playsInline preload="none" controlsList="nodownload"
      ref={node=>{refs.current[video.id]=node}}
-     onPlay={()=>setPlayingIds(current=>current.includes(video.id)?current:[...current,video.id])}
-     onPause={()=>setPlayingIds(current=>current.filter(id=>id!==video.id))}
-     onEnded={()=>setPlayingIds(current=>current.filter(id=>id!==video.id))}
+     onPlay={()=>setOpenedIds(current=>current.includes(video.id)?current:[...current,video.id])}
      onError={event=>{
-      setPlayingIds(current=>current.filter(id=>id!==video.id));
+      setOpenedIds(current=>current.filter(id=>id!==video.id));
       const code=event.currentTarget.error?.code;
       const message=code===3||code===4
        ? "Браузер не поддерживает формат этого видео или файл повреждён."
