@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -129,7 +130,17 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 			return
 		}
 		w.Header().Set("Content-Type", ct)
-		if v := response.Header.Get("Content-Length"); v != "" {
+		if response.StatusCode == http.StatusPartialContent {
+			// A chunked provider response has no Content-Length. Derive one
+			// from the verified Content-Range so a short upstream body cannot
+			// masquerade as a successful, complete HTML5 seek response.
+			length, lengthErr := academyVideoPartialLength(response.Header.Get("Content-Range"))
+			if lengthErr != nil {
+				academyHTTPError(w, r, academy.ErrUnavailable)
+				return
+			}
+			w.Header().Set("Content-Length", strconv.FormatInt(length, 10))
+		} else if v := response.Header.Get("Content-Length"); v != "" {
 			w.Header().Set("Content-Length", v)
 		}
 		if v := response.Header.Get("Content-Range"); v != "" {
