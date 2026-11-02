@@ -62,9 +62,16 @@ func TestAcademyCloudMediaDraftOwnerAndVideoBoundaryPostgres(t *testing.T) {
 	}
 	owned, err := store.AcademyImportCloudMedia(author, []academy.CloudMedia{
 		{Provider: "YANDEX_DISK", ProviderFileRef: "disk:/private/author.mp4", Title: "Private lecture"},
+		// Pasted duplicates must not trigger a second update or return a
+		// duplicate ID in the bulk import response.
+		{Provider: "YANDEX_DISK", ProviderFileRef: "disk:/private/author.mp4", Title: "Duplicate pasted row"},
 	})
 	if err != nil || len(owned) != 1 || owned[0].ID == "" {
 		t.Fatalf("author media import: %+v err=%v", owned, err)
+	}
+	catalog, err := store.AcademyAuthorCloudMedia(author)
+	if err != nil || len(catalog) != 1 || catalog[0].Title != "Private lecture" {
+		t.Fatalf("duplicate import changed first title or created duplicate: %+v err=%v", catalog, err)
 	}
 	foreign, err := store.AcademyImportCloudMedia(outsider, []academy.CloudMedia{
 		{Provider: "YANDEX_DISK", ProviderFileRef: "disk:/private/foreign.mp4", Title: "Foreign lecture"},
