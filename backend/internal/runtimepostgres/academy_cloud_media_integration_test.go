@@ -203,7 +203,6 @@ func TestAcademyCloudMediaDraftOwnerAndVideoBoundaryPostgres(t *testing.T) {
 	}
 }
 
-
 // A cloud reconnect must never reinterpret an already verified disk:/ path.
 // This uses real migrated PostgreSQL constraints and the canonical import
 // transaction, not an in-memory mock of the connection generation.
