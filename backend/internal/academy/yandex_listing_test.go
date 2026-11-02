@@ -28,7 +28,11 @@ func TestYandexDiskListFilesRejectsForeignAndMalformedEntries(t *testing.T) {
 		ok    bool
 	}{
 		{"direct child", []YandexDiskFile{good}, 1, true},
+		{"two distinct children", []YandexDiskFile{good, {Name: "second.mp4", Path: "disk:/lectures/second.mp4", Type: "file", Size: 2048}}, 2, true},
 		{"empty folder", []YandexDiskFile{}, 0, true},
+		{"spoofed display name", []YandexDiskFile{{Name: "trusted.mp4", Path: "disk:/lectures/other.mp4", Type: "file"}}, 1, false},
+		{"duplicate provider path", []YandexDiskFile{good, good}, 2, false},
+		{"inconsistent total", []YandexDiskFile{good}, 0, false},
 		{"foreign folder", []YandexDiskFile{{Name: "other.mp4", Path: "disk:/other/other.mp4", Type: "file"}}, 1, false},
 		{"nested file", []YandexDiskFile{{Name: "file.mp4", Path: "disk:/lectures/nested/file.mp4", Type: "file"}}, 1, false},
 		{"path traversal", []YandexDiskFile{{Name: "evil", Path: "disk:/lectures/../evil", Type: "file"}}, 1, false},
