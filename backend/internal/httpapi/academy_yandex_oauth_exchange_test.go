@@ -40,10 +40,10 @@ func TestCloudOAuthCallbackRejectsAmbiguousParameters(t *testing.T) {
 
 func TestAcademyYandexOAuthCodeExchangeTransport(t *testing.T) {
 	tests := []struct {
-		name       string
-		status     int
-		body       string
-		wantToken  bool
+		name      string
+		status    int
+		body      string
+		wantToken bool
 	}{
 		{"valid bearer", 200, `{"access_token":"private-token","token_type":"bearer"}`, true},
 		{"valid legacy without token type", 200, `{"access_token":"private-token"}`, true},
