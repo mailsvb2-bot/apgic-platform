@@ -312,7 +312,8 @@ export SIMCTL_CHILD_APGIC_E2E_USE_EMBEDDED_BUNDLE=true
 
 start_installation_server
 bootstrap_installation_session
-prepare_offline_checkout
+# Do not reserve the offline checkout hold before the long iOS simulator
+# capability suite: it can expire before the checkout/replay proof runs.
 issue_deep_link
 
 export SIMCTL_CHILD_APGIC_E2E_COMPATIBILITY_BASE_URL=http://127.0.0.1:43113
@@ -1202,6 +1203,10 @@ assert_workspace_switch
 assert_tenant_isolation
 assert_deep_link_runtime
 assert_notification_runtime
+# Create a fresh canonical hold immediately before exercising checkout.
+# A 409 caused by an expired fixture must never be mistaken for a product
+# idempotency failure or fixed by relaxing the server's expiry policy.
+prepare_offline_checkout
 assert_offline_mutation_restart
 assert_realtime_lifecycle
 assert_accessibility_runtime
