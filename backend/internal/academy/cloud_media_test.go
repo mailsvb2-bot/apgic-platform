@@ -33,7 +33,7 @@ func TestValidYandexDiskPathKeepsVerifiedIdentityExact(t *testing.T) {
 
 func TestYandexDiskProviderRejectsChangedFileIdentityBeforeNetwork(t *testing.T) {
 	client := YandexDiskClient{}
-	for _, path := range []string{"disk:/lecture.mp4 ", " disk:/lecture.mp4", "disk:/lecture.mp4\\x00"} {
+	for _, path := range []string{"disk:/lecture.mp4 ", " disk:/lecture.mp4", "disk:/lecture.mp4\x00"} {
 		if _, err := client.VerifyVideo(context.Background(), "private-token", path); err == nil {
 			t.Fatalf("provider accepted uncanonical video identity %q", path)
 		}
