@@ -98,7 +98,7 @@ func (c YandexDiskClient) ListFiles(ctx context.Context, token, path string, off
 // before accepting it into the private Academy catalog. Client-supplied names,
 // paths and MIME types are never proof that the file exists or is playable.
 func (c YandexDiskClient) VerifyVideo(ctx context.Context, token, path string) (YandexDiskFile, error) {
-	if !strings.HasPrefix(path, "disk:/") || len(path) > 2048 {
+	if !ValidYandexDiskPath(path) {
 		return YandexDiskFile{}, errors.New("invalid cloud video path")
 	}
 	q := url.Values{"path": {path}, "fields": {"name,path,type,mime_type,size"}}
@@ -122,7 +122,7 @@ func (c YandexDiskClient) verifyVideoAt(ctx context.Context, token, path, endpoi
 // TemporaryDownload is used ONLY server-side by the media gateway.
 // The result must never be included in an author or learner API JSON response.
 func (c YandexDiskClient) TemporaryDownload(ctx context.Context, token, path string) (string, error) {
-	if !strings.HasPrefix(path, "disk:/") {
+	if !ValidYandexDiskPath(path) {
 		return "", errors.New("invalid disk path")
 	}
 	q := url.Values{"path": {path}}
