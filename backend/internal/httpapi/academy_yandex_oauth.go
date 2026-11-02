@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
@@ -93,6 +94,66 @@ func academyYandexOAuthConfig() (string, string, string, error) {
 	}
 	return id, secret, redirect, nil
 }
+// cloudOAuthCallbackCode accepts exactly one state and one code. url.Values.Get
+// silently picks the first value, which can make an OAuth callback ambiguous.
+func cloudOAuthCallbackCode(query url.Values, expectedState string) (string, bool) {
+	states, hasState := query["state"]
+	codes, hasCode := query["code"]
+	if !hasState || !hasCode || len(states) != 1 || len(codes) != 1 ||
+		len(query["error"]) != 0 || expectedState == "" || states[0] != expectedState {
+		return "", false
+	}
+	code := codes[0]
+	if code == "" || len(code) > 2048 || strings.TrimSpace(code) != code ||
+		strings.ContainsAny(code, "\r\n") {
+		return "", false
+	}
+	return code, true
+}
+
+// academyExchangeYandexOAuthCode is the sole token exchange path. The injected
+// client/endpoint allow transport-level tests without live provider credentials.
+// Never follow a redirect carrying an authorization code or client secret.
+func academyExchangeYandexOAuthCode(ctx context.Context, client *http.Client, endpoint, id, secret, code, verifier string) (string, error) {
+	if client == nil || endpoint == "" || id == "" || secret == "" || code == "" || verifier == "" {
+		return "", academy.ErrUnavailable
+	}
+	form := url.Values{"grant_type": {"authorization_code"}, "code": {code}, "code_verifier": {verifier}}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(form.Encode()))
+	if err != nil {
+		return "", academy.ErrUnavailable
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetBasicAuth(id, secret)
+	protected := *client
+	protected.CheckRedirect = func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }
+	response, err := protected.Do(req)
+	if err != nil {
+		return "", academy.ErrUnavailable
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return "", academy.ErrDenied
+	}
+	// Read the complete bounded response: a valid JSON prefix followed by
+	// junk or oversized provider output must not be accepted as credentials.
+	raw, err := io.ReadAll(io.LimitReader(response.Body, 16385))
+	if err != nil || len(raw) > 16384 {
+		return "", academy.ErrUnavailable
+	}
+	var token struct {
+		AccessToken string `json:"access_token"`
+		TokenType   string `json:"token_type"`
+	}
+	if json.Unmarshal(raw, &token) != nil || token.AccessToken == "" ||
+		len(token.AccessToken) > 8192 || strings.TrimSpace(token.AccessToken) != token.AccessToken ||
+		strings.ContainsAny(token.AccessToken, "\r\n") ||
+		(token.TokenType != "" && !strings.EqualFold(token.TokenType, "bearer")) {
+		return "", academy.ErrUnavailable
+	}
+	return token.AccessToken, nil
+}
+
 func registerAcademyYandexOAuth(mux *http.ServeMux, store academyStore, sessions *clientSessionManager, sessionErr error) {
 	const cookieName = "apgic_academy_yandex_oauth"
 	mux.HandleFunc("GET /v1/academy/author/cloud/yandex/connect", func(w http.ResponseWriter, r *http.Request) {
@@ -145,7 +206,8 @@ func registerAcademyYandexOAuth(mux *http.ServeMux, store academyStore, sessions
 			return
 		}
 		state, err := cloudOpen(cookie.Value, key)
-		if err != nil || r.URL.Query().Get("state") != state.Nonce || r.URL.Query().Get("code") == "" || len(r.URL.Query().Get("code")) > 2048 {
+		code, validCode := cloudOAuthCallbackCode(r.URL.Query(), state.Nonce)
+		if err != nil || !validCode {
 			academyHTTPError(w, r, academy.ErrDenied)
 			return
 		}
@@ -167,34 +229,13 @@ func registerAcademyYandexOAuth(mux *http.ServeMux, store academyStore, sessions
 			academyHTTPError(w, r, err)
 			return
 		}
-		form := url.Values{"grant_type": {"authorization_code"}, "code": {r.URL.Query().Get("code")}, "code_verifier": {state.Verifier}}
-		req, err := http.NewRequestWithContext(r.Context(), http.MethodPost, "https://oauth.yandex.ru/token", strings.NewReader(form.Encode()))
+		client := &http.Client{Timeout: 12 * time.Second}
+		accessToken, err := academyExchangeYandexOAuthCode(r.Context(), client, "https://oauth.yandex.ru/token", id, secret, code, state.Verifier)
 		if err != nil {
-			academyHTTPError(w, r, academy.ErrUnavailable)
+			academyHTTPError(w, r, err)
 			return
 		}
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		req.SetBasicAuth(id, secret)
-		client := &http.Client{Timeout: 12 * time.Second, CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}
-		response, err := client.Do(req)
-		if err != nil {
-			academyHTTPError(w, r, academy.ErrUnavailable)
-			return
-		}
-		defer response.Body.Close()
-		if response.StatusCode != http.StatusOK {
-			academyHTTPError(w, r, academy.ErrDenied)
-			return
-		}
-		var token struct {
-			AccessToken string `json:"access_token"`
-		}
-		decoder := json.NewDecoder(io.LimitReader(response.Body, 16384))
-		if decoder.Decode(&token) != nil || token.AccessToken == "" || len(token.AccessToken) > 8192 {
-			academyHTTPError(w, r, academy.ErrUnavailable)
-			return
-		}
-		if writer.AcademyStoreCloudCredential(state.Actor, "YANDEX_DISK", token.AccessToken) != nil {
+		if writer.AcademyStoreCloudCredential(state.Actor, "YANDEX_DISK", accessToken) != nil {
 			academyHTTPError(w, r, academy.ErrUnavailable)
 			return
 		}
