@@ -16,6 +16,9 @@ type CloudMedia struct {
 	ProviderFileRef string `json:"provider_file_ref"`
 	SourceURL       string `json:"source_url,omitempty"`
 	Title           string `json:"title"`
+	ResourceID      string `json:"-"` // verified server-side, never accepted from JSON
+	SHA256          string `json:"-"` // immutable provider content digest
+	FileSize        int64  `json:"-"`
 }
 type MediaAssignment struct {
 	LessonID string `json:"lesson_id"`
