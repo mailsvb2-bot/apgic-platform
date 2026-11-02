@@ -42,7 +42,7 @@ func academyVerifyYandexMediaBatch(ctx context.Context, items []academy.CloudMed
 	paths := make([]string, 0, len(items))
 	for _, item := range items {
 		if item.Provider != "YANDEX_DISK" || item.SourceURL != "" ||
-			item.ProviderFileRef == "" || len(item.ProviderFileRef) > 2048 {
+			!academy.ValidYandexDiskPath(item.ProviderFileRef) {
 			return academy.ErrInvalid
 		}
 		if _, ok := seen[item.ProviderFileRef]; !ok {
