@@ -53,7 +53,10 @@ func (c YandexDiskClient) do(ctx context.Context, token, endpoint string, dst an
 	req.Header.Set("Accept", "application/json")
 	client := c.Client
 	if client == nil {
-		client = &http.Client{Timeout: 15 * time.Second}
+		// The default http.Client inherits environment proxies. That could
+		// disclose the author's OAuth token to an untrusted proxy and
+		// bypass the gateway's public-IP SSRF boundary.
+		client = NewYandexSecureClient(15 * time.Second)
 	}
 	// A provider redirect must never receive the author's OAuth credential.
 	// Clone the client to enforce this even when an injected client permits redirects.
