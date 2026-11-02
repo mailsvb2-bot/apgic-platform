@@ -16,6 +16,11 @@ func academyVideoUpstreamResponseAllowed(requestRange string, status int, header
 	if requestRange != "" && status != http.StatusPartialContent {
 		return false
 	}
+	// Byte ranges apply to the original media representation. Never forward
+	// compressed/encoded provider bytes as an unencoded HTML5 video range.
+	if encoding := strings.TrimSpace(headers.Get("Content-Encoding")); encoding != "" && !strings.EqualFold(encoding, "identity") {
+		return false
+	}
 	if status == http.StatusPartialContent &&
 		!academyVideoPartialMatchesRequest(requestRange, headers.Get("Content-Range"), headers.Get("Content-Length")) {
 		return false
