@@ -17,6 +17,12 @@ type academyVideoStreamingStore interface {
 	AcademyReadCloudCredential(actor, provider string) (string, error)
 }
 
+// Only the existing canonical PostgreSQL media owner may supply the verified
+// file fingerprint; no client-provided path or checksum is trusted.
+type academyVideoFingerprintStore interface {
+	AcademyLearnerVideoFingerprint(author, provider, path, mediaID string) (string, string, int64, error)
+}
+
 // Recheck enrollment and entitlement on every video HTTP request; never
 // redirect the browser to an origin URL, even after a failed range request.
 func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions *clientSessionManager, sessionErr error) {
@@ -45,13 +51,30 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 			academyHTTPError(w, r, err)
 			return
 		}
+		fingerprints, ok := store.(academyVideoFingerprintStore)
+		if !ok {
+			academyHTTPError(w, r, academy.ErrUnavailable)
+			return
+		}
+		resourceID, digest, size, err := fingerprints.AcademyLearnerVideoFingerprint(author, provider, path, r.PathValue("mediaID"))
+		if err != nil {
+			academyHTTPError(w, r, academy.ErrEntitlement)
+			return
+		}
 		token, err := owner.AcademyReadCloudCredential(author, provider)
 		if err != nil {
 			academyHTTPError(w, r, academy.ErrUnavailable)
 			return
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
-		download, err := (academy.YandexDiskClient{}).TemporaryDownload(ctx, token, path)
+		providerClient := academy.YandexDiskClient{}
+		metadata, err := providerClient.VerifyVideo(ctx, token, path)
+		if err != nil || !academyVideoFingerprintMatches(metadata, resourceID, digest, size) {
+			cancel()
+			academyHTTPError(w, r, academy.ErrEntitlement)
+			return
+		}
+		download, err := providerClient.TemporaryDownload(ctx, token, path)
 		cancel()
 		if err != nil {
 			academyHTTPError(w, r, academy.ErrUnavailable)
@@ -176,6 +199,14 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 		w.WriteHeader(response.StatusCode)
 		_ = academyCopyVideoAuthorized(w, videoBody, allowed)
 	})
+}
+
+// A cloud path can be overwritten even without reconnecting OAuth.
+// Before EVERY new stream/seek, prove the resource and its digest still
+// match the file verified at import. Fail closed if metadata is unavailable.
+func academyVideoFingerprintMatches(file academy.YandexDiskFile, resourceID, digest string, size int64) bool {
+	return resourceID != "" && digest != "" && size > 0 &&
+		file.ResourceID == resourceID && strings.EqualFold(file.SHA256, digest) && file.Size == size
 }
 
 // academyVideoSourceStillAllowed binds every recheck to the original author,
