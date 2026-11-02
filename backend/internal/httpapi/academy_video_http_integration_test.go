@@ -124,3 +124,83 @@ func TestAcademyVideoHTTPReadStopsAfterRevocation(t *testing.T) {
 		t.Fatalf("cancelled upstream stream should fail, got %v", err)
 	}
 }
+
+
+// Unlike a helper-only revocation test, this exercises real HTTP sockets on
+// BOTH sides of the gateway. A learner that already received a full first
+// chunk must not receive the second one after canonical access is revoked.
+// The deliberately incomplete Content-Length must surface as a client error.
+func TestAcademyVideoHTTPClientSeesRevocationMidStream(t *testing.T) {
+	const chunkSize = 64 << 10
+	releaseSecond := make(chan struct{})
+	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "video/mp4")
+		w.Header().Set("Content-Length", "131072")
+		_, _ = io.WriteString(w, strings.Repeat("a", chunkSize))
+		w.(http.Flusher).Flush()
+		select {
+		case <-releaseSecond:
+			_, _ = io.WriteString(w, strings.Repeat("b", chunkSize))
+		case <-r.Context().Done():
+		}
+	}))
+	defer provider.Close()
+
+	var authorized atomic.Bool
+	authorized.Store(true)
+	gateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithCancel(r.Context())
+		defer cancel()
+		upstreamRequest, err := http.NewRequestWithContext(ctx, http.MethodGet, provider.URL, nil)
+		if err != nil {
+			http.Error(w, "unavailable", http.StatusBadGateway)
+			return
+		}
+		upstream, err := provider.Client().Do(upstreamRequest)
+		if err != nil {
+			http.Error(w, "unavailable", http.StatusBadGateway)
+			return
+		}
+		defer upstream.Body.Close()
+		w.Header().Set("Content-Type", "video/mp4")
+		w.Header().Set("Content-Length", "131072")
+		w.WriteHeader(http.StatusOK)
+		watchDone := make(chan struct{})
+		go func() {
+			defer close(watchDone)
+			academyWatchVideoEntitlement(ctx, func() {
+				academyCancelRevokedVideoResponse(w, cancel)
+			}, 5*time.Millisecond, authorized.Load)
+		}()
+		defer func() {
+			cancel()
+			<-watchDone
+		}()
+		_ = academyCopyVideoAuthorized(w, upstream.Body, authorized.Load)
+	}))
+	defer gateway.Close()
+
+	client := gateway.Client()
+	client.Timeout = 3 * time.Second
+	response, err := client.Get(gateway.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("gateway returned %d", response.StatusCode)
+	}
+	first := make([]byte, chunkSize)
+	if _, err := io.ReadFull(response.Body, first); err != nil {
+		t.Fatalf("first authorized chunk unavailable: %v", err)
+	}
+	if !bytes.Equal(first, bytes.Repeat([]byte("a"), chunkSize)) {
+		t.Fatal("wrong first video chunk")
+	}
+	authorized.Store(false)
+	close(releaseSecond)
+	remaining, err := io.ReadAll(response.Body)
+	if len(remaining) != 0 || err == nil {
+		t.Fatalf("revoked learner received %d extra bytes, read error=%v", len(remaining), err)
+	}
+}
