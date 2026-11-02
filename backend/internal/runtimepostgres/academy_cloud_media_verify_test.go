@@ -85,7 +85,7 @@ func TestAcademyVerifyYandexMediaBatchRejectsPathNormalizationBeforeNetwork(t *t
 	for _, path := range []string{
 		"disk:/videos/lecture.mp4 ",
 		" disk:/videos/lecture.mp4",
-		"disk:/videos/lecture.mp4\\x00",
+		"disk:/videos/lecture.mp4\x00",
 		"https://example.invalid/lecture.mp4",
 	} {
 		t.Run(fmt.Sprintf("%q", path), func(t *testing.T) {
