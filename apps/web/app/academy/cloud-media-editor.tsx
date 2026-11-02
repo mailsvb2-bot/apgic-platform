@@ -63,18 +63,26 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
    await reload();setDiskSelectedFiles({});setMessage("Выбранные видео добавлены в медиатеку");
   }catch(error){setMessage(String(error))}finally{setBusy(false)}
  }
- const reload=useCallback(async (signal?:AbortSignal)=>{
+ const reload=useCallback(async (signal?:AbortSignal,restoreSavedDraft=false)=>{
   const [d,a]=await Promise.all([
    request<{media:CloudMedia[]}>("/v1/academy/author/cloud-media",undefined,signal),
    request<{assignments:AuthorMediaAssignment[]}>(`/v1/academy/author/courses/${courseId}/versions/${versionId}/media`,undefined,signal)
   ]);
-  if(!signal?.aborted){setMedia(d.media);setSaved(a.assignments);}
+  if(!signal?.aborted){
+   setMedia(d.media);setSaved(a.assignments);
+   // The editor must reopen with the persisted mappings as its working
+   // draft; otherwise saving one changed lesson silently replaces its
+   // previously assigned videos with only the newly selected ones.
+   if(restoreSavedDraft)setAssignments(a.assignments.map(({lesson_id,media_id,ordinal})=>({lesson_id,media_id,ordinal})));
+  }
  },[courseId,versionId]);
  // Restore the author's saved library and lesson mappings on every editor
  // opening (including after the OAuth callback), without a manual refresh.
  useEffect(()=>{
   const controller=new AbortController();
-  void reload(controller.signal).catch(()=>{
+  setMedia([]);setSaved([]);setAssignments([]);setSelected([]);setLessonId("");
+  setDiskSelectedFiles({});
+  void reload(controller.signal,true).catch(()=>{
    if(!controller.signal.aborted)setMessage("Не удалось загрузить медиатеку и сохранённые назначения. Повторите загрузку.");
   });
   return ()=>controller.abort();
@@ -121,14 +129,14 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
    const source=assignments.reduce((map,a)=>{const values=map.get(a.lesson_id)||[];values.push(a);map.set(a.lesson_id,values);return map},new Map<string,Mapping[]>());
    if([...source.values()].some(rows=>new Set(rows.map(x=>x.media_id)).size!==rows.length))throw new Error("Одно видео назначено уроку дважды");
    await request(`/v1/academy/courses/${courseId}/versions/${versionId}/media/assign`,{items:assignments});
-   await reload();
+   await reload(undefined,true);
    setMessage("Распределение сохранено");
   }catch(error){setMessage(String(error))}finally{setBusy(false)}
  }
  return <section className="panel" aria-label="Массовое назначение видео">
   <h3>Медиатека автора</h3>
   <p>Импорт облачных файлов и распределение по видеоурокам. Воспроизведение доступно только после проверки доступа через серверный медиашлюз.</p>
-  <button type="button" disabled={busy} onClick={()=>void reload().catch(e=>setMessage(String(e)))}>Загрузить медиатеку</button>
+  <button type="button" disabled={busy} onClick={()=>void reload(undefined,true).catch(e=>setMessage(String(e)))}>Загрузить медиатеку</button>
   <h4>Выбрать файлы из Яндекс Диска</h4>
   <a href="/v1/academy/author/cloud/yandex/connect">Подключить Яндекс Диск</a>
   <p>После подключения облака можно открыть папку, отметить сразу несколько видео и добавить их одним нажатием.</p>
@@ -161,7 +169,7 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
    {media.map(m=><label key={m.id} style={{display:"block"}}>
     <input type="checkbox" checked={selected.includes(m.id)} onChange={e=>setSelected(old=>e.target.checked?[...old,m.id]:old.filter(id=>id!==m.id))}/>
     {m.title} · {m.provider_file_ref}
-    {m.source_url&&<a href={m.source_url} rel="noreferrer" target="_blank">Оригинал</a>}
+
    </label>)}
   </div>
   <h4>Массовое автоматическое распределение</h4>
@@ -175,7 +183,11 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
    {lessons.filter(l=>l.kind==="VIDEO").map(l=><option key={l.id} value={l.id}>{l.title}</option>)}
   </select>
   <button type="button" disabled={busy||!selected.length||!lessonId} onClick={allocate}>Назначить выбранные</button>
-  <p>Подготовлено назначений: {assignments.length}</p>
+  <p>Подготовлено назначений: {assignments.length}. Сохранённые назначения восстанавливаются при повторном входе; изменения вступят в силу только после сохранения.</p>
+  <button type="button" disabled={busy} onClick={()=>{
+   setAssignments(saved.map(({lesson_id,media_id,ordinal})=>({lesson_id,media_id,ordinal})));
+   setMessage("Несохранённые изменения отменены");
+  }}>Отменить изменения распределения</button>
   <div style={{maxHeight:220,overflowY:"auto"}}>
    {assignments.map((a,i)=><p key={a.lesson_id+":"+a.media_id+":"+i}>
     {lessons.find(l=>l.id===a.lesson_id)?.title||"Урок"} · {a.ordinal}. {media.find(m=>m.id===a.media_id)?.title||"Видео"}
@@ -185,7 +197,7 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
   {saved.map(a=><p key={a.lesson_id+":"+a.media_id}>
     {lessons.find(l=>l.id===a.lesson_id)?.title||"Урок"} · {a.ordinal}. {a.title}
     {" · "}{a.provider_file_ref}
-    {a.source_url&&<a href={a.source_url} target="_blank" rel="noreferrer">Оригинал</a>}
+
    </p>)}
   <button type="button" disabled={busy||!assignments.length} onClick={()=>void persist()}>Сохранить распределение</button>
  </section>;
