@@ -141,6 +141,10 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 		}
 		defer response.Body.Close()
 		if response.StatusCode == http.StatusRequestedRangeNotSatisfiable {
+			if !academyVideoRepresentationSizeMatches(response.StatusCode, response.Header, size) {
+				academyHTTPError(w, r, academy.ErrUnavailable)
+				return
+			}
 			value := response.Header.Get("Content-Range")
 			// Header.Get hides additional Content-Range fields. Never accept
 			// an ambiguous 416 from the cloud provider.
@@ -156,7 +160,8 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 			w.WriteHeader(http.StatusRequestedRangeNotSatisfiable)
 			return
 		}
-		if !academyVideoUpstreamResponseAllowed(requestedRange, response.StatusCode, response.Header) {
+		if !academyVideoRepresentationSizeMatches(response.StatusCode, response.Header, size) ||
+			!academyVideoUpstreamResponseAllowed(requestedRange, response.StatusCode, response.Header) {
 			academyHTTPError(w, r, academy.ErrUnavailable)
 			return
 		}
@@ -207,6 +212,29 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 func academyVideoFingerprintMatches(file academy.YandexDiskFile, resourceID, digest string, size int64) bool {
 	return resourceID != "" && digest != "" && size > 0 &&
 		file.ResourceID == resourceID && strings.EqualFold(file.SHA256, digest) && file.Size == size
+}
+
+// The provider's byte representation must have the SAME total length as
+// the verified resource. Reject swapped or stale download URLs for 200/206/416.
+func academyVideoRepresentationSizeMatches(status int, headers http.Header, size int64) bool {
+	if size <= 0 {
+		return false
+	}
+	if status == http.StatusOK {
+		length, err := academyVideoFullLength(headers)
+		return err == nil && length == size
+	}
+	value := headers.Get("Content-Range")
+	var totalText string
+	if status == http.StatusPartialContent {
+		_, totalText, _ = strings.Cut(value, "/")
+	} else if status == http.StatusRequestedRangeNotSatisfiable {
+		totalText = strings.TrimPrefix(value, "bytes */")
+	} else {
+		return false
+	}
+	total, err := strconv.ParseInt(totalText, 10, 64)
+	return err == nil && total == size
 }
 
 // academyVideoSourceStillAllowed binds every recheck to the original author,
