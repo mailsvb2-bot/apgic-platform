@@ -1,5 +1,15 @@
 package academy
 
+import "strings"
+
+// ValidYandexDiskPath enforces the exact identity used for provider
+// verification, catalog persistence and subsequent protected playback.
+// Normalizing after verification could silently point at a different file.
+func ValidYandexDiskPath(path string) bool {
+	return strings.HasPrefix(path, "disk:/") && len(path) <= 2048 &&
+		strings.TrimSpace(path) == path && !strings.ContainsRune(path, '\x00')
+}
+
 type CloudMedia struct {
 	ID              string `json:"id"`
 	Provider        string `json:"provider"`
