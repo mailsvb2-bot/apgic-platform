@@ -35,6 +35,7 @@ func (c *Checker) AcademyLearnerVideoSource(actor, enrollmentID, lessonID, media
  -- this canonical query while bytes are being delivered.
  JOIN academy_cloud_connections connection
    ON connection.author_id=c.author_id AND connection.provider=media.provider
+   AND media.connection_generation=connection.generation
  LEFT JOIN academy_lesson_schedules sc ON sc.lesson_id=l.id
  LEFT JOIN academy_assessment_limits limits ON limits.lesson_id=l.id
  WHERE e.id=$1::uuid AND e.identity_id=$2::uuid AND l.id=$3::uuid AND media.id=$4::uuid
