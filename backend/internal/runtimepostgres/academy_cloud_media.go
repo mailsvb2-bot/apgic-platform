@@ -259,8 +259,13 @@ func (c *Checker) AcademyAuthorCloudMedia(actor string) ([]AcademyCloudMedia, er
 	}
 	ctx, cancel := academyContext()
 	defer cancel()
-	rows, err := c.db.QueryContext(ctx, `SELECT id::text,provider,provider_file_ref,COALESCE(source_url,''),title
- FROM academy_cloud_media WHERE author_id=$1::uuid ORDER BY created_at,id LIMIT 5000`, actor)
+	rows, err := c.db.QueryContext(ctx, `SELECT media.id::text,media.provider,media.provider_file_ref,COALESCE(media.source_url,''),media.title,
+ (connection.generation IS NOT NULL AND media.connection_generation=connection.generation
+  AND media.resource_id IS NOT NULL AND media.sha256 IS NOT NULL AND media.file_size>0)
+ FROM academy_cloud_media media
+ LEFT JOIN academy_cloud_connections connection
+ ON connection.author_id=media.author_id AND connection.provider=media.provider
+ WHERE media.author_id=$1::uuid ORDER BY media.created_at,media.id LIMIT 5000`, actor)
 	if err != nil {
 		return nil, err
 	}
@@ -268,7 +273,7 @@ func (c *Checker) AcademyAuthorCloudMedia(actor string) ([]AcademyCloudMedia, er
 	out := []AcademyCloudMedia{}
 	for rows.Next() {
 		var m AcademyCloudMedia
-		if err = rows.Scan(&m.ID, &m.Provider, &m.ProviderFileRef, &m.SourceURL, &m.Title); err != nil {
+		if err = rows.Scan(&m.ID, &m.Provider, &m.ProviderFileRef, &m.SourceURL, &m.Title, &m.Active); err != nil {
 			return nil, err
 		}
 		out = append(out, m)
