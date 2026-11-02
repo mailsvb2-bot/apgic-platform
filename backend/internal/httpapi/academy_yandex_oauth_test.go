@@ -70,7 +70,7 @@ func TestCloudOAuthEditorReturnRequiresExactPair(t *testing.T) {
 	const version = "22222222-2222-4222-8222-222222222222"
 	for _, tc := range []struct {
 		name, query string
-		allowed bool
+		allowed     bool
 	}{
 		{"no editor", "", true},
 		{"valid editor", "course_id=" + course + "&version_id=" + version, true},
