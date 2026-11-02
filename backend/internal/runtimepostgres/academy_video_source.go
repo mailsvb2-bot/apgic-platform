@@ -52,3 +52,36 @@ func (c *Checker) AcademyLearnerVideoSource(actor, enrollmentID, lessonID, media
 	}
 	return author, provider, path, nil
 }
+
+// AcademyLearnerVideoFingerprint returns only the immutable provider identity
+// recorded by the verified import. The caller MUST first authorize the exact
+// enrollment via AcademyLearnerVideoSource; this is a server-only lookup.
+func (c *Checker) AcademyLearnerVideoFingerprint(author, provider, path, mediaID string) (string, string, int64, error) {
+	if c == nil || c.db == nil {
+		return "", "", 0, academy.ErrUnavailable
+	}
+	if !academyMediaUUID(author) || !academyMediaUUID(mediaID) ||
+		provider != "YANDEX_DISK" || !academy.ValidYandexDiskPath(path) {
+		return "", "", 0, academy.ErrInvalid
+	}
+	ctx, cancel := academyContext()
+	defer cancel()
+	var resourceID, digest string
+	var size int64
+	err := c.db.QueryRowContext(ctx, `SELECT media.resource_id,media.sha256,media.file_size
+ FROM academy_cloud_media media
+ JOIN academy_cloud_connections connection
+   ON connection.author_id=media.author_id AND connection.provider=media.provider
+   AND connection.generation=media.connection_generation
+ WHERE media.id=$1::uuid AND media.author_id=$2::uuid
+ AND media.provider=$3 AND media.provider_file_ref=$4
+ AND media.resource_id IS NOT NULL AND media.sha256 IS NOT NULL AND media.file_size>0`,
+		mediaID, author, provider, path).Scan(&resourceID, &digest, &size)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", "", 0, academy.ErrEntitlement
+	}
+	if err != nil {
+		return "", "", 0, err
+	}
+	return resourceID, digest, size, nil
+}
