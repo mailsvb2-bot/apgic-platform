@@ -60,5 +60,8 @@ func academyVideoPartialMatchesRequest(requestRange, contentRange, contentLength
 	if requestedEnd >= total {
 		requestedEnd = total - 1
 	}
-	return end <= requestedEnd
+	// A bounded seek must deliver the complete requested interval (clamped
+	// to EOF). A shorter 206 is not a successful seek: it can leave a gap
+	// while the browser believes the requested range has been satisfied.
+	return end == requestedEnd
 }
