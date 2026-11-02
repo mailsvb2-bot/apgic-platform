@@ -77,9 +77,9 @@ func TestAcademyVideoUnsatisfiedRangeAllowed(t *testing.T) {
 
 func TestAcademyVideoUnsatisfiedRangeHeadersAllowed(t *testing.T) {
 	for _, tc := range []struct {
-		name string
+		name    string
 		headers http.Header
-		want bool
+		want    bool
 	}{
 		{"valid 416", http.Header{"Content-Range": {"bytes */1024"}}, true},
 		{"missing range", http.Header{}, false},

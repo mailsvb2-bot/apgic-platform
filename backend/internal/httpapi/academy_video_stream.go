@@ -27,6 +27,13 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 		if !ok {
 			return
 		}
+		// Reject ambiguous or malformed browser Range headers before any
+		// credential lookup or outbound cloud request.
+		requestedRange, validRange := academyVideoRequestedRange(r.Header)
+		if !validRange {
+			http.Error(w, "Invalid range", http.StatusRequestedRangeNotSatisfiable)
+			return
+		}
 		owner, ok := store.(academyVideoStreamingStore)
 		if !ok {
 			academyHTTPError(w, r, academy.ErrUnavailable)
@@ -71,12 +78,8 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 			academyHTTPError(w, r, academy.ErrUnavailable)
 			return
 		}
-		if value := r.Header.Get("Range"); value != "" {
-			if !academyVideoSingleRange(value) {
-				http.Error(w, "Invalid range", http.StatusRequestedRangeNotSatisfiable)
-				return
-			}
-			request.Header.Set("Range", value)
+		if requestedRange != "" {
+			request.Header.Set("Range", requestedRange)
 		}
 		transport := &http.Client{
 			Transport: &http.Transport{
@@ -97,7 +100,7 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 			value := response.Header.Get("Content-Range")
 			// Header.Get hides additional Content-Range fields. Never accept
 			// an ambiguous 416 from the cloud provider.
-			if !academyVideoUnsatisfiedRangeHeadersAllowed(r.Header.Get("Range"), response.Header) {
+			if !academyVideoUnsatisfiedRangeHeadersAllowed(requestedRange, response.Header) {
 				academyHTTPError(w, r, academy.ErrUnavailable)
 				return
 			}
@@ -109,7 +112,7 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 			w.WriteHeader(http.StatusRequestedRangeNotSatisfiable)
 			return
 		}
-		if !academyVideoUpstreamResponseAllowed(r.Header.Get("Range"), response.StatusCode, response.Header) {
+		if !academyVideoUpstreamResponseAllowed(requestedRange, response.StatusCode, response.Header) {
 			academyHTTPError(w, r, academy.ErrUnavailable)
 			return
 		}
@@ -161,6 +164,19 @@ func academyVideoSourceStillAllowed(owner academyVideoStreamingStore, actor, enr
 	return err == nil && currentAuthor == author && currentProvider == provider && currentPath == path
 }
 
+// academyVideoRequestedRange accepts at most one canonical HTTP Range field.
+// net/http Header.Get hides additional values supplied by a client.
+func academyVideoRequestedRange(headers http.Header) (string, bool) {
+	values := headers.Values("Range")
+	if len(values) == 0 {
+		return "", true
+	}
+	if len(values) != 1 || !academyVideoSingleRange(values[0]) {
+		return "", false
+	}
+	return values[0], true
+}
+
 func academyVideoSingleRange(value string) bool {
 	if len(value) > 128 || !strings.HasPrefix(value, "bytes=") {
 		return false
@@ -169,18 +185,23 @@ func academyVideoSingleRange(value string) bool {
 	if strings.Count(spec, "-") != 1 || strings.Contains(spec, ",") {
 		return false
 	}
-	parts := strings.SplitN(spec, "-", 2)
-	if parts[0] == "" && parts[1] == "" {
+	first, last, _ := strings.Cut(spec, "-")
+	if first == "" {
+		if last == "" {
+			return false
+		}
+		suffix, err := strconv.ParseUint(last, 10, 64)
+		return err == nil && suffix > 0
+	}
+	start, err := strconv.ParseUint(first, 10, 64)
+	if err != nil {
 		return false
 	}
-	for _, part := range parts {
-		for _, digit := range part {
-			if digit < '0' || digit > '9' {
-				return false
-			}
-		}
+	if last == "" {
+		return true
 	}
-	return true
+	finish, err := strconv.ParseUint(last, 10, 64)
+	return err == nil && finish >= start
 }
 
 // academyWatchVideoEntitlement watches idle, stalled and active video streams.
