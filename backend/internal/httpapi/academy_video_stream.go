@@ -95,7 +95,9 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 		defer response.Body.Close()
 		if response.StatusCode == http.StatusRequestedRangeNotSatisfiable {
 			value := response.Header.Get("Content-Range")
-			if !academyVideoUnsatisfiedRangeAllowed(r.Header.Get("Range"), value) {
+			// Header.Get hides additional Content-Range fields. Never accept
+			// an ambiguous 416 from the cloud provider.
+			if len(response.Header.Values("Content-Range")) != 1 || !academyVideoUnsatisfiedRangeAllowed(r.Header.Get("Range"), value) {
 				academyHTTPError(w, r, academy.ErrUnavailable)
 				return
 			}
