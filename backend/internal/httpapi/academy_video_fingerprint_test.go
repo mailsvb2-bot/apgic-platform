@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"net/http"
 	"strings"
 	"testing"
 
@@ -32,6 +33,29 @@ func TestAcademyVideoFingerprintRejectsReplacedCloudFile(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			if academyVideoFingerprintMatches(tc.file, tc.id, tc.hash, tc.size) {
 				t.Fatal("unverified cloud file was accepted for playback")
+			}
+		})
+	}
+}
+
+func TestAcademyVideoRepresentationSizeMatchesVerifiedFile(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		status int
+		header http.Header
+		want   bool
+	}{
+		{"full", 200, http.Header{"Content-Length": {"1024"}}, true},
+		{"wrong full size", 200, http.Header{"Content-Length": {"2048"}}, false},
+		{"seek", 206, http.Header{"Content-Range": {"bytes 100-199/1024"}}, true},
+		{"seek from replaced file", 206, http.Header{"Content-Range": {"bytes 100-199/2048"}}, false},
+		{"out of range", 416, http.Header{"Content-Range": {"bytes */1024"}}, true},
+		{"stale 416", 416, http.Header{"Content-Range": {"bytes */2048"}}, false},
+		{"malformed total", 206, http.Header{"Content-Range": {"bytes 0-10/*"}}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := academyVideoRepresentationSizeMatches(tc.status, tc.header, 1024); got != tc.want {
+				t.Fatalf("verified size match=%v, want %v", got, tc.want)
 			}
 		})
 	}
