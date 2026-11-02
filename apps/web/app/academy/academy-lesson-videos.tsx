@@ -29,6 +29,17 @@ export default function AcademyLessonVideos({enrollmentId,lessonId,available}:{
    for(const video of Object.values(refs.current)){if(video){video.pause();video.removeAttribute("src");video.load()}}
   };
  },[available,enrollmentId,lessonId]);
+ function retryVideo(id:string){
+  const player=refs.current[id];
+  if(!player)return;
+  setPlaybackError(old=>({...old,[id]:""}));
+  // Retry the same authenticated APGIC stream URL, never a cloud origin.
+  // load() forces a new request after a network/entitlement error.
+  player.load();
+  void player.play().catch(()=>{
+   setPlaybackError(old=>({...old,[id]:"Не удалось возобновить просмотр. Проверьте доступ к уроку."}));
+  });
+ }
  if(!available)return <p>Доступ к видео сейчас закрыт.</p>;
  return <section aria-label="Видеоматериалы урока">
   {error&&<p role="status">{error}</p>}
@@ -37,7 +48,13 @@ export default function AcademyLessonVideos({enrollmentId,lessonId,available}:{
    <div style={{position:"relative",maxWidth:900,background:"#101827",borderRadius:12,overflow:"hidden"}}>
     <video controls playsInline preload="metadata" controlsList="nodownload"
      ref={node=>{refs.current[video.id]=node}}
-     onError={()=>setPlaybackError(prev=>({...prev,[video.id]:"Не удалось воспроизвести видео. Проверьте доступ к курсу или попробуйте ещё раз."}))}
+     onError={event=>{
+      const code=event.currentTarget.error?.code;
+      const message=code===3||code===4
+       ? "Браузер не поддерживает формат этого видео или файл повреждён."
+       : "Видео недоступно. Проверьте доступ к курсу и повторите загрузку.";
+      setPlaybackError(prev=>({...prev,[video.id]:message}));
+     }}
      onPlaying={()=>setPlaybackError(prev=>({...prev,[video.id]:""}))}
      aria-label={video.title}
      style={{width:"100%",display:"block"}}
@@ -46,7 +63,10 @@ export default function AcademyLessonVideos({enrollmentId,lessonId,available}:{
     </video>
     <div style={{position:"absolute",top:12,left:12,pointerEvents:"none",color:"white",fontWeight:700,textShadow:"0 1px 4px black"}}>APGIC Academy</div>
    </div>
-   {playbackError[video.id]&&<p role="alert">{playbackError[video.id]}</p>}
+   {playbackError[video.id]&&<div role="alert">
+    <p>{playbackError[video.id]}</p>
+    <button type="button" onClick={()=>retryVideo(video.id)}>Повторить загрузку видео</button>
+   </div>}
    <p>APGIC Academy · видеоматериал автора курса</p>
   </div>)}
  </section>
