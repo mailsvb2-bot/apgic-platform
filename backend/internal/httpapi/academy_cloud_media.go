@@ -27,7 +27,8 @@ func academyVerifyCloudImport(ctx context.Context, actor string, items []academy
 		return academy.ErrInvalid
 	}
 	for _, item := range items {
-		if item.Provider != "YANDEX_DISK" || item.SourceURL != "" {
+		if item.Provider != "YANDEX_DISK" || item.SourceURL != "" ||
+			!academy.ValidYandexDiskPath(item.ProviderFileRef) {
 			return academy.ErrInvalid
 		}
 	}
