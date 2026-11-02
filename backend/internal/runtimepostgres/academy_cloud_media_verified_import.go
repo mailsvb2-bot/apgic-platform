@@ -2,6 +2,7 @@ package runtimepostgres
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/academy"
@@ -30,17 +31,36 @@ func (c *Checker) AcademyImportVerifiedCloudMedia(ctx context.Context, actor str
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 	provider := academy.YandexDiskClient{}
+	verified := make(map[string]academy.YandexDiskFile, len(items))
+	var mu sync.Mutex
 	err = academyVerifyYandexMediaBatch(ctx, items, func(ctx context.Context, path string) error {
-		if _, err := provider.VerifyVideo(ctx, token, path); err != nil {
+		file, err := provider.VerifyVideo(ctx, token, path)
+		if err != nil {
 			return err
 		}
-		_, err := provider.TemporaryDownload(ctx, token, path)
-		return err
+		if _, err := provider.TemporaryDownload(ctx, token, path); err != nil {
+			return err
+		}
+		mu.Lock()
+		verified[path] = file
+		mu.Unlock()
+		return nil
 	})
 	if err != nil || ctx.Err() != nil {
 		return nil, academy.ErrDenied
 	}
+	bound := make([]academy.CloudMedia, len(items))
+	copy(bound, items)
+	for i := range bound {
+		file, ok := verified[bound[i].ProviderFileRef]
+		if !ok {
+			return nil, academy.ErrDenied
+		}
+		bound[i].ResourceID = file.ResourceID
+		bound[i].SHA256 = file.SHA256
+		bound[i].FileSize = file.Size
+	}
 	// A transaction-level FOR SHARE of the connection generation below
 	// prevents OAuth writes from racing the final catalog commit.
-	return c.academyImportCloudMediaWithGeneration(actor, items, generation)
+	return c.academyImportCloudMediaWithGeneration(actor, bound, generation)
 }
