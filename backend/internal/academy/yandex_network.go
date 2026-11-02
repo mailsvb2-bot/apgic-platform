@@ -69,12 +69,12 @@ func NewYandexSecureClient(timeout time.Duration) *http.Client {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.Proxy = nil
 	transport.DialContext = (&net.Dialer{
-		Timeout: 10 * time.Second,
+		Timeout:        10 * time.Second,
 		ControlContext: YandexDialControl,
 	}).DialContext
 	transport.DisableCompression = true
 	return &http.Client{
-		Timeout: timeout,
+		Timeout:   timeout,
 		Transport: transport,
 		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
 			return http.ErrUseLastResponse
