@@ -40,8 +40,8 @@ func (c *Checker) AcademyStoreCloudCredential(actor, provider, token string) err
 // AcademyReadCloudCredential is server-side only and must NEVER be exposed
 // through a response DTO, error trace, observability event or log.
 func (c *Checker) AcademyReadCloudCredential(actor, provider string) (string, error) {
- token, _, err := c.academyCloudCredentialSnapshot(actor, provider)
- return token, err
+	token, _, err := c.academyCloudCredentialSnapshot(actor, provider)
+	return token, err
 }
 
 // Read token and immutable generation from the SAME row snapshot. OAuth
@@ -56,7 +56,7 @@ func (c *Checker) academyCloudCredentialSnapshot(actor, provider string) (string
 	}
 	codec, err := academy.NewCloudTokenCipher(os.Getenv("APGIC_ACADEMY_CLOUD_TOKEN_KEY"))
 	if err != nil {
-		return "", academy.ErrUnavailable
+		return "", "", academy.ErrUnavailable
 	}
 	ctx, cancel := academyContext()
 	defer cancel()
@@ -65,11 +65,11 @@ func (c *Checker) academyCloudCredentialSnapshot(actor, provider string) (string
  FROM academy_cloud_connections WHERE author_id=$1::uuid AND provider=$2`,
 		actor, provider).Scan(&encrypted, &generation)
 	if err != nil {
-		return "", academy.ErrDenied
+		return "", "", academy.ErrDenied
 	}
 	token, err := codec.Decrypt(actor, provider, encrypted)
 	if err != nil {
-		return "", academy.ErrUnavailable
+		return "", "", academy.ErrUnavailable
 	}
 	return token, generation, nil
 }
