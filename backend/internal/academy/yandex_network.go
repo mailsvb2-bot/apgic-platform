@@ -23,6 +23,14 @@ var yandexNonPublicNetworks = []netip.Prefix{
 	netip.MustParsePrefix("198.51.100.0/24"),
 	netip.MustParsePrefix("203.0.113.0/24"),
 	netip.MustParsePrefix("240.0.0.0/4"),
+	// netip.IsGlobalUnicast alone still accepts deprecated IPv6 site-local,
+	// discard-only and special-purpose benchmarking/ORCHID destinations.
+	// Such destinations must never receive OAuth credentials or media requests.
+	netip.MustParsePrefix("100::/64"),
+	netip.MustParsePrefix("2001:2::/48"),
+	netip.MustParsePrefix("2001:10::/28"),
+	netip.MustParsePrefix("2001:20::/28"),
+	netip.MustParsePrefix("fec0::/10"),
 	netip.MustParsePrefix("64:ff9b::/96"),
 	netip.MustParsePrefix("64:ff9b:1::/48"),
 	netip.MustParsePrefix("2001::/32"),
