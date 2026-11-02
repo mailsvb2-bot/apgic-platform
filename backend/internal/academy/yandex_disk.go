@@ -83,13 +83,30 @@ func (c YandexDiskClient) do(ctx context.Context, token, endpoint string, dst an
 // ListFiles uses bounded pagination: a browser can batch-select an entire
 // folder while the API never returns the secret token.
 func (c YandexDiskClient) ListFiles(ctx context.Context, token, path string, offset, limit int) ([]YandexDiskFile, int, error) {
-	if !strings.HasPrefix(path, "disk:/") || offset < 0 || limit < 1 || limit > 1000 {
+	if !ValidYandexDiskPath(path) || offset < 0 || offset > 1000000 || limit < 1 || limit > 1000 {
 		return nil, 0, errors.New("invalid cloud file request")
 	}
 	q := url.Values{"path": {path}, "offset": {fmt.Sprint(offset)}, "limit": {fmt.Sprint(limit)}, "fields": {"_embedded.items.name,_embedded.items.path,_embedded.items.type,_embedded.items.mime_type,_embedded.items.size,_embedded.total"}}
 	var d yandexDiskFilesResponse
 	if err := c.do(ctx, token, yandexDiskAPI+"?"+q.Encode(), &d); err != nil {
 		return nil, 0, err
+	}
+	// Provider metadata is not an authorization decision. Reject malformed
+	// folder entries before they become browser navigation/import candidates.
+	// Only direct children of the requested folder may be displayed.
+	if d.Embedded.Total < 0 || len(d.Embedded.Items) > limit {
+		return nil, 0, errors.New("invalid cloud folder listing")
+	}
+	prefix := strings.TrimSuffix(path, "/") + "/"
+	for _, file := range d.Embedded.Items {
+		if !ValidYandexDiskPath(file.Path) || !strings.HasPrefix(file.Path, prefix) ||
+			(file.Type != "file" && file.Type != "dir") || file.Name == "" || file.Size < 0 {
+			return nil, 0, errors.New("invalid cloud folder entry")
+		}
+		child := strings.TrimPrefix(file.Path, prefix)
+		if child == "" || strings.Contains(child, "/") {
+			return nil, 0, errors.New("invalid cloud folder entry")
+		}
 	}
 	return d.Embedded.Items, d.Embedded.Total, nil
 }
