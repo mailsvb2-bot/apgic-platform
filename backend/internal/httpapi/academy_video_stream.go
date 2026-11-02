@@ -97,7 +97,7 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 			value := response.Header.Get("Content-Range")
 			// Header.Get hides additional Content-Range fields. Never accept
 			// an ambiguous 416 from the cloud provider.
-			if len(response.Header.Values("Content-Range")) != 1 || !academyVideoUnsatisfiedRangeAllowed(r.Header.Get("Range"), value) {
+			if !academyVideoUnsatisfiedRangeHeadersAllowed(r.Header.Get("Range"), response.Header) {
 				academyHTTPError(w, r, academy.ErrUnavailable)
 				return
 			}
