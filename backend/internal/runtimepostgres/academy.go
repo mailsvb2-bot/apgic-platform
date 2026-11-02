@@ -423,7 +423,16 @@ func (c *Checker) AcademyPublish(actor, courseID, versionID string) (academy.Cou
 		return academy.Course{}, err
 	}
 	if unsupportedVideo {
-		return academy.Course{}, academy.ErrState
+		// Never sell a VIDEO course unless the deployment explicitly enables
+		// the verified media journey and every video lesson has an assigned,
+		// author-owned Yandex source and a saved encrypted connection.
+		ready, readinessErr := academyVideoPublicationReady(ctx, tx, actor, versionID)
+		if readinessErr != nil {
+			return academy.Course{}, readinessErr
+		}
+		if !ready {
+			return academy.Course{}, academy.ErrState
+		}
 	}
 	var attested bool
 	err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM academy_original_rights
