@@ -1,6 +1,6 @@
 "use client";
 
-import {useState,type FormEvent} from "react";
+import {useCallback,useEffect,useState,type FormEvent} from "react";
 
 type CloudMedia={id:string;title:string;provider:string;provider_file_ref:string;source_url?:string};
 type DiskFile={name:string;path:string;type:string;mime_type:string;size:number};
@@ -8,9 +8,9 @@ type VideoLesson={id:string;title:string;kind:string};
 type Mapping={lesson_id:string;media_id:string;ordinal:number};
 type AuthorMediaAssignment=Mapping&{title:string;provider:string;provider_file_ref:string;source_url?:string};
 
-async function request<T>(url:string,body?:unknown):Promise<T>{
+async function request<T>(url:string,body?:unknown,signal?:AbortSignal):Promise<T>{
  const r=await fetch(url,{method:body===undefined?"GET":"POST",credentials:"same-origin",
-  cache:"no-store",headers:{"Content-Type":"application/json"},
+  cache:"no-store",signal,headers:{"Content-Type":"application/json"},
   body:body===undefined?undefined:JSON.stringify(body)});
  const data=await r.json().catch(()=>({}));
  if(!r.ok)throw new Error(data.message_safe||data.code||"Операция не выполнена");
@@ -63,13 +63,22 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
    await reload();setDiskSelectedFiles({});setMessage("Выбранные видео добавлены в медиатеку");
   }catch(error){setMessage(String(error))}finally{setBusy(false)}
  }
- async function reload(){
+ const reload=useCallback(async (signal?:AbortSignal)=>{
   const [d,a]=await Promise.all([
-   request<{media:CloudMedia[]}>("/v1/academy/author/cloud-media"),
-   request<{assignments:AuthorMediaAssignment[]}>(`/v1/academy/author/courses/${courseId}/versions/${versionId}/media`)
+   request<{media:CloudMedia[]}>("/v1/academy/author/cloud-media",undefined,signal),
+   request<{assignments:AuthorMediaAssignment[]}>(`/v1/academy/author/courses/${courseId}/versions/${versionId}/media`,undefined,signal)
   ]);
-  setMedia(d.media);setSaved(a.assignments);
- }
+  if(!signal?.aborted){setMedia(d.media);setSaved(a.assignments);}
+ },[courseId,versionId]);
+ // Restore the author's saved library and lesson mappings on every editor
+ // opening (including after the OAuth callback), without a manual refresh.
+ useEffect(()=>{
+  const controller=new AbortController();
+  void reload(controller.signal).catch(()=>{
+   if(!controller.signal.aborted)setMessage("Не удалось загрузить медиатеку и сохранённые назначения. Повторите загрузку.");
+  });
+  return ()=>controller.abort();
+ },[reload]);
  async function importRows(e:FormEvent){
   e.preventDefault();setBusy(true);setMessage("");
   try{
