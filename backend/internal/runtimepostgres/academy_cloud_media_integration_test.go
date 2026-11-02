@@ -268,6 +268,22 @@ VALUES($1::uuid,'YANDEX_DISK',$2)`, author, "encrypted-test-only-placeholder-cre
 	if err != nil || len(second) != 1 || first[0].ID == second[0].ID {
 		t.Fatalf("new OAuth account reused old media identity: %+v %+v err=%v", first, second, err)
 	}
+	catalog, err := store.AcademyAuthorCloudMedia(author)
+	if err != nil || len(catalog) != 2 {
+		t.Fatalf("author catalog after reconnect: %+v err=%v", catalog, err)
+	}
+	activeItems := 0
+	for _, item := range catalog {
+		if item.Active {
+			activeItems++
+			if item.ID != second[0].ID {
+				t.Fatal("old cloud identity advertised as active")
+			}
+		}
+	}
+	if activeItems != 1 {
+		t.Fatalf("expected exactly one current OAuth video, got %d", activeItems)
+	}
 	var active int
 	if err := db.QueryRow(`SELECT count(*) FROM academy_cloud_media media
 JOIN academy_cloud_connections connection ON connection.author_id=media.author_id
