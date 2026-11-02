@@ -198,6 +198,10 @@ func (c *Checker) academyImportCloudMediaWithGeneration(actor string, items []Ac
 		if it.SourceURL != "" && !strings.HasPrefix(it.SourceURL, "https://") {
 			return nil, academy.ErrInvalid
 		}
+		if generation != "00000000-0000-0000-0000-000000000000" &&
+			(it.ResourceID == "" || len(it.ResourceID) > 512 || len(it.SHA256) != 64 || it.FileSize <= 0) {
+			return nil, academy.ErrInvalid
+		}
 		key := it.Provider + "\x00" + it.ProviderFileRef
 		if _, duplicate := seen[key]; duplicate {
 			continue
@@ -207,10 +211,18 @@ func (c *Checker) academyImportCloudMediaWithGeneration(actor string, items []Ac
 		if err != nil {
 			return nil, err
 		}
-		err = tx.QueryRowContext(ctx, `INSERT INTO academy_cloud_media(id,author_id,provider,provider_file_ref,source_url,title,connection_generation)
-   VALUES($1::uuid,$2::uuid,$3,$4,NULLIF($5,''),$6,$7::uuid)
+		err = tx.QueryRowContext(ctx, `INSERT INTO academy_cloud_media(id,author_id,provider,provider_file_ref,source_url,title,connection_generation,resource_id,sha256,file_size)
+   VALUES($1::uuid,$2::uuid,$3,$4,NULLIF($5,''),$6,$7::uuid,NULLIF($8,''),NULLIF($9,''),NULLIF($10::bigint,0))
    ON CONFLICT(author_id,provider,provider_file_ref,connection_generation) DO UPDATE SET title=EXCLUDED.title
-   RETURNING id::text`, id, actor, it.Provider, it.ProviderFileRef, it.SourceURL, it.Title, generation).Scan(&it.ID)
+   WHERE academy_cloud_media.resource_id IS NOT DISTINCT FROM EXCLUDED.resource_id
+     AND academy_cloud_media.sha256 IS NOT DISTINCT FROM EXCLUDED.sha256
+     AND academy_cloud_media.file_size IS NOT DISTINCT FROM EXCLUDED.file_size
+   RETURNING id::text`, id, actor, it.Provider, it.ProviderFileRef, it.SourceURL, it.Title, generation, it.ResourceID, it.SHA256, it.FileSize).Scan(&it.ID)
+		if errors.Is(err, sql.ErrNoRows) {
+			// The same path was overwritten within one OAuth connection.
+			// Never relabel an already verified video as a different file.
+			return nil, academy.ErrState
+		}
 		if err != nil {
 			return nil, fmt.Errorf("import media: %w", err)
 		}
