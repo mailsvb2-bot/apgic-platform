@@ -77,7 +77,14 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
   if(!signal?.aborted){
    // Stale references remain in author history but must not be offered for
    // new assignments after OAuth reconnect or file replacement.
-   setMedia(d.media.filter(m=>m.active));setSaved(a.assignments);
+   const activeMedia=d.media.filter(m=>m.active);
+   const activeIDs=new Set(activeMedia.map(m=>m.id));
+   setMedia(activeMedia);
+   // A reconnect invalidates the old OAuth generation. Never leave stale
+   // selections eligible for a new lesson mapping after the library reloads.
+   setSelected(current=>current.filter(id=>activeIDs.has(id)));
+   setDiskSelectedFiles({});
+   setSaved(a.assignments);
    // The editor must reopen with the persisted mappings as its working
    // draft; otherwise saving one changed lesson silently replaces its
    // previously assigned videos with only the newly selected ones.
@@ -111,7 +118,8 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
  }
  function allocateAll(){
   const targets=lessons.filter(l=>l.kind==="VIDEO");
-  const ids=selected.length?selected:media.map(m=>m.id);
+  const activeIDs=new Set(media.map(m=>m.id));
+  const ids=(selected.length?selected:media.map(m=>m.id)).filter(id=>activeIDs.has(id));
   if(!targets.length||!ids.length){setMessage("Нужны видеоуроки и выбранные материалы");return}
   if(perLesson<1||perLesson>100||!Number.isInteger(perLesson)){setMessage("Видео на урок: от 1 до 100");return}
   if(ids.length>targets.length*perLesson){setMessage("Видео больше, чем свободных мест в выбранных уроках");return}
@@ -125,6 +133,10 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
  }
  function allocate(){
   if(!lessonId||!selected.length)return;
+  const activeIDs=new Set(media.map(m=>m.id));
+  if(selected.some(id=>!activeIDs.has(id))){
+   setMessage("Выбранные видео устарели после переподключения облака. Обновите медиатеку.");return;
+  }
   const known=assignments.filter(a=>a.lesson_id!==lessonId);
   const incoming=selected.map((id,i)=>({lesson_id:lessonId,media_id:id,ordinal:i+1}));
   setAssignments([...known,...incoming]);
@@ -134,6 +146,10 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
   if(!assignments.length&&!saved.length)return;
   setBusy(true);setMessage("");
   try{
+   const activeIDs=new Set(media.map(m=>m.id));
+   if(assignments.some(a=>!activeIDs.has(a.media_id))){
+    throw new Error("В распределении есть видео от прежнего подключения. Удалите устаревшие назначения и импортируйте актуальные файлы.");
+   }
    const source=assignments.reduce((map,a)=>{const values=map.get(a.lesson_id)||[];values.push(a);map.set(a.lesson_id,values);return map},new Map<string,Mapping[]>());
    if([...source.values()].some(rows=>new Set(rows.map(x=>x.media_id)).size!==rows.length))throw new Error("Одно видео назначено уроку дважды");
    await request(`/v1/academy/courses/${courseId}/versions/${versionId}/media/assign`,{items:assignments});
