@@ -11,8 +11,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"regexp"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -23,12 +23,12 @@ type academyCloudCredentialWriter interface {
 	AcademyStoreCloudCredential(actor, provider, token string) error
 }
 type cloudOAuthState struct {
-	Actor    string `json:"actor"`
-	Verifier string `json:"verifier"`
-	Nonce    string `json:"nonce"`
+	Actor         string `json:"actor"`
+	Verifier      string `json:"verifier"`
+	Nonce         string `json:"nonce"`
 	ReturnCourse  string `json:"return_course,omitempty"`
 	ReturnVersion string `json:"return_version,omitempty"`
-	Expires  int64  `json:"expires"`
+	Expires       int64  `json:"expires"`
 }
 
 func cloudRandom(n int) (string, error) {
