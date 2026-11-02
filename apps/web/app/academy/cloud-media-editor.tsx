@@ -2,7 +2,7 @@
 
 import {useCallback,useEffect,useState,type FormEvent} from "react";
 
-type CloudMedia={id:string;title:string;provider:string;provider_file_ref:string;source_url?:string};
+type CloudMedia={id:string;title:string;provider:string;provider_file_ref:string;source_url?:string;active:boolean};
 type DiskFile={name:string;path:string;type:string;mime_type:string;size:number};
 type VideoLesson={id:string;title:string;kind:string};
 type Mapping={lesson_id:string;media_id:string;ordinal:number};
@@ -75,7 +75,9 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
    request<{assignments:AuthorMediaAssignment[]}>(`/v1/academy/author/courses/${courseId}/versions/${versionId}/media`,undefined,signal)
   ]);
   if(!signal?.aborted){
-   setMedia(d.media);setSaved(a.assignments);
+   // Stale references remain in author history but must not be offered for
+   // new assignments after OAuth reconnect or file replacement.
+   setMedia(d.media.filter(m=>m.active));setSaved(a.assignments);
    // The editor must reopen with the persisted mappings as its working
    // draft; otherwise saving one changed lesson silently replaces its
    // previously assigned videos with only the newly selected ones.
@@ -172,6 +174,7 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
    <textarea id="cloud-media-rows" rows={5} value={rows} onChange={e=>setRows(e.target.value)} placeholder={"disk:/videos/001.mp4 | Видео 1\ndisk:/videos/002.mp4 | Видео 2"}/>
    <button disabled={busy}>Добавить файлы</button>
   </form>
+  {saved.some(a=>!media.some(m=>m.id===a.media_id))&&<p role="alert">В сохранённых уроках есть видео от прежнего подключения Яндекс Диска. Они недоступны ученикам. Повторно импортируйте актуальные файлы и переназначьте их перед публикацией.</p>}
   <h4>Выбрать сразу несколько видео</h4>
   <div style={{maxHeight:220,overflowY:"auto"}}>
    {media.map(m=><label key={m.id} style={{display:"block"}}>
