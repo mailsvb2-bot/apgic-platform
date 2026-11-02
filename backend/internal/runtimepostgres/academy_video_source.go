@@ -30,6 +30,11 @@ func (c *Checker) AcademyLearnerVideoSource(actor, enrollmentID, lessonID, media
  JOIN academy_lessons l ON l.module_id=m.id AND l.kind='VIDEO'
  JOIN academy_lesson_media lm ON lm.lesson_id=l.id
  JOIN academy_cloud_media media ON media.id=lm.media_id AND media.author_id=c.author_id
+ -- Disconnecting the author's cloud account must revoke ongoing playback,
+ -- not merely prevent new credential lookups. The stream watcher repeats
+ -- this canonical query while bytes are being delivered.
+ JOIN academy_cloud_connections connection
+   ON connection.author_id=c.author_id AND connection.provider=media.provider
  LEFT JOIN academy_lesson_schedules sc ON sc.lesson_id=l.id
  LEFT JOIN academy_assessment_limits limits ON limits.lesson_id=l.id
  WHERE e.id=$1::uuid AND e.identity_id=$2::uuid AND l.id=$3::uuid AND media.id=$4::uuid
