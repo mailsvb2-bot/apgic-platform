@@ -16,6 +16,13 @@ func academyVideoUpstreamResponseAllowed(requestRange string, status int, header
 	if requestRange != "" && status != http.StatusPartialContent {
 		return false
 	}
+	// net/http Header.Get returns only the first value. Conflicting duplicate
+	// upstream headers must not let a provider smuggle a different encoding,
+	// media type or byte range past the gateway validation.
+	if len(headers.Values("Content-Type")) != 1 || len(headers.Values("Content-Range")) > 1 ||
+		len(headers.Values("Content-Length")) > 1 || len(headers.Values("Content-Encoding")) > 1 {
+		return false
+	}
 	// Byte ranges apply to the original media representation. Never forward
 	// compressed/encoded provider bytes as an unencoded HTML5 video range.
 	if encoding := strings.TrimSpace(headers.Get("Content-Encoding")); encoding != "" && !strings.EqualFold(encoding, "identity") {
