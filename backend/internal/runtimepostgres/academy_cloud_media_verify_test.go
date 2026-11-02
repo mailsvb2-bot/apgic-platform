@@ -80,3 +80,27 @@ func TestAcademyVerifyYandexMediaBatchFailsClosed(t *testing.T) {
 		t.Fatalf("cancelled import accepted: %v", err)
 	}
 }
+
+func TestAcademyVerifyYandexMediaBatchRejectsPathNormalizationBeforeNetwork(t *testing.T) {
+	for _, path := range []string{
+		"disk:/videos/lecture.mp4 ",
+		" disk:/videos/lecture.mp4",
+		"disk:/videos/lecture.mp4\\x00",
+		"https://example.invalid/lecture.mp4",
+	} {
+		t.Run(fmt.Sprintf("%q", path), func(t *testing.T) {
+			var called atomic.Int32
+			items := []academy.CloudMedia{
+				{Provider: "YANDEX_DISK", ProviderFileRef: "disk:/videos/valid.mp4"},
+				{Provider: "YANDEX_DISK", ProviderFileRef: path},
+			}
+			err := academyVerifyYandexMediaBatch(context.Background(), items, func(context.Context, string) error {
+				called.Add(1)
+				return nil
+			})
+			if !errors.Is(err, academy.ErrInvalid) || called.Load() != 0 {
+				t.Fatalf("noncanonical batch reached provider: err=%v calls=%d", err, called.Load())
+			}
+		})
+	}
+}
