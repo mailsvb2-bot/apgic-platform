@@ -141,13 +141,14 @@ func cloudOAuthCallbackCodeFromRaw(rawQuery, expectedState string) (string, bool
 	return cloudOAuthCallbackCode(query, expectedState)
 }
 
-// cloudOAuthCallbackCode accepts exactly one state and one code. url.Values.Get
-// silently picks the first value, which can make an OAuth callback ambiguous.
+// cloudOAuthCallbackCode accepts ONLY one state and one code. url.Values.Get
+// silently picks the first value, and extra provider/attacker parameters must
+// never influence a credential-bearing callback.
 func cloudOAuthCallbackCode(query url.Values, expectedState string) (string, bool) {
 	states, hasState := query["state"]
 	codes, hasCode := query["code"]
-	if !hasState || !hasCode || len(states) != 1 || len(codes) != 1 ||
-		len(query["error"]) != 0 || expectedState == "" || states[0] != expectedState {
+	if !hasState || !hasCode || len(query) != 2 || len(states) != 1 || len(codes) != 1 ||
+		expectedState == "" || states[0] != expectedState {
 		return "", false
 	}
 	code := codes[0]
