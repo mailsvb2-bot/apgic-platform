@@ -142,7 +142,16 @@ func (c *Checker) AcademyAssignCloudMedia(actor, courseID, versionID string, ite
 
 // AcademyImportCloudMedia inserts only opaque provider references. Public URLs
 // are not returned by the learner API; author access is authenticated.
+// Direct catalog imports (used by legacy/internal callers) are deliberately
+// UNBOUND. Only the verified OAuth import below can create playable media.
 func (c *Checker) AcademyImportCloudMedia(actor string, items []AcademyCloudMedia) ([]AcademyCloudMedia, error) {
+	return c.academyImportCloudMediaWithGeneration(actor, items, "00000000-0000-0000-0000-000000000000")
+}
+
+func (c *Checker) academyImportCloudMediaWithGeneration(actor string, items []AcademyCloudMedia, generation string) ([]AcademyCloudMedia, error) {
+	if !academyMediaUUID(generation) {
+		return nil, academy.ErrInvalid
+	}
 	if !academyMediaUUID(actor) || len(items) == 0 || len(items) > 2000 {
 		return nil, academy.ErrInvalid
 	}
@@ -152,6 +161,17 @@ func (c *Checker) AcademyImportCloudMedia(actor string, items []AcademyCloudMedi
 		return nil, err
 	}
 	defer tx.Rollback()
+	// A reconnect between provider verification and persistence must not
+	// attach the old provider's file to the new account's generation. The
+	// row lock serializes the final comparison with concurrent OAuth writes.
+	if generation != "00000000-0000-0000-0000-000000000000" {
+		var current string
+		err = tx.QueryRowContext(ctx, `SELECT generation::text FROM academy_cloud_connections
+ WHERE author_id=$1::uuid AND provider='YANDEX_DISK' FOR SHARE`, actor).Scan(&current)
+		if err != nil || current != generation {
+			return nil, academy.ErrDenied
+		}
+	}
 	output := make([]AcademyCloudMedia, 0, len(items))
 	// The verification layer deduplicates provider calls, but without this
 	// guard repeated rows still perform redundant database updates and return
@@ -187,10 +207,10 @@ func (c *Checker) AcademyImportCloudMedia(actor string, items []AcademyCloudMedi
 		if err != nil {
 			return nil, err
 		}
-		err = tx.QueryRowContext(ctx, `INSERT INTO academy_cloud_media(id,author_id,provider,provider_file_ref,source_url,title)
-   VALUES($1::uuid,$2::uuid,$3,$4,NULLIF($5,''),$6)
-   ON CONFLICT(author_id,provider,provider_file_ref) DO UPDATE SET title=EXCLUDED.title
-   RETURNING id::text`, id, actor, it.Provider, it.ProviderFileRef, it.SourceURL, it.Title).Scan(&it.ID)
+		err = tx.QueryRowContext(ctx, `INSERT INTO academy_cloud_media(id,author_id,provider,provider_file_ref,source_url,title,connection_generation)
+   VALUES($1::uuid,$2::uuid,$3,$4,NULLIF($5,''),$6,$7::uuid)
+   ON CONFLICT(author_id,provider,provider_file_ref,connection_generation) DO UPDATE SET title=EXCLUDED.title
+   RETURNING id::text`, id, actor, it.Provider, it.ProviderFileRef, it.SourceURL, it.Title, generation).Scan(&it.ID)
 		if err != nil {
 			return nil, fmt.Errorf("import media: %w", err)
 		}
