@@ -12,10 +12,13 @@ import (
 type AcademyCloudMedia = academy.CloudMedia
 type AcademyMediaAssignment = academy.MediaAssignment
 
-// AcademyAssignCloudMedia atomically replaces a lesson's ordered media references.
+// AcademyAssignCloudMedia atomically replaces the complete DRAFT version's
+// ordered VIDEO media snapshot. Omitted lessons lose old assignments, and
+// an empty snapshot explicitly clears all video assignments. This prevents
+// removed videos from remaining accessible after an author saves edits.
 // Neither source URLs nor provider identifiers are exposed to learner APIs.
 func (c *Checker) AcademyAssignCloudMedia(actor, courseID, versionID string, items []AcademyMediaAssignment) error {
-	if len(items) == 0 || len(items) > 2000 {
+	if len(items) > 2000 {
 		return academy.ErrInvalid
 	}
 	ctx, cancel, tx, err := academyBegin(c)
@@ -78,26 +81,27 @@ func (c *Checker) AcademyAssignCloudMedia(actor, courseID, versionID string, ite
 	// duplicate academy.media.assigned event. The course version row lock
 	// serializes concurrent retries from the same author.
 	var current []AcademyMediaAssignment
-	for lesson := range used {
-		rows, queryErr := tx.QueryContext(ctx, `SELECT lesson_id::text,media_id::text,ordinal
- FROM academy_lesson_media WHERE lesson_id=$1::uuid ORDER BY ordinal`, lesson)
-		if queryErr != nil {
-			return queryErr
-		}
-		for rows.Next() {
-			var item AcademyMediaAssignment
-			if scanErr := rows.Scan(&item.LessonID, &item.MediaID, &item.Ordinal); scanErr != nil {
-				rows.Close()
-				return scanErr
-			}
-			current = append(current, item)
-		}
-		if rowsErr := rows.Err(); rowsErr != nil {
-			rows.Close()
-			return rowsErr
-		}
-		rows.Close()
+	rows, queryErr := tx.QueryContext(ctx, `SELECT lm.lesson_id::text,lm.media_id::text,lm.ordinal
+ FROM academy_lesson_media lm
+ JOIN academy_lessons l ON l.id=lm.lesson_id
+ JOIN academy_modules m ON m.id=l.module_id
+ WHERE m.version_id=$1::uuid ORDER BY lm.lesson_id,lm.ordinal`, versionID)
+	if queryErr != nil {
+		return queryErr
 	}
+	for rows.Next() {
+		var item AcademyMediaAssignment
+		if scanErr := rows.Scan(&item.LessonID, &item.MediaID, &item.Ordinal); scanErr != nil {
+			rows.Close()
+			return scanErr
+		}
+		current = append(current, item)
+	}
+	if rowsErr := rows.Err(); rowsErr != nil {
+		rows.Close()
+		return rowsErr
+	}
+	rows.Close()
 	equal := len(current) == len(items)
 	if equal {
 		lookup := make(map[string]AcademyMediaAssignment, len(current))
@@ -115,10 +119,13 @@ func (c *Checker) AcademyAssignCloudMedia(actor, courseID, versionID string, ite
 	if equal {
 		return tx.Commit()
 	}
-	for lesson := range used {
-		if _, err = tx.ExecContext(ctx, `DELETE FROM academy_lesson_media WHERE lesson_id=$1::uuid`, lesson); err != nil {
-			return err
-		}
+	// Replace the entire version snapshot under the existing version row
+	// lock. Clearing the final assignment is a valid DRAFT edit, not a
+	// separate authorization or publication path.
+	if _, err = tx.ExecContext(ctx, `DELETE FROM academy_lesson_media lm
+ USING academy_lessons l, academy_modules m
+ WHERE lm.lesson_id=l.id AND l.module_id=m.id AND m.version_id=$1::uuid`, versionID); err != nil {
+		return err
 	}
 	for _, item := range items {
 		if _, err = tx.ExecContext(ctx, `INSERT INTO academy_lesson_media(lesson_id,media_id,ordinal)
