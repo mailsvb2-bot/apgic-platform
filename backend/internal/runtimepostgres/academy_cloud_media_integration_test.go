@@ -237,10 +237,19 @@ VALUES($1::uuid,'YANDEX_DISK',$2)`, author, "encrypted-test-only-placeholder-cre
 	if err := db.QueryRow(`SELECT generation::text FROM academy_cloud_connections WHERE author_id=$1::uuid`, author).Scan(&original); err != nil {
 		t.Fatal(err)
 	}
-	items := []academy.CloudMedia{{Provider: "YANDEX_DISK", ProviderFileRef: "disk:/same-path.mp4", Title: "Bound video"}}
+	items := []academy.CloudMedia{{Provider: "YANDEX_DISK", ProviderFileRef: "disk:/same-path.mp4", Title: "Bound video",
+		ResourceID: "file-resource-A", SHA256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", FileSize: 12345}}
 	first, err := store.academyImportCloudMediaWithGeneration(author, items, original)
 	if err != nil || len(first) != 1 {
 		t.Fatalf("first generation import: %+v err=%v", first, err)
+	}
+	// Replacing a file at the same path without reconnecting must not
+	// mutate the originally verified resource ID or content digest.
+	replaced := append([]academy.CloudMedia(nil), items...)
+	replaced[0].ResourceID = "file-resource-B"
+	replaced[0].SHA256 = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+	if _, err := store.academyImportCloudMediaWithGeneration(author, replaced, original); !errors.Is(err, academy.ErrState) {
+		t.Fatalf("overwritten same-path file was silently rebound: %v", err)
 	}
 	if _, err := db.Exec(`UPDATE academy_cloud_media SET connection_generation=gen_random_uuid() WHERE id=$1::uuid`, first[0].ID); err == nil {
 		t.Fatal("provider identity changed outside immutable import")
@@ -255,7 +264,7 @@ VALUES($1::uuid,'YANDEX_DISK',$2)`, author, "encrypted-test-only-placeholder-cre
 	if err := db.QueryRow(`SELECT generation::text FROM academy_cloud_connections WHERE author_id=$1::uuid`, author).Scan(&current); err != nil {
 		t.Fatal(err)
 	}
-	second, err := store.academyImportCloudMediaWithGeneration(author, items, current)
+	second, err := store.academyImportCloudMediaWithGeneration(author, replaced, current)
 	if err != nil || len(second) != 1 || first[0].ID == second[0].ID {
 		t.Fatalf("new OAuth account reused old media identity: %+v %+v err=%v", first, second, err)
 	}
