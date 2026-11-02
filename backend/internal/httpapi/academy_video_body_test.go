@@ -18,10 +18,15 @@ func TestAcademyVideoBodyForLearnerNeverExceedsApprovedRange(t *testing.T) {
 	}{
 		{"bounded chunked 206", "bytes 100-103/1000", "ABCDSECRET", "ABCD", http.StatusPartialContent},
 		{"single byte", "bytes 0-0/1000", "XY", "X", http.StatusPartialContent},
-		{"full 200 untouched", "", "ALL", "ALL", http.StatusOK},
+		{"full 200 bounded", "", "ALLSECRET", "ALL", http.StatusOK},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			reader, err := academyVideoBodyForLearner(tc.status, http.Header{"Content-Range": {tc.contentRange}}, strings.NewReader(tc.body))
+			headers := http.Header{"Content-Range": {tc.contentRange}}
+			if tc.status == http.StatusOK {
+				headers.Del("Content-Range")
+				headers.Set("Content-Length", "3")
+			}
+			reader, err := academyVideoBodyForLearner(tc.status, headers, strings.NewReader(tc.body))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -118,5 +123,28 @@ func TestAcademyVideoChunkedPartialLengthAndTruncation(t *testing.T) {
 				t.Fatalf("complete video failed: %v", readErr)
 			}
 		})
+	}
+}
+
+func TestAcademyVideoFullBodyRequiresFiniteVerifiedLength(t *testing.T) {
+	for _, headers := range []http.Header{
+		{"Content-Type": {"video/mp4"}},
+		{"Content-Length": {"0"}},
+		{"Content-Length": {"-1"}},
+		{"Content-Length": {"9223372036854775808"}},
+		{"Content-Length": {"4", "5"}},
+		{"Content-Length": {"4"}, "Content-Range": {"bytes 0-3/4"}},
+	} {
+		if _, err := academyVideoBodyForLearner(http.StatusOK, headers, strings.NewReader("VIDEO")); err == nil {
+			t.Fatalf("invalid full video length accepted: %v", headers)
+		}
+	}
+	body, err := academyVideoBodyForLearner(http.StatusOK, http.Header{"Content-Length": {"4"}}, strings.NewReader("VIDEOTAIL"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := io.ReadAll(body)
+	if err != nil || string(got) != "VIDE" {
+		t.Fatalf("full video leaked extra bytes: %q, %v", got, err)
 	}
 }

@@ -9,19 +9,41 @@ import (
 	"strings"
 )
 
-// academyVideoBodyForLearner bounds a partial response to the exact number
-// of bytes promised by its validated Content-Range. A provider may use
-// chunked transfer encoding (no Content-Length), but it must never be able
-// to send bytes beyond the approved range to the learner.
+// academyVideoBodyForLearner bounds both full and partial responses to the
+// exact declared representation length. A malicious or misconfigured provider
+// cannot send unlimited bytes on a chunked 200 or append bytes to a 206.
 func academyVideoBodyForLearner(status int, headers http.Header, body io.Reader) (io.Reader, error) {
-	if status != http.StatusPartialContent {
-		return body, nil
+	var length int64
+	var err error
+	switch status {
+	case http.StatusOK:
+		length, err = academyVideoFullLength(headers)
+	case http.StatusPartialContent:
+		length, err = academyVideoPartialLength(headers.Get("Content-Range"))
+	default:
+		return nil, errors.New("invalid video response status")
 	}
-	length, err := academyVideoPartialLength(headers.Get("Content-Range"))
 	if err != nil {
 		return nil, err
 	}
 	return io.LimitReader(body, length), nil
+}
+
+// academyVideoFullLength rejects unbounded or ambiguous HTTP 200 responses.
+// The advertised length also lets the browser detect a truncated transfer.
+func academyVideoFullLength(headers http.Header) (int64, error) {
+	if headers.Get("Content-Range") != "" || len(headers.Values("Content-Length")) != 1 {
+		return 0, errors.New("invalid full video response")
+	}
+	value := headers.Get("Content-Length")
+	if value == "" || strings.Trim(value, "0123456789") != "" {
+		return 0, errors.New("invalid full video length")
+	}
+	length, err := strconv.ParseInt(value, 10, 64)
+	if err != nil || length <= 0 {
+		return 0, errors.New("invalid full video length")
+	}
+	return length, nil
 }
 
 // academyVideoPartialLength derives the exact representation length from

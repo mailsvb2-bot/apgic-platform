@@ -21,6 +21,13 @@ func academyVideoUpstreamResponseAllowed(requestRange string, status int, header
 	if encoding := strings.TrimSpace(headers.Get("Content-Encoding")); encoding != "" && !strings.EqualFold(encoding, "identity") {
 		return false
 	}
+	if status == http.StatusOK {
+		// A full representation must have a known, finite length. Reject
+		// chunked/unbounded 200 responses and fabricated Content-Range headers.
+		if _, err := academyVideoFullLength(headers); err != nil {
+			return false
+		}
+	}
 	if status == http.StatusPartialContent &&
 		!academyVideoPartialMatchesRequest(requestRange, headers.Get("Content-Range"), headers.Get("Content-Length")) {
 		return false

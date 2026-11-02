@@ -12,10 +12,16 @@ func TestAcademyVideoUpstreamResponseAllowed(t *testing.T) {
 		headers            http.Header
 		allowed            bool
 	}{
-		{"full video", "", 200, http.Header{"Content-Type": {"video/mp4"}}, true},
-		{"full octet stream", "", 200, http.Header{"Content-Type": {"application/octet-stream"}}, true},
+		{"full video", "", 200, http.Header{"Content-Type": {"video/mp4"}, "Content-Length": {"1024"}}, true},
+		{"full octet stream", "", 200, http.Header{"Content-Type": {"application/octet-stream"}, "Content-Length": {"1024"}}, true},
 		{"partial video", "bytes=0-99", 206, http.Header{"Content-Type": {"video/mp4"}, "Content-Range": {"bytes 0-99/500"}, "Content-Length": {"100"}}, true},
-		{"ignored range", "bytes=0-99", 200, http.Header{"Content-Type": {"video/mp4"}}, false},
+		{"ignored range", "bytes=0-99", 200, http.Header{"Content-Type": {"video/mp4"}, "Content-Length": {"1024"}}, false},
+		{"chunked full without length", "", 200, http.Header{"Content-Type": {"video/mp4"}}, false},
+		{"zero full length", "", 200, http.Header{"Content-Type": {"video/mp4"}, "Content-Length": {"0"}}, false},
+		{"overflow full length", "", 200, http.Header{"Content-Type": {"video/mp4"}, "Content-Length": {"9223372036854775808"}}, false},
+		{"negative full length", "", 200, http.Header{"Content-Type": {"video/mp4"}, "Content-Length": {"-1"}}, false},
+		{"ambiguous full length", "", 200, http.Header{"Content-Type": {"video/mp4"}, "Content-Length": {"100", "200"}}, false},
+		{"full with unexpected content range", "", 200, http.Header{"Content-Type": {"video/mp4"}, "Content-Length": {"100"}, "Content-Range": {"bytes 0-99/100"}}, false},
 		{"unexpected partial", "", 206, http.Header{"Content-Type": {"video/mp4"}, "Content-Range": {"bytes 0-99/500"}}, false},
 		{"bad range", "bytes=0-99", 206, http.Header{"Content-Type": {"video/mp4"}, "Content-Range": {"bytes 200-299/500"}}, false},
 		{"gzip encoded range", "bytes=0-99", 206, http.Header{"Content-Type": {"video/mp4"}, "Content-Range": {"bytes 0-99/500"}, "Content-Encoding": {"gzip"}}, false},
