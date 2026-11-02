@@ -20,6 +20,12 @@ type academyCloudMediaVerifier interface {
 	AcademyVerifyYandexDiskMedia(context.Context, string, []academy.CloudMedia) error
 }
 
+// This single canonical operation owns provider verification AND the database
+// commit. Splitting those calls across HTTP permits OAuth reconnect races.
+type academyCloudVerifiedImporter interface {
+	AcademyImportVerifiedCloudMedia(context.Context, string, []academy.CloudMedia) ([]academy.CloudMedia, error)
+}
+
 // academyVerifyCloudImport is deliberately fail-closed: an author cannot
 // insert an arbitrary external URL or unverified disk path through HTTP.
 func academyVerifyCloudImport(ctx context.Context, actor string, items []academy.CloudMedia, verifier academyCloudMediaVerifier) error {
@@ -77,16 +83,12 @@ func registerAcademyCloudMedia(mux *http.ServeMux, store academyStore, sessions 
 		// Verify the entire bounded batch with the author's OAuth token
 		// before writing any catalog row. EXTERNAL links are not playable
 		// through the protected Yandex gateway and are denied here.
-		verifier, ok := store.(academyCloudMediaVerifier)
+		importer, ok := store.(academyCloudVerifiedImporter)
 		if !ok {
 			http.Error(w, "Cloud verification unavailable", http.StatusServiceUnavailable)
 			return
 		}
-		if err := academyVerifyCloudImport(r.Context(), actor, body.Items, verifier); err != nil {
-			http.Error(w, "Cloud video could not be verified", http.StatusBadRequest)
-			return
-		}
-		out, err := owner.AcademyImportCloudMedia(actor, body.Items)
+		out, err := importer.AcademyImportVerifiedCloudMedia(r.Context(), actor, body.Items)
 		if err != nil {
 			http.Error(w, "Import failed", http.StatusBadRequest)
 			return
