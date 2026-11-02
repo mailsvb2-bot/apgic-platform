@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"crypto/subtle"
 	"net"
 	"net/http"
 	"strconv"
@@ -68,7 +69,14 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 			return academyVideoSourceStillAllowed(owner, actor,
 				r.PathValue("enrollmentID"), r.PathValue("lessonID"), r.PathValue("mediaID"), author, provider, path)
 		}
-		if !allowed() {
+		// A reconnected cloud account may point the same disk:/ path at a
+		// different author-owned file. Bind the stream to the credential used
+		// to resolve its original temporary URL, not only to the path.
+		connectionAllowed := func() bool {
+			return academyVideoCloudConnectionStillAllowed(owner, author, provider, token)
+		}
+		authorized := func() bool { return allowed() && connectionAllowed() }
+		if !authorized() {
 			academyHTTPError(w, r, academy.ErrEntitlement)
 			return
 		}
@@ -80,7 +88,7 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 			defer close(watchDone)
 			academyWatchVideoEntitlement(streamCtx, func() {
 				academyCancelRevokedVideoResponse(w, stopStream)
-			}, time.Second, allowed)
+			}, time.Second, authorized)
 		}()
 		// The watcher must exit before ServeHTTP returns: it owns a reference
 		// to ResponseWriter and must never touch it after the handler finishes.
@@ -117,7 +125,7 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 				academyHTTPError(w, r, academy.ErrUnavailable)
 				return
 			}
-			if !allowed() {
+			if !authorized() {
 				academyHTTPError(w, r, academy.ErrEntitlement)
 				return
 			}
@@ -141,9 +149,9 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 			return
 		}
 		ct := response.Header.Get("Content-Type")
-		// Reauthorize immediately before committing response headers; entitlement
-		// might have been revoked while the cloud provider was resolving.
-		if !allowed() {
+		// Reauthorize the source and credential immediately before committing
+		// headers; either may have changed while the provider was resolving.
+		if !authorized() {
 			academyHTTPError(w, r, academy.ErrEntitlement)
 			return
 		}
@@ -175,6 +183,15 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 func academyVideoSourceStillAllowed(owner academyVideoStreamingStore, actor, enrollmentID, lessonID, mediaID, author, provider, path string) bool {
 	currentAuthor, currentProvider, currentPath, err := owner.AcademyLearnerVideoSource(actor, enrollmentID, lessonID, mediaID)
 	return err == nil && currentAuthor == author && currentProvider == provider && currentPath == path
+}
+
+// academyVideoCloudConnectionStillAllowed also invalidates a running
+// stream if the author reconnects a different cloud account while the old
+// temporary URL remains valid. Compare credentials server-side only; never
+// include them in learner responses, logs or error strings.
+func academyVideoCloudConnectionStillAllowed(owner academyVideoStreamingStore, author, provider, originalToken string) bool {
+	currentToken, err := owner.AcademyReadCloudCredential(author, provider)
+	return err == nil && originalToken != "" && subtle.ConstantTimeCompare([]byte(currentToken), []byte(originalToken)) == 1
 }
 
 // academyVideoRequestedRange accepts at most one canonical HTTP Range field.
