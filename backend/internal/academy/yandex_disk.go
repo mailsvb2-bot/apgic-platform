@@ -24,6 +24,8 @@ type YandexDiskFile struct {
 	Type     string `json:"type"`
 	MimeType string `json:"mime_type"`
 	Size     int64  `json:"size"`
+	ResourceID string `json:"resource_id"`
+	SHA256     string `json:"sha256"`
 }
 type yandexDiskFilesResponse struct {
 	Embedded struct {
@@ -126,7 +128,7 @@ func (c YandexDiskClient) VerifyVideo(ctx context.Context, token, path string) (
 	if !ValidYandexDiskPath(path) {
 		return YandexDiskFile{}, errors.New("invalid cloud video path")
 	}
-	q := url.Values{"path": {path}, "fields": {"name,path,type,mime_type,size"}}
+	q := url.Values{"path": {path}, "fields": {"name,path,type,mime_type,size,resource_id,sha256"}}
 	return c.verifyVideoAt(ctx, token, path, yandexDiskAPI+"?"+q.Encode())
 }
 
@@ -138,10 +140,27 @@ func (c YandexDiskClient) verifyVideoAt(ctx context.Context, token, path, endpoi
 		return YandexDiskFile{}, err
 	}
 	if file.Path != path || file.Type != "file" || file.Size <= 0 ||
-		!strings.HasPrefix(strings.ToLower(file.MimeType), "video/") {
+		!strings.HasPrefix(strings.ToLower(file.MimeType), "video/") ||
+		len(file.ResourceID) == 0 || len(file.ResourceID) > 512 ||
+		strings.TrimSpace(file.ResourceID) != file.ResourceID ||
+		!validYandexSHA256(file.SHA256) {
 		return YandexDiskFile{}, errors.New("cloud file is not a verified video")
 	}
 	return file, nil
+}
+
+// A provider path alone is mutable. Require both the provider resource ID
+// and the full content digest to bind an import to the exact verified file.
+func validYandexSHA256(value string) bool {
+	if len(value) != 64 {
+		return false
+	}
+	for _, c := range value {
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+			return false
+		}
+	}
+	return true
 }
 
 // TemporaryDownload is used ONLY server-side by the media gateway.
