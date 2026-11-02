@@ -13,6 +13,9 @@ import (
 // Dialer.ControlContext receives the resolved IP immediately before connect,
 // avoiding a separate lookup-and-connect DNS rebinding window.
 var academyVideoNonPublicNetworks = []netip.Prefix{
+	// Go netip.IsGlobalUnicast reports 0/8 (except 0.0.0.0) as
+	// globally unicast, but 0/8 is reserved and may route to local hosts.
+	netip.MustParsePrefix("0.0.0.0/8"),
 	netip.MustParsePrefix("100.64.0.0/10"),
 	netip.MustParsePrefix("192.0.0.0/24"),
 	netip.MustParsePrefix("192.0.2.0/24"),
