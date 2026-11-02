@@ -72,7 +72,22 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 			academyHTTPError(w, r, academy.ErrEntitlement)
 			return
 		}
-		go academyWatchVideoEntitlement(streamCtx, stopStream, time.Second, allowed)
+		// Revocation must interrupt not only a stalled cloud read but also a
+		// blocked write to a slow learner. Canceling the upstream context alone
+		// does not interrupt net/http ResponseWriter.Write.
+		watchDone := make(chan struct{})
+		go func() {
+			defer close(watchDone)
+			academyWatchVideoEntitlement(streamCtx, func() {
+				academyCancelRevokedVideoResponse(w, stopStream)
+			}, time.Second, allowed)
+		}()
+		// The watcher must exit before ServeHTTP returns: it owns a reference
+		// to ResponseWriter and must never touch it after the handler finishes.
+		defer func() {
+			stopStream()
+			<-watchDone
+		}()
 		request, err := academyVideoUpstreamRequest(streamCtx, download, requestedRange)
 		if err != nil {
 			academyHTTPError(w, r, academy.ErrUnavailable)
@@ -218,4 +233,12 @@ func academyWatchVideoEntitlement(ctx context.Context, cancel context.CancelFunc
 			}
 		}
 	}
+}
+
+// academyCancelRevokedVideoResponse closes both directions of the live media
+// stream. The deadline interrupts a learner-side Write blocked on a slow or
+// stalled connection; upstream cancellation alone cannot stop that Write.
+func academyCancelRevokedVideoResponse(w http.ResponseWriter, cancel context.CancelFunc) {
+	cancel()
+	_ = http.NewResponseController(w).SetWriteDeadline(time.Now())
 }
