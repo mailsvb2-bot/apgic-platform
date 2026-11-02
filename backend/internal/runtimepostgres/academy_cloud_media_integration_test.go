@@ -73,6 +73,18 @@ func TestAcademyCloudMediaDraftOwnerAndVideoBoundaryPostgres(t *testing.T) {
 	if err != nil || len(catalog) != 1 || catalog[0].Title != "Private lecture" {
 		t.Fatalf("duplicate import changed first title or created duplicate: %+v err=%v", catalog, err)
 	}
+	// Persistence must never trim a path AFTER the provider verified it.
+	// Otherwise a verified file ending in whitespace could silently resolve
+	// to a different unverified cloud file when a learner starts playback.
+	if _, err := store.AcademyImportCloudMedia(author, []academy.CloudMedia{
+		{Provider: "YANDEX_DISK", ProviderFileRef: "disk:/private/author.mp4 ", Title: "Changed source"},
+	}); !errors.Is(err, academy.ErrInvalid) {
+		t.Fatalf("noncanonical source identity was persisted: %v", err)
+	}
+	catalog, err = store.AcademyAuthorCloudMedia(author)
+	if err != nil || len(catalog) != 1 || catalog[0].ProviderFileRef != "disk:/private/author.mp4" || catalog[0].Title != "Private lecture" {
+		t.Fatalf("invalid import modified previously verified media: %+v err=%v", catalog, err)
+	}
 	foreign, err := store.AcademyImportCloudMedia(outsider, []academy.CloudMedia{
 		{Provider: "YANDEX_DISK", ProviderFileRef: "disk:/private/foreign.mp4", Title: "Foreign lecture"},
 	})
