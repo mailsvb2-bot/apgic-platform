@@ -15,7 +15,9 @@ func TestYandexVerifyVideoRejectsUnverifiedProviderMetadata(t *testing.T) {
 		body string
 		ok   bool
 	}{
-		{"verified video", `{"name":"lesson.mp4","path":"disk:/lectures/lesson.mp4","type":"file","mime_type":"video/mp4","size":1234}`, true},
+		{"verified video", `{"name":"lesson.mp4","path":"disk:/lectures/lesson.mp4","type":"file","mime_type":"video/mp4","size":1234,"resource_id":"yandex-resource-123","sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}`, true},
+		{"missing resource identity", `{"name":"lesson.mp4","path":"disk:/lectures/lesson.mp4","type":"file","mime_type":"video/mp4","size":1234}`, false},
+		{"invalid digest", `{"name":"lesson.mp4","path":"disk:/lectures/lesson.mp4","type":"file","mime_type":"video/mp4","size":1234,"resource_id":"yandex-resource-123","sha256":"bad"}`, false},
 		{"wrong path", `{"name":"lesson.mp4","path":"disk:/other/lesson.mp4","type":"file","mime_type":"video/mp4","size":1234}`, false},
 		{"folder", `{"name":"lesson.mp4","path":"disk:/lectures/lesson.mp4","type":"dir","mime_type":"video/mp4","size":1234}`, false},
 		{"nonvideo", `{"name":"lesson.mp4","path":"disk:/lectures/lesson.mp4","type":"file","mime_type":"text/html","size":1234}`, false},
