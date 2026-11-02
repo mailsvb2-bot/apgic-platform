@@ -68,11 +68,6 @@ func registerAcademyCloudMedia(mux *http.ServeMux, store academyStore, sessions 
 		if !ok {
 			return
 		}
-		owner, ok := store.(academyCloudMediaStore)
-		if !ok {
-			http.Error(w, "Unavailable", 503)
-			return
-		}
 		var body struct {
 			Items []academy.CloudMedia `json:"items"`
 		}
