@@ -38,6 +38,7 @@ type academyVideoRevocationSource struct {
 	author       string
 	provider     string
 	path         string
+	token        string
 	revoked      bool
 	disconnected bool
 }
@@ -50,7 +51,10 @@ func (s *academyVideoRevocationSource) AcademyLearnerVideoSource(actor, enrollme
 }
 
 func (s *academyVideoRevocationSource) AcademyReadCloudCredential(actor, provider string) (string, error) {
-	return "", errors.New("not used by source binding test")
+	if s.disconnected || actor != s.author || provider != s.provider || s.token == "" {
+		return "", errors.New("cloud connection unavailable")
+	}
+	return s.token, nil
 }
 
 func TestAcademyVideoSourceBindingRejectsRevocationAndRebinding(t *testing.T) {
@@ -89,6 +93,33 @@ func TestAcademyVideoSourceBindingRejectsRevocationAndRebinding(t *testing.T) {
 	source.disconnected = true
 	if allowed() {
 		t.Fatal("disconnected cloud account still allowed source access")
+	}
+}
+
+// A successful OAuth reconnect can replace the author's credential without
+// changing the disk:/ path. The old temporary URL must not remain playable.
+func TestAcademyVideoCredentialBindingRejectsReconnect(t *testing.T) {
+	source := &academyVideoRevocationSource{
+		author: "author", provider: "YANDEX_DISK", path: "disk:/private/video.mp4", token: "first-account-secret",
+	}
+	allowed := func() bool {
+		return academyVideoCloudConnectionStillAllowed(source, "author", "YANDEX_DISK", "first-account-secret")
+	}
+	if !allowed() {
+		t.Fatal("unchanged cloud connection was denied")
+	}
+	source.token = "different-account-secret"
+	if allowed() {
+		t.Fatal("reconnected cloud account retained old video stream")
+	}
+	source.token = "first-account-secret"
+	source.disconnected = true
+	if allowed() {
+		t.Fatal("disconnected cloud account retained old video stream")
+	}
+	source.disconnected = false
+	if academyVideoCloudConnectionStillAllowed(source, "other-author", "YANDEX_DISK", "first-account-secret") {
+		t.Fatal("foreign author credential was accepted")
 	}
 }
 
