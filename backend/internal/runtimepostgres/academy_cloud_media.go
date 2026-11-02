@@ -155,12 +155,17 @@ func (c *Checker) AcademyImportCloudMedia(actor string, items []AcademyCloudMedi
 		if it.Provider != "YANDEX_DISK" && it.Provider != "EXTERNAL" {
 			return nil, academy.ErrInvalid
 		}
-		it.ProviderFileRef = strings.TrimSpace(it.ProviderFileRef)
+		// A verified Yandex path must be persisted byte-for-byte. Trimming
+		// it here would change the source after provider verification.
+		if it.Provider == "YANDEX_DISK" {
+			if !academy.ValidYandexDiskPath(it.ProviderFileRef) {
+				return nil, academy.ErrInvalid
+			}
+		} else {
+			it.ProviderFileRef = strings.TrimSpace(it.ProviderFileRef)
+		}
 		it.Title = strings.TrimSpace(it.Title)
 		if len(it.ProviderFileRef) < 1 || len(it.ProviderFileRef) > 2048 || len(it.Title) < 1 || len(it.Title) > 300 || len(it.SourceURL) > 4096 {
-			return nil, academy.ErrInvalid
-		}
-		if it.Provider == "YANDEX_DISK" && !strings.HasPrefix(it.ProviderFileRef, "disk:/") {
 			return nil, academy.ErrInvalid
 		}
 		if it.SourceURL != "" && !strings.HasPrefix(it.SourceURL, "https://") {
