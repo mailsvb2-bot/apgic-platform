@@ -146,6 +146,11 @@ func (c *Checker) AcademyImportCloudMedia(actor string, items []AcademyCloudMedi
 	}
 	defer tx.Rollback()
 	output := make([]AcademyCloudMedia, 0, len(items))
+	// The verification layer deduplicates provider calls, but PostgreSQL
+	// rejects multiple ON CONFLICT updates of the same row in one INSERT
+	// command. Keep the first occurrence of each author/provider/path in
+	// a batch so retries and pasted duplicate rows remain deterministic.
+	seen := make(map[string]struct{}, len(items))
 	for _, it := range items {
 		if it.Provider != "YANDEX_DISK" && it.Provider != "EXTERNAL" {
 			return nil, academy.ErrInvalid
@@ -161,6 +166,11 @@ func (c *Checker) AcademyImportCloudMedia(actor string, items []AcademyCloudMedi
 		if it.SourceURL != "" && !strings.HasPrefix(it.SourceURL, "https://") {
 			return nil, academy.ErrInvalid
 		}
+		key := it.Provider + "\x00" + it.ProviderFileRef
+		if _, duplicate := seen[key]; duplicate {
+			continue
+		}
+		seen[key] = struct{}{}
 		id, err := academyID()
 		if err != nil {
 			return nil, err
