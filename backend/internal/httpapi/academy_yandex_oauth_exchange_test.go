@@ -23,6 +23,9 @@ func TestCloudOAuthCallbackRejectsAmbiguousParameters(t *testing.T) {
 		{"missing state", url.Values{"code": {"code"}}, false},
 		{"missing code", url.Values{"state": {"nonce"}}, false},
 		{"provider error", url.Values{"state": {"nonce"}, "code": {"code"}, "error": {"access_denied"}}, false},
+		{"unknown callback parameter", url.Values{"state": {"nonce"}, "code": {"code"}, "redirect_uri": {"https://evil.invalid"}}, false},
+		{"empty extra callback parameter", url.Values{"state": {"nonce"}, "code": {"code"}, "extra": {""}}, false},
+		{"provider error description", url.Values{"state": {"nonce"}, "code": {"code"}, "error_description": {"denied"}}, false},
 		{"wrong state", url.Values{"state": {"foreign"}, "code": {"code"}}, false},
 		{"blank code", url.Values{"state": {"nonce"}, "code": {""}}, false},
 		{"newline code", url.Values{"state": {"nonce"}, "code": {"code\nheader"}}, false},
@@ -106,6 +109,7 @@ func TestCloudOAuthCallbackRejectsMalformedRawQuery(t *testing.T) {
 		{"malformed escape after valid code", "state=nonce&code=one-time-code&%ZZ=ignored", false},
 		{"malformed escape in code", "state=nonce&code=bad%ZZ", false},
 		{"ambiguous duplicate", "state=nonce&code=first&code=second", false},
+		{"unexpected query key", "state=nonce&code=one-time-code&next=%2Fadmin", false},
 		{"invalid semicolon separator", "state=nonce&code=one-time-code&extra=1;other=2", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
