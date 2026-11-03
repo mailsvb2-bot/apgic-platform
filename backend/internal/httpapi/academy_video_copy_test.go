@@ -178,7 +178,7 @@ func TestAcademyCopyVideoAuthorizedPropagatesFlushError(t *testing.T) {
 
 // A provider that returns (0, nil) indefinitely must not keep a live video
 // handler in a CPU-bound loop without making progress.
-type academyZeroProgressVideoReader struct { reads int }
+type academyZeroProgressVideoReader struct{ reads int }
 
 func (r *academyZeroProgressVideoReader) Read(_ []byte) (int, error) {
 	r.reads++
