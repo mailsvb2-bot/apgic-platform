@@ -118,7 +118,7 @@ test("authorized retry restores HTML5 source without asynchronous autoplay",asyn
   const player=element as HTMLVideoElement;
   Object.defineProperty(player,"play",{
    configurable:true,
-   value:()=>Promise.reject(new DOMException("Autoplay requires activation","NotAllowedError"))
+   value:()=>{player.dataset.autoplayAttempted="true";return Promise.reject(new DOMException("Autoplay requires activation","NotAllowedError"))}
   });
   player.dispatchEvent(new Event("error"));
  });
