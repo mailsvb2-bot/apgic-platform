@@ -37,6 +37,12 @@ async function mockAcademyVideo(page:Page){
    if(allowed)data={videos:[{id:mediaID,title:"Видео автора",ordinal:1}]};
    else {status=403;data={code:"ENTITLEMENT_REVOKED"}}
   }else if(path.endsWith("/stream")){
+   // The mocked media gateway must enforce the same revoked-access boundary
+   // as the manifest; otherwise the browser tests mask a direct-byte leak.
+   if(!allowed){
+    await route.fulfill({status:403,contentType:"application/json",body:JSON.stringify({code:"ENTITLEMENT_REVOKED"})});
+    return;
+   }
    // Serve real decodable fixture bytes through a mocked Academy endpoint.
    // Preserve HTTP Range semantics so HTML5 metadata/seek requests succeed.
    const range=route.request().headers()["range"];
