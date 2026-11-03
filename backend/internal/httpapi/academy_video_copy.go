@@ -13,6 +13,12 @@ var errAcademyVideoRevoked = errors.New("academy media access revoked")
 // the HTTP handler cancels stalled upstream reads between chunks.
 func academyCopyVideoAuthorized(dst io.Writer, src io.Reader, authorized func() bool) error {
 	buffer := make([]byte, 64<<10)
+	// Do not read even the first provider chunk after access has been revoked.
+	// The HTTP handler also checks access before starting the upstream request,
+	// but the decision can change before the byte copier starts.
+	if !authorized() {
+		return errAcademyVideoRevoked
+	}
 	// A broken upstream io.Reader may repeatedly return (0, nil). Without a
 	// bound this loops forever, consumes CPU and never rechecks entitlement.
 	// Fail closed instead of leaving a zombie media stream running.
@@ -68,6 +74,10 @@ func academyCopyVideoAuthorized(dst io.Writer, src io.Reader, authorized func() 
 				if !authorized() {
 					return errAcademyVideoRevoked
 				}
+			} else if !authorized() {
+				// A non-HTTP writer has no Flush boundary. Revocation during
+				// Write must still stop BEFORE reading another provider chunk.
+				return errAcademyVideoRevoked
 			}
 		}
 		if readErr != nil {

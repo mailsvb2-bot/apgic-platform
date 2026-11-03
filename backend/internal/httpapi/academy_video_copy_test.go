@@ -13,7 +13,7 @@ func TestAcademyCopyVideoAuthorizedStopsBeforeRevokedChunk(t *testing.T) {
 	calls := 0
 	err := academyCopyVideoAuthorized(&output, strings.NewReader(strings.Repeat("v", 196608)), func() bool {
 		calls++
-		return calls == 1
+		return calls <= 2
 	})
 	if !errors.Is(err, errAcademyVideoRevoked) {
 		t.Fatalf("expected revoked error, got %v", err)
@@ -31,6 +31,17 @@ func TestAcademyCopyVideoAuthorizedAllowsFullContent(t *testing.T) {
 	}
 	if output.String() != input {
 		t.Fatal("authorized output was truncated")
+	}
+}
+
+// Revocation between the HTTP handler check and the copier must not read
+// private cloud bytes even once.
+func TestAcademyCopyVideoAuthorizedDeniesBeforeProviderRead(t *testing.T) {
+	reader := &academyZeroProgressVideoReader{}
+	var output bytes.Buffer
+	err := academyCopyVideoAuthorized(&output, reader, func() bool { return false })
+	if !errors.Is(err, errAcademyVideoRevoked) || reader.reads != 0 || output.Len() != 0 {
+		t.Fatalf("revoked stream read provider bytes: err=%v reads=%d bytes=%d", err, reader.reads, output.Len())
 	}
 }
 
@@ -57,6 +68,16 @@ func (w *academyCredentialRevokingVideoWriter) Write(p []byte) (int, error) {
 	return n, err
 }
 
+type academyCountingVideoReader struct {
+	reader io.Reader
+	reads  int
+}
+
+func (r *academyCountingVideoReader) Read(p []byte) (int, error) {
+	r.reads++
+	return r.reader.Read(p)
+}
+
 // A credential rotation during a live stream must be checked at the byte
 // copier boundary, not only by the once-per-second background watcher.
 func TestAcademyCopyVideoAuthorizedStopsOnCloudCredentialRotation(t *testing.T) {
@@ -70,12 +91,13 @@ func TestAcademyCopyVideoAuthorizedStopsOnCloudCredentialRotation(t *testing.T) 
 			"author", "yandex_disk", "disk:/private/video.mp4") &&
 			academyVideoCloudConnectionStillAllowed(source, "author", "yandex_disk", "original-account-secret")
 	}
-	err := academyCopyVideoAuthorized(writer, strings.NewReader(strings.Repeat("v", 3*65536)), authorized)
+	reader := &academyCountingVideoReader{reader: strings.NewReader(strings.Repeat("v", 3*65536))}
+	err := academyCopyVideoAuthorized(writer, reader, authorized)
 	if !errors.Is(err, errAcademyVideoRevoked) {
 		t.Fatalf("rotated credential did not stop video copy: %v", err)
 	}
-	if writer.Len() != 65536 || writer.writes != 1 {
-		t.Fatalf("old cloud credential leaked further chunks: bytes=%d writes=%d", writer.Len(), writer.writes)
+	if writer.Len() != 65536 || writer.writes != 1 || reader.reads != 1 {
+		t.Fatalf("old cloud credential leaked further chunks: bytes=%d writes=%d reads=%d", writer.Len(), writer.writes, reader.reads)
 	}
 }
 
@@ -193,7 +215,7 @@ func TestAcademyCopyVideoAuthorizedRejectsZeroProgress(t *testing.T) {
 		checks++
 		return true
 	})
-	if !errors.Is(err, io.ErrNoProgress) || reader.reads != 100 || checks != 100 || output.Len() != 0 {
+	if !errors.Is(err, io.ErrNoProgress) || reader.reads != 100 || checks != 101 || output.Len() != 0 {
 		t.Fatalf("unproductive provider read was not bounded: err=%v reads=%d checks=%d bytes=%d", err, reader.reads, checks, output.Len())
 	}
 }
@@ -208,7 +230,7 @@ func TestAcademyCopyVideoAuthorizedRevokesDuringZeroProgress(t *testing.T) {
 		checks++
 		return checks < 3
 	})
-	if !errors.Is(err, errAcademyVideoRevoked) || reader.reads != 3 || checks != 3 || output.Len() != 0 {
+	if !errors.Is(err, errAcademyVideoRevoked) || reader.reads != 2 || checks != 3 || output.Len() != 0 {
 		t.Fatalf("revoked idle provider kept reading: err=%v reads=%d checks=%d bytes=%d", err, reader.reads, checks, output.Len())
 	}
 }
