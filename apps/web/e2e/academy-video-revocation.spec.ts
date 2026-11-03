@@ -76,7 +76,7 @@ for(const eventName of ["loadedmetadata","progress"] as const){
  test(`revocation clears buffered video after ${eventName} without play`,async({page})=>{
   const access=await mockAcademyVideo(page);
   const video=page.locator("video");
-  await expect(video).toHaveAttribute("src",/\\/stream$/);
+  await expect(video).toHaveAttribute("src",/\/stream$/);
   await video.evaluate((element,event)=>element.dispatchEvent(new Event(event)),eventName);
   await expect.poll(access.reads,{timeout:8000}).toBeGreaterThanOrEqual(2);
   access.revoke();
