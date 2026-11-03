@@ -26,6 +26,13 @@ func academyCopyVideoAuthorized(dst io.Writer, src io.Reader, authorized func() 
 			if written != n {
 				return io.ErrShortWrite
 			}
+			// net/http may retain the last bytes of a live response in its
+			// write buffer until the upstream finishes. A paused cloud source
+			// must not prevent an already-authorized first video chunk from
+			// reaching the learner. Flush only after a successful write.
+			if flusher, ok := dst.(interface{ Flush() }); ok {
+				flusher.Flush()
+			}
 		}
 		if readErr != nil {
 			if readErr == io.EOF {
