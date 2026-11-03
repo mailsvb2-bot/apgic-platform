@@ -1,10 +1,14 @@
 import {expect, test, type Page} from "@playwright/test";
+import {readFileSync} from "node:fs";
 
 // Browser integration with a simulated canonical Academy response. This is
 // deliberately NOT evidence of a live PSP, Yandex OAuth or staging journey.
 const enrollmentID="00000000-0000-4000-8000-000000000801";
 const lessonID="00000000-0000-4000-8000-000000000802";
 const mediaID="00000000-0000-4000-8000-000000000803";
+// A tiny actual MP4 keeps Chromium from spontaneously firing media errors
+// before tests can exercise revocation. This is NOT live Yandex media evidence.
+const mediaBytes=Buffer.from(readFileSync(new URL("./fixtures/academy-video.mp4.base64",import.meta.url),"utf8").trim(),"base64");
 
 async function mockAcademyVideo(page:Page){
  let allowed=true;
@@ -33,8 +37,28 @@ async function mockAcademyVideo(page:Page){
    if(allowed)data={videos:[{id:mediaID,title:"Видео автора",ordinal:1}]};
    else {status=403;data={code:"ENTITLEMENT_REVOKED"}}
   }else if(path.endsWith("/stream")){
-   // No fake media is needed: tests dispatch HTMLMediaElement events.
-   status=403;data={code:"TEST_NO_MEDIA"};
+   // Serve real decodable fixture bytes through a mocked Academy endpoint.
+   // Preserve HTTP Range semantics so HTML5 metadata/seek requests succeed.
+   const range=route.request().headers()["range"];
+   const match=range?.match(/^bytes=(\\d+)-(\\d*)$/);
+   if(range&&!match){
+    await route.fulfill({status:416,headers:{"Content-Range":`bytes */${mediaBytes.length}`},body:""});
+    return;
+   }
+   const start=match?Number(match[1]):0;
+   const end=match&&match[2]?Math.min(Number(match[2]),mediaBytes.length-1):mediaBytes.length-1;
+   if(start>=mediaBytes.length||start>end){
+    await route.fulfill({status:416,headers:{"Content-Range":`bytes */${mediaBytes.length}`},body:""});
+    return;
+   }
+   const partial=Boolean(match);
+   const body=mediaBytes.subarray(start,end+1);
+   await route.fulfill({status:partial?206:200,headers:{
+    "Content-Type":"video/mp4","Accept-Ranges":"bytes",
+    "Content-Length":String(body.length),
+    ...(partial?{"Content-Range":`bytes ${start}-${end}/${mediaBytes.length}`}:{})
+   },body});
+   return;
   }
   else {status=501;data={code:"UNMOCKED_ACADEMY_ROUTE",path}}
   await route.fulfill({status,contentType:"application/json",body:JSON.stringify(data)});
