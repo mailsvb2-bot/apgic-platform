@@ -70,6 +70,20 @@ test("revoked canonical manifest stops an opened player and hides its video",asy
  await expect(page.getByText(/Доступ к видео не подтверждён или был отозван/)).toBeVisible();
 });
 
+// Repeated successful manifest checks must keep the player open, and a
+// subsequent canonical denial must still remove the source. This exercises
+// polling across several intervals rather than only the initial read.
+test("video stays authorized across repeated polls, then revocation unloads it",async({page})=>{
+ const access=await mockAcademyVideo(page);
+ const video=page.locator("video");
+ await video.evaluate(element=>element.dispatchEvent(new Event("play")));
+ await expect.poll(access.reads,{timeout:8000}).toBeGreaterThanOrEqual(4);
+ await expect(video).toHaveAttribute("src",/\\/stream$/);
+ access.revoke();
+ await expect(video).toHaveCount(0);
+ await expect(page.getByText(/Доступ к видео не подтверждён или был отозван/)).toBeVisible();
+});
+
 // A browser can suspend timers in background tabs and keep decoded media in
 // memory (including bfcache). Returning to the page must never resume the
 // previous stream without a fresh canonical Entitlement read.
