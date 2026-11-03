@@ -124,16 +124,7 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 			academyHTTPError(w, r, academy.ErrUnavailable)
 			return
 		}
-		transport := &http.Client{
-			Transport: &http.Transport{
-				DisableKeepAlives:     true,
-				Proxy:                 nil,
-				DialContext:           (&net.Dialer{Timeout: 10 * time.Second, ControlContext: academyVideoDialControl}).DialContext,
-				ResponseHeaderTimeout: 15 * time.Second,
-				DisableCompression:    true,
-			},
-			CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse },
-		}
+		transport := academyVideoUpstreamClient()
 		response, err := transport.Do(request)
 		if err != nil {
 			academyHTTPError(w, r, academy.ErrUnavailable)
@@ -317,4 +308,24 @@ func academyWatchVideoEntitlement(ctx context.Context, cancel context.CancelFunc
 func academyCancelRevokedVideoResponse(w http.ResponseWriter, cancel context.CancelFunc) {
 	cancel()
 	_ = http.NewResponseController(w).SetWriteDeadline(time.Now())
+}
+
+
+// academyVideoUpstreamClient is the single hardened media-download transport.
+// TCP and response-header timeouts do not cover a stalled TLS handshake.
+// Bound the handshake and header bytes without setting a whole-response
+// timeout (large, authorized video streams can legitimately take longer).
+func academyVideoUpstreamClient() *http.Client {
+	return &http.Client{
+		Transport: &http.Transport{
+			DisableKeepAlives:     true,
+			Proxy:                 nil,
+			DialContext:           (&net.Dialer{Timeout: 10 * time.Second, ControlContext: academyVideoDialControl}).DialContext,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ResponseHeaderTimeout: 15 * time.Second,
+			MaxResponseHeaderBytes: 64 << 10,
+			DisableCompression:    true,
+		},
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse },
+	}
 }
