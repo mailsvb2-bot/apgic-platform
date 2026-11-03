@@ -4,6 +4,17 @@ import {useEffect,useRef,useState} from "react";
 
 type LessonVideo={id:string;title:string;ordinal:number};
 
+// Remove already-buffered bytes, not merely the playback cursor. Guard the
+// load() call: some browsers report another media error when loading an
+// element with no source, which must not recursively trigger onError.
+function discardVideoBuffer(player:HTMLVideoElement){
+ player.pause();
+ if(player.hasAttribute("src")){
+  player.removeAttribute("src");
+  player.load();
+ }
+}
+
 export default function AcademyLessonVideos({enrollmentId,lessonId,available}:{
  enrollmentId:string;lessonId:string;available:boolean
 }){
@@ -29,7 +40,7 @@ export default function AcademyLessonVideos({enrollmentId,lessonId,available}:{
   })();
   return ()=>{
    controller.abort();
-   for(const video of Object.values(refs.current)){if(video){video.pause();video.removeAttribute("src");video.load()}}
+   for(const video of Object.values(refs.current)){if(video){discardVideoBuffer(video)}}
   };
  },[available,enrollmentId,lessonId,reloadVersion]);
  // A previously buffered HTML5 video can continue playing after the server
@@ -57,7 +68,7 @@ export default function AcademyLessonVideos({enrollmentId,lessonId,available}:{
     if(!disposed){
      // pause() alone retains the browser buffer; unload the source too.
      for(const video of Object.values(refs.current)){
-      if(video){video.pause();video.removeAttribute("src");video.load()}
+      if(video){discardVideoBuffer(video)}
      }
      setOpenedIds([]);
      setVideos([]);
@@ -94,7 +105,7 @@ export default function AcademyLessonVideos({enrollmentId,lessonId,available}:{
    await player.play();
   }catch{
    if(refs.current[id]!==player)return;
-   player.pause();player.removeAttribute("src");player.load();
+   discardVideoBuffer(player);
    setPlaybackError(old=>({...old,[id]:"Не удалось подтвердить доступ или возобновить просмотр. Проверьте доступ к уроку."}));
   }
  }
@@ -114,7 +125,7 @@ export default function AcademyLessonVideos({enrollmentId,lessonId,available}:{
       // entitlement polling while leaving those bytes attached to the player.
       const player=event.currentTarget;
       const code=player.error?.code;
-      player.pause();player.removeAttribute("src");player.load();
+      discardVideoBuffer(player);
       setOpenedIds(current=>current.filter(id=>id!==video.id));
       const message=code===3||code===4
        ? "Браузер не поддерживает формат этого видео или файл повреждён."
