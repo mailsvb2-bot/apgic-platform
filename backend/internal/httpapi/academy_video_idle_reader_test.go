@@ -22,8 +22,8 @@ func TestAcademyVideoIdleReaderCancelsStalledProvider(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	reader := academyVideoIdleReader{
-		source: academyIdleUntilCancelled{ctx: ctx},
-		cancel: cancel,
+		source:  academyIdleUntilCancelled{ctx: ctx},
+		cancel:  cancel,
 		timeout: 15 * time.Millisecond,
 	}
 	done := make(chan error, 1)
@@ -48,8 +48,8 @@ func TestAcademyVideoIdleReaderResetsBudgetOnProgress(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	reader := academyVideoIdleReader{
-		source: bytes.NewBufferString("video-data"),
-		cancel: cancel,
+		source:  bytes.NewBufferString("video-data"),
+		cancel:  cancel,
 		timeout: 100 * time.Millisecond,
 	}
 	var output bytes.Buffer
@@ -68,7 +68,7 @@ func TestAcademyVideoIdleReaderResetsBudgetOnProgress(t *testing.T) {
 func TestAcademyVideoIdleReaderRejectsMissingDeadline(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	reader := academyVideoIdleReader{source: bytes.NewBufferString("secret"), cancel: cancel}
+	reader := academyVideoIdleReader{source:  bytes.NewBufferString("secret"), cancel: cancel}
 	n, err := reader.Read(make([]byte, 16))
 	if n != 0 || !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("unbounded idle read must fail closed: n=%d err=%v", n, err)
