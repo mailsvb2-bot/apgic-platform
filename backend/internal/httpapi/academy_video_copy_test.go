@@ -129,3 +129,48 @@ func TestAcademyCopyVideoAuthorizedDoesNotFlushAfterRevocationDuringWrite(t *tes
 		t.Fatalf("revoked video was flushed: error=%v flushes=%d bytes=%d", err, writer.flushes, writer.Len())
 	}
 }
+
+type academyErrorAwareRevocationWriter struct {
+	bytes.Buffer
+	allowed      *bool
+	flushes      int
+	legacyFlushes int
+	flushErr     error
+}
+
+func (w *academyErrorAwareRevocationWriter) FlushError() error {
+	w.flushes++
+	if w.allowed != nil {
+		*w.allowed = false
+	}
+	return w.flushErr
+}
+
+func (w *academyErrorAwareRevocationWriter) Flush() {
+	w.legacyFlushes++
+}
+
+// An entitlement may be revoked while the HTTP flush is blocked. A successful
+// flush does not authorize reading or sending a second cloud chunk.
+func TestAcademyCopyVideoAuthorizedRechecksAfterFlush(t *testing.T) {
+	allowed := true
+	writer := &academyErrorAwareRevocationWriter{allowed: &allowed}
+	err := academyCopyVideoAuthorized(writer, strings.NewReader(strings.Repeat("v", 2*65536)), func() bool { return allowed })
+	if !errors.Is(err, errAcademyVideoRevoked) || writer.Len() != 65536 ||
+		writer.flushes != 1 || writer.legacyFlushes != 0 {
+		t.Fatalf("revocation during flush was not enforced: err=%v bytes=%d flushes=%d legacy=%d",
+			err, writer.Len(), writer.flushes, writer.legacyFlushes)
+	}
+}
+
+// net/http can report a failed flush even when Write accepted the bytes.
+// Stop the upstream immediately instead of reading additional video chunks.
+func TestAcademyCopyVideoAuthorizedPropagatesFlushError(t *testing.T) {
+	writer := &academyErrorAwareRevocationWriter{flushErr: errors.New("downstream closed")}
+	err := academyCopyVideoAuthorized(writer, strings.NewReader(strings.Repeat("v", 2*65536)), func() bool { return true })
+	if err == nil || err.Error() != "downstream closed" || writer.Len() != 65536 ||
+		writer.flushes != 1 || writer.legacyFlushes != 0 {
+		t.Fatalf("failed flush did not stop the stream: err=%v bytes=%d flushes=%d legacy=%d",
+			err, writer.Len(), writer.flushes, writer.legacyFlushes)
+	}
+}
