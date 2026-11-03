@@ -106,6 +106,28 @@ test("HTML5 media errors discard buffered source and retry requires canonical ac
  expect(access.reads()).toBeGreaterThanOrEqual(2);
 });
 
+// A retry button awaits the canonical manifest before reattaching the source.
+// Browser user activation can expire during that fetch, so retry must not
+// invoke play() automatically and mistake an autoplay policy denial for a
+// revoked Entitlement or a broken media gateway.
+test("authorized retry restores HTML5 source without asynchronous autoplay",async({page})=>{
+ await mockAcademyVideo(page);
+ const video=page.locator("video");
+ await expect(video).toHaveAttribute("src",/\\/stream$/);
+ await video.evaluate(element=>{
+  const player=element as HTMLVideoElement;
+  Object.defineProperty(player,"play",{
+   configurable:true,
+   value:()=>Promise.reject(new DOMException("Autoplay requires activation","NotAllowedError"))
+  });
+  player.dispatchEvent(new Event("error"));
+ });
+ await expect(video).not.toHaveAttribute("src",/\\/stream$/);
+ await page.getByRole("button",{name:"Повторить загрузку видео"}).click();
+ await expect(video).toHaveAttribute("src",/\\/stream$/);
+ await expect(page.getByRole("button",{name:"Повторить загрузку видео"})).toHaveCount(0);
+});
+
 test("revoked canonical manifest stops an opened player and hides its video",async({page})=>{
  const access=await mockAcademyVideo(page);
  await page.locator("video").evaluate(element=>element.dispatchEvent(new Event("play")));
