@@ -43,6 +43,43 @@ export default function AcademyLessonVideos({enrollmentId,lessonId,available}:{
    for(const video of Object.values(refs.current)){if(video){discardVideoBuffer(video)}}
   };
  },[available,enrollmentId,lessonId,reloadVersion]);
+ // Browsers throttle JavaScript timers in background tabs. A learner can
+ // otherwise keep an already-buffered video after access is revoked while
+ // the tab is hidden. Drop the source proactively on hide/pagehide and require
+ // a fresh canonical manifest check before any subsequent playback.
+ useEffect(()=>{
+  function suspendVideo(){
+   if(document.visibilityState!=="hidden"&&document.visibilityState!=="prerender")return;
+   let hadSource=false;
+   for(const video of Object.values(refs.current)){
+    if(video?.hasAttribute("src")){
+     hadSource=true;
+     discardVideoBuffer(video);
+    }
+   }
+   if(hadSource){
+    setOpenedIds([]);
+    setVideos([]);
+    setError("Просмотр приостановлен. Проверьте доступ повторно, чтобы открыть видео.");
+   }
+  }
+  function pageHide(){
+   // pagehide also fires for back-forward cache transitions where React
+   // remains mounted and cached media could otherwise be resumed.
+   for(const video of Object.values(refs.current)){
+    if(video)discardVideoBuffer(video);
+   }
+   setOpenedIds([]);
+   setVideos([]);
+   setError("Просмотр приостановлен. Проверьте доступ повторно, чтобы открыть видео.");
+  }
+  document.addEventListener("visibilitychange",suspendVideo);
+  window.addEventListener("pagehide",pageHide);
+  return ()=>{
+   document.removeEventListener("visibilitychange",suspendVideo);
+   window.removeEventListener("pagehide",pageHide);
+  };
+ },[]);
  // A previously buffered HTML5 video can continue playing after the server
  // closes its stream. Once a video has started, recheck canonical access even
  // while paused, and discard buffered bytes if access is no longer proven.
