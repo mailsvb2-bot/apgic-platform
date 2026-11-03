@@ -69,3 +69,35 @@ test("revoked canonical manifest stops an opened player and hides its video",asy
  await expect(page.locator("video")).toHaveCount(0);
  await expect(page.getByText(/Доступ к видео не подтверждён или был отозван/)).toBeVisible();
 });
+
+// A browser can suspend timers in background tabs and keep decoded media in
+// memory (including bfcache). Returning to the page must never resume the
+// previous stream without a fresh canonical Entitlement read.
+test("pagehide discards buffered video and recovery requires canonical access",async({page})=>{
+ const access=await mockAcademyVideo(page);
+ await expect(page.locator("video")).toHaveAttribute("src",/\\/stream$/);
+ await page.evaluate(()=>window.dispatchEvent(new PageTransitionEvent("pagehide",{persisted:true})));
+ await expect(page.locator("video")).toHaveCount(0);
+ await expect(page.getByText(/Просмотр приостановлен/)).toBeVisible();
+ access.revoke();
+ await page.getByRole("button",{name:"Проверить доступ повторно"}).click();
+ await expect(page.locator("video")).toHaveCount(0);
+ await expect(page.getByText(/Не удалось получить список видео/)).toBeVisible();
+ expect(access.reads()).toBeGreaterThanOrEqual(2);
+});
+
+test("hidden tab unloads HTML5 video instead of relying on throttled polling",async({page})=>{
+ await mockAcademyVideo(page);
+ await expect(page.locator("video")).toHaveAttribute("src",/\\/stream$/);
+ await page.evaluate(()=>{
+  const original=Object.getOwnPropertyDescriptor(document,"visibilityState");
+  Object.defineProperty(document,"visibilityState",{configurable:true,get:()=>"hidden"});
+  try{document.dispatchEvent(new Event("visibilitychange"))}
+  finally{
+   if(original)Object.defineProperty(document,"visibilityState",original);
+   else delete (document as Document&{visibilityState?:DocumentVisibilityState}).visibilityState;
+  }
+ });
+ await expect(page.locator("video")).toHaveCount(0);
+ await expect(page.getByText(/Просмотр приостановлен/)).toBeVisible();
+});
