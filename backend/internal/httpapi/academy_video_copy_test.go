@@ -3,6 +3,7 @@ package httpapi
 import (
 	"bytes"
 	"errors"
+	"io"
 	"strings"
 	"testing"
 )
@@ -172,5 +173,42 @@ func TestAcademyCopyVideoAuthorizedPropagatesFlushError(t *testing.T) {
 		writer.flushes != 1 || writer.legacyFlushes != 0 {
 		t.Fatalf("failed flush did not stop the stream: err=%v bytes=%d flushes=%d legacy=%d",
 			err, writer.Len(), writer.flushes, writer.legacyFlushes)
+	}
+}
+
+// A provider that returns (0, nil) indefinitely must not keep a live video
+// handler in a CPU-bound loop without making progress.
+type academyZeroProgressVideoReader struct { reads int }
+
+func (r *academyZeroProgressVideoReader) Read(_ []byte) (int, error) {
+	r.reads++
+	return 0, nil
+}
+
+func TestAcademyCopyVideoAuthorizedRejectsZeroProgress(t *testing.T) {
+	reader := &academyZeroProgressVideoReader{}
+	var output bytes.Buffer
+	checks := 0
+	err := academyCopyVideoAuthorized(&output, reader, func() bool {
+		checks++
+		return true
+	})
+	if !errors.Is(err, io.ErrNoProgress) || reader.reads != 100 || checks != 100 || output.Len() != 0 {
+		t.Fatalf("unproductive provider read was not bounded: err=%v reads=%d checks=%d bytes=%d", err, reader.reads, checks, output.Len())
+	}
+}
+
+// Even a zero-byte cloud response must recheck the canonical entitlement;
+// the reader must stop as soon as the access decision changes.
+func TestAcademyCopyVideoAuthorizedRevokesDuringZeroProgress(t *testing.T) {
+	reader := &academyZeroProgressVideoReader{}
+	var output bytes.Buffer
+	checks := 0
+	err := academyCopyVideoAuthorized(&output, reader, func() bool {
+		checks++
+		return checks < 3
+	})
+	if !errors.Is(err, errAcademyVideoRevoked) || reader.reads != 3 || checks != 3 || output.Len() != 0 {
+		t.Fatalf("revoked idle provider kept reading: err=%v reads=%d checks=%d bytes=%d", err, reader.reads, checks, output.Len())
 	}
 }
