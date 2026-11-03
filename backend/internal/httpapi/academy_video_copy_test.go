@@ -132,10 +132,10 @@ func TestAcademyCopyVideoAuthorizedDoesNotFlushAfterRevocationDuringWrite(t *tes
 
 type academyErrorAwareRevocationWriter struct {
 	bytes.Buffer
-	allowed      *bool
-	flushes      int
+	allowed       *bool
+	flushes       int
 	legacyFlushes int
-	flushErr     error
+	flushErr      error
 }
 
 func (w *academyErrorAwareRevocationWriter) FlushError() error {
