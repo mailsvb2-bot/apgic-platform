@@ -78,6 +78,20 @@ async function mockAcademyVideo(page:Page){
  return {revoke:()=>{allowed=false},reads:()=>manifestReads};
 }
 
+// Revocation must be observed even when the browser has attached the media
+// source but has not emitted play, loadedmetadata or progress. A preload=none
+// element can still hold a provider response, so event-triggered polling alone
+// leaves a revocation window before the first user interaction.
+test("revocation before any player event unloads an attached video source",async({page})=>{
+ const access=await mockAcademyVideo(page);
+ const video=page.locator("video");
+ await expect(video).toHaveAttribute("src",/\/stream$/);
+ await expect.poll(access.reads,{timeout:8000}).toBeGreaterThanOrEqual(2);
+ access.revoke();
+ await expect(video).toHaveCount(0);
+ await expect(page.getByText(/Доступ к видео не подтверждён или был отозван/)).toBeVisible();
+});
+
 test("HTML5 media errors discard buffered source and retry requires canonical access",async({page})=>{
  const access=await mockAcademyVideo(page);
  const video=page.locator("video");
