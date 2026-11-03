@@ -1,5 +1,6 @@
 import {expect, test, type Page} from "@playwright/test";
 import {readFileSync} from "node:fs";
+import {join} from "node:path";
 
 // Browser integration with a simulated canonical Academy response. This is
 // deliberately NOT evidence of a live PSP, Yandex OAuth or staging journey.
@@ -8,7 +9,7 @@ const lessonID="00000000-0000-4000-8000-000000000802";
 const mediaID="00000000-0000-4000-8000-000000000803";
 // A tiny actual MP4 keeps Chromium from spontaneously firing media errors
 // before tests can exercise revocation. This is NOT live Yandex media evidence.
-const mediaBytes=Buffer.from(readFileSync(new URL("./fixtures/academy-video.mp4.base64",import.meta.url),"utf8").trim(),"base64");
+const mediaBytes=Buffer.from(readFileSync(join(process.cwd(),"e2e","fixtures","academy-video.mp4.base64"),"utf8").trim(),"base64");
 
 async function mockAcademyVideo(page:Page){
  let allowed=true;
