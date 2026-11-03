@@ -98,7 +98,7 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 		connectionAllowed := func() bool {
 			return academyVideoCloudConnectionStillAllowed(owner, author, provider, token)
 		}
-		authorized := func() bool { return allowed() && connectionAllowed() }
+		authorized := func() bool { return streamCtx.Err() == nil && allowed() && connectionAllowed() }
 		if !authorized() {
 			academyHTTPError(w, r, academy.ErrEntitlement)
 			return
@@ -193,7 +193,11 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 		}
 		w.Header().Set("Accept-Ranges", "bytes")
 		w.WriteHeader(response.StatusCode)
-		_ = academyCopyVideoAuthorized(w, videoBody, authorized)
+		// Bound idle provider body reads, not total video duration. An upstream
+		// that stalls indefinitely after its headers must not pin a gateway
+		// worker and keep polling PostgreSQL forever.
+		idleBody := academyVideoIdleReader{source: videoBody, cancel: stopStream, timeout: 30 * time.Second}
+		_ = academyCopyVideoAuthorized(w, idleBody, authorized)
 	})
 }
 
