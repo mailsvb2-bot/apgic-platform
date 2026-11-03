@@ -155,6 +155,11 @@ export default function AcademyLessonVideos({enrollmentId,lessonId,available}:{
    <div style={{position:"relative",maxWidth:900,background:"#101827",borderRadius:12,overflow:"hidden"}}>
     <video controls playsInline preload="none" controlsList="nodownload"
      ref={node=>{refs.current[video.id]=node}}
+     // Some browsers fetch metadata or media bytes before firing play, even
+     // with preload="none". Track any populated buffer so revocation polling
+     // also covers paused or never-played video, not only active playback.
+     onLoadedMetadata={()=>setOpenedIds(current=>current.includes(video.id)?current:[...current,video.id])}
+     onProgress={()=>setOpenedIds(current=>current.includes(video.id)?current:[...current,video.id])}
      onPlay={()=>setOpenedIds(current=>current.includes(video.id)?current:[...current,video.id])}
      onError={event=>{
       // A failed stream may still have playable buffered bytes. Never stop
