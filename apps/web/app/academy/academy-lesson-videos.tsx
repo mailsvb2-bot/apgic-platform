@@ -48,8 +48,8 @@ export default function AcademyLessonVideos({enrollmentId,lessonId,available}:{
  // the tab is hidden. Drop the source proactively on hide/pagehide and require
  // a fresh canonical manifest check before any subsequent playback.
  useEffect(()=>{
-  function suspendVideo(){
-   if(document.visibilityState!=="hidden"&&document.visibilityState!=="prerender")return;
+  function suspendVideo(force=false){
+   if(!force&&document.visibilityState!=="hidden"&&document.visibilityState!=="prerender")return;
    let hadSource=false;
    for(const video of Object.values(refs.current)){
     if(video?.hasAttribute("src")){
@@ -63,21 +63,15 @@ export default function AcademyLessonVideos({enrollmentId,lessonId,available}:{
     setError("Просмотр приостановлен. Проверьте доступ повторно, чтобы открыть видео.");
    }
   }
-  function pageHide(){
-   // pagehide also fires for back-forward cache transitions where React
-   // remains mounted and cached media could otherwise be resumed.
-   for(const video of Object.values(refs.current)){
-    if(video)discardVideoBuffer(video);
-   }
-   setOpenedIds([]);
-   setVideos([]);
-   setError("Просмотр приостановлен. Проверьте доступ повторно, чтобы открыть видео.");
-  }
-  document.addEventListener("visibilitychange",suspendVideo);
-  window.addEventListener("pagehide",pageHide);
+  // pagehide also fires for back-forward cache transitions where React
+  // remains mounted and cached media could otherwise be resumed.
+  const onVisibilityChange=()=>suspendVideo();
+  const onPageHide=()=>suspendVideo(true);
+  document.addEventListener("visibilitychange",onVisibilityChange);
+  window.addEventListener("pagehide",onPageHide);
   return ()=>{
-   document.removeEventListener("visibilitychange",suspendVideo);
-   window.removeEventListener("pagehide",pageHide);
+   document.removeEventListener("visibilitychange",onVisibilityChange);
+   window.removeEventListener("pagehide",onPageHide);
   };
  },[]);
  // A previously buffered HTML5 video can continue playing after the server
