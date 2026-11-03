@@ -30,14 +30,29 @@ func academyCopyVideoAuthorized(dst io.Writer, src io.Reader, authorized func() 
 			// write buffer until the upstream finishes. A paused cloud source
 			// must not prevent an already-authorized first video chunk from
 			// reaching the learner. Flush only after a successful write.
-			if flusher, ok := dst.(interface{ Flush() }); ok {
-				// The credential or entitlement may have been revoked while
-				// Write was blocked on the learner. Never explicitly flush
-				// buffered bytes without a fresh canonical authorization.
+			// Prefer error-aware flushing: a revoked, disconnected or
+			// stalled learner can make net/http FlushError fail even after
+			// Write accepted the bytes into its internal buffer. Do not
+			// continue reading the provider after such a failure.
+			if flusher, ok := dst.(interface{ FlushError() error }); ok {
+				if !authorized() {
+					return errAcademyVideoRevoked
+				}
+				if err := flusher.FlushError(); err != nil {
+					return err
+				}
+				// Authorization can change WHILE FlushError blocks.
+				if !authorized() {
+					return errAcademyVideoRevoked
+				}
+			} else if flusher, ok := dst.(interface{ Flush() }); ok {
 				if !authorized() {
 					return errAcademyVideoRevoked
 				}
 				flusher.Flush()
+				if !authorized() {
+					return errAcademyVideoRevoked
+				}
 			}
 		}
 		if readErr != nil {
