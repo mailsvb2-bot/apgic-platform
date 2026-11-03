@@ -70,6 +70,21 @@ test("revoked canonical manifest stops an opened player and hides its video",asy
  await expect(page.getByText(/Доступ к видео не подтверждён или был отозван/)).toBeVisible();
 });
 
+// A browser may populate metadata or media buffers before the first play
+// event. Polling must start on those events, including while video is paused.
+for(const eventName of ["loadedmetadata","progress"] as const){
+ test(`revocation clears buffered video after ${eventName} without play`,async({page})=>{
+  const access=await mockAcademyVideo(page);
+  const video=page.locator("video");
+  await expect(video).toHaveAttribute("src",/\\/stream$/);
+  await video.evaluate((element,event)=>element.dispatchEvent(new Event(event)),eventName);
+  await expect.poll(access.reads,{timeout:8000}).toBeGreaterThanOrEqual(2);
+  access.revoke();
+  await expect(video).toHaveCount(0);
+  await expect(page.getByText(/Доступ к видео не подтверждён или был отозван/)).toBeVisible();
+ });
+}
+
 // Repeated successful manifest checks must keep the player open, and a
 // subsequent canonical denial must still remove the source. This exercises
 // polling across several intervals rather than only the initial read.
