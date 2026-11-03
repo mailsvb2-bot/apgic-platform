@@ -57,7 +57,7 @@ test("HTML5 media errors discard buffered source and retry requires canonical ac
  access.revoke();
  await page.getByRole("button",{name:"Повторить загрузку видео"}).click();
  await expect(video).not.toHaveAttribute("src",/\/stream$/);
- await expect(page.getByRole("alert").last()).toContainText("Не удалось подтвердить доступ");
+ await expect(page.getByRole("alert").filter({hasText:"Не удалось подтвердить доступ или возобновить просмотр"})).toBeVisible();
  expect(access.reads()).toBeGreaterThanOrEqual(2);
 });
 
