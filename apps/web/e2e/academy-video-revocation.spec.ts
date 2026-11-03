@@ -125,12 +125,12 @@ test("authorized retry restores HTML5 source without asynchronous autoplay",asyn
  await expect(video).not.toHaveAttribute("src",/\/stream$/);
  await page.getByRole("button",{name:"Повторить загрузку видео"}).click();
  await expect(video).toHaveAttribute("src",/\/stream$/);
- // The fixture can be rejected by a platform codec after the protected
- // stream is reattached (notably mobile emulation). That is a real media
- // error, not an entitlement denial. Assert the contract we own: retry
- // consults the manifest, restores the gateway URL and never calls play().
- // Do not require the media-error retry control to disappear if decoding fails.
- await expect.poll(()=>video.evaluate(element=>element.getAttribute("src"))).toMatch(/\\/stream$/);
+ // Some browser configurations reject the fixture codec after a successful
+ // protected retry. The retry control may remain visible for that legitimate
+ // decode error; it is not evidence of an autoplay-policy failure.
+ // The canonical manifest was checked, the gateway source reattached, and
+ // no programmatic play() was attempted.
+ await expect(video).not.toHaveAttribute("data-autoplay-attempted","true");
 });
 
 test("revoked canonical manifest stops an opened player and hides its video",async({page})=>{
