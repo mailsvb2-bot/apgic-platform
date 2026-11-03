@@ -95,7 +95,7 @@ test("hidden tab unloads HTML5 video instead of relying on throttled polling",as
   try{document.dispatchEvent(new Event("visibilitychange"))}
   finally{
    if(original)Object.defineProperty(document,"visibilityState",original);
-   else delete (document as Document&{visibilityState?:DocumentVisibilityState}).visibilityState;
+   else Reflect.deleteProperty(document,"visibilityState");
   }
  });
  await expect(page.locator("video")).toHaveCount(0);
