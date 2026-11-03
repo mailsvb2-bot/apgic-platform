@@ -99,3 +99,33 @@ func TestAcademyCopyVideoAuthorizedFlushesBeforeUpstreamCompletes(t *testing.T) 
 		t.Fatalf("authorized stream did not flush both chunks: bytes=%d flushes=%d", writer.Len(), writer.flushes)
 	}
 }
+
+type academyCredentialRevokingFlushingWriter struct {
+	*academyCredentialRevokingVideoWriter
+	flushes int
+}
+
+func (w *academyCredentialRevokingFlushingWriter) Flush() {
+	w.flushes++
+}
+
+// Revocation during a blocked learner Write must prevent an explicit flush
+// of that write, even if it had already accepted bytes into its buffer.
+func TestAcademyCopyVideoAuthorizedDoesNotFlushAfterRevocationDuringWrite(t *testing.T) {
+	source := &academyVideoRevocationSource{
+		author: "author", provider: "yandex_disk",
+		path: "disk:/private/video.mp4", token: "original-account-secret",
+	}
+	writer := &academyCredentialRevokingFlushingWriter{
+		academyCredentialRevokingVideoWriter: &academyCredentialRevokingVideoWriter{source: source},
+	}
+	authorized := func() bool {
+		return academyVideoSourceStillAllowed(source, "learner", "enrollment", "lesson", "media",
+			"author", "yandex_disk", "disk:/private/video.mp4") &&
+			academyVideoCloudConnectionStillAllowed(source, "author", "yandex_disk", "original-account-secret")
+	}
+	err := academyCopyVideoAuthorized(writer, strings.NewReader(strings.Repeat("v", 2*65536)), authorized)
+	if !errors.Is(err, errAcademyVideoRevoked) || writer.flushes != 0 || writer.Len() != 65536 {
+		t.Fatalf("revoked video was flushed: error=%v flushes=%d bytes=%d", err, writer.flushes, writer.Len())
+	}
+}
