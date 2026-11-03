@@ -49,7 +49,7 @@ export default function AcademyLessonVideos({enrollmentId,lessonId,available}:{
  // a fresh canonical manifest check before any subsequent playback.
  useEffect(()=>{
   function suspendVideo(force=false){
-   if(!force&&document.visibilityState!=="hidden"&&document.visibilityState!=="prerender")return;
+   if(!force&&document.visibilityState!=="hidden")return;
    let hadSource=false;
    for(const video of Object.values(refs.current)){
     if(video?.hasAttribute("src")){
@@ -81,10 +81,14 @@ export default function AcademyLessonVideos({enrollmentId,lessonId,available}:{
   if(!available||openedIds.length===0)return;
   let disposed=false;
   let checking=false;
-  const controller=new AbortController();
+  let inFlight:AbortController|null=null;
   async function revalidate(){
    if(disposed||checking)return;
    checking=true;
+   // A fresh controller is required for each poll: once aborted, an
+   // AbortSignal stays aborted and would falsely revoke every later poll.
+   const controller=new AbortController();
+   inFlight=controller;
    const timeout=window.setTimeout(()=>controller.abort(),2000);
    try{
     const response=await fetch(`/v1/academy/enrollments/${enrollmentId}/lessons/${lessonId}/videos`,{
@@ -107,12 +111,13 @@ export default function AcademyLessonVideos({enrollmentId,lessonId,available}:{
     }
    }finally{
     window.clearTimeout(timeout);
+    if(inFlight===controller)inFlight=null;
     checking=false;
    }
   }
   void revalidate();
   const timer=window.setInterval(()=>{void revalidate()},1000);
-  return ()=>{disposed=true;window.clearInterval(timer);controller.abort()};
+  return ()=>{disposed=true;window.clearInterval(timer);inFlight?.abort()};
  },[available,enrollmentId,lessonId,openedIds]);
  async function retryVideo(id:string){
   const player=refs.current[id];
