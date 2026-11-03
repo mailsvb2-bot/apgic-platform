@@ -21,6 +21,7 @@ async function mockAcademyVideo(page:Page){
   else if(path==="/v1/academy/me/course-access")data={course_ids:[]};
   else if(path==="/v1/academy/me/certificates")data={certificates:[]};
   else if(path==="/v1/academy/author/eligible-products")data={products:[]};
+  else if(path==="/v1/academy/author/report")data={courses:[],gross_captures:[],revenue_state:"UNAVAILABLE"};
   else if(path==="/v1/academy/author/cohorts"||path.endsWith("/cohorts"))data={cohorts:[]};
   else if(path==="/v1/academy/review/attempts"||path.endsWith("/attempts"))data={attempts:[]};
   else if(path==="/v1/academy/me/appeals")data={appeals:[]};
@@ -35,9 +36,12 @@ async function mockAcademyVideo(page:Page){
    // No fake media is needed: tests dispatch HTMLMediaElement events.
    status=403;data={code:"TEST_NO_MEDIA"};
   }
+  else {status=501;data={code:"UNMOCKED_ACADEMY_ROUTE",path}}
   await route.fulfill({status,contentType:"application/json",body:JSON.stringify(data)});
  });
  await page.goto("/academy");
+ await expect(page.getByRole("heading",{name:"Обучение и курсы"})).toBeVisible();
+ await expect(page.getByText("Проверочный курс")).toBeVisible();
  await page.getByRole("button",{name:"Продолжить"}).click();
  await expect(page.locator("video")).toHaveCount(1);
  return {revoke:()=>{allowed=false},reads:()=>manifestReads};
@@ -63,5 +67,5 @@ test("revoked canonical manifest stops an opened player and hides its video",asy
  await expect.poll(access.reads).toBeGreaterThanOrEqual(2);
  access.revoke();
  await expect(page.locator("video")).toHaveCount(0);
- await expect(page.getByText("Доступ к видео не подтверждён или был отозван.")).toBeVisible();
+ await expect(page.getByText(/Доступ к видео не подтверждён или был отозван/)).toBeVisible();
 });
