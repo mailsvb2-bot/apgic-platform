@@ -121,6 +121,11 @@ test("authorized retry restores HTML5 source without asynchronous autoplay",asyn
    value:()=>{player.dataset.autoplayAttempted="true";return Promise.reject(new DOMException("Autoplay requires activation","NotAllowedError"))}
   });
   player.dispatchEvent(new Event("error"));
+  // This test exercises user activation, not codec support. Prevent the
+  // synthetic MP4 fixture from producing a second decoder error that clears
+  // src before we can assert the explicitly restored gateway URL. The separate
+  // media-error test still exercises real load()/error cleanup.
+  Object.defineProperty(player,"load",{configurable:true,value:()=>{}});
  });
  await expect(video).not.toHaveAttribute("src",/\/stream$/);
  await page.getByRole("button",{name:"Повторить загрузку видео"}).click();
