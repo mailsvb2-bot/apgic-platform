@@ -13,7 +13,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -75,23 +74,8 @@ func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid trailing data", 400)
 		return
 	}
-	if e.EventType != "booking.ledger_committed" || e.SchemaVersion != "1" ||
-		e.EventID == "" || e.IdempotencyKey == "" || e.AggregateVersion != 1 ||
-		e.Producer != "booking-ledger" || len(e.Payload) == 0 {
-		http.Error(w, "unsupported event", 422)
-		return
-	}
-	var p payload
-	pd := json.NewDecoder(strings.NewReader(string(e.Payload)))
-	pd.DisallowUnknownFields()
-	if pd.Decode(&p) != nil || p.BookingID == "" || p.LedgerEntryID == "" || p.EconomicEventRef == "" ||
-		e.AggregateRef != "booking/"+p.BookingID || e.IdempotencyKey != "booking-ledger:"+p.EconomicEventRef {
-		http.Error(w, "invalid booking event", 422)
-		return
-	}
-	var extra any
-	if pd.Decode(&extra) != io.EOF {
-		http.Error(w, "invalid payload", 422)
+	if !validGatewayEnvelope(e) {
+		http.Error(w, "unsupported or invalid event", http.StatusUnprocessableEntity)
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
