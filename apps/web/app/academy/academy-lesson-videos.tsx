@@ -22,10 +22,8 @@ export default function AcademyLessonVideos({enrollmentId,lessonId,available}:{
  const [error,setError]=useState("");
  const [playbackError,setPlaybackError]=useState<Record<string,string>>({});
  const [reloadVersion,setReloadVersion]=useState(0);
- const [openedIds,setOpenedIds]=useState<string[]>([]);
  const refs=useRef<Record<string,HTMLVideoElement|null>>({});
  useEffect(()=>{
-  setOpenedIds([]);
   if(!available){setVideos([]);setError("");return}
   const controller=new AbortController();
   void (async()=>{
@@ -58,7 +56,6 @@ export default function AcademyLessonVideos({enrollmentId,lessonId,available}:{
     }
    }
    if(hadSource){
-    setOpenedIds([]);
     setVideos([]);
     setError("Просмотр приостановлен. Проверьте доступ повторно, чтобы открыть видео.");
    }
@@ -74,11 +71,11 @@ export default function AcademyLessonVideos({enrollmentId,lessonId,available}:{
    window.removeEventListener("pagehide",onPageHide);
   };
  },[]);
- // A previously buffered HTML5 video can continue playing after the server
- // closes its stream. Once a video has started, recheck canonical access even
- // while paused, and discard buffered bytes if access is no longer proven.
+ // An HTML5 element can fetch and buffer media before play, metadata or
+ // progress events fire. Recheck canonical access for EVERY rendered source,
+ // including paused and never-played video, and discard all buffers on denial.
  useEffect(()=>{
-  if(!available||openedIds.length===0)return;
+  if(!available||videos.length===0)return;
   let disposed=false;
   let checking=false;
   let inFlight:AbortController|null=null;
@@ -96,7 +93,7 @@ export default function AcademyLessonVideos({enrollmentId,lessonId,available}:{
     });
     if(!response.ok)throw new Error("Access unavailable");
     const data=await response.json() as {videos?:LessonVideo[]};
-    if(!Array.isArray(data.videos)||openedIds.some(id=>!data.videos?.some(video=>video.id===id))){
+    if(!Array.isArray(data.videos)||videos.some(video=>!data.videos?.some(current=>current.id===video.id))){
      throw new Error("Video no longer authorized");
     }
    }catch{
@@ -105,7 +102,6 @@ export default function AcademyLessonVideos({enrollmentId,lessonId,available}:{
      for(const video of Object.values(refs.current)){
       if(video){discardVideoBuffer(video)}
      }
-     setOpenedIds([]);
      setVideos([]);
      setError("Доступ к видео не подтверждён или был отозван. Проверьте доступ повторно.");
     }
@@ -118,7 +114,7 @@ export default function AcademyLessonVideos({enrollmentId,lessonId,available}:{
   void revalidate();
   const timer=window.setInterval(()=>{void revalidate()},1000);
   return ()=>{disposed=true;window.clearInterval(timer);inFlight?.abort()};
- },[available,enrollmentId,lessonId,openedIds]);
+ },[available,enrollmentId,lessonId,videos]);
  async function retryVideo(id:string){
   const player=refs.current[id];
   if(!player)return;
@@ -155,19 +151,12 @@ export default function AcademyLessonVideos({enrollmentId,lessonId,available}:{
    <div style={{position:"relative",maxWidth:900,background:"#101827",borderRadius:12,overflow:"hidden"}}>
     <video controls playsInline preload="none" controlsList="nodownload"
      ref={node=>{refs.current[video.id]=node}}
-     // Some browsers fetch metadata or media bytes before firing play, even
-     // with preload="none". Track any populated buffer so revocation polling
-     // also covers paused or never-played video, not only active playback.
-     onLoadedMetadata={()=>setOpenedIds(current=>current.includes(video.id)?current:[...current,video.id])}
-     onProgress={()=>setOpenedIds(current=>current.includes(video.id)?current:[...current,video.id])}
-     onPlay={()=>setOpenedIds(current=>current.includes(video.id)?current:[...current,video.id])}
      onError={event=>{
       // A failed stream may still have playable buffered bytes. Never stop
       // entitlement polling while leaving those bytes attached to the player.
       const player=event.currentTarget;
       const code=player.error?.code;
       discardVideoBuffer(player);
-      setOpenedIds(current=>current.filter(id=>id!==video.id));
       const message=code===3||code===4
        ? "Браузер не поддерживает формат этого видео или файл повреждён."
        : "Видео недоступно. Проверьте доступ к курсу и повторите загрузку.";
