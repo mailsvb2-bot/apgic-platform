@@ -133,8 +133,11 @@ export default function AcademyLessonVideos({enrollmentId,lessonId,available}:{
    if(refs.current[id]!==player)return;
    // Only the APGIC gateway URL is ever placed in the browser, never cloud hrefs.
    player.src=`/v1/academy/enrollments/${enrollmentId}/lessons/${lessonId}/videos/${id}/stream`;
+   // This click initiates an asynchronous entitlement fetch. Once it
+   // resolves, the original user activation may have expired: calling play()
+   // here can raise NotAllowedError even when the gateway is healthy.
+   // Restore the canonical stream and let the learner press native Play.
    player.load();
-   await player.play();
   }catch{
    if(refs.current[id]!==player)return;
    discardVideoBuffer(player);
