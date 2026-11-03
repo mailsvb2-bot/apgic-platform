@@ -265,7 +265,16 @@ func (c *Checker) AcademyAuthorCloudMedia(actor string) ([]AcademyCloudMedia, er
  FROM academy_cloud_media media
  LEFT JOIN academy_cloud_connections connection
  ON connection.author_id=media.author_id AND connection.provider=media.provider
- WHERE media.author_id=$1::uuid ORDER BY media.created_at,media.id LIMIT 5000`, actor)
+ WHERE media.author_id=$1::uuid
+ -- A reconnect leaves historical unverified media in the author's catalog.
+ -- With the bounded 5,000-row response, ordering oldest-first could hide
+ -- every current verified video behind stale rows. Keep the active media
+ -- first without changing the established chronological order within each
+ -- group, so the author's current library remains usable after reconnect.
+ ORDER BY (connection.generation IS NOT NULL
+   AND media.connection_generation=connection.generation
+   AND media.resource_id IS NOT NULL AND media.sha256 IS NOT NULL
+   AND media.file_size>0) DESC, media.created_at,media.id LIMIT 5000`, actor)
 	if err != nil {
 		return nil, err
 	}
