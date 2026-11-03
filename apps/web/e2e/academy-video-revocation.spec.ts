@@ -40,7 +40,7 @@ async function mockAcademyVideo(page:Page){
    // Serve real decodable fixture bytes through a mocked Academy endpoint.
    // Preserve HTTP Range semantics so HTML5 metadata/seek requests succeed.
    const range=route.request().headers()["range"];
-   const match=range?.match(/^bytes=(\\d+)-(\\d*)$/);
+   const match=range?.match(/^bytes=(\d+)-(\d*)$/);
    if(range&&!match){
     await route.fulfill({status:416,headers:{"Content-Range":`bytes */${mediaBytes.length}`},body:""});
     return;
