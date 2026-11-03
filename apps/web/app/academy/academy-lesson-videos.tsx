@@ -72,16 +72,31 @@ export default function AcademyLessonVideos({enrollmentId,lessonId,available}:{
   const timer=window.setInterval(()=>{void revalidate()},1000);
   return ()=>{disposed=true;window.clearInterval(timer);controller.abort()};
  },[available,enrollmentId,lessonId,openedIds]);
- function retryVideo(id:string){
+ async function retryVideo(id:string){
   const player=refs.current[id];
   if(!player)return;
   setPlaybackError(old=>({...old,[id]:""}));
-  // Retry the same authenticated APGIC stream URL, never a cloud origin.
-  // load() forces a new request after a network/entitlement error.
-  player.load();
-  void player.play().catch(()=>{
-   setPlaybackError(old=>({...old,[id]:"Не удалось возобновить просмотр. Проверьте доступ к уроку."}));
-  });
+  try{
+   // A failed media element has no reusable source or trustworthy buffer.
+   // Prove the canonical entitlement again before creating a new request.
+   const response=await fetch(`/v1/academy/enrollments/${enrollmentId}/lessons/${lessonId}/videos`,{
+    credentials:"same-origin",cache:"no-store"
+   });
+   if(!response.ok)throw new Error("Access unavailable");
+   const data=await response.json() as {videos?:LessonVideo[]};
+   if(!Array.isArray(data.videos)||!data.videos.some(video=>video.id===id)){
+    throw new Error("Video no longer authorized");
+   }
+   if(refs.current[id]!==player)return;
+   // Only the APGIC gateway URL is ever placed in the browser, never cloud hrefs.
+   player.src=`/v1/academy/enrollments/${enrollmentId}/lessons/${lessonId}/videos/${id}/stream`;
+   player.load();
+   await player.play();
+  }catch{
+   if(refs.current[id]!==player)return;
+   player.pause();player.removeAttribute("src");player.load();
+   setPlaybackError(old=>({...old,[id]:"Не удалось подтвердить доступ или возобновить просмотр. Проверьте доступ к уроку."}));
+  }
  }
  if(!available)return <p>Доступ к видео сейчас закрыт.</p>;
  return <section aria-label="Видеоматериалы урока">
@@ -95,8 +110,12 @@ export default function AcademyLessonVideos({enrollmentId,lessonId,available}:{
      ref={node=>{refs.current[video.id]=node}}
      onPlay={()=>setOpenedIds(current=>current.includes(video.id)?current:[...current,video.id])}
      onError={event=>{
+      // A failed stream may still have playable buffered bytes. Never stop
+      // entitlement polling while leaving those bytes attached to the player.
+      const player=event.currentTarget;
+      const code=player.error?.code;
+      player.pause();player.removeAttribute("src");player.load();
       setOpenedIds(current=>current.filter(id=>id!==video.id));
-      const code=event.currentTarget.error?.code;
       const message=code===3||code===4
        ? "Браузер не поддерживает формат этого видео или файл повреждён."
        : "Видео недоступно. Проверьте доступ к курсу и повторите загрузку.";
