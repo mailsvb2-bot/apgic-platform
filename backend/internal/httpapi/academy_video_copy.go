@@ -31,6 +31,12 @@ func academyCopyVideoAuthorized(dst io.Writer, src io.Reader, authorized func() 
 			// must not prevent an already-authorized first video chunk from
 			// reaching the learner. Flush only after a successful write.
 			if flusher, ok := dst.(interface{ Flush() }); ok {
+				// The credential or entitlement may have been revoked while
+				// Write was blocked on the learner. Never explicitly flush
+				// buffered bytes without a fresh canonical authorization.
+				if !authorized() {
+					return errAcademyVideoRevoked
+				}
 				flusher.Flush()
 			}
 		}
