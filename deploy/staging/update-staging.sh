@@ -398,7 +398,16 @@ esac
 # Secrets stay exclusively in /etc/apgic/staging.env; do not start finance.
 if [[ -n "${APGIC_EVENT_GATEWAY_PRINCIPAL_ID:-}" && -n "${APGIC_EVENT_GATEWAY_CREDENTIAL:-}" ]]; then
   echo "=== Reconcile managed gateway ingress ==="
-  systemctl enable --now apgic-event-gateway-staging.service
+  systemctl enable apgic-event-gateway-staging.service >/dev/null
+  # A rebuilt binary does not replace an already-running gateway process.
+  # Restart it before probing the managed HTTPS receiver, otherwise a
+  # deploy can falsely pass while the old booking-only handler rejects
+  # canonical Academy events with HTTP 422.
+  systemctl restart apgic-event-gateway-staging.service
+  if ! systemctl is-active --quiet apgic-event-gateway-staging.service; then
+    systemctl --no-pager --full status apgic-event-gateway-staging.service >&2 || true
+    exit 1
+  fi
   bash "$REPO_ROOT/deploy/staging/install-event-gateway-nginx.sh"
 else
   echo "APGIC gateway ingress: deferred until receiver credentials configured"
