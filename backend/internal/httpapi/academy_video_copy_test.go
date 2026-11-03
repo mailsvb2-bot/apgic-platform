@@ -77,3 +77,25 @@ func TestAcademyCopyVideoAuthorizedStopsOnCloudCredentialRotation(t *testing.T) 
 		t.Fatalf("old cloud credential leaked further chunks: bytes=%d writes=%d", writer.Len(), writer.writes)
 	}
 }
+
+type academyFlushingVideoWriter struct {
+	bytes.Buffer
+	flushes int
+}
+
+func (w *academyFlushingVideoWriter) Flush() {
+	w.flushes++
+}
+
+// A live upstream can pause between chunks. Without flushing each completed
+// authorized write, the learner can stall while bytes sit in net/http buffers.
+func TestAcademyCopyVideoAuthorizedFlushesBeforeUpstreamCompletes(t *testing.T) {
+	writer := &academyFlushingVideoWriter{}
+	input := strings.Repeat("v", 2*65536)
+	if err := academyCopyVideoAuthorized(writer, strings.NewReader(input), func() bool { return true }); err != nil {
+		t.Fatal(err)
+	}
+	if writer.String() != input || writer.flushes != 2 {
+		t.Fatalf("authorized stream did not flush both chunks: bytes=%d flushes=%d", writer.Len(), writer.flushes)
+	}
+}
