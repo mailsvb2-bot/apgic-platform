@@ -68,7 +68,7 @@ func TestAcademyVideoIdleReaderResetsBudgetOnProgress(t *testing.T) {
 func TestAcademyVideoIdleReaderRejectsMissingDeadline(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	reader := academyVideoIdleReader{source:  bytes.NewBufferString("secret"), cancel: cancel}
+	reader := academyVideoIdleReader{source: bytes.NewBufferString("secret"), cancel: cancel}
 	n, err := reader.Read(make([]byte, 16))
 	if n != 0 || !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("unbounded idle read must fail closed: n=%d err=%v", n, err)
