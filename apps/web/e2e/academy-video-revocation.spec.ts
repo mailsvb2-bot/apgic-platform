@@ -113,7 +113,7 @@ test("HTML5 media errors discard buffered source and retry requires canonical ac
 test("authorized retry restores HTML5 source without asynchronous autoplay",async({page})=>{
  await mockAcademyVideo(page);
  const video=page.locator("video");
- await expect(video).toHaveAttribute("src",/\\/stream$/);
+ await expect(video).toHaveAttribute("src",/\/stream$/);
  await video.evaluate(element=>{
   const player=element as HTMLVideoElement;
   Object.defineProperty(player,"play",{
@@ -122,9 +122,9 @@ test("authorized retry restores HTML5 source without asynchronous autoplay",asyn
   });
   player.dispatchEvent(new Event("error"));
  });
- await expect(video).not.toHaveAttribute("src",/\\/stream$/);
+ await expect(video).not.toHaveAttribute("src",/\/stream$/);
  await page.getByRole("button",{name:"Повторить загрузку видео"}).click();
- await expect(video).toHaveAttribute("src",/\\/stream$/);
+ await expect(video).toHaveAttribute("src",/\/stream$/);
  await expect(page.getByRole("button",{name:"Повторить загрузку видео"})).toHaveCount(0);
 });
 
