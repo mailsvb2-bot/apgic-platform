@@ -304,4 +304,22 @@ JOIN academy_cloud_connections connection ON connection.author_id=media.author_i
 WHERE media.author_id=$1::uuid AND media.provider_file_ref=$2`, author, items[0].ProviderFileRef).Scan(&active); err != nil || active != 1 {
 		t.Fatalf("reconnected path must have exactly one active source: count=%d err=%v", active, err)
 	}
+
+	// The author catalog is capped at 5,000 entries. Thousands of old
+	// imports must not push the only current-generation video out of the
+	// response after OAuth reconnect, leaving the editor apparently empty.
+	// Historical rows are intentionally unverified and never playable.
+	if _, err := db.Exec(`INSERT INTO academy_cloud_media(id,author_id,provider,provider_file_ref,title)
+SELECT gen_random_uuid(),$1::uuid,'YANDEX_DISK',
+ 'disk:/legacy-' || n::text || '.mp4', 'Historical unverified ' || n::text
+FROM generate_series(1,5001) AS n`, author); err != nil {
+		t.Fatalf("insert historical catalog entries: %v", err)
+	}
+	bounded, err := store.AcademyAuthorCloudMedia(author)
+	if err != nil || len(bounded) != 5000 {
+		t.Fatalf("bounded catalog read: count=%d err=%v", len(bounded), err)
+	}
+	if bounded[0].ID != second[0].ID || !bounded[0].Active {
+		t.Fatalf("current verified video hidden behind stale catalog rows: first=%+v", bounded[0])
+	}
 }
