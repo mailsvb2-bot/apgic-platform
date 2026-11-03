@@ -78,7 +78,7 @@ test("video stays authorized across repeated polls, then revocation unloads it",
  const video=page.locator("video");
  await video.evaluate(element=>element.dispatchEvent(new Event("play")));
  await expect.poll(access.reads,{timeout:8000}).toBeGreaterThanOrEqual(4);
- await expect(video).toHaveAttribute("src",/\\/stream$/);
+ await expect(video).toHaveAttribute("src",/\/stream$/);
  access.revoke();
  await expect(video).toHaveCount(0);
  await expect(page.getByText(/Доступ к видео не подтверждён или был отозван/)).toBeVisible();
