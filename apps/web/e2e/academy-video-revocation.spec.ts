@@ -75,7 +75,7 @@ test("revoked canonical manifest stops an opened player and hides its video",asy
 // previous stream without a fresh canonical Entitlement read.
 test("pagehide discards buffered video and recovery requires canonical access",async({page})=>{
  const access=await mockAcademyVideo(page);
- await expect(page.locator("video")).toHaveAttribute("src",/\\/stream$/);
+ await expect(video).toHaveAttribute("src",/\/stream$/);
  await page.evaluate(()=>window.dispatchEvent(new PageTransitionEvent("pagehide",{persisted:true})));
  await expect(page.locator("video")).toHaveCount(0);
  await expect(page.getByText(/Просмотр приостановлен/)).toBeVisible();
@@ -88,7 +88,7 @@ test("pagehide discards buffered video and recovery requires canonical access",a
 
 test("hidden tab unloads HTML5 video instead of relying on throttled polling",async({page})=>{
  await mockAcademyVideo(page);
- await expect(page.locator("video")).toHaveAttribute("src",/\\/stream$/);
+ await expect(video).toHaveAttribute("src",/\/stream$/);
  await page.evaluate(()=>{
   const original=Object.getOwnPropertyDescriptor(document,"visibilityState");
   Object.defineProperty(document,"visibilityState",{configurable:true,get:()=>"hidden"});
