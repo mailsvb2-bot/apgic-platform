@@ -1,6 +1,6 @@
 "use client";
 
-import {useCallback,useEffect,useState,type FormEvent} from "react";
+import {useCallback,useEffect,useRef,useState,type FormEvent} from "react";
 
 type CloudMedia={id:string;title:string;provider:string;provider_file_ref:string;source_url?:string;active:boolean};
 type DiskFile={name:string;path:string;type:string;mime_type:string;size:number};
@@ -47,6 +47,7 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
  const [saved,setSaved]=useState<AuthorMediaAssignment[]>([]);
  const [message,setMessage]=useState("");
  const [busy,setBusy]=useState(false);
+ const oauthAutoOpened=useRef(false);
  async function browseDisk(path:string,offset=0){
   setBusy(true);setMessage("");
   try {
@@ -56,6 +57,18 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
   }catch(error){setMessage("Яндекс Диск: "+String(error))}
   finally{setBusy(false)}
  }
+ // On OAuth return, show the real Disk folder without a second click.
+ // Only the owner-signed callback can store the cloud credential; this
+ // browser hint controls presentation, never access or authorization.
+ useEffect(()=>{
+  if(oauthAutoOpened.current)return;
+  const query=new URLSearchParams(window.location.search);
+  if(query.get("cloud_connected")!=="yandex")return;
+  const qCourse=query.get("course_id"),qVersion=query.get("version_id");
+  if((qCourse||qVersion)&&(qCourse!==courseId||qVersion!==versionId))return;
+  oauthAutoOpened.current=true;
+  void browseDisk("disk:/");
+ },[courseId,versionId]);
  async function importDiskSelection(){
   if(!Object.keys(diskSelectedFiles).length)return;
   setBusy(true);setMessage("");
@@ -157,13 +170,13 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
    setMessage("Распределение сохранено");
   }catch(error){setMessage(String(error))}finally{setBusy(false)}
  }
- return <section className="panel" aria-label="Массовое назначение видео">
-  <h3>Медиатека автора</h3>
-  <p>Импорт облачных файлов и распределение по видеоурокам. Воспроизведение доступно только после проверки доступа через серверный медиашлюз.</p>
-  <button type="button" disabled={busy} onClick={()=>void reload(undefined,true).catch(e=>setMessage(String(e)))}>Загрузить медиатеку</button>
-  <h4>Выбрать файлы из Яндекс Диска</h4>
+ return <section id="academy-media-editor" className="panel" aria-label="Медиатека автора">
+  <h3>Видео курса</h3>
+  <p>Подключите Диск один раз, затем выбирайте видео прямо здесь. Ученик просматривает уроки только через защищённый плеер APGIC.</p>
+  
+  <h4>Ваш Яндекс Диск</h4>
   <a href={`/v1/academy/author/cloud/yandex/connect?course_id=${encodeURIComponent(courseId)}&version_id=${encodeURIComponent(versionId)}`}>Подключить Яндекс Диск</a>
-  <p>После подключения облака можно открыть папку, отметить сразу несколько видео и добавить их одним нажатием.</p>
+  <p>После подтверждения в Яндексе файлы откроются автоматически. Выберите нужные видео.</p>
   <button type="button" disabled={busy} onClick={()=>void browseDisk("disk:/")}>Открыть Яндекс Диск</button>
   <p>Папка: {diskPath}</p>
   {diskPath!=="disk:/"&&<button type="button" disabled={busy} onClick={()=>void browseDisk(diskPath.slice(0,diskPath.lastIndexOf("/"))==="disk:"?"disk:/":diskPath.slice(0,diskPath.lastIndexOf("/")))}>На уровень выше</button>}
@@ -184,12 +197,12 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
    <button type="button" disabled={busy||diskOffset+100>=diskTotal} onClick={()=>void browseDisk(diskPath,diskOffset+100)}>Далее</button>
   </div>}
   <button type="button" disabled={busy||!Object.keys(diskSelectedFiles).length} onClick={()=>void importDiskSelection()}>Добавить выбранные видео ({Object.keys(diskSelectedFiles).length})</button>
-  <p role="status">{message}</p>
-  <form onSubmit={importRows}>
+  <p role="status" aria-live="polite">{message}</p>
+  <details><summary>Дополнительно: импорт по путям файлов</summary><form onSubmit={importRows}>
    <label htmlFor="cloud-media-rows">Список файлов: ID файла | название (каждый файл с новой строки)</label>
    <textarea id="cloud-media-rows" rows={5} value={rows} onChange={e=>setRows(e.target.value)} placeholder={"disk:/videos/001.mp4 | Видео 1\ndisk:/videos/002.mp4 | Видео 2"}/>
    <button disabled={busy}>Добавить файлы</button>
-  </form>
+  </form></details>
   {saved.some(a=>!media.some(m=>m.id===a.media_id))&&<div role="alert">
    <p>В сохранённых уроках есть видео от прежнего подключения Яндекс Диска. Они недоступны ученикам. Повторно импортируйте актуальные файлы и переназначьте их перед публикацией.</p>
    {assignments.some(a=>!media.some(m=>m.id===a.media_id))&&<button type="button" disabled={busy} onClick={()=>{
