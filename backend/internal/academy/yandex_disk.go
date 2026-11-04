@@ -44,8 +44,8 @@ const yandexDiskAPI = "https://cloud-api.yandex.net/v1/disk/resources"
 // Fixed errors permit diagnosis without logging HTTP requests, tokens or paths.
 var (
 	ErrYandexTransport = errors.New("cloud transport failed")
-	ErrYandexJSON = errors.New("cloud provider JSON invalid")
-	ErrYandexListing = errors.New("cloud provider listing invalid")
+	ErrYandexJSON      = errors.New("cloud provider JSON invalid")
+	ErrYandexListing   = errors.New("cloud provider listing invalid")
 )
 
 func (c YandexDiskClient) do(ctx context.Context, token, endpoint string, dst any) error {
