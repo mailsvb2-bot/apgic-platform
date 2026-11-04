@@ -16,6 +16,15 @@ func cloudBrowseFailureCategory(err error) string {
 	if errors.Is(err, context.DeadlineExceeded) {
 		return "timeout"
 	}
+	if errors.Is(err, academy.ErrYandexTransport) {
+		return "provider_transport"
+	}
+	if errors.Is(err, academy.ErrYandexJSON) {
+		return "provider_json"
+	}
+	if errors.Is(err, academy.ErrYandexListing) {
+		return "provider_listing"
+	}
 	if errors.Is(err, academy.ErrDenied) {
 		return "credential_unavailable"
 	}
