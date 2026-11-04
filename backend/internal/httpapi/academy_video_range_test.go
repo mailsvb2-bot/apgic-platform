@@ -11,7 +11,7 @@ func TestAcademyVideoSingleRange(t *testing.T) {
 			t.Fatalf("valid range rejected: %q", value)
 		}
 	}
-	for _, value := range []string{"bytes=", "bytes=--", "bytes=1-2,3-4", "bytes=x-y", "bytes= 1-", "items=0-2", "bytes=0-2\r\nX-Evil: 1", "bytes=-0", "bytes=10-9", "bytes=18446744073709551616-", "bytes=0-18446744073709551616"} {
+	for _, value := range []string{"bytes=", "bytes=--", "bytes=1-2,3-4", "bytes=x-y", "bytes= 1-", "items=0-2", "bytes=0-2\r\nX-Evil: 1", "bytes=+1-", "bytes=1-+2", "bytes=-+5", "bytes=1 -2", "bytes=1- 2", "bytes=-0", "bytes=10-9", "bytes=18446744073709551616-", "bytes=0-18446744073709551616"} {
 		if academyVideoSingleRange(value) {
 			t.Fatalf("invalid range accepted: %q", value)
 		}
