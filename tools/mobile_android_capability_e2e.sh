@@ -407,6 +407,14 @@ echo "no" | "$AVDMANAGER" create avd --force -n "$AVD_NAME" -k "$SYSTEM_IMAGE"
 # adb ever sees it. Size the real userdata partition explicitly instead of
 # masking a deterministic disk failure with longer adb timeouts.
 ANDROID_E2E_USERDATA_MB=2048
+# The emulator can honor the AVD's persisted disk.dataPartition.size over
+# -partition-size. Android 36's generated profile requests ~7 GiB and fails
+# before adb starts on hosted runners with less free space. Pin both sources
+# to the same bounded size; do not skip the native device proof.
+AVD_CONFIG="$ANDROID_AVD_HOME/$AVD_NAME.avd/config.ini"
+[[ -f "$AVD_CONFIG" ]] || fail "AVD configuration missing: $AVD_CONFIG"
+sed -i '/^disk\.dataPartition\.size=/d' "$AVD_CONFIG"
+printf 'disk.dataPartition.size=%sM\n' "$ANDROID_E2E_USERDATA_MB" >> "$AVD_CONFIG"
 available_avd_mb="$(df -Pm "$ANDROID_AVD_HOME" | awk 'END {print $4}')"
 [[ "$available_avd_mb" =~ ^[0-9]+$ ]] ||
   fail "cannot determine free disk space for Android emulator"
