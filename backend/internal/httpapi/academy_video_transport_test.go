@@ -40,26 +40,31 @@ func TestAcademyVideoUpstreamClientTransportLimits(t *testing.T) {
 	}
 }
 
-
 func TestAcademyVideoTrustedStorageRedirects(t *testing.T) {
 	client := academyVideoUpstreamClient()
 	via := []*http.Request{{}}
 	for raw, allowed := range map[string]bool{
 		"https://s123vla.storage.yandex.net/rdisk/abc?x=1": true,
-		"https://downloader.disk.yandex.ru/disk/abc": true,
-		"https://evil.example/rdisk": false,
-		"http://s1.storage.yandex.net/rdisk": false,
-		"https://a.b.storage.yandex.net/rdisk": false,
-		"https://user@s1.storage.yandex.net/": false,
-		"https://s1.storage.yandex.net:8443/": false,
+		"https://downloader.disk.yandex.ru/disk/abc":       true,
+		"https://evil.example/rdisk":                       false,
+		"http://s1.storage.yandex.net/rdisk":               false,
+		"https://a.b.storage.yandex.net/rdisk":             false,
+		"https://user@s1.storage.yandex.net/":              false,
+		"https://s1.storage.yandex.net:8443/":              false,
 	} {
 		req, _ := http.NewRequest(http.MethodGet, raw, nil)
 		req.Header.Set("Authorization", "OAuth secret")
 		err := client.CheckRedirect(req, via)
-		if (err == nil) != allowed { t.Fatalf("redirect %q allowed=%v err=%v", raw, allowed, err) }
-		if err == nil && req.Header.Get("Authorization") != "" { t.Fatal("credential leaked to redirect") }
+		if (err == nil) != allowed {
+			t.Fatalf("redirect %q allowed=%v err=%v", raw, allowed, err)
+		}
+		if err == nil && req.Header.Get("Authorization") != "" {
+			t.Fatal("credential leaked to redirect")
+		}
 	}
 	tooMany := []*http.Request{{}, {}, {}, {}}
 	req, _ := http.NewRequest(http.MethodGet, "https://s1.storage.yandex.net/x", nil)
-	if client.CheckRedirect(req, tooMany) == nil { t.Fatal("unbounded redirect") }
+	if client.CheckRedirect(req, tooMany) == nil {
+		t.Fatal("unbounded redirect")
+	}
 }
