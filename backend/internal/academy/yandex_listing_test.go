@@ -53,7 +53,7 @@ func TestYandexDiskListFilesRejectsForeignAndMalformedEntries(t *testing.T) {
 			}
 			client := YandexDiskClient{Client: &http.Client{Transport: yandexListingTestTransport(func(req *http.Request) (*http.Response, error) {
 				if req.URL.Host != "cloud-api.yandex.net" || req.URL.Scheme != "https" ||
-					req.URL.Query().Get("path") != "disk:/lectures" || req.Header.Get("Authorization") != "OAuth private-token" {
+					req.URL.Query().Get("path") != "disk:/lectures" || req.URL.Query().Get("fields") != "_embedded" || req.Header.Get("Authorization") != "OAuth private-token" {
 					t.Errorf("incorrect provider request: host=%q path=%q auth=%v",
 						req.URL.Host, req.URL.Query().Get("path"), req.Header.Get("Authorization") == "OAuth private-token")
 				}
