@@ -27,7 +27,11 @@ async function request<T>(url:string,body?:unknown,signal?:AbortSignal):Promise<
 // each authenticated verification request bounded and safely retryable.
 async function importVerifiedMedia(items:Array<{provider:string;provider_file_ref:string;title:string}>){
  for(let i=0;i<items.length;i+=100){
-  await request("/v1/academy/author/cloud-media/import",{items:items.slice(i,i+100)});
+  try{await request("/v1/academy/author/cloud-media/import",{items:items.slice(i,i+100)});}
+  catch(e){
+   const reason=e instanceof Error?e.message:"Операция не выполнена";
+   throw new Error(i>0?`Импортировано ${i} из ${items.length}. ${reason}`:reason);
+  }
  }
 }
 export default function CloudMediaEditor({courseId,versionId,lessons}:{
