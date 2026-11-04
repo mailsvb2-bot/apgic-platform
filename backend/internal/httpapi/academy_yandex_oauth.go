@@ -141,15 +141,35 @@ func cloudOAuthCallbackCodeFromRaw(rawQuery, expectedState string) (string, bool
 	return cloudOAuthCallbackCode(query, expectedState)
 }
 
-// cloudOAuthCallbackCode accepts ONLY one state and one code. url.Values.Get
-// silently picks the first value, and extra provider/attacker parameters must
-// never influence a credential-bearing callback.
+// cloudOAuthCallbackCode accepts one code and one signed-state nonce.
+// Yandex ID may append its own optional "cid" identifier to successful
+// authorization callbacks. Reject all other keys, duplicate parameters and
+// invalid cid values; cid is never used as an identity or authorization proof.
 func cloudOAuthCallbackCode(query url.Values, expectedState string) (string, bool) {
 	states, hasState := query["state"]
 	codes, hasCode := query["code"]
-	if !hasState || !hasCode || len(query) != 2 || len(states) != 1 || len(codes) != 1 ||
+	if !hasState || !hasCode || len(states) != 1 || len(codes) != 1 ||
 		expectedState == "" || states[0] != expectedState {
 		return "", false
+	}
+	for key, values := range query {
+		switch key {
+		case "state", "code":
+			// Validated above.
+		case "cid":
+			if len(values) != 1 || len(values[0]) == 0 || len(values[0]) > 128 {
+				return "", false
+			}
+			for _, char := range values[0] {
+				if !((char >= 'a' && char <= 'z') ||
+					(char >= 'A' && char <= 'Z') ||
+					(char >= '0' && char <= '9') || char == '-' || char == '_') {
+					return "", false
+				}
+			}
+		default:
+			return "", false
+		}
 	}
 	code := codes[0]
 	if code == "" || len(code) > 2048 || strings.TrimSpace(code) != code ||
