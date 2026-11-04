@@ -75,9 +75,9 @@ func TestYandexDiskClientRejectsTrailingProviderJSON(t *testing.T) {
 
 func TestYandexDiskClientCategorizesProviderFailuresWithoutSecrets(t *testing.T) {
 	cases := []struct {
-		name string
+		name      string
 		transport http.RoundTripper
-		want error
+		want      error
 	}{
 		{
 			name: "network",
