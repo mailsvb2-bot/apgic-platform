@@ -36,6 +36,6 @@ func TestAcademyVideoUpstreamClientTransportLimits(t *testing.T) {
 		t.Fatal("whole-response timeout would truncate authorized long-running video")
 	}
 	if client.CheckRedirect == nil || !errors.Is(client.CheckRedirect(&http.Request{}, nil), http.ErrUseLastResponse) {
-		t.Fatal("media transport must not follow provider redirects")
+		t.Fatal("media transport must reject missing trusted redirect hop")
 	}
 }
