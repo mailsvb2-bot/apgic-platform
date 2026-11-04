@@ -18,6 +18,11 @@ func TestCloudOAuthCallbackRejectsAmbiguousParameters(t *testing.T) {
 		ok    bool
 	}{
 		{"single valid pair", url.Values{"state": {"nonce"}, "code": {"one-time-code"}}, true},
+		{"Yandex successful callback with cid", url.Values{"state": {"nonce"}, "code": {"one-time-code"}, "cid": {"wq7ab05369b9up4z4nkppavzx8"}}, true},
+		{"duplicate cid", url.Values{"state": {"nonce"}, "code": {"one-time-code"}, "cid": {"one", "two"}}, false},
+		{"empty cid", url.Values{"state": {"nonce"}, "code": {"one-time-code"}, "cid": {""}}, false},
+		{"unsafe cid", url.Values{"state": {"nonce"}, "code": {"one-time-code"}, "cid": {"bad/segment"}}, false},
+		{"oversized cid", url.Values{"state": {"nonce"}, "code": {"one-time-code"}, "cid": {strings.Repeat("a", 129)}}, false},
 		{"duplicate state", url.Values{"state": {"nonce", "nonce"}, "code": {"code"}}, false},
 		{"duplicate code", url.Values{"state": {"nonce"}, "code": {"first", "second"}}, false},
 		{"missing state", url.Values{"code": {"code"}}, false},
@@ -106,6 +111,8 @@ func TestCloudOAuthCallbackRejectsMalformedRawQuery(t *testing.T) {
 		valid bool
 	}{
 		{"valid", "state=nonce&code=one-time-code", true},
+		{"Yandex callback includes cid", "state=nonce&code=one-time-code&cid=wq7ab05369b9up4z4nkppavzx8", true},
+		{"reject duplicate cid", "state=nonce&code=one-time-code&cid=a&cid=b", false},
 		{"malformed escape after valid code", "state=nonce&code=one-time-code&%ZZ=ignored", false},
 		{"malformed escape in code", "state=nonce&code=bad%ZZ", false},
 		{"ambiguous duplicate", "state=nonce&code=first&code=second", false},
