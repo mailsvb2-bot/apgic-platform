@@ -81,7 +81,9 @@ func academyVerifyYandexMediaBatch(ctx context.Context, items []academy.CloudMed
 					if err := verify(ctx, path); err != nil {
 						once.Do(func() {
 							providerErr = academy.ErrDenied
-							if academy.YandexProviderError(err) { providerErr = err }
+							if academy.YandexProviderError(err) {
+								providerErr = err
+							}
 							cancel()
 						})
 						return
@@ -100,7 +102,11 @@ submit:
 	}
 	close(jobs)
 	wg.Wait()
-	if providerErr != nil { return providerErr }
-	if ctx.Err() != nil { return academy.ErrDenied }
+	if providerErr != nil {
+		return providerErr
+	}
+	if ctx.Err() != nil {
+		return academy.ErrDenied
+	}
 	return nil
 }
