@@ -266,7 +266,7 @@ func academyVideoSingleRange(value string) bool {
 		return false
 	}
 	spec := strings.TrimPrefix(value, "bytes=")
-	if strings.Count(spec, "-") != 1 || strings.Contains(spec, ",") {
+	if strings.Count(spec, "-") != 1 || strings.ContainsAny(spec, ",+ \t") {
 		return false
 	}
 	first, last, _ := strings.Cut(spec, "-")
