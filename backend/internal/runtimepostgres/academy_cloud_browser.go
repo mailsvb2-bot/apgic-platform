@@ -23,6 +23,14 @@ func cloudBrowseFailureCategory(err error) string {
 		return "provider_json"
 	}
 	if errors.Is(err, academy.ErrYandexListing) {
+		switch err.Error() {
+		case "cloud provider listing invalid: pagination":
+			return "provider_listing_pagination"
+		case "cloud provider listing invalid: entry":
+			return "provider_listing_entry"
+		case "cloud provider listing invalid: duplicate":
+			return "provider_listing_duplicate"
+		}
 		return "provider_listing"
 	}
 	if errors.Is(err, academy.ErrDenied) {
