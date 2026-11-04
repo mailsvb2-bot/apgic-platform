@@ -97,11 +97,14 @@ func (c YandexDiskClient) do(ctx context.Context, token, endpoint string, dst an
 
 // ListFiles uses bounded pagination: a browser can batch-select an entire
 // folder while the API never returns the secret token.
+// Ask Yandex for the complete _embedded object: requesting only nested
+// projections can omit pagination metadata on some provider responses.
+// The decoder still exposes ONLY the allowlisted YandexDiskFile fields.
 func (c YandexDiskClient) ListFiles(ctx context.Context, token, path string, offset, limit int) ([]YandexDiskFile, int, error) {
 	if !ValidYandexDiskPath(path) || offset < 0 || offset > 1000000 || limit < 1 || limit > 1000 {
 		return nil, 0, errors.New("invalid cloud file request")
 	}
-	q := url.Values{"path": {path}, "offset": {fmt.Sprint(offset)}, "limit": {fmt.Sprint(limit)}, "fields": {"_embedded.items.name,_embedded.items.path,_embedded.items.type,_embedded.items.mime_type,_embedded.items.size,_embedded.total"}}
+	q := url.Values{"path": {path}, "offset": {fmt.Sprint(offset)}, "limit": {fmt.Sprint(limit)}, "fields": {"_embedded"}}
 	var d yandexDiskFilesResponse
 	if err := c.do(ctx, token, yandexDiskAPI+"?"+q.Encode(), &d); err != nil {
 		return nil, 0, err
