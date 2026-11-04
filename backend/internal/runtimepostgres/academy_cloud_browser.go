@@ -25,7 +25,7 @@ func cloudBrowseFailureCategory(err error) string {
 	if err != nil {
 		for _, code := range []string{"401", "403", "404", "429", "500", "502", "503"} {
 			if err.Error() == "cloud provider response "+code {
-				return "provider_http_"+code
+				return "provider_http_" + code
 			}
 		}
 		if strings.HasPrefix(err.Error(), "cloud provider response ") {
