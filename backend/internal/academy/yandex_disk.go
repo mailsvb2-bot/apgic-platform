@@ -41,6 +41,13 @@ type yandexDiskDownloadResponse struct {
 
 const yandexDiskAPI = "https://cloud-api.yandex.net/v1/disk/resources"
 
+// Fixed errors permit diagnosis without logging HTTP requests, tokens or paths.
+var (
+	ErrYandexTransport = errors.New("cloud transport failed")
+	ErrYandexJSON = errors.New("cloud provider JSON invalid")
+	ErrYandexListing = errors.New("cloud provider listing invalid")
+)
+
 func (c YandexDiskClient) do(ctx context.Context, token, endpoint string, dst any) error {
 	if token == "" || len(token) > 8192 {
 		return errors.New("missing cloud authorization")
@@ -66,7 +73,10 @@ func (c YandexDiskClient) do(ctx context.Context, token, endpoint string, dst an
 	}
 	resp, err := protected.Do(req)
 	if err != nil {
-		return err
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return context.DeadlineExceeded
+		}
+		return ErrYandexTransport
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
@@ -76,11 +86,11 @@ func (c YandexDiskClient) do(ctx context.Context, token, endpoint string, dst an
 	// by another object or malformed provider data.
 	decoder := json.NewDecoder(http.MaxBytesReader(nil, resp.Body, 2<<20))
 	if err := decoder.Decode(dst); err != nil {
-		return err
+		return ErrYandexJSON
 	}
 	var trailing any
 	if err := decoder.Decode(&trailing); err != io.EOF {
-		return errors.New("invalid cloud provider response")
+		return ErrYandexJSON
 	}
 	return nil
 }
@@ -101,23 +111,23 @@ func (c YandexDiskClient) ListFiles(ctx context.Context, token, path string, off
 	// Only direct children of the requested folder may be displayed.
 	if d.Embedded.Total < 0 || len(d.Embedded.Items) > limit ||
 		(len(d.Embedded.Items) > 0 && (offset > d.Embedded.Total || len(d.Embedded.Items) > d.Embedded.Total-offset)) {
-		return nil, 0, errors.New("invalid cloud folder listing")
+		return nil, 0, fmt.Errorf("%w: pagination", ErrYandexListing)
 	}
 	prefix := strings.TrimSuffix(path, "/") + "/"
 	seen := make(map[string]struct{}, len(d.Embedded.Items))
 	for _, file := range d.Embedded.Items {
 		if !ValidYandexDiskPath(file.Path) || !strings.HasPrefix(file.Path, prefix) ||
 			(file.Type != "file" && file.Type != "dir") || file.Name == "" || file.Size < 0 {
-			return nil, 0, errors.New("invalid cloud folder entry")
+			return nil, 0, fmt.Errorf("%w: entry", ErrYandexListing)
 		}
 		child := strings.TrimPrefix(file.Path, prefix)
 		if child == "" || strings.Contains(child, "/") || file.Name != child {
-			return nil, 0, errors.New("invalid cloud folder entry")
+			return nil, 0, fmt.Errorf("%w: entry", ErrYandexListing)
 		}
 		// A duplicate path or a display name inconsistent with the verified
 		// provider path can mislead the author into selecting another asset.
 		if _, exists := seen[file.Path]; exists {
-			return nil, 0, errors.New("duplicate cloud folder entry")
+			return nil, 0, fmt.Errorf("%w: duplicate", ErrYandexListing)
 		}
 		seen[file.Path] = struct{}{}
 	}
