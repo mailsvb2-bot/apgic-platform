@@ -2,6 +2,8 @@ package academy
 
 import (
 	"context"
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -66,6 +68,42 @@ func TestYandexDiskClientRejectsTrailingProviderJSON(t *testing.T) {
 			}
 			if err != nil && strings.Contains(err.Error(), "private-token") {
 				t.Fatal("OAuth token leaked in provider error")
+			}
+		})
+	}
+}
+
+func TestYandexDiskClientCategorizesProviderFailuresWithoutSecrets(t *testing.T) {
+	cases := []struct {
+		name string
+		transport http.RoundTripper
+		want error
+	}{
+		{
+			name: "network",
+			transport: yandexListingTestTransport(func(*http.Request) (*http.Response, error) {
+				return nil, errors.New("secret-token upstream connection failed")
+			}),
+			want: ErrYandexTransport,
+		},
+		{
+			name: "invalid JSON",
+			transport: yandexListingTestTransport(func(*http.Request) (*http.Response, error) {
+				return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader("{malformed"))}, nil
+			}),
+			want: ErrYandexJSON,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			client := YandexDiskClient{Client: &http.Client{Transport: tc.transport}}
+			var dst struct{}
+			err := client.do(context.Background(), "secret-token", "https://cloud-api.yandex.net/v1/disk/resources", &dst)
+			if !errors.Is(err, tc.want) {
+				t.Fatalf("got error %v, want %v", err, tc.want)
+			}
+			if strings.Contains(err.Error(), "secret-token") {
+				t.Fatal("secret leaked in error")
 			}
 		})
 	}
