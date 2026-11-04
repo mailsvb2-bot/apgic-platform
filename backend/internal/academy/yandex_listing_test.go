@@ -79,8 +79,8 @@ func TestYandexDiskListFilesRejectsForeignAndMalformedEntries(t *testing.T) {
 
 func TestYandexDiskListFilesRejectsMissingMetadataRatherThanPhantomEmptyFolder(t *testing.T) {
 	cases := []struct {
-		name string
-		body string
+		name  string
+		body  string
 		valid bool
 	}{
 		{"missing embedded", `{}`, false},
