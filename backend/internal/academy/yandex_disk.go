@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -46,6 +47,10 @@ var (
 	ErrYandexTransport = errors.New("cloud transport failed")
 	ErrYandexJSON      = errors.New("cloud provider JSON invalid")
 	ErrYandexListing   = errors.New("cloud provider listing invalid")
+	ErrYandexReauth = errors.New("cloud provider authorization rejected")
+	ErrYandexResourceMissing = errors.New("cloud provider resource not found")
+	ErrYandexRateLimited = errors.New("cloud provider rate limited")
+	ErrYandexProviderDown = errors.New("cloud provider unavailable")
 )
 
 func (c YandexDiskClient) do(ctx context.Context, token, endpoint string, dst any) error {
@@ -71,16 +76,40 @@ func (c YandexDiskClient) do(ctx context.Context, token, endpoint string, dst an
 	protected.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
-	resp, err := protected.Do(req)
-	if err != nil {
-		if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			return context.DeadlineExceeded
+	var resp *http.Response
+	for attempt := 1; ; attempt++ {
+		resp, err = protected.Do(req)
+		wait, retry := time.Duration(0), false
+		if err != nil {
+			if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				return context.DeadlineExceeded
+			}
+			if ctx.Err() != nil { return ErrYandexTransport }
+			retry = true
+		} else if yandexRetryableStatus(resp.StatusCode) {
+			retry = true
+			wait = yandexRetryAfter(resp.Header.Get("Retry-After"))
 		}
-		return ErrYandexTransport
+		if !retry || attempt >= yandexMaxAttempts { break }
+		if resp != nil {
+			_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 64<<10))
+			resp.Body.Close()
+			resp = nil
+		}
+		if wait == 0 { wait = yandexRetryBaseDelay << (attempt-1) }
+		timer := time.NewTimer(wait)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			if errors.Is(ctx.Err(), context.DeadlineExceeded) { return context.DeadlineExceeded }
+			return ErrYandexTransport
+		case <-timer.C:
+		}
 	}
+	if err != nil { return ErrYandexTransport }
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("cloud provider response %d", resp.StatusCode)
+		return YandexStatusError{Status: resp.StatusCode}
 	}
 	// Decode one bounded JSON document, not merely a valid prefix followed
 	// by another object or malformed provider data.
@@ -245,4 +274,33 @@ func YandexMediaCheckRedirect(req *http.Request, via []*http.Request) error {
 		req.Header.Del(name)
 	}
 	return nil
+}
+
+type YandexStatusError struct{ Status int }
+func (e YandexStatusError) Error() string { return fmt.Sprintf("cloud provider response %d", e.Status) }
+func (e YandexStatusError) Is(target error) bool {
+	switch target {
+	case ErrYandexReauth: return e.Status == http.StatusUnauthorized || e.Status == http.StatusForbidden
+	case ErrYandexResourceMissing: return e.Status == http.StatusNotFound
+	case ErrYandexRateLimited: return e.Status == http.StatusTooManyRequests
+	case ErrYandexProviderDown: return e.Status >= 500
+	}
+	return false
+}
+const yandexMaxAttempts = 3
+var yandexRetryBaseDelay = 300 * time.Millisecond
+func yandexRetryableStatus(status int) bool {
+	return status == http.StatusTooManyRequests || status == http.StatusBadGateway ||
+		status == http.StatusServiceUnavailable || status == http.StatusGatewayTimeout
+}
+func yandexRetryAfter(value string) time.Duration {
+	seconds, err := strconv.Atoi(strings.TrimSpace(value))
+	if err != nil || seconds <= 0 { return 0 }
+	if seconds > 3 { seconds = 3 }
+	return time.Duration(seconds)*time.Second
+}
+func YandexProviderError(err error) bool {
+	return errors.Is(err, ErrYandexReauth) || errors.Is(err, ErrYandexResourceMissing) ||
+		errors.Is(err, ErrYandexRateLimited) || errors.Is(err, ErrYandexProviderDown) ||
+		errors.Is(err, ErrYandexTransport) || errors.Is(err, context.DeadlineExceeded)
 }
