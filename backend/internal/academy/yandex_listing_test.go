@@ -76,3 +76,38 @@ func TestYandexDiskListFilesRejectsForeignAndMalformedEntries(t *testing.T) {
 		})
 	}
 }
+
+func TestYandexDiskListFilesRejectsMissingMetadataRatherThanPhantomEmptyFolder(t *testing.T) {
+	cases := []struct {
+		name string
+		body string
+		valid bool
+	}{
+		{"missing embedded", `{}`, false},
+		{"null embedded", `{"_embedded":null}`, false},
+		{"missing items", `{"_embedded":{"total":0}}`, false},
+		{"null items", `{"_embedded":{"items":null,"total":0}}`, false},
+		{"missing total", `{"_embedded":{"items":[]}}`, false},
+		{"null total", `{"_embedded":{"items":[],"total":null}}`, false},
+		{"real empty folder", `{"_embedded":{"items":[],"total":0}}`, true},
+		{"empty page after total", `{"_embedded":{"items":[],"total":1}}`, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			client := YandexDiskClient{Client: &http.Client{Transport: yandexListingTestTransport(func(req *http.Request) (*http.Response, error) {
+				if req.URL.Query().Get("fields") != "_embedded" {
+					t.Errorf("expected untruncated embedded metadata")
+				}
+				return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(tc.body))}, nil
+			})}}
+			files, total, err := client.ListFiles(context.Background(), "private-token", "disk:/", 0, 100)
+			if tc.valid {
+				if err != nil || len(files) != 0 || total < 0 {
+					t.Fatalf("valid listing rejected: files=%d total=%d err=%v", len(files), total, err)
+				}
+			} else if err == nil {
+				t.Fatal("malformed listing treated as an empty folder")
+			}
+		})
+	}
+}
