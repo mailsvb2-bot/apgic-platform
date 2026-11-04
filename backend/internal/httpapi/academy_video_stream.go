@@ -329,6 +329,6 @@ func academyVideoUpstreamClient() *http.Client {
 			MaxResponseHeaderBytes: 64 << 10,
 			DisableCompression:     true,
 		},
-		CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse },
+		CheckRedirect: academy.YandexMediaCheckRedirect,
 	}
 }
