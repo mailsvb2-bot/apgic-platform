@@ -217,3 +217,32 @@ func ValidateYandexDownloadURL(raw string) bool {
 	return err == nil && u.Scheme == "https" && u.User == nil && u.Fragment == "" &&
 		(u.Port() == "" || u.Port() == "443") && trustedYandexDownloadHost(u.Hostname())
 }
+
+// Yandex downloader can redirect to its HTTPS storage node.
+func trustedYandexStorageHost(host string) bool {
+	host = strings.ToLower(strings.TrimSuffix(host, "."))
+	if trustedYandexDownloadHost(host) {
+		return true
+	}
+	label, ok := strings.CutSuffix(host, ".storage.yandex.net")
+	return ok && label != "" && !strings.Contains(label, ".")
+}
+
+// ValidateYandexStorageRedirect validates a provider redirect hop.
+func ValidateYandexStorageRedirect(target *url.URL) bool {
+	return target != nil && target.Scheme == "https" && target.User == nil &&
+		(target.Port() == "" || target.Port() == "443") && trustedYandexStorageHost(target.Hostname())
+}
+
+const YandexMediaMaxRedirects = 3
+
+// Reject untrusted destinations and strip credentials on redirect.
+func YandexMediaCheckRedirect(req *http.Request, via []*http.Request) error {
+	if len(via) == 0 || len(via) > YandexMediaMaxRedirects || req == nil || !ValidateYandexStorageRedirect(req.URL) {
+		return http.ErrUseLastResponse
+	}
+	for _, name := range []string{"Authorization", "Cookie", "Proxy-Authorization", "Referer"} {
+		req.Header.Del(name)
+	}
+	return nil
+}
