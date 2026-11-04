@@ -69,6 +69,11 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 		ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 		providerClient := academy.YandexDiskClient{}
 		metadata, err := providerClient.VerifyVideo(ctx, token, path)
+		if err != nil && academy.YandexProviderError(err) {
+			cancel()
+			academyCloudHTTPError(w, r, err, academy.ErrUnavailable)
+			return
+		}
 		if err != nil || !academyVideoFingerprintMatches(metadata, resourceID, digest, size) {
 			cancel()
 			academyHTTPError(w, r, academy.ErrEntitlement)
@@ -77,7 +82,7 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 		download, err := providerClient.TemporaryDownload(ctx, token, path)
 		cancel()
 		if err != nil {
-			academyHTTPError(w, r, academy.ErrUnavailable)
+			academyCloudHTTPError(w, r, err, academy.ErrUnavailable)
 			return
 		}
 		if !academy.ValidateYandexDownloadURL(download) {
