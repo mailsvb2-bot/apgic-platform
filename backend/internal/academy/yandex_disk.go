@@ -28,9 +28,9 @@ type YandexDiskFile struct {
 	SHA256     string `json:"sha256"`
 }
 type yandexDiskFilesResponse struct {
-	Embedded struct {
-		Items []YandexDiskFile `json:"items"`
-		Total int              `json:"total"`
+	Embedded *struct {
+		Items *[]YandexDiskFile `json:"items"`
+		Total *int              `json:"total"`
 	} `json:"_embedded"`
 }
 type yandexDiskDownloadResponse struct {
@@ -109,16 +109,23 @@ func (c YandexDiskClient) ListFiles(ctx context.Context, token, path string, off
 	if err := c.do(ctx, token, yandexDiskAPI+"?"+q.Encode(), &d); err != nil {
 		return nil, 0, err
 	}
+	// Missing or null listing fields are not an empty folder. Without
+	// presence checks, Go zero-values silently turn malformed 200 responses
+	// into a successful empty listing, hiding provider failures.
+	if d.Embedded == nil || d.Embedded.Items == nil || d.Embedded.Total == nil {
+		return nil, 0, fmt.Errorf("%w: missing_fields", ErrYandexListing)
+	}
+	items, total := *d.Embedded.Items, *d.Embedded.Total
 	// Provider metadata is not an authorization decision. Reject malformed
 	// folder entries before they become browser navigation/import candidates.
 	// Only direct children of the requested folder may be displayed.
-	if d.Embedded.Total < 0 || len(d.Embedded.Items) > limit ||
-		(len(d.Embedded.Items) > 0 && (offset > d.Embedded.Total || len(d.Embedded.Items) > d.Embedded.Total-offset)) {
+	if total < 0 || len(items) > limit ||
+		(len(items) > 0 && (offset > total || len(items) > total-offset)) {
 		return nil, 0, fmt.Errorf("%w: pagination", ErrYandexListing)
 	}
 	prefix := strings.TrimSuffix(path, "/") + "/"
-	seen := make(map[string]struct{}, len(d.Embedded.Items))
-	for _, file := range d.Embedded.Items {
+	seen := make(map[string]struct{}, len(items))
+	for _, file := range items {
 		if !ValidYandexDiskPath(file.Path) || !strings.HasPrefix(file.Path, prefix) ||
 			(file.Type != "file" && file.Type != "dir") || file.Name == "" || file.Size < 0 {
 			return nil, 0, fmt.Errorf("%w: entry", ErrYandexListing)
@@ -134,7 +141,7 @@ func (c YandexDiskClient) ListFiles(ctx context.Context, token, path string, off
 		}
 		seen[file.Path] = struct{}{}
 	}
-	return d.Embedded.Items, d.Embedded.Total, nil
+	return items, total, nil
 }
 
 // VerifyVideo resolves a selected file using the author's OAuth credential
