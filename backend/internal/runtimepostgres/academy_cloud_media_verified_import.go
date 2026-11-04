@@ -46,6 +46,9 @@ func (c *Checker) AcademyImportVerifiedCloudMedia(ctx context.Context, actor str
 		mu.Unlock()
 		return nil
 	})
+	if err != nil && academy.YandexProviderError(err) {
+		return nil, err
+	}
 	if err != nil || ctx.Err() != nil {
 		return nil, academy.ErrDenied
 	}
