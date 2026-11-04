@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"errors"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -68,8 +69,12 @@ func registerAcademyCloudBrowser(mux *http.ServeMux, store academyStore, session
 			return
 		}
 		files, total, err := reader.AcademyBrowseYandexDisk(actor, path, offset, 100)
+		if errors.Is(err, academy.ErrDenied) {
+			academyCloudNotConnected(w, r)
+			return
+		}
 		if err != nil {
-			academyHTTPError(w, r, academy.ErrUnavailable)
+			academyCloudHTTPError(w, r, err, academy.ErrUnavailable)
 			return
 		}
 		w.Header().Set("Cache-Control", "private, no-store")
