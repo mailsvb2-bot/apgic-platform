@@ -153,20 +153,31 @@ export default function AcademyPage(){
    `/v1/academy/courses/${selected.id}/versions/${selected.version_id}/outline`);
   setModules(d.modules);setLessons(d.lessons);setModuleID(d.modules[0]?.id||"");
  },[]);
- // After the signed OAuth callback, reopen only a course/version returned
- // by the authenticated author catalog. Never trust query IDs as ownership.
+ // Resume a verified author's draft directly after the OAuth callback.
+ // A missing course/version pair is not an error when exactly one draft exists.
  useEffect(()=>{
   const params=new URLSearchParams(window.location.search);
   if(params.get("cloud_connected")!=="yandex")return;
+  const drafts=mine.filter(c=>c.state==="DRAFT");
   const courseId=params.get("course_id"),versionId=params.get("version_id");
-  if(!courseId||!versionId)return;
-  const selected=mine.find(c=>c.id===courseId&&c.version_id===versionId&&c.state==="DRAFT");
-  if(!selected)return;
+  const selected=courseId&&versionId
+   ? drafts.find(c=>c.id===courseId&&c.version_id===versionId)
+   : drafts.length===1?drafts[0]:undefined;
+  if(!selected){
+   if(drafts.length>1)setNotice("Яндекс Диск подключён. Выберите нужный черновик ниже.");
+   else if(drafts.length===0)setNotice("Яндекс Диск подключён. Создайте курс, чтобы добавить видео.");
+   else setNotice("Яндекс Диск подключён. Выберите черновик ниже.");
+   return;
+  }
   let cancelled=false;
   void loadOutline(selected).then(()=>{
-   if(!cancelled)window.history.replaceState(null,"","/academy?cloud_connected=yandex");
+   if(cancelled)return;
+   setNotice("Яндекс Диск подключён. Открываем ваши видео...");
+   window.requestAnimationFrame(()=>{
+    document.getElementById("academy-media-editor")?.scrollIntoView({behavior:"smooth",block:"start"});
+   });
   }).catch(()=>{
-   if(!cancelled)setNotice("Облако подключено, но редактор не удалось открыть. Выберите курс в разделе «Мои курсы».");
+   if(!cancelled)setNotice("Не удалось открыть редактор. Выберите курс ниже.");
   });
   return ()=>{cancelled=true};
  },[mine,loadOutline]);
