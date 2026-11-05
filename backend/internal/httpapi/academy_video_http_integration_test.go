@@ -147,7 +147,12 @@ func TestAcademyVideoHTTPClientSeesRevocationMidStream(t *testing.T) {
 
 	var authorized atomic.Bool
 	authorized.Store(true)
+	revocationObserved := make(chan struct{})
 	gateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !authorized.Load() {
+			http.Error(w, "access denied", http.StatusForbidden)
+			return
+		}
 		ctx, cancel := context.WithCancel(r.Context())
 		defer cancel()
 		upstreamRequest, err := http.NewRequestWithContext(ctx, http.MethodGet, provider.URL, nil)
@@ -169,6 +174,7 @@ func TestAcademyVideoHTTPClientSeesRevocationMidStream(t *testing.T) {
 			defer close(watchDone)
 			academyWatchVideoEntitlement(ctx, func() {
 				academyCancelRevokedVideoResponse(w, cancel)
+				close(revocationObserved)
 			}, 5*time.Millisecond, authorized.Load)
 		}()
 		defer func() {
@@ -197,9 +203,27 @@ func TestAcademyVideoHTTPClientSeesRevocationMidStream(t *testing.T) {
 		t.Fatal("wrong first video chunk")
 	}
 	authorized.Store(false)
+	select {
+	case <-revocationObserved:
+	case <-time.After(2 * time.Second):
+		t.Fatal("revocation watcher did not observe revoked access")
+	}
 	close(releaseSecond)
 	remaining, err := io.ReadAll(response.Body)
 	if len(remaining) != 0 || err == nil {
 		t.Fatalf("revoked learner received %d extra bytes, read error=%v", len(remaining), err)
+	}
+	seek, err := http.NewRequest(http.MethodGet, gateway.URL, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	seek.Header.Set("Range", "bytes=65536-")
+	seekResponse, err := client.Do(seek)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer seekResponse.Body.Close()
+	if seekResponse.StatusCode != http.StatusForbidden {
+		t.Fatalf("revoked seek returned %d, want 403", seekResponse.StatusCode)
 	}
 }
