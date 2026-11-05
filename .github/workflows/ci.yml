@@ -870,6 +870,23 @@ jobs:
           test -n "$MERGED_MANIFEST"
           python tools/mobile_build_privacy_inspection.py             --android-manifest "$MERGED_MANIFEST"             --android-data-safety apps/mobile/android/data-safety.yaml             --output evidence/android-build-privacy-inspection.json
           sha256sum apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk > evidence/android-debug.sha256
+      - name: Recover disk reserved by build-only Android NDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
+          test -n "$SDK_ROOT"
+          test -f apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          # The pinned NDK is needed to compile native APK libraries, but the
+          # subsequent emulator/adb E2E consumes only the finished APK.
+          # Preserve Android SDK platform tools, emulator and system images.
+          NDK_DIR="$SDK_ROOT/ndk/27.1.12297006"
+          if [ -d "$NDK_DIR" ]; then
+            du -sh "$NDK_DIR"
+            rm -rf -- "$NDK_DIR"
+          fi
+          echo "Free disk after build-only NDK cleanup:"
+          df -h "$SDK_ROOT"
       - name: Prove native capability, lifecycle and Organization/Product journey on Android emulator
         shell: bash
         run: bash tools/mobile_android_capability_e2e.sh
