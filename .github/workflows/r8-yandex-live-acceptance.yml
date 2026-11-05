@@ -2,6 +2,11 @@ name: R8 real Yandex provider acceptance (manual)
 
 on:
   workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Type LIVE to confirm the selected branch contains R8 real-provider tests"
+        type: string
+        required: true
 
 permissions:
   contents: read
@@ -16,6 +21,7 @@ jobs:
     # This job deliberately has no fake/sandbox fallback or automatic trigger.
     # It proves only provider bytes and gateway copier behavior, not PSP,
     # real author/learner browser identity or PostgreSQL entitlement revocation.
+    if: inputs.confirmation == 'LIVE'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
