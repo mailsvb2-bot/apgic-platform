@@ -1128,6 +1128,11 @@ SELECT i.id::text, i.completion_evidence_ref, c.policy_version, c.id::text, i.pl
 			}
 			status.SettlementHoldReasons = append(status.SettlementHoldReasons, reason)
 		}
+		// Propagate iteration errors instead of losing settlement holds.
+		if err := rows.Err(); err != nil {
+			rows.Close()
+			return nil, err
+		}
 		rows.Close()
 		if len(status.SettlementHoldReasons) > 0 {
 			status.SettlementStatus = "HELD"
