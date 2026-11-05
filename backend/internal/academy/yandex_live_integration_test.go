@@ -18,6 +18,9 @@ func TestLiveYandexVerifiedVideoRange(t *testing.T) {
 	token := os.Getenv("APGIC_TEST_YANDEX_OAUTH_TOKEN")
 	path := os.Getenv("APGIC_TEST_YANDEX_VIDEO_PATH")
 	if token == "" || path == "" {
+		if os.Getenv("APGIC_REQUIRE_R8_LIVE_PROOF") == "true" {
+			t.Fatal("R8 live proof required: set APGIC_TEST_YANDEX_OAUTH_TOKEN and APGIC_TEST_YANDEX_VIDEO_PATH; a skipped provider test is not evidence")
+		}
 		t.Skip("live Yandex OAuth token and owned test video are required")
 	}
 	if !ValidYandexDiskPath(path) {

@@ -25,6 +25,9 @@ func TestLiveAcademyYandexGatewaySeekAndRevocation(t *testing.T) {
 	token := os.Getenv("APGIC_TEST_YANDEX_OAUTH_TOKEN")
 	path := os.Getenv("APGIC_TEST_YANDEX_VIDEO_PATH")
 	if token == "" || path == "" {
+		if os.Getenv("APGIC_REQUIRE_R8_LIVE_PROOF") == "true" {
+			t.Fatal("R8 live proof required: set APGIC_TEST_YANDEX_OAUTH_TOKEN and APGIC_TEST_YANDEX_VIDEO_PATH; a skipped gateway test is not evidence")
+		}
 		t.Skip("real author OAuth token and Yandex test video are required")
 	}
 	if !academy.ValidYandexDiskPath(path) {
@@ -171,6 +174,9 @@ func TestLiveAcademyYandexGatewayStopsInFlightAfterRevocation(t *testing.T) {
 	token := os.Getenv("APGIC_TEST_YANDEX_OAUTH_TOKEN")
 	path := os.Getenv("APGIC_TEST_YANDEX_VIDEO_PATH")
 	if token == "" || path == "" {
+		if os.Getenv("APGIC_REQUIRE_R8_LIVE_PROOF") == "true" {
+			t.Fatal("R8 live proof required: set APGIC_TEST_YANDEX_OAUTH_TOKEN and APGIC_TEST_YANDEX_VIDEO_PATH; a skipped gateway test is not evidence")
+		}
 		t.Skip("real author OAuth token and Yandex test video are required")
 	}
 	if !academy.ValidYandexDiskPath(path) {
@@ -184,6 +190,9 @@ func TestLiveAcademyYandexGatewayStopsInFlightAfterRevocation(t *testing.T) {
 		t.Fatal("real provider video verification failed")
 	}
 	if file.Size < 131072 {
+		if os.Getenv("APGIC_REQUIRE_R8_LIVE_PROOF") == "true" {
+			t.Fatal("R8 live proof requires an author-owned video of at least 128 KiB; this fixture cannot prove in-flight revocation")
+		}
 		t.Skip("in-flight proof requires an author-owned video of at least 128 KiB")
 	}
 	href, err := provider.TemporaryDownload(ctx, token, path)
