@@ -21,7 +21,6 @@ jobs:
     # This job deliberately has no fake/sandbox fallback or automatic trigger.
     # It proves only provider bytes and gateway copier behavior, not PSP,
     # real author/learner browser identity or PostgreSQL entitlement revocation.
-    if: inputs.confirmation == 'LIVE'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -36,6 +35,16 @@ jobs:
         with:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
+      - name: Require deliberate LIVE confirmation
+        shell: bash
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          set -euo pipefail
+          if [ "$CONFIRMATION" != "LIVE" ]; then
+            echo "::error::Live evidence requires explicit LIVE confirmation; a skipped job is not acceptance."
+            exit 1
+          fi
       - name: Require real provider inputs (never print secrets)
         shell: bash
         run: |
@@ -44,6 +53,25 @@ jobs:
             echo "::error::R8 live provider credentials or an author-owned test video are not configured; this run is NOT accepted."
             exit 1
           fi
+      - name: Require all three live tests to exist in selected commit
+        shell: bash
+        working-directory: backend
+        run: |
+          set -euo pipefail
+          # 'go test -run' returns success when no test names match. Reject
+          # that false-positive (including accidental workflow runs on main).
+          academy_tests="$(go test ./internal/academy -list '^TestLive' 2>&1)"
+          http_tests="$(go test ./internal/httpapi -list '^TestLive' 2>&1)"
+          printf '%s\n' "$academy_tests" | grep -Fxq 'TestLiveYandexVerifiedVideoRange' || {
+            echo "::error::Selected commit does not contain the real-provider range test"
+            exit 1
+          }
+          for name in TestLiveAcademyYandexGatewaySeekAndRevocation TestLiveAcademyYandexGatewayStopsInFlightAfterRevocation; do
+            printf '%s\n' "$http_tests" | grep -Fxq "$name" || {
+              echo "::error::Selected commit is missing an obligatory real gateway test"
+              exit 1
+            }
+          done
       - name: Run only mandatory real provider media checks
         shell: bash
         working-directory: backend
