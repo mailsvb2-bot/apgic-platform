@@ -1005,7 +1005,11 @@ jobs:
       - name: Prove native capability, lifecycle and Organization/Product journey on iOS Simulator
         shell: bash
         run: bash tools/mobile_ios_capability_e2e.sh
+      # Preserve the AUTH-001 accessibility snapshot and other device proof on
+      # failure. The native security test remains mandatory and red when any
+      # tenant-isolation or audit assertion cannot be verified.
       - uses: actions/upload-artifact@v7
+        if: ${{ always() }}
         with:
           name: ios-native-simulator-build
           path: |
