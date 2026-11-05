@@ -25,3 +25,16 @@ These tests exercise real cloud range bytes through the hardened media transport
 5. Confirm no provider URL/token in browser JSON, redirect Location, referrer, logs or telemetry. Record browser and native device results.
 
 Do **not** set `APGIC_ACADEMY_VIDEO_PUBLISH_ENABLED=true` or merge #343 solely on a green CI run or on the real-provider smoke above. VIDEO publication stays default-off until the complete protected journey has been independently evidenced.
+
+## CI startup failure is not a test verdict
+
+A GitHub Actions `startup_failure` with **zero jobs** (for example,
+[run 42067470439](https://github.com/mailsvb2-bot/apgic-platform/actions/runs/42067470439))
+does not establish application or test failure **and is not a PASS**. Do not
+count a prior green workflow on an older SHA as an acceptable final-HEAD gate.
+
+Record the failed run ID, exact SHA and the absence of job results, and
+require a **new successful full CI run against the current R8 PR HEAD**.
+Do not skip Android/iOS/PostgreSQL jobs or weaken the release checks to
+compensate for GitHub orchestration failure. Manual Yandex provider acceptance
+remains an independent, real-secret opt-in test and does not replace CI.
