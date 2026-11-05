@@ -25,6 +25,9 @@ func TestLiveAcademyYandexGatewaySeekAndRevocation(t *testing.T) {
 	token := os.Getenv("APGIC_TEST_YANDEX_OAUTH_TOKEN")
 	path := os.Getenv("APGIC_TEST_YANDEX_VIDEO_PATH")
 	if token == "" || path == "" {
+		if os.Getenv("APGIC_REQUIRE_R8_LIVE_PROOF") == "true" {
+			t.Fatal("R8 live proof required: set APGIC_TEST_YANDEX_OAUTH_TOKEN and APGIC_TEST_YANDEX_VIDEO_PATH; a skipped gateway test is not evidence")
+		}
 		t.Skip("real author OAuth token and Yandex test video are required")
 	}
 	if !academy.ValidYandexDiskPath(path) {
@@ -171,6 +174,9 @@ func TestLiveAcademyYandexGatewayStopsInFlightAfterRevocation(t *testing.T) {
 	token := os.Getenv("APGIC_TEST_YANDEX_OAUTH_TOKEN")
 	path := os.Getenv("APGIC_TEST_YANDEX_VIDEO_PATH")
 	if token == "" || path == "" {
+		if os.Getenv("APGIC_REQUIRE_R8_LIVE_PROOF") == "true" {
+			t.Fatal("R8 live proof required: set APGIC_TEST_YANDEX_OAUTH_TOKEN and APGIC_TEST_YANDEX_VIDEO_PATH; a skipped gateway test is not evidence")
+		}
 		t.Skip("real author OAuth token and Yandex test video are required")
 	}
 	if !academy.ValidYandexDiskPath(path) {
