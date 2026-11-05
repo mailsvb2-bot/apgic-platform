@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"errors"
 	"net/http"
 
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/academy"
@@ -52,12 +53,12 @@ func registerAcademyCloudMedia(mux *http.ServeMux, store academyStore, sessions 
 		}
 		owner, ok := store.(academyCloudMediaStore)
 		if !ok {
-			http.Error(w, "Unavailable", 503)
+			academyHTTPError(w, r, academy.ErrUnavailable)
 			return
 		}
 		out, err := owner.AcademyAuthorCloudMedia(actor)
 		if err != nil {
-			http.Error(w, "Unavailable", 503)
+			academyHTTPError(w, r, academy.ErrUnavailable)
 			return
 		}
 		w.Header().Set("Cache-Control", "private, no-store")
@@ -80,12 +81,19 @@ func registerAcademyCloudMedia(mux *http.ServeMux, store academyStore, sessions 
 		// through the protected Yandex gateway and are denied here.
 		importer, ok := store.(academyCloudVerifiedImporter)
 		if !ok {
-			http.Error(w, "Cloud verification unavailable", http.StatusServiceUnavailable)
+			academyHTTPError(w, r, academy.ErrUnavailable)
 			return
 		}
 		out, err := importer.AcademyImportVerifiedCloudMedia(r.Context(), actor, body.Items)
 		if err != nil {
-			http.Error(w, "Import failed", http.StatusBadRequest)
+			switch {
+			case academy.YandexProviderError(err):
+				academyCloudHTTPError(w, r, err, academy.ErrUnavailable)
+			case errors.Is(err, academy.ErrUnavailable):
+				academyHTTPError(w, r, academy.ErrUnavailable)
+			default:
+				academyCloudImportRejected(w, r)
+			}
 			return
 		}
 		w.Header().Set("Cache-Control", "private, no-store")
@@ -98,12 +106,12 @@ func registerAcademyCloudMedia(mux *http.ServeMux, store academyStore, sessions 
 		}
 		owner, ok := store.(academyCloudMediaStore)
 		if !ok {
-			http.Error(w, "Unavailable", 503)
+			academyHTTPError(w, r, academy.ErrUnavailable)
 			return
 		}
 		out, err := owner.AcademyAuthorLessonMedia(actor, r.PathValue("courseID"), r.PathValue("versionID"))
 		if err != nil {
-			http.Error(w, "Unavailable", 503)
+			academyHTTPError(w, r, academy.ErrUnavailable)
 			return
 		}
 		w.Header().Set("Cache-Control", "private, no-store")
@@ -116,7 +124,7 @@ func registerAcademyCloudMedia(mux *http.ServeMux, store academyStore, sessions 
 		}
 		owner, ok := store.(academyCloudMediaStore)
 		if !ok {
-			http.Error(w, "Unavailable", 503)
+			academyHTTPError(w, r, academy.ErrUnavailable)
 			return
 		}
 		var body struct {
@@ -126,7 +134,7 @@ func registerAcademyCloudMedia(mux *http.ServeMux, store academyStore, sessions 
 			return
 		}
 		if err := owner.AcademyAssignCloudMedia(actor, r.PathValue("courseID"), r.PathValue("versionID"), body.Items); err != nil {
-			http.Error(w, "Assignment rejected", 409)
+			academyHTTPError(w, r, academy.ErrConflict)
 			return
 		}
 		writeJSON(w, 200, map[string]any{"state": "SAVED"})

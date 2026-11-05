@@ -47,6 +47,7 @@ func TestLiveYandexVerifiedVideoRange(t *testing.T) {
 	request.Header.Set("Range", "bytes=0-1023")
 	request.Header.Set("Accept-Encoding", "identity")
 	client := NewYandexSecureClient(20 * time.Second)
+	client.CheckRedirect = YandexMediaCheckRedirect
 	response, err := client.Do(request)
 	if err != nil {
 		t.Fatal("live Yandex video range transport failed")
