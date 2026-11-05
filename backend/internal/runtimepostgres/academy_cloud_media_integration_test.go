@@ -129,6 +129,20 @@ func TestAcademyCloudMediaDraftOwnerAndVideoBoundaryPostgres(t *testing.T) {
 	if videos, err := store.AcademyLearnerVideoManifest(outsider, course.ID, video.ID); !errors.Is(err, academy.ErrEntitlement) || len(videos) != 0 {
 		t.Fatalf("unenrolled user received private video metadata: %+v err=%v", videos, err)
 	}
+	// The privileged byte-source resolver must enforce the same canonical
+	// entitlement and publication boundary as the learner manifest. A draft
+	// author, an unrelated identity, and an invented enrollment must never
+	// obtain a cloud source even when a valid lesson/media association exists.
+	for _, actor := range []string{author, outsider} {
+		for _, enrollmentID := range []string{course.ID, video.ID} {
+			resolvedAuthor, provider, source, sourceErr := store.AcademyLearnerVideoSource(actor, enrollmentID, video.ID, owned[0].ID)
+			if !errors.Is(sourceErr, academy.ErrEntitlement) || resolvedAuthor != "" || provider != "" || source != "" {
+				t.Fatalf("draft or unenrolled source escaped canonical gate: actor=%s author=%q provider=%q source=%q err=%v",
+					actor, resolvedAuthor, provider, source, sourceErr)
+			}
+		}
+	}
+
 	// Direct SQL cannot bypass the VIDEO-only invariant or owner isolation.
 	if _, err := db.Exec("INSERT INTO academy_lesson_media(lesson_id,media_id,ordinal) VALUES($1::uuid,$2::uuid,1)",
 		reading.ID, owned[0].ID); err == nil {
