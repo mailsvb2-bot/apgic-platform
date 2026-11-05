@@ -1,0 +1,54 @@
+name: R8 real Yandex provider acceptance (manual)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: r8-real-yandex-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  real-yandex-gateway:
+    name: Real Yandex media range and revocation smoke
+    # This job deliberately has no fake/sandbox fallback or automatic trigger.
+    # It proves only provider bytes and gateway copier behavior, not PSP,
+    # real author/learner browser identity or PostgreSQL entitlement revocation.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      APGIC_REQUIRE_R8_LIVE_PROOF: "true"
+      APGIC_TEST_YANDEX_OAUTH_TOKEN: ${{ secrets.APGIC_TEST_YANDEX_OAUTH_TOKEN }}
+      APGIC_TEST_YANDEX_VIDEO_PATH: ${{ secrets.APGIC_TEST_YANDEX_VIDEO_PATH }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: Require real provider inputs (never print secrets)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${APGIC_TEST_YANDEX_OAUTH_TOKEN:-}" ] || [ -z "${APGIC_TEST_YANDEX_VIDEO_PATH:-}" ]; then
+            echo "::error::R8 live provider credentials or an author-owned test video are not configured; this run is NOT accepted."
+            exit 1
+          fi
+      - name: Run only mandatory real provider media checks
+        shell: bash
+        working-directory: backend
+        run: |
+          set -euo pipefail
+          go test ./internal/academy ./internal/httpapi \
+            -run '^TestLive(YandexVerifiedVideoRange|AcademyYandexGatewaySeekAndRevocation|AcademyYandexGatewayStopsInFlightAfterRevocation)$' \
+            -count=1 -timeout=10m
+      - name: Identify exact tested candidate
+        if: success()
+        shell: bash
+        run: |
+          echo "R8 live provider smoke PASSED for commit ${GITHUB_SHA}."
+          echo "This does not certify signed users, real PSP capture, entitlement storage/revocation, or release approval."
