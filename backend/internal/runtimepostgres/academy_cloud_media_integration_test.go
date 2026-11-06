@@ -304,6 +304,22 @@ VALUES($1::uuid,'YANDEX_DISK',$2)`, author, "encrypted-test-only-placeholder-cre
 	if err != nil || len(second) != 1 || first[0].ID == second[0].ID {
 		t.Fatalf("new OAuth account reused old media identity: %+v %+v err=%v", first, second, err)
 	}
+	// The privileged resolver must bind all four dimensions (owner, media ID,
+	// provider and exact source path). A valid current-generation file must
+	// never authorize another media ID or a substituted path/provider.
+	for _, candidate := range []struct {
+		name, owner, provider, source, mediaID string
+	}{
+		{"old media ID", author, "YANDEX_DISK", replaced[0].ProviderFileRef, first[0].ID},
+		{"different path", author, "YANDEX_DISK", "disk:/other.mp4", second[0].ID},
+		{"different provider", author, "OTHER_PROVIDER", replaced[0].ProviderFileRef, second[0].ID},
+	} {
+		resource, digest, size, lookupErr := store.AcademyLearnerVideoFingerprint(candidate.owner, candidate.provider, candidate.source, candidate.mediaID)
+		if !errors.Is(lookupErr, academy.ErrEntitlement) || resource != "" || digest != "" || size != 0 {
+			t.Fatalf("%s escaped fingerprint binding: resource=%q digest=%q size=%d err=%v", candidate.name, resource, digest, size, lookupErr)
+		}
+	}
+
 	// A new verified import at the identical disk:/ path must not revive the
 	// retired generation. A stale lesson association still points to the old
 	// media ID and must remain inaccessible after the author reconnects.
