@@ -193,7 +193,7 @@ func New(options Options) http.Handler {
 	registerAcademy(mux, options.Academy, sessions, sessionConfigErr)
 	registerHighRiskProductOwnership(mux, options.ProductOwnership, sessions, stepUp, sessionConfigErr, options.Now)
 	registerClientPersonal(mux, options.ClientPersonal, sessions, sessionConfigErr, options.Now)
-	return observeRuntimeSLI(mux, sli)
+	return limitRequestBodies(observeRuntimeSLI(mux, sli), maxRequestBodyBytes)
 }
 
 func writeJSON(w http.ResponseWriter, status int, value any) {
