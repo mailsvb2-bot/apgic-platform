@@ -9,60 +9,60 @@ import (
 // the host/IP checks. Never expose ambiguous or malformed byte metadata.
 func TestAcademyVideoUpstreamRejectsAmbiguousRepresentationHeaders(t *testing.T) {
 	tests := []struct {
-		name       string
-		request    string
-		status     int
-		headers    http.Header
+		name    string
+		request string
+		status  int
+		headers http.Header
 	}{
 		{
-			name: "duplicate content type",
+			name:   "duplicate content type",
 			status: http.StatusOK,
 			headers: http.Header{
-				"Content-Type": {"video/mp4", "text/html"},
+				"Content-Type":   {"video/mp4", "text/html"},
 				"Content-Length": {"100"},
 			},
 		},
 		{
-			name: "duplicate length",
+			name:   "duplicate length",
 			status: http.StatusOK,
 			headers: http.Header{
-				"Content-Type": {"video/mp4"},
+				"Content-Type":   {"video/mp4"},
 				"Content-Length": {"100", "200"},
 			},
 		},
 		{
-			name: "compressed full representation",
+			name:   "compressed full representation",
 			status: http.StatusOK,
 			headers: http.Header{
-				"Content-Type": {"video/mp4"},
-				"Content-Length": {"100"},
+				"Content-Type":     {"video/mp4"},
+				"Content-Length":   {"100"},
 				"Content-Encoding": {"gzip"},
 			},
 		},
 		{
-			name: "range request answered with full body",
+			name:    "range request answered with full body",
 			request: "bytes=0-9",
-			status: http.StatusOK,
+			status:  http.StatusOK,
 			headers: http.Header{
-				"Content-Type": {"video/mp4"},
+				"Content-Type":   {"video/mp4"},
 				"Content-Length": {"100"},
 			},
 		},
 		{
-			name: "partial content with conflicting range",
+			name:    "partial content with conflicting range",
 			request: "bytes=0-9",
-			status: http.StatusPartialContent,
+			status:  http.StatusPartialContent,
 			headers: http.Header{
-				"Content-Type": {"video/mp4"},
-				"Content-Range": {"bytes 0-9/100", "bytes 10-19/100"},
+				"Content-Type":   {"video/mp4"},
+				"Content-Range":  {"bytes 0-9/100", "bytes 10-19/100"},
 				"Content-Length": {"10"},
 			},
 		},
 		{
-			name: "html response masquerading as video",
+			name:   "html response masquerading as video",
 			status: http.StatusOK,
 			headers: http.Header{
-				"Content-Type": {"text/html"},
+				"Content-Type":   {"text/html"},
 				"Content-Length": {"100"},
 			},
 		},
