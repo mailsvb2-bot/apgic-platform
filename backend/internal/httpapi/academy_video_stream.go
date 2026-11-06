@@ -107,9 +107,8 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 		// the enrollment and OAuth credential. Re-read its canonical binding
 		// while bytes are flowing; a stale media identity must fail closed.
 		fingerprintAllowed := func() bool {
-			currentResource, currentDigest, currentSize, lookupErr := fingerprints.AcademyLearnerVideoFingerprint(author, provider, path, r.PathValue("mediaID"))
-			return lookupErr == nil && currentResource == resourceID &&
-				strings.EqualFold(currentDigest, digest) && currentSize == size
+			return academyVideoFingerprintStillAllowed(fingerprints, author, provider, path,
+				r.PathValue("mediaID"), resourceID, digest, size)
 		}
 		authorized := func() bool {
 			return streamCtx.Err() == nil && allowed() && connectionAllowed() && fingerprintAllowed()
@@ -245,6 +244,14 @@ func academyVideoRepresentationSizeMatches(status int, headers http.Header, size
 	}
 	total, err := strconv.ParseInt(totalText, 10, 64)
 	return err == nil && total == size
+}
+
+// Re-read the canonical verified media row during an active stream. Revocation,
+// OAuth generation changes, and media replacement must all fail closed.
+func academyVideoFingerprintStillAllowed(store academyVideoFingerprintStore, author, provider, path, mediaID, resourceID, digest string, size int64) bool {
+	currentResource, currentDigest, currentSize, err := store.AcademyLearnerVideoFingerprint(author, provider, path, mediaID)
+	return err == nil && currentResource == resourceID &&
+		strings.EqualFold(currentDigest, digest) && currentSize == size
 }
 
 // academyVideoSourceStillAllowed binds every recheck to the original author,
