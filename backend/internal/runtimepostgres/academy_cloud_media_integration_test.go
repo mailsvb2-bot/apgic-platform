@@ -304,6 +304,15 @@ VALUES($1::uuid,'YANDEX_DISK',$2)`, author, "encrypted-test-only-placeholder-cre
 	if err != nil || len(second) != 1 || first[0].ID == second[0].ID {
 		t.Fatalf("new OAuth account reused old media identity: %+v %+v err=%v", first, second, err)
 	}
+	// A new verified import at the identical disk:/ path must not revive the
+	// retired generation. A stale lesson association still points to the old
+	// media ID and must remain inaccessible after the author reconnects.
+	if resource, digest, size, err := store.AcademyLearnerVideoFingerprint(author, "YANDEX_DISK", items[0].ProviderFileRef, first[0].ID); !errors.Is(err, academy.ErrEntitlement) || resource != "" || digest != "" || size != 0 {
+		t.Fatalf("retired media revived after reimport: resource=%q digest=%q size=%d err=%v", resource, digest, size, err)
+	}
+	if resource, digest, size, err := store.AcademyLearnerVideoFingerprint(author, "YANDEX_DISK", replaced[0].ProviderFileRef, second[0].ID); err != nil || resource != replaced[0].ResourceID || digest != replaced[0].SHA256 || size != replaced[0].FileSize {
+		t.Fatalf("current generation fingerprint unavailable: resource=%q digest=%q size=%d err=%v", resource, digest, size, err)
+	}
 	catalog, err := store.AcademyAuthorCloudMedia(author)
 	if err != nil || len(catalog) != 2 {
 		t.Fatalf("author catalog after reconnect: %+v err=%v", catalog, err)
