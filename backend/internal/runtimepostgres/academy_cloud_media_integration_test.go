@@ -315,7 +315,13 @@ VALUES($1::uuid,'YANDEX_DISK',$2)`, author, "encrypted-test-only-placeholder-cre
 		{"different provider", author, "OTHER_PROVIDER", replaced[0].ProviderFileRef, second[0].ID},
 	} {
 		resource, digest, size, lookupErr := store.AcademyLearnerVideoFingerprint(candidate.owner, candidate.provider, candidate.source, candidate.mediaID)
-		if !errors.Is(lookupErr, academy.ErrEntitlement) || resource != "" || digest != "" || size != 0 {
+		// Invalid providers are rejected at the API boundary before the
+		// entitlement lookup; valid-provider mismatches deny entitlement.
+		expected := academy.ErrEntitlement
+		if candidate.provider != "YANDEX_DISK" {
+			expected = academy.ErrInvalid
+		}
+		if !errors.Is(lookupErr, expected) || resource != "" || digest != "" || size != 0 {
 			t.Fatalf("%s escaped fingerprint binding: resource=%q digest=%q size=%d err=%v", candidate.name, resource, digest, size, lookupErr)
 		}
 	}
