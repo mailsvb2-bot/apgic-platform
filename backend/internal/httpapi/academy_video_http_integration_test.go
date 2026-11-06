@@ -130,11 +130,23 @@ func TestAcademyVideoHTTPReadStopsAfterRevocation(t *testing.T) {
 // chunk must not receive the second one after canonical access is revoked.
 // The deliberately incomplete Content-Length must surface as a client error.
 func TestAcademyVideoHTTPClientSeesRevocationMidStream(t *testing.T) {
+	for _, status := range []int{http.StatusOK, http.StatusPartialContent} {
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			testAcademyVideoHTTPClientSeesRevocationMidStream(t, status)
+		})
+	}
+}
+
+func testAcademyVideoHTTPClientSeesRevocationMidStream(t *testing.T, status int) {
 	const chunkSize = 64 << 10
 	releaseSecond := make(chan struct{})
 	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "video/mp4")
 		w.Header().Set("Content-Length", "131072")
+		if status == http.StatusPartialContent {
+			w.Header().Set("Content-Range", "bytes 65536-196607/262144")
+			w.WriteHeader(status)
+		}
 		_, _ = io.WriteString(w, strings.Repeat("a", chunkSize))
 		w.(http.Flusher).Flush()
 		select {
@@ -168,7 +180,7 @@ func TestAcademyVideoHTTPClientSeesRevocationMidStream(t *testing.T) {
 		defer upstream.Body.Close()
 		w.Header().Set("Content-Type", "video/mp4")
 		w.Header().Set("Content-Length", "131072")
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(status)
 		watchDone := make(chan struct{})
 		go func() {
 			defer close(watchDone)
@@ -192,7 +204,7 @@ func TestAcademyVideoHTTPClientSeesRevocationMidStream(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer response.Body.Close()
-	if response.StatusCode != http.StatusOK {
+	if response.StatusCode != status {
 		t.Fatalf("gateway returned %d", response.StatusCode)
 	}
 	first := make([]byte, chunkSize)
