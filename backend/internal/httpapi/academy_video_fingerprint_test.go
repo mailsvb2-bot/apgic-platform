@@ -64,8 +64,8 @@ func TestAcademyVideoRepresentationSizeMatchesVerifiedFile(t *testing.T) {
 
 type academyMutableFingerprintSource struct {
 	resource, digest string
-	size int64
-	err error
+	size             int64
+	err              error
 }
 
 func (s *academyMutableFingerprintSource) AcademyLearnerVideoFingerprint(author, provider, path, mediaID string) (string, string, int64, error) {
@@ -88,7 +88,7 @@ func TestAcademyVideoInFlightFingerprintRecheckFailsClosed(t *testing.T) {
 		t.Fatal("unchanged canonical media fingerprint rejected")
 	}
 	for _, tc := range []struct {
-		name string
+		name   string
 		mutate func()
 	}{
 		{"resource replaced", func() { source.resource = "resource-other" }},
