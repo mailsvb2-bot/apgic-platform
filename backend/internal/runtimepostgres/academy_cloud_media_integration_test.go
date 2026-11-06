@@ -281,8 +281,17 @@ VALUES($1::uuid,'YANDEX_DISK',$2)`, author, "encrypted-test-only-placeholder-cre
 	if _, err := db.Exec(`UPDATE academy_cloud_media SET connection_generation=gen_random_uuid() WHERE id=$1::uuid`, first[0].ID); err == nil {
 		t.Fatal("provider identity changed outside immutable import")
 	}
+	// The privileged streaming fingerprint resolver must reject the old
+	// verified resource immediately after the canonical OAuth generation
+	// changes. This is a real PostgreSQL commit, not an in-memory flag.
+	if resource, digest, size, err := store.AcademyLearnerVideoFingerprint(author, "YANDEX_DISK", items[0].ProviderFileRef, first[0].ID); err != nil || resource != items[0].ResourceID || digest != items[0].SHA256 || size != items[0].FileSize {
+		t.Fatalf("verified source unavailable before reconnect: resource=%q digest=%q size=%d err=%v", resource, digest, size, err)
+	}
 	if _, err := db.Exec(`UPDATE academy_cloud_connections SET generation=gen_random_uuid() WHERE author_id=$1::uuid`, author); err != nil {
 		t.Fatal(err)
+	}
+	if resource, digest, size, err := store.AcademyLearnerVideoFingerprint(author, "YANDEX_DISK", items[0].ProviderFileRef, first[0].ID); !errors.Is(err, academy.ErrEntitlement) || resource != "" || digest != "" || size != 0 {
+		t.Fatalf("reconnected cloud account retained old streaming fingerprint: resource=%q digest=%q size=%d err=%v", resource, digest, size, err)
 	}
 	if _, err := store.academyImportCloudMediaWithGeneration(author, items, original); !errors.Is(err, academy.ErrDenied) {
 		t.Fatalf("stale OAuth generation was accepted: %v", err)
