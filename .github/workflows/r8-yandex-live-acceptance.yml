@@ -121,7 +121,7 @@ jobs:
               ],
           }
           Path("evidence/r8-live-provider-smoke.json").write_text(
-              json.dumps(evidence, indent=2, sort_keys=True) + "\\n",
+              json.dumps(evidence, indent=2, sort_keys=True) + "\n",
               encoding="utf-8",
           )
           PY
