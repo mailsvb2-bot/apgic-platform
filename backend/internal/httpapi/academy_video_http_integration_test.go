@@ -172,12 +172,12 @@ func testAcademyVideoHTTPClientSeesRevocationMidStream(t *testing.T, status int)
 		ctx, cancel := context.WithCancel(r.Context())
 		defer cancel()
 		upstreamRequest, err := http.NewRequestWithContext(ctx, http.MethodGet, provider.URL, nil)
-		if status == http.StatusPartialContent {
-			upstreamRequest.Header.Set("Range", r.Header.Get("Range"))
-		}
 		if err != nil {
 			http.Error(w, "unavailable", http.StatusBadGateway)
 			return
+		}
+		if status == http.StatusPartialContent {
+			upstreamRequest.Header.Set("Range", r.Header.Get("Range"))
 		}
 		upstream, err := provider.Client().Do(upstreamRequest)
 		if err != nil {
