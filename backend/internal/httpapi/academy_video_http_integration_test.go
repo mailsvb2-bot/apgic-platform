@@ -144,6 +144,10 @@ func testAcademyVideoHTTPClientSeesRevocationMidStream(t *testing.T, status int)
 		w.Header().Set("Content-Type", "video/mp4")
 		w.Header().Set("Content-Length", "131072")
 		if status == http.StatusPartialContent {
+			if r.Header.Get("Range") != "bytes=65536-196607" {
+				http.Error(w, "missing expected seek range", http.StatusBadRequest)
+				return
+			}
 			w.Header().Set("Content-Range", "bytes 65536-196607/262144")
 			w.WriteHeader(status)
 		}
@@ -168,6 +172,9 @@ func testAcademyVideoHTTPClientSeesRevocationMidStream(t *testing.T, status int)
 		ctx, cancel := context.WithCancel(r.Context())
 		defer cancel()
 		upstreamRequest, err := http.NewRequestWithContext(ctx, http.MethodGet, provider.URL, nil)
+		if status == http.StatusPartialContent {
+			upstreamRequest.Header.Set("Range", r.Header.Get("Range"))
+		}
 		if err != nil {
 			http.Error(w, "unavailable", http.StatusBadGateway)
 			return
@@ -180,6 +187,9 @@ func testAcademyVideoHTTPClientSeesRevocationMidStream(t *testing.T, status int)
 		defer upstream.Body.Close()
 		w.Header().Set("Content-Type", "video/mp4")
 		w.Header().Set("Content-Length", "131072")
+		if status == http.StatusPartialContent {
+			w.Header().Set("Content-Range", upstream.Header.Get("Content-Range"))
+		}
 		w.WriteHeader(status)
 		watchDone := make(chan struct{})
 		go func() {
@@ -199,13 +209,23 @@ func testAcademyVideoHTTPClientSeesRevocationMidStream(t *testing.T, status int)
 
 	client := gateway.Client()
 	client.Timeout = 3 * time.Second
-	response, err := client.Get(gateway.URL)
+	request, err := http.NewRequest(http.MethodGet, gateway.URL, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status == http.StatusPartialContent {
+		request.Header.Set("Range", "bytes=65536-196607")
+	}
+	response, err := client.Do(request)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer response.Body.Close()
 	if response.StatusCode != status {
 		t.Fatalf("gateway returned %d", response.StatusCode)
+	}
+	if status == http.StatusPartialContent && response.Header.Get("Content-Range") != "bytes 65536-196607/262144" {
+		t.Fatalf("seek lost Content-Range: %q", response.Header.Get("Content-Range"))
 	}
 	first := make([]byte, chunkSize)
 	if _, err := io.ReadFull(response.Body, first); err != nil {
