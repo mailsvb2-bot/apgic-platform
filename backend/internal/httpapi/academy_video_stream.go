@@ -103,7 +103,17 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 		connectionAllowed := func() bool {
 			return academyVideoCloudConnectionStillAllowed(owner, author, provider, token)
 		}
-		authorized := func() bool { return streamCtx.Err() == nil && allowed() && connectionAllowed() }
+		// The verified media row may be retired or replaced independently of
+		// the enrollment and OAuth credential. Re-read its canonical binding
+		// while bytes are flowing; a stale media identity must fail closed.
+		fingerprintAllowed := func() bool {
+			currentResource, currentDigest, currentSize, lookupErr := fingerprints.AcademyLearnerVideoFingerprint(author, provider, path, r.PathValue("mediaID"))
+			return lookupErr == nil && currentResource == resourceID &&
+				strings.EqualFold(currentDigest, digest) && currentSize == size
+		}
+		authorized := func() bool {
+			return streamCtx.Err() == nil && allowed() && connectionAllowed() && fingerprintAllowed()
+		}
 		if !authorized() {
 			academyHTTPError(w, r, academy.ErrEntitlement)
 			return
