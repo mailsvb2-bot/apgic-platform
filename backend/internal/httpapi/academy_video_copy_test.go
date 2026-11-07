@@ -256,3 +256,26 @@ func TestAcademyCopyVideoAuthorizedRejectsRevokedEOF(t *testing.T) {
 		t.Fatalf("revoked EOF incorrectly completed stream: err=%v bytes=%d", err, output.Len())
 	}
 }
+
+// A cloud reader is allowed to return data and io.EOF together. If the
+// canonical entitlement is revoked while that read is in progress, neither
+// the final bytes nor a successful EOF may escape to the learner.
+type academyRevokingDataEOFReader struct {
+	allowed *bool
+}
+
+func (r academyRevokingDataEOFReader) Read(p []byte) (int, error) {
+	*r.allowed = false
+	return copy(p, "private-tail"), io.EOF
+}
+
+func TestAcademyCopyVideoAuthorizedRejectsRevokedDataAndEOF(t *testing.T) {
+	allowed := true
+	var output bytes.Buffer
+	err := academyCopyVideoAuthorized(&output, academyRevokingDataEOFReader{allowed: &allowed}, func() bool {
+		return allowed
+	})
+	if !errors.Is(err, errAcademyVideoRevoked) || output.Len() != 0 {
+		t.Fatalf("revoked read returned data and EOF: err=%v bytes=%d", err, output.Len())
+	}
+}
