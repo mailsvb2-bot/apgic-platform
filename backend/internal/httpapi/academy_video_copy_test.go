@@ -234,3 +234,25 @@ func TestAcademyCopyVideoAuthorizedRevokesDuringZeroProgress(t *testing.T) {
 		t.Fatalf("revoked idle provider kept reading: err=%v reads=%d checks=%d bytes=%d", err, reader.reads, checks, output.Len())
 	}
 }
+
+// A source can complete at exactly the moment canonical access is revoked.
+// EOF must not turn that revocation into an apparently successful stream.
+type academyRevokingEOFReader struct {
+	allowed *bool
+}
+
+func (r academyRevokingEOFReader) Read(_ []byte) (int, error) {
+	*r.allowed = false
+	return 0, io.EOF
+}
+
+func TestAcademyCopyVideoAuthorizedRejectsRevokedEOF(t *testing.T) {
+	allowed := true
+	var output bytes.Buffer
+	err := academyCopyVideoAuthorized(&output, academyRevokingEOFReader{allowed: &allowed}, func() bool {
+		return allowed
+	})
+	if !errors.Is(err, errAcademyVideoRevoked) || output.Len() != 0 {
+		t.Fatalf("revoked EOF incorrectly completed stream: err=%v bytes=%d", err, output.Len())
+	}
+}
