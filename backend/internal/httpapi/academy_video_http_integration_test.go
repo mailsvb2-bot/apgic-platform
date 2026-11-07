@@ -265,6 +265,17 @@ func testAcademyVideoHTTPClientSeesRevocationMidStream(t *testing.T, status int)
 	if seekResponse.Header.Get("Location") != "" {
 		t.Fatal("revoked seek disclosed an upstream redirect")
 	}
+	// Denial headers are observable to the browser too. A provider URL or
+	// credential must not escape in diagnostic or custom response headers.
+	for name, values := range seekResponse.Header {
+		for _, value := range values {
+			for _, secret := range []string{provider.URL, "Authorization", "OAuth"} {
+				if strings.Contains(value, secret) {
+					t.Fatalf("revoked seek header %q disclosed internal value %q", name, secret)
+				}
+			}
+		}
+	}
 	deniedBody, readErr := io.ReadAll(seekResponse.Body)
 	if readErr != nil {
 		t.Fatalf("read revoked seek response: %v", readErr)
