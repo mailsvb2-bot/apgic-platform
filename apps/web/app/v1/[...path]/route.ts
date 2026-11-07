@@ -17,6 +17,8 @@ async function proxy(
     headers,
     body: hasBody ? await request.arrayBuffer() : undefined,
     cache: "no-store",
+    // Do not fetch OAuth provider HTML behind the APGIC origin.
+    redirect: "manual",
   });
   const outgoing = new Headers(response.headers);
   outgoing.delete("content-encoding");

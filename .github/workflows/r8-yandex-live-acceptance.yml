@@ -80,6 +80,59 @@ jobs:
           go test ./internal/academy ./internal/httpapi \
             -run '^TestLive(YandexVerifiedVideoRange|AcademyYandexGatewaySeekAndRevocation|AcademyYandexGatewayStopsInFlightAfterRevocation)$' \
             -count=1 -timeout=10m
+      - name: Record bounded live-provider evidence
+        if: success()
+        shell: bash
+        env:
+          R8_CANDIDATE_SHA: ${{ github.sha }}
+          R8_RUN_ID: ${{ github.run_id }}
+          R8_RUN_ATTEMPT: ${{ github.run_attempt }}
+          R8_REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          # Only runs after all three live-provider tests have passed.
+          # Never serialize secrets, media paths, OAuth tokens or temporary URLs.
+          evidence = {
+              "schema_version": "r8-live-provider-smoke-v1",
+              "candidate_sha": os.environ["R8_CANDIDATE_SHA"],
+              "repository": os.environ["R8_REPOSITORY"],
+              "workflow_run_id": int(os.environ["R8_RUN_ID"]),
+              "workflow_run_attempt": int(os.environ["R8_RUN_ATTEMPT"]),
+              "result": "PASS",
+              "scope": "real_yandex_provider_byte_range_and_gateway_revocation_smoke",
+              "required_tests": [
+                  "TestLiveYandexVerifiedVideoRange",
+                  "TestLiveAcademyYandexGatewaySeekAndRevocation",
+                  "TestLiveAcademyYandexGatewayStopsInFlightAfterRevocation",
+              ],
+              "release_authorized": False,
+              "not_proven": [
+                  "signed_author_and_learner_browser_sessions",
+                  "postgresql_persisted_entitlement_revocation",
+                  "externally_captured_psp_payment",
+                  "finance_reconciliation",
+                  "real_device_playback",
+              ],
+          }
+          Path("evidence/r8-live-provider-smoke.json").write_text(
+              json.dumps(evidence, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+      - name: Upload exact-SHA live-provider smoke evidence
+        if: success()
+        uses: actions/upload-artifact@v7
+        with:
+          name: r8-live-provider-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+          path: evidence/r8-live-provider-smoke.json
+          if-no-files-found: error
+          retention-days: 90
       - name: Identify exact tested candidate
         if: success()
         shell: bash

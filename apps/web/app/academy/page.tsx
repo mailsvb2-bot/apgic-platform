@@ -1,6 +1,8 @@
 "use client";
 
 import {useCallback,useEffect,useState,type FormEvent} from "react";
+import CloudMediaEditor from "./cloud-media-editor";
+import AcademyLessonVideos from "./academy-lesson-videos";
 
 type AcademyNotifications = {enabled:boolean;learning_updates:boolean;assessment_results:boolean;certificate_updates:boolean};
 type AuthorProduct = {id:string;name:string};
@@ -147,12 +149,40 @@ export default function AcademyPage(){
   catch(error){setNotice(error instanceof Error?error.message:"Операция не выполнена")}
   finally{setBusy(false)}
  }
- async function loadOutline(selected:Course){
+ const loadOutline=useCallback(async (selected:Course)=>{
   setCourse(selected);setActiveEnrollment(null);setCertificate(null);setLearnerAttempts([]);setCohorts([]);
   const d=await api<{state:string;modules:Module[];lessons:Lesson[]}>(
    `/v1/academy/courses/${selected.id}/versions/${selected.version_id}/outline`);
   setModules(d.modules);setLessons(d.lessons);setModuleID(d.modules[0]?.id||"");
- }
+ },[]);
+ // Resume a verified author's draft directly after the OAuth callback.
+ // A missing course/version pair is not an error when exactly one draft exists.
+ useEffect(()=>{
+  const params=new URLSearchParams(window.location.search);
+  if(params.get("cloud_connected")!=="yandex")return;
+  const drafts=mine.filter(c=>c.state==="DRAFT");
+  const courseId=params.get("course_id"),versionId=params.get("version_id");
+  const selected=courseId&&versionId
+   ? drafts.find(c=>c.id===courseId&&c.version_id===versionId)
+   : drafts.length===1?drafts[0]:undefined;
+  if(!selected){
+   if(drafts.length>1)setNotice("Яндекс Диск подключён. Выберите нужный черновик ниже.");
+   else if(drafts.length===0)setNotice("Яндекс Диск подключён. Создайте курс, чтобы добавить видео.");
+   else setNotice("Яндекс Диск подключён. Выберите черновик ниже.");
+   return;
+  }
+  let cancelled=false;
+  void loadOutline(selected).then(()=>{
+   if(cancelled)return;
+   setNotice("Яндекс Диск подключён. Открываем ваши видео...");
+   window.requestAnimationFrame(()=>{
+    document.getElementById("academy-media-editor")?.scrollIntoView({behavior:"smooth",block:"start"});
+   });
+  }).catch(()=>{
+   if(!cancelled)setNotice("Не удалось открыть редактор. Выберите курс ниже.");
+  });
+  return ()=>{cancelled=true};
+ },[mine,loadOutline]);
  async function loadLearning(item:Enrollment){
   const [d,history,cohortResult,appealList]=await Promise.all([
    api<{lessons:Lesson[]}>(`/v1/academy/enrollments/${item.id}/learn`),
@@ -424,6 +454,7 @@ export default function AcademyPage(){
   </section>
   {course&&<section className="how-section">
    <h2>Редактор: {course.title} — версия {course.version_no}</h2>
+   {course.state==="DRAFT"&&<CloudMediaEditor key={`${course.id}:${course.version_id}`} courseId={course.id} versionId={course.version_id} lessons={lessons.map(l=>({id:l.id,title:l.title,kind:l.kind}))}/>}
    <div className="how-grid">
     <form className="panel specialist-form" onSubmit={addModule}>
      <h3>Модуль</h3><label htmlFor="academy-module">Название</label>
@@ -538,7 +569,7 @@ export default function AcademyPage(){
      <h3>{l.title}</h3><p>{l.kind} {l.completed?"· выполнено":""}</p>
      {l.available===false&&<p role="status">Урок ещё не открыт или срок его изучения истёк.</p>}
      {l.available!==false&&l.kind==="READING"&&<p style={{whiteSpace:"pre-wrap"}}>{l.body}</p>}
-     {l.kind==="VIDEO"&&<p>Видеодоступ выдаётся только через совместимый media provider с подтверждением playback.</p>}
+     {l.kind==="VIDEO"&&<AcademyLessonVideos enrollmentId={activeEnrollment.id} lessonId={l.id} available={l.available!==false}/>}
      {l.available!==false&&l.kind==="ASSESSMENT"&&<section aria-label={`Результаты: ${l.title}`}>
       {learnerAttempts.filter(a=>a.lesson_id===l.id).map(a=>
        <p key={a.id}>Попытка {a.attempt_no}: {a.result==="PENDING"?"Ожидает проверки":a.result==="PASSED"?"Зачтено":"Не зачтено"}
