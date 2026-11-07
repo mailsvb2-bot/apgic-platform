@@ -82,6 +82,12 @@ func academyCopyVideoAuthorized(dst io.Writer, src io.Reader, authorized func() 
 		}
 		if readErr != nil {
 			if readErr == io.EOF {
+				// A provider may return EOF immediately after a canonical
+				// entitlement revocation. Do not report successful delivery
+				// without checking the final access boundary.
+				if !authorized() {
+					return errAcademyVideoRevoked
+				}
 				return nil
 			}
 			return readErr
