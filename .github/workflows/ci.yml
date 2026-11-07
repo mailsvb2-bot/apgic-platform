@@ -355,10 +355,8 @@ jobs:
           (cd backend && go test ./internal/runtimepostgres -run TestAcademyStoreRefundWithdrawsLearningAccess -count=1 -v)
           (cd backend && go test ./internal/runtimepostgres -run TestAcademyVersioningRequiresVerifiedAccess -count=1 -v)
           (cd backend && go test ./internal/runtimepostgres -run 'TestAcademyCloudMediaDraftOwnerAndVideoBoundaryPostgres|TestAcademyCloudMediaGenerationReconnectionPostgres' -count=1 -v)
-          # This committed-generation revocation proof must run with the migrated
-          # PostgreSQL fixture; a green generic Go test job alone can skip it.
-          (cd backend && go test ./internal/runtimepostgres -run '^TestAcademyVideoFingerprintRevocationCommitBoundaryPostgres
-          (cd backend && go test ./internal/runtimepostgres -run TestAcademyNotificationConsentDurableOptOut -count=1 -v)
+          # Run the committed-generation revocation proof against migrated PostgreSQL.
+          (cd backend && go test ./internal/runtimepostgres -run '^TestAcademyVideoFingerprintRevocationCommitBoundaryPostgres          (cd backend && go test ./internal/runtimepostgres -run TestAcademyNotificationConsentDurableOptOut -count=1 -v)
       - name: Prove R4 revenue convergence (provider-executed, non-custodial, reconciled)
         working-directory: backend
         env:
