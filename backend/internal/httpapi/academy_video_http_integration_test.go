@@ -260,6 +260,20 @@ func testAcademyVideoHTTPClientSeesRevocationMidStream(t *testing.T, status int)
 	if seekResponse.StatusCode != http.StatusForbidden {
 		t.Fatalf("revoked seek returned %d, want 403", seekResponse.StatusCode)
 	}
+	// A denied seek must not expose upstream locations or credentials, even
+	// when the browser inspects headers and the error body.
+	if seekResponse.Header.Get("Location") != "" {
+		t.Fatal("revoked seek disclosed an upstream redirect")
+	}
+	deniedBody, readErr := io.ReadAll(seekResponse.Body)
+	if readErr != nil {
+		t.Fatalf("read revoked seek response: %v", readErr)
+	}
+	for _, secret := range []string{provider.URL, "Content-Range", "Authorization", "OAuth"} {
+		if strings.Contains(string(deniedBody), secret) {
+			t.Fatalf("revoked seek body disclosed internal value %q", secret)
+		}
+	}
 	if got := providerRequests.Load(); got != 1 {
 		t.Fatalf("revoked seek reached upstream provider: %d requests, want 1", got)
 	}
