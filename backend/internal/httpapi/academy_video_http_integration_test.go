@@ -140,7 +140,9 @@ func TestAcademyVideoHTTPClientSeesRevocationMidStream(t *testing.T) {
 func testAcademyVideoHTTPClientSeesRevocationMidStream(t *testing.T, status int) {
 	const chunkSize = 64 << 10
 	releaseSecond := make(chan struct{})
+	var providerRequests atomic.Int32
 	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		providerRequests.Add(1)
 		w.Header().Set("Content-Type", "video/mp4")
 		w.Header().Set("Content-Length", "131072")
 		if status == http.StatusPartialContent {
@@ -257,5 +259,8 @@ func testAcademyVideoHTTPClientSeesRevocationMidStream(t *testing.T, status int)
 	defer seekResponse.Body.Close()
 	if seekResponse.StatusCode != http.StatusForbidden {
 		t.Fatalf("revoked seek returned %d, want 403", seekResponse.StatusCode)
+	}
+	if got := providerRequests.Load(); got != 1 {
+		t.Fatalf("revoked seek reached upstream provider: %d requests, want 1", got)
 	}
 }
