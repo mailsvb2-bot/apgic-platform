@@ -7,8 +7,8 @@ import (
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/identity"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -244,16 +244,20 @@ func TestAccountPairingAcrossDevicesKeepsCanonicalIdentity(t *testing.T) {
 }
 
 func TestAccountPairingStartRateLimitIgnoresUntrustedForwardedIP(t *testing.T) {
- h:=New(Options{ClientSessionKey:[]byte(strings.Repeat("K",32)),AccountDevicePairing:&accountPairTestStore{}})
- for i:=0;i<7;i++{
-  req:=httptest.NewRequest(http.MethodPost,"https://apgic.ru/v1/account/devices/pair/start",nil)
-  req.RemoteAddr="203.0.113.8:51000"
-  req.Header.Set("Origin","https://apgic.ru")
-  req.Header.Set("X-Real-IP","198.51.100."+strconv.Itoa(i+1))
-  w:=httptest.NewRecorder()
-  h.ServeHTTP(w,req)
-  expected:=http.StatusCreated
-  if i==6{expected=http.StatusTooManyRequests}
-  if w.Code!=expected{t.Fatalf("request %d status=%d expected=%d",i,w.Code,expected)}
- }
+	h := New(Options{ClientSessionKey: []byte(strings.Repeat("K", 32)), AccountDevicePairing: &accountPairTestStore{}})
+	for i := 0; i < 7; i++ {
+		req := httptest.NewRequest(http.MethodPost, "https://apgic.ru/v1/account/devices/pair/start", nil)
+		req.RemoteAddr = "203.0.113.8:51000"
+		req.Header.Set("Origin", "https://apgic.ru")
+		req.Header.Set("X-Real-IP", "198.51.100."+strconv.Itoa(i+1))
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		expected := http.StatusCreated
+		if i == 6 {
+			expected = http.StatusTooManyRequests
+		}
+		if w.Code != expected {
+			t.Fatalf("request %d status=%d expected=%d", i, w.Code, expected)
+		}
+	}
 }
