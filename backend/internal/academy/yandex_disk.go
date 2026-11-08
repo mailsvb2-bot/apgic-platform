@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -164,23 +165,40 @@ func (c YandexDiskClient) ListFiles(ctx context.Context, token, path string, off
 	}
 	prefix := strings.TrimSuffix(path, "/") + "/"
 	seen := make(map[string]struct{}, len(items))
+	valid := make([]YandexDiskFile, 0, len(items))
+	rejected := 0
 	for _, file := range items {
+		// Fail closed for each individual provider entry, not the entire page.
+		// One malformed or inaccessible resource must not hide otherwise valid
+		// files in an author's folder. Never expose rejected metadata.
 		if !ValidYandexDiskPath(file.Path) || !strings.HasPrefix(file.Path, prefix) ||
 			(file.Type != "file" && file.Type != "dir") || file.Name == "" || file.Size < 0 {
-			return nil, 0, fmt.Errorf("%w: entry", ErrYandexListing)
+			rejected++
+			continue
 		}
 		child := strings.TrimPrefix(file.Path, prefix)
 		if child == "" || strings.Contains(child, "/") || file.Name != child {
-			return nil, 0, fmt.Errorf("%w: entry", ErrYandexListing)
+			rejected++
+			continue
 		}
-		// A duplicate path or a display name inconsistent with the verified
-		// provider path can mislead the author into selecting another asset.
+		// Never expose duplicate paths that could mislead file selection.
 		if _, exists := seen[file.Path]; exists {
-			return nil, 0, fmt.Errorf("%w: duplicate", ErrYandexListing)
+			rejected++
+			continue
 		}
 		seen[file.Path] = struct{}{}
+		valid = append(valid, file)
 	}
-	return items, total, nil
+	// A wholly invalid, nonempty page is not a legitimately empty folder.
+	// Keep this distinguishable from the provider's valid empty listing.
+	if len(items) > 0 && len(valid) == 0 {
+		return nil, 0, fmt.Errorf("%w: entry", ErrYandexListing)
+	}
+	// Avoid logging names, provider paths, user identities or OAuth tokens.
+	if rejected > 0 {
+		log.Printf("academy_yandex_listing_rejected_entries count=%d", rejected)
+	}
+	return valid, total, nil
 }
 
 // VerifyVideo resolves a selected file using the author's OAuth credential
