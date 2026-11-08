@@ -57,6 +57,6 @@ func TestAccountDevicePairingPostgresOneTimeClaim(t *testing.T) {
  expiredID,err:=persistentid.New();if err!=nil{t.Fatal(err)}
  if err=a.CreateAccountDevicePair(expiredID,strings.Repeat("d",64),strings.Repeat("e",64),time.Now().Add(time.Second));err!=nil{t.Fatal(err)}
  // Force expiry with a SQL update instead of sleeping.
- if _,err=a.db.ExecContext(ctx,"UPDATE account_device_pairings SET expires_at=now()-interval '1 second' WHERE id=$1::uuid",expiredID);err!=nil{t.Fatal(err)}
+ if _,err=a.db.ExecContext(ctx,"UPDATE account_device_pairings SET created_at=now()-interval '2 minutes', expires_at=now()-interval '1 minute' WHERE id=$1::uuid",expiredID);err!=nil{t.Fatal(err)}
  if ok,err:=b.ApproveAccountDevicePair(strings.Repeat("d",64),actor);err!=nil||ok{t.Fatalf("expired request approved ok=%v err=%v",ok,err)}
 }
