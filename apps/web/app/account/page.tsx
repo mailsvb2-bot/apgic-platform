@@ -46,7 +46,7 @@ export default function AccountPage(){
    await post("/v1/account/devices/pair/claim",{pair_id:challenge.pair_id,proof:challenge.proof});
    // Never keep the claim secret after successful sign-in.
    setChallenge(null);
-   window.location.assign("/academy");
+   window.location.assign("/");
   }catch(error){setNotice(String(error))}
   finally{setBusy(false)}
  }
