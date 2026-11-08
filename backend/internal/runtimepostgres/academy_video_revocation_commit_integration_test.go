@@ -69,6 +69,24 @@ WHERE author_id=$1::uuid AND provider='YANDEX_DISK'`, author).Scan(&generation);
 	if err := check(); err != nil {
 		t.Fatalf("pre-revocation source: %v", err)
 	}
+	// An aborted generation rotation must not revoke media. Exercise a real
+	// PostgreSQL rollback before the committed revocation below.
+	aborted, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := aborted.ExecContext(ctx, `UPDATE academy_cloud_connections SET generation=gen_random_uuid()
+WHERE author_id=$1::uuid AND provider='YANDEX_DISK'`, author); err != nil {
+		_ = aborted.Rollback()
+		t.Fatal(err)
+	}
+	if err := aborted.Rollback(); err != nil {
+		t.Fatal(err)
+	}
+	if err := check(); err != nil {
+		t.Fatalf("rolled-back generation rotation revoked active media: %v", err)
+	}
+
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		t.Fatal(err)
