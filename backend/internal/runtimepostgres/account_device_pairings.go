@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"errors"
 	"time"
+
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/identity"
 )
 
 // CreateAccountDevicePair starts a five-minute browser-to-browser authorization.
@@ -58,12 +60,6 @@ func (c *Checker) ClaimAccountDevicePair(id, proofDigest string) (string, bool, 
 	return identity, err == nil, err
 }
 
-type AccountPairedDevice struct {
- ID string `json:"id"`
- CreatedAt time.Time `json:"created_at"`
- ExpiresAt time.Time `json:"expires_at"`
-}
-
 // Only paired (v3) cookies are admitted by this registry.
 func (c *Checker) RegisterAccountPairedSession(id, actor, digest string, expires time.Time) error {
  if c==nil||c.db==nil{return errors.New("storage unavailable")}
@@ -80,16 +76,16 @@ func (c *Checker) AccountPairedSessionActive(actor,digest string)(bool,error){
  WHERE identity_id=$1::uuid AND cookie_digest=$2 AND revoked_at IS NULL AND expires_at>now())`,actor,digest).Scan(&active)
  return active,err
 }
-func (c *Checker) ListAccountPairedSessions(actor string)([]AccountPairedDevice,error){
+func (c *Checker) ListAccountPairedSessions(actor string)([]identity.PairedDevice,error){
  if c==nil||c.db==nil{return nil,errors.New("storage unavailable")}
  ctx,cancel:=context.WithTimeout(context.Background(),3*time.Second);defer cancel()
  rows,err:=c.db.QueryContext(ctx,`SELECT id::text,created_at,expires_at FROM account_paired_sessions
  WHERE identity_id=$1::uuid AND revoked_at IS NULL AND expires_at>now()
  ORDER BY created_at DESC LIMIT 50`,actor)
  if err!=nil{return nil,err};defer rows.Close()
- result:=make([]AccountPairedDevice,0)
+ result:=make([]identity.PairedDevice,0)
  for rows.Next(){
-  var device AccountPairedDevice
+  var device identity.PairedDevice
   if err=rows.Scan(&device.ID,&device.CreatedAt,&device.ExpiresAt);err!=nil{return nil,err}
   result=append(result,device)
  }
