@@ -192,6 +192,7 @@ func New(options Options) http.Handler {
 	registerOrganizationRuntime(mux, options.Organizations, sessions, sessionConfigErr)
 	registerOrganizationProducts(mux, options.Products, sessions, sessionConfigErr, options.Now)
 	registerAcademy(mux, options.Academy, sessions, sessionConfigErr)
+	registerAccountDevicePairing(mux, options.AccountDevicePairing, sessions, sessionConfigErr)
 	registerHighRiskProductOwnership(mux, options.ProductOwnership, sessions, stepUp, sessionConfigErr, options.Now)
 	registerClientPersonal(mux, options.ClientPersonal, sessions, sessionConfigErr, options.Now)
 	return limitRequestBodies(observeRuntimeSLI(mux, sli), maxRequestBodyBytes)
