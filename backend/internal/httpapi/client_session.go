@@ -32,14 +32,14 @@ var (
 )
 
 type clientSessionManager struct {
-	key       []byte
-	now       func() time.Time
-	deletions clientIdentityDeletionChecker
+	key            []byte
+	now            func() time.Time
+	deletions      clientIdentityDeletionChecker
 	pairedSessions pairedSessionVerifier
 }
 
 type pairedSessionVerifier interface {
-	AccountPairedSessionActive(actor,digest string) (bool,error)
+	AccountPairedSessionActive(actor, digest string) (bool, error)
 }
 
 type clientIdentityDeletionChecker interface {
@@ -65,11 +65,11 @@ func newClientSessionManager(key []byte, now func() time.Time) (*clientSessionMa
 }
 
 func (m *clientSessionManager) issue(identityID string) (*http.Cookie, error) {
-	return m.issueVersion(identityID,clientSessionVersion)
+	return m.issueVersion(identityID, clientSessionVersion)
 }
 
 func (m *clientSessionManager) issuePaired(identityID string) (*http.Cookie, error) {
-	return m.issueVersion(identityID,pairedSessionVersion)
+	return m.issueVersion(identityID, pairedSessionVersion)
 }
 
 func (m *clientSessionManager) issueVersion(identityID, version string) (*http.Cookie, error) {
@@ -133,10 +133,14 @@ func (m *clientSessionManager) identityAndReferenceFromRequest(r *http.Request) 
 		}
 	}
 	digest := sha256.Sum256([]byte(cookie.Value))
-	if strings.HasPrefix(cookie.Value,pairedSessionVersion+".") {
-		if m.pairedSessions==nil {return "", "", ErrClientSessionInvalid}
-		active,verifyErr:=m.pairedSessions.AccountPairedSessionActive(identityID,fmt.Sprintf("%x",digest[:]))
-		if verifyErr!=nil || !active {return "", "", ErrClientSessionInvalid}
+	if strings.HasPrefix(cookie.Value, pairedSessionVersion+".") {
+		if m.pairedSessions == nil {
+			return "", "", ErrClientSessionInvalid
+		}
+		active, verifyErr := m.pairedSessions.AccountPairedSessionActive(identityID, fmt.Sprintf("%x", digest[:]))
+		if verifyErr != nil || !active {
+			return "", "", ErrClientSessionInvalid
+		}
 	}
 	return identityID, "session:" + base64.RawURLEncoding.EncodeToString(digest[:]), nil
 }
@@ -181,7 +185,7 @@ func (m *clientSessionManager) parse(value string) (string, error) {
 	}
 	var expiresField string
 	switch parts[0] {
-	case clientSessionVersion,pairedSessionVersion:
+	case clientSessionVersion, pairedSessionVersion:
 		if len(payloadParts) != 3 || strings.TrimSpace(payloadParts[1]) == "" {
 			return "", ErrClientSessionInvalid
 		}
