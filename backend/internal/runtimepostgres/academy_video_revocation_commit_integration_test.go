@@ -99,4 +99,30 @@ WHERE author_id=$1::uuid AND provider='YANDEX_DISK'`, author); err != nil {
 	if !errors.Is(err, academy.ErrEntitlement) || resource != "" || hash != "" || size != 0 {
 		t.Fatalf("fresh connection resurrected revoked source: resource=%q hash=%q size=%d err=%v", resource, hash, size, err)
 	}
+	// A subsequent author reconnect may import NEW media under the new
+	// generation, but must never resurrect media from the revoked generation.
+	var currentGeneration string
+	if err := db.QueryRowContext(ctx, `SELECT generation::text FROM academy_cloud_connections
+WHERE author_id=$1::uuid AND provider='YANDEX_DISK'`, author).Scan(&currentGeneration); err != nil {
+		t.Fatal(err)
+	}
+	if currentGeneration == generation {
+		t.Fatal("committed reconnect generation did not change")
+	}
+	newMedia := media
+	newMedia.ProviderFileRef = "disk:/after-reconnect-boundary.mp4"
+	newMedia.ResourceID = "after-reconnect-resource"
+	newMedia.Title = "After reconnect"
+	newItems, err := reopened.academyImportCloudMediaWithGeneration(author, []academy.CloudMedia{newMedia}, currentGeneration)
+	if err != nil || len(newItems) != 1 {
+		t.Fatalf("new generation import: %+v err=%v", newItems, err)
+	}
+	resource, hash, size, err = reopened.AcademyLearnerVideoFingerprint(author, newMedia.Provider, newMedia.ProviderFileRef, newItems[0].ID)
+	if err != nil || resource != newMedia.ResourceID || hash != digest || size != newMedia.FileSize {
+		t.Fatalf("new generation source unavailable: resource=%q hash=%q size=%d err=%v", resource, hash, size, err)
+	}
+	resource, hash, size, err = reopened.AcademyLearnerVideoFingerprint(author, media.Provider, media.ProviderFileRef, imported[0].ID)
+	if !errors.Is(err, academy.ErrEntitlement) || resource != "" || hash != "" || size != 0 {
+		t.Fatalf("reconnect resurrected old source: resource=%q hash=%q size=%d err=%v", resource, hash, size, err)
+	}
 }
