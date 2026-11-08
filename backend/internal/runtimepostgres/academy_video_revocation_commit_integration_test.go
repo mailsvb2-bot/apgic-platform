@@ -139,6 +139,17 @@ WHERE author_id=$1::uuid AND provider='YANDEX_DISK'`, author).Scan(&currentGener
 	if staleItems, staleErr := reopened.academyImportCloudMediaWithGeneration(author, []academy.CloudMedia{staleMedia}, generation); staleErr == nil || len(staleItems) != 0 {
 		t.Fatalf("stale generation imported media after reconnect: items=%+v err=%v", staleItems, staleErr)
 	}
+	// Rejected imports must leave no persisted media that could later be
+	// assigned to a lesson after another OAuth reconnect.
+	var staleRows int
+	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM academy_cloud_media
+WHERE author_id=$1::uuid AND provider='YANDEX_DISK' AND provider_file_ref=$2`,
+		author, staleMedia.ProviderFileRef).Scan(&staleRows); err != nil {
+		t.Fatal(err)
+	}
+	if staleRows != 0 {
+		t.Fatalf("rejected stale generation import persisted %d media rows", staleRows)
+	}
 	newItems, err := reopened.academyImportCloudMediaWithGeneration(author, []academy.CloudMedia{newMedia}, currentGeneration)
 	if err != nil || len(newItems) != 1 {
 		t.Fatalf("new generation import: %+v err=%v", newItems, err)
