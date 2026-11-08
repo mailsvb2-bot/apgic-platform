@@ -16,3 +16,17 @@ CREATE TABLE account_device_pairings (
 );
 CREATE INDEX account_device_pairings_expiry_idx ON account_device_pairings(expires_at);
 REVOKE ALL ON account_device_pairings FROM PUBLIC;
+
+-- Only sessions minted by explicit device pairing are managed here.
+-- Legacy client sessions retain their current behavior during migration.
+CREATE TABLE account_paired_sessions (
+    id uuid PRIMARY KEY,
+    identity_id uuid NOT NULL REFERENCES identities(id),
+    cookie_digest text NOT NULL UNIQUE CHECK (length(cookie_digest) = 64),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    expires_at timestamptz NOT NULL,
+    revoked_at timestamptz,
+    CHECK (expires_at > created_at)
+);
+CREATE INDEX account_paired_sessions_identity_idx ON account_paired_sessions(identity_id, created_at DESC);
+REVOKE ALL ON account_paired_sessions FROM PUBLIC;
