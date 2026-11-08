@@ -31,7 +31,7 @@ func TestYandexDiskListFilesRejectsForeignAndMalformedEntries(t *testing.T) {
 		{"two distinct children", []YandexDiskFile{good, {Name: "second.mp4", Path: "disk:/lectures/second.mp4", Type: "file", Size: 2048}}, 2, true},
 		{"empty folder", []YandexDiskFile{}, 0, true},
 		{"spoofed display name", []YandexDiskFile{{Name: "trusted.mp4", Path: "disk:/lectures/other.mp4", Type: "file"}}, 1, false},
-		{"duplicate provider path", []YandexDiskFile{good, good}, 2, false},
+		{"duplicate provider path filtered", []YandexDiskFile{good, good}, 2, true},
 		{"inconsistent total", []YandexDiskFile{good}, 0, false},
 		{"foreign folder", []YandexDiskFile{{Name: "other.mp4", Path: "disk:/other/other.mp4", Type: "file"}}, 1, false},
 		{"nested file", []YandexDiskFile{{Name: "file.mp4", Path: "disk:/lectures/nested/file.mp4", Type: "file"}}, 1, false},
@@ -67,7 +67,7 @@ func TestYandexDiskListFilesRejectsForeignAndMalformedEntries(t *testing.T) {
 			if (err == nil) != tt.ok {
 				t.Fatalf("accepted=%v, want=%v (err=%v)", err == nil, tt.ok, err)
 			}
-			if tt.ok && (len(items) != len(tt.items) || total != tt.total) {
+			if tt.ok && (len(items) == 0 && len(tt.items) > 0 || len(items) > len(tt.items) || total != tt.total) {
 				t.Fatalf("unexpected listing: %d entries, total %d", len(items), total)
 			}
 			if err != nil && strings.Contains(err.Error(), "private-token") {
@@ -110,4 +110,40 @@ func TestYandexDiskListFilesRejectsMissingMetadataRatherThanPhantomEmptyFolder(t
 			}
 		})
 	}
+}
+
+ 
+// The real provider may include one malformed record alongside ordinary files.
+// Keep every accepted item tied to an exact direct-child path and never return
+// suspicious metadata. A page consisting only of malformed records must fail.
+func TestYandexDiskListFilesKeepsVerifiedSiblings(t *testing.T) {
+ valid := YandexDiskFile{Name: "lesson.mp4", Path: "disk:/lesson.mp4", Type: "file", Size: 4096, MimeType: "video/mp4"}
+ cases := []struct{
+  name string
+  items []YandexDiskFile
+  accepted int
+ }{
+  {"unrelated folder filtered", []YandexDiskFile{valid, {Name:"outside.mp4", Path:"disk:/other/outside.mp4", Type:"file", Size:100}}, 1},
+  {"spoofed name filtered", []YandexDiskFile{valid, {Name:"trusted.mp4", Path:"disk:/other.mp4", Type:"file", Size:100}}, 1},
+  {"duplicate filtered", []YandexDiskFile{valid,valid},1},
+  {"invalid item alone rejected", []YandexDiskFile{{Name:"outside.mp4",Path:"disk:/other/outside.mp4",Type:"file",Size:100}},0},
+ }
+ for _,tc:=range cases {
+  t.Run(tc.name,func(t *testing.T){
+   raw,err:=json.Marshal(map[string]any{"_embedded":map[string]any{"items":tc.items,"total":len(tc.items)}})
+   if err!=nil { t.Fatal(err) }
+   client:=YandexDiskClient{Client:&http.Client{Transport:yandexListingTestTransport(func(req *http.Request)(*http.Response,error){
+    return &http.Response{StatusCode:200,Body:io.NopCloser(strings.NewReader(string(raw)))},nil
+   })}}
+   items,total,err:=client.ListFiles(context.Background(),"private-token","disk:/",0,100)
+   if tc.accepted==0 {
+    if err==nil { t.Fatal("invalid-only listing falsely accepted") }
+    return
+   }
+   if err!=nil || len(items)!=tc.accepted || total!=len(tc.items) { t.Fatalf("items=%+v total=%d err=%v",items,total,err) }
+   for _,item:=range items {
+    if item.Path!=valid.Path || item.Name!=valid.Name { t.Fatalf("unverified item exposed: %+v",item) }
+   }
+  })
+ }
 }
