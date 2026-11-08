@@ -157,6 +157,9 @@ func New(options Options) http.Handler {
 			if deletions, ok := options.AccountDeletionIntake.(clientIdentityDeletionChecker); ok {
 				sessions.deletions = deletions
 			}
+			if options.AccountDevicePairing!=nil {
+				sessions.pairedSessions=options.AccountDevicePairing
+			}
 			stepUp, sessionConfigErr = newStepUpManager(options.ClientSessionKey, options.Now)
 		}
 	}
