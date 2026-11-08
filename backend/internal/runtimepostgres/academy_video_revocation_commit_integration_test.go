@@ -131,6 +131,14 @@ WHERE author_id=$1::uuid AND provider='YANDEX_DISK'`, author).Scan(&currentGener
 	newMedia.ProviderFileRef = "disk:/after-reconnect-boundary.mp4"
 	newMedia.ResourceID = "after-reconnect-resource"
 	newMedia.Title = "After reconnect"
+	// A stale OAuth callback or delayed import from the previous generation
+	// must not be able to attach media after the committed reconnect.
+	staleMedia := newMedia
+	staleMedia.ProviderFileRef = "disk:/stale-generation-boundary.mp4"
+	staleMedia.ResourceID = "stale-generation-resource"
+	if staleItems, staleErr := reopened.academyImportCloudMediaWithGeneration(author, []academy.CloudMedia{staleMedia}, generation); staleErr == nil || len(staleItems) != 0 {
+		t.Fatalf("stale generation imported media after reconnect: items=%+v err=%v", staleItems, staleErr)
+	}
 	newItems, err := reopened.academyImportCloudMediaWithGeneration(author, []academy.CloudMedia{newMedia}, currentGeneration)
 	if err != nil || len(newItems) != 1 {
 		t.Fatalf("new generation import: %+v err=%v", newItems, err)
