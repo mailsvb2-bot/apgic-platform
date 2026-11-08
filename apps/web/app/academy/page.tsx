@@ -440,6 +440,7 @@ export default function AcademyPage(){
   </section>
   <section className="how-section">
    <h2>Мои курсы как автора</h2>
+   <p><a href="/account">Войти в тот же аккаунт с телефона или другого компьютера</a></p>
    <div className="how-grid">
     {mine.map(c=><article className="panel" key={c.id}>
      <h3>{c.title}</h3><p>Версия {c.version_no} · {c.state}</p>
