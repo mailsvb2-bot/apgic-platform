@@ -1,8 +1,9 @@
 "use client";
 
-import {useState,type FormEvent} from "react";
+import {useCallback,useEffect,useState,type FormEvent} from "react";
 
 type Challenge={pair_id:string;code:string;proof:string;expires_at:string};
+type PairedDevice={id:string;created_at:string;expires_at:string};
 async function post<T>(path:string,body?:unknown):Promise<T>{
  const response=await fetch(path,{
   method:"POST",credentials:"same-origin",cache:"no-store",
@@ -18,6 +19,27 @@ export default function AccountPage(){
  const [code,setCode]=useState("");
  const [busy,setBusy]=useState(false);
  const [notice,setNotice]=useState("");
+ const [devices,setDevices]=useState<PairedDevice[]>([]);
+ const [devicesLoaded,setDevicesLoaded]=useState(false);
+ const refreshDevices=useCallback(async()=>{
+  try{
+   const r=await fetch("/v1/account/devices",{credentials:"same-origin",cache:"no-store"});
+   if(!r.ok){setDevices([]);setDevicesLoaded(false);return}
+   const data=await r.json() as {devices:PairedDevice[]};
+   setDevices(data.devices);setDevicesLoaded(true);
+  }catch{setDevicesLoaded(false)}
+ },[]);
+ useEffect(()=>{void refreshDevices()},[refreshDevices]);
+ async function revokeDevice(id:string){
+  if(busy||!window.confirm("Отозвать доступ с этого устройства? Повторное подключение потребует подтверждения владельца."))return;
+  setBusy(true);setNotice("");
+  try{
+   await post(`/v1/account/devices/${encodeURIComponent(id)}/revoke`);
+   setNotice("Доступ устройства отозван.");
+   await refreshDevices();
+  }catch(error){setNotice(String(error))}
+  finally{setBusy(false)}
+ }
  async function start(){
   if(busy)return;
   setBusy(true);setNotice("");
@@ -81,6 +103,14 @@ export default function AccountPage(){
     </article>
    </div>
    <p role="status" aria-live="polite">{notice}</p>
+   {devicesLoaded?<section className="panel" aria-label="Подключённые устройства">
+    <h2>Устройства с подтверждённым входом</h2>
+    <p>Здесь показаны только устройства, подключённые через новый защищённый вход. Старые сессии не перечислены.</p>
+    {devices.length===0?<p>Дополнительных устройств нет.</p>:devices.map(device=><div key={device.id}>
+     <span>Подключено: {new Date(device.created_at).toLocaleString("ru-RU")} · Доступ до {new Date(device.expires_at).toLocaleDateString("ru-RU")}</span>
+     <button type="button" disabled={busy} onClick={()=>void revokeDevice(device.id)}>Отозвать доступ</button>
+    </div>)}
+   </section>:null}
    <p>Если на новом устройстве уже есть отдельный аккаунт, его автоматическая замена заблокирована ради сохранности данных. Это не объединение аккаунтов.</p>
   </section>
  </main>;
