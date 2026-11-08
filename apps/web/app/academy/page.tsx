@@ -50,6 +50,8 @@ async function downloadAcademyHistory():Promise<void>{
 export default function AcademyPage(){
  const [catalog,setCatalog]=useState<Course[]>([]);
  const [mine,setMine]=useState<Course[]>([]);
+ const [ownedCoursesError,setOwnedCoursesError]=useState("");
+ const [ownedCoursesLoaded,setOwnedCoursesLoaded]=useState(false);
  const [eligibleProducts,setEligibleProducts]=useState<AuthorProduct[]>([]);
  const [productLoadError,setProductLoadError]=useState("");
  const [orgs,setOrgs]=useState<AcademyOrg[]>([]);
@@ -123,7 +125,14 @@ export default function AcademyPage(){
    api<{course_ids:string[]}>("/v1/academy/me/course-access"),
    api<{certificates:LearnerCertificate[]}>("/v1/academy/me/certificates")
   ]);
-  if(owned.status==="fulfilled")setMine(owned.value.courses);
+  if(owned.status==="fulfilled"){
+   setMine(owned.value.courses);
+   setOwnedCoursesError("");
+  }else{
+   setMine([]);
+   setOwnedCoursesError(owned.reason instanceof Error?owned.reason.message:"Не удалось проверить авторскую сессию");
+  }
+  setOwnedCoursesLoaded(true);
   if(learning.status==="fulfilled")setEnrollments(learning.value.enrollments);
   if(reviews.status==="fulfilled")setPendingReviews(reviews.value.attempts);
   if(report.status==="fulfilled")setAuthorReport(report.value);
@@ -440,6 +449,8 @@ export default function AcademyPage(){
   </section>
   <section className="how-section">
    <h2>Мои курсы как автора</h2>
+   {ownedCoursesError?<p role="alert">Не удалось загрузить ваши курсы: {ownedCoursesError}. Проверьте авторизацию на этом устройстве. Курсы другого аккаунта не отображаются автоматически.</p>:null}
+   {ownedCoursesLoaded&&!ownedCoursesError&&mine.length===0?<p role="status">В текущей сессии нет авторских курсов. Если курсы есть на другом устройстве, возможно, там используется другая учётная запись. Не создавайте их повторно до проверки доступа к исходному аккаунту.</p>:null}
    <div className="how-grid">
     {mine.map(c=><article className="panel" key={c.id}>
      <h3>{c.title}</h3><p>Версия {c.version_no} · {c.state}</p>
