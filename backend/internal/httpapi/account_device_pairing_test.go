@@ -139,17 +139,22 @@ func TestAccountPairingAcrossDevicesKeepsCanonicalIdentity(t *testing.T) {
 		t.Fatalf("cross-origin start allowed: %d", got)
 	}
 	// Next.js forwards the browser Origin but changes Host to its loopback API.
-	proxied:=httptest.NewRequest(http.MethodPost,"http://127.0.0.1:43111"+start,nil)
-	proxied.Host="127.0.0.1:43111"
-	proxied.Header.Set("Origin","https://apgic.ru")
-	proxyResponse:=httptest.NewRecorder()
-	h.ServeHTTP(proxyResponse,proxied)
-	if proxyResponse.Code!=201 {t.Fatalf("valid origin behind Next proxy denied: %d %s",proxyResponse.Code,proxyResponse.Body.String())}
-	www:=httptest.NewRequest(http.MethodPost,"http://127.0.0.1:43111"+start,nil)
-	www.Host="127.0.0.1:43111"
-	www.Header.Set("Origin","https://www.apgic.ru")
-	wwwResult:=httptest.NewRecorder();h.ServeHTTP(wwwResult,www)
-	if wwwResult.Code!=201 {t.Fatalf("www first-party origin denied: %d",wwwResult.Code)}
+	proxied := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:43111"+start, nil)
+	proxied.Host = "127.0.0.1:43111"
+	proxied.Header.Set("Origin", "https://apgic.ru")
+	proxyResponse := httptest.NewRecorder()
+	h.ServeHTTP(proxyResponse, proxied)
+	if proxyResponse.Code != 201 {
+		t.Fatalf("valid origin behind Next proxy denied: %d %s", proxyResponse.Code, proxyResponse.Body.String())
+	}
+	www := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:43111"+start, nil)
+	www.Host = "127.0.0.1:43111"
+	www.Header.Set("Origin", "https://www.apgic.ru")
+	wwwResult := httptest.NewRecorder()
+	h.ServeHTTP(wwwResult, www)
+	if wwwResult.Code != 201 {
+		t.Fatalf("www first-party origin denied: %d", wwwResult.Code)
+	}
 	started := post(start, "", nil, "https://apgic.ru")
 	if started.Code != 201 {
 		t.Fatalf("start status %d: %s", started.Code, started.Body)
