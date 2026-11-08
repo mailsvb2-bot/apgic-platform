@@ -58,8 +58,8 @@ func accountPairOrigin(r *http.Request) bool {
 	// Next.js proxies /v1 through localhost and intentionally strips Host.
 	// Match the browser's Origin against the explicit public first-party
 	// allowlist, not the internal upstream Host or X-Forwarded-* headers.
-	origin:=r.Header.Get("Origin")
-	return (origin=="https://apgic.ru" || origin=="https://www.apgic.ru") &&
+	origin := r.Header.Get("Origin")
+	return (origin == "https://apgic.ru" || origin == "https://www.apgic.ru") &&
 		r.Header.Get("Sec-Fetch-Site") != "cross-site"
 }
 
