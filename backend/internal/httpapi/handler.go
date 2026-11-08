@@ -45,6 +45,7 @@ type Options struct {
 	ProductOwnership              productOwnershipStore
 	Products                      organizationProductStore
 	Academy                       academyStore
+	AccountDevicePairing          accountDevicePairingStore
 	ClientPersonal                clientPersonalStore
 	AccountDeletionIntake         accountDeletionIntakeStore
 	DeletionMFAKey                [32]byte
