@@ -95,6 +95,25 @@ func TestAccountDevicePairingPostgresOneTimeClaim(t *testing.T) {
 	if identity, ok, err := b.ClaimAccountDevicePair(pairID, proofDigest); err != nil || ok || identity != "" {
 		t.Fatalf("replay after restart-like second connection ok=%v identity=%q err=%v", ok, identity, err)
 	}
+	// A paired session must be private to the same identity and revocable
+	// across independent PostgreSQL connections, without a process restart.
+	deviceID,err:=persistentid.New();if err!=nil{t.Fatal(err)}
+	deviceDigest:=strings.Repeat("f",64)
+	if err=a.RegisterAccountPairedSession(deviceID,actor,deviceDigest,time.Now().Add(time.Hour));err!=nil{t.Fatal(err)}
+	active,err:=b.AccountPairedSessionActive(actor,deviceDigest)
+	if err!=nil||!active{t.Fatalf("paired session unavailable: %v %v",active,err)}
+	otherActor,err:=persistentid.New();if err!=nil{t.Fatal(err)}
+	active,err=b.AccountPairedSessionActive(otherActor,deviceDigest)
+	if err!=nil||active{t.Fatalf("foreign identity sees session: %v %v",active,err)}
+	owned,err:=b.ListAccountPairedSessions(actor)
+	if err!=nil||len(owned)!=1||owned[0].ID!=deviceID{t.Fatalf("paired list: %+v %v",owned,err)}
+	foreign,err:=b.ListAccountPairedSessions(otherActor)
+	if err!=nil||len(foreign)!=0{t.Fatalf("foreign list: %+v %v",foreign,err)}
+	if ok,err:=a.RevokeAccountPairedSession(otherActor,deviceID);err!=nil||ok{t.Fatalf("foreign revoke: %v %v",ok,err)}
+	if ok,err:=a.RevokeAccountPairedSession(actor,deviceID);err!=nil||!ok{t.Fatalf("owner revoke: %v %v",ok,err)}
+	active,err=b.AccountPairedSessionActive(actor,deviceDigest)
+	if err!=nil||active{t.Fatalf("revoked cookie still accepted: %v %v",active,err)}
+	if ok,err:=b.RevokeAccountPairedSession(actor,deviceID);err!=nil||ok{t.Fatalf("double revoke: %v %v",ok,err)}
 	expiredID, err := persistentid.New()
 	if err != nil {
 		t.Fatal(err)
