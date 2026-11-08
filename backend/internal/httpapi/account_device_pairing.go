@@ -55,7 +55,11 @@ func accountPairBody(r *http.Request, target any) bool {
 func accountPairOrigin(r *http.Request) bool {
 	// These credential-issuing endpoints require an actual same-origin browser
 	// POST. No OAuth callback, cross-site form, or Origin-less mutation accepted.
-	return r.Header.Get("Origin") == "https://"+r.Host &&
+	// Next.js proxies /v1 through localhost and intentionally strips Host.
+	// Match the browser's Origin against the explicit public first-party
+	// allowlist, not the internal upstream Host or X-Forwarded-* headers.
+	origin:=r.Header.Get("Origin")
+	return (origin=="https://apgic.ru" || origin=="https://www.apgic.ru") &&
 		r.Header.Get("Sec-Fetch-Site") != "cross-site"
 }
 
