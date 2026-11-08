@@ -8,11 +8,11 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"net/http"
 	"net"
-	"sync"
+	"net/http"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/identity"
@@ -68,34 +68,53 @@ func accountPairOrigin(r *http.Request) bool {
 // Anonymous starts have a bounded per-source budget. The public request
 // reaches Go only through the local Next proxy; it forwards Nginx's
 // sanitized X-Real-IP header. Avoid unbounded in-memory IP maps.
-type accountPairStartWindow struct {until time.Time; count int}
-type accountPairStartLimiter struct {
- mu sync.Mutex
- windows map[string]accountPairStartWindow
+type accountPairStartWindow struct {
+	until time.Time
+	count int
 }
+type accountPairStartLimiter struct {
+	mu      sync.Mutex
+	windows map[string]accountPairStartWindow
+}
+
 func (l *accountPairStartLimiter) allow(r *http.Request) bool {
- host,_,err:=net.SplitHostPort(r.RemoteAddr)
- if err!=nil {host=r.RemoteAddr}
- if parsed:=net.ParseIP(host); parsed!=nil && parsed.IsLoopback(){
-  if raw:=r.Header.Get("X-Real-IP");net.ParseIP(raw)!=nil {host=raw}
- }
- id:=accountPairDigest(host)
- now:=time.Now()
- l.mu.Lock();defer l.mu.Unlock()
- if l.windows==nil {l.windows=make(map[string]accountPairStartWindow)}
- if len(l.windows)>=4096 {
-  for key,item:=range l.windows {if now.After(item.until) {delete(l.windows,key)}}
- }
- item:=l.windows[id]
- if !now.Before(item.until) {item=accountPairStartWindow{until:now.Add(time.Minute)}}
- if item.count>=6 || len(l.windows)>=4096 && item.count==0 {return false}
- item.count++
- l.windows[id]=item
- return true
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		host = r.RemoteAddr
+	}
+	if parsed := net.ParseIP(host); parsed != nil && parsed.IsLoopback() {
+		if raw := r.Header.Get("X-Real-IP"); net.ParseIP(raw) != nil {
+			host = raw
+		}
+	}
+	id := accountPairDigest(host)
+	now := time.Now()
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.windows == nil {
+		l.windows = make(map[string]accountPairStartWindow)
+	}
+	if len(l.windows) >= 4096 {
+		for key, item := range l.windows {
+			if now.After(item.until) {
+				delete(l.windows, key)
+			}
+		}
+	}
+	item := l.windows[id]
+	if !now.Before(item.until) {
+		item = accountPairStartWindow{until: now.Add(time.Minute)}
+	}
+	if item.count >= 6 || len(l.windows) >= 4096 && item.count == 0 {
+		return false
+	}
+	item.count++
+	l.windows[id] = item
+	return true
 }
 
 func registerAccountDevicePairing(mux *http.ServeMux, store accountDevicePairingStore, sessions *clientSessionManager, sessionErr error) {
-	limiter:=&accountPairStartLimiter{}
+	limiter := &accountPairStartLimiter{}
 	fail := func(w http.ResponseWriter, r *http.Request, status int, code, message string) {
 		writeDemandError(w, r, status, code, message, false, nil)
 	}
@@ -126,7 +145,10 @@ func registerAccountDevicePairing(mux *http.ServeMux, store accountDevicePairing
 		if !available(w, r) || !targetIsAnonymous(w, r) {
 			return
 		}
-		if !limiter.allow(r){fail(w,r,http.StatusTooManyRequests,"ACCOUNT_PAIRING_RATE_LIMIT","Слишком много запросов подключения. Повторите позже.");return}
+		if !limiter.allow(r) {
+			fail(w, r, http.StatusTooManyRequests, "ACCOUNT_PAIRING_RATE_LIMIT", "Слишком много запросов подключения. Повторите позже.")
+			return
+		}
 		if r.ContentLength > 2 { // no browser-controlled identity or redirect body
 			fail(w, r, http.StatusBadRequest, "ACCOUNT_PAIRING_INVALID", "Некорректный запрос.")
 			return
