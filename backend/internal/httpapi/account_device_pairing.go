@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/persistentid"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/identity"
 )
 
 const accountDevicePairTTL = 5 * time.Minute
@@ -24,6 +25,10 @@ type accountDevicePairingStore interface {
 	CreateAccountDevicePair(id, codeDigest, proofDigest string, expires time.Time) error
 	ApproveAccountDevicePair(codeDigest, identity string) (bool, error)
 	ClaimAccountDevicePair(id, proofDigest string) (string, bool, error)
+	RegisterAccountPairedSession(id, actor, digest string, expires time.Time) error
+	AccountPairedSessionActive(actor,digest string)(bool,error)
+	ListAccountPairedSessions(actor string)([]identity.PairedDevice,error)
+	RevokeAccountPairedSession(actor,id string)(bool,error)
 }
 
 var accountPairCodePattern = regexp.MustCompile(`^[A-F0-9]{16}$`)
@@ -170,12 +175,38 @@ func registerAccountDevicePairing(mux *http.ServeMux, store accountDevicePairing
 				return
 			}
 		}
-		cookie, err := sessions.issue(actor)
+		cookie, err := sessions.issuePaired(actor)
 		if err != nil {
 			fail(w, r, 503, "ACCOUNT_PAIRING_UNAVAILABLE", "Не удалось выпустить сессию.")
 			return
 		}
+		deviceID,err:=persistentid.New()
+		if err!=nil {fail(w,r,503,"ACCOUNT_PAIRING_UNAVAILABLE","Не удалось зарегистрировать устройство.");return}
+		if err=store.RegisterAccountPairedSession(deviceID,actor,accountPairDigest(cookie.Value),cookie.Expires);err!=nil {
+			fail(w,r,503,"ACCOUNT_PAIRING_UNAVAILABLE","Не удалось зарегистрировать устройство.");return
+		}
 		http.SetCookie(w, cookie)
 		writeJSON(w, 200, map[string]any{"connected": true})
+	})
+
+	mux.HandleFunc("GET /v1/account/devices",func(w http.ResponseWriter,r *http.Request){
+		w.Header().Set("Cache-Control","no-store")
+		if store==nil||sessions==nil||sessionErr!=nil {fail(w,r,503,"ACCOUNT_PAIRING_UNAVAILABLE","Список устройств недоступен.");return}
+		actor,ok:=trustedClientIdentity(w,r,sessions,sessionErr,"")
+		if !ok {return}
+		devices,err:=store.ListAccountPairedSessions(actor)
+		if err!=nil {fail(w,r,503,"ACCOUNT_PAIRING_UNAVAILABLE","Список устройств недоступен.");return}
+		writeJSON(w,200,map[string]any{"devices":devices})
+	})
+	mux.HandleFunc("POST /v1/account/devices/{deviceID}/revoke",func(w http.ResponseWriter,r *http.Request){
+		if !available(w,r) {return}
+		actor,ok:=trustedClientIdentity(w,r,sessions,sessionErr,"")
+		if !ok {return}
+		deviceID:=r.PathValue("deviceID")
+		if !accountPairIDPattern.MatchString(deviceID) {fail(w,r,400,"ACCOUNT_PAIRING_INVALID","Неверный идентификатор устройства.");return}
+		revoked,err:=store.RevokeAccountPairedSession(actor,deviceID)
+		if err!=nil {fail(w,r,503,"ACCOUNT_PAIRING_UNAVAILABLE","Отзыв устройства недоступен.");return}
+		if !revoked {fail(w,r,404,"ACCOUNT_PAIRING_NOT_FOUND","Устройство не найдено.");return}
+		writeJSON(w,200,map[string]any{"revoked":true})
 	})
 }
