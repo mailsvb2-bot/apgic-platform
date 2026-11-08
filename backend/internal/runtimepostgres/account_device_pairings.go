@@ -19,9 +19,11 @@ func (c *Checker) CreateAccountDevicePair(id, codeDigest, proofDigest string, ex
 	defer cancel()
 	// Reap a bounded batch of old one-time proofs. Anonymous requests must
 	// not accumulate unlimited expired state in the shared PostgreSQL.
-	if _,err:=c.db.ExecContext(ctx,`DELETE FROM account_device_pairings WHERE id IN (
+	if _, err := c.db.ExecContext(ctx, `DELETE FROM account_device_pairings WHERE id IN (
 	 SELECT id FROM account_device_pairings WHERE expires_at < now()-interval '1 hour'
-	 ORDER BY expires_at LIMIT 32)`);err!=nil{return err}
+	 ORDER BY expires_at LIMIT 32)`); err != nil {
+		return err
+	}
 	_, err := c.db.ExecContext(ctx, `INSERT INTO account_device_pairings(id,code_digest,proof_digest,expires_at)
  VALUES($1::uuid,$2,$3,$4)`, id, codeDigest, proofDigest, expires)
 	return err
