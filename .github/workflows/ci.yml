@@ -355,6 +355,7 @@ jobs:
           (cd backend && go test ./internal/runtimepostgres -run TestAcademyStoreRefundWithdrawsLearningAccess -count=1 -v)
           (cd backend && go test ./internal/runtimepostgres -run TestAcademyVersioningRequiresVerifiedAccess -count=1 -v)
           (cd backend && go test ./internal/runtimepostgres -run 'TestAcademyCloudMediaDraftOwnerAndVideoBoundaryPostgres|TestAcademyCloudMediaGenerationReconnectionPostgres' -count=1 -v)
+          (cd backend && go test ./internal/runtimepostgres -run TestAcademyVideoFingerprintRevocationCommitBoundaryPostgres -count=1 -v)
           (cd backend && go test ./internal/runtimepostgres -run TestAcademyNotificationConsentDurableOptOut -count=1 -v)
       - name: Prove R4 revenue convergence (provider-executed, non-custodial, reconciled)
         working-directory: backend
