@@ -208,6 +208,7 @@ func main() {
 		ProductOwnership:            storage,
 		Products:                    storage,
 		Academy:                     storage,
+		AccountDevicePairing:        storage,
 		ClientPersonal:              storage,
 		AccountDeletionIntake:       storage,
 		DeletionMFAKey:              deletionMFAKey,

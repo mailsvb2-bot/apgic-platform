@@ -449,6 +449,7 @@ export default function AcademyPage(){
   </section>
   <section className="how-section">
    <h2>Мои курсы как автора</h2>
+   <p><a href="/account">Войти в тот же аккаунт с телефона или другого компьютера</a></p>
    {ownedCoursesError?<p role="alert">Не удалось загрузить ваши курсы: {ownedCoursesError}. Проверьте авторизацию на этом устройстве. Курсы другого аккаунта не отображаются автоматически.</p>:null}
    {ownedCoursesLoaded&&!ownedCoursesError&&mine.length===0?<p role="status">В текущей сессии нет авторских курсов. Если курсы есть на другом устройстве, возможно, там используется другая учётная запись. Не создавайте их повторно до проверки доступа к исходному аккаунту.</p>:null}
    <div className="how-grid">

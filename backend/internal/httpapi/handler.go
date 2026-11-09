@@ -45,6 +45,7 @@ type Options struct {
 	ProductOwnership              productOwnershipStore
 	Products                      organizationProductStore
 	Academy                       academyStore
+	AccountDevicePairing          accountDevicePairingStore
 	ClientPersonal                clientPersonalStore
 	AccountDeletionIntake         accountDeletionIntakeStore
 	DeletionMFAKey                [32]byte
@@ -156,6 +157,9 @@ func New(options Options) http.Handler {
 			if deletions, ok := options.AccountDeletionIntake.(clientIdentityDeletionChecker); ok {
 				sessions.deletions = deletions
 			}
+			if options.AccountDevicePairing != nil {
+				sessions.pairedSessions = options.AccountDevicePairing
+			}
 			stepUp, sessionConfigErr = newStepUpManager(options.ClientSessionKey, options.Now)
 		}
 	}
@@ -191,6 +195,7 @@ func New(options Options) http.Handler {
 	registerOrganizationRuntime(mux, options.Organizations, sessions, sessionConfigErr)
 	registerOrganizationProducts(mux, options.Products, sessions, sessionConfigErr, options.Now)
 	registerAcademy(mux, options.Academy, sessions, sessionConfigErr)
+	registerAccountDevicePairing(mux, options.AccountDevicePairing, sessions, sessionConfigErr)
 	registerHighRiskProductOwnership(mux, options.ProductOwnership, sessions, stepUp, sessionConfigErr, options.Now)
 	registerClientPersonal(mux, options.ClientPersonal, sessions, sessionConfigErr, options.Now)
 	return limitRequestBodies(observeRuntimeSLI(mux, sli), maxRequestBodyBytes)

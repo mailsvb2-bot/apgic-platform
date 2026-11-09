@@ -18,6 +18,7 @@ import (
 const (
 	clientSessionCookieName = "__Host-apgic_session"
 	clientSessionVersion    = "v2"
+	pairedSessionVersion    = "v3"
 	legacySessionVersion    = "v1"
 	clientSessionTTL        = 30 * 24 * time.Hour
 	minSessionKeyBytes      = 32
@@ -31,9 +32,14 @@ var (
 )
 
 type clientSessionManager struct {
-	key       []byte
-	now       func() time.Time
-	deletions clientIdentityDeletionChecker
+	key            []byte
+	now            func() time.Time
+	deletions      clientIdentityDeletionChecker
+	pairedSessions pairedSessionVerifier
+}
+
+type pairedSessionVerifier interface {
+	AccountPairedSessionActive(actor, digest string) (bool, error)
 }
 
 type clientIdentityDeletionChecker interface {
@@ -59,6 +65,14 @@ func newClientSessionManager(key []byte, now func() time.Time) (*clientSessionMa
 }
 
 func (m *clientSessionManager) issue(identityID string) (*http.Cookie, error) {
+	return m.issueVersion(identityID, clientSessionVersion)
+}
+
+func (m *clientSessionManager) issuePaired(identityID string) (*http.Cookie, error) {
+	return m.issueVersion(identityID, pairedSessionVersion)
+}
+
+func (m *clientSessionManager) issueVersion(identityID, version string) (*http.Cookie, error) {
 	if strings.TrimSpace(identityID) == "" {
 		return nil, ErrClientSessionInvalid
 	}
@@ -69,8 +83,8 @@ func (m *clientSessionManager) issue(identityID string) (*http.Cookie, error) {
 	expiresAt := m.now().UTC().Add(clientSessionTTL)
 	payload := identityID + "|" + sessionID + "|" + strconv.FormatInt(expiresAt.Unix(), 10)
 	payloadEncoded := base64.RawURLEncoding.EncodeToString([]byte(payload))
-	signature := m.sign(clientSessionVersion + "." + payloadEncoded)
-	value := clientSessionVersion + "." + payloadEncoded + "." + base64.RawURLEncoding.EncodeToString(signature)
+	signature := m.sign(version + "." + payloadEncoded)
+	value := version + "." + payloadEncoded + "." + base64.RawURLEncoding.EncodeToString(signature)
 
 	return &http.Cookie{
 		Name:     clientSessionCookieName,
@@ -119,6 +133,15 @@ func (m *clientSessionManager) identityAndReferenceFromRequest(r *http.Request) 
 		}
 	}
 	digest := sha256.Sum256([]byte(cookie.Value))
+	if strings.HasPrefix(cookie.Value, pairedSessionVersion+".") {
+		if m.pairedSessions == nil {
+			return "", "", ErrClientSessionInvalid
+		}
+		active, verifyErr := m.pairedSessions.AccountPairedSessionActive(identityID, fmt.Sprintf("%x", digest[:]))
+		if verifyErr != nil || !active {
+			return "", "", ErrClientSessionInvalid
+		}
+	}
 	return identityID, "session:" + base64.RawURLEncoding.EncodeToString(digest[:]), nil
 }
 
@@ -144,7 +167,7 @@ func (m *clientSessionManager) identityForCreate(r *http.Request) (string, *http
 
 func (m *clientSessionManager) parse(value string) (string, error) {
 	parts := strings.Split(value, ".")
-	if len(parts) != 3 || (parts[0] != clientSessionVersion && parts[0] != legacySessionVersion) {
+	if len(parts) != 3 || (parts[0] != clientSessionVersion && parts[0] != pairedSessionVersion && parts[0] != legacySessionVersion) {
 		return "", ErrClientSessionInvalid
 	}
 	signed := parts[0] + "." + parts[1]
@@ -162,7 +185,7 @@ func (m *clientSessionManager) parse(value string) (string, error) {
 	}
 	var expiresField string
 	switch parts[0] {
-	case clientSessionVersion:
+	case clientSessionVersion, pairedSessionVersion:
 		if len(payloadParts) != 3 || strings.TrimSpace(payloadParts[1]) == "" {
 			return "", ErrClientSessionInvalid
 		}
