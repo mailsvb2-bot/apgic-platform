@@ -29,7 +29,6 @@ export default function Home() {
           <nav className="top-nav" aria-label="Разделы">
             <a href="#how">Как это работает</a>
             <PersonalNavLink />
-            <a href="/account">Мой аккаунт</a>
             <a href="/specialists">Подобрать специалиста</a>
             <a className="organization-nav-link" href="/organization">Организация</a>
             <a className="pro-nav-link" href="/specialist">Для специалистов</a>
