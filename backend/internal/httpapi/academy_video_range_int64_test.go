@@ -7,8 +7,8 @@ import (
 
 func TestAcademyVideoRangeRejectsUnrepresentableOffsets(t *testing.T) {
 	for _, tc := range []struct {
-		name string
-		value string
+		name    string
+		value   string
 		allowed bool
 	}{
 		{"max start", "bytes=9223372036854775807-", true},
