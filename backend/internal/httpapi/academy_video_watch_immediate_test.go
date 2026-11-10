@@ -46,3 +46,38 @@ func TestAcademyVideoWatcherDoesNotCheckCancelledRequest(t *testing.T) {
 		t.Fatalf("cancelled request made %d unnecessary authorization checks", checks.Load())
 	}
 }
+// The first successful check must not become a permanent authorization:
+ // revocation after startup must cancel an already-running stream.
+func TestAcademyVideoWatcherRevokesAfterInitialAuthorization(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var checks atomic.Int32
+	firstCheck := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		academyWatchVideoEntitlement(ctx, cancel, 5*time.Millisecond, func() bool {
+			if checks.Add(1) == 1 {
+				close(firstCheck)
+				return true
+			}
+			return false
+		})
+	}()
+	select {
+	case <-firstCheck:
+	case <-time.After(2 * time.Second):
+		t.Fatal("watcher never performed initial authorization")
+	}
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("watcher did not cancel stream after subsequent revocation")
+	}
+	if ctx.Err() != context.Canceled {
+		t.Fatalf("stream remained authorized after revocation: %v", ctx.Err())
+	}
+	if checks.Load() < 2 {
+		t.Fatalf("expected initial and subsequent authorization checks, got %d", checks.Load())
+	}
+}
