@@ -13,6 +13,7 @@ import (
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/instant"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/launchconfig"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/legal"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/liveevents"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/mobile"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/mutation"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/notification"
@@ -53,6 +54,9 @@ type Options struct {
 	BlockSyntheticAccountDeletion bool
 	ProviderWebhookKeys           connector.WebhookPublicKeyResolver
 	ConsultationProvider          ConsultationProviderStore
+	LiveEvents                    LiveEventStore
+	LiveEventsEnabled             bool
+	LiveMedia                     liveevents.RealMediaProvider
 	Finance                       FinanceStore
 	FinanceOperations             FinanceOperationsStore
 	FinanceMFA                    FinanceMFAStore
@@ -168,6 +172,10 @@ func New(options Options) http.Handler {
 	registerClientDeletionFactor(mux, options.AccountDeletionIntake, sessions, stepUp, options.DeletionMFAKey, sessionConfigErr, options.Now)
 	registerInstant(mux, options.Instant, sessions, sessionConfigErr, options.InstantEnabled)
 	registerConsultationProvider(mux, options.ConsultationProvider, options.ProviderWebhookKeys, sessions, sessionConfigErr)
+	if options.LiveEventsEnabled {
+		registerLiveEvents(mux, options.LiveEvents, options.ProviderWebhookKeys, sessions, sessionConfigErr, options.Now, options.LiveMedia)
+		registerLiveMedia(mux, options.LiveEvents, options.LiveMedia, sessions, sessionConfigErr, options.Now)
+	}
 	registerFinance(mux, options.Finance, options.ProviderWebhookKeys, sessions, sessionConfigErr)
 	registerFinanceOperations(mux, options.FinanceOperations, sessions, stepUp, sessionConfigErr, options.Now)
 	registerFinanceMFA(mux, options.FinanceMFA, sessions, stepUp, options.FinanceMFAKey, sessionConfigErr, options.Now)
