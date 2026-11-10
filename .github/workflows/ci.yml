@@ -52,6 +52,7 @@ jobs:
       - run: python tools/staging_runtime_watchdog_guard.py
       - run: python tools/staging_runtime_evidence_guard.py
       - run: python tools/staging_migration_contract_guard.py
+      - run: python tools/r9_sql_contract_guard.py
       - shell: bash
         run: |
           bash -n deploy/staging/update-staging.sh
@@ -322,6 +323,7 @@ jobs:
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r3_communication_consultation_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r2_r3_signed_payment_admission.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r3_consultation_outcome_invariants.sql
+          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r9_live_events_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r4_store_lifecycle_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r2_refund_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r6_instant_duty_invariants.sql
@@ -331,6 +333,7 @@ jobs:
             bash deploy/staging/test-staging-migration-ledger.sh
           PGHOST=127.0.0.1 PGUSER=apgic PGDATABASE=apgic_ci bash backend/ci/r0_order_snapshot_baseline_repair.sh
           bash backend/ci/r2_booking_concurrency.sh
+          bash backend/ci/r9_registration_concurrency.sh
           bash backend/ci/r2_mutation_concurrency.sh
       - name: Prove R8 isolated paid course journey, refund revocation and author reports
         shell: bash
