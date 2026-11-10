@@ -177,13 +177,26 @@ button, textarea, input { font: inherit; }
   flex-wrap: wrap;
   gap: 8px;
 }
-.direction-grid span {
+/* Direction chips keep identical geometry for informational labels and
+   clickable SEO links; semantics must not shift the critical client entry. */
+.direction-grid :is(span, a) {
   padding: 9px 12px;
   border-radius: 999px;
   background: #eef3ed;
   color: #29483a;
   font-size: .9rem;
   font-weight: 700;
+}
+.direction-grid a {
+  text-decoration: none;
+}
+.direction-grid a:hover {
+  background: #e1eddf;
+  text-decoration: underline;
+}
+.direction-grid a:focus-visible {
+  outline: 3px solid #163f31;
+  outline-offset: 3px;
 }
 .mini-steps {
   margin-top: 24px;
