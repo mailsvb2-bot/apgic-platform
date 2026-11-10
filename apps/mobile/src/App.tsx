@@ -1,6 +1,7 @@
 import ClientPersonalPanel from "./client-personal-panel.tsx";
 import {AcademySurface} from "./mobile-academy-client.tsx";
 import React, {useCallback, useEffect, useRef, useState} from "react";
+import {LiveEventsPanel} from "./r9-live-events.tsx";
 import {
   AccessibilityInfo,
   Linking,
@@ -77,6 +78,7 @@ import {
 } from "./r1-cross-surface.ts";
 
 type AppProps = {
+  liveEventsEnabled?: boolean;
   deviceCapability?: DeviceCapability;
   deviceCapabilityState?: CapabilityState;
   installationE2EBaseURL?: string;
@@ -144,6 +146,7 @@ const actionCopy = {
 } as const;
 
 export default function App({
+  liveEventsEnabled = false,
   deviceCapability = "MICROPHONE",
   deviceCapabilityState = "UNKNOWN",
   installationE2EBaseURL,
@@ -1041,6 +1044,7 @@ export default function App({
       >
         <Text style={styles.eyebrow}>R0 · Foundation</Text>
         <Text style={styles.title}>APGIC</Text>
+        <LiveEventsPanel baseURL={demandAPIBaseURL} enabled={liveEventsEnabled} />
         <Text style={styles.body}>
           Одна Identity и одна server truth для iOS, Android, Web и PWA.
         </Text>
