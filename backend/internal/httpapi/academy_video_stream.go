@@ -296,17 +296,17 @@ func academyVideoSingleRange(value string) bool {
 		if last == "" {
 			return false
 		}
-		suffix, err := strconv.ParseUint(last, 10, 64)
+		suffix, err := strconv.ParseInt(last, 10, 64)
 		return err == nil && suffix > 0
 	}
-	start, err := strconv.ParseUint(first, 10, 64)
+	start, err := strconv.ParseInt(first, 10, 64)
 	if err != nil {
 		return false
 	}
 	if last == "" {
 		return true
 	}
-	finish, err := strconv.ParseUint(last, 10, 64)
+	finish, err := strconv.ParseInt(last, 10, 64)
 	return err == nil && finish >= start
 }
 
