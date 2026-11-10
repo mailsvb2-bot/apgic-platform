@@ -55,6 +55,12 @@ func main() {
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
 	for {
+		if os.Getenv("APGIC_LIVE_EVENTS_ENABLED") == "1" {
+			queued, queueErr := storage.QueueDueLiveReminders(ctx, time.Now().UTC(), batchSize)
+			if queueErr != nil && ctx.Err() == nil {
+				log.Printf("R9 live reminder enqueue failed: queued=%d error=%v", queued, queueErr)
+			}
+		}
 		delivered, err := storage.DeliverPendingOutbox(ctx, batchSize, deliverer.Deliver)
 		if err != nil && ctx.Err() == nil {
 			log.Printf("APGIC outbox delivery cycle incomplete: delivered=%d error=%v", delivered, err)
