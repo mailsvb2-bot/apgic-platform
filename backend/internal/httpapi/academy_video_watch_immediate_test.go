@@ -46,6 +46,7 @@ func TestAcademyVideoWatcherDoesNotCheckCancelledRequest(t *testing.T) {
 		t.Fatalf("cancelled request made %d unnecessary authorization checks", checks.Load())
 	}
 }
+
 // The first successful check must not become a permanent authorization:
 // revocation after startup must cancel an already-running stream.
 func TestAcademyVideoWatcherRevokesAfterInitialAuthorization(t *testing.T) {
