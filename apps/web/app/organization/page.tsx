@@ -19,6 +19,8 @@ export default function OrganizationPage() {
           <nav className="top-nav" aria-label="Разделы">
             <a href="/">Для клиентов</a>
             <a href="/specialist">Для специалистов</a>
+            <a href="/live-events">Афиша</a>
+            <a href="/organization/live-events">Провести мероприятие</a>
           </nav>
         </header>
 
