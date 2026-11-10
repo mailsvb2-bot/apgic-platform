@@ -51,6 +51,7 @@ export default function SpecialistPage() {
             <a href="/specialist/now">Принимать сейчас</a>
             <a href="#specialist-academy">Курсы и ученики</a>
             <a href="#onboarding">Мой кабинет</a>
+            <a href="/specialist/growth">Привлечение клиентов</a>
           </nav>
         </header>
 

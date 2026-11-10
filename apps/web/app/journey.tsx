@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import ResumeBooking from "../src/resume-booking";
 import ConsultationResultView from "../src/consultation-result";
+import {growthTopics} from "../src/growth-client";
 import type { OrderStatus } from "../../../packages/contracts/src/generated/apgic-v1";
 
 type Intent = {
@@ -170,6 +171,10 @@ const JOURNEY_STEPS = [
 
 export function Journey() {
   const [text, setText] = useState("");
+  useEffect(()=>{
+    const topic=new URLSearchParams(window.location.search).get("topic")||"";
+    if(Object.hasOwn(growthTopics,topic))setText(current=>current||growthTopics[topic]);
+  },[]);
   const [intent, setIntent] = useState<Intent | null>(null);
   const [topics, setTopics] = useState<string[]>([]);
   const [matches, setMatches] = useState<MatchCard[] | null>(null);
