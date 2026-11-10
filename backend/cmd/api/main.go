@@ -76,8 +76,12 @@ func main() {
 	var ucrMedia *ucr.Client
 	if liveEventsEnabled {
 		ucrMedia, err = ucr.NewFromEnvironment()
-		if err != nil { log.Fatalf("R9 communication provider configuration invalid: %v", err) }
-		if ucrMedia == nil { log.Fatal("R9 live events require an authenticated communication provider") }
+		if err != nil {
+			log.Fatalf("R9 communication provider configuration invalid: %v", err)
+		}
+		if ucrMedia == nil {
+			log.Fatal("R9 live events require an authenticated communication provider")
+		}
 	}
 	providerWebhookKeys, err := providerWebhookKeysFromEnvironment()
 	if err != nil {
@@ -106,8 +110,12 @@ func main() {
 		if liveEventsEnabled {
 			baseReady := readinessCheck
 			readinessCheck = func(ctx context.Context) error {
-				if err := baseReady(ctx); err != nil { return err }
-				if err := storage.LiveEventsReady(ctx); err != nil { return err }
+				if err := baseReady(ctx); err != nil {
+					return err
+				}
+				if err := storage.LiveEventsReady(ctx); err != nil {
+					return err
+				}
 				return ucrMedia.TransportReady(ctx)
 			}
 		}
@@ -195,9 +203,9 @@ func main() {
 		BlockSyntheticAccountDeletion: runtimepostgres.RequiresDatabase(environment),
 		ProviderWebhookKeys:           providerWebhookKeys,
 		ConsultationProvider:          storage,
-		LiveEvents:                  storage,
-		LiveEventsEnabled:           liveEventsEnabled,
-		LiveMedia:                   ucrMedia,
+		LiveEvents:                    storage,
+		LiveEventsEnabled:             liveEventsEnabled,
+		LiveMedia:                     ucrMedia,
 		Finance:                       financeStore(storage),
 		FinanceOperations:             financeOperationsStore(storage),
 		FinanceMFA:                    financeMFAStore(storage),
