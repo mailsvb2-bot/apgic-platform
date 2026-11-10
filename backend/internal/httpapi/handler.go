@@ -54,9 +54,9 @@ type Options struct {
 	BlockSyntheticAccountDeletion bool
 	ProviderWebhookKeys           connector.WebhookPublicKeyResolver
 	ConsultationProvider          ConsultationProviderStore
-	LiveEvents                  LiveEventStore
-	LiveEventsEnabled           bool
-	LiveMedia                   liveevents.RealMediaProvider
+	LiveEvents                    LiveEventStore
+	LiveEventsEnabled             bool
+	LiveMedia                     liveevents.RealMediaProvider
 	Finance                       FinanceStore
 	FinanceOperations             FinanceOperationsStore
 	FinanceMFA                    FinanceMFAStore
