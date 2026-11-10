@@ -19,6 +19,7 @@ import (
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/demand"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/httpapi"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/launchconfig"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/liveevents/ucr"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/mobile"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/privacy"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/remoteconfig"
@@ -67,6 +68,17 @@ func main() {
 	if err != nil {
 		log.Fatalf("APGIC remote config configuration failed: %v", err)
 	}
+	// R9 remains explicitly disabled until provider credentials and staging proof exist.
+	liveEventsEnabled := os.Getenv("APGIC_LIVE_EVENTS_ENABLED") == "1"
+	if liveEventsEnabled && !runtimepostgres.RequiresDatabase(environment) {
+		log.Fatal("R9 live events require canonical PostgreSQL storage")
+	}
+	var ucrMedia *ucr.Client
+	if liveEventsEnabled {
+		ucrMedia, err = ucr.NewFromEnvironment()
+		if err != nil { log.Fatalf("R9 communication provider configuration invalid: %v", err) }
+		if ucrMedia == nil { log.Fatal("R9 live events require an authenticated communication provider") }
+	}
 	providerWebhookKeys, err := providerWebhookKeysFromEnvironment()
 	if err != nil {
 		log.Fatalf("APGIC provider webhook public-key configuration failed: %v", err)
@@ -91,6 +103,14 @@ func main() {
 		}
 		defer storage.Close()
 		readinessCheck = storage.Ready
+		if liveEventsEnabled {
+			baseReady := readinessCheck
+			readinessCheck = func(ctx context.Context) error {
+				if err := baseReady(ctx); err != nil { return err }
+				if err := storage.LiveEventsReady(ctx); err != nil { return err }
+				return ucrMedia.TransportReady(ctx)
+			}
+		}
 		ledgerStore = storage
 		journeyStore = storage
 	}
@@ -175,6 +195,9 @@ func main() {
 		BlockSyntheticAccountDeletion: runtimepostgres.RequiresDatabase(environment),
 		ProviderWebhookKeys:           providerWebhookKeys,
 		ConsultationProvider:          storage,
+		LiveEvents:                  storage,
+		LiveEventsEnabled:           liveEventsEnabled,
+		LiveMedia:                   ucrMedia,
 		Finance:                       financeStore(storage),
 		FinanceOperations:             financeOperationsStore(storage),
 		FinanceMFA:                    financeMFAStore(storage),
