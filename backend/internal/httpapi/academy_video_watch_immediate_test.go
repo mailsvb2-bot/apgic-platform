@@ -47,7 +47,7 @@ func TestAcademyVideoWatcherDoesNotCheckCancelledRequest(t *testing.T) {
 	}
 }
 // The first successful check must not become a permanent authorization:
- // revocation after startup must cancel an already-running stream.
+// revocation after startup must cancel an already-running stream.
 func TestAcademyVideoWatcherRevokesAfterInitialAuthorization(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
