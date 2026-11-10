@@ -313,6 +313,15 @@ func academyVideoSingleRange(value string) bool {
 // academyWatchVideoEntitlement watches idle, stalled and active video streams.
 // A revocation cancels the HTTP request even if the provider stops sending.
 func academyWatchVideoEntitlement(ctx context.Context, cancel context.CancelFunc, interval time.Duration, allowed func() bool) {
+	// Check before waiting for the first tick: access may have been revoked
+	// between the handler's initial authorization and watcher startup.
+	if ctx.Err() != nil {
+		return
+	}
+	if !allowed() {
+		cancel()
+		return
+	}
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
