@@ -72,6 +72,11 @@ type Options struct {
 	ClientCompatibilityPolicies   map[clientcompat.Platform]clientcompat.Policy
 	RemoteConfigProvider          func(time.Time) (remoteconfig.SignedEnvelope, error)
 	Now                           func() time.Time
+	PersonaStore                  PersonaStore
+	PersonaProvider               connector.PersonaRuntime
+	PersonaEnabled                bool
+	PersonaProviderInstanceID     string
+	PersonaPolicyVersion          string
 }
 
 type metaResponse struct {
@@ -202,6 +207,7 @@ func New(options Options) http.Handler {
 		deepLinkTokens, deepLinkTokenConfigErr = mobile.NewDeepLinkTokenManager(options.DeepLinkSigningKey)
 	}
 	registerMobileDeepLinks(mux, options.DeepLinks, options.MobileWorkspaces, deepLinkTokens, deepLinkTokenConfigErr, sessions, sessionConfigErr, options.Now)
+	registerPersona(mux, options.PersonaStore, options.PersonaProvider, personaAPIConfig{Enabled: options.PersonaEnabled, ProviderInstanceID: options.PersonaProviderInstanceID, PolicyVersion: options.PersonaPolicyVersion}, sessions, sessionConfigErr)
 	registerSpecialist(mux, options.Specialists, sessions, sessionConfigErr)
 	registerPublicSpecialists(mux, options.Specialists, sessions, sessionConfigErr)
 	registerPublicSpecialistOffers(mux, options.Specialists)

@@ -16,6 +16,7 @@ import {
 } from "react-native";
 
 import {apiContractVersion} from "./api-contract.ts";
+import {AvatarCompanion} from "./AvatarCompanion.tsx";
 import {NativeSpecialistDirectory} from "./native-specialist-directory.tsx";
 import {InstantNowSurface} from "./instant-now-surface.tsx";
 import {
@@ -1239,6 +1240,8 @@ export default function App({
         ) : null}
 
         {!infrastructureE2EActive ? <View><Pressable accessibilityRole="button" accessibilityLabel="Открыть дежурство специалиста" style={styles.demandAction} onPress={() => setInstantPanelMode(instantPanelMode === "specialist" ? null : "specialist")}><Text>Для специалистов: дежурство</Text></Pressable>{instantPanelMode ? <View><Pressable accessibilityRole="button" onPress={() => setInstantPanelMode(null)}><Text>Закрыть раздел дежурства</Text></Pressable><InstantNowSurface key={instantPanelMode} initialMode={instantPanelMode} intentID={demandStatus === "CONFIRMED" ? demandIntent?.id : undefined} options={{baseURL: demandAPIBaseURL, sessionCookie: demandE2ESessionCookie}} enabled={compatibilityAllowsRuntime} /></View> : null}</View> : null}
+        {!infrastructureE2EActive && compatibilityAllowsRuntime ? <AvatarCompanion apiOrigin={demandAPIBaseURL} /> : null}
+
         {demandE2E.status !== "IDLE" ? (
           <View style={styles.capability} accessibilityRole="summary">
             <Text accessibilityLabel={`demand-e2e:${demandE2E.status}`}>
