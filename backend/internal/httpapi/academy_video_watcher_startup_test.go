@@ -18,8 +18,8 @@ func TestAcademyVideoWatcherDeniesBeforeFirstTick(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		academyWatchVideoEntitlement(ctx, cancel, time.Hour, func() bool {
-		    checks.Add(1)
-		    return false
+				checks.Add(1)
+				return false
 		})
 		close(done)
 	}()
@@ -46,13 +46,13 @@ func TestAcademyVideoWatcherFailsClosedOnRecheck(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		academyWatchVideoEntitlement(ctx, cancel, time.Millisecond, func() bool {
-		    select {
-		    case <-ready:
-		        return available.Load()
-		    default:
-		        close(ready)
-		        return true
-		    }
+				select {
+				case <-ready:
+					return available.Load()
+				default:
+					close(ready)
+					return true
+				}
 		})
 		close(done)
 	}()
