@@ -17,22 +17,22 @@ func TestAcademyVideoWatcherDeniesBeforeFirstTick(t *testing.T) {
 	var checks atomic.Int32
 	done := make(chan struct{})
 	go func() {
-	    academyWatchVideoEntitlement(ctx, cancel, time.Hour, func() bool {
-	        checks.Add(1)
-	        return false
-	    })
-	    close(done)
+		academyWatchVideoEntitlement(ctx, cancel, time.Hour, func() bool {
+		    checks.Add(1)
+		    return false
+		})
+		close(done)
 	}()
 	select {
 	case <-done:
 	case <-time.After(2 * time.Second):
-	    t.Fatal("revoked stream waited for poll tick")
+		t.Fatal("revoked stream waited for poll tick")
 	}
 	if !errors.Is(ctx.Err(), context.Canceled) {
-	    t.Fatalf("revoked stream context remains active: %v", ctx.Err())
+		t.Fatalf("revoked stream context remains active: %v", ctx.Err())
 	}
 	if checks.Load() != 1 {
-	    t.Fatalf("startup authorization checked %d times, want 1", checks.Load())
+		t.Fatalf("startup authorization checked %d times, want 1", checks.Load())
 	}
 }
 
@@ -45,30 +45,30 @@ func TestAcademyVideoWatcherFailsClosedOnRecheck(t *testing.T) {
 	ready := make(chan struct{})
 	done := make(chan struct{})
 	go func() {
-	    academyWatchVideoEntitlement(ctx, cancel, time.Millisecond, func() bool {
-	        select {
-	        case <-ready:
-	            return available.Load()
-	        default:
-	            close(ready)
-	            return true
-	        }
-	    })
-	    close(done)
+		academyWatchVideoEntitlement(ctx, cancel, time.Millisecond, func() bool {
+		    select {
+		    case <-ready:
+		        return available.Load()
+		    default:
+		        close(ready)
+		        return true
+		    }
+		})
+		close(done)
 	}()
 	select {
 	case <-ready:
 	case <-time.After(2 * time.Second):
-	    t.Fatal("initial authorization never ran")
+		t.Fatal("initial authorization never ran")
 	}
 	available.Store(false)
 	select {
 	case <-done:
 	case <-time.After(2 * time.Second):
-	    t.Fatal("canonical authorization failure did not cancel stream")
+		t.Fatal("canonical authorization failure did not cancel stream")
 	}
 	if !errors.Is(ctx.Err(), context.Canceled) {
-	    t.Fatalf("authorization failure left stream active: %v", ctx.Err())
+		t.Fatalf("authorization failure left stream active: %v", ctx.Err())
 	}
 }
 
