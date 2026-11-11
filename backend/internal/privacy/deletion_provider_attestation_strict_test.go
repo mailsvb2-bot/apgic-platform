@@ -38,7 +38,7 @@ func TestProviderErasureRejectsSyntheticAndAmbiguousSignedEvidence(t *testing.T)
 	if _, _, err := VerifyProviderErasure(valid, pub, proof.RequestID, proof.ProviderRef, proof.IdentityID, now); err != nil {
 		t.Fatalf("genuine signed attestation rejected: %v", err)
 	}
-	for _, evidence := range []string{"provider-erasure:identity-1", "synthetic:receipt", "    "} {
+	for _, evidence := range []string{"provider-erasure:identity-1", "synthetic:receipt", "   Synthetic:receipt", " PROVIDER-ERASURE:identity-1", "    "} {
 		synthetic := proof
 		synthetic.EvidenceRef = evidence
 		if _, _, err := VerifyProviderErasure(sign(synthetic), pub, proof.RequestID, proof.ProviderRef, proof.IdentityID, now); err == nil {

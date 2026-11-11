@@ -48,11 +48,13 @@ func VerifyProviderErasure(raw []byte, key ed25519.PublicKey, requestID, provide
 		return ProviderErasureAttestation{}, "", ErrProviderErasureUnverified
 	}
 	a := out.Attestation
+	// Normalize only for validation; preserve the original signed evidence.
+	evidenceMarker := strings.ToLower(strings.TrimSpace(a.EvidenceRef))
 	if a.RequestID != requestID || a.ProviderRef != providerRef ||
 		a.IdentityID != identityID || !a.Erased || strings.TrimSpace(a.EvidenceRef) == "" ||
 		len(a.EvidenceRef) > 1024 ||
-		strings.HasPrefix(a.EvidenceRef, "provider-erasure:") ||
-		strings.HasPrefix(a.EvidenceRef, "synthetic:") ||
+		strings.HasPrefix(evidenceMarker, "provider-erasure:") ||
+		strings.HasPrefix(evidenceMarker, "synthetic:") ||
 		a.ErasedAt.IsZero() ||
 		a.ErasedAt.After(now.Add(time.Minute)) ||
 		now.Sub(a.ErasedAt) > 24*time.Hour {
