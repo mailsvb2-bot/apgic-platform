@@ -13,6 +13,7 @@ GO_AUTH = ROOT / "backend/internal/authz/authz.go"
 TS_FOUNDATION = ROOT / "packages/contracts/src/foundation.ts"
 AUTH_SCHEMA = ROOT / "contracts/jsonschema/authorization-v1.schema.json"
 OPENAPI = ROOT / "contracts/openapi/apgic-v1.yaml"
+CI_WORKFLOW = ROOT / ".github/workflows/ci.yml"
 
 GO_DECISION_RE = re.compile(r'\b[A-Za-z0-9_]+\s+Decision\s*=\s*"([A-Z0-9_]+)"')
 GO_RISK_RE = re.compile(r'\b[A-Za-z0-9_]+\s+Risk\s*=\s*"([A-Z0-9_]+)"')
@@ -131,6 +132,34 @@ def validate_client_session_contract(document: dict) -> list[str]:
     return errors
 
 
+def validate_auth001_web_surface_proof(workflow: str) -> list[str]:
+    """Keep real browser-to-Next-to-PostgreSQL tenant isolation proof mandatory.
+
+    Never accept a merely-green unit test or a disabled/skipped E2E step in
+    place of verified WEB isolation evidence. This guards the current CI
+    implementation, not the superseded standalone shell probe.
+    """
+    mandatory = (
+        "Prove AUTH-001 WEB tenant isolation through Next API and PostgreSQL",
+        "npx playwright test e2e/auth001-postgres.spec.ts",
+        "e2e/r0-org-product-postgres.spec.ts",
+        "cross_count=",
+        "forged_count=",
+        "test \"$cross_count\" -ge 1",
+        "test \"$forged_count\" -ge 1",
+        "AUTH_CROSS_TENANT_DENY",
+        "AUTH_TENANT_CONTEXT_DENIED",
+        '"browser_through_next_proxy": True',
+        '"postgres_backed_api": True',
+        '"cross_tenant_denied_without_disclosure": True',
+        '"forged_tenant_context_denied_without_disclosure": True',
+        '"production_evidence": False',
+        "Upload AUTH-001 WEB tenant isolation evidence",
+    )
+    errors = [f"AUTH-001 WEB E2E invariant missing: {term}" for term in mandatory if term not in workflow]
+    return errors
+
+
 def main() -> int:
     errors = validate_authorization_contract(
         GO_AUTH.read_text(encoding="utf-8"),
@@ -142,6 +171,7 @@ def main() -> int:
             yaml.safe_load(OPENAPI.read_text(encoding="utf-8"))
         )
     )
+    errors.extend(validate_auth001_web_surface_proof(CI_WORKFLOW.read_text(encoding="utf-8")))
     if errors:
         print("AUTH CONTRACT GUARD: FAIL")
         for error in errors:
