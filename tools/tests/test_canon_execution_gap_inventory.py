@@ -93,7 +93,9 @@ class CanonGapInventoryTests(unittest.TestCase):
             result, manifest, "ci-candidate-sha", production, registry,
         )
         self.assertTrue(any(reason.startswith("RELEASE_") for reason in blockers), blockers)
-        self.assertTrue(any("SYNTHETIC_EVIDENCE_FORBIDDEN" in reason for reason in blockers), blockers)
+        # The hardened production validator now rejects the placeholder SHA
+        # before evaluating any allegedly production-quality evidence.
+        self.assertTrue(any("RELEASE_CANDIDATE_SHA_INVALID" in reason for reason in blockers), blockers)
 
     def test_refuses_missing_requirements_and_dependency_cycles(self):
         coverage, registry, production = self.fixtures()
