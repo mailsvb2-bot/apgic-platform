@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -17,7 +18,7 @@ def valid_ci() -> dict:
     all_types = gate.GATE_REQUIRED["all"]
     return {
         "schema_version": "r4-release-gate-v1",
-        "candidate_sha": "abcdef1234567890",
+        "candidate_sha": "a" * 40,
         "synthetic": True,
         "production_candidate": False,
         "evidence": {kind: evidence_row(f"ci://{kind.lower()}") for kind in all_types},
@@ -26,28 +27,53 @@ def valid_ci() -> dict:
 
 def valid_production_index(document: dict, gate_name: str) -> dict:
     records = {}
-    artifact_path = gate.ROOT / "canon/evidence/r4-release-gate-v1.schema.json"
-    artifact_digest = hashlib.sha256(artifact_path.read_bytes()).hexdigest()
     required = gate.GATE_REQUIRED[gate_name]
     if gate_name in {"payments", "all"}:
         required = required | gate.PRODUCTION_FINANCE_REQUIRED
     for evidence_type in required:
         evidence_id = evidence_type.lower()
         document["evidence"][evidence_type] = evidence_row(f"evidence://{evidence_id}")
+        relative_path = f"canon/evidence/production/{evidence_id}.json"
+        artifact_path = gate.ROOT / relative_path
+        artifact_path.parent.mkdir(parents=True, exist_ok=True)
+        source = (f"psp://certified-provider/{evidence_id}"
+                  if evidence_type in gate.FINANCE_REQUIRED
+                  else f"https://proofs.apgic.ru/production/{evidence_id}")
+        verified_at = "2026-10-05T17:42:48Z"
+        observation = {
+            "schema_version": "production-observation-v1",
+            "evidence_id": evidence_id,
+            "evidence_type": evidence_type,
+            "candidate_sha": document["candidate_sha"],
+            "environment": "PRODUCTION",
+            "status": "PASS",
+            "synthetic": False,
+            "source_ref": source,
+            "verified_at": verified_at,
+            "verified_by": "approved-release-verifier",
+        }
+        artifact_path.write_text(json.dumps(observation), encoding="utf-8")
         records[evidence_id] = {
             "evidence_type": evidence_type,
             "status": "PASS",
             "synthetic": False,
             "candidate_sha": document["candidate_sha"],
-            "source_ref": f"github-actions://run/{evidence_id}",
-            "artifact_path": "canon/evidence/r4-release-gate-v1.schema.json",
-            "artifact_sha256": artifact_digest,
-            "verified_at": "2026-10-05T17:42:48Z",
+            "source_ref": source,
+            "artifact_path": relative_path,
+            "artifact_sha256": hashlib.sha256(artifact_path.read_bytes()).hexdigest(),
+            "verified_at": verified_at,
         }
     return {"schema_version": "production-evidence-index-v1", "records": records}
 
 
 class R4ReleaseGateTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tempdir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tempdir.cleanup)
+        original_root = gate.ROOT
+        gate.ROOT = Path(self.tempdir.name)
+        self.addCleanup(setattr, gate, "ROOT", original_root)
+
     def test_ci_mechanics_accept_complete_synthetic_matrix(self) -> None:
         passed, blockers = gate.evaluate(valid_ci(), "all", "ci")
         self.assertTrue(passed, blockers)
@@ -269,29 +295,75 @@ class R4ReleaseGateTests(unittest.TestCase):
         document["synthetic"] = False
         document["production_candidate"] = True
         index = valid_production_index(document, "finance")
+        first = next(iter(index["records"].values()))
+        for evidence_type in gate.FINANCE_REQUIRED:
+            row = index["records"][evidence_type.lower()]
+            row["artifact_path"] = first["artifact_path"]
+            row["artifact_sha256"] = first["artifact_sha256"]
+            row["source_ref"] = "ci://fabricated-provider"
         passed, blockers = gate.evaluate(document, "finance", "production", index)
         self.assertFalse(passed)
         self.assertTrue(any("FINANCE_PROOF_ARTIFACT_REUSED" in reason for reason in blockers), blockers)
         self.assertTrue(any("REGULATED_PROVIDER_SOURCE_REQUIRED" in reason for reason in blockers), blockers)
+        self.assertTrue(any("PRODUCTION_EVIDENCE_EXTERNAL_SOURCE_REQUIRED" in reason for reason in blockers), blockers)
 
     def test_finance_production_accepts_independent_provider_artifacts(self) -> None:
         document = valid_ci()
         document["synthetic"] = False
         document["production_candidate"] = True
         index = valid_production_index(document, "finance")
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            for evidence_type in gate.FINANCE_REQUIRED:
-                evidence_id = evidence_type.lower()
-                artifact = root / f"{evidence_id}.proof"
-                artifact.write_text(f"external receipt for {evidence_type}", encoding="utf-8")
-                record = index["records"][evidence_id]
-                record["artifact_path"] = artifact.name
-                record["artifact_sha256"] = hashlib.sha256(artifact.read_bytes()).hexdigest()
-                record["source_ref"] = f"psp://certified-provider/{evidence_id}"
-            with patch.object(gate, "ROOT", root):
-                passed, blockers = gate.evaluate(document, "finance", "production", index)
-            self.assertTrue(passed, blockers)
+        passed, blockers = gate.evaluate(document, "finance", "production", index)
+        self.assertTrue(passed, blockers)
+
+    def test_production_rejects_staging_observation_even_with_matching_hash(self) -> None:
+        document = valid_ci()
+        document["synthetic"] = False
+        document["production_candidate"] = True
+        index = valid_production_index(document, "payments")
+        row = next(iter(index["records"].values()))
+        path = gate.ROOT / row["artifact_path"]
+        observation = json.loads(path.read_text())
+        observation["environment"] = "STAGING"
+        path.write_text(json.dumps(observation))
+        row["artifact_sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+        passed, blockers = gate.evaluate(document, "payments", "production", index)
+        self.assertFalse(passed)
+        self.assertIn(f"{row['evidence_type']}:PRODUCTION_OBSERVATION_ENVIRONMENT_MISMATCH", blockers)
+
+    def test_production_rejects_external_artifact_without_approved_verifier(self) -> None:
+        document = valid_ci()
+        document["synthetic"] = False
+        document["production_candidate"] = True
+        index = valid_production_index(document, "payments")
+        row = next(iter(index["records"].values()))
+        path = gate.ROOT / row["artifact_path"]
+        observation = json.loads(path.read_text())
+        observation["verified_by"] = "ci-fabricated"
+        path.write_text(json.dumps(observation))
+        row["artifact_sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+        passed, blockers = gate.evaluate(document, "payments", "production", index)
+        self.assertFalse(passed)
+        self.assertIn(f"{row['evidence_type']}:PRODUCTION_OBSERVATION_VERIFIER_MISSING", blockers)
+
+    def test_production_observation_must_not_escape_approved_folder(self) -> None:
+        document = valid_ci()
+        document["synthetic"] = False
+        document["production_candidate"] = True
+        index = valid_production_index(document, "payments")
+        row = next(iter(index["records"].values()))
+        row["artifact_path"] = "canon/evidence/production/../../r4-release-gate-v1.schema.json"
+        passed, blockers = gate.evaluate(document, "payments", "production", index)
+        self.assertFalse(passed)
+        self.assertIn(f"{row['evidence_type']}:PRODUCTION_EVIDENCE_OBSERVATION_PATH_REQUIRED", blockers)
+
+    def test_production_requires_exact_candidate_sha(self) -> None:
+        document = valid_ci()
+        document["synthetic"] = False
+        document["production_candidate"] = True
+        document["candidate_sha"] = "abcdef1234567890"
+        passed, blockers = gate.evaluate(document, "payments", "production", None)
+        self.assertFalse(passed)
+        self.assertIn("CANDIDATE_SHA_INVALID", blockers)
 
     def test_finance_release_requires_all_five_independent_proofs(self) -> None:
         document = valid_ci()
