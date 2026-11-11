@@ -82,7 +82,7 @@ func TestAcademyVideoFingerprintRecheckFailsClosedAfterMediaReplacement(t *testi
 		t.Fatal("unchanged verified media binding should remain authorized")
 	}
 	cases := []struct {
-		name string
+		name   string
 		change func(*academyVideoFingerprintRecheckFixture)
 	}{
 		{"resource replaced", func(f *academyVideoFingerprintRecheckFixture) { f.resourceID = "disk-resource-2" }},
