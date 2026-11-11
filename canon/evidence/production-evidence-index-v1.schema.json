@@ -4,9 +4,14 @@
   "title": "APGIC Production Evidence Index",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "records"],
+  "required": [
+    "schema_version",
+    "records"
+  ],
   "properties": {
-    "schema_version": {"const": "production-evidence-index-v1"},
+    "schema_version": {
+      "const": "production-evidence-index-v1"
+    },
     "records": {
       "type": "object",
       "additionalProperties": {
@@ -23,14 +28,44 @@
           "verified_at"
         ],
         "properties": {
-          "evidence_type": {"type": "string", "minLength": 1},
-          "status": {"const": "PASS"},
-          "synthetic": {"const": false},
-          "candidate_sha": {"type": "string", "minLength": 7},
-          "source_ref": {"type": "string", "minLength": 1},
-          "artifact_path": {"type": "string", "minLength": 1},
-          "artifact_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-          "verified_at": {"type": "string", "minLength": 1}
+          "evidence_type": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "const": "PASS"
+          },
+          "synthetic": {
+            "const": false
+          },
+          "candidate_sha": {
+            "type": "string",
+            "minLength": 7
+          },
+          "source_ref": {
+            "type": "string",
+            "minLength": 1
+          },
+          "artifact_path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "artifact_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "verified_at": {
+            "type": "string",
+            "minLength": 1
+          },
+          "journey_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "correlation_id": {
+            "type": "string",
+            "minLength": 1
+          }
         }
       }
     }
