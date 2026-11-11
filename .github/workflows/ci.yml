@@ -441,7 +441,7 @@ jobs:
           # Retry transient package-repository DNS/transport errors only;
           # all browser tests remain mandatory and hard-fail if still unavailable.
           for attempt in 1 2 3; do
-            if npx playwright install --with-deps chromium; then
+            if npx playwright install chromium; then
               break
             fi
             if [ "$attempt" -eq 3 ]; then
@@ -451,6 +451,8 @@ jobs:
             echo "Retry Playwright dependency installation ($attempt/3)" >&2
             sleep $((attempt * 15))
           done
+          # Actual launch is mandatory: unavailable lib dependencies must fail CI.
+          node -e 'const { chromium } = require("@playwright/test"); (async () => { const browser = await chromium.launch({headless:true}); try { const page = await browser.newPage(); await page.setContent("<title>browser-ready</title>"); if (await page.title() !== "browser-ready") process.exitCode = 1; } finally { await browser.close(); } })().catch(e => {console.error(e); process.exitCode=1;})'
           npm run build
       - name: Prove AUTH-001 WEB tenant isolation through Next API and PostgreSQL
         working-directory: apps/web
@@ -771,7 +773,7 @@ jobs:
           # Retry transient package-repository DNS/transport errors only;
           # all browser tests remain mandatory and hard-fail if still unavailable.
           for attempt in 1 2 3; do
-            if npx playwright install --with-deps chromium; then
+            if npx playwright install chromium; then
               break
             fi
             if [ "$attempt" -eq 3 ]; then
@@ -781,6 +783,8 @@ jobs:
             echo "Retry Playwright dependency installation ($attempt/3)" >&2
             sleep $((attempt * 15))
           done
+          # Actual launch is mandatory: unavailable lib dependencies must fail CI.
+          node -e 'const { chromium } = require("@playwright/test"); (async () => { const browser = await chromium.launch({headless:true}); try { const page = await browser.newPage(); await page.setContent("<title>browser-ready</title>"); if (await page.title() !== "browser-ready") process.exitCode = 1; } finally { await browser.close(); } })().catch(e => {console.error(e); process.exitCode=1;})'
       - working-directory: apps/web
         run: npm run build
       - run: git diff --exit-code -- apps/web/tsconfig.json
