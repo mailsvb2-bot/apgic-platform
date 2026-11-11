@@ -56,3 +56,48 @@ func TestAcademyVideoRecheckRejectsRebindingAndCredentialRotation(t *testing.T) 
 		})
 	}
 }
+
+type academyVideoFingerprintRecheckFixture struct {
+	resourceID, digest string
+	size               int64
+	err                error
+}
+
+func (f *academyVideoFingerprintRecheckFixture) AcademyLearnerVideoFingerprint(author, provider, path, mediaID string) (string, string, int64, error) {
+	return f.resourceID, f.digest, f.size, f.err
+}
+
+func TestAcademyVideoFingerprintRecheckFailsClosedAfterMediaReplacement(t *testing.T) {
+	const originalResource = "disk-resource-1"
+	const originalDigest = "original-sha256"
+	const originalSize int64 = 2048
+	original := academyVideoFingerprintRecheckFixture{
+		resourceID: originalResource, digest: originalDigest, size: originalSize,
+	}
+	allowed := func(f *academyVideoFingerprintRecheckFixture) bool {
+		return academyVideoFingerprintStillAllowed(f, "author-1", "yandex_disk",
+			"disk:/course/video.mp4", "media-1", originalResource, originalDigest, originalSize)
+	}
+	if !allowed(&original) {
+		t.Fatal("unchanged verified media binding should remain authorized")
+	}
+	cases := []struct {
+		name string
+		change func(*academyVideoFingerprintRecheckFixture)
+	}{
+		{"resource replaced", func(f *academyVideoFingerprintRecheckFixture) { f.resourceID = "disk-resource-2" }},
+		{"digest changed", func(f *academyVideoFingerprintRecheckFixture) { f.digest = "replacement-sha256" }},
+		{"size changed", func(f *academyVideoFingerprintRecheckFixture) { f.size++ }},
+		{"media removed", func(f *academyVideoFingerprintRecheckFixture) { f.err = errors.New("media revoked") }},
+		{"database unavailable", func(f *academyVideoFingerprintRecheckFixture) { f.err = errors.New("database unavailable") }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fixture := original
+			tc.change(&fixture)
+			if allowed(&fixture) {
+				t.Fatal("video remained authorized after verified media binding changed")
+			}
+		})
+	}
+}
