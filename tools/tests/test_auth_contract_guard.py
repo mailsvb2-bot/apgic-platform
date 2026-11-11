@@ -4,6 +4,7 @@ import unittest
 
 from tools.auth_contract_guard import (
     validate_authorization_contract,
+    validate_auth001_web_surface_proof,
     validate_client_session_contract,
 )
 
@@ -203,6 +204,23 @@ const (
         errors = validate_authorization_contract(go, ts, schema)
         self.assertEqual(len(errors), 1)
         self.assertIn("Go/JSON Schema authorization risks differ", errors[0])
+
+
+    def test_auth001_browser_to_postgres_proof_is_required(self) -> None:
+        from pathlib import Path
+        workflow = (Path(__file__).resolve().parents[2] / ".github/workflows/ci.yml").read_text()
+        self.assertEqual(validate_auth001_web_surface_proof(workflow), [])
+        for missing in (
+            "AUTH_CROSS_TENANT_DENY",
+            "AUTH_TENANT_CONTEXT_DENIED",
+            "npx playwright test e2e/auth001-postgres.spec.ts",
+            "test \"$forged_count\" -ge 1",
+        ):
+            altered = workflow.replace(missing, "REMOVED_TO_MAKE_CI_GREEN")
+            self.assertTrue(validate_auth001_web_surface_proof(altered), missing)
+
+    def test_auth001_browser_proof_cannot_be_replaced_by_unit_test_marker(self) -> None:
+        self.assertTrue(validate_auth001_web_surface_proof("go test ./internal/authz"))
 
 
 if __name__ == "__main__":
