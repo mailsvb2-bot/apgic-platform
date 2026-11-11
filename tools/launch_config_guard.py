@@ -564,14 +564,12 @@ def validate_commerce(policy: dict) -> None:
             fail(f"{path_id}: commission basis_points must be within 0..10000")
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("config")
-    parser.add_argument("--mode", choices=("ci", "production"), required=True)
-    parser.add_argument("--profile", choices=("R0", "R1", "R2", "R3", "R4", "R5"), default="R0")
-    args = parser.parse_args()
+def validate_launch_configuration(config: str, mode: str, profile: str) -> None:
+    """Single semantic policy validator used by CLI and preflight evidence."""
+    if mode not in {"ci", "production"} or profile not in {"R0", "R1", "R2", "R3", "R4", "R5"}:
+        fail("invalid validation mode or launch profile")
 
-    config_path = (ROOT / args.config).resolve()
+    config_path = (ROOT / config).resolve()
     if ROOT not in config_path.parents or not config_path.is_file():
         fail("config path missing or outside repository")
 
@@ -579,7 +577,7 @@ def main() -> None:
     if contains_config_required(config):
         fail("active config contains CONFIG_REQUIRED")
 
-    if args.mode == "production":
+    if mode == "production":
         if config.get("environment") != "PRODUCTION":
             fail("production preflight requires environment=PRODUCTION")
         if config.get("production_approved") is not True:
@@ -595,7 +593,7 @@ def main() -> None:
         "R3": R3_POLICIES,
         "R4": R4_POLICIES,
         "R5": R5_POLICIES,
-    }[args.profile]
+    }[profile]
 
     loaded: dict[str, tuple[Path, dict]] = {}
     for label, (version_field, path_field) in selected_policies.items():
@@ -605,7 +603,7 @@ def main() -> None:
         path, policy = load_repo_yaml(config.get(path_field), label)
         if policy.get("version", policy.get("policy_version")) != version:
             fail(f"{label} policy version mismatch")
-        validate_scope(policy, args.mode, label)
+        validate_scope(policy, mode, label)
         loaded[label] = (path, policy)
 
     validate_jurisdiction(loaded["jurisdiction"][1])
@@ -629,8 +627,16 @@ def main() -> None:
     )
     print(
         "LAUNCH CONFIG PRECHECK: PASS "
-        f"(mode={args.mode}, profile={args.profile}, config={config_path.relative_to(ROOT)}, {refs})"
+        f"(mode={mode}, profile={profile}, config={config_path.relative_to(ROOT)}, {refs})"
     )
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("config")
+    parser.add_argument("--mode", choices=("ci", "production"), required=True)
+    parser.add_argument("--profile", choices=("R0", "R1", "R2", "R3", "R4", "R5"), default="R0")
+    args = parser.parse_args()
+    validate_launch_configuration(args.config, args.mode, args.profile)
 
 if __name__ == "__main__":
     main()
