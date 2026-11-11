@@ -7,6 +7,7 @@ import type {
   SignedRemoteConfigEnvelope,
 } from "../../../packages/contracts/src/mobile-policy.ts";
 import {
+  canShowPersonaPreview,
   canonicalRemoteConfigPayload,
   isSignedRemoteConfigEnvelope,
   resolveRemoteConfig,
@@ -253,4 +254,14 @@ test("privileged business truth cannot appear as a remote capability", () => {
     "ENTITLEMENT_GRANT" as RemoteCapability,
   ];
   assert.equal(isSignedRemoteConfigEnvelope(signed, now), false);
+});
+
+
+test("Persona preview requires applicable signed remote capability, never default-on", () => {
+  assert.equal(canShowPersonaPreview(null), false);
+  assert.equal(canShowPersonaPreview({source: "FAIL_SAFE", disabledCapabilities: []}), false);
+  assert.equal(canShowPersonaPreview({source: "NETWORK", disabledCapabilities: ["PERSONA_PREVIEW"]}), false);
+  assert.equal(canShowPersonaPreview({source: "LAST_KNOWN_SAFE", disabledCapabilities: ["PERSONA_PREVIEW"]}), false);
+  assert.equal(canShowPersonaPreview({source: "NETWORK", disabledCapabilities: []}), true);
+  assert.equal(canShowPersonaPreview({source: "LAST_KNOWN_SAFE", disabledCapabilities: []}), true);
 });

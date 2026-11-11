@@ -150,6 +150,17 @@ func main() {
 		ledgerStore = storage
 		journeyStore = storage
 	}
+	var personaProvider connector.PersonaRuntime
+	personaEnabled := os.Getenv("APGIC_PERSONA_ENABLED") == "1"
+	if personaEnabled {
+		var personaErr error
+		personaProvider, personaErr = connector.NewHTTPPersonaRuntime(
+			os.Getenv("APGIC_PERSONA_PROVIDER_ORIGIN"), os.Getenv("APGIC_PERSONA_PROVIDER_TOKEN"),
+			os.Getenv("APGIC_PERSONA_TRANSPORT_HOSTS"))
+		if personaErr != nil || storage == nil || strings.TrimSpace(os.Getenv("APGIC_PERSONA_PROVIDER_INSTANCE_ID")) == "" || strings.TrimSpace(os.Getenv("APGIC_PERSONA_POLICY_VERSION")) == "" {
+			log.Fatalf("APGIC persona enabled without approved runtime/storage/provider/policy: %v", personaErr)
+		}
+	}
 	var demandService *demand.Service
 	if journeyStore != nil {
 		var err error
@@ -244,6 +255,11 @@ func main() {
 			ProviderInstanceID: os.Getenv("APGIC_COMM_JOIN_PROVIDER_INSTANCE_ID"),
 			PolicyVersion:      os.Getenv("APGIC_COMM_JOIN_POLICY_VERSION"),
 		},
+		PersonaStore:                storage,
+		PersonaProvider:             personaProvider,
+		PersonaEnabled:              personaEnabled,
+		PersonaProviderInstanceID:   os.Getenv("APGIC_PERSONA_PROVIDER_INSTANCE_ID"),
+		PersonaPolicyVersion:        os.Getenv("APGIC_PERSONA_POLICY_VERSION"),
 		ReleaseTrack:                releaseTrack,
 		Demand:                      demandService,
 		Instant:                     storage,

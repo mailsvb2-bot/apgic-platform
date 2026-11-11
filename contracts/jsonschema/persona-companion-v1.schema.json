@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apgic.ru/contracts/persona-companion-v1.schema.json",
+  "title": "APGIC Avatar Companion v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "persona_id",
+    "session_purpose",
+    "mode",
+    "language",
+    "style",
+    "privacy_mode"
+  ],
+  "properties": {
+    "persona_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "session_purpose": {
+      "enum": [
+        "LISTEN",
+        "ORGANIZE_THOUGHTS",
+        "PREPARE_HUMAN",
+        "WAIT_FOR_HUMAN",
+        "NAVIGATE"
+      ]
+    },
+    "mode": {
+      "enum": [
+        "VIDEO",
+        "VOICE",
+        "TEXT"
+      ]
+    },
+    "language": {
+      "type": "string",
+      "pattern": "^[a-z]{2}(-[A-Z]{2})?$"
+    },
+    "style": {
+      "enum": [
+        "CALM",
+        "NEUTRAL",
+        "BUSINESS",
+        "WARM"
+      ]
+    },
+    "privacy_mode": {
+      "const": "PRIVATE_EPHEMERAL"
+    }
+  },
+  "description": "Start request. Raw transcripts, audio/video, diagnosis, prompt, user notes and hidden client context are not part of the business schema."
+}
