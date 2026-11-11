@@ -27,6 +27,16 @@ type CachedRemoteConfigState = {
   applicableEnvelope: SignedRemoteConfigEnvelope | null;
 };
 
+// A Persona UI must never probe external AI endpoints until a signed,
+// currently applicable policy explicitly permits the capability. Absence of
+// remote policy is DENY, not an opt-in.
+export function canShowPersonaPreview(
+  config: Pick<ResolvedRemoteConfig, "source" | "disabledCapabilities"> | null,
+): boolean {
+  return config !== null && config.source !== "FAIL_SAFE" &&
+    !config.disabledCapabilities.includes("PERSONA_PREVIEW");
+}
+
 const remoteCapabilities: RemoteCapability[] = [
   "REALTIME_CONSULTATION",
   "CALENDAR_INTEGRATION",

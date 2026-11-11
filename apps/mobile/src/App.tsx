@@ -36,7 +36,7 @@ import {
   fetchClientCompatibility,
 } from "./mobile-compatibility-client.ts";
 import type {MobilePlatform} from "../../../packages/contracts/src/mobile-policy.ts";
-import {resolveRemoteConfig} from "./remote-config-client.ts";
+import {canShowPersonaPreview,resolveRemoteConfig} from "./remote-config-client.ts";
 import {remoteConfigStorage} from "./remote-config-storage.ts";
 import { resolvePushNotification } from "./mobile-notification-client.ts";
 import {
@@ -339,6 +339,9 @@ export default function App({
     !remoteConfigRequired ||
     (remoteConfig.status === "PASS" &&
       !remoteConfig.disabledCapabilities.includes("REALTIME_CONSULTATION"));
+
+  const remoteConfigAllowsPersona =
+    remoteConfig.status === "PASS" && canShowPersonaPreview(remoteConfig);
 
   // Installed-app E2E probes exercise isolated native capabilities. Keep the
   // production journey out of debug-only evidence layouts so proof labels do
@@ -1240,7 +1243,7 @@ export default function App({
         ) : null}
 
         {!infrastructureE2EActive ? <View><Pressable accessibilityRole="button" accessibilityLabel="Открыть дежурство специалиста" style={styles.demandAction} onPress={() => setInstantPanelMode(instantPanelMode === "specialist" ? null : "specialist")}><Text>Для специалистов: дежурство</Text></Pressable>{instantPanelMode ? <View><Pressable accessibilityRole="button" onPress={() => setInstantPanelMode(null)}><Text>Закрыть раздел дежурства</Text></Pressable><InstantNowSurface key={instantPanelMode} initialMode={instantPanelMode} intentID={demandStatus === "CONFIRMED" ? demandIntent?.id : undefined} options={{baseURL: demandAPIBaseURL, sessionCookie: demandE2ESessionCookie}} enabled={compatibilityAllowsRuntime} /></View> : null}</View> : null}
-        {!infrastructureE2EActive && compatibilityAllowsRuntime ? <AvatarCompanion apiOrigin={demandAPIBaseURL} /> : null}
+        {!infrastructureE2EActive && compatibilityAllowsRuntime && remoteConfigAllowsPersona ? <AvatarCompanion apiOrigin={demandAPIBaseURL} /> : null}
 
         {demandE2E.status !== "IDLE" ? (
           <View style={styles.capability} accessibilityRole="summary">
