@@ -11,6 +11,11 @@ from pathlib import Path
 
 import yaml
 
+try:
+    from tools import launch_config_guard
+except ModuleNotFoundError:  # CLI invoked from tools/
+    import launch_config_guard
+
 ROOT = Path(__file__).resolve().parents[1]
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 CANON_BINDING_FILES = (
@@ -167,6 +172,9 @@ def build_evidence(candidate_sha: str, profile: str, config_rel: str) -> dict:
     if profile not in PROFILE_POLICY_FIELDS:
         fail(f"unsupported profile {profile}")
 
+    # Hash binding alone cannot validate semantic jurisdiction, retention,
+    # settlement, providers or disabled launch paths. Fail BEFORE issuing proof.
+    launch_config_guard.validate_launch_configuration(config_rel, "production", profile)
     config_path = repo_file(config_rel, "launch config")
     config = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
     if not isinstance(config, dict):
