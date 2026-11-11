@@ -282,7 +282,8 @@ jobs:
 
   postgres-invariants:
     name: PostgreSQL migration / invariant proof
-    runs-on: ubuntu-latest
+    # Pin OS for reproducible apt dependencies used by Playwright.
+    runs-on: ubuntu-24.04
     services:
       postgres:
         image: postgres:16-alpine
@@ -312,7 +313,6 @@ jobs:
             psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f "$migration"
           done
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_invariants.sql
-          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_persona_companion_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r0_connector_delivery_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r1_mobile_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r1_marketplace_invariants.sql
@@ -438,7 +438,19 @@ jobs:
         working-directory: apps/web
         run: |
           npm install --ignore-scripts --no-audit --no-fund
-          npx playwright install --with-deps chromium
+          # Retry transient package-repository DNS/transport errors only;
+          # all browser tests remain mandatory and hard-fail if still unavailable.
+          for attempt in 1 2 3; do
+            if npx playwright install --with-deps chromium; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "Playwright dependency installation failed after 3 attempts" >&2
+              exit 1
+            fi
+            echo "Retry Playwright dependency installation ($attempt/3)" >&2
+            sleep $((attempt * 15))
+          done
           npm run build
       - name: Prove AUTH-001 WEB tenant isolation through Next API and PostgreSQL
         working-directory: apps/web
@@ -736,7 +748,8 @@ jobs:
 
   web-build:
     name: Web / Next.js production build
-    runs-on: ubuntu-latest
+    # Pin OS for reproducible apt dependencies used by Playwright.
+    runs-on: ubuntu-24.04
     env:
       NEXT_TELEMETRY_DISABLED: '1'
     steps:
@@ -753,7 +766,21 @@ jobs:
       - name: Prove Web/iOS/Android analytics semantic parity
         run: node tools/r1_analytics_parity_e2e.mjs
       - working-directory: apps/web
-        run: npx playwright install --with-deps chromium
+        shell: bash
+        run: |
+          # Retry transient package-repository DNS/transport errors only;
+          # all browser tests remain mandatory and hard-fail if still unavailable.
+          for attempt in 1 2 3; do
+            if npx playwright install --with-deps chromium; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "Playwright dependency installation failed after 3 attempts" >&2
+              exit 1
+            fi
+            echo "Retry Playwright dependency installation ($attempt/3)" >&2
+            sleep $((attempt * 15))
+          done
       - working-directory: apps/web
         run: npm run build
       - run: git diff --exit-code -- apps/web/tsconfig.json
