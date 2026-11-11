@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apgic.ru/contracts/production-observation-v1.schema.json",
+  "title": "APGIC Production Observation",
+  "description": "A candidate-bound non-synthetic claim that still requires independent source review. It is not a payment/booking transaction or deployment authorization.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "evidence_id", "evidence_type", "candidate_sha",
+    "environment", "status", "synthetic", "source_ref",
+    "verified_at", "verified_by"
+  ],
+  "properties": {
+    "schema_version": {"const": "production-observation-v1"},
+    "evidence_id": {"type": "string", "minLength": 1},
+    "evidence_type": {"type": "string", "minLength": 1},
+    "candidate_sha": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+    "environment": {"const": "PRODUCTION"},
+    "status": {"const": "PASS"},
+    "synthetic": {"const": false},
+    "source_ref": {"type": "string", "pattern": "^https://[^/]+/.+"},
+    "verified_at": {"type": "string", "format": "date-time"},
+    "verified_by": {"type": "string", "minLength": 1}
+  }
+}
