@@ -1,12 +1,15 @@
 package privacy
 
 import (
+	"bytes"
 	"crypto/ed25519"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"strings"
 	"time"
 )
 
@@ -29,14 +32,28 @@ type SignedProviderErasureAttestation struct {
 
 func VerifyProviderErasure(raw []byte, key ed25519.PublicKey, requestID, providerRef, identityID string, now time.Time) (ProviderErasureAttestation, string, error) {
 	var out SignedProviderErasureAttestation
-	if len(key) != ed25519.PublicKeySize || len(raw) > 8192 ||
-		json.Unmarshal(raw, &out) != nil {
+	if len(key) != ed25519.PublicKeySize || len(raw) > 8192 {
+		return ProviderErasureAttestation{}, "", ErrProviderErasureUnverified
+	}
+	// Refuse unexpected envelope fields (including nested provider evidence),
+	// and concatenated payloads. They must not be silently discarded before
+	// a signature over the canonical attestation is checked.
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&out); err != nil {
+		return ProviderErasureAttestation{}, "", ErrProviderErasureUnverified
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); err != io.EOF {
 		return ProviderErasureAttestation{}, "", ErrProviderErasureUnverified
 	}
 	a := out.Attestation
 	if a.RequestID != requestID || a.ProviderRef != providerRef ||
-		a.IdentityID != identityID || !a.Erased || a.EvidenceRef == "" ||
-		len(a.EvidenceRef) > 1024 || a.ErasedAt.IsZero() ||
+		a.IdentityID != identityID || !a.Erased || strings.TrimSpace(a.EvidenceRef) == "" ||
+		len(a.EvidenceRef) > 1024 ||
+		strings.HasPrefix(a.EvidenceRef, "provider-erasure:") ||
+		strings.HasPrefix(a.EvidenceRef, "synthetic:") ||
+		a.ErasedAt.IsZero() ||
 		a.ErasedAt.After(now.Add(time.Minute)) ||
 		now.Sub(a.ErasedAt) > 24*time.Hour {
 		return ProviderErasureAttestation{}, "", ErrProviderErasureUnverified
