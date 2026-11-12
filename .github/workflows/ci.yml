@@ -803,7 +803,7 @@ jobs:
         with:
           python-version: '3.13'
       - working-directory: apps/mobile
-        run: npm install --ignore-scripts --no-audit --no-fund
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Generate installed mobile dependency SBOM
         working-directory: apps/mobile
         shell: bash
@@ -876,7 +876,7 @@ jobs:
           echo "Failed to install verified Android NDK $NDK_VERSION after 3 attempts" >&2
           exit 1
       - working-directory: apps/mobile
-        run: npm install --ignore-scripts --no-audit --no-fund
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Reject service credentials from Android client source
         run: python3 tools/client_credential_guard.py --surface ANDROID
       - name: Build Android debug artifact
@@ -985,7 +985,7 @@ jobs:
         with:
           node-version: '24'
       - working-directory: apps/mobile
-        run: npm install --ignore-scripts --no-audit --no-fund
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Reject service credentials from iOS client source
         run: python3 tools/client_credential_guard.py --surface IOS
       - name: Install iOS pods with network-only retry, never hide podspec failures
