@@ -29,16 +29,12 @@ def files(ref: str) -> set[str]:
     return set(output.splitlines()) if output else set()
 
 
-def migration_index(paths: set[str]) -> dict[str, str]:
-    result: dict[str, str] = {}
+def migration_index(paths: set[str]) -> dict[str, list[str]]:
+    result: dict[str, list[str]] = {}
     for path in sorted(paths):
         match = MIGRATION.fullmatch(path)
         if match:
-            # Multiple migrations with an identical version are a hard conflict.
-            version = match.group("version")
-            if version in result and result[version] != path:
-                raise ValueError(f"duplicate migration number {version}: {result[version]} / {path}")
-            result[version] = path
+            result.setdefault(match.group("version"), []).append(path)
     return result
 
 
@@ -48,6 +44,10 @@ def inventory(base: str = "origin/main", remote: str = "origin") -> dict:
     baseline = git("rev-parse", "--verify", base + "^{commit}")
     base_paths = files(baseline)
     migrations = migration_index(base_paths)
+    baseline_collisions = [
+        {"version": version, "paths": paths}
+        for version, paths in sorted(migrations.items()) if len(paths) > 1
+    ]
     names = sorted(
         name for name in git("for-each-ref", "--format=%(refname:short)", "refs/remotes/" + remote + "/").splitlines()
         if name != remote and name != remote + "/HEAD" and name != remote + "/main"
@@ -70,11 +70,12 @@ def inventory(base: str = "origin/main", remote: str = "origin") -> dict:
         for path in absent:
             match = MIGRATION.fullmatch(path)
             if match and match.group("version") in migrations:
-                conflicting.append({
-                    "branch_path": path,
-                    "main_path": migrations[match.group("version")],
-                    "version": match.group("version"),
-                })
+                for main_path in migrations[match.group("version")]:
+                    conflicting.append({
+                        "branch_path": path,
+                        "main_path": main_path,
+                        "version": match.group("version"),
+                    })
         branches.append({
             "branch": name, "sha": head, "ahead": ahead, "behind": behind,
             "classification": "DIVERGENT_REQUIRES_SEMANTIC_REVIEW",
@@ -88,6 +89,7 @@ def inventory(base: str = "origin/main", remote: str = "origin") -> dict:
         "total_non_main": len(branches),
         "ancestor_branches": sum(b["classification"] == "ANCESTOR" for b in branches),
         "divergent_branches": sum(b["classification"] != "ANCESTOR" for b in branches),
+        "baseline_migration_number_collisions": baseline_collisions,
         "unresolved_migration_number_conflicts": sum(
             len(b["migration_number_conflicts"]) for b in branches
         ),
