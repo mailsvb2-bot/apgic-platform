@@ -3,6 +3,7 @@
 import {useEffect,useRef,useState} from "react";
 
 type Receipt={id:string;state:string;source:string;created_at:string;updated_at:string;notice:string;idempotent:boolean;completed_at?:string;retained_reason?:string;pending_providers:number};
+type FactorStatus={enrolled:boolean;ready_at?:string;secret_base32?:string};
 const endpoint="/v1/client/account-deletion-requests";
 
 function receipt(value:unknown):Receipt{
@@ -12,6 +13,11 @@ function receipt(value:unknown):Receipt{
     !x.created_at||!x.updated_at||typeof x.notice!=="string"||typeof x.idempotent!=="boolean")
     throw Error("Сервер не подтвердил регистрацию запроса.");
   return x as Receipt;
+}
+function factorStatus(value:unknown):FactorStatus{
+  if(!value||typeof value!=="object"||typeof (value as FactorStatus).enrolled!=="boolean")
+    throw Error("Сервер не подтвердил состояние второго фактора.");
+  return value as FactorStatus;
 }
 const deletionStates:Record<string,string>={
   REQUESTED:"Запрос получен. Подтвердите удаление данных.",
@@ -26,6 +32,10 @@ function deletionDate(value:string){
 // No local claims of data erasure or duplicate identity storage.
 export default function DeletionRequestPanel({onSessionLost}:{onSessionLost:()=>void}){
   const [item,setItem]=useState<Receipt|null>(null);
+  const [factor,setFactor]=useState<FactorStatus|null>(null);
+  const [secret,setSecret]=useState("");
+  const [otp,setOtp]=useState("");
+  const [verified,setVerified]=useState(false);
   const [confirmed,setConfirmed]=useState(false);
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState("");
@@ -47,10 +57,10 @@ export default function DeletionRequestPanel({onSessionLost}:{onSessionLost:()=>
     const res=await fetch(endpoint,{credentials:"include",cache:"no-store"});
     if(!accepted(token))return;
     if(res.status===401||res.status===403){onSessionLost();return;}
-    if(res.status===404){setItem(null);return;}
+    if(res.status===404){setItem(null);setFactor(null);setSecret("");setOtp("");setVerified(false);return;}
     if(!res.ok)throw Error("Статус удаления временно недоступен.");
     const value=receipt(await res.json());
-    if(accepted(token)){setItem(value);}
+    if(accepted(token)){setItem(value);setVerified(false);setSecret("");setOtp("");}
   });
   const submit=()=>execute(async token=>{
     if(!confirmed||item)return;
@@ -75,6 +85,57 @@ export default function DeletionRequestPanel({onSessionLost}:{onSessionLost:()=>
     if(!res.ok)throw Error("Подтверждение удаления не принято сервером.");
     const value=receipt(await res.json());
     if(accepted(token)){setItem(value);setConfirmed(false);}
+  });
+  // This is the original signed-session-bound, 24-hour-matured TOTP
+  // confirmation. It complements the canonical explicit-session route rather
+  // than creating a second deletion executor or claiming erasure.
+  const readFactor=()=>execute(async token=>{
+    const res=await fetch(endpoint+"/factor",{credentials:"include",cache:"no-store"});
+    if(!accepted(token))return;
+    if(res.status===401||res.status===403){onSessionLost();return;}
+    if(!res.ok)throw Error("Статус дополнительного подтверждения недоступен.");
+    const value=factorStatus(await res.json());
+    if(accepted(token))setFactor(value);
+  });
+  const enrollFactor=()=>execute(async token=>{
+    if(item?.state!=="REQUESTED")return;
+    const res=await fetch(endpoint+"/factor/enroll",{
+      method:"POST",credentials:"include",cache:"no-store",
+      headers:{"content-type":"application/json","X-APGIC-Deletion-Factor":"enroll-v1"},
+      body:JSON.stringify({acknowledge:true}),
+    });
+    if(!accepted(token))return;
+    if(res.status===401||res.status===403){onSessionLost();return;}
+    if(!res.ok)throw Error("Подключить приложение кодов не удалось.");
+    const value=factorStatus(await res.json());
+    if(!value.enrolled||!value.secret_base32)
+      throw Error("Одноразовый секрет приложения не получен.");
+    if(accepted(token)){setFactor(value);setSecret(value.secret_base32);}
+  });
+  const verifyFactor=()=>execute(async token=>{
+    if(!/^\d{6}$/.test(otp))throw Error("Введите шестизначный код.");
+    const res=await fetch(endpoint+"/factor/verify",{
+      method:"POST",credentials:"include",cache:"no-store",
+      headers:{"content-type":"application/json","X-APGIC-Deletion-Factor":"verify-v1"},
+      body:JSON.stringify({code:otp}),
+    });
+    if(!accepted(token))return;
+    if(res.status===401||res.status===403){onSessionLost();return;}
+    if(!res.ok)throw Error("Код неверен или 24-часовой срок ожидания не завершён.");
+    if(accepted(token)){setVerified(true);setOtp("");setSecret("");}
+  });
+  const reconfirmFactor=()=>execute(async token=>{
+    if(!verified||item?.state!=="REQUESTED")return;
+    const res=await fetch(endpoint+"/reconfirm",{
+      method:"POST",credentials:"include",cache:"no-store",
+      headers:{"content-type":"application/json","X-APGIC-Deletion-Confirmation":"verified-step-up-v1"},
+      body:JSON.stringify({confirm:true}),
+    });
+    if(!accepted(token))return;
+    if(res.status===401||res.status===403){onSessionLost();return;}
+    if(!res.ok)throw Error("Подтверждение через приложение кодов отклонено.");
+    const value=receipt(await res.json());
+    if(accepted(token)){setItem(value);setVerified(false);setSecret("");}
   });
   return <section className="personal-section" aria-labelledby="delete-account-title">
     <h2 id="delete-account-title">Удаление учётной записи</h2>
@@ -101,6 +162,29 @@ export default function DeletionRequestPanel({onSessionLost}:{onSessionLost:()=>
         <button type="button" disabled={busy||!confirmed} onClick={()=>void reconfirm()}>
           Подтвердить удаление
         </button>
+                <div>
+          <h4>Дополнительное подтверждение через приложение кодов</h4>
+          <p>Это альтернативный способ подтверждения личности. Новый фактор
+            активируется после 24 часов ожидания; запрос сам по себе не означает стирания данных.</p>
+          <button type="button" disabled={busy} onClick={()=>void readFactor()}>
+            Проверить готовность приложения кодов
+          </button>
+          {factor&&!factor.enrolled?<button type="button" disabled={busy}
+            onClick={()=>void enrollFactor()}>Подключить приложение кодов</button>:null}
+          {secret?<p>Одноразовый секрет для приложения-аутентификатора:
+            <code>{secret}</code></p>:null}
+          {factor?.enrolled?<div>
+            <p>Подтверждение доступно после: {factor.ready_at??"уточните статус"}</p>
+            <label>Одноразовый код удаления
+              <input inputMode="numeric" autoComplete="one-time-code" maxLength={6}
+                value={otp} onChange={e=>setOtp(e.target.value.replace(/\D/g,""))}/>
+            </label>
+            <button type="button" disabled={busy||otp.length!==6}
+              onClick={()=>void verifyFactor()}>Проверить код удаления</button>
+            {verified?<button type="button" disabled={busy}
+              onClick={()=>void reconfirmFactor()}>Подтвердить через приложение кодов</button>:null}
+          </div>:null}
+        </div>
       </div>:null}
       <button type="button" disabled={busy} onClick={()=>void read()}>Обновить статус</button>
     </div>:<div>

@@ -195,3 +195,66 @@ test("R5 verified deletion confirmation follows real user action, never silently
   await expect(page.getByText("Ирина Тестовая").first()).toBeVisible();
   await expect(page.getByText("Подтверждение принято. Удаление ещё не выполнено.")).toBeVisible();
 });
+
+
+test("R5 web retains optional possession-factor deletion confirmation from legacy branch",async({page})=>{
+  const deletion=(state:string)=>({
+    id:"123e4567-e89b-42d3-a456-426614174014",state,source:"WEB",
+    created_at:"2026-10-27T12:00:00Z",updated_at:"2026-10-27T12:00:00Z",
+    notice:"Стирание ещё не выполнено.",idempotent:false,pending_providers:0,
+  });
+  let confirmed=false;
+  let verified=false;
+  await page.route("**/v1/client/personal",r=>r.fulfill({
+    status:200,contentType:"application/json",body:JSON.stringify(makeView()),
+  }));
+  await page.route("**/v1/client/account-deletion-requests**",route=>{
+    const req=route.request();
+    const url=new URL(req.url()).pathname;
+    if(url.endsWith("/factor/enroll")){
+      expect(req.method()).toBe("POST");
+      expect(req.headers()["x-apgic-deletion-factor"]).toBe("enroll-v1");
+      expect(req.postDataJSON()).toEqual({acknowledge:true});
+      return route.fulfill({status:201,contentType:"application/json",body:JSON.stringify({
+        enrolled:true,ready_at:"2026-10-28T12:00:00Z",secret_base32:"JBSWY3DPEHPK3PXP",
+      })});
+    }
+    if(url.endsWith("/factor/verify")){
+      expect(req.method()).toBe("POST");
+      expect(req.headers()["x-apgic-deletion-factor"]).toBe("verify-v1");
+      expect(req.postDataJSON()).toEqual({code:"123456"});
+      verified=true;
+      return route.fulfill({status:204});
+    }
+    if(url.endsWith("/factor")){
+      return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({enrolled:false})});
+    }
+    if(url.endsWith("/reconfirm")){
+      expect(verified).toBe(true);
+      expect(req.headers()["x-apgic-deletion-confirmation"]).toBe("verified-step-up-v1");
+      expect(req.postDataJSON()).toEqual({confirm:true});
+      confirmed=true;
+      return route.fulfill({status:200,contentType:"application/json",
+        body:JSON.stringify(deletion("IDENTITY_RECONFIRMED"))});
+    }
+    if(url.endsWith("/account-deletion-requests")&&req.method()==="GET"){
+      return route.fulfill({status:200,contentType:"application/json",
+        body:JSON.stringify(deletion(confirmed?"IDENTITY_RECONFIRMED":"REQUESTED"))});
+    }
+    return route.fulfill({status:404});
+  });
+  await page.goto("/personal");
+  await page.getByRole("button",{name:"Проверить статус запроса"}).click();
+  await expect(page.getByText("Дополнительное подтверждение через приложение кодов")).toBeVisible();
+  await page.getByRole("button",{name:"Проверить готовность приложения кодов"}).click();
+  await page.getByRole("button",{name:"Подключить приложение кодов"}).click();
+  await expect(page.getByText("JBSWY3DPEHPK3PXP")).toBeVisible();
+  await page.getByRole("textbox",{name:"Одноразовый код удаления"}).fill("123456");
+  await page.getByRole("button",{name:"Проверить код удаления"}).click();
+  await expect(page.getByText("JBSWY3DPEHPK3PXP")).toHaveCount(0);
+  await page.getByRole("button",{name:"Подтвердить через приложение кодов"}).click();
+  await expect(page.getByRole("status").filter({
+    hasText:"Личность подтверждена. Ожидается проверка правил хранения.",
+  })).toBeVisible();
+  await expect(page.getByRole("button",{name:"Подтвердить через приложение кодов"})).toHaveCount(0);
+});
