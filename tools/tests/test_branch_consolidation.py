@@ -24,24 +24,24 @@ class BranchInventoryTest(unittest.TestCase):
         self.old = Path.cwd()
         os.chdir(self.root)
         self.addCleanup(os.chdir, self.old)
-        self.run("git", "init", "-q", "-b", "main")
-        self.run("git", "config", "user.email", "ci@example.invalid")
-        self.run("git", "config", "user.name", "CI")
+        self.cmd("git", "init", "-q", "-b", "main")
+        self.cmd("git", "config", "user.email", "ci@example.invalid")
+        self.cmd("git", "config", "user.name", "CI")
         self.write("backend/migrations/000001_base.sql", "select 1;\n")
         self.commit("base")
-        self.run("git", "remote", "add", "origin", ".")
-        self.run("git", "update-ref", "refs/remotes/origin/main", self.rev())
-        self.run("git", "branch", "old", self.rev())
-        self.run("git", "branch", "feature", self.rev())
-        self.run("git", "checkout", "-q", "feature")
+        self.cmd("git", "remote", "add", "origin", ".")
+        self.cmd("git", "update-ref", "refs/remotes/origin/main", self.rev())
+        self.cmd("git", "branch", "old", self.rev())
+        self.cmd("git", "branch", "feature", self.rev())
+        self.cmd("git", "checkout", "-q", "feature")
         self.write("backend/migrations/000001_conflict.sql", "select 2;\n")
         self.write("backend/internal/new_feature.go", "package internal\n")
         self.commit("feature")
-        self.run("git", "update-ref", "refs/remotes/origin/feature", self.rev())
-        self.run("git", "checkout", "-q", "main")
-        self.run("git", "update-ref", "refs/remotes/origin/old", self.rev())
+        self.cmd("git", "update-ref", "refs/remotes/origin/feature", self.rev())
+        self.cmd("git", "checkout", "-q", "main")
+        self.cmd("git", "update-ref", "refs/remotes/origin/old", self.rev())
 
-    def run(self, *args: str) -> str:
+    def cmd(self, *args: str) -> str:
         return subprocess.check_output(args, text=True).strip()
 
     def write(self, path: str, content: str) -> None:
@@ -50,11 +50,11 @@ class BranchInventoryTest(unittest.TestCase):
         output.write_text(content, encoding="utf-8")
 
     def commit(self, msg: str) -> None:
-        self.run("git", "add", ".")
-        self.run("git", "commit", "-qm", msg)
+        self.cmd("git", "add", ".")
+        self.cmd("git", "commit", "-qm", msg)
 
     def rev(self) -> str:
-        return self.run("git", "rev-parse", "HEAD")
+        return self.cmd("git", "rev-parse", "HEAD")
 
     def test_classifies_ancestor_and_divergent_without_claiming_feature_absence(self) -> None:
         report = tool.inventory()
@@ -72,7 +72,7 @@ class BranchInventoryTest(unittest.TestCase):
             tool.inventory(remote="origin;rm -rf")
         self.write("backend/migrations/000001_duplicate.sql", "select 3;\n")
         self.commit("duplicate")
-        self.run("git", "update-ref", "refs/remotes/origin/main", self.rev())
+        self.cmd("git", "update-ref", "refs/remotes/origin/main", self.rev())
         with self.assertRaisesRegex(ValueError, "duplicate migration number"):
             tool.inventory()
 
