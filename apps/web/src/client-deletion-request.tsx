@@ -120,7 +120,7 @@ export default function DeletionRequestPanel({onSessionLost}:{onSessionLost:()=>
       body:JSON.stringify({code:otp}),
     });
     if(!accepted(token))return;
-    if(res.status===401||res.status===403){onSessionLost();return;}
+    if(res.status===401){onSessionLost();return;}
     if(!res.ok)throw Error("Код неверен или 24-часовой срок ожидания не завершён.");
     if(accepted(token)){setVerified(true);setOtp("");setSecret("");}
   });
@@ -132,7 +132,7 @@ export default function DeletionRequestPanel({onSessionLost}:{onSessionLost:()=>
       body:JSON.stringify({confirm:true}),
     });
     if(!accepted(token))return;
-    if(res.status===401||res.status===403){onSessionLost();return;}
+    if(res.status===401){onSessionLost();return;}
     if(!res.ok)throw Error("Подтверждение через приложение кодов отклонено.");
     const value=receipt(await res.json());
     if(accepted(token)){setItem(value);setVerified(false);setSecret("");}
