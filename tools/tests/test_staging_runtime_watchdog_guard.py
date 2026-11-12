@@ -11,6 +11,7 @@ class StagingRuntimeWatchdogGuardTest(unittest.TestCase):
     def test_finance_staging_shell_scripts_have_valid_bash_syntax(self):
         for name in (
             "check-staging-runtime.sh",
+            "check-staging-worker-units.sh",
             "update-staging.sh",
             "prove-r4-finance-readonly.sh",
         ):
@@ -26,7 +27,7 @@ class StagingRuntimeWatchdogGuardTest(unittest.TestCase):
             root = Path(directory)
             target = root / "deploy" / "staging"
             target.mkdir(parents=True)
-            for source in (guard.SCRIPT, guard.SERVICE, guard.TIMER):
+            for source in (guard.SCRIPT, guard.SERVICE, guard.TIMER, guard.WORKER_PREFLIGHT):
                 (target / source.name).write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
             original_updater = (guard.ROOT / "deploy/staging/update-staging.sh").read_text(encoding="utf-8")
             (target / "update-staging.sh").write_text(original_updater, encoding="utf-8")
@@ -39,16 +40,36 @@ class StagingRuntimeWatchdogGuardTest(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            with patch.object(guard, "ROOT", root), patch.object(guard, "SCRIPT", script), patch.object(guard, "SERVICE", target / guard.SERVICE.name), patch.object(guard, "TIMER", target / guard.TIMER.name):
+            with patch.object(guard, "ROOT", root), patch.object(guard, "SCRIPT", script), patch.object(guard, "SERVICE", target / guard.SERVICE.name), patch.object(guard, "TIMER", target / guard.TIMER.name), patch.object(guard, "WORKER_PREFLIGHT", target / guard.WORKER_PREFLIGHT.name):
                 errors = guard.validate()
                 self.assertTrue(any("finance watchdog missing invariant" in e for e in errors), errors)
+
+    def test_preflight_fails_guard_if_outbox_check_is_removed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            target = root / "deploy" / "staging"
+            target.mkdir(parents=True)
+            for source in (guard.SCRIPT, guard.SERVICE, guard.TIMER, guard.WORKER_PREFLIGHT):
+                (target / source.name).write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+            (target / "update-staging.sh").write_text(
+                (guard.ROOT / "deploy/staging/update-staging.sh").read_text(encoding="utf-8"),
+                encoding="utf-8",
+            )
+            preflight = target / guard.WORKER_PREFLIGHT.name
+            preflight.write_text(preflight.read_text(encoding="utf-8").replace(
+                "/usr/bin/systemctl --system is-active --quiet apgic-outbox-worker-staging.service",
+                "true",
+            ), encoding="utf-8")
+            with patch.object(guard, "ROOT", root), patch.object(guard, "SCRIPT", target / guard.SCRIPT.name), patch.object(guard, "SERVICE", target / guard.SERVICE.name), patch.object(guard, "TIMER", target / guard.TIMER.name), patch.object(guard, "WORKER_PREFLIGHT", preflight):
+                errors = guard.validate()
+                self.assertTrue(any("privileged worker preflight" in e for e in errors), errors)
 
     def test_missing_predeployment_dependency_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             target = root / "deploy" / "staging"
             target.mkdir(parents=True)
-            for source in (guard.SCRIPT, guard.SERVICE, guard.TIMER):
+            for source in (guard.SCRIPT, guard.SERVICE, guard.TIMER, guard.WORKER_PREFLIGHT):
                 (target / source.name).write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
             updater = target / "update-staging.sh"
             updater.write_text(
@@ -58,7 +79,7 @@ class StagingRuntimeWatchdogGuardTest(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            with patch.object(guard, "ROOT", root), patch.object(guard, "SCRIPT", target / guard.SCRIPT.name), patch.object(guard, "SERVICE", target / guard.SERVICE.name), patch.object(guard, "TIMER", target / guard.TIMER.name):
+            with patch.object(guard, "ROOT", root), patch.object(guard, "SCRIPT", target / guard.SCRIPT.name), patch.object(guard, "SERVICE", target / guard.SERVICE.name), patch.object(guard, "TIMER", target / guard.TIMER.name), patch.object(guard, "WORKER_PREFLIGHT", target / guard.WORKER_PREFLIGHT.name):
                 errors = guard.validate()
                 self.assertTrue(any("staging deploy missing finance dependency" in e for e in errors), errors)
 

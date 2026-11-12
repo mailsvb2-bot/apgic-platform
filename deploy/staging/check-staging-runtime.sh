@@ -37,10 +37,22 @@ grep -q 'apgic_http_request_duration_milliseconds_bucket' <<<"$metrics"
 grep -q 'apgic_readiness_checks_total{result="ready",reason="NONE"}' <<<"$metrics"
 grep -q 'route="/readyz"' <<<"$metrics"
 
+# Worker service activation is verified by the fixed ExecStartPre in the
+# root-owned systemd unit. The main checker runs as DynamicUser, where
+# systemctl cannot reach the system bus and would report false failures.
+# An operator running the script directly still checks active units itself.
+worker_unit_active() {
+    if [[ "${APGIC_WATCHDOG_UNIT_PREFLIGHT:-}" == "systemd-preflight-v1" &&
+          -n "${INVOCATION_ID:-}" ]]; then
+        return 0
+    fi
+    systemctl is-active --quiet "$1"
+}
+
 outbox_enabled="${APGIC_OUTBOX_WORKER_ENABLED:-0}"
 if [[ "$outbox_enabled" == "1" ]]; then
     : "${APGIC_DATABASE_URL:?APGIC_DATABASE_URL is required when outbox worker is enabled}"
-    if ! systemctl is-active --quiet apgic-outbox-worker-staging.service; then
+    if ! worker_unit_active apgic-outbox-worker-staging.service; then
         echo "APGIC staging runtime watchdog: outbox worker is not active" >&2
         exit 1
     fi
@@ -75,7 +87,7 @@ case "$finance_enabled" in
       echo "APGIC staging runtime watchdog: finance worker requires outbox delivery" >&2
       exit 1
     fi
-    if ! systemctl is-active --quiet apgic-finance-worker-staging.service; then
+    if ! worker_unit_active apgic-finance-worker-staging.service; then
       echo "APGIC staging runtime watchdog: finance worker is not active" >&2
       exit 1
     fi

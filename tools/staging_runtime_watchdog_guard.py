@@ -6,6 +6,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "deploy/staging/check-staging-runtime.sh"
 SERVICE = ROOT / "deploy/staging/apgic-staging-runtime-watchdog.service"
 TIMER = ROOT / "deploy/staging/apgic-staging-runtime-watchdog.timer"
+WORKER_PREFLIGHT = ROOT / "deploy/staging/check-staging-worker-units.sh"
 
 
 def validate() -> list[str]:
@@ -13,6 +14,7 @@ def validate() -> list[str]:
     script = SCRIPT.read_text(encoding="utf-8")
     service = SERVICE.read_text(encoding="utf-8")
     timer = TIMER.read_text(encoding="utf-8")
+    worker_preflight = WORKER_PREFLIGHT.read_text(encoding="utf-8")
     updater = (ROOT / "deploy/staging/update-staging.sh").read_text(encoding="utf-8")
 
     for item in (
@@ -76,12 +78,30 @@ def validate() -> list[str]:
         if item not in service:
             errors.append(f"watchdog service missing sandbox invariant: {item}")
 
+    for item in (
+        "ExecStartPre=+/usr/bin/bash /opt/apgic/current/deploy/staging/check-staging-worker-units.sh",
+        "Environment=APGIC_WATCHDOG_UNIT_PREFLIGHT=systemd-preflight-v1",
+    ):
+        if item not in service:
+            errors.append(f"watchdog worker preflight missing: {item}")
+    for item in (
+        "EUID != 0",
+        "/usr/bin/systemctl --system is-active --quiet apgic-outbox-worker-staging.service",
+        "/usr/bin/systemctl --system is-active --quiet apgic-finance-worker-staging.service",
+        "finance worker requires outbox delivery",
+    ):
+        if item not in worker_preflight:
+            errors.append(f"privileged worker preflight missing invariant: {item}")
+    for item in ("worker_unit_active", "APGIC_WATCHDOG_UNIT_PREFLIGHT", "INVOCATION_ID"):
+        if item not in script:
+            errors.append(f"watchdog missing service-state handoff: {item}")
+
     if "OnBootSec=2m" not in timer or "OnUnitActiveSec=5m" not in timer:
         errors.append("watchdog timer cadence mismatch")
     if "apgic-staging-runtime-watchdog.service" not in timer:
         errors.append("watchdog timer unit target missing")
 
-    combined = "\n".join((script, service, timer)).lower()
+    combined = "\n".join((script, service, timer, worker_preflight)).lower()
     for forbidden in ("147.45.146.112", "metrotherapy", "default_server"):
         if forbidden in combined:
             errors.append(f"watchdog contains forbidden shared-host coupling: {forbidden}")
