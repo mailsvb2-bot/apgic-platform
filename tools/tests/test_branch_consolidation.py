@@ -67,14 +67,16 @@ class BranchInventoryTest(unittest.TestCase):
         self.assertEqual(feature["migration_number_conflicts"][0]["version"], "000001")
         self.assertEqual(feature["migration_number_conflicts"][0]["main_path"], "backend/migrations/000001_base.sql")
 
-    def test_rejects_bad_remote_and_duplicate_baseline_versions(self) -> None:
+    def test_rejects_bad_remote_and_reports_baseline_collisions(self) -> None:
         with self.assertRaises(ValueError):
             tool.inventory(remote="origin;rm -rf")
         self.write("backend/migrations/000001_duplicate.sql", "select 3;\n")
         self.commit("duplicate")
         self.cmd("git", "update-ref", "refs/remotes/origin/main", self.rev())
-        with self.assertRaisesRegex(ValueError, "duplicate migration number"):
-            tool.inventory()
+        report = tool.inventory()
+        self.assertEqual(report["baseline_migration_number_collisions"][0]["version"], "000001")
+        self.assertEqual(len(report["baseline_migration_number_collisions"][0]["paths"]), 2)
+        self.assertEqual(len(report["branches"]), 2)
 
 
 if __name__ == "__main__":
