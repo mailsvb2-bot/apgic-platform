@@ -1,0 +1,75 @@
+name: Prune fully integrated branch refs
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+
+
+permissions:
+  contents: write
+
+concurrency:
+  group: prune-integrated-branches-main
+  cancel-in-progress: false
+
+jobs:
+  prune:
+    name: Verify and prune main ancestors only
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CANDIDATE_SHA: ${{ github.event.workflow_run.head_sha }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+          ref: ${{ github.event.workflow_run.head_sha }}
+      - name: Fetch all original remote refs
+        run: git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'
+      - name: Pin current main and enumerate all branches
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
+          test "$(git ls-remote --heads origin refs/heads/main | cut -f1)" = "$CANDIDATE_SHA"
+          python3 tools/branch_consolidation.py --base "$CANDIDATE_SHA" --output /tmp/apgic-prune-inventory.json
+          python3 tools/branch_prune_ancestry.py --report /tmp/apgic-prune-inventory.json --result /tmp/apgic-prune-dry-run.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          proof = json.loads(Path('/tmp/apgic-prune-dry-run.json').read_text())
+          assert proof['dry_run'] and not proof['deleted'] and not proof['failed']
+          assert proof['baseline_sha']
+          print('PINNED:', proof['baseline_sha'], 'SAFE_ANCESTORS:', proof['eligible'], 'RETAINED:', len(proof['skipped']))
+          PY
+      - name: Delete only confirmed history-integrated refs with exact SHA lease
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/branch_prune_ancestry.py --report /tmp/apgic-prune-inventory.json \
+            --apply --confirm-main "$CANDIDATE_SHA" --result /tmp/apgic-prune-applied.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          r = json.loads(Path('/tmp/apgic-prune-applied.json').read_text())
+          assert not r['failed'], r['failed']
+          assert r['baseline_sha']
+          with open(Path(__import__('os').environ['GITHUB_STEP_SUMMARY']), 'a', encoding='utf-8') as out:
+              out.write("### Safe branch pruning\n"
+                        f"- Main SHA: {r['baseline_sha']}\n"
+                        f"- Fully included branches deleted: {len(r['deleted'])}\n"
+                        f"- Divergent or changed branches retained: {len(r['skipped'])}\n"
+                        "- Main and divergent branches were not deleted.\n")
+          PY
+      - name: Confirm main SHA and residual branch heads
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git ls-remote --heads origin refs/heads/main | cut -f1)" = "$CANDIDATE_SHA"
+          git ls-remote --heads origin | wc -l
