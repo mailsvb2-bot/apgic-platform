@@ -31,6 +31,9 @@ export default function Home() {
             <a href="#how">Как это работает</a>
             <PersonalNavLink />
             <a href="/specialists">Подобрать специалиста</a>
+            <a href="/now">Поговорить сейчас</a>
+            <a href="/academy">Обучение</a>
+            <a href="/live-events">Афиша</a>
             <a className="organization-nav-link" href="/organization">Организация</a>
             <a className="pro-nav-link" href="/specialist">Для специалистов</a>
           </nav>
@@ -49,6 +52,7 @@ export default function Home() {
               <a className="button-link primary-action" href="#start">
                 Подобрать специалиста
               </a>
+              <a className="button-link secondary-action" href="/now">Поговорить сейчас</a>
               <AvatarEntry />
             </div>
 

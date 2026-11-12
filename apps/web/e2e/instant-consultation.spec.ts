@@ -24,3 +24,22 @@ test("Specialist Duty/Now is visible but does not claim unverified availability"
   await expect(page.getByRole("heading", { name: "Принимать сейчас" })).toBeVisible();
   await expect(page.getByRole("button", { name: /Принимать сейчас/ })).toBeDisabled();
 });
+
+test("R6 home entry leads to the governed Duty/Now journey without granting access",async({page})=>{
+  await page.goto("/");
+  await expect(page.getByRole("navigation",{name:"Разделы"}).getByRole("link",{name:"Поговорить сейчас"})).toHaveAttribute("href","/now");
+  await expect(page.getByRole("navigation",{name:"Разделы"}).getByRole("link",{name:"Обучение"})).toHaveAttribute("href","/academy");
+  await expect(page.getByRole("navigation",{name:"Разделы"}).getByRole("link",{name:"Афиша"})).toHaveAttribute("href","/live-events");
+  await page.locator(".hero-actions").getByRole("link",{name:"Поговорить сейчас"}).click();
+  await expect(page).toHaveURL(/\/now$/);
+  await expect(page.getByRole("heading",{name:"Поговорить со специалистом сейчас"})).toBeVisible();
+  await expect(page.getByRole("button",{name:"Найти дежурного"})).toHaveCount(0);
+});
+test("R8 and R9 public home links lead to honest catalogue surfaces",async({page})=>{
+  await page.goto("/");
+  await page.getByRole("navigation",{name:"Разделы"}).getByRole("link",{name:"Обучение"}).click();
+  await expect(page.getByRole("heading",{name:"Обучение и курсы"})).toBeVisible();
+  await page.goto("/");
+  await page.getByRole("navigation",{name:"Разделы"}).getByRole("link",{name:"Афиша"}).click();
+  await expect(page.getByRole("heading",{name:"Встречи, вебинары и мастер-классы"})).toBeVisible();
+});
