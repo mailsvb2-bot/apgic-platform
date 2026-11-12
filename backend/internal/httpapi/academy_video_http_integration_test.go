@@ -242,13 +242,16 @@ func testAcademyVideoHTTPClientSeesRevocationMidStream(t *testing.T, status int)
 		t.Fatal("wrong first video chunk")
 	}
 	authorized.Store(false)
+	// Unblock the upstream before waiting for revocation. Otherwise the
+	// per-write check cannot run: the copier is still waiting on the provider,
+	// and only the watcher path is reachable.
+	close(releaseSecond)
 	select {
 	case <-revocationObserved:
 	case <-copierRevocationObserved:
 	case <-time.After(2 * time.Second):
 		t.Fatal("revoked stream continued without watcher cancellation or per-write denial")
 	}
-	close(releaseSecond)
 	remaining, err := io.ReadAll(response.Body)
 	if len(remaining) != 0 || err == nil {
 		t.Fatalf("revoked learner received %d extra bytes, read error=%v", len(remaining), err)
