@@ -500,6 +500,16 @@ assert_compatibility_policy() {
   echo "iOS supported previous contract remained operational: PASS"
 
   for launch_attempt in 1 2 3; do
+    # A failed AXBridge observation can leave SpringBoard/accessibility daemons
+    # stale even after app reinstall. Reboot only after a failed attempt;
+    # never accept unverified UI evidence or skip the required update action.
+    if [[ "$launch_attempt" -gt 1 ]]; then
+      xcrun simctl shutdown "$UDID" >/dev/null 2>&1 || true
+      xcrun simctl boot "$UDID" ||
+        fail "unsupported compatibility: simulator recovery boot failed"
+      xcrun simctl bootstatus "$UDID" -b ||
+        fail "unsupported compatibility: simulator recovery did not finish"
+    fi
     xcrun simctl terminate "$UDID" com.apgic.ci >/dev/null 2>&1 || true
     xcrun simctl uninstall "$UDID" com.apgic.ci >/dev/null 2>&1 || true
     xcrun simctl install "$UDID" "$APP" ||
@@ -524,6 +534,7 @@ assert_compatibility_policy() {
     done
     [[ "$update_verified" -eq 1 ]] && break
     echo "iOS unsupported compatibility attempt $launch_attempt: state evidence incomplete" >&2
+    xcrun simctl spawn "$UDID" launchctl list 2>/dev/null | grep -F "com.apgic.ci" >&2 || true
     describe_compatibility_evidence "$update_output"
   done
   [[ "$update_verified" -eq 1 ]] ||
