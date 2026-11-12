@@ -166,6 +166,7 @@ func testAcademyVideoHTTPClientSeesRevocationMidStream(t *testing.T, status int)
 	var authorized atomic.Bool
 	authorized.Store(true)
 	revocationObserved := make(chan struct{})
+	copierRevocationObserved := make(chan struct{})
 	gateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !authorized.Load() {
 			http.Error(w, "access denied", http.StatusForbidden)
@@ -205,7 +206,11 @@ func testAcademyVideoHTTPClientSeesRevocationMidStream(t *testing.T, status int)
 			cancel()
 			<-watchDone
 		}()
-		_ = academyCopyVideoAuthorized(w, upstream.Body, authorized.Load)
+		// A revoked stream can be stopped by the per-write entitlement check
+		// before the periodic watcher runs. Both are valid fail-closed paths.
+		if err := academyCopyVideoAuthorized(w, upstream.Body, authorized.Load); errors.Is(err, errAcademyVideoRevoked) {
+			close(copierRevocationObserved)
+		}
 	}))
 	defer gateway.Close()
 
@@ -239,8 +244,9 @@ func testAcademyVideoHTTPClientSeesRevocationMidStream(t *testing.T, status int)
 	authorized.Store(false)
 	select {
 	case <-revocationObserved:
+	case <-copierRevocationObserved:
 	case <-time.After(2 * time.Second):
-		t.Fatal("revocation watcher did not observe revoked access")
+		t.Fatal("revoked stream continued without watcher cancellation or per-write denial")
 	}
 	close(releaseSecond)
 	remaining, err := io.ReadAll(response.Body)
