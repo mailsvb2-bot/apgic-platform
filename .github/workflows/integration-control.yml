@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       candidate_ref:
-        description: "Exact GitHub branch holding combined integration candidate (defaults to readiness for visibility only)"
+        description: "Exact integration candidate ref (default main; no production authorization)"
         required: true
         default: main
         type: string
@@ -26,7 +26,33 @@ jobs:
         with:
           python-version: '3.13'
       - name: Run evidence/report contract tests
-        run: python -m unittest discover -s tools/tests -p test_integration_release_control.py -v
+        run: |
+          python -m unittest discover -s tools/tests -p test_integration_release_control.py -v
+          python -m unittest discover -s tools/tests -p test_branch_consolidation.py -v
+      - name: Pin all remote branch heads and detect migration collisions
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'
+          python tools/branch_consolidation.py --base origin/main --output evidence/branch-functional-inventory.json
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          report = json.loads(Path("evidence/branch-functional-inventory.json").read_text())
+          summary = (
+              "### Branch inventory (read-only)\n"
+              f"- Baseline: `{report['baseline_sha']}`\n"
+              f"- Non-main branches: {report['total_non_main']}\n"
+              f"- Ancestors: {report['ancestor_branches']}\n"
+              f"- Divergent, require semantic review: {report['divergent_branches']}\n"
+              f"- Branch migration-number collisions: {report['unresolved_migration_number_conflicts']}\n"
+              f"- Existing main migration-number collisions: {len(report['baseline_migration_number_collisions'])}\n"
+              "No merge, database change, or release approval was performed.\n"
+          )
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as handle:
+              handle.write(summary)
+          PY
       - name: Read pinned branch heads and report conflicts
         id: report
         env:
@@ -53,6 +79,8 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: integration-blockers-${{ github.sha }}-${{ github.run_id }}
-          path: evidence/integration-branch-control.json
+          path: |
+            evidence/integration-branch-control.json
+            evidence/branch-functional-inventory.json
           if-no-files-found: error
           retention-days: 90
