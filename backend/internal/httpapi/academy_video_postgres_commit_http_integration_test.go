@@ -82,6 +82,13 @@ VALUES($1::uuid,$2::uuid,$3,$4,'HTTP commit boundary',$5::uuid,$6,$7,$8)`,
 	var secondReleased bool
 	handlerDone := make(chan error, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// A new HTML5 seek after COMMIT must be denied before opening the
+		// provider stream. The same canonical PostgreSQL fingerprint check
+		// that guards each active write also gates new requests.
+		if !authorized() {
+			http.Error(w, "access denied", http.StatusForbidden)
+			return
+		}
 		reader, writer := io.Pipe()
 		defer reader.Close()
 		defer writer.Close()
@@ -183,5 +190,32 @@ SET generation=gen_random_uuid() WHERE author_id=$1::uuid AND provider='YANDEX_D
 	}
 	if !strings.Contains(readErr.Error(), "unexpected EOF") && !strings.Contains(readErr.Error(), "EOF") && !strings.Contains(readErr.Error(), "canceled") {
 		t.Logf("client observed transport termination: %v", readErr)
+	}
+
+	// Reusing the existing HTTP server proves that the committed generation
+	// revocation also rejects a subsequent Range request. No cloud URL or
+	// credential may appear in a denied learner response.
+	seek, err := http.NewRequest(http.MethodGet, server.URL, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	seek.Header.Set("Range", "bytes=65536-")
+	seekResponse, err := client.Do(seek)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer seekResponse.Body.Close()
+	if seekResponse.StatusCode != http.StatusForbidden {
+		t.Fatalf("revoked PostgreSQL-backed seek returned %d, want 403", seekResponse.StatusCode)
+	}
+	if location := seekResponse.Header.Get("Location"); location != "" {
+		t.Fatalf("revoked seek exposed redirect location %q", location)
+	}
+	denied, err := io.ReadAll(seekResponse.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(denied), path) || strings.Contains(string(denied), "encrypted-test-only-placeholder") {
+		t.Fatal("revoked seek exposed cloud path or credential")
 	}
 }
