@@ -1,6 +1,7 @@
 import React,{useCallback,useState} from "react";
 import {Linking,Pressable,Text,TextInput,View} from "react-native";
 import {canonicalAPGICOrigin} from "./mobile-deep-link-client.ts";
+import {AcademyAccessError,academyOptional,academySessionRejected} from "./mobile-academy-session.ts";
 
 export type NativeAcademyNotifications={enabled:boolean;learning_updates:boolean;assessment_results:boolean;certificate_updates:boolean};
 export type NativeAcademyCourse={
@@ -32,10 +33,16 @@ export async function academyRequest<T>(
   method,credentials:"include",headers:{"Accept":"application/json","Content-Type":"application/json"},
   body:body===undefined?undefined:JSON.stringify(body),
  });
- const value:unknown=await response.json();
+ // Even a malformed 401 response must revoke the local view of identity data.
+ let value:unknown;
+ try{value=await response.json()}
+ catch{
+  if(!response.ok)throw new AcademyAccessError(response.status,"ACADEMY_UNAVAILABLE");
+  throw new Error("ACADEMY_INVALID_RESPONSE");
+ }
  if(!response.ok){
-  const err=value as {message_safe?:string;code?:string};
-  throw new Error(err.message_safe||err.code||"ACADEMY_UNAVAILABLE");
+  const err=(value??{}) as {message_safe?:string;code?:string};
+  throw new AcademyAccessError(response.status,err.message_safe||err.code||"ACADEMY_UNAVAILABLE");
  }
  return value as T;
 }
@@ -60,17 +67,32 @@ export function AcademySurface(){
  const act=useCallback(async(work:()=>Promise<void>)=>{
   setBusy(true);
   try{await work()}catch(error){
-   setStatus(error instanceof Error?error.message:"Образовательный сервис недоступен.");
+   if(academySessionRejected(error)){
+    // The screen persists across native account/session changes. Never keep
+    // previously fetched learner or purchase evidence when the server denies
+    // the current signed session.
+    setCourses([]);setVerifiedCourseIDs([]);setEnrollments([]);setLessons([]);
+    setSelected(null);setCertificate(null);setCertificates([]);setAttempts([]);
+    setAppeals([]);setAppealsUnavailable(false);setCohorts([]);
+    setAppealReasons({});setNotifications(null);setAssessmentAnswer("");
+    setStatus("Сессия завершилась. Войдите снова.");
+   }else{
+    setStatus(error instanceof Error?error.message:"Образовательный сервис недоступен.");
+   }
   }finally{setBusy(false)}
  },[]);
  const loadLearning=useCallback(async(e:NativeAcademyEnrollment)=>{
   const [data,history,review,groups]=await Promise.all([
    academyRequest<{lessons:NativeAcademyLesson[]}>(`/v1/academy/enrollments/${encodeURIComponent(e.id)}/learn`),
    academyRequest<{attempts:NativeAcademyAttempt[]}>(`/v1/academy/enrollments/${encodeURIComponent(e.id)}/attempts`),
-   academyRequest<{appeals:NativeAcademyAppeal[]}>("/v1/academy/me/appeals")
-    .then(value=>({ok:true,items:value.appeals})).catch(()=>({ok:false,items:[] as NativeAcademyAppeal[]})),
-   academyRequest<{cohorts:NativeAcademyCohort[]}>(`/v1/academy/enrollments/${encodeURIComponent(e.id)}/cohorts`)
-    .then(value=>({ok:true,items:value.cohorts})).catch(()=>({ok:false,items:[] as NativeAcademyCohort[]}))
+   academyOptional(
+    academyRequest<{appeals:NativeAcademyAppeal[]}>("/v1/academy/me/appeals")
+     .then(value=>({ok:true,items:value.appeals})),
+    {ok:false,items:[] as NativeAcademyAppeal[]}),
+   academyOptional(
+    academyRequest<{cohorts:NativeAcademyCohort[]}>(`/v1/academy/enrollments/${encodeURIComponent(e.id)}/cohorts`)
+     .then(value=>({ok:true,items:value.cohorts})),
+    {ok:false,items:[] as NativeAcademyCohort[]})
   ]);
   setSelected(e);setLessons(data.lessons);setAttempts(history.attempts);
   setAppeals(review.items);setAppealsUnavailable(!review.ok);setCohorts(groups.items);setCertificate(null);
@@ -103,8 +125,9 @@ export function AcademySurface(){
    onPress={()=>void act(async()=>{
     const [data,access]=await Promise.all([
      academyRequest<{courses:NativeAcademyCourse[]}>("/v1/academy/courses"),
-     academyRequest<{course_ids:string[]}>("/v1/academy/me/course-access")
-      .catch(()=>({course_ids:[] as string[]}))
+     academyOptional(
+     academyRequest<{course_ids:string[]}>("/v1/academy/me/course-access"),
+     {course_ids:[] as string[]})
     ]);
     setCourses(data.courses);setVerifiedCourseIDs(access.course_ids);
     setStatus(data.courses.length?"Выберите курс.":"Опубликованных курсов нет.");
