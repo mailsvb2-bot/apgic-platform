@@ -1,12 +1,12 @@
 "use client";
 
-import {useCallback,useEffect,useState} from "react";
+import {useCallback,useEffect,useRef,useState} from "react";
 
 type Course={id:string;title:string;state:string;version_no:number};
 type Report={courses:Array<{course_id:string;title:string;enrollments:number;completed:number;pending_assessments:number;passed_assessments:number}>;gross_captures:Array<{course_id:string;currency:string;captured_count:number;captured_gross_minor:number;active_count:number;active_gross_minor:number}>;revenue_state:string};
 
-async function getAcademy<T>(path:string):Promise<T>{
- const response=await fetch(path,{credentials:"same-origin",cache:"no-store",headers:{"Accept":"application/json"}});
+async function getAcademy<T>(path:string,signal:AbortSignal):Promise<T>{
+ const response=await fetch(path,{credentials:"same-origin",cache:"no-store",signal,headers:{"Accept":"application/json"}});
  if(!response.ok)throw new Error(response.status===401?"Войдите в свой аккаунт APGIC":"Не удалось загрузить данные обучения");
  return response.json() as Promise<T>;
 }
@@ -19,20 +19,38 @@ export function SpecialistAcademyWorkspace(){
  const [report,setReport]=useState<Report|null>(null);
  const [notice,setNotice]=useState("");
  const [busy,setBusy]=useState(false);
+ // Account/session changes must never leave the previous specialist's course,
+ // learner or gross-capture figures on screen. Only the newest read may commit.
+ const activeRequest=useRef<AbortController|null>(null);
  const refresh=useCallback(async()=>{
+  activeRequest.current?.abort();
+  const request=new AbortController();
+  activeRequest.current=request;
   setBusy(true);
+  setCourses([]);
+  setReport(null);
+  setNotice("");
   try{
    const [owned,summary]=await Promise.all([
-    getAcademy<{courses:Course[]}>("/v1/academy/my-courses"),
-    getAcademy<Report>("/v1/academy/author/report")
+    getAcademy<{courses:Course[]}>("/v1/academy/my-courses",request.signal),
+    getAcademy<Report>("/v1/academy/author/report",request.signal)
    ]);
+   if(request.signal.aborted)return;
    setCourses(owned.courses);
    setReport(summary);
-   setNotice("");
-  }catch(error){setNotice(error instanceof Error?error.message:"Недоступен сервис Academy")}
-  finally{setBusy(false)}
+  }catch(error){
+   if(request.signal.aborted)return;
+   setCourses([]);
+   setReport(null);
+   setNotice(error instanceof Error?error.message:"Недоступен сервис Academy");
+  }finally{
+   if(activeRequest.current===request&&!request.signal.aborted)setBusy(false);
+  }
  },[]);
- useEffect(()=>{void refresh()},[refresh]);
+ useEffect(()=>{
+  void refresh();
+  return ()=>{activeRequest.current?.abort();activeRequest.current=null};
+ },[refresh]);
  const pending=report?.courses.reduce((sum,c)=>sum+c.pending_assessments,0)??0;
  return <section className="how-section" id="specialist-academy" aria-labelledby="specialist-academy-title">
   <p className="section-kicker">Academy · Преподавание</p>
@@ -45,9 +63,9 @@ export function SpecialistAcademyWorkspace(){
    <button type="button" onClick={()=>void refresh()} disabled={busy}>Обновить данные</button>
   </div>
   <div className="how-grid specialist-grid">
-   <article className="panel"><h3>Мои курсы</h3><p>{courses.length} в кабинете</p>
+   <article className="panel"><h3>Мои курсы</h3><p>{report===null?"—":courses.length} в кабинете</p>
     {courses.map(c=><p key={c.id}>{c.title} · версия {c.version_no} · {c.state}</p>)}
-    {courses.length===0&&<p>Курсы пока не созданы.</p>}
+    {report!==null&&courses.length===0&&<p>Курсы пока не созданы.</p>}
    </article>
    <article className="panel"><h3>Мои ученики</h3>
     <p>Зачислено: {report?.courses.reduce((s,c)=>s+c.enrollments,0)??"—"}</p>
