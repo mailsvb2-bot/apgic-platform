@@ -1,0 +1,435 @@
+{
+  "schema_version": "branch-history-consolidation-v1",
+  "baseline_sha": "83b88a20cb992340413453d8cc2515d26d63a182",
+  "mode": "retain_all_branch_ancestors_no_runtime_replacement",
+  "branch_count": 47,
+  "branches": [
+    {
+      "name": "ci/r8-real-provider-proof-on-main-20261105",
+      "sha": "a162cb1bce9c423baa829e1af4a985898ef3e086",
+      "ahead": 1,
+      "absent_paths": [],
+      "migration_conflicts": []
+    },
+    {
+      "name": "feat/academy-edtech",
+      "sha": "e13f9889a54da4dfc262fffd27821dda0018ec5f",
+      "ahead": 81,
+      "absent_paths": [],
+      "migration_conflicts": []
+    },
+    {
+      "name": "feat/ai-persona",
+      "sha": "127ce8370c6c8e7f459316b32a1f2b977eeeffe4",
+      "ahead": 19,
+      "absent_paths": [
+        "backend/migrations/000042_persona_companion.sql",
+        "backend/migrations/000043_persona_rights_review.sql"
+      ],
+      "migration_conflicts": [
+        {
+          "branch_path": "backend/migrations/000042_persona_companion.sql",
+          "main_path": "backend/migrations/000042_event_gateway_receipts.sql",
+          "version": "000042"
+        },
+        {
+          "branch_path": "backend/migrations/000042_persona_companion.sql",
+          "main_path": "backend/migrations/000042_r4_finance_mfa_totp.sql",
+          "version": "000042"
+        },
+        {
+          "branch_path": "backend/migrations/000043_persona_rights_review.sql",
+          "main_path": "backend/migrations/000043_client_personal_preferences.sql",
+          "version": "000043"
+        }
+      ]
+    },
+    {
+      "name": "feat/client-personal",
+      "sha": "d5cdbfa8d3445b9ffd185d3711570ce9d653660c",
+      "ahead": 23,
+      "absent_paths": [],
+      "migration_conflicts": []
+    },
+    {
+      "name": "feat/groups-live-events",
+      "sha": "3064aab22d83d360e45ec9d908a7f7dc4cfc2471",
+      "ahead": 17,
+      "absent_paths": [
+        "backend/migrations/000044_r9_live_events.sql",
+        "docs/traceability/R9-live-events-slice.md"
+      ],
+      "migration_conflicts": [
+        {
+          "branch_path": "backend/migrations/000044_r9_live_events.sql",
+          "main_path": "backend/migrations/000044_client_personal_checkins.sql",
+          "version": "000044"
+        }
+      ]
+    },
+    {
+      "name": "feat/growth-distribution",
+      "sha": "3adfb96b6f517cbd7cc40cc889a924151759c32d",
+      "ahead": 25,
+      "absent_paths": [
+        "backend/migrations/000045_growth_first_party_attribution.sql",
+        "backend/migrations/000046_growth_integrity_guards.sql",
+        "backend/migrations/000047_growth_verified_conversion_bridge.sql",
+        "backend/migrations/000048_growth_owned_link_lifecycle.sql"
+      ],
+      "migration_conflicts": [
+        {
+          "branch_path": "backend/migrations/000045_growth_first_party_attribution.sql",
+          "main_path": "backend/migrations/000045_r6_instant_duty_dispatch.sql",
+          "version": "000045"
+        },
+        {
+          "branch_path": "backend/migrations/000046_growth_integrity_guards.sql",
+          "main_path": "backend/migrations/000046_r6_r2_mutual_exclusion.sql",
+          "version": "000046"
+        },
+        {
+          "branch_path": "backend/migrations/000047_growth_verified_conversion_bridge.sql",
+          "main_path": "backend/migrations/000047_r6_canonical_booking_link.sql",
+          "version": "000047"
+        },
+        {
+          "branch_path": "backend/migrations/000048_growth_owned_link_lifecycle.sql",
+          "main_path": "backend/migrations/000048_r6_canonical_booking_handoff.sql",
+          "version": "000048"
+        }
+      ]
+    },
+    {
+      "name": "feat/instant-consultation",
+      "sha": "f840031fdf710f570cea2d9055de14663c67b89c",
+      "ahead": 7,
+      "absent_paths": [
+        "backend/migrations/000039_r6_instant_duty_dispatch.sql"
+      ],
+      "migration_conflicts": [
+        {
+          "branch_path": "backend/migrations/000039_r6_instant_duty_dispatch.sql",
+          "main_path": "backend/migrations/000039_r4_financial_completion.sql",
+          "version": "000039"
+        }
+      ]
+    },
+    {
+      "name": "feat/platform-readiness",
+      "sha": "9e7079f1c1336b3ed9b0d7eac0d70dbe9a1c3e37",
+      "ahead": 21,
+      "absent_paths": [
+        "docs/operations/integration-control.md",
+        "docs/operations/integration-user-journeys.md",
+        "docs/operations/launch-v1-assurance.md"
+      ],
+      "migration_conflicts": []
+    },
+    {
+      "name": "feat/r0-r3-dual-party-consultation-proof-20261019",
+      "sha": "0c4c073717c156819116fc6c22c1b162c508f1d5",
+      "ahead": 3,
+      "absent_paths": [],
+      "migration_conflicts": []
+    },
+    {
+      "name": "feat/r2-r3-signed-payment-admission-20261026",
+      "sha": "a862bded6e35d45b90007e3add15a05e4d683527",
+      "ahead": 5,
+      "absent_paths": [
+        "backend/migrations/000049_r2_r3_signed_payment_admission.sql",
+        "docs/r2-r3-signed-payment-admission.md"
+      ],
+      "migration_conflicts": [
+        {
+          "branch_path": "backend/migrations/000049_r2_r3_signed_payment_admission.sql",
+          "main_path": "backend/migrations/000049_r5_deletion_reconfirmation_evidence.sql",
+          "version": "000049"
+        }
+      ]
+    },
+    {
+      "name": "feat/r5-canonical-deletion-state-executor-20261027",
+      "sha": "56e21b714789bd039b2d47e18894c70529e766b3",
+      "ahead": 70,
+      "absent_paths": [],
+      "migration_conflicts": []
+    },
+    {
+      "name": "feat/r5-deletion-lifecycle-core-20261027",
+      "sha": "74bb79fbb532d6ec0b6c63a3b5b5b3197e806bd7",
+      "ahead": 43,
+      "absent_paths": [
+        "backend/cmd/deletion-provider-receipt/main.go",
+        "backend/cmd/deletion-worker/main.go",
+        "backend/internal/privacy/deletion_evidence_test.go",
+        "backend/internal/privacy/deletion_provider_receipt.go",
+        "backend/internal/runtimepostgres/account_deletion_executor.go",
+        "backend/internal/runtimepostgres/account_deletion_executor_integration_test.go",
+        "backend/internal/runtimepostgres/account_deletion_revocation.go",
+        "backend/migrations/000049_r5_deletion_reconfirmation.sql",
+        "backend/migrations/000050_r5_deletion_erasure_evidence.sql"
+      ],
+      "migration_conflicts": [
+        {
+          "branch_path": "backend/migrations/000049_r5_deletion_reconfirmation.sql",
+          "main_path": "backend/migrations/000049_r5_deletion_reconfirmation_evidence.sql",
+          "version": "000049"
+        },
+        {
+          "branch_path": "backend/migrations/000050_r5_deletion_erasure_evidence.sql",
+          "main_path": "backend/migrations/000050_r5_durable_deletion_execution.sql",
+          "version": "000050"
+        }
+      ]
+    },
+    {
+      "name": "feat/r5-deletion-request-client-journey-20261027",
+      "sha": "384428630de09d335fa62cd68a00225e65ce31d8",
+      "ahead": 8,
+      "absent_paths": [],
+      "migration_conflicts": []
+    },
+    {
+      "name": "feat/r5-durable-account-deletion-intake-20261027",
+      "sha": "bfbe4cf94dc9452a730c36c6a138224cb2c09a47",
+      "ahead": 15,
+      "absent_paths": [],
+      "migration_conflicts": []
+    },
+    {
+      "name": "feat/r5-session-confirm-deletion-20261030",
+      "sha": "8d7f8ae3db2136b23a61538f5667759920784bb4",
+      "ahead": 8,
+      "absent_paths": [],
+      "migration_conflicts": []
+    },
+    {
+      "name": "feat/r8-author-commerce-product-discovery-20261031",
+      "sha": "b2b3b906342f0d0c5c603b4a84c07c95a790455f",
+      "ahead": 9,
+      "absent_paths": [],
+      "migration_conflicts": []
+    },
+    {
+      "name": "feat/r8-captured-evidence-all-learning-gates-20261101",
+      "sha": "c2d32dd6ff55c1160a86d283d81063569e7f5a93",
+      "ahead": 7,
+      "absent_paths": [],
+      "migration_conflicts": []
+    },
+    {
+      "name": "feat/r8-cohort-integrity-20261031",
+      "sha": "2d58e6069baf508794af65041eb0517d34f62c5e",
+      "ahead": 22,
+      "absent_paths": [],
+      "migration_conflicts": []
+    },
+    {
+      "name": "feat/r8-cohort-learner-journey-20261031",
+      "sha": "9ac6bca3c482b39dd4ba40ac92fd0306bdc4e00e",
+      "ahead": 7,
+      "absent_paths": [],
+      "migration_conflicts": []
+    },
+    {
+      "name": "feat/r8-learner-assessment-results-20261031",
+      "sha": "2c53e3488b69137e93848dd9b7539a5aa371e21e",
+      "ahead": 9,
+      "absent_paths": [],
+      "migration_conflicts": []
+    },
+    {
+      "name": "feat/r8-learner-history-export-20261031",
+      "sha": "7e8f88a16b04c471d60a34cc8a66b21266277bbf",
+      "ahead": 7,
+      "absent_paths": [],
+      "migration_conflicts": []
+    },
+    {
+      "name": "feat/r8-learner-verified-access-20261101",
+      "sha": "fd67e72ec35d5d9cbb12d9b452273580e7d55a05",
+      "ahead": 14,
+      "absent_paths": [],
+      "migration_conflicts": []
+    },
+    {
+      "name": "feat/r8-lesson-schedules-appeals-20261101",
+      "sha": "d5313a29a79e6e66c8d69e531d2ae37326c44630",
+      "ahead": 46,
+      "absent_paths": [],
+      "migration_conflicts": []
+    },
+    {
+      "name": "feat/r8-media-grant-boundary-20261031",
+      "sha": "eb6c6063b47e1f819593d14363bcdc5f83789db0",
+      "ahead": 4,
+      "absent_paths": [],
+      "migration_conflicts": []
+    },
+    {
+      "name": "feat/r8-specialist-unified-workspace-20261101",
+      "sha": "2b6bf6f791efa9340cbc8d7d631f9fcf28aafdd0",
+      "ahead": 2,
+      "absent_paths": [],
+      "migration_conflicts": []
+    },
+    {
+      "name": "fix/apgic-audit-patches-20261105",
+      "sha": "80dc9adb238322f74194af8c37974bb7bb9be8b0",
+      "ahead": 4,
+      "absent_paths": [],
+      "migration_conflicts": []
+    },
+    {
+      "name": "fix/deletion-residual-guard-20261030",
+      "sha": "c3841becb39dfba10239848c5813f8e0b46e0e62",
+      "ahead": 3,
+      "absent_paths": [],
+      "migration_conflicts": []
+    },
+    {
+      "name": "fix/ios-staging-dns-transport-retry-20261029",
+      "sha": "ac5760909c8c61ca38814e507f8460126c2237e8",
+      "ahead": 1,
+      "absent_paths": [],
+      "migration_conflicts": []
+    },
+    {
+      "name": "fix/r3-signed-payment-room-gate-release",
+      "sha": "ece6bf3aeb2c45fdb272f3a272bf5405ec3eaecf",
+      "ahead": 6,
+      "absent_paths": [],
+      "migration_conflicts": []
+    },
+    {
+      "name": "fix/r5-client-session-lifecycle-20261026",
+      "sha": "64175101fef1592b9f7b898e83ba3b9ebf662e70",
+      "ahead": 7,
+      "absent_paths": [],
+      "migration_conflicts": []
+    },
+    {
+      "name": "fix/r5-deletion-journey-status-20261029",
+      "sha": "6f7724026f64655756bcf6111b3f8b2515ba0495",
+      "ahead": 5,
+      "absent_paths": [],
+      "migration_conflicts": []
+    },
+    {
+      "name": "fix/r5-deletion-status-unavailable-personal-20261029",
+      "sha": "cd5715f337d01174cede0d19bd1bcdc549577b7e",
+      "ahead": 2,
+      "absent_paths": [],
+      "migration_conflicts": []
+    },
+    {
+      "name": "fix/r5-personal-history-concurrency-20261026",
+      "sha": "f24ed2175b7379aa61e76c5751510e3375392c6b",
+      "ahead": 2,
+      "absent_paths": [],
+      "migration_conflicts": []
+    },
+    {
+      "name": "fix/r5-production-deletion-truth-20261026",
+      "sha": "e4382a6c51a47bbb216b9bc431008dc17248e943",
+      "ahead": 14,
+      "absent_paths": [],
+      "migration_conflicts": []
+    },
+    {
+      "name": "fix/r5-remove-intent-identity-link-20261029",
+      "sha": "b2db7c8b632413ffd57258e81e90de0712d8636d",
+      "ahead": 2,
+      "absent_paths": [],
+      "migration_conflicts": []
+    },
+    {
+      "name": "fix/r6-r2-durable-slot-exclusion-20261026",
+      "sha": "97238c6059f5d0014e0fc9b92b2c152868693512",
+      "ahead": 11,
+      "absent_paths": [],
+      "migration_conflicts": []
+    },
+    {
+      "name": "fix/r6-strict-command-payload-20261026",
+      "sha": "e2943220419e197387f5b5b213efd736b727ffbc",
+      "ahead": 6,
+      "absent_paths": [],
+      "migration_conflicts": []
+    },
+    {
+      "name": "fix/r8-live-workflow-nonempty-main-20261105",
+      "sha": "9f4e18d7003a4e489c1a820dab018e51b585dada",
+      "ahead": 1,
+      "absent_paths": [],
+      "migration_conflicts": []
+    },
+    {
+      "name": "integrate/cross-lane-assembly-control-current-main-20261112",
+      "sha": "90cac22ab5d179c75745512e789f30a48a010ee0",
+      "ahead": 3,
+      "absent_paths": [],
+      "migration_conflicts": []
+    },
+    {
+      "name": "integrate/r10-growth-current-main-20261111",
+      "sha": "acf3e40cbc29c92996577180be3cb9991980da8d",
+      "ahead": 1,
+      "absent_paths": [],
+      "migration_conflicts": []
+    },
+    {
+      "name": "integrate/r5-signed-provider-evidence-current-main-20261111",
+      "sha": "da1e4841ae27ee63ec2656d120efbe46e1e46d91",
+      "ahead": 3,
+      "absent_paths": [],
+      "migration_conflicts": []
+    },
+    {
+      "name": "integrate/r7-persona-current-main-20261111",
+      "sha": "81b7a94731ce6c2bf7ff019bdca6538a76253656",
+      "ahead": 4,
+      "absent_paths": [],
+      "migration_conflicts": []
+    },
+    {
+      "name": "r8/academy-refund-author-metrics-proof",
+      "sha": "bab11faf3cd7cd23aa04ea760830967644e3ff88",
+      "ahead": 1,
+      "absent_paths": [],
+      "migration_conflicts": []
+    },
+    {
+      "name": "r8/finance-academy-settlement-boundary",
+      "sha": "f703b13243ec1be2910ad80cb6d767002bc8e90b",
+      "ahead": 4,
+      "absent_paths": [],
+      "migration_conflicts": []
+    },
+    {
+      "name": "test/r5-durable-deletion-postgres-journey-20261027",
+      "sha": "23dd3789c4e8613485f2bdc4c4d37435faaa850d",
+      "ahead": 3,
+      "absent_paths": [],
+      "migration_conflicts": []
+    },
+    {
+      "name": "test/r8-video-watch-revocation-startup-20261111",
+      "sha": "e11f59ed6d5588d499c161b3e593d1e55cf1a10f",
+      "ahead": 6,
+      "absent_paths": [],
+      "migration_conflicts": []
+    },
+    {
+      "name": "work/auth001-web-tenant-isolation",
+      "sha": "0cf5823451a76b34753da3ab73e91897dbfef75f",
+      "ahead": 4,
+      "absent_paths": [
+        "tools/auth001_web_tenant_isolation_e2e.sh"
+      ],
+      "migration_conflicts": []
+    }
+  ]
+}
