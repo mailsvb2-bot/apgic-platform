@@ -3,7 +3,7 @@ name: Academy Go formatting guard
 on:
   push:
     branches:
-      - feat/academy-edtech
+      - main
     paths:
       - 'backend/internal/academy/**'
       - 'backend/internal/httpapi/academy*.go'
@@ -18,7 +18,6 @@ permissions:
 
 jobs:
   gofmt:
-    if: github.ref == 'refs/heads/feat/academy-edtech'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

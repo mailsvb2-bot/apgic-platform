@@ -219,6 +219,82 @@ def assemble(plan, repository, scope="launch", retain=None):
             if not retain:
                 git(repository, "worktree", "remove", "--force", str(dest), check=False)
 
+def assemble_single_main(repository, retain=None, archive_path="docs/operations/branch-history-consolidation-20261113.json"):
+    """Validate already integrated history and materialize current main for R0-R4 trials.
+
+    Unlike the retained legacy branch-merger fixtures, this production tool path
+    never fetches deleted branch refs or creates a second business execution lane.
+    The report proves *source/history composition only*, not live PSP or release.
+    """
+    repository = Path(repository).resolve()
+    head = git(repository, "rev-parse", "--verify", "HEAD^{commit}").stdout.strip()
+    branch = git(repository, "symbolic-ref", "--short", "HEAD", check=False)
+    if not SHA.fullmatch(head):
+        raise ValueError("Candidate commit is not an exact SHA")
+    if branch.returncode == 0 and branch.stdout.strip() != "main":
+        raise ValueError("Single-main assembly requires checked-out main, not " + branch.stdout.strip())
+    archive = json.loads((repository / archive_path).read_text(encoding="utf-8"))
+    historical = archive.get("branches")
+    if archive.get("schema_version") != "branch-history-consolidation-v1" or not isinstance(historical, list) or not historical:
+        raise ValueError("Canonical branch history manifest missing or invalid")
+    if archive.get("branch_count") != len(historical):
+        raise ValueError("Historical branch head count mismatch")
+    checked = []
+    for row in historical:
+        name, sha = row.get("name"), row.get("sha")
+        if not isinstance(name, str) or not SHA.fullmatch(str(sha)):
+            raise ValueError("Invalid archived branch identity")
+        exists = git(repository, "cat-file", "-e", sha + "^{commit}", check=False)
+        if exists.returncode:
+            raise ValueError("Missing archived Git commit: " + name)
+        if git(repository, "merge-base", "--is-ancestor", sha, head, check=False).returncode:
+            raise ValueError("Archived source not incorporated into main history: " + name)
+        checked.append({"historical_branch": name, "head_sha": sha,
+                        "status": "HISTORY_REACHABLE_NOT_RUNTIME_ACCEPTANCE"})
+    with tempfile.TemporaryDirectory(prefix="apgic-single-main-") as tmp:
+        dest = Path(retain).resolve() if retain else Path(tmp) / "candidate"
+        if dest.exists():
+            raise ValueError("Candidate destination already exists: " + str(dest))
+        git(repository, "worktree", "add", "--detach", str(dest), head)
+        try:
+            if git(dest, "rev-parse", "HEAD").stdout.strip() != head:
+                raise ValueError("Detached integration worktree changed source SHA")
+            duplicates = versions(dest)
+            # Exactly one historical exception is already shipped and tracked by
+            # full filename+checksum in the staging ledger. Never renumber it:
+            # that would reapply existing data/schema changes on installed DBs.
+            shipped_000042 = {
+                "backend/migrations/000042_event_gateway_receipts.sql",
+                "backend/migrations/000042_r4_finance_mfa_totp.sql",
+            }
+            legacy = [x for x in duplicates
+                      if x["version"] == "000042" and set(x["files"]) == shipped_000042]
+            new_collisions = [x for x in duplicates if x not in legacy]
+            if new_collisions:
+                raise ValueError("Current main has new PostgreSQL migration-number collisions: " + str(new_collisions))
+            if not (dest / OPENAPI).is_file() or not (dest / GENERATED_CLIENT).is_file():
+                raise ValueError("Current main missing API or generated client contract")
+            if not (dest / "backend/go.mod").is_file() or not (dest / "apps/web/package.json").is_file():
+                raise ValueError("Current main missing Go or Web runtime")
+            return {"schema_version": "apgic-single-main-assembly-v1",
+                    "scope": "R0_R4_LAUNCH_CANDIDATE",
+                    "baseline_sha": head, "control_sha": head,
+                    "temporary_candidate_sha": head, "ephemeral": True,
+                    "persisted_remote_branch": False, "production_release": False,
+                    "retained_worktree_for_testing": str(dest) if retain else None,
+                    "historical_source_heads": checked,
+                    "archived_branch_count": len(checked), "migration_collisions": duplicates,
+                    "historical_shipped_migration_exceptions": legacy,
+                    "new_migration_collisions": new_collisions,
+                    "composition_complete": True, "stages": [],
+                    "pairwise_probes": [],
+                    "journey_runtime_verification": "REQUIRES_SEPARATE_TEST_EXECUTION",
+                    "note": "History ancestry and canonical source snapshot ONLY. No PSP, native store, provider media or production evidence."}
+        finally:
+            if not retain:
+                git(repository, "worktree", "remove", "--force", str(dest), check=False)
+
+
 def summary(report):
     lines = ["## APGIC actual isolated Git assembly", "",
              "Launch composition: " + ("MERGED (NOT RELEASED)" if report["composition_complete"] else "BLOCKED"),
@@ -237,6 +313,8 @@ def summary(report):
 def main(argv=None):
     p = argparse.ArgumentParser()
     p.add_argument("--plan", default="config/release/integration-plan-v1.json")
+    p.add_argument("--single-main", action="store_true",
+                   help="Use the sole canonical main and verify archived heads, no deleted branch fetch")
     p.add_argument("--repository", default=".")
     p.add_argument("--scope", choices=["launch", "all"], default="launch")
     p.add_argument("--retain-worktree")
@@ -244,10 +322,19 @@ def main(argv=None):
     p.add_argument("--summary")
     args = p.parse_args(argv)
     try:
-        plan = json.loads(Path(args.plan).read_text(encoding="utf-8"))
-        result = assemble(plan, args.repository, args.scope, args.retain_worktree)
+        if args.single_main:
+            result = assemble_single_main(args.repository, args.retain_worktree)
+        else:
+            plan = json.loads(Path(args.plan).read_text(encoding="utf-8"))
+            result = assemble(plan, args.repository, args.scope, args.retain_worktree)
         status = 0 if result["composition_complete"] else 2
-        msg = summary(result)
+        msg = (f"## APGIC canonical single-main assembly\n\n"
+               f"- Exact main: `{result['temporary_candidate_sha']}`\n"
+               f"- Historical heads verified as ancestors: {result['archived_branch_count']}\n"
+               f"- PostgreSQL migration collisions: {len(result['migration_collisions'])} historical shipped exceptions, 0 new\n"
+               f"- Go/PostgreSQL/Web/native journeys: run as separate CI steps\n"
+               f"- Production authorization: false\n"
+               if args.single_main and status == 0 else summary(result))
     except (OSError, ValueError, KeyError, subprocess.CalledProcessError) as exc:
         status = 2
         result = {"schema_version": "apgic-isolated-assembly-v1", "scope": args.scope,

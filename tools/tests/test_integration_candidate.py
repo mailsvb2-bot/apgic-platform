@@ -129,6 +129,60 @@ class AssemblyTests(unittest.TestCase):
                                                    [("feat/marketplace", source)])
         self.assertTrue(any("GET /v1/verified" in row for row in loss))
 
+    def populate_single_main_runtime(self):
+        for path, body in (("backend/go.mod", "module example.com/test\n"),
+                           ("apps/web/package.json", '{"name":"test"}\n')):
+            target = self.repo / path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(body)
+        git(self.repo, "add", ".")
+        git(self.repo, "commit", "-m", "fixture: minimum runtime")
+
+    def test_single_main_reuses_immutable_history_without_deleted_refs(self):
+        import json
+        self.populate_single_main_runtime()
+        sha = git(self.repo, "rev-parse", "main")
+        folder = self.repo / "docs/operations"
+        folder.mkdir(parents=True)
+        archive = {"schema_version":"branch-history-consolidation-v1",
+                   "branch_count":1,
+                   "branches":[{"name":"feat/deleted","sha":sha}]}
+        (folder/"branch-history-consolidation-20261113.json").write_text(json.dumps(archive))
+        # Archived branch ref deliberately absent: only historical SHA exists.
+        git(self.repo, "update-ref", "-d", "refs/remotes/origin/feat/booking")
+        result = module.assemble_single_main(self.repo)
+        self.assertEqual(result["archived_branch_count"],1)
+        self.assertTrue(result["composition_complete"])
+        self.assertFalse(result["production_release"])
+        self.assertEqual(result["temporary_candidate_sha"],sha)
+
+    def test_single_main_rejects_unreachable_archived_history(self):
+        import json
+        self.populate_single_main_runtime()
+        sha = git(self.repo, "rev-parse", "feat/booking")
+        folder = self.repo / "docs/operations"
+        folder.mkdir(parents=True)
+        (folder/"branch-history-consolidation-20261113.json").write_text(json.dumps({
+            "schema_version":"branch-history-consolidation-v1",
+            "branch_count":1,"branches":[{"name":"feat/deleted","sha":sha}]}))
+        with self.assertRaisesRegex(ValueError, "not incorporated"):
+            module.assemble_single_main(self.repo)
+
+    def test_single_main_rejects_migration_collisions(self):
+        import json
+        self.populate_single_main_runtime()
+        sha = git(self.repo, "rev-parse", "main")
+        folder = self.repo / "docs/operations"
+        folder.mkdir(parents=True)
+        (folder/"branch-history-consolidation-20261113.json").write_text(json.dumps({
+            "schema_version":"branch-history-consolidation-v1",
+            "branch_count":1,"branches":[{"name":"feat/deleted","sha":sha}]}))
+        (self.repo/"backend/migrations/000001_duplicate.sql").write_text("select 2;\n")
+        git(self.repo,"add",".")
+        git(self.repo,"commit","-m","fixture: migration collision")
+        with self.assertRaisesRegex(ValueError,"migration-number collisions"):
+            module.assemble_single_main(self.repo)
+
     def test_missing_ref_blocks_without_guessing(self):
         git(self.repo,"update-ref","-d","refs/remotes/origin/feat/booking")
         with self.assertRaisesRegex(ValueError,"missing ref|Unpinned"):

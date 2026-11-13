@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   synthesize-and-exercise:
-    name: Real Git composition / PostgreSQL / web and native critical routes
+    name: Canonical main ancestry / PostgreSQL / web and native critical routes
     runs-on: ubuntu-latest
     timeout-minutes: 55
     services:
@@ -47,36 +47,24 @@ jobs:
           node-version: '24'
       - name: Install real API contract parser before synthesizing generated clients
         run: python -m pip install -r requirements-dev.txt
-      - name: Exercise real three-way merges, SQL duplicates and branch immutability
+      - name: Exercise historical merge fixtures and single-main ancestry safety
         run: python -m unittest discover -s tools/tests -p test_integration_candidate.py -v
-      - name: Fetch exact branch heads and synthesize ephemeral launch composition
+      - name: Verify archived histories and assemble immutable current main
         id: assemble
         shell: bash
         run: |
           set -euo pipefail
-          python - <<'PY' > /tmp/apgic-refs
-          import json
-          plan = json.load(open('config/release/integration-plan-v1.json'))
-          for name in [plan['baseline'], *(row['branch'] for row in plan['lanes'])]:
-              print(f'+refs/heads/{name}:refs/remotes/origin/{name}')
-          PY
-          git fetch --no-tags origin $(cat /tmp/apgic-refs)
-          set +e
+          # The only remotely published branch is main. All 47 retired lane
+          # heads remain in Git ancestry; never fetch deleted branch names.
           python tools/integration_candidate.py \
-            --scope launch \
+            --single-main \
             --retain-worktree "$RUNNER_TEMP/apgic-launch-candidate" \
             --output evidence/isolated-launch-assembly.json \
             --summary "$GITHUB_STEP_SUMMARY"
-          result=$?
-          set -e
-          if [ "$result" -gt 2 ]; then exit "$result"; fi
-          if [ "$result" -eq 0 ]; then
-            echo 'composition_complete=true' >> "$GITHUB_OUTPUT"
-          else
-            echo 'composition_complete=false' >> "$GITHUB_OUTPUT"
-          fi
           test -d "$RUNNER_TEMP/apgic-launch-candidate/backend"
-      - name: Go compiled runtime and domain tests on genuinely merged prefix
+          test "$(git -C "$RUNNER_TEMP/apgic-launch-candidate" rev-parse HEAD)" = "$GITHUB_SHA"
+          echo 'composition_complete=true' >> "$GITHUB_OUTPUT"
+      - name: Go compiled runtime and domain tests on pinned main snapshot
         if: always() && steps.assemble.outcome == 'success'
         working-directory: ${{ runner.temp }}/apgic-launch-candidate/backend
         run: go test ./... -count=1
@@ -86,7 +74,7 @@ jobs:
         run: |
           python -m pip install PyYAML
           python tools/generate_client_contract.py --check
-      - name: Execute available composed schema migrations and invariants in PostgreSQL
+      - name: Execute canonical main schema migrations and invariants in PostgreSQL
         id: migrations
         working-directory: ${{ runner.temp }}/apgic-launch-candidate
         shell: bash
@@ -137,7 +125,7 @@ jobs:
               go test ./internal/runtimepostgres -run "^$name$" -count=1 -v
           done
           echo "Each durable outcome was replayed against an independent migrated PostgreSQL database." >> "$GITHUB_STEP_SUMMARY"
-      - name: Next.js production build against composed backend/OpenAPI
+      - name: Next.js production build against canonical main backend/OpenAPI
         id: webbuild
         if: always() && steps.assemble.outcome == 'success'
         working-directory: ${{ runner.temp }}/apgic-launch-candidate/apps/web
