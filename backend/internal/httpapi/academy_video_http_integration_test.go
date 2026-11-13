@@ -131,13 +131,19 @@ func TestAcademyVideoHTTPReadStopsAfterRevocation(t *testing.T) {
 // The deliberately incomplete Content-Length must surface as a client error.
 func TestAcademyVideoHTTPClientSeesRevocationMidStream(t *testing.T) {
 	for _, status := range []int{http.StatusOK, http.StatusPartialContent} {
-		t.Run(http.StatusText(status), func(t *testing.T) {
-			testAcademyVideoHTTPClientSeesRevocationMidStream(t, status)
-		})
+		for _, watcherEnabled := range []bool{false, true} {
+			name := http.StatusText(status) + "/per-write-only"
+			if watcherEnabled {
+				name = http.StatusText(status) + "/watcher-and-per-write"
+			}
+			t.Run(name, func(t *testing.T) {
+				testAcademyVideoHTTPClientSeesRevocationMidStream(t, status, watcherEnabled)
+			})
+		}
 	}
 }
 
-func testAcademyVideoHTTPClientSeesRevocationMidStream(t *testing.T, status int) {
+func testAcademyVideoHTTPClientSeesRevocationMidStream(t *testing.T, status int, watcherEnabled bool) {
 	const chunkSize = 64 << 10
 	releaseSecond := make(chan struct{})
 	var providerRequests atomic.Int32
@@ -197,6 +203,10 @@ func testAcademyVideoHTTPClientSeesRevocationMidStream(t *testing.T, status int)
 		watchDone := make(chan struct{})
 		go func() {
 			defer close(watchDone)
+			if !watcherEnabled {
+				<-ctx.Done()
+				return
+			}
 			academyWatchVideoEntitlement(ctx, func() {
 				academyCancelRevokedVideoResponse(w, cancel)
 				close(revocationObserved)
@@ -209,6 +219,9 @@ func testAcademyVideoHTTPClientSeesRevocationMidStream(t *testing.T, status int)
 		// A revoked stream can be stopped by the per-write entitlement check
 		// before the periodic watcher runs. Both are valid fail-closed paths.
 		if err := academyCopyVideoAuthorized(w, upstream.Body, authorized.Load); errors.Is(err, errAcademyVideoRevoked) {
+			// Exercise the same response cancellation used by the production
+			// handler, including the per-write-only path with no watcher.
+			academyCancelRevokedVideoResponse(w, cancel)
 			close(copierRevocationObserved)
 		}
 	}))

@@ -211,7 +211,13 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 		// that stalls indefinitely after its headers must not pin a gateway
 		// worker and keep polling PostgreSQL forever.
 		idleBody := academyVideoIdleReader{source: videoBody, cancel: stopStream, timeout: 30 * time.Second}
-		_ = academyCopyVideoAuthorized(w, idleBody, authorized)
+		// If the per-write canonical check detects revocation before the
+		// periodic watcher does, close the live learner response immediately.
+		// Canceling the upstream alone does not interrupt a blocked client
+		// write; the response deadline also prevents further buffered output.
+		if err := academyCopyVideoAuthorized(w, idleBody, authorized); err == errAcademyVideoRevoked {
+			academyCancelRevokedVideoResponse(w, stopStream)
+		}
 	})
 }
 
