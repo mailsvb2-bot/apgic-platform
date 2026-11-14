@@ -287,7 +287,7 @@ func trustedYandexStorageHost(host string) bool {
 
 // ValidateYandexStorageRedirect validates a provider redirect hop.
 func ValidateYandexStorageRedirect(target *url.URL) bool {
-	return target != nil && target.Scheme == "https" && target.User == nil &&
+	return target != nil && target.Scheme == "https" && target.User == nil && target.Fragment == "" &&
 		(target.Port() == "" || target.Port() == "443") && trustedYandexStorageHost(target.Hostname())
 }
 
