@@ -23,10 +23,6 @@ jobs:
     # real author/learner browser identity or PostgreSQL entitlement revocation.
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    env:
-      APGIC_REQUIRE_R8_LIVE_PROOF: "true"
-      APGIC_TEST_YANDEX_OAUTH_TOKEN: ${{ secrets.APGIC_TEST_YANDEX_OAUTH_TOKEN }}
-      APGIC_TEST_YANDEX_VIDEO_PATH: ${{ secrets.APGIC_TEST_YANDEX_VIDEO_PATH }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -47,6 +43,9 @@ jobs:
           fi
       - name: Require real provider inputs (never print secrets)
         shell: bash
+        env:
+          APGIC_TEST_YANDEX_OAUTH_TOKEN: ${{ secrets.APGIC_TEST_YANDEX_OAUTH_TOKEN }}
+          APGIC_TEST_YANDEX_VIDEO_PATH: ${{ secrets.APGIC_TEST_YANDEX_VIDEO_PATH }}
         run: |
           set -euo pipefail
           if [ -z "${APGIC_TEST_YANDEX_OAUTH_TOKEN:-}" ] || [ -z "${APGIC_TEST_YANDEX_VIDEO_PATH:-}" ]; then
@@ -74,6 +73,10 @@ jobs:
           done
       - name: Run only mandatory real provider media checks
         shell: bash
+        env:
+          APGIC_REQUIRE_R8_LIVE_PROOF: "true"
+          APGIC_TEST_YANDEX_OAUTH_TOKEN: ${{ secrets.APGIC_TEST_YANDEX_OAUTH_TOKEN }}
+          APGIC_TEST_YANDEX_VIDEO_PATH: ${{ secrets.APGIC_TEST_YANDEX_VIDEO_PATH }}
         working-directory: backend
         run: |
           set -euo pipefail
