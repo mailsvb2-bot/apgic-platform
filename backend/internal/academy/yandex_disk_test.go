@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 )
@@ -104,6 +105,32 @@ func TestYandexDiskClientCategorizesProviderFailuresWithoutSecrets(t *testing.T)
 			}
 			if strings.Contains(err.Error(), "secret-token") {
 				t.Fatal("secret leaked in error")
+			}
+		})
+	}
+}
+
+func TestYandexStorageRedirectRejectsFragmentsAndUntrustedHosts(t *testing.T) {
+	cases := []struct {
+		raw  string
+		want bool
+	}{
+		{"https://node.storage.yandex.net/file?signature=opaque", true},
+		{"https://downloader.disk.yandex.net/file", true},
+		{"https://node.storage.yandex.net/file#private", false},
+		{"https://node.storage.yandex.net.evil.example/file", false},
+		{"https://node.storage.yandex.net:8443/file", false},
+		{"http://node.storage.yandex.net/file", false},
+		{"https://user@node.storage.yandex.net/file", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.raw, func(t *testing.T) {
+			target, err := url.Parse(tc.raw)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := ValidateYandexStorageRedirect(target); got != tc.want {
+				t.Fatalf("redirect allowed=%v, want %v", got, tc.want)
 			}
 		})
 	}
