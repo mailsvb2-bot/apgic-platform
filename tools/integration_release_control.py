@@ -190,6 +190,83 @@ def assessment(plan: dict, snapshot: dict, launch_assessment: dict | None = None
             "note": "Not an authorization to deploy, collect money or change main. Verification != release."}
 
 
+def _assemble_canonical_main(repository: Path) -> dict:
+    # Make this tool work both as a CLI (tools/ on sys.path) and through
+    # file-based importlib tests, without altering the active business runtime.
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "apgic_archived_integration_candidate",
+        Path(__file__).with_name("integration_candidate.py"))
+    if spec is None or spec.loader is None:
+        raise ValueError("Canonical source auditor unavailable")
+    helper = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(helper)
+    return helper.assemble_single_main(repository)
+
+
+def assess_single_main(repository: Path, expected_sha: str,
+                       launch_assessment: dict | None = None) -> dict:
+    """R0-R4 owner report after all retired branches were integrated into main.
+
+    Archived lane heads are checked through Git ancestry by the existing
+    integration_candidate module. They are NOT queried as live GitHub refs.
+    Release evidence is an independent requirement, never inferred from merge.
+    """
+    if not SHA.fullmatch(expected_sha):
+        raise ValueError("Exact main candidate SHA is mandatory")
+    assembly = _assemble_canonical_main(repository)
+    candidate_sha = assembly["temporary_candidate_sha"]
+    if candidate_sha != expected_sha:
+        raise ValueError("Checked-out commit differs from requested main candidate SHA")
+    if not assembly["composition_complete"] or assembly["new_migration_collisions"]:
+        raise ValueError("Canonical source composition or migration validation failed")
+    reasons: list[tuple[str, str]] = []
+    if launch_assessment is None:
+        reasons.append(("CANON_LAUNCH_ASSESSMENT_MISSING",
+                        "No independently verified R0-R4 production and user-journey evidence"))
+    else:
+        if launch_assessment.get("candidate_sha") != candidate_sha:
+            reasons.append(("CANON_LAUNCH_ASSESSMENT_SHA_MISMATCH",
+                            "Launch assessment is not bound to the exact reviewed main SHA"))
+        if launch_assessment.get("evidence_class") != "CANDIDATE_ASSESSMENT_NOT_RELEASE_EVIDENCE":
+            reasons.append(("CANON_ASSESSMENT_CLASS_INVALID", "Unrecognized launch assessment class"))
+        if launch_assessment.get("launch_ready") is not True or launch_assessment.get("blockers"):
+            reasons.append(("CANON_LAUNCH_NOT_READY", "Canonical launch readiness has unresolved blockers"))
+        dimensions = launch_assessment.get("evidence")
+        if not isinstance(dimensions, dict) or not (
+            isinstance(dimensions.get("production_index_records"), int)
+            and dimensions["production_index_records"] > 0
+            and dimensions.get("r4_production_manifest_supplied") is True
+            and dimensions.get("production_config_preflight_supplied") is True
+            and dimensions.get("critical_journey_manifest_supplied") is True
+        ):
+            reasons.append(("CANON_PRODUCTION_PROOF_INCOMPLETE",
+                            "Missing genuine production finance, configuration, or journey evidence"))
+    blockers = [{
+        "code": code, "owner": "platform-readiness", "scope": "LAUNCH",
+        "reason": reason, "affected": [], "evidence": [],
+        "resolution": "PENDING_WITH_OWNER"
+    } for code, reason in reasons]
+    repo = "mailsvb2-bot/apgic-platform"
+    return {
+        "schema_version": "apgic-integration-control-single-main-v1",
+        "repository": repo, "candidate_ref": "main", "candidate_sha": candidate_sha,
+        "baseline_sha": candidate_sha,
+        "decision": "BLOCKED" if blockers else "READY_FOR_SEPARATE_PROMOTION_REVIEW",
+        "promotion_authorized": False,
+        "archived_heads_verified": assembly["archived_branch_count"],
+        "historical_migration_exceptions": assembly["historical_shipped_migration_exceptions"],
+        "new_migration_collisions": assembly["new_migration_collisions"],
+        "integrated_pinned_branches": [
+            {"branch": row["historical_branch"], "sha": row["head_sha"], "included": True}
+            for row in assembly["historical_source_heads"]
+        ],
+        "launch_blockers": blockers, "post_launch_blockers": [],
+        "integration_order": [],
+        "note": "Historical source ancestry is not runtime acceptance. Release authorization remains separate.",
+    }
+
+
 def markdown(report: dict) -> str:
     lines = ["## APGIC cross-lane integration: release decision", "",
              f"Candidate: `{report['candidate_ref']}` / `{report['candidate_sha']}`",
@@ -210,6 +287,9 @@ def markdown(report: dict) -> str:
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--plan", default="config/release/integration-plan-v1.json")
+    p.add_argument("--single-main", action="store_true",
+                   help="Verify 47 archived source heads in main, not deleted branch refs")
+    p.add_argument("--expected-sha", help="Exact checked-out main SHA for source verification")
     p.add_argument("--snapshot", help="Pinned GitHub snapshot JSON; otherwise fetch live heads")
     p.add_argument("--candidate-ref", default="feat/platform-readiness")
     p.add_argument("--launch-assessment", help="Existing strict launch gate JSON, candidate-bound")
@@ -217,11 +297,16 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--summary", help="Append human-readable owner/blocker matrix")
     args = p.parse_args(argv)
     try:
-        plan = json.loads(Path(args.plan).read_text(encoding="utf-8"))
-        snapshot = (json.loads(Path(args.snapshot).read_text(encoding="utf-8")) if args.snapshot else
-                    live_snapshot(plan, args.candidate_ref, os.environ.get("GITHUB_TOKEN")))
         evidence = json.loads(Path(args.launch_assessment).read_text(encoding="utf-8")) if args.launch_assessment else None
-        report = assessment(plan, snapshot, evidence)
+        if args.single_main:
+            if args.candidate_ref != "main":
+                raise ValueError("Single-main mode rejects non-main candidate ref")
+            report = assess_single_main(Path(".").resolve(), args.expected_sha or "", evidence)
+        else:
+            plan = json.loads(Path(args.plan).read_text(encoding="utf-8"))
+            snapshot = (json.loads(Path(args.snapshot).read_text(encoding="utf-8")) if args.snapshot else
+                        live_snapshot(plan, args.candidate_ref, os.environ.get("GITHUB_TOKEN")))
+            report = assessment(plan, snapshot, evidence)
     except (OSError, ValueError, KeyError, AssertionError, urllib.error.URLError) as exc:
         # Infrastructure failure cannot silently become an all-green report.
         report = {"schema_version": "apgic-integration-control-v1", "decision": "BLOCKED",

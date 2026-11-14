@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       candidate_ref:
-        description: "Exact integration candidate ref (default main; no production authorization)"
+        description: "Only main is accepted after branch consolidation; no production authorization"
         required: true
         default: main
         type: string
@@ -22,6 +22,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v7
         with:
           python-version: '3.13'
@@ -53,15 +55,21 @@ jobs:
           with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as handle:
               handle.write(summary)
           PY
-      - name: Read pinned branch heads and report conflicts
+      - name: Verify 47 archived heads in main and report release blockers
         id: report
         env:
-          GITHUB_TOKEN: ${{ github.token }}
           CANDIDATE_REF: ${{ inputs.candidate_ref || 'main' }}
+          CANDIDATE_SHA: ${{ github.sha }}
         shell: bash
         run: |
+          set -euo pipefail
+          # A manual run on a PR branch is not a canonical main acceptance.
+          # Reject it before generating evidence or reviewing launch status.
+          test "$GITHUB_REF" = "refs/heads/main"
           set +e
           python tools/integration_release_control.py \
+            --single-main \
+            --expected-sha "$CANDIDATE_SHA" \
             --candidate-ref "$CANDIDATE_REF" \
             --output evidence/integration-branch-control.json \
             --summary "$GITHUB_STEP_SUMMARY"
@@ -74,7 +82,7 @@ jobs:
             exit 0
           fi
           exit "$status"
-      - name: Persist exact observed blockers and branch SHAs
+      - name: Persist exact observed blockers and historical source SHAs
         if: always()
         uses: actions/upload-artifact@v7
         with:

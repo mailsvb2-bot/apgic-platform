@@ -29,6 +29,45 @@ def evidence():
 
 
 class IntegrationControlTests(unittest.TestCase):
+    def test_single_main_report_blocks_without_genuine_launch_evidence(self):
+        from unittest.mock import patch
+        archive = {
+            "composition_complete": True,
+            "temporary_candidate_sha": "a" * 40,
+            "new_migration_collisions": [],
+            "archived_branch_count": 47,
+            "historical_shipped_migration_exceptions": [],
+            "historical_source_heads": [{"historical_branch": "feat/retired",
+                                          "head_sha": "b" * 40}],
+        }
+        with patch.object(module, "_assemble_canonical_main", return_value=archive):
+            result = module.assess_single_main(Path("."), "a" * 40)
+        self.assertEqual(result["decision"], "BLOCKED")
+        self.assertEqual(result["archived_heads_verified"], 47)
+        self.assertFalse(result["promotion_authorized"])
+        self.assertIn("CANON_LAUNCH_ASSESSMENT_MISSING",
+                      {x["code"] for x in result["launch_blockers"]})
+
+    def test_single_main_never_accepts_mismatched_candidate_sha(self):
+        from unittest.mock import patch
+        with patch.object(module, "_assemble_canonical_main",
+                   return_value={"temporary_candidate_sha": "b" * 40}):
+            with self.assertRaisesRegex(ValueError, "differs"):
+                module.assess_single_main(Path("."), "a" * 40)
+
+    def test_single_main_valid_report_never_authorizes_promotion(self):
+        from unittest.mock import patch
+        archive = {
+            "composition_complete": True, "temporary_candidate_sha": "a" * 40,
+            "new_migration_collisions": [], "archived_branch_count": 47,
+            "historical_shipped_migration_exceptions": [], "historical_source_heads": [],
+        }
+        proof = evidence()
+        with patch.object(module, "_assemble_canonical_main", return_value=archive):
+            result = module.assess_single_main(Path("."), "a" * 40, proof)
+        self.assertEqual(result["decision"], "READY_FOR_SEPARATE_PROMOTION_REVIEW")
+        self.assertFalse(result["promotion_authorized"])
+
     def test_baseline_requires_real_launch_assessment(self):
         result = module.assessment(PLAN, snapshot())
         self.assertEqual(result["decision"], "BLOCKED")
