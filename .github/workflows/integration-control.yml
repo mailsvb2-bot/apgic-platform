@@ -31,6 +31,33 @@ jobs:
         run: |
           python -m unittest discover -s tools/tests -p test_integration_release_control.py -v
           python -m unittest discover -s tools/tests -p test_branch_consolidation.py -v
+      - name: Reconcile functionality of all 47 retired heads against exact main
+        shell: bash
+        env:
+          CANDIDATE_REF: ${{ inputs.candidate_ref || 'main' }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/main"
+          test "$CANDIDATE_REF" = "main"
+          python tools/archived_functional_reconciliation.py \
+            --candidate-sha "$GITHUB_SHA" \
+            --output evidence/archived-functional-reconciliation.json
+          python - <<'PY_EVIDENCE'
+          import json
+          import os
+          from pathlib import Path
+          report = json.loads(Path('evidence/archived-functional-reconciliation.json').read_text())
+          assert report['archived_heads'] == 47
+          assert report['candidate_sha'] == os.environ['GITHUB_SHA']
+          assert not report['unexplained_removed_go_apis']
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as out:
+              out.write('### 47 retired functional heads reconciled (source, not release)\n')
+              out.write(f"- Examined source versions: {report['files_examined_per_branch']}\n")
+              out.write(f"- Exact file matches: {report['identical_file_versions']}\n")
+              out.write(f"- Subsequent edits requiring journey verification: {report['subsequently_revised_file_versions']}\n")
+              out.write(f"- Classified retired paths: {report['distinct_absent_paths']}\n")
+              out.write('- Live PSP, Yandex, native store, release evidence: NOT PROVEN by this gate.\n')
+          PY_EVIDENCE
       - name: Pin all remote branch heads and detect migration collisions
         shell: bash
         run: |
@@ -90,5 +117,6 @@ jobs:
           path: |
             evidence/integration-branch-control.json
             evidence/branch-functional-inventory.json
+            evidence/archived-functional-reconciliation.json
           if-no-files-found: error
           retention-days: 90
