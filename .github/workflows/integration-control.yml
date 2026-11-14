@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       candidate_ref:
-        description: "Exact integration candidate ref (default main; no production authorization)"
+        description: "Only main is accepted after branch consolidation; no production authorization"
         required: true
         default: main
         type: string
@@ -22,6 +22,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v7
         with:
           python-version: '3.13'
@@ -29,6 +31,33 @@ jobs:
         run: |
           python -m unittest discover -s tools/tests -p test_integration_release_control.py -v
           python -m unittest discover -s tools/tests -p test_branch_consolidation.py -v
+      - name: Reconcile functionality of all 47 retired heads against exact main
+        shell: bash
+        env:
+          CANDIDATE_REF: ${{ inputs.candidate_ref || 'main' }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/main"
+          test "$CANDIDATE_REF" = "main"
+          python tools/archived_functional_reconciliation.py \
+            --candidate-sha "$GITHUB_SHA" \
+            --output evidence/archived-functional-reconciliation.json
+          python - <<'PY_EVIDENCE'
+          import json
+          import os
+          from pathlib import Path
+          report = json.loads(Path('evidence/archived-functional-reconciliation.json').read_text())
+          assert report['archived_heads'] == 47
+          assert report['candidate_sha'] == os.environ['GITHUB_SHA']
+          assert not report['unexplained_removed_go_apis']
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as out:
+              out.write('### 47 retired functional heads reconciled (source, not release)\n')
+              out.write(f"- Examined source versions: {report['files_examined_per_branch']}\n")
+              out.write(f"- Exact file matches: {report['identical_file_versions']}\n")
+              out.write(f"- Subsequent edits requiring journey verification: {report['subsequently_revised_file_versions']}\n")
+              out.write(f"- Classified retired paths: {report['distinct_absent_paths']}\n")
+              out.write('- Live PSP, Yandex, native store, release evidence: NOT PROVEN by this gate.\n')
+          PY_EVIDENCE
       - name: Pin all remote branch heads and detect migration collisions
         shell: bash
         run: |
@@ -53,15 +82,21 @@ jobs:
           with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as handle:
               handle.write(summary)
           PY
-      - name: Read pinned branch heads and report conflicts
+      - name: Verify 47 archived heads in main and report release blockers
         id: report
         env:
-          GITHUB_TOKEN: ${{ github.token }}
           CANDIDATE_REF: ${{ inputs.candidate_ref || 'main' }}
+          CANDIDATE_SHA: ${{ github.sha }}
         shell: bash
         run: |
+          set -euo pipefail
+          # A manual run on a PR branch is not a canonical main acceptance.
+          # Reject it before generating evidence or reviewing launch status.
+          test "$GITHUB_REF" = "refs/heads/main"
           set +e
           python tools/integration_release_control.py \
+            --single-main \
+            --expected-sha "$CANDIDATE_SHA" \
             --candidate-ref "$CANDIDATE_REF" \
             --output evidence/integration-branch-control.json \
             --summary "$GITHUB_STEP_SUMMARY"
@@ -74,7 +109,7 @@ jobs:
             exit 0
           fi
           exit "$status"
-      - name: Persist exact observed blockers and branch SHAs
+      - name: Persist exact observed blockers and historical source SHAs
         if: always()
         uses: actions/upload-artifact@v7
         with:
@@ -82,5 +117,6 @@ jobs:
           path: |
             evidence/integration-branch-control.json
             evidence/branch-functional-inventory.json
+            evidence/archived-functional-reconciliation.json
           if-no-files-found: error
           retention-days: 90
