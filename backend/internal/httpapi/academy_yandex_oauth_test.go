@@ -1,6 +1,10 @@
 package httpapi
 
 import (
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -123,5 +127,120 @@ func TestCloudOAuthEditorReturnRequiresExactPair(t *testing.T) {
 	}
 	if _, err := cloudOpen(invalid, key); err == nil {
 		t.Fatal("signed incomplete editor target was accepted")
+	}
+}
+
+func TestAcademyExchangeYandexOAuthCodeSendsPKCEAndClientAuthentication(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("method=%q, want POST", r.Method)
+		}
+		if got := r.Header.Get("Content-Type"); got != "application/x-www-form-urlencoded" {
+			t.Errorf("content type=%q", got)
+		}
+		username, password, ok := r.BasicAuth()
+		if !ok || username != "test-client" || password != "test-secret" {
+			t.Errorf("client authentication was not sent with HTTP Basic")
+		}
+		if err := r.ParseForm(); err != nil {
+			t.Errorf("parse token request: %v", err)
+		}
+		for key, want := range map[string]string{
+			"grant_type":    "authorization_code",
+			"code":          "one-time-code",
+			"code_verifier": strings.Repeat("v", 43),
+		} {
+			if got := r.Form.Get(key); got != want {
+				t.Errorf("%s=%q, want %q", key, got, want)
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"access_token":"short-lived-test-token","token_type":"Bearer"}`))
+	}))
+	defer server.Close()
+
+	token, err := academyExchangeYandexOAuthCode(
+		context.Background(), server.Client(), server.URL,
+		"test-client", "test-secret", "one-time-code", strings.Repeat("v", 43),
+	)
+	if err != nil {
+		t.Fatalf("exchange failed: %v", err)
+	}
+	if token != "short-lived-test-token" {
+		t.Fatalf("unexpected token result %q", token)
+	}
+}
+
+func TestAcademyExchangeYandexOAuthCodeNeverFollowsRedirectWithClientSecret(t *testing.T) {
+	targetHits := 0
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		targetHits++
+	}))
+	defer target.Close()
+
+	redirect := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, target.URL, http.StatusFound)
+	}))
+	defer redirect.Close()
+
+	_, err := academyExchangeYandexOAuthCode(
+		context.Background(), redirect.Client(), redirect.URL,
+		"test-client", "test-secret", "one-time-code", strings.Repeat("v", 43),
+	)
+	if err == nil {
+		t.Fatal("redirect response was accepted as a successful token exchange")
+	}
+	if targetHits != 0 {
+		t.Fatalf("redirect target received %d requests carrying the OAuth exchange", targetHits)
+	}
+}
+
+func TestAcademyExchangeYandexOAuthCodeRejectsMalformedTokenResponses(t *testing.T) {
+	cases := []struct {
+		name string
+		body string
+	}{
+		{name: "trailing JSON", body: `{"access_token":"token","token_type":"Bearer"}{}`},
+		{name: "unsupported token type", body: `{"access_token":"token","token_type":"Basic"}`},
+		{name: "empty token", body: `{"access_token":"","token_type":"Bearer"}`},
+		{name: "header injection", body: `{"access_token":"token\\r\\nInjected: yes","token_type":"Bearer"}`},
+		{name: "oversized response", body: strings.Repeat("x", 16385)},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(tc.body))
+			}))
+			defer server.Close()
+
+			if token, err := academyExchangeYandexOAuthCode(
+				context.Background(), server.Client(), server.URL,
+				"test-client", "test-secret", "one-time-code", strings.Repeat("v", 43),
+			); err == nil || token != "" {
+				t.Fatalf("malformed token response accepted: token=%q err=%v", token, err)
+			}
+		})
+	}
+}
+
+func TestCloudOAuthCallbackCodeRejectsAmbiguousQuery(t *testing.T) {
+	for _, raw := range []string{
+		"state=nonce&state=other&code=one-time-code",
+		"state=nonce&code=one-time-code&extra=value",
+		"state=nonce&code=one-time-code&cid=bad.value",
+		"state=nonce&code=one-time-code&cid=ok&cid=duplicate",
+		"state=nonce&code=%0d%0aInjected",
+	} {
+		t.Run(raw, func(t *testing.T) {
+			if _, ok := cloudOAuthCallbackCodeFromRaw(raw, "nonce"); ok {
+				t.Fatalf("ambiguous OAuth callback query accepted: %q", raw)
+			}
+		})
+	}
+	if code, ok := cloudOAuthCallbackCodeFromRaw(url.Values{
+		"state": {"nonce"}, "code": {"one-time-code"}, "cid": {"safe_123"},
+	}.Encode(), "nonce"); !ok || code != "one-time-code" {
+		t.Fatalf("valid Yandex callback rejected: code=%q accepted=%v", code, ok)
 	}
 }
