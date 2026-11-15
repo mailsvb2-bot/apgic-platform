@@ -180,3 +180,13 @@ func VerifyCDNPlaybackEvidence(
 	}
 	return verified, nil
 }
+
+
+func providerHasCapability(provider Provider, capability CapabilityClass) bool {
+	for _, candidate := range provider.Capabilities() {
+		if candidate == capability {
+			return true
+		}
+	}
+	return false
+}
