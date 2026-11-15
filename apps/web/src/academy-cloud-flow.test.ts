@@ -23,7 +23,7 @@ test("Academy embedded Yandex Disk workflow preserves canonical OAuth and verifi
  // The OAuth effect runs before the library reload effect. The reload must
  // not erase the lesson restored from signed OAuth state.
  assert.ok(page.includes('key={`${course.id}:${course.version_id}`}'));
- assert.doesNotMatch(editor,/setLessonId\("")/);
+ assert.equal(editor.includes('setLessonId("")'),false);
  assert.match(editor,/browseDisk\("disk:\/"\)/);
  assert.match(editor,/\/v1\/academy\/author\/cloud-media\/import/);
  assert.match(editor,/\/v1\/academy\/author\/courses\/\$\{courseId\}\/versions\/\$\{versionId\}\/media/);
