@@ -275,14 +275,29 @@ func ValidateYandexDownloadURL(raw string) bool {
 		(u.Port() == "" || u.Port() == "443") && trustedYandexDownloadHost(u.Hostname())
 }
 
-// Yandex downloader can redirect to its HTTPS storage node.
+// Yandex's published network settings identify direct-download storage as
+// *.storage.yandex.net. Accept exactly one DNS label under that documented
+// service suffix; do not accept nested names, lookalikes or malformed labels.
+// The downloader hosts remain separate exact entries above.
 func trustedYandexStorageHost(host string) bool {
 	host = strings.ToLower(strings.TrimSuffix(host, "."))
 	if trustedYandexDownloadHost(host) {
 		return true
 	}
 	label, ok := strings.CutSuffix(host, ".storage.yandex.net")
-	return ok && label != "" && !strings.Contains(label, ".")
+	return ok && validYandexStorageLabel(label)
+}
+
+func validYandexStorageLabel(label string) bool {
+	if len(label) == 0 || len(label) > 63 || label[0] == '-' || label[len(label)-1] == '-' {
+		return false
+	}
+	for _, char := range label {
+		if !((char >= 'a' && char <= 'z') || (char >= '0' && char <= '9') || char == '-') {
+			return false
+		}
+	}
+	return true
 }
 
 // ValidateYandexStorageRedirect validates a provider redirect hop.
