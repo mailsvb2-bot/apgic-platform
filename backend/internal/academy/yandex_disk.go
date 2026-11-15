@@ -298,7 +298,14 @@ func YandexMediaCheckRedirect(req *http.Request, via []*http.Request) error {
 	if len(via) == 0 || len(via) > YandexMediaMaxRedirects || req == nil || !ValidateYandexStorageRedirect(req.URL) {
 		return http.ErrUseLastResponse
 	}
-	for _, name := range []string{"Authorization", "Cookie", "Proxy-Authorization", "Referer"} {
+	// A trusted destination is insufficient if an earlier hop escaped the
+	// allowlist. Refuse the entire redirect chain rather than re-entering it.
+	for _, previous := range via {
+		if previous == nil || !ValidateYandexStorageRedirect(previous.URL) {
+			return http.ErrUseLastResponse
+		}
+	}
+	for _, name := range []string{"Authorization", "Cookie", "Proxy-Authorization", "Referer", "Origin", "X-Api-Key", "X-Auth-Token"} {
 		req.Header.Del(name)
 	}
 	return nil
