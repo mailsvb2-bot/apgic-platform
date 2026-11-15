@@ -5,6 +5,7 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/base64"
+	"strings"
 	"testing"
 	"time"
 )
@@ -196,6 +197,34 @@ func TestCDNPlaybackCapabilityMustUseExistingCDNProviderClass(t *testing.T) {
 	}
 	if err := ValidateCDNPlaybackProvider(nil); err == nil {
 		t.Fatal("nil CDN provider was accepted")
+	}
+}
+
+func TestCDNPlaybackRequestValidatesHierarchicalIdempotencyKey(t *testing.T) {
+	request := CDNPlaybackRequest{Binding: validCDNPlaybackBinding()}
+	for _, key := range []string{
+		"academy/playback/attempt-1",
+		"attempt-1",
+	} {
+		request.IdempotencyKey = key
+		if err := request.Validate(); err != nil {
+			t.Fatalf("valid idempotency key %q rejected: %v", key, err)
+		}
+	}
+	for _, key := range []string{
+		"",
+		"/academy/attempt-1",
+		"academy//attempt-1",
+		"academy/../attempt-1",
+		"academy/./attempt-1",
+		"academy/attempt-1/",
+		"academy/attempt-1\n",
+		strings.Repeat("a", 129),
+	} {
+		request.IdempotencyKey = key
+		if err := request.Validate(); err == nil {
+			t.Fatalf("invalid idempotency key %q accepted", key)
+		}
 	}
 }
 
