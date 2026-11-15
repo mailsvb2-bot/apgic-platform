@@ -123,7 +123,7 @@ func TestYandexStorageRedirectRejectsFragmentsAndUntrustedHosts(t *testing.T) {
 		{"https://-node.storage.yandex.net/file", false},
 		{"https://node-.storage.yandex.net/file", false},
 		{"https://node!.storage.yandex.net/file", false},
-		{"https://"+strings.Repeat("a", 64)+".storage.yandex.net/file", false},
+		{"https://" + strings.Repeat("a", 64) + ".storage.yandex.net/file", false},
 		{"https://node.storage.yandex.net/file#private", false},
 		{"https://node.storage.yandex.net.evil.example/file", false},
 		{"https://node.storage.yandex.net:8443/file", false},
