@@ -8,8 +8,8 @@ import (
 	"errors"
 	"regexp"
 	"strings"
-	"unicode"
 	"time"
+	"unicode"
 )
 
 const (
