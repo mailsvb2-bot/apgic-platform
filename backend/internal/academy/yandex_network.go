@@ -36,6 +36,12 @@ var yandexNonPublicNetworks = []netip.Prefix{
 	netip.MustParsePrefix("2001::/32"),
 	netip.MustParsePrefix("2001:db8::/32"),
 	netip.MustParsePrefix("2002::/16"),
+	// IANA-reserved IPv6 destinations that netip.IsGlobalUnicast may accept.
+	// 3ffe is returned 6bone space; 3fff is documentation (RFC 9637);
+	// 5f00 is SRv6 SID space and is not globally reachable (RFC 9602).
+	netip.MustParsePrefix("3ffe::/16"),
+	netip.MustParsePrefix("3fff::/20"),
+	netip.MustParsePrefix("5f00::/16"),
 }
 
 // YandexPublicIP rejects local, reserved, documentation and translated
