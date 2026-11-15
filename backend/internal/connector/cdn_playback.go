@@ -28,7 +28,7 @@ var (
 var (
 	cdnPlaybackUUIDPattern        = regexp.MustCompile("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
 	cdnPlaybackProviderPattern    = regexp.MustCompile("^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
-	cdnPlaybackIdempotencyPattern = regexp.MustCompile("^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
+	cdnPlaybackIdempotencyPattern = regexp.MustCompile("^[A-Za-z0-9][A-Za-z0-9._:-]*(/[A-Za-z0-9][A-Za-z0-9._:-]*)*$")
 	cdnPlaybackDigestPattern      = regexp.MustCompile("^[0-9a-f]{64}$")
 )
 
@@ -71,10 +71,14 @@ type CDNPlaybackRequest struct {
 }
 
 func (r CDNPlaybackRequest) Validate() error {
-	if !cdnPlaybackIdempotencyPattern.MatchString(r.IdempotencyKey) || r.Binding.Validate() != nil {
+	if !cdnPlaybackIdempotencyKeyValid(r.IdempotencyKey) || r.Binding.Validate() != nil {
 		return ErrInvalidCDNPlaybackRequest
 	}
 	return nil
+}
+
+func cdnPlaybackIdempotencyKeyValid(value string) bool {
+	return len(value) <= 128 && cdnPlaybackIdempotencyPattern.MatchString(value)
 }
 
 // CDNPlaybackGrant is an opaque provider session reference, not a public asset
