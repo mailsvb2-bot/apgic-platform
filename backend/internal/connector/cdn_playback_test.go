@@ -103,13 +103,15 @@ func TestCDNPlaybackAttestationRejectsTamperedBindingAndSignature(t *testing.T) 
 	base := signedCDNPlaybackAttestation(t, grant, privateKey, "cdn-key-1")
 
 	cases := map[string]func(*CDNPlaybackAttestation){
-		"foreign learner":      func(a *CDNPlaybackAttestation) { a.Binding.SubjectID = "99999999-9999-4999-8999-999999999999" },
-		"foreign lesson":       func(a *CDNPlaybackAttestation) { a.Binding.LessonID = "99999999-9999-4999-8999-999999999999" },
-		"changed content":      func(a *CDNPlaybackAttestation) { a.Binding.ContentSHA256 = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" },
-		"changed entitlement":  func(a *CDNPlaybackAttestation) { a.Binding.EntitlementID = "99999999-9999-4999-8999-999999999999" },
-		"wrong key id":         func(a *CDNPlaybackAttestation) { a.KeyID = "untrusted-key" },
-		"changed ranges":       func(a *CDNPlaybackAttestation) { a.WatchedRanges[0].EndMillis-- },
-		"wrong session":        func(a *CDNPlaybackAttestation) { a.SessionID = "99999999-9999-4999-8999-999999999999" },
+		"foreign learner": func(a *CDNPlaybackAttestation) { a.Binding.SubjectID = "99999999-9999-4999-8999-999999999999" },
+		"foreign lesson":  func(a *CDNPlaybackAttestation) { a.Binding.LessonID = "99999999-9999-4999-8999-999999999999" },
+		"changed content": func(a *CDNPlaybackAttestation) {
+			a.Binding.ContentSHA256 = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+		},
+		"changed entitlement": func(a *CDNPlaybackAttestation) { a.Binding.EntitlementID = "99999999-9999-4999-8999-999999999999" },
+		"wrong key id":        func(a *CDNPlaybackAttestation) { a.KeyID = "untrusted-key" },
+		"changed ranges":      func(a *CDNPlaybackAttestation) { a.WatchedRanges[0].EndMillis-- },
+		"wrong session":      func(a *CDNPlaybackAttestation) { a.SessionID = "99999999-9999-4999-8999-999999999999" },
 	}
 	for name, mutate := range cases {
 		t.Run(name, func(t *testing.T) {
