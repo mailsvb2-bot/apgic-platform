@@ -42,7 +42,11 @@ func TestAcademyVideoUpstreamClientTransportLimits(t *testing.T) {
 
 func TestAcademyVideoTrustedStorageRedirects(t *testing.T) {
 	client := academyVideoUpstreamClient()
-	via := []*http.Request{{}}
+	trustedOrigin, err := http.NewRequest(http.MethodGet, "https://downloader.disk.yandex.net/rdisk/source", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	via := []*http.Request{trustedOrigin}
 	for raw, allowed := range map[string]bool{
 		"https://s123vla.storage.yandex.net/rdisk/abc?x=1": true,
 		"https://downloader.disk.yandex.ru/disk/abc":       true,
@@ -62,7 +66,7 @@ func TestAcademyVideoTrustedStorageRedirects(t *testing.T) {
 			t.Fatal("credential leaked to redirect")
 		}
 	}
-	tooMany := []*http.Request{{}, {}, {}, {}}
+	tooMany := []*http.Request{trustedOrigin, trustedOrigin, trustedOrigin, trustedOrigin}
 	req, _ := http.NewRequest(http.MethodGet, "https://s1.storage.yandex.net/x", nil)
 	if client.CheckRedirect(req, tooMany) == nil {
 		t.Fatal("unbounded redirect")
