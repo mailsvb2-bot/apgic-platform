@@ -135,3 +135,23 @@ func TestYandexStorageRedirectRejectsFragmentsAndUntrustedHosts(t *testing.T) {
 		})
 	}
 }
+
+func TestYandexMediaRedirectRejectsUntrustedHistoryAndStripsCredentials(t *testing.T) {
+	trusted, _ := http.NewRequest(http.MethodGet, "https://downloader.disk.yandex.net/file", nil)
+	untrusted, _ := http.NewRequest(http.MethodGet, "https://attacker.example/file", nil)
+	next, _ := http.NewRequest(http.MethodGet, "https://node.storage.yandex.net/file", nil)
+	for _, name := range []string{"Authorization", "Cookie", "Proxy-Authorization", "Referer", "Origin", "X-Api-Key", "X-Auth-Token"} {
+		next.Header.Set(name, "private-value")
+	}
+	if err := YandexMediaCheckRedirect(next, []*http.Request{trusted, untrusted}); !errors.Is(err, http.ErrUseLastResponse) {
+		t.Fatalf("untrusted redirect history accepted: %v", err)
+	}
+	if err := YandexMediaCheckRedirect(next, []*http.Request{trusted}); err != nil {
+		t.Fatalf("trusted redirect refused: %v", err)
+	}
+	for _, name := range []string{"Authorization", "Cookie", "Proxy-Authorization", "Referer", "Origin", "X-Api-Key", "X-Auth-Token"} {
+		if got := next.Header.Get(name); got != "" {
+			t.Fatalf("sensitive redirect header %s retained", name)
+		}
+	}
+}
