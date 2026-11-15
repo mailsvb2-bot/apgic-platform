@@ -35,11 +35,11 @@ test("author resumes the selected course and lesson, imports Disk video, and sav
   else if(method==="GET"&&path==="/v1/academy/author/eligible-products")data={products:[]};
   else if(method==="GET"&&path==="/v1/academy/me/course-access")data={course_ids:[]};
   else if(method==="GET"&&path==="/v1/academy/me/certificates")data={certificates:[]};
-  else if(method==="GET"&&path===`/v1/academy/courses/${courseID}/versions/${versionID}/outline"){
+  else if(method==="GET"&&path==="/v1/academy/courses/"+courseID+"/versions/"+versionID+"/outline"){
    data={state:"DRAFT",modules:[{id:moduleID,version_id:versionID,title:"Модуль 1",ordinal:1}],
     lessons:[{id:lessonID,module_id:moduleID,title:"Урок 1",kind:"VIDEO",ordinal:1}]};
   }else if(method==="GET"&&path==="/v1/academy/author/cloud-media")data={media};
-  else if(method==="GET"&&path===`/v1/academy/author/courses/${courseID}/versions/${versionID}/media"){
+  else if(method==="GET"&&path==="/v1/academy/author/courses/"+courseID+"/versions/"+versionID+"/media"){
    data={assignments:assignments.map(item=>({...item,title:"Урок 1.mp4",provider:"YANDEX_DISK",provider_file_ref:diskFilePath}))};
   }else if(method==="GET"&&path==="/v1/academy/author/cloud/yandex/files"){
    const selectedPath=url.searchParams.get("path")||"disk:/";
@@ -54,7 +54,7 @@ test("author resumes the selected course and lesson, imports Disk video, and sav
    importCalls++;
    for(const item of body.items)media.push({id:mediaID,title:item.title,provider:"YANDEX_DISK",provider_file_ref:item.provider_file_ref,active:true});
    status=201;data={media:media.slice()};
-  }else if(method==="POST"&&path===`/v1/academy/courses/${courseID}/versions/${versionID}/media/assign"){
+  }else if(method==="POST"&&path==="/v1/academy/courses/"+courseID+"/versions/"+versionID+"/media/assign"){
    const body=request.postDataJSON() as {items:{lesson_id:string;media_id:string;ordinal:number}[]};
    savedPayload=body.items;
    assignments=body.items;
@@ -65,7 +65,7 @@ test("author resumes the selected course and lesson, imports Disk video, and sav
   await route.fulfill({status,contentType:"application/json",body:JSON.stringify(data)});
  });
 
- await page.goto(`/academy?cloud_connected=yandex&course_id=${courseID}&version_id=${versionID}&lesson_id=${lessonID}`);
+ await page.goto("/academy?cloud_connected=yandex&course_id="+courseID+"&version_id="+versionID+"&lesson_id="+lessonID);
  await expect(page.getByRole("heading",{name:"Редактор: Проверочный курс — версия 1"})).toBeVisible();
  await expect(page.getByText("Шаг 1. Курс выбран. Шаг 2. Добавьте видеоуроки ниже. Шаг 3. Выберите для каждого урока видео с Яндекс Диска.")).toBeVisible();
  await expect(page.getByLabel("К какому уроку добавить видео?")).toHaveValue(lessonID);
@@ -104,14 +104,14 @@ test("author creates a video lesson before selecting its Yandex Disk file",async
   else if(method==="GET"&&path==="/v1/academy/author/eligible-products")data={products:[]};
   else if(method==="GET"&&path==="/v1/academy/me/course-access")data={course_ids:[]};
   else if(method==="GET"&&path==="/v1/academy/me/certificates")data={certificates:[]};
-  else if(method==="GET"&&path===`/v1/academy/courses/${courseID}/versions/${versionID}/outline"){
+  else if(method==="GET"&&path==="/v1/academy/courses/"+courseID+"/versions/"+versionID+"/outline"){
    data={state:"DRAFT",modules:[{id:moduleID,version_id:versionID,title:"Модуль 1",ordinal:1}],lessons};
-  }else if(method==="POST"&&path===`/v1/academy/courses/${courseID}/versions/${versionID}/modules/${moduleID}/lessons"){
+  }else if(method==="POST"&&path==="/v1/academy/courses/"+courseID+"/versions/"+versionID+"/modules/"+moduleID+"/lessons"){
    createdLessonBody=request.postDataJSON() as Record<string,unknown>;
    lessons.push({id:lessonID,module_id:moduleID,title:"Урок 1",kind:"VIDEO",ordinal:1});
    status=201;data=lessons[0];
   }else if(method==="GET"&&path==="/v1/academy/author/cloud-media")data={media};
-  else if(method==="GET"&&path===`/v1/academy/author/courses/${courseID}/versions/${versionID}/media"){
+  else if(method==="GET"&&path==="/v1/academy/author/courses/"+courseID+"/versions/"+versionID+"/media"){
    data={assignments:savedAssignments.map(item=>({...item,title:"Урок 1.mp4",provider:"YANDEX_DISK",provider_file_ref:diskFilePath}))};
   }else if(method==="GET"&&path==="/v1/academy/author/cloud/yandex/files"){
    const selectedPath=url.searchParams.get("path")||"disk:/";
@@ -125,7 +125,7 @@ test("author creates a video lesson before selecting its Yandex Disk file",async
    const body=request.postDataJSON() as {items:{provider_file_ref:string;title:string}[]};
    for(const item of body.items)media.push({id:mediaID,title:item.title,provider:"YANDEX_DISK",provider_file_ref:item.provider_file_ref,active:true});
    status=201;data={media:media.slice()};
-  }else if(method==="POST"&&path===`/v1/academy/courses/${courseID}/versions/${versionID}/media/assign"){
+  }else if(method==="POST"&&path==="/v1/academy/courses/"+courseID+"/versions/"+versionID+"/media/assign"){
    const body=request.postDataJSON() as {items:{lesson_id:string;media_id:string;ordinal:number}[]};
    savedAssignments=body.items;data={state:"SAVED"};
   }else{
