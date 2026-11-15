@@ -2,6 +2,8 @@ package httpapi
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -242,5 +244,94 @@ func TestCloudOAuthCallbackCodeRejectsAmbiguousQuery(t *testing.T) {
 		"state": {"nonce"}, "code": {"one-time-code"}, "cid": {"safe_123"},
 	}.Encode(), "nonce"); !ok || code != "one-time-code" {
 		t.Fatalf("valid Yandex callback rejected: code=%q accepted=%v", code, ok)
+	}
+}
+
+
+func TestAcademyYandexOAuthConnectSetsS256PKCEAndSignedEditorState(t *testing.T) {
+	const authorID = "11111111-1111-4111-8111-111111111111"
+	const courseID = "22222222-2222-4222-8222-222222222222"
+	const versionID = "33333333-3333-4333-8333-333333333333"
+	const lessonID = "44444444-4444-4444-8444-444444444444"
+	sessionKey := []byte(strings.Repeat("session-key-", 4))
+	stateKey := []byte(strings.Repeat("oauth-state-key-", 3))
+	t.Setenv("APGIC_YANDEX_OAUTH_CLIENT_ID", "test-yandex-client")
+	t.Setenv("APGIC_YANDEX_OAUTH_CLIENT_SECRET", "test-yandex-secret")
+	t.Setenv("APGIC_YANDEX_OAUTH_REDIRECT_URI", "https://api.apgic.example/v1/academy/author/cloud/yandex/callback")
+	t.Setenv("APGIC_ACADEMY_OAUTH_STATE_KEY", base64.StdEncoding.EncodeToString(stateKey))
+
+	sessions, err := newClientSessionManager(sessionKey, time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	authorCookie, err := sessions.issue(authorID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := New(Options{ClientSessionKey: sessionKey})
+	request := httptest.NewRequest(http.MethodGet,
+		"https://apgic.example/v1/academy/author/cloud/yandex/connect?course_id="+courseID+"&version_id="+versionID+"&lesson_id="+lessonID,
+		nil)
+	request.AddCookie(authorCookie)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusFound {
+		t.Fatalf("connect status=%d want=%d body=%s", response.Code, http.StatusFound, response.Body.String())
+	}
+	if got := response.Header().Get("Cache-Control"); got != "no-store" {
+		t.Fatalf("Cache-Control=%q, want no-store", got)
+	}
+	location, err := url.Parse(response.Header().Get("Location"))
+	if err != nil || location.Scheme != "https" || location.Host != "oauth.yandex.ru" || location.Path != "/authorize" {
+		t.Fatalf("unexpected OAuth authorization destination: %q (%v)", response.Header().Get("Location"), err)
+	}
+	query := location.Query()
+	if query.Get("response_type") != "code" || query.Get("client_id") != "test-yandex-client" ||
+		query.Get("redirect_uri") != "https://api.apgic.example/v1/academy/author/cloud/yandex/callback" ||
+		query.Get("code_challenge_method") != "S256" {
+		t.Fatalf("incomplete OAuth authorization request: %v", query)
+	}
+	for key, values := range query {
+		if len(values) != 1 {
+			t.Fatalf("duplicate OAuth authorization parameter %q: %v", key, values)
+		}
+		switch key {
+		case "response_type", "client_id", "redirect_uri", "state", "code_challenge", "code_challenge_method":
+		default:
+			t.Fatalf("unexpected OAuth authorization parameter %q", key)
+		}
+	}
+	cookies := response.Result().Cookies()
+	var stateCookie *http.Cookie
+	for _, cookie := range cookies {
+		if cookie.Name == "apgic_academy_yandex_oauth" {
+			stateCookie = cookie
+			break
+		}
+	}
+	if stateCookie == nil {
+		t.Fatal("signed OAuth state cookie was not issued")
+	}
+	if !stateCookie.Secure || !stateCookie.HttpOnly || stateCookie.SameSite != http.SameSiteLaxMode ||
+		stateCookie.Path != "/v1/academy/author/cloud/yandex" || stateCookie.MaxAge != 600 {
+		t.Fatalf("OAuth state cookie is not hardened: %#v", stateCookie)
+	}
+	state, err := cloudOpen(stateCookie.Value, stateKey)
+	if err != nil {
+		t.Fatalf("signed OAuth state could not be opened: %v", err)
+	}
+	if state.Actor != authorID || state.ReturnCourse != courseID || state.ReturnVersion != versionID ||
+		state.ReturnLesson != lessonID || state.Nonce == "" || query.Get("state") != state.Nonce {
+		t.Fatalf("OAuth state lost signed author/editor binding: %+v", state)
+	}
+	challenge := sha256.Sum256([]byte(state.Verifier))
+	wantChallenge := base64.RawURLEncoding.EncodeToString(challenge[:])
+	if state.Verifier == "" || query.Get("code_challenge") != wantChallenge {
+		t.Fatal("authorization request does not use the S256 challenge for its signed PKCE verifier")
+	}
+	if strings.Contains(response.Header().Get("Location"), state.Verifier) ||
+		strings.Contains(response.Header().Get("Location"), stateCookie.Value) {
+		t.Fatal("PKCE verifier or signed state cookie leaked into the authorization URL")
 	}
 }
