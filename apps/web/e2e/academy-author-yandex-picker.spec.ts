@@ -337,8 +337,31 @@ test("learner video error is visible and retry revalidates entitlement before re
     contentType="video/webm";
     headers["Accept-Ranges"]="bytes";
     headers["Cache-Control"]="private, no-store";
-    headers["Content-Length"]=String(learnerVideoFixture.length);
-    responseBody=learnerVideoFixture;
+    const range=request.headers()["range"];
+    if(range){
+     const match=/^bytes=([0-9]+)-([0-9]*)$/.exec(range);
+     if(!match){
+      status=416;contentType="text/plain";
+      headers["Content-Range"]="bytes */"+learnerVideoFixture.length;
+      responseBody="";
+     }else{
+      const first=Number(match[1]);
+      const last=Math.min(match[2]?Number(match[2]):learnerVideoFixture.length-1,learnerVideoFixture.length-1);
+      if(!Number.isSafeInteger(first)||!Number.isSafeInteger(last)||first<0||last<first||first>=learnerVideoFixture.length){
+       status=416;contentType="text/plain";
+       headers["Content-Range"]="bytes */"+learnerVideoFixture.length;
+       responseBody="";
+      }else{
+       status=206;
+       headers["Content-Range"]="bytes "+first+"-"+last+"/"+learnerVideoFixture.length;
+       responseBody=learnerVideoFixture.subarray(first,last+1);
+       headers["Content-Length"]=String((responseBody as Buffer).length);
+      }
+     }
+    }else{
+     headers["Content-Length"]=String(learnerVideoFixture.length);
+     responseBody=learnerVideoFixture;
+    }
    }
   }else{
    status=501;data={code:"UNMOCKED_ACADEMY_ROUTE",path,method};
