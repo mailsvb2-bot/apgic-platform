@@ -9,6 +9,7 @@ const moduleID="33333333-3333-4333-8333-333333333333";
 const lessonID="44444444-4444-4444-8444-444444444444";
 const mediaID="55555555-5555-4555-8555-555555555555";
 const diskFilePath="disk:/Лекции/Урок 1.mp4";
+const learnerVideoFixture=Buffer.from("GkXfo59ChoEBQveBAULygQRC84EIQoKEd2VibUKHgQJChYECGFOAZwEAAAAAAAJHEU2bdLpNu4tTq4QVSalmU6yBoU27i1OrhBZUrmtTrIHWTbuMU6uEElTDZ1OsggEjTbuMU6uEHFO7a1OsggIx7AEAAAAAAABZAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAVSalmsCrXsYMPQkBNgIxMYXZmNjEuNy4xMDNXQYxMYXZmNjEuNy4xMDNEiYhAn0AAAAAAABZUrmvIrgEAAAAAAAA/14EBc8WIXe2KIQMHVf6cgQAitZyDdW5kiIEAhoVWX1ZQOIOBASPjg4QdzWUA4JCwgVC6gS2agQJVsIRVuYEBElTDZ/tzc59jwIBnyJlFo4dFTkNPREVSRIeMTGF2ZjYxLjcuMTAzc3PWY8CLY8WIXe2KIQMHVf5nyKFFo4dFTkNPREVSRIeUTGF2YzYxLjE5LjEwMSBsaWJ2cHhnyKFFo4hEVVJBVElPTkSHkzAwOjAwOjAyLjAwMDAwMDAwMAAfQ7Z1QIjngQCjqYEAAIDQAgCdASpQAC0AAMcIhYWImYSIBAIABnZBXTHWACrjwP7/DWQAo5yBAfQAEQIAAxAoABgAGe/0DAABQFbCkP7+zmAAo5yBA+gAEQIAAxAcABgAGe/0DAABQFbCkP7/YBgAo5yBBdwAEQIAAxAQABgAGe/0DAABQFbCkP7/q1CAHFO7a5G7j7OBALeK94EB8YIBo/CBAw==","base64");
 
 test("author resumes the selected course and lesson, imports Disk video, and saves its lesson mapping",async({page})=>{
  const course={
@@ -160,10 +161,12 @@ test("author creates a video lesson before selecting its Yandex Disk file",async
 });
 
 
-test("learner HTML5 player unloads its buffered source after canonical entitlement revocation",async({page})=>{
+test("learner HTML5 player plays, seeks with a byte range, then unloads on entitlement revocation",async({page})=>{
  const enrollmentID="77777777-7777-4777-8777-777777777777";
- const streamPath=`/v1/academy/enrollments/${enrollmentID}/lessons/${lessonID}/videos/${mediaID}/stream`;
+ const streamPath="/v1/academy/enrollments/"+enrollmentID+"/lessons/"+lessonID+"/videos/"+mediaID+"/stream";
  let manifestReads=0;
+ let revoked=false;
+ let rangeRequests=0;
  await page.route("**/v1/academy/**",async route=>{
   const request=route.request();
   const url=new URL(request.url());
@@ -171,6 +174,9 @@ test("learner HTML5 player unloads its buffered source after canonical entitleme
   const method=request.method();
   let status=200;
   let data:unknown={};
+  let contentType="application/json";
+  let responseHeaders:Record<string,string>={};
+  let responseBody:string|Buffer=JSON.stringify(data);
   if(method==="GET"&&path==="/v1/academy/courses")data={courses:[]};
   else if(method==="GET"&&path==="/v1/academy/my-courses")data={courses:[]};
   else if(method==="GET"&&path==="/v1/academy/my-enrollments")data={enrollments:[{
@@ -183,25 +189,57 @@ test("learner HTML5 player unloads its buffered source after canonical entitleme
   else if(method==="GET"&&path==="/v1/academy/author/eligible-products")data={products:[]};
   else if(method==="GET"&&path==="/v1/academy/me/course-access")data={course_ids:[courseID]};
   else if(method==="GET"&&path==="/v1/academy/me/certificates")data={certificates:[]};
-  else if(method==="GET"&&path===`/v1/academy/enrollments/${enrollmentID}/learn` ){
+  else if(method==="GET"&&path==="/v1/academy/enrollments/"+enrollmentID+"/learn"){
    data={lessons:[{id:lessonID,module_id:moduleID,title:"Урок с видео",kind:"VIDEO",ordinal:1,available:true}]};
-  }else if(method==="GET"&&path===`/v1/academy/enrollments/${enrollmentID}/attempts` ){
+  }else if(method==="GET"&&path==="/v1/academy/enrollments/"+enrollmentID+"/attempts"){
    data={attempts:[]};
-  }else if(method==="GET"&&path===`/v1/academy/enrollments/${enrollmentID}/cohorts` ){
+  }else if(method==="GET"&&path==="/v1/academy/enrollments/"+enrollmentID+"/cohorts"){
    data={cohorts:[]};
   }else if(method==="GET"&&path==="/v1/academy/me/appeals"){
    data={appeals:[]};
-  }else if(method==="GET"&&path===`/v1/academy/enrollments/${enrollmentID}/lessons/${lessonID}/videos` ){
+  }else if(method==="GET"&&path===streamPath){
+   contentType="video/webm";
+   const range=request.headers()["range"];
+   responseHeaders={"Accept-Ranges":"bytes","Cache-Control":"private, no-store"};
+   if(range){
+    rangeRequests++;
+    const match=/^bytes=([0-9]+)-([0-9]*)$/.exec(range);
+    if(!match){
+     status=416;
+     responseHeaders["Content-Range"]="bytes */"+learnerVideoFixture.length;
+     responseBody="";
+     contentType="text/plain";
+    }else{
+     const first=Number(match[1]);
+     const last=Math.min(match[2]?Number(match[2]):learnerVideoFixture.length-1,learnerVideoFixture.length-1);
+     if(!Number.isSafeInteger(first)||!Number.isSafeInteger(last)||first<0||last<first||first>=learnerVideoFixture.length){
+      status=416;
+      responseHeaders["Content-Range"]="bytes */"+learnerVideoFixture.length;
+      responseBody="";
+      contentType="text/plain";
+     }else{
+      status=206;
+      responseHeaders["Content-Range"]="bytes "+first+"-"+last+"/"+learnerVideoFixture.length;
+      responseBody=learnerVideoFixture.subarray(first,last+1);
+      responseHeaders["Content-Length"]=String((responseBody as Buffer).length);
+     }
+    }
+   }else{
+    responseHeaders["Content-Length"]=String(learnerVideoFixture.length);
+    responseBody=learnerVideoFixture;
+   }
+  }else if(method==="GET"&&path==="/v1/academy/enrollments/"+enrollmentID+"/lessons/"+lessonID+"/videos"){
    manifestReads++;
-   if(manifestReads>=5){
+   if(revoked){
     status=403;data={code:"ENTITLEMENT_REVOKED"};
    }else{
-    data={videos:[{id:mediaID,title:"Урок 1.mp4",ordinal:1}]};
+    data={videos:[{id:mediaID,title:"Урок 1.webm",ordinal:1}]};
    }
   }else{
    status=501;data={code:"UNMOCKED_ACADEMY_ROUTE",path,method};
   }
-  await route.fulfill({status,contentType:"application/json",body:JSON.stringify(data)});
+  if(contentType==="application/json")responseBody=JSON.stringify(data);
+  await route.fulfill({status,contentType,headers:responseHeaders,body:responseBody});
  });
 
  await page.goto("/academy");
@@ -209,9 +247,35 @@ test("learner HTML5 player unloads its buffered source after canonical entitleme
  await expect(page.getByRole("heading",{name:"Прохождение курса"})).toBeVisible();
  const video=page.locator("video");
  await expect(video).toHaveAttribute("src",streamPath);
- await video.evaluate(element=>{
-  (window as unknown as {__academyVideo?:HTMLVideoElement}).__academyVideo=element as HTMLVideoElement;
+ await video.evaluate(async element=>{
+  const player=element as HTMLVideoElement;
+  player.muted=true;
+  await player.play();
  });
+ await page.waitForFunction(()=>{
+  const player=document.querySelector("video");
+  return player instanceof HTMLVideoElement&&player.readyState>=2&&player.duration>=1.9;
+ });
+ await video.evaluate(element=>new Promise<void>((resolve,reject)=>{
+  const player=element as HTMLVideoElement;
+  const timeout=window.setTimeout(()=>reject(new Error("video seek timed out")),5000);
+  player.addEventListener("seeked",()=>{
+   window.clearTimeout(timeout);resolve();
+  },{once:true});
+  player.currentTime=1;
+ }));
+ expect(await video.evaluate(element=>(element as HTMLVideoElement).currentTime)).toBeGreaterThanOrEqual(0.9);
+
+ const rangeProof=await page.evaluate(async path=>{
+  const response=await fetch(path,{headers:{Range:"bytes=0-127"}});
+  const body=await response.arrayBuffer();
+  return {status:response.status,contentRange:response.headers.get("content-range"),length:body.byteLength};
+ },streamPath);
+ expect(rangeProof).toEqual({status:206,contentRange:"bytes 0-127/"+learnerVideoFixture.length,length:128});
+ expect(rangeRequests).toBeGreaterThan(0);
+
+ await video.evaluate(element=>(element as HTMLVideoElement).pause());
+ revoked=true;
  await expect(page.getByRole("alert").filter({
   hasText:"Доступ к видео не подтверждён или был отозван"
  })).toBeVisible({timeout:8000});
@@ -221,7 +285,7 @@ test("learner HTML5 player unloads its buffered source after canonical entitleme
  });
  expect(state).toEqual({hasSource:false,paused:true});
  await expect(video).toHaveCount(0);
- expect(manifestReads).toBeGreaterThanOrEqual(5);
+ expect(manifestReads).toBeGreaterThanOrEqual(2);
  const rendered=await page.locator("body").innerText();
  expect(rendered).not.toContain("downloader.disk.yandex");
  expect(rendered).not.toContain("storage.yandex.net");
