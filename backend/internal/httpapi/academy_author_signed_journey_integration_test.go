@@ -284,4 +284,29 @@ func TestAcademyAuthorSignedCommerceToPublishedCoursePostgres(t *testing.T) {
 	if draftEnroll.Code >= 200 && draftEnroll.Code < 300 {
 		t.Fatalf("unpaid one-click draft enrollment accepted: %s", draftEnroll.Body.String())
 	}
+
+	// A VIDEO lesson must be creatable before the author chooses its verified
+	// Yandex file. The publication boundary remains fail-closed until the
+	// separate provider/playback acceptance contract is satisfied.
+	draftBase := "/v1/academy/courses/" + draft.ID + "/versions/" + draft.VersionID
+	videoModuleResponse := request("POST", draftBase+"/modules", authorCookie,
+		map[string]any{"title": "Video module", "ordinal": 1})
+	require(videoModuleResponse, http.StatusCreated)
+	var videoModule academy.Module
+	decode(videoModuleResponse, &videoModule)
+	videoLessonResponse := request("POST", draftBase+"/modules/"+videoModule.ID+"/lessons", authorCookie,
+		map[string]any{"title": "Video lesson", "kind": "VIDEO", "ordinal": 1})
+	require(videoLessonResponse, http.StatusCreated)
+	var videoLesson academy.Lesson
+	decode(videoLessonResponse, &videoLesson)
+	if videoLesson.ID == "" || videoLesson.MediaAssetRef != "" {
+		t.Fatalf("unassigned draft video lesson was not created cleanly: %+v", videoLesson)
+	}
+	videoOutline := request("GET", draftBase+"/outline", authorCookie, nil)
+	require(videoOutline, http.StatusOK)
+	if !strings.Contains(videoOutline.Body.String(), videoLesson.ID) {
+		t.Fatalf("new video lesson was not persisted in the draft outline: %s", videoOutline.Body.String())
+	}
+	videoPublish := request("POST", draftBase+"/publish", authorCookie, nil)
+	require(videoPublish, http.StatusConflict)
 }
