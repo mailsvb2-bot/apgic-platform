@@ -38,7 +38,11 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 		// credential lookup or outbound cloud request.
 		requestedRange, validRange := academyVideoRequestedRange(r.Header)
 		if !validRange {
-			http.Error(w, "Invalid range", http.StatusRequestedRangeNotSatisfiable)
+			// 416 is reserved for a syntactically valid range that cannot be
+			// satisfied by the selected representation. Malformed, duplicate
+			// or multi-range input is rejected before metadata lookup as 400;
+			// returning 416 here would omit the required Content-Range size.
+			http.Error(w, "Invalid range", http.StatusBadRequest)
 			return
 		}
 		owner, ok := store.(academyVideoStreamingStore)

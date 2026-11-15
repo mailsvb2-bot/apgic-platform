@@ -55,7 +55,7 @@ func TestLiveAcademyYandexGatewaySeekAndRevocation(t *testing.T) {
 		}
 		requested, ok := academyVideoRequestedRange(r.Header)
 		if !ok || requested == "" {
-			http.Error(w, "Invalid range", http.StatusRequestedRangeNotSatisfiable)
+			http.Error(w, "Invalid range", http.StatusBadRequest)
 			return
 		}
 		upstreamRequest, err := academyVideoUpstreamRequest(r.Context(), href, requested)
