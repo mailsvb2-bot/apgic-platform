@@ -294,3 +294,82 @@ test("learner HTML5 player plays, seeks with a byte range, then unloads on entit
  expect(rendered).not.toContain("downloader.disk.yandex");
  expect(rendered).not.toContain("storage.yandex.net");
 });
+
+
+test("learner video error is visible and retry revalidates entitlement before restoring the protected stream",async({page})=>{
+ const enrollmentID="77777777-7777-4777-8777-777777777778";
+ const streamPath="/v1/academy/enrollments/"+enrollmentID+"/lessons/"+lessonID+"/videos/"+mediaID+"/stream";
+ let manifestReads=0;
+ let streamAttempts=0;
+ await page.route("**/v1/academy/**",async route=>{
+  const request=route.request(),url=new URL(request.url()),path=url.pathname,method=request.method();
+  let status=200,contentType="application/json",data:unknown={},responseBody:string|Buffer="";
+  const headers:Record<string,string>={};
+  if(method==="GET"&&path==="/v1/academy/courses")data={courses:[]};
+  else if(method==="GET"&&path==="/v1/academy/my-courses")data={courses:[]};
+  else if(method==="GET"&&path==="/v1/academy/my-enrollments")data={enrollments:[{
+   id:enrollmentID,version_id:versionID,course_id:courseID,course_title:"Проверочный курс",
+   version_no:1,state:"ACTIVE",access_state:"ACTIVE"
+  }]};
+  else if(method==="GET"&&path==="/v1/academy/review/attempts")data={attempts:[]};
+  else if(method==="GET"&&path==="/v1/academy/author/report")data={courses:[],gross_captures:[],revenue_state:"UNAVAILABLE"};
+  else if(method==="GET"&&path==="/v1/academy/author/cohorts")data={cohorts:[]};
+  else if(method==="GET"&&path==="/v1/academy/author/eligible-products")data={products:[]};
+  else if(method==="GET"&&path==="/v1/academy/me/course-access")data={course_ids:[courseID]};
+  else if(method==="GET"&&path==="/v1/academy/me/certificates")data={certificates:[]};
+  else if(method==="GET"&&path==="/v1/academy/enrollments/"+enrollmentID+"/learn"){
+   data={lessons:[{id:lessonID,module_id:moduleID,title:"Урок с видео",kind:"VIDEO",ordinal:1,available:true}]};
+  }else if(method==="GET"&&path==="/v1/academy/enrollments/"+enrollmentID+"/attempts")data={attempts:[]};
+  else if(method==="GET"&&path==="/v1/academy/enrollments/"+enrollmentID+"/cohorts")data={cohorts:[]};
+  else if(method==="GET"&&path==="/v1/academy/me/appeals")data={appeals:[]};
+  else if(method==="GET"&&path==="/v1/academy/enrollments/"+enrollmentID+"/lessons/"+lessonID+"/videos"){
+   manifestReads++;
+   data={videos:[{id:mediaID,title:"Урок 1.webm",ordinal:1}]};
+  }else if(method==="GET"&&path===streamPath){
+   streamAttempts++;
+   if(streamAttempts===1){
+    // Exercise the real HTMLMediaElement error handler without pretending
+    // that an upstream outage is an entitlement revocation.
+    status=503;contentType="text/plain";responseBody="temporary provider failure";
+   }else{
+    contentType="video/webm";
+    headers["Accept-Ranges"]="bytes";
+    headers["Cache-Control"]="private, no-store";
+    headers["Content-Length"]=String(learnerVideoFixture.length);
+    responseBody=learnerVideoFixture;
+   }
+  }else{
+   status=501;data={code:"UNMOCKED_ACADEMY_ROUTE",path,method};
+  }
+  if(contentType==="application/json")responseBody=JSON.stringify(data);
+  await route.fulfill({status,contentType,headers,body:responseBody});
+ });
+
+ await page.goto("/academy");
+ await page.getByRole("button",{name:"Продолжить"}).click();
+ await expect(page.getByRole("heading",{name:"Прохождение курса"})).toBeVisible();
+ const video=page.locator("video");
+ await expect(video).toHaveAttribute("src",streamPath);
+ await expect(page.getByRole("button",{name:"Повторить загрузку видео"})).toBeVisible();
+ await expect(video).not.toHaveAttribute("src",streamPath);
+ expect(streamAttempts).toBe(1);
+
+ await page.getByRole("button",{name:"Повторить загрузку видео"}).click();
+ await expect(video).toHaveAttribute("src",streamPath);
+ await page.waitForFunction(()=>{
+  const player=document.querySelector("video");
+  return player instanceof HTMLVideoElement&&player.readyState>=2;
+ });
+ await video.evaluate(async element=>{
+  const player=element as HTMLVideoElement;
+  player.muted=true;
+  await player.play();
+ });
+ await expect.poll(()=>streamAttempts).toBe(2);
+ await expect(page.getByRole("button",{name:"Повторить загрузку видео"})).toHaveCount(0);
+ expect(manifestReads).toBeGreaterThanOrEqual(2);
+ expect(await video.evaluate(element=>(element as HTMLVideoElement).paused)).toBe(false);
+ const rendered=await page.locator("body").innerText();
+ expect(rendered).not.toContain("downloader.disk.yandex");
+ expect(rendered).not.toContain("storage.yandex.net");
+});
