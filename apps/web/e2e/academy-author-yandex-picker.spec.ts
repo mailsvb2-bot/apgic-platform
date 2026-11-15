@@ -183,15 +183,15 @@ test("learner HTML5 player unloads its buffered source after canonical entitleme
   else if(method==="GET"&&path==="/v1/academy/author/eligible-products")data={products:[]};
   else if(method==="GET"&&path==="/v1/academy/me/course-access")data={course_ids:[courseID]};
   else if(method==="GET"&&path==="/v1/academy/me/certificates")data={certificates:[]};
-  else if(method==="GET"&&path===`/v1/academy/enrollments/${enrollmentID}/learn"){
+  else if(method==="GET"&&path===`/v1/academy/enrollments/${enrollmentID}/learn` ){
    data={lessons:[{id:lessonID,module_id:moduleID,title:"Урок с видео",kind:"VIDEO",ordinal:1,available:true}]};
-  }else if(method==="GET"&&path===`/v1/academy/enrollments/${enrollmentID}/attempts"){
+  }else if(method==="GET"&&path===`/v1/academy/enrollments/${enrollmentID}/attempts` ){
    data={attempts:[]};
-  }else if(method==="GET"&&path===`/v1/academy/enrollments/${enrollmentID}/cohorts"){
+  }else if(method==="GET"&&path===`/v1/academy/enrollments/${enrollmentID}/cohorts` ){
    data={cohorts:[]};
   }else if(method==="GET"&&path==="/v1/academy/me/appeals"){
    data={appeals:[]};
-  }else if(method==="GET"&&path===`/v1/academy/enrollments/${enrollmentID}/lessons/${lessonID}/videos"){
+  }else if(method==="GET"&&path===`/v1/academy/enrollments/${enrollmentID}/lessons/${lessonID}/videos` ){
    manifestReads++;
    if(manifestReads>=3){
     status=403;data={code:"ENTITLEMENT_REVOKED"};
