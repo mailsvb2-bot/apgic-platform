@@ -280,7 +280,7 @@ func registerAcademyYandexOAuth(mux *http.ServeMux, store academyStore, sessions
 		}
 		http.SetCookie(w, &http.Cookie{Name: cookieName, Value: value, Path: "/v1/academy/author/cloud/yandex", MaxAge: 600, Secure: true, HttpOnly: true, SameSite: http.SameSiteLaxMode})
 		challenge := sha256.Sum256([]byte(verifier))
-		q := url.Values{"response_type": {"code"}, "client_id": {id}, "redirect_uri": {redirect}, "state": {nonce}, "code_challenge": {base64.RawURLEncoding.EncodeToString(challenge[:])}, "code_challenge_method": {"S256"}}
+		q := url.Values{"response_type": {"code"}, "client_id": {id}, "redirect_uri": {redirect}, "state": {nonce}, "force_confirm": {"yes"}, "code_challenge": {base64.RawURLEncoding.EncodeToString(challenge[:])}, "code_challenge_method": {"S256"}}
 		w.Header().Set("Cache-Control", "no-store")
 		http.Redirect(w, r, "https://oauth.yandex.ru/authorize?"+q.Encode(), http.StatusFound)
 	})
