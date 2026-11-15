@@ -247,7 +247,6 @@ func TestCloudOAuthCallbackCodeRejectsAmbiguousQuery(t *testing.T) {
 	}
 }
 
-
 func TestAcademyYandexOAuthConnectSetsS256PKCEAndSignedEditorState(t *testing.T) {
 	const authorID = "11111111-1111-4111-8111-111111111111"
 	const courseID = "22222222-2222-4222-8222-222222222222"
