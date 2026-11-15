@@ -466,7 +466,7 @@ export default function AcademyPage(){
   </section>
   {course&&<section className="how-section">
    <h2>Редактор: {course.title} — версия {course.version_no}</h2>
-   {course.state==="DRAFT"&&<CloudMediaEditor key={`${course.id}:${course.version_id}`} courseId={course.id} versionId={course.version_id} lessons={lessons.map(l=>({id:l.id,title:l.title,kind:l.kind}))}/>}
+   <p>Шаг 1. Курс выбран. Шаг 2. Добавьте видеоуроки ниже. Шаг 3. Выберите для каждого урока видео с Яндекс Диска.</p>
    <div className="how-grid">
     <form className="panel specialist-form" onSubmit={addModule}>
      <h3>Модуль</h3><label htmlFor="academy-module">Название</label>
@@ -483,10 +483,10 @@ export default function AcademyPage(){
      <label htmlFor="academy-lesson-kind">Тип активности</label>
      <select id="academy-lesson-kind" value={lessonKind} onChange={e=>setLessonKind(e.target.value as Lesson["kind"])}>
       <option value="READING">Текстовый урок</option><option value="ASSESSMENT">Проверочное задание</option>
-      <option value="VIDEO">Видеоматериал по media asset reference</option>
+      <option value="VIDEO">Видеоурок (видео выберем ниже)</option>
      </select>
-     <label htmlFor="academy-lesson-body">Материал или идентификатор медиаресурса</label>
-     <textarea id="academy-lesson-body" value={lessonBody} onChange={e=>setLessonBody(e.target.value)}/>
+     {lessonKind!=="VIDEO"&&<><label htmlFor="academy-lesson-body">Материал урока</label>
+     <textarea id="academy-lesson-body" value={lessonBody} onChange={e=>setLessonBody(e.target.value)}/></>}
      {lessonKind==="ASSESSMENT"&&<><label htmlFor="academy-pass">Проходной балл</label>
       <input id="academy-pass" type="number" min={1} max={100} value={passingScore} onChange={e=>setPassingScore(Number(e.target.value))}/></>}
      <button disabled={busy||!moduleID}>Добавить урок</button>
@@ -537,11 +537,12 @@ export default function AcademyPage(){
        Зафиксировать права на текущую версию</button>
       {rightsRecorded&&<p>Подтверждение зафиксировано. Изменения уроков потребуют нового подтверждения.</p>}
      </section>
-     <button disabled={busy||lessons.length===0} onClick={()=>void act(
-      ()=>api<Course>(`/v1/academy/courses/${course.id}/versions/${course.version_id}/publish`,{}),
-      async()=>{setNotice("Версия опубликована и больше не редактируется.");setCourse(null)})}>Опубликовать версию</button>
     </section>
    </div>
+   {course.state==="DRAFT"&&<CloudMediaEditor key={`${course.id}:${course.version_id}`} courseId={course.id} versionId={course.version_id} lessons={lessons.map(l=>({id:l.id,title:l.title,kind:l.kind}))}/>}
+   {course.state==="DRAFT"&&<button disabled={busy||lessons.length===0} onClick={()=>void act(
+      ()=>api<Course>(`/v1/academy/courses/${course.id}/versions/${course.version_id}/publish`,{}),
+      async()=>{setNotice("Версия опубликована и больше не редактируется.");setCourse(null)})}>Опубликовать версию курса</button>}
   </section>}
   {course&&course.state==="PUBLISHED"&&<section className="how-section">
    <h2>Учебные потоки преподавателя</h2>

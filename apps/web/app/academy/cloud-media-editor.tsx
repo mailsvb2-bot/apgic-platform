@@ -1,6 +1,7 @@
 "use client";
 
 import {useCallback,useEffect,useRef,useState,type FormEvent} from "react";
+import {appendLessonMediaAssignments} from "./cloud-media-assignments";
 
 type CloudMedia={id:string;title:string;provider:string;provider_file_ref:string;source_url?:string;active:boolean};
 type DiskFile={name:string;path:string;type:string;mime_type:string;size:number};
@@ -25,14 +26,16 @@ async function request<T>(url:string,body?:unknown,signal?:AbortSignal):Promise<
 // The provider verifies each selected file on the server before saving it.
 // Chunking preserves the existing 2,000-file author workflow while keeping
 // each authenticated verification request bounded and safely retryable.
-async function importVerifiedMedia(items:Array<{provider:string;provider_file_ref:string;title:string}>){
+async function importVerifiedMedia(items:Array<{provider:string;provider_file_ref:string;title:string}>):Promise<CloudMedia[]>{
+ const imported:CloudMedia[]=[];
  for(let i=0;i<items.length;i+=100){
-  try{await request("/v1/academy/author/cloud-media/import",{items:items.slice(i,i+100)});}
+  try{const batch=await request<{media:CloudMedia[]}>("/v1/academy/author/cloud-media/import",{items:items.slice(i,i+100)});imported.push(...batch.media);}
   catch(e){
    const reason=e instanceof Error?e.message:"Операция не выполнена";
    throw new Error(i>0?`Импортировано ${i} из ${items.length}. ${reason}`:reason);
   }
  }
+ return imported;
 }
 export default function CloudMediaEditor({courseId,versionId,lessons}:{
  courseId:string;versionId:string;lessons:VideoLesson[];
@@ -46,6 +49,7 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
  const [rows,setRows]=useState("");
  const [selected,setSelected]=useState<string[]>([]);
  const [lessonId,setLessonId]=useState("");
+ const videoLessons=lessons.filter(l=>l.kind==="VIDEO");
  const [perLesson,setPerLesson]=useState(10);
  const [assignments,setAssignments]=useState<Mapping[]>([]);
  const [saved,setSaved]=useState<AuthorMediaAssignment[]>([]);
@@ -80,10 +84,13 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
    const chosen=Object.values(diskSelectedFiles).filter(isImportableVideo);
    if(!chosen.length||chosen.length!==Object.keys(diskSelectedFiles).length)throw new Error("Выбери только непустые видеофайлы");
    if(chosen.length>2000)throw new Error("За одну операцию можно добавить до 2000 файлов");
-   await importVerifiedMedia(chosen.map(f=>({
+   const imported=await importVerifiedMedia(chosen.map(f=>({
     provider:"YANDEX_DISK",provider_file_ref:f.path,title:f.name
    })));
-   await reload();setDiskSelectedFiles({});setMessage("Выбранные видео добавлены в медиатеку");
+   if(imported.length!==chosen.length||imported.some(item=>!item.id))throw new Error("Импорт выполнен не полностью. Обновите медиатеку перед назначением.");
+   await reload();
+   setAssignments(current=>appendLessonMediaAssignments(current,lessonId,imported.map(item=>item.id)));
+   setDiskSelectedFiles({});setMessage("Видео добавлены к выбранному уроку. Нажмите «Сохранить видео урока».");
   }catch(error){setMessage(String(error))}finally{setBusy(false)}
  }
  const reload=useCallback(async (signal?:AbortSignal,restoreSavedDraft=false)=>{
@@ -175,9 +182,15 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
   }catch(error){setMessage(String(error))}finally{setBusy(false)}
  }
  return <section id="academy-media-editor" className="panel" aria-label="Медиатека автора">
-  <h3>Видео курса</h3>
-  <p>Подключите Диск один раз, затем выбирайте видео прямо здесь. Ученик просматривает уроки только через защищённый плеер APGIC.</p>
-  
+  <h3>Шаг 3. Видео для уроков</h3>
+  <p>Сначала выберите видеоурок из созданного выше курса, затем откройте Яндекс Диск и отметьте файлы. Существующий защищённый плеер APGIC остаётся единственным способом просмотра ученика.</p>
+  {videoLessons.length===0?<p role="status">Сначала добавьте модуль и урок типа «Видеоурок» в шаге 2. Затем здесь появится выбор урока.</p>:<>
+  <label htmlFor="academy-video-lesson">К какому уроку добавить видео?</label>
+  <select id="academy-video-lesson" value={lessonId} onChange={e=>{setLessonId(e.target.value);setSelected([]);setDiskSelectedFiles({});}} disabled={busy}>
+   <option value="">Выберите видеоурок</option>
+   {videoLessons.map(l=><option key={l.id} value={l.id}>{l.title}</option>)}
+  </select>
+  {!lessonId?<p role="status">Выберите урок, чтобы открыть медиатеку и прикрепить к нему видео.</p>:<>
   <h4>Ваш Яндекс Диск</h4>
   <a href={`/v1/academy/author/cloud/yandex/connect?course_id=${encodeURIComponent(courseId)}&version_id=${encodeURIComponent(versionId)}`}>Подключить Яндекс Диск</a>
   <p>После подтверждения в Яндексе файлы откроются автоматически. Выберите нужные видео.</p>
@@ -200,7 +213,7 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
    <span>{diskOffset+1}–{Math.min(diskOffset+100,diskTotal)} из {diskTotal}</span>
    <button type="button" disabled={busy||diskOffset+100>=diskTotal} onClick={()=>void browseDisk(diskPath,diskOffset+100)}>Далее</button>
   </div>}
-  <button type="button" disabled={busy||!Object.keys(diskSelectedFiles).length} onClick={()=>void importDiskSelection()}>Добавить выбранные видео ({Object.keys(diskSelectedFiles).length})</button>
+  <button type="button" disabled={busy||!lessonId||!Object.keys(diskSelectedFiles).length} onClick={()=>void importDiskSelection()}>Добавить к уроку ({Object.keys(diskSelectedFiles).length})</button>
   <p role="status" aria-live="polite">{message}</p>
   <details><summary>Дополнительно: импорт по путям файлов</summary><form onSubmit={importRows}>
    <label htmlFor="cloud-media-rows">Список файлов: ID файла | название (каждый файл с новой строки)</label>
@@ -215,6 +228,7 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
     setMessage("Устаревшие назначения убраны из черновика. Нажмите «Сохранить распределение», чтобы применить изменения.");
    }}>Убрать все устаревшие назначения</button>}
   </div>}
+  <details><summary>Дополнительно: выбрать видео из уже добавленной медиатеки и массово распределить</summary>
   <h4>Выбрать сразу несколько видео</h4>
   <div style={{maxHeight:220,overflowY:"auto"}}>
    {media.map(m=><label key={m.id} style={{display:"block"}}>
@@ -228,11 +242,7 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
   <label htmlFor="cloud-per-lesson">Видео на урок</label>
   <input id="cloud-per-lesson" type="number" min={1} max={100} value={perLesson} onChange={e=>setPerLesson(Number(e.target.value))}/>
   <button type="button" disabled={busy||!media.length} onClick={allocateAll}>Распределить по всем видеоурокам</button>
-  <label htmlFor="cloud-target-lesson">Или назначить выбранные видео одному уроку</label>
-  <select id="cloud-target-lesson" value={lessonId} onChange={e=>setLessonId(e.target.value)}>
-   <option value="">Выберите урок</option>
-   {lessons.filter(l=>l.kind==="VIDEO").map(l=><option key={l.id} value={l.id}>{l.title}</option>)}
-  </select>
+  <p>Или назначить выбранные видео выбранному выше уроку.</p>
   <button type="button" disabled={busy||!selected.length||!lessonId} onClick={allocate}>Назначить выбранные</button>
   <p>Подготовлено назначений: {assignments.length}. Сохранённые назначения восстанавливаются при повторном входе; изменения вступят в силу только после сохранения. Удаление всех назначений очищает видеопривязки черновика.</p>
   <button type="button" disabled={busy} onClick={()=>{
@@ -245,12 +255,15 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
     <button type="button" disabled={busy} onClick={()=>setAssignments(old=>old.filter((_,index)=>index!==i))}>Убрать из урока</button>
    </p>)}
   </div>
+  </details>
   <h4>Сохранённые материалы уроков</h4>
   {saved.map(a=><p key={a.lesson_id+":"+a.media_id}>
     {lessons.find(l=>l.id===a.lesson_id)?.title||"Урок"} · {a.ordinal}. {a.title}
     {" · "}{a.provider_file_ref}
 
    </p>)}
-  <button type="button" disabled={busy||(!assignments.length&&!saved.length)} onClick={()=>void persist()}>Сохранить распределение</button>
+  <button type="button" disabled={busy||(!assignments.length&&!saved.length)} onClick={()=>void persist()}>Сохранить видео урока</button>
+  </>}
+  </>}
  </section>;
 }
