@@ -376,7 +376,8 @@ export default function AcademyPage(){
    `/v1/academy/courses/${course.id}/versions/${course.version_id}/modules/${moduleID}/lessons`,
    {title:lessonTitle,ordinal:existing.length+1,kind:lessonKind,
     body:lessonKind==="READING"?lessonBody:"",
-    media_asset_ref:lessonKind==="VIDEO"?lessonBody:"",
+    // Video sources are attached later through the verified Disk picker;
+    // never reuse hidden/stale text input as a media asset identifier.
     passing_score:lessonKind==="ASSESSMENT"?passingScore:0,
     rubric_version:lessonKind==="ASSESSMENT"?"human-review-v1":""}),
    async()=>{setLessonTitle("");setLessonBody("");await loadOutline(course)});
