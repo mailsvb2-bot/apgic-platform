@@ -244,7 +244,6 @@ func TestCDNPlaybackRequestRejectsInvalidBinding(t *testing.T) {
 	}
 }
 
-
 type verifyingCDNPlaybackProvider struct {
 	fakeCDNPlaybackProvider
 	keyID     string

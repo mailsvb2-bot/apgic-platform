@@ -245,7 +245,6 @@ func TestExpiredAuthenticatedPrincipalFailsBeforeProviderExecution(t *testing.T)
 	}
 }
 
-
 func TestGenericExecutorRequiresTypedCDNPlaybackPath(t *testing.T) {
 	instance := activeCDNPlaybackInstance(t)
 	provider := &fakeCDNPlaybackProvider{fakeProvider: fakeProvider{

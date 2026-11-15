@@ -9,14 +9,14 @@ import (
 )
 
 var (
-	ErrConnectorUnavailable       = errors.New("connector is not available for execution")
-	ErrConnectorDegraded          = errors.New("connector is degraded and degraded execution is not allowed")
-	ErrConnectorScopeDenied       = errors.New("service principal lacks connector execute scope")
+	ErrConnectorUnavailable      = errors.New("connector is not available for execution")
+	ErrConnectorDegraded         = errors.New("connector is degraded and degraded execution is not allowed")
+	ErrConnectorScopeDenied      = errors.New("service principal lacks connector execute scope")
 	ErrConnectorCredentialDenied = errors.New("service principal credential is not active")
-	ErrProviderMismatch           = errors.New("provider does not match connector instance")
-	ErrCapabilityMismatch         = errors.New("provider does not expose connector capability")
-	ErrTypedCapabilityRequired    = errors.New("CDN_PROVIDER must use the versioned playback capability")
-	ErrInvalidProviderResult      = errors.New("provider result violates connector contract")
+	ErrProviderMismatch          = errors.New("provider does not match connector instance")
+	ErrCapabilityMismatch        = errors.New("provider does not expose connector capability")
+	ErrTypedCapabilityRequired   = errors.New("CDN_PROVIDER must use the versioned playback capability")
+	ErrInvalidProviderResult     = errors.New("provider result violates connector contract")
 )
 
 type ExecutionPolicy struct {
