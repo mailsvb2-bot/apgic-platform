@@ -193,7 +193,7 @@ test("learner HTML5 player unloads its buffered source after canonical entitleme
    data={appeals:[]};
   }else if(method==="GET"&&path===`/v1/academy/enrollments/${enrollmentID}/lessons/${lessonID}/videos` ){
    manifestReads++;
-   if(manifestReads>=3){
+   if(manifestReads>=5){
     status=403;data={code:"ENTITLEMENT_REVOKED"};
    }else{
     data={videos:[{id:mediaID,title:"Урок 1.mp4",ordinal:1}]};
@@ -221,7 +221,7 @@ test("learner HTML5 player unloads its buffered source after canonical entitleme
  });
  expect(state).toEqual({hasSource:false,paused:true});
  await expect(video).toHaveCount(0);
- expect(manifestReads).toBeGreaterThanOrEqual(3);
+ expect(manifestReads).toBeGreaterThanOrEqual(5);
  const rendered=await page.locator("body").innerText();
  expect(rendered).not.toContain("downloader.disk.yandex");
  expect(rendered).not.toContain("storage.yandex.net");
