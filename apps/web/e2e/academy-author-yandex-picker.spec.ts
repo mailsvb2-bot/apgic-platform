@@ -374,6 +374,14 @@ test("learner video error is visible and retry revalidates entitlement before re
  await page.getByRole("button",{name:"Продолжить"}).click();
  await expect(page.getByRole("heading",{name:"Прохождение курса"})).toBeVisible();
  const video=page.locator("video");
+ await expect(video).toHaveCount(1);
+ // preload="none" is intentional in the learner player: explicitly start
+ // playback so the browser makes the first protected stream request.
+ await video.evaluate(element=>{
+  const player=element as HTMLVideoElement;
+  player.muted=true;
+  void player.play().catch(()=>undefined);
+ });
  await expect.poll(()=>streamAttempts).toBeGreaterThan(0);
  await expect(page.getByRole("button",{name:"Повторить загрузку видео"})).toBeVisible();
  await expect(video).not.toHaveAttribute("src",streamPath);
@@ -381,16 +389,18 @@ test("learner video error is visible and retry revalidates entitlement before re
  retryRequested=true;
  await page.getByRole("button",{name:"Повторить загрузку видео"}).click();
  await expect(video).toHaveAttribute("src",streamPath);
- await page.waitForFunction(()=>{
-  const player=document.querySelector("video");
-  return player instanceof HTMLVideoElement&&player.readyState>=2;
- });
+ // The retry action revalidates the manifest asynchronously. preload="none"
+ // will not fetch the restored source until playback is explicitly requested.
  await video.evaluate(async element=>{
   const player=element as HTMLVideoElement;
   player.muted=true;
   await player.play();
  });
  await expect.poll(()=>streamAttempts).toBeGreaterThan(attemptsBeforeRetry);
+ await page.waitForFunction(()=>{
+  const player=document.querySelector("video");
+  return player instanceof HTMLVideoElement&&player.readyState>=2;
+ });
  await expect(page.getByRole("button",{name:"Повторить загрузку видео"})).toHaveCount(0);
  expect(manifestReads).toBeGreaterThanOrEqual(2);
  expect(await video.evaluate(element=>(element as HTMLVideoElement).paused)).toBe(false);
