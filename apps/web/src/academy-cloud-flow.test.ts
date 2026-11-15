@@ -20,6 +20,10 @@ test("Academy embedded Yandex Disk workflow preserves canonical OAuth and verifi
  assert.match(editor,/cloud_connected/);
  assert.match(editor,/lesson_id=\$\{encodeURIComponent\(lessonId\)\}/);
  assert.match(editor,/query\.get\("lesson_id"\)/);
+ // The OAuth effect runs before the library reload effect. The reload must
+ // not erase the lesson restored from signed OAuth state.
+ assert.ok(page.includes('key={`${course.id}:${course.version_id}`}'));
+ assert.doesNotMatch(editor,/setLessonId\("")/);
  assert.match(editor,/browseDisk\("disk:\/"\)/);
  assert.match(editor,/\/v1\/academy\/author\/cloud-media\/import/);
  assert.match(editor,/\/v1\/academy\/author\/courses\/\$\{courseId\}\/versions\/\$\{versionId\}\/media/);

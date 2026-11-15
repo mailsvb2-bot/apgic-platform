@@ -130,7 +130,10 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
  // opening (including after the OAuth callback), without a manual refresh.
  useEffect(()=>{
   const controller=new AbortController();
-  setMedia([]);setSaved([]);setAssignments([]);setSelected([]);setLessonId("");
+  setMedia([]);setSaved([]);setAssignments([]);setSelected([]);
+  // The editor is keyed by course/version, so a new editor already starts
+  // with an empty lessonId. Do not clear it here: the OAuth-return effect
+  // runs before this reload effect and restores the signed lesson selection.
   setDiskSelectedFiles({});
   void reload(controller.signal,true).catch(()=>{
    if(!controller.signal.aborted)setMessage("Не удалось загрузить медиатеку и сохранённые назначения. Повторите загрузку.");
