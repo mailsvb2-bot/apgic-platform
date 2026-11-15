@@ -116,7 +116,14 @@ func TestYandexStorageRedirectRejectsFragmentsAndUntrustedHosts(t *testing.T) {
 		want bool
 	}{
 		{"https://node.storage.yandex.net/file?signature=opaque", true},
+		{"https://mds.storage.yandex.net/file?signature=opaque", true},
 		{"https://downloader.disk.yandex.net/file", true},
+		{"https://storage.yandex.net/file", false},
+		{"https://a.b.storage.yandex.net/file", false},
+		{"https://-node.storage.yandex.net/file", false},
+		{"https://node-.storage.yandex.net/file", false},
+		{"https://node!.storage.yandex.net/file", false},
+		{"https://"+strings.Repeat("a", 64)+".storage.yandex.net/file", false},
 		{"https://node.storage.yandex.net/file#private", false},
 		{"https://node.storage.yandex.net.evil.example/file", false},
 		{"https://node.storage.yandex.net:8443/file", false},
