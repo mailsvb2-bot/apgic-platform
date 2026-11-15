@@ -1,3 +1,4 @@
+import {Buffer} from "node:buffer";
 import {expect, test} from "@playwright/test";
 
 // This browser test locks the author-facing sequence after a successful
@@ -247,6 +248,9 @@ test("learner HTML5 player plays, seeks with a byte range, then unloads on entit
  await expect(page.getByRole("heading",{name:"Прохождение курса"})).toBeVisible();
  const video=page.locator("video");
  await expect(video).toHaveAttribute("src",streamPath);
+ await video.evaluate(element=>{
+  (window as unknown as {__academyVideo?:HTMLVideoElement}).__academyVideo=element as HTMLVideoElement;
+ });
  await video.evaluate(async element=>{
   const player=element as HTMLVideoElement;
   player.muted=true;
@@ -274,7 +278,7 @@ test("learner HTML5 player plays, seeks with a byte range, then unloads on entit
  expect(rangeProof).toEqual({status:206,contentRange:"bytes 0-127/"+learnerVideoFixture.length,length:128});
  expect(rangeRequests).toBeGreaterThan(0);
 
- await video.evaluate(element=>(element as HTMLVideoElement).pause());
+ expect(await video.evaluate(element=>!(element as HTMLVideoElement).paused)).toBe(true);
  revoked=true;
  await expect(page.getByRole("alert").filter({
   hasText:"Доступ к видео не подтверждён или был отозван"
