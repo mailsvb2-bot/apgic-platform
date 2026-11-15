@@ -8,6 +8,7 @@ import (
 	"errors"
 	"regexp"
 	"strings"
+	"unicode"
 	"time"
 )
 
@@ -215,8 +216,7 @@ func VerifyCDNPlaybackAttestation(
 		!cdnPlaybackProviderPattern.MatchString(attestation.KeyID) ||
 		attestation.KeyID != trustedKeyID ||
 		len(publicKey) != ed25519.PublicKeySize ||
-		strings.ContainsAny(attestation.Signature, " 	
-") {
+		strings.IndexFunc(attestation.Signature, unicode.IsSpace) >= 0 {
 		return VerifiedCDNPlaybackAttestation{}, ErrInvalidCDNPlaybackAttestation
 	}
 	if attestation.Binding.Validate() != nil {
