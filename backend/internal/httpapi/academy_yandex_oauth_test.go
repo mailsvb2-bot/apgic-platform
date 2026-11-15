@@ -289,7 +289,7 @@ func TestAcademyYandexOAuthConnectSetsS256PKCEAndSignedEditorState(t *testing.T)
 	query := location.Query()
 	if query.Get("response_type") != "code" || query.Get("client_id") != "test-yandex-client" ||
 		query.Get("redirect_uri") != "https://api.apgic.example/v1/academy/author/cloud/yandex/callback" ||
-		query.Get("code_challenge_method") != "S256" {
+		query.Get("code_challenge_method") != "S256" || query.Get("force_confirm") != "yes" {
 		t.Fatalf("incomplete OAuth authorization request: %v", query)
 	}
 	for key, values := range query {
@@ -297,7 +297,7 @@ func TestAcademyYandexOAuthConnectSetsS256PKCEAndSignedEditorState(t *testing.T)
 			t.Fatalf("duplicate OAuth authorization parameter %q: %v", key, values)
 		}
 		switch key {
-		case "response_type", "client_id", "redirect_uri", "state", "code_challenge", "code_challenge_method":
+		case "response_type", "client_id", "redirect_uri", "state", "force_confirm", "code_challenge", "code_challenge_method":
 		default:
 			t.Fatalf("unexpected OAuth authorization parameter %q", key)
 		}
