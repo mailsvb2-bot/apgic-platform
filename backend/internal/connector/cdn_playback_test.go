@@ -61,12 +61,17 @@ func signedCDNPlaybackAttestation(t *testing.T, grant CDNPlaybackGrant, privateK
 		CompletedAt: grant.IssuedAt.Add(2 * time.Minute),
 		KeyID:       keyID,
 	}
+	resignCDNPlaybackAttestation(t, &attestation, privateKey)
+	return attestation
+}
+
+func resignCDNPlaybackAttestation(t *testing.T, attestation *CDNPlaybackAttestation, privateKey ed25519.PrivateKey) {
+	t.Helper()
 	message, err := attestation.signingBytes()
 	if err != nil {
 		t.Fatal(err)
 	}
 	attestation.Signature = base64.StdEncoding.EncodeToString(ed25519.Sign(privateKey, message))
-	return attestation
 }
 
 func TestCDNPlaybackAttestationRequiresExactGrantBindingAndTrustedSignature(t *testing.T) {
@@ -153,6 +158,7 @@ func TestCDNPlaybackAttestationRejectsInvalidRangesAndGrantWindow(t *testing.T) 
 			g := grant
 			a := signedCDNPlaybackAttestation(t, g, privateKey, "cdn-key-1")
 			mutate(&a, &g)
+			resignCDNPlaybackAttestation(t, &a, privateKey)
 			if _, err := VerifyCDNPlaybackAttestation(g, a, "cdn-key-1", publicKey, now.Add(3*time.Minute)); err == nil {
 				t.Fatal("invalid provider evidence was accepted")
 			}
