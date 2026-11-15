@@ -111,7 +111,7 @@ func TestCDNPlaybackAttestationRejectsTamperedBindingAndSignature(t *testing.T) 
 		"changed entitlement": func(a *CDNPlaybackAttestation) { a.Binding.EntitlementID = "99999999-9999-4999-8999-999999999999" },
 		"wrong key id":        func(a *CDNPlaybackAttestation) { a.KeyID = "untrusted-key" },
 		"changed ranges":      func(a *CDNPlaybackAttestation) { a.WatchedRanges[0].EndMillis-- },
-		"wrong session":      func(a *CDNPlaybackAttestation) { a.SessionID = "99999999-9999-4999-8999-999999999999" },
+		"wrong session":       func(a *CDNPlaybackAttestation) { a.SessionID = "99999999-9999-4999-8999-999999999999" },
 	}
 	for name, mutate := range cases {
 		t.Run(name, func(t *testing.T) {
