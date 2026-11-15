@@ -301,6 +301,7 @@ test("learner video error is visible and retry revalidates entitlement before re
  const streamPath="/v1/academy/enrollments/"+enrollmentID+"/lessons/"+lessonID+"/videos/"+mediaID+"/stream";
  let manifestReads=0;
  let streamAttempts=0;
+ let retryRequested=false;
  await page.route("**/v1/academy/**",async route=>{
   const request=route.request(),url=new URL(request.url()),path=url.pathname,method=request.method();
   let status=200,contentType="application/json",data:unknown={},responseBody:string|Buffer="";
@@ -327,9 +328,10 @@ test("learner video error is visible and retry revalidates entitlement before re
    data={videos:[{id:mediaID,title:"Урок 1.webm",ordinal:1}]};
   }else if(method==="GET"&&path===streamPath){
    streamAttempts++;
-   if(streamAttempts===1){
-    // Exercise the real HTMLMediaElement error handler without pretending
-    // that an upstream outage is an entitlement revocation.
+   if(!retryRequested){
+    // Keep the provider unavailable until the learner explicitly retries.
+    // This avoids browser-specific automatic retries turning the first
+    // failure into a false-positive success.
     status=503;contentType="text/plain";responseBody="temporary provider failure";
    }else{
     contentType="video/webm";
@@ -349,11 +351,11 @@ test("learner video error is visible and retry revalidates entitlement before re
  await page.getByRole("button",{name:"Продолжить"}).click();
  await expect(page.getByRole("heading",{name:"Прохождение курса"})).toBeVisible();
  const video=page.locator("video");
- await expect(video).toHaveAttribute("src",streamPath);
+ await expect.poll(()=>streamAttempts).toBeGreaterThan(0);
  await expect(page.getByRole("button",{name:"Повторить загрузку видео"})).toBeVisible();
  await expect(video).not.toHaveAttribute("src",streamPath);
- expect(streamAttempts).toBe(1);
-
+ const attemptsBeforeRetry=streamAttempts;
+ retryRequested=true;
  await page.getByRole("button",{name:"Повторить загрузку видео"}).click();
  await expect(video).toHaveAttribute("src",streamPath);
  await page.waitForFunction(()=>{
@@ -365,7 +367,7 @@ test("learner video error is visible and retry revalidates entitlement before re
   player.muted=true;
   await player.play();
  });
- await expect.poll(()=>streamAttempts).toBe(2);
+ await expect.poll(()=>streamAttempts).toBeGreaterThan(attemptsBeforeRetry);
  await expect(page.getByRole("button",{name:"Повторить загрузку видео"})).toHaveCount(0);
  expect(manifestReads).toBeGreaterThanOrEqual(2);
  expect(await video.evaluate(element=>(element as HTMLVideoElement).paused)).toBe(false);
