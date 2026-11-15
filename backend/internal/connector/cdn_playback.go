@@ -1,6 +1,7 @@
 package connector
 
 import (
+	"bytes"
 	"context"
 	"crypto/ed25519"
 	"encoding/base64"
@@ -266,6 +267,13 @@ type CDNPlaybackCapability interface {
 }
 
 // Ensure the existing canonical capability is the only accepted class.
+func cdnPlaybackAttestationMatches(verified, received CDNPlaybackAttestation) bool {
+	verifiedPayload, verifiedErr := verified.signingBytes()
+	receivedPayload, receivedErr := received.signingBytes()
+	return verifiedErr == nil && receivedErr == nil &&
+		bytes.Equal(verifiedPayload, receivedPayload) && verified.Signature == received.Signature
+}
+
 func ValidateCDNPlaybackProvider(provider Provider) error {
 	if provider == nil || !cdnPlaybackProviderPattern.MatchString(provider.Kind()) ||
 		!providerHasCapability(provider, CapabilityCDN) {

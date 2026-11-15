@@ -244,3 +244,18 @@ func TestExpiredAuthenticatedPrincipalFailsBeforeProviderExecution(t *testing.T)
 		t.Fatal("provider called with expired authenticated principal")
 	}
 }
+
+
+func TestGenericExecutorRequiresTypedCDNPlaybackPath(t *testing.T) {
+	instance := activeCDNPlaybackInstance(t)
+	provider := &fakeCDNPlaybackProvider{fakeProvider: fakeProvider{
+		kind: "provider-a", capabilities: []CapabilityClass{CapabilityCDN},
+	}}
+	principal := scopedPrincipal(t, instance.ExecuteScope)
+	if _, err := Execute(context.Background(), instance, provider, principal, validConnectorRequest(), ExecutionPolicy{}); !errors.Is(err, ErrTypedCapabilityRequired) {
+		t.Fatalf("expected typed CDN playback path requirement, got %v", err)
+	}
+	if provider.calls != 0 {
+		t.Fatal("generic connector executor bypassed typed CDN playback methods")
+	}
+}

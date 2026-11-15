@@ -171,9 +171,11 @@ func TestCDNPlaybackAttestationRejectsInvalidRangesAndGrantWindow(t *testing.T) 
 
 type fakeCDNPlaybackProvider struct {
 	fakeProvider
+	grantCalls int
 }
 
 func (p *fakeCDNPlaybackProvider) IssuePlaybackGrant(_ context.Context, request CDNPlaybackRequest) (CDNPlaybackGrant, error) {
+	p.grantCalls++
 	if err := request.Validate(); err != nil {
 		return CDNPlaybackGrant{}, err
 	}
@@ -239,5 +241,96 @@ func TestCDNPlaybackRequestRejectsInvalidBinding(t *testing.T) {
 	request.Binding.ContentSHA256 = "not-a-digest"
 	if err := request.Validate(); err == nil {
 		t.Fatal("invalid media digest was accepted")
+	}
+}
+
+
+type verifyingCDNPlaybackProvider struct {
+	fakeCDNPlaybackProvider
+	keyID     string
+	publicKey ed25519.PublicKey
+	now       time.Time
+}
+
+func (p *verifyingCDNPlaybackProvider) VerifyPlaybackAttestation(
+	_ context.Context,
+	grant CDNPlaybackGrant,
+	attestation CDNPlaybackAttestation,
+) (VerifiedCDNPlaybackAttestation, error) {
+	return VerifyCDNPlaybackAttestation(grant, attestation, p.keyID, p.publicKey, p.now)
+}
+
+func activeCDNPlaybackInstance(t *testing.T) Instance {
+	t.Helper()
+	instance, err := NewInstance("cdn-1", CapabilityCDN, "provider-a", "config/cdn")
+	if err != nil {
+		t.Fatal(err)
+	}
+	instance.Status = StatusActive
+	return instance
+}
+
+func TestTypedCDNPlaybackGrantUsesCanonicalConnectorAuthorization(t *testing.T) {
+	instance := activeCDNPlaybackInstance(t)
+	provider := &fakeCDNPlaybackProvider{fakeProvider: fakeProvider{
+		kind: "provider-a", capabilities: []CapabilityClass{CapabilityCDN},
+	}}
+	request := CDNPlaybackRequest{
+		IdempotencyKey: "academy/playback/attempt-1",
+		Binding:        validCDNPlaybackBinding(),
+	}
+
+	wrongPrincipal := scopedPrincipal(t, "connector:execute:PAYMENT_PROVIDER")
+	if _, err := IssueCDNPlaybackGrant(context.Background(), instance, provider, wrongPrincipal, request, ExecutionPolicy{}); err != ErrConnectorScopeDenied {
+		t.Fatalf("expected canonical scope denial, got %v", err)
+	}
+	if provider.grantCalls != 0 {
+		t.Fatal("CDN provider was called before canonical connector authorization")
+	}
+
+	principal := scopedPrincipal(t, instance.ExecuteScope)
+	grant, err := IssueCDNPlaybackGrant(context.Background(), instance, provider, principal, request, ExecutionPolicy{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if grant.ProviderKind != instance.ProviderKind || grant.Binding != request.Binding || !grant.ExpiresAt.After(time.Now()) {
+		t.Fatalf("provider returned an unbound or expired grant: %#v", grant)
+	}
+	if provider.grantCalls != 1 {
+		t.Fatalf("expected one provider grant call, got %d", provider.grantCalls)
+	}
+}
+
+func TestTypedCDNPlaybackEvidenceUsesConfiguredProviderAndExactPayload(t *testing.T) {
+	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC().Truncate(time.Second)
+	grant := validCDNPlaybackGrant(now)
+	attestation := signedCDNPlaybackAttestation(t, grant, privateKey, "cdn-key-1")
+	provider := &verifyingCDNPlaybackProvider{
+		fakeCDNPlaybackProvider: fakeCDNPlaybackProvider{fakeProvider: fakeProvider{
+			kind: "provider-a", capabilities: []CapabilityClass{CapabilityCDN},
+		}},
+		keyID: "cdn-key-1", publicKey: publicKey, now: now.Add(3 * time.Minute),
+	}
+	instance := activeCDNPlaybackInstance(t)
+	principal := scopedPrincipal(t, instance.ExecuteScope)
+	policy := ExecutionPolicy{Now: func() time.Time { return now.Add(3 * time.Minute) }}
+
+	verified, err := VerifyCDNPlaybackEvidence(context.Background(), instance, provider, principal, grant, attestation, policy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !verified.Valid() || verified.Binding() != grant.Binding || verified.SessionID() != grant.SessionID {
+		t.Fatalf("verified evidence lost its canonical binding: %#v", verified)
+	}
+
+	tampered := attestation
+	tampered.WatchedRanges = append([]CDNPlaybackRange(nil), attestation.WatchedRanges...)
+	tampered.WatchedRanges[0].EndMillis--
+	if _, err := VerifyCDNPlaybackEvidence(context.Background(), instance, provider, principal, grant, tampered, policy); err == nil {
+		t.Fatal("tampered attestation was accepted by typed connector executor")
 	}
 }

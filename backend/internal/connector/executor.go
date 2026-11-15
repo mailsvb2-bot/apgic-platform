@@ -9,13 +9,14 @@ import (
 )
 
 var (
-	ErrConnectorUnavailable      = errors.New("connector is not available for execution")
-	ErrConnectorDegraded         = errors.New("connector is degraded and degraded execution is not allowed")
-	ErrConnectorScopeDenied      = errors.New("service principal lacks connector execute scope")
+	ErrConnectorUnavailable       = errors.New("connector is not available for execution")
+	ErrConnectorDegraded          = errors.New("connector is degraded and degraded execution is not allowed")
+	ErrConnectorScopeDenied       = errors.New("service principal lacks connector execute scope")
 	ErrConnectorCredentialDenied = errors.New("service principal credential is not active")
-	ErrProviderMismatch          = errors.New("provider does not match connector instance")
-	ErrCapabilityMismatch        = errors.New("provider does not expose connector capability")
-	ErrInvalidProviderResult     = errors.New("provider result violates connector contract")
+	ErrProviderMismatch           = errors.New("provider does not match connector instance")
+	ErrCapabilityMismatch         = errors.New("provider does not expose connector capability")
+	ErrTypedCapabilityRequired    = errors.New("CDN_PROVIDER must use the versioned playback capability")
+	ErrInvalidProviderResult      = errors.New("provider result violates connector contract")
 )
 
 type ExecutionPolicy struct {
@@ -23,6 +24,58 @@ type ExecutionPolicy struct {
 	Now           func() time.Time
 }
 
+func executionNow(policy ExecutionPolicy) time.Time {
+	now := time.Now().UTC()
+	if policy.Now != nil {
+		now = policy.Now().UTC()
+	}
+	return now
+}
+
+func authorizeConnectorExecution(
+	ctx context.Context,
+	instance Instance,
+	provider Provider,
+	principal security.AuthenticatedServicePrincipal,
+	policy ExecutionPolicy,
+) error {
+	if ctx == nil || ctx.Err() != nil || !instance.Capability.Valid() || !instance.Status.Valid() ||
+		instance.ExecuteScope != ExecuteScopeFor(instance.Capability) {
+		return ErrInvalidConnector
+	}
+	now := executionNow(policy)
+	if !principal.ValidAt(now) {
+		return ErrConnectorCredentialDenied
+	}
+	if !principal.HasScope(instance.ExecuteScope) {
+		return ErrConnectorScopeDenied
+	}
+
+	switch instance.Status {
+	case StatusConfiguring, StatusDisabled:
+		return ErrConnectorUnavailable
+	case StatusDegraded:
+		if !policy.AllowDegraded {
+			return ErrConnectorDegraded
+		}
+	case StatusActive:
+		// ready
+	default:
+		return ErrConnectorUnavailable
+	}
+
+	if provider == nil || provider.Kind() != instance.ProviderKind {
+		return ErrProviderMismatch
+	}
+	if !providerHasCapability(provider, instance.Capability) {
+		return ErrCapabilityMismatch
+	}
+	return nil
+}
+
+// Execute is reserved for capabilities whose contract is Provider.Execute.
+// CDN playback is deliberately excluded: callers must use the typed grant and
+// attestation methods below so a generic JSON result cannot certify playback.
 func Execute(
 	ctx context.Context,
 	instance Instance,
@@ -31,42 +84,17 @@ func Execute(
 	request Request,
 	policy ExecutionPolicy,
 ) (Result, error) {
-	if ctx == nil || !instance.Capability.Valid() || !instance.Status.Valid() ||
-		instance.ExecuteScope != ExecuteScopeFor(instance.Capability) {
-		return Result{}, ErrInvalidConnector
-	}
 	if err := request.Validate(); err != nil {
 		return Result{}, err
 	}
-	now := time.Now().UTC()
-	if policy.Now != nil {
-		now = policy.Now().UTC()
+	if err := authorizeConnectorExecution(ctx, instance, provider, principal, policy); err != nil {
+		return Result{}, err
 	}
-	if !principal.ValidAt(now) {
-		return Result{}, ErrConnectorCredentialDenied
-	}
-	if !principal.HasScope(instance.ExecuteScope) {
-		return Result{}, ErrConnectorScopeDenied
-	}
-
-	switch instance.Status {
-	case StatusConfiguring, StatusDisabled:
-		return Result{}, ErrConnectorUnavailable
-	case StatusDegraded:
-		if !policy.AllowDegraded {
-			return Result{}, ErrConnectorDegraded
+	if instance.Capability == CapabilityCDN {
+		if err := ValidateCDNPlaybackProvider(provider); err != nil {
+			return Result{}, errors.Join(ErrCapabilityMismatch, err)
 		}
-	case StatusActive:
-		// ready
-	default:
-		return Result{}, ErrConnectorUnavailable
-	}
-
-	if provider == nil || provider.Kind() != instance.ProviderKind {
-		return Result{}, ErrProviderMismatch
-	}
-	if !providerHasCapability(provider, instance.Capability) {
-		return Result{}, ErrCapabilityMismatch
+		return Result{}, ErrTypedCapabilityRequired
 	}
 
 	result, err := provider.Execute(ctx, instance.Capability, request)
@@ -79,11 +107,76 @@ func Execute(
 	return result, nil
 }
 
-func providerHasCapability(provider Provider, capability CapabilityClass) bool {
-	for _, candidate := range provider.Capabilities() {
-		if candidate == capability {
-			return true
-		}
+// IssueCDNPlaybackGrant applies the same connector status, service-principal
+// scope and provider identity checks as Execute before calling the typed CDN
+// contract. A provider cannot grant a different learner, lesson or entitlement.
+func IssueCDNPlaybackGrant(
+	ctx context.Context,
+	instance Instance,
+	provider Provider,
+	principal security.AuthenticatedServicePrincipal,
+	request CDNPlaybackRequest,
+	policy ExecutionPolicy,
+) (CDNPlaybackGrant, error) {
+	if err := request.Validate(); err != nil {
+		return CDNPlaybackGrant{}, err
 	}
-	return false
+	if err := authorizeConnectorExecution(ctx, instance, provider, principal, policy); err != nil {
+		return CDNPlaybackGrant{}, err
+	}
+	if instance.Capability != CapabilityCDN {
+		return CDNPlaybackGrant{}, ErrCapabilityMismatch
+	}
+	if err := ValidateCDNPlaybackProvider(provider); err != nil {
+		return CDNPlaybackGrant{}, errors.Join(ErrCapabilityMismatch, err)
+	}
+
+	grant, err := provider.(CDNPlaybackCapability).IssuePlaybackGrant(ctx, request)
+	if err != nil {
+		return CDNPlaybackGrant{}, err
+	}
+	now := executionNow(policy)
+	if grant.Validate() != nil || grant.ProviderKind != instance.ProviderKind ||
+		grant.Binding != request.Binding || grant.IssuedAt.After(now.Add(CDNPlaybackClockSkew)) ||
+		!grant.ExpiresAt.After(now) {
+		return CDNPlaybackGrant{}, ErrInvalidCDNPlaybackGrant
+	}
+	return grant, nil
+}
+
+// VerifyCDNPlaybackEvidence verifies evidence through the configured CDN
+// connector while preserving the exact input payload. This prevents an
+// adapter from returning a different, previously verified attestation.
+func VerifyCDNPlaybackEvidence(
+	ctx context.Context,
+	instance Instance,
+	provider Provider,
+	principal security.AuthenticatedServicePrincipal,
+	grant CDNPlaybackGrant,
+	attestation CDNPlaybackAttestation,
+	policy ExecutionPolicy,
+) (VerifiedCDNPlaybackAttestation, error) {
+	if grant.Validate() != nil || attestation.ContractVersion != CDNPlaybackContractVersion ||
+		attestation.ProviderKind != grant.ProviderKind || attestation.SessionID != grant.SessionID ||
+		attestation.Binding != grant.Binding {
+		return VerifiedCDNPlaybackAttestation{}, ErrInvalidCDNPlaybackAttestation
+	}
+	if err := authorizeConnectorExecution(ctx, instance, provider, principal, policy); err != nil {
+		return VerifiedCDNPlaybackAttestation{}, err
+	}
+	if instance.Capability != CapabilityCDN || grant.ProviderKind != instance.ProviderKind {
+		return VerifiedCDNPlaybackAttestation{}, ErrCapabilityMismatch
+	}
+	if err := ValidateCDNPlaybackProvider(provider); err != nil {
+		return VerifiedCDNPlaybackAttestation{}, errors.Join(ErrCapabilityMismatch, err)
+	}
+
+	verified, err := provider.(CDNPlaybackCapability).VerifyPlaybackAttestation(ctx, grant, attestation)
+	if err != nil {
+		return VerifiedCDNPlaybackAttestation{}, err
+	}
+	if !verified.Valid() || !cdnPlaybackAttestationMatches(verified.attestation, attestation) {
+		return VerifiedCDNPlaybackAttestation{}, ErrInvalidCDNPlaybackAttestation
+	}
+	return verified, nil
 }
