@@ -203,7 +203,7 @@ func TestAcademyExchangeYandexOAuthCodeRejectsMalformedTokenResponses(t *testing
 		{name: "trailing JSON", body: `{"access_token":"token","token_type":"Bearer"}{}`},
 		{name: "unsupported token type", body: `{"access_token":"token","token_type":"Basic"}`},
 		{name: "empty token", body: `{"access_token":"","token_type":"Bearer"}`},
-		{name: "header injection", body: `{"access_token":"token\\r\\nInjected: yes","token_type":"Bearer"}`},
+		{name: "header injection", body: `{"access_token":"token\r\nInjected: yes","token_type":"Bearer"}`},
 		{name: "oversized response", body: strings.Repeat("x", 16385)},
 	}
 	for _, tc := range cases {
