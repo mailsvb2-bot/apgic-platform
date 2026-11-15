@@ -158,3 +158,71 @@ test("author creates a video lesson before selecting its Yandex Disk file",async
  await expect(page.getByText("Распределение сохранено")).toBeVisible();
  expect(savedAssignments).toEqual([{lesson_id:lessonID,media_id:mediaID,ordinal:1}]);
 });
+
+
+test("learner HTML5 player unloads its buffered source after canonical entitlement revocation",async({page})=>{
+ const enrollmentID="77777777-7777-4777-8777-777777777777";
+ const streamPath=`/v1/academy/enrollments/${enrollmentID}/lessons/${lessonID}/videos/${mediaID}/stream`;
+ let manifestReads=0;
+ await page.route("**/v1/academy/**",async route=>{
+  const request=route.request();
+  const url=new URL(request.url());
+  const path=url.pathname;
+  const method=request.method();
+  let status=200;
+  let data:unknown={};
+  if(method==="GET"&&path==="/v1/academy/courses")data={courses:[]};
+  else if(method==="GET"&&path==="/v1/academy/my-courses")data={courses:[]};
+  else if(method==="GET"&&path==="/v1/academy/my-enrollments")data={enrollments:[{
+   id:enrollmentID,version_id:versionID,course_id:courseID,course_title:"Проверочный курс",
+   version_no:1,state:"ACTIVE",access_state:"ACTIVE"
+  }]};
+  else if(method==="GET"&&path==="/v1/academy/review/attempts")data={attempts:[]};
+  else if(method==="GET"&&path==="/v1/academy/author/report")data={courses:[],gross_captures:[],revenue_state:"UNAVAILABLE"};
+  else if(method==="GET"&&path==="/v1/academy/author/cohorts")data={cohorts:[]};
+  else if(method==="GET"&&path==="/v1/academy/author/eligible-products")data={products:[]};
+  else if(method==="GET"&&path==="/v1/academy/me/course-access")data={course_ids:[courseID]};
+  else if(method==="GET"&&path==="/v1/academy/me/certificates")data={certificates:[]};
+  else if(method==="GET"&&path===`/v1/academy/enrollments/${enrollmentID}/learn"){
+   data={lessons:[{id:lessonID,module_id:moduleID,title:"Урок с видео",kind:"VIDEO",ordinal:1,available:true}]};
+  }else if(method==="GET"&&path===`/v1/academy/enrollments/${enrollmentID}/attempts"){
+   data={attempts:[]};
+  }else if(method==="GET"&&path===`/v1/academy/enrollments/${enrollmentID}/cohorts"){
+   data={cohorts:[]};
+  }else if(method==="GET"&&path==="/v1/academy/me/appeals"){
+   data={appeals:[]};
+  }else if(method==="GET"&&path===`/v1/academy/enrollments/${enrollmentID}/lessons/${lessonID}/videos"){
+   manifestReads++;
+   if(manifestReads>=3){
+    status=403;data={code:"ENTITLEMENT_REVOKED"};
+   }else{
+    data={videos:[{id:mediaID,title:"Урок 1.mp4",ordinal:1}]};
+   }
+  }else{
+   status=501;data={code:"UNMOCKED_ACADEMY_ROUTE",path,method};
+  }
+  await route.fulfill({status,contentType:"application/json",body:JSON.stringify(data)});
+ });
+
+ await page.goto("/academy");
+ await page.getByRole("button",{name:"Продолжить"}).click();
+ await expect(page.getByRole("heading",{name:"Прохождение курса"})).toBeVisible();
+ const video=page.locator("video");
+ await expect(video).toHaveAttribute("src",streamPath);
+ await video.evaluate(element=>{
+  (window as unknown as {__academyVideo?:HTMLVideoElement}).__academyVideo=element as HTMLVideoElement;
+ });
+ await expect(page.getByRole("alert").filter({
+  hasText:"Доступ к видео не подтверждён или был отозван"
+ })).toBeVisible({timeout:8000});
+ const state=await page.evaluate(()=>{
+  const element=(window as unknown as {__academyVideo?:HTMLVideoElement}).__academyVideo;
+  return {hasSource:element?.hasAttribute("src")??false,paused:element?.paused??false};
+ });
+ expect(state).toEqual({hasSource:false,paused:true});
+ await expect(video).toHaveCount(0);
+ expect(manifestReads).toBeGreaterThanOrEqual(3);
+ const rendered=await page.locator("body").innerText();
+ expect(rendered).not.toContain("downloader.disk.yandex");
+ expect(rendered).not.toContain("storage.yandex.net");
+});
