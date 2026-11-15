@@ -28,6 +28,7 @@ type cloudOAuthState struct {
 	Nonce         string `json:"nonce"`
 	ReturnCourse  string `json:"return_course,omitempty"`
 	ReturnVersion string `json:"return_version,omitempty"`
+	ReturnLesson  string `json:"return_lesson,omitempty"`
 	Expires       int64  `json:"expires"`
 }
 
@@ -76,7 +77,10 @@ func cloudOpen(value string, key []byte) (cloudOAuthState, error) {
 	}
 	if json.Unmarshal(raw, &state) != nil || state.Actor == "" || state.Verifier == "" || state.Nonce == "" || state.Expires < time.Now().Unix() ||
 		(state.ReturnCourse == "") != (state.ReturnVersion == "") ||
-		(state.ReturnCourse != "" && (!cloudOAuthEditorIDPattern.MatchString(state.ReturnCourse) || !cloudOAuthEditorIDPattern.MatchString(state.ReturnVersion))) {
+		(state.ReturnLesson != "" && state.ReturnCourse == "") ||
+		(state.ReturnCourse != "" && (!cloudOAuthEditorIDPattern.MatchString(state.ReturnCourse) ||
+			!cloudOAuthEditorIDPattern.MatchString(state.ReturnVersion))) ||
+		(state.ReturnLesson != "" && !cloudOAuthEditorIDPattern.MatchString(state.ReturnLesson)) {
 		return state, academy.ErrDenied
 	}
 	return state, nil
@@ -93,21 +97,33 @@ func cloudOAuthActorMatches(state cloudOAuthState, actor string) bool {
 // round-trip. No browser-controlled return URL or open redirect is accepted.
 var cloudOAuthEditorIDPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$`)
 
-func cloudOAuthEditorReturnIDs(rawQuery string) (string, string, bool) {
+func cloudOAuthEditorReturnIDs(rawQuery string) (string, string, string, bool) {
 	query, err := url.ParseQuery(rawQuery)
-	if err != nil || len(query) > 2 {
-		return "", "", false
+	if err != nil || len(query) > 3 {
+		return "", "", "", false
 	}
 	if len(query) == 0 {
-		return "", "", true
+		return "", "", "", true
+	}
+	for key := range query {
+		if key != "course_id" && key != "version_id" && key != "lesson_id" {
+			return "", "", "", false
+		}
 	}
 	course, version := query["course_id"], query["version_id"]
 	if len(course) != 1 || len(version) != 1 ||
 		!cloudOAuthEditorIDPattern.MatchString(course[0]) ||
 		!cloudOAuthEditorIDPattern.MatchString(version[0]) {
-		return "", "", false
+		return "", "", "", false
 	}
-	return course[0], version[0], true
+	var lessonID string
+	if lesson, ok := query["lesson_id"]; ok {
+		if len(lesson) != 1 || !cloudOAuthEditorIDPattern.MatchString(lesson[0]) {
+			return "", "", "", false
+		}
+		lessonID = lesson[0]
+	}
+	return course[0], version[0], lessonID, true
 }
 
 func cloudOAuthCallbackDestination(state cloudOAuthState) string {
@@ -115,6 +131,9 @@ func cloudOAuthCallbackDestination(state cloudOAuthState) string {
 	if state.ReturnCourse != "" && state.ReturnVersion != "" {
 		query.Set("course_id", state.ReturnCourse)
 		query.Set("version_id", state.ReturnVersion)
+		if state.ReturnLesson != "" {
+			query.Set("lesson_id", state.ReturnLesson)
+		}
 	}
 	return "/academy?" + query.Encode()
 }
@@ -225,7 +244,7 @@ func academyExchangeYandexOAuthCode(ctx context.Context, client *http.Client, en
 func registerAcademyYandexOAuth(mux *http.ServeMux, store academyStore, sessions *clientSessionManager, sessionErr error) {
 	const cookieName = "apgic_academy_yandex_oauth"
 	mux.HandleFunc("GET /v1/academy/author/cloud/yandex/connect", func(w http.ResponseWriter, r *http.Request) {
-		returnCourse, returnVersion, validReturn := cloudOAuthEditorReturnIDs(r.URL.RawQuery)
+		returnCourse, returnVersion, returnLesson, validReturn := cloudOAuthEditorReturnIDs(r.URL.RawQuery)
 		if !validReturn {
 			academyHTTPError(w, r, academy.ErrInvalid)
 			return
@@ -254,7 +273,7 @@ func registerAcademyYandexOAuth(mux *http.ServeMux, store academyStore, sessions
 			academyHTTPError(w, r, academy.ErrUnavailable)
 			return
 		}
-		value, err := cloudSeal(cloudOAuthState{Actor: actor, Verifier: verifier, Nonce: nonce, Expires: time.Now().Add(10 * time.Minute).Unix(), ReturnCourse: returnCourse, ReturnVersion: returnVersion}, key)
+		value, err := cloudSeal(cloudOAuthState{Actor: actor, Verifier: verifier, Nonce: nonce, Expires: time.Now().Add(10 * time.Minute).Unix(), ReturnCourse: returnCourse, ReturnVersion: returnVersion, ReturnLesson: returnLesson}, key)
 		if err != nil {
 			academyHTTPError(w, r, academy.ErrUnavailable)
 			return

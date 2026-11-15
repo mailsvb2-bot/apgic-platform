@@ -72,11 +72,22 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
   if(oauthAutoOpened.current)return;
   const query=new URLSearchParams(window.location.search);
   if(query.get("cloud_connected")!=="yandex")return;
-  const qCourse=query.get("course_id"),qVersion=query.get("version_id");
+  const qCourse=query.get("course_id"),qVersion=query.get("version_id"),qLesson=query.get("lesson_id");
   if((qCourse||qVersion)&&(qCourse!==courseId||qVersion!==versionId))return;
+  // The OAuth round-trip returns to the exact video lesson. The parent
+  // restores the draft first; wait for its outline before accepting that ID.
+  if(qLesson&&lessons.length===0)return;
+  if(qLesson){
+   if(!videoLessons.some(lesson=>lesson.id===qLesson)){
+    oauthAutoOpened.current=true;
+    setMessage("Яндекс Диск подключён. Выберите актуальный видеоурок повторно.");
+    return;
+   }
+   setLessonId(qLesson);
+  }
   oauthAutoOpened.current=true;
   void browseDisk("disk:/");
- },[courseId,versionId]);
+ },[courseId,versionId,lessons]);
  async function importDiskSelection(){
   if(!Object.keys(diskSelectedFiles).length)return;
   setBusy(true);setMessage("");
@@ -192,7 +203,7 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
   </select>
   {!lessonId?<p role="status">Выберите урок, чтобы открыть медиатеку и прикрепить к нему видео.</p>:<>
   <h4>Ваш Яндекс Диск</h4>
-  <a href={`/v1/academy/author/cloud/yandex/connect?course_id=${encodeURIComponent(courseId)}&version_id=${encodeURIComponent(versionId)}`}>Подключить Яндекс Диск</a>
+  <a href={`/v1/academy/author/cloud/yandex/connect?course_id=${encodeURIComponent(courseId)}&version_id=${encodeURIComponent(versionId)}&lesson_id=${encodeURIComponent(lessonId)}`}>Подключить Яндекс Диск</a>
   <p>После подтверждения в Яндексе файлы откроются автоматически. Выберите нужные видео.</p>
   <button type="button" disabled={busy} onClick={()=>void browseDisk("disk:/")}>Открыть Яндекс Диск</button>
   <p>Папка: {diskPath}</p>

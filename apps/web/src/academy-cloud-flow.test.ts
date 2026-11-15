@@ -18,6 +18,8 @@ test("Academy embedded Yandex Disk workflow preserves canonical OAuth and verifi
  assert.match(editor,/\/v1\/academy\/author\/cloud\/yandex\/connect/);
  assert.match(editor,/\/v1\/academy\/author\/cloud\/yandex\/files/);
  assert.match(editor,/cloud_connected/);
+ assert.match(editor,/lesson_id=\$\{encodeURIComponent\(lessonId\)\}/);
+ assert.match(editor,/query\.get\("lesson_id"\)/);
  assert.match(editor,/browseDisk\("disk:\/"\)/);
  assert.match(editor,/\/v1\/academy\/author\/cloud-media\/import/);
  assert.match(editor,/\/v1\/academy\/author\/courses\/\$\{courseId\}\/versions\/\$\{versionId\}\/media/);

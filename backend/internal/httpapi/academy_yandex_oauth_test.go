@@ -68,12 +68,15 @@ func TestCloudOAuthCallbackRejectsSessionSwitch(t *testing.T) {
 func TestCloudOAuthEditorReturnRequiresExactPair(t *testing.T) {
 	const course = "11111111-1111-4111-8111-111111111111"
 	const version = "22222222-2222-4222-8222-222222222222"
+	const lesson = "33333333-3333-4333-8333-333333333333"
 	for _, tc := range []struct {
 		name, query string
 		allowed     bool
 	}{
 		{"no editor", "", true},
 		{"valid editor", "course_id=" + course + "&version_id=" + version, true},
+		{"valid editor lesson", "course_id=" + course + "&version_id=" + version + "&lesson_id=" + lesson, true},
+		{"invalid lesson", "course_id=" + course + "&version_id=" + version + "&lesson_id=../../evil", false},
 		{"course alone", "course_id=" + course, false},
 		{"version alone", "version_id=" + version, false},
 		{"duplicate course", "course_id=" + course + "&course_id=" + course + "&version_id=" + version, false},
@@ -82,33 +85,37 @@ func TestCloudOAuthEditorReturnRequiresExactPair(t *testing.T) {
 		{"malformed encoding", "course_id=%ZZ&version_id=" + version, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			gotCourse, gotVersion, allowed := cloudOAuthEditorReturnIDs(tc.query)
+			gotCourse, gotVersion, gotLesson, allowed := cloudOAuthEditorReturnIDs(tc.query)
 			if allowed != tc.allowed {
 				t.Fatalf("accepted=%v, want %v", allowed, tc.allowed)
 			}
 			if allowed && tc.query != "" && (gotCourse != course || gotVersion != version) {
 				t.Fatalf("wrong return target: %q %q", gotCourse, gotVersion)
 			}
+			if tc.name == "valid editor lesson" && gotLesson != lesson {
+				t.Fatalf("wrong return lesson: %q", gotLesson)
+			}
 		})
 	}
 	key := []byte("0123456789abcdef0123456789abcdef")
 	state := cloudOAuthState{Actor: "author", Verifier: strings.Repeat("v", 43), Nonce: "nonce",
-		Expires: time.Now().Add(time.Minute).Unix(), ReturnCourse: course, ReturnVersion: version}
+		Expires: time.Now().Add(time.Minute).Unix(), ReturnCourse: course, ReturnVersion: version, ReturnLesson: lesson}
 	sealed, err := cloudSeal(state, key)
 	if err != nil {
 		t.Fatal(err)
 	}
 	opened, err := cloudOpen(sealed, key)
-	if err != nil || opened.ReturnCourse != course || opened.ReturnVersion != version {
+	if err != nil || opened.ReturnCourse != course || opened.ReturnVersion != version || opened.ReturnLesson != lesson {
 		t.Fatalf("editor target not preserved by signed OAuth state: %+v %v", opened, err)
 	}
-	want := "/academy?cloud_connected=yandex&course_id=" + course + "&version_id=" + version
+	want := "/academy?cloud_connected=yandex&course_id=" + course + "&lesson_id=" + lesson + "&version_id=" + version
 	if got := cloudOAuthCallbackDestination(opened); got != want {
 		t.Fatalf("unexpected callback destination %q", got)
 	}
 	if got := cloudOAuthCallbackDestination(cloudOAuthState{}); got != "/academy?cloud_connected=yandex" {
 		t.Fatalf("unexpected default callback destination %q", got)
 	}
+	state.ReturnLesson = ""
 	state.ReturnVersion = ""
 	invalid, err := cloudSeal(state, key)
 	if err != nil {
