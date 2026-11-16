@@ -35,6 +35,10 @@ func (c *Checker) AcademyRecordCDNPlaybackEvidence(
 		time.Now().UTC().After(grant.ExpiresAt.Add(connector.CDNPlaybackClockSkew)) {
 		return AcademyCDNPlaybackReceipt{}, academy.ErrInvalid
 	}
+	sourceSHA := academyReleaseSourceSHA()
+	if sourceSHA == "" {
+		return AcademyCDNPlaybackReceipt{}, academy.ErrUnavailable
+	}
 	binding := verified.Binding()
 	attestationJSON, err := verified.AttestationJSON()
 	if err != nil {
@@ -92,7 +96,7 @@ func (c *Checker) AcademyRecordCDNPlaybackEvidence(
  JOIN academy_video_provider_certifications cert
    ON cert.connector_instance_id=ci.id
    AND cert.contract_version=$5 AND cert.provider_kind=ci.provider_kind
-   AND cert.key_id=$6 AND cert.expires_at>now()
+   AND cert.key_id=$6 AND cert.tested_source_sha=$7 AND cert.expires_at>now()
  WHERE e.id=$1::uuid AND e.identity_id=$7::uuid AND l.id=$2::uuid
  AND e.state='ACTIVE' AND academy_entitlement_is_active(t.id)
  AND cm.provider='YANDEX_DISK' AND cm.resource_id IS NOT NULL
@@ -100,7 +104,7 @@ func (c *Checker) AcademyRecordCDNPlaybackEvidence(
  FOR UPDATE OF e,t,ci`,
 		binding.EnrollmentID, binding.LessonID, binding.MediaID,
 		grant.ProviderInstanceID, connector.CDNPlaybackContractVersion,
-		verified.KeyID(), binding.SubjectID,
+		verified.KeyID(), sourceSHA, binding.SubjectID,
 	).Scan(
 		&subjectID, &entitlementID, &versionID, &courseID, &authorID,
 		&contentSHA, &contentLength, &providerKind,

@@ -4,10 +4,26 @@ import (
 	"context"
 	"database/sql"
 	"os"
+	"strings"
 )
 
 func academyVideoPublishEnabled() bool {
 	return os.Getenv("APGIC_ACADEMY_VIDEO_PUBLISH_ENABLED") == "true"
+}
+
+// academyReleaseSourceSHA binds a provider acceptance to the exact deployed
+// source tree. Missing or malformed build identity always keeps VIDEO closed.
+func academyReleaseSourceSHA() string {
+	value := strings.ToLower(strings.TrimSpace(os.Getenv("APGIC_RELEASE_SOURCE_SHA")))
+	if len(value) != 40 {
+		return ""
+	}
+	for _, ch := range value {
+		if !((ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f')) {
+			return ""
+		}
+	}
+	return value
 }
 
 // Video publishing remains disabled by default until the actual staging
@@ -21,8 +37,15 @@ func academyVideoPublicationReady(ctx context.Context, tx *sql.Tx, author, versi
 	// release certification must name an active CDN_PROVIDER instance, its
 	// trusted signing key, exact tested source SHA and acceptance evidence.
 	// No environment flag can manufacture that durable provider proof.
+	sourceSHA := academyReleaseSourceSHA()
+	if sourceSHA == "" {
+		return false, nil
+	}
+	if _, err := tx.ExecContext(ctx, `SELECT set_config('apgic.release_source_sha',$1,true)`, sourceSHA); err != nil {
+		return false, err
+	}
 	var certified bool
-	if err := tx.QueryRowContext(ctx, `SELECT academy_video_provider_certification_available()`).Scan(&certified); err != nil {
+	if err := tx.QueryRowContext(ctx, `SELECT academy_video_provider_certification_available($1)`, sourceSHA).Scan(&certified); err != nil {
 		return false, err
 	}
 	if !certified {
