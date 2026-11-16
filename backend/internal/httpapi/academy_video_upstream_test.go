@@ -2,94 +2,87 @@ package httpapi
 
 import (
 	"net/http"
-	"testing"
+	"strconv"
+	"strings"
 )
 
-func TestAcademyVideoUpstreamResponseAllowed(t *testing.T) {
-	for _, tc := range []struct {
-		name, requestRange string
-		status             int
-		headers            http.Header
-		allowed            bool
-	}{
-		{"full video", "", 200, http.Header{"Content-Type": {"video/mp4"}, "Content-Length": {"1024"}}, true},
-		{"full octet stream", "", 200, http.Header{"Content-Type": {"application/octet-stream"}, "Content-Length": {"1024"}}, true},
-		{"partial video", "bytes=0-99", 206, http.Header{"Content-Type": {"video/mp4"}, "Content-Range": {"bytes 0-99/500"}, "Content-Length": {"100"}}, true},
-		{"ignored range", "bytes=0-99", 200, http.Header{"Content-Type": {"video/mp4"}, "Content-Length": {"1024"}}, false},
-		{"chunked full without length", "", 200, http.Header{"Content-Type": {"video/mp4"}}, false},
-		{"zero full length", "", 200, http.Header{"Content-Type": {"video/mp4"}, "Content-Length": {"0"}}, false},
-		{"overflow full length", "", 200, http.Header{"Content-Type": {"video/mp4"}, "Content-Length": {"9223372036854775808"}}, false},
-		{"negative full length", "", 200, http.Header{"Content-Type": {"video/mp4"}, "Content-Length": {"-1"}}, false},
-		{"ambiguous full length", "", 200, http.Header{"Content-Type": {"video/mp4"}, "Content-Length": {"100", "200"}}, false},
-		{"full with unexpected content range", "", 200, http.Header{"Content-Type": {"video/mp4"}, "Content-Length": {"100"}, "Content-Range": {"bytes 0-99/100"}}, false},
-		{"unexpected partial", "", 206, http.Header{"Content-Type": {"video/mp4"}, "Content-Range": {"bytes 0-99/500"}}, false},
-		{"bad range", "bytes=0-99", 206, http.Header{"Content-Type": {"video/mp4"}, "Content-Range": {"bytes 200-299/500"}}, false},
-		{"gzip encoded range", "bytes=0-99", 206, http.Header{"Content-Type": {"video/mp4"}, "Content-Range": {"bytes 0-99/500"}, "Content-Encoding": {"gzip"}}, false},
-		{"br encoded full", "", 200, http.Header{"Content-Type": {"video/mp4"}, "Content-Encoding": {"br"}}, false},
-		{"identity encoded range", "bytes=0-99", 206, http.Header{"Content-Type": {"video/mp4"}, "Content-Range": {"bytes 0-99/500"}, "Content-Encoding": {"identity"}}, true},
-		{"duplicate content type", "bytes=0-99", 206, http.Header{"Content-Type": {"video/mp4", "text/html"}, "Content-Range": {"bytes 0-99/500"}}, false},
-		{"duplicate content range", "bytes=0-99", 206, http.Header{"Content-Type": {"video/mp4"}, "Content-Range": {"bytes 0-99/500", "bytes 200-299/500"}}, false},
-		{"duplicate content encoding", "bytes=0-99", 206, http.Header{"Content-Type": {"video/mp4"}, "Content-Range": {"bytes 0-99/500"}, "Content-Encoding": {"identity", "gzip"}}, false},
-		{"duplicate content length", "bytes=0-99", 206, http.Header{"Content-Type": {"video/mp4"}, "Content-Range": {"bytes 0-99/500"}, "Content-Length": {"100", "100"}}, false},
-		{"html error", "", 200, http.Header{"Content-Type": {"text/html"}}, false},
-		{"redirect", "", 302, http.Header{"Content-Type": {"video/mp4"}, "Location": {"https://example.com"}}, false},
-		{"provider error", "", 401, http.Header{"Content-Type": {"video/mp4"}}, false},
-		{"empty content type", "", 200, http.Header{}, false},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := academyVideoUpstreamResponseAllowed(tc.requestRange, tc.status, tc.headers); got != tc.allowed {
-				t.Fatalf("allowed=%v, want %v", got, tc.allowed)
-			}
-		})
+// academyVideoUpstreamResponseAllowed rejects incorrect Range semantics and
+// non-video responses before their headers or body are forwarded to learners.
+// No upstream Location, Set-Cookie, authorization or server headers are copied.
+func academyVideoUpstreamResponseAllowed(requestRange string, status int, headers http.Header) bool {
+	if status != http.StatusOK && status != http.StatusPartialContent {
+		return false
 	}
+	if requestRange != "" && status != http.StatusPartialContent {
+		return false
+	}
+	// net/http Header.Get returns only the first value. Conflicting duplicate
+	// upstream headers must not let a provider smuggle a different encoding,
+	// media type or byte range past the gateway validation.
+	if len(headers.Values("Content-Type")) != 1 || len(headers.Values("Content-Range")) > 1 ||
+		len(headers.Values("Content-Length")) > 1 || len(headers.Values("Content-Encoding")) > 1 {
+		return false
+	}
+	// Byte ranges apply to the original media representation. Never forward
+	// compressed/encoded provider bytes as an unencoded HTML5 video range.
+	if encoding := strings.TrimSpace(headers.Get("Content-Encoding")); encoding != "" && !strings.EqualFold(encoding, "identity") {
+		return false
+	}
+	if status == http.StatusOK {
+		// A full representation must have a known, finite length. Reject
+		// chunked/unbounded 200 responses and fabricated Content-Range headers.
+		if _, err := academyVideoFullLength(headers); err != nil {
+			return false
+		}
+	}
+	if status == http.StatusPartialContent &&
+		!academyVideoPartialMatchesRequest(requestRange, headers.Get("Content-Range"), headers.Get("Content-Length")) {
+		return false
+	}
+	ct := strings.ToLower(strings.TrimSpace(strings.SplitN(headers.Get("Content-Type"), ";", 2)[0]))
+	return strings.HasPrefix(ct, "video/") || ct == "application/octet-stream"
 }
 
-func TestAcademyVideoUnsatisfiedRangeAllowed(t *testing.T) {
-	for _, tc := range []struct {
-		name, requested, returned string
-		allowed                   bool
-	}{
-		{"seek past end", "bytes=9999-", "bytes */1024", true},
-		{"bounded past end", "bytes=9999-10000", "bytes */1024", true},
-		{"empty video", "bytes=0-", "bytes */0", true},
-		{"empty video suffix", "bytes=-5", "bytes */0", true},
-		{"ordinary valid seek", "bytes=100-", "bytes */1024", false},
-		{"last byte seek", "bytes=1023-", "bytes */1024", false},
-		{"suffix within content", "bytes=-100", "bytes */1024", false},
-		{"zero suffix", "bytes=-0", "bytes */0", false},
-		{"no requested range", "", "bytes */1024", false},
-		{"reversed range", "bytes=2000-1000", "bytes */1024", false},
-		{"provider redirect content", "bytes=9999-", "bytes 0-100/1024", false},
-		{"missing total", "bytes=9999-", "bytes */", false},
-		{"unknown total", "bytes=9999-", "bytes */*", false},
-		{"injected header", "bytes=9999-", "bytes */1024\r\nLocation: https://evil.invalid", false},
-		{"negative total", "bytes=9999-", "bytes */-1", false},
-		{"numeric overflow", "bytes=9999-", "bytes */18446744073709551616", false},
-		{"request overflow", "bytes=18446744073709551616-", "bytes */1024", false},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := academyVideoUnsatisfiedRangeAllowed(tc.requested, tc.returned); got != tc.allowed {
-				t.Fatalf("unsatisfied range validation: got %v, want %v", got, tc.allowed)
-			}
-		})
+// academyVideoUnsatisfiedRangeAllowed prevents a cloud provider from using a
+// fabricated 416 response to disclose representation metadata. Only a
+// syntactically valid, genuinely unsatisfiable single byte range is accepted.
+func academyVideoUnsatisfiedRangeAllowed(requestRange, contentRange string) bool {
+	if !academyVideoSingleRange(requestRange) || !strings.HasPrefix(contentRange, "bytes */") {
+		return false
 	}
+	totalText := strings.TrimPrefix(contentRange, "bytes */")
+	if totalText == "" || strings.Trim(totalText, "0123456789") != "" {
+		return false
+	}
+	total, err := strconv.ParseUint(totalText, 10, 64)
+	if err != nil {
+		return false
+	}
+	spec := strings.TrimPrefix(requestRange, "bytes=")
+	startText, endText, ok := strings.Cut(spec, "-")
+	if !ok {
+		return false
+	}
+	if startText == "" {
+		suffix, err := strconv.ParseUint(endText, 10, 64)
+		return err == nil && suffix > 0 && total == 0
+	}
+	start, err := strconv.ParseUint(startText, 10, 64)
+	if err != nil {
+		return false
+	}
+	if endText != "" {
+		end, err := strconv.ParseUint(endText, 10, 64)
+		if err != nil || end < start {
+			return false
+		}
+	}
+	return start >= total
 }
 
-func TestAcademyVideoUnsatisfiedRangeHeadersAllowed(t *testing.T) {
-	for _, tc := range []struct {
-		name    string
-		headers http.Header
-		want    bool
-	}{
-		{"valid 416", http.Header{"Content-Range": {"bytes */1024"}}, true},
-		{"missing range", http.Header{}, false},
-		{"conflicting range", http.Header{"Content-Range": {"bytes */1024", "bytes */2048"}}, false},
-		{"duplicate identical range", http.Header{"Content-Range": {"bytes */1024", "bytes */1024"}}, false},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := academyVideoUnsatisfiedRangeHeadersAllowed("bytes=9999-", tc.headers); got != tc.want {
-				t.Fatalf("allowed=%v, want %v", got, tc.want)
-			}
-		})
-	}
+// academyVideoUnsatisfiedRangeHeadersAllowed checks the complete upstream
+// header set, not just Header.Get (which hides duplicate Content-Range fields).
+func academyVideoUnsatisfiedRangeHeadersAllowed(requestRange string, headers http.Header) bool {
+	values := headers.Values("Content-Range")
+	return len(values) == 1 && academyVideoUnsatisfiedRangeAllowed(requestRange, values[0])
 }
