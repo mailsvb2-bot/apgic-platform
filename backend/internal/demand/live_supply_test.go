@@ -9,12 +9,13 @@ import (
 )
 
 type liveSupplyFixture struct {
-	offers []BookableOffer
-	err    error
+	offers   []BookableOffer
+	profiles []marketplace.SpecialistProfile
+	err      error
 }
 
 func (s *liveSupplyFixture) PublishedProfiles() ([]marketplace.SpecialistProfile, error) {
-	return nil, s.err
+	return s.profiles, s.err
 }
 
 func (s *liveSupplyFixture) BookableOffers() ([]BookableOffer, error) {
@@ -142,5 +143,36 @@ func TestLiveSupplyMatchesSelectedPricedOfferAndHoldsOnlyConfirmedTopic(t *testi
 	if retained, err := service.HoldStatus(hold.ID, intent.ClientIdentityID); err != nil || retained.ID != hold.ID ||
 		retained.BookingState != "HELD" {
 		t.Fatalf("disallowed replay damaged the original valid hold: %#v err=%v", retained, err)
+	}
+}
+
+func TestLiveSearchUsesCurrentDurablePublicationNotCachedPricedOffer(t *testing.T) {
+	now := time.Date(2026, 10, 12, 14, 0, 0, 0, time.UTC)
+	offer := liveFixtureOffer(t, "anxiety", "11111111-1111-4111-8111-111111111111", 185000, now.Add(2*time.Hour))
+	supply := &liveSupplyFixture{offers: []BookableOffer{offer}}
+	service := NewConformanceService(func() time.Time { return now })
+	service.liveSupplyMode = true
+	service.specialistStore = supply
+	// The in-memory priced offer is a snapshot of a formerly published
+	// specialist. It must not overrule the current publication owner.
+	service.catalog = liveCatalogFromOffers(supply.offers)
+
+	hidden, err := service.Search("anxiety")
+	if err != nil || len(hidden.Entries) != 0 {
+		t.Fatalf("cached live offer leaked withdrawn publication: %#v err=%v", hidden, err)
+	}
+	supply.profiles = []marketplace.SpecialistProfile{offer.Profile}
+	visible, err := service.Search("anxiety")
+	if err != nil || len(visible.Entries) != 1 || visible.Entries[0].SpecialistID != offer.Profile.ID {
+		t.Fatalf("newly published durable profile is missing: %#v err=%v", visible, err)
+	}
+	supply.profiles = nil
+	withdrawn, err := service.Search("anxiety")
+	if err != nil || len(withdrawn.Entries) != 0 {
+		t.Fatalf("withdrawn specialist remained searchable: %#v err=%v", withdrawn, err)
+	}
+	supply.err = errors.New("publication database unavailable")
+	if result, err := service.Search("anxiety"); !errors.Is(err, ErrSpecialistSupplyUnavailable) || result != nil {
+		t.Fatalf("publication outage served stale cached profiles: %#v err=%v", result, err)
 	}
 }
