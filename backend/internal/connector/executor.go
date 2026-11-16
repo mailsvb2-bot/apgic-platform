@@ -252,6 +252,14 @@ func OpenCDNPlaybackStream(
 		}
 		return CDNPlaybackStream{}, ctx.Err()
 	}
+	// Provider I/O can outlast the grant even when the caller's context is
+	// still live. Never hand an already-expired stream to the HTTP gateway.
+	if !grant.ExpiresAt.After(time.Now().UTC()) {
+		if stream.Body != nil {
+			_ = stream.Body.Close()
+		}
+		return CDNPlaybackStream{}, ErrInvalidCDNPlaybackGrant
+	}
 	if err := ValidateCDNPlaybackStream(grant.Binding, expectedRange, stream); err != nil {
 		if stream.Body != nil {
 			_ = stream.Body.Close()
