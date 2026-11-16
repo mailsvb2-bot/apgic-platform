@@ -600,7 +600,15 @@ func (s *Service) Slots(specialistID string) ([]Slot, error) {
 func (s *Service) SlotsForOffer(specialistID, offerID string) ([]Slot, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.journeyStore == nil {
+	// A live slot read must use the same current PostgreSQL owners as Matches.
+	// Refresh both offer eligibility and durable holds/bookings; otherwise a
+	// long-running API process may advertise a paused offer or a slot reserved
+	// by another worker after its last Matches call.
+	if s.liveSupplyMode {
+		if err := s.refreshJourneyLocked(); err != nil {
+			return nil, err
+		}
+	} else if s.journeyStore == nil {
 		if err := s.refreshCatalogLocked(); err != nil {
 			return nil, err
 		}
