@@ -17,7 +17,7 @@ func TestCloudOAuthSignedStateRejectsTamperingAndExpiry(t *testing.T) {
 	state := cloudOAuthState{
 		Actor:    "author-one",
 		Verifier: strings.Repeat("v", 43),
-		Nonce:    "random-nonce",
+		Nonce:    strings.Repeat("n", 32),
 		Expires:  time.Now().Add(time.Minute).Unix(),
 	}
 	sealed, err := cloudSeal(state, key)
@@ -46,6 +46,30 @@ func TestCloudOAuthSignedStateRejectsTamperingAndExpiry(t *testing.T) {
 	}
 	if _, err := cloudOpen(expired, key); err == nil {
 		t.Fatal("expired OAuth flow accepted")
+	}
+
+	for _, tc := range []struct {
+		name   string
+		mutate func(*cloudOAuthState)
+	}{
+		{name: "short PKCE verifier", mutate: func(s *cloudOAuthState) { s.Verifier = "short" }},
+		{name: "short state nonce", mutate: func(s *cloudOAuthState) { s.Nonce = "nonce" }},
+		{name: "expiry boundary", mutate: func(s *cloudOAuthState) { s.Expires = time.Now().Unix() }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			invalidState := cloudOAuthState{
+				Actor: "author-one", Verifier: strings.Repeat("v", 43),
+				Nonce: strings.Repeat("n", 32), Expires: time.Now().Add(time.Minute).Unix(),
+			}
+			tc.mutate(&invalidState)
+			value, err := cloudSeal(invalidState, key)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := cloudOpen(value, key); err == nil {
+				t.Fatal("signed OAuth state with non-canonical PKCE/nonce/expiry was accepted")
+			}
+		})
 	}
 }
 
@@ -104,7 +128,7 @@ func TestCloudOAuthEditorReturnRequiresExactPair(t *testing.T) {
 		})
 	}
 	key := []byte("0123456789abcdef0123456789abcdef")
-	state := cloudOAuthState{Actor: "author", Verifier: strings.Repeat("v", 43), Nonce: "nonce",
+	state := cloudOAuthState{Actor: "author", Verifier: strings.Repeat("v", 43), Nonce: strings.Repeat("n", 32),
 		Expires: time.Now().Add(time.Minute).Unix(), ReturnCourse: course, ReturnVersion: version, ReturnLesson: lesson}
 	sealed, err := cloudSeal(state, key)
 	if err != nil {
