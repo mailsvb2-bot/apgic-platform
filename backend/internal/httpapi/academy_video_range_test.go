@@ -5,6 +5,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/academy"
 )
 
 func TestAcademyVideoSingleRange(t *testing.T) {
@@ -57,7 +59,8 @@ func TestAcademyVideoStreamRejectsMalformedRangeAsBadRequestBeforeProviderLookup
 		t.Fatal(err)
 	}
 	store := &academyStoreStub{}
-	handler := New(Options{Academy: store, ClientSessionKey: key})
+	mux := http.NewServeMux()
+	registerAcademyVideoStreamWithClients(mux, store, sessions, nil, academy.YandexDiskClient{}, nil)
 	request := httptest.NewRequest(http.MethodGet,
 		"/v1/academy/enrollments/00000000-0000-4000-8000-000000000001/lessons/00000000-0000-4000-8000-000000000002/videos/00000000-0000-4000-8000-000000000003/stream",
 		nil)
@@ -65,7 +68,7 @@ func TestAcademyVideoStreamRejectsMalformedRangeAsBadRequestBeforeProviderLookup
 	request.Header.Add("Range", "bytes=0-99,100-199")
 	response := httptest.NewRecorder()
 
-	handler.ServeHTTP(response, request)
+	mux.ServeHTTP(response, request)
 
 	if response.Code != http.StatusBadRequest {
 		t.Fatalf("malformed multi-range returned %d, want 400", response.Code)
