@@ -1215,6 +1215,23 @@ func TestAcademyStoreRefundWithdrawsLearningAccess(t *testing.T) {
 	if _, err = store.AcademyLearning(learner, enrollmentID); !errors.Is(err, academy.ErrEntitlement) {
 		t.Fatalf("revoked purchased lesson body remains accessible: %v", err)
 	}
+	// The exact server-only source resolver used by the HTTP video gateway
+	// must reject the same refunded enrollment before a new stream or seek.
+	var videoLessonID, videoMediaID string
+	if err = db.QueryRow(`SELECT l.id::text,lm.media_id::text
+ FROM academy_enrollments e
+ JOIN academy_course_versions v ON v.id=e.version_id
+ JOIN academy_modules m ON m.version_id=v.id
+ JOIN academy_lessons l ON l.module_id=m.id AND l.kind='VIDEO'
+ JOIN academy_lesson_media lm ON lm.lesson_id=l.id
+ WHERE e.id=$1::uuid
+ ORDER BY l.ordinal
+ LIMIT 1`, enrollmentID).Scan(&videoLessonID, &videoMediaID); err != nil {
+		t.Fatalf("paid course video assignment missing from refund fixture: %v", err)
+	}
+	if _, _, _, err = store.AcademyLearnerVideoSource(learner, enrollmentID, videoLessonID, videoMediaID); !errors.Is(err, academy.ErrEntitlement) {
+		t.Fatalf("refunded entitlement still resolves a learner video source: %v", err)
+	}
 	if _, err = store.AcademyLearnerCohorts(learner, enrollmentID); !errors.Is(err, academy.ErrEntitlement) {
 		t.Fatalf("revoked entitlement still disclosed learner cohort schedule: %v", err)
 	}
