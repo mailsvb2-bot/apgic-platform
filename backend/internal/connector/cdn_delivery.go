@@ -158,7 +158,7 @@ type cdnPlaybackContextBody struct {
 	done     chan struct{}
 	once     sync.Once
 	closeErr error
-	cancel context.CancelFunc
+	cancel   context.CancelFunc
 }
 
 // bindCDNPlaybackBody enforces the validated representation length as well as
