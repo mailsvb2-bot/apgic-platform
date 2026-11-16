@@ -29,6 +29,8 @@ RETURNS trigger LANGUAGE plpgsql AS $fn$
 DECLARE
   auth_actor text;
   auth_action text;
+  auth_scope text;
+  auth_resource_ref text;
   auth_state jsonb;
   auth_reason text;
   auth_occurred_at timestamptz;
@@ -43,16 +45,25 @@ BEGIN
     RAISE EXCEPTION 'academy video certification requires an active matching CDN_PROVIDER instance';
   END IF;
 
-  SELECT actor_id,action,new_state,reason,occurred_at
-    INTO auth_actor,auth_action,auth_state,auth_reason,auth_occurred_at
+  SELECT actor_id,action,scope,resource_ref,new_state,reason,occurred_at
+    INTO auth_actor,auth_action,auth_scope,auth_resource_ref,auth_state,auth_reason,auth_occurred_at
   FROM audit_records
   WHERE id=NEW.step_up_audit_ref;
   IF NOT FOUND
     OR auth_actor IS DISTINCT FROM NEW.accepted_by::text
     OR auth_action IS DISTINCT FROM 'authorization.decision'
+    OR auth_scope IS DISTINCT FROM 'academy.video.provider.certify'
+    OR auth_resource_ref IS DISTINCT FROM 'connector/'||NEW.connector_instance_id::text
     OR auth_state->>'decision' IS DISTINCT FROM 'ALLOW'
     OR auth_state->>'risk' IS DISTINCT FROM 'HIGH_RISK'
     OR auth_state->>'action' IS DISTINCT FROM 'academy.video.provider.certify'
+    OR auth_state->>'contract_version' IS DISTINCT FROM NEW.contract_version
+    OR auth_state->>'provider_instance_id' IS DISTINCT FROM NEW.connector_instance_id::text
+    OR auth_state->>'provider_kind' IS DISTINCT FROM NEW.provider_kind
+    OR auth_state->>'key_id' IS DISTINCT FROM NEW.key_id
+    OR auth_state->>'acceptance_sha256' IS DISTINCT FROM NEW.acceptance_sha256
+    OR auth_state->>'acceptance_ref' IS DISTINCT FROM NEW.acceptance_ref
+    OR auth_state->>'tested_source_sha' IS DISTINCT FROM NEW.tested_source_sha
     OR btrim(COALESCE(auth_reason,''))=''
     OR NEW.accepted_at<auth_occurred_at
     OR NEW.accepted_at>auth_occurred_at+interval '5 minutes' THEN
