@@ -135,7 +135,8 @@ jobs:
               "not_proven": [
                   "signed_author_and_learner_browser_sessions",
                   "postgresql_persisted_entitlement_revocation",
-                  "signed_cdn_playback_attestation_and_academy_persistence",
+                  "canonical_postgresql_direct_video_delivery_receipts",
+                  "learner_explicit_lesson_acknowledgement",
                   "externally_captured_psp_payment",
                   "finance_reconciliation",
                   "real_device_playback",
