@@ -179,6 +179,7 @@ func bindCDNPlaybackBody(ctx context.Context, body io.ReadCloser, contentLength 
 type cdnPlaybackBoundedBody struct {
 	reader *io.LimitedReader
 	closer io.Closer
+	noProgress int
 }
 
 // A truncated provider body must not look like a complete video representation.
@@ -190,6 +191,16 @@ func (b *cdnPlaybackBoundedBody) Read(p []byte) (int, error) {
 	n, err := b.reader.Read(p)
 	if err == io.EOF && b.reader.N > 0 {
 		return n, io.ErrUnexpectedEOF
+	}
+	// A faulty provider must not keep the HTTP response spinning forever by
+	// repeatedly returning (0, nil). Follow io.ReadAll's no-progress bound.
+	if n == 0 && err == nil && len(p) > 0 {
+		b.noProgress++
+		if b.noProgress >= 100 {
+			return 0, io.ErrNoProgress
+		}
+	} else {
+		b.noProgress = 0
 	}
 	return n, err
 }
