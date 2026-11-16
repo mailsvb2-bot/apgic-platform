@@ -584,6 +584,14 @@ export default function AcademyPage(){
      {l.available===false&&<p role="status">Урок ещё не открыт или срок его изучения истёк.</p>}
      {l.available!==false&&l.kind==="READING"&&<p style={{whiteSpace:"pre-wrap"}}>{l.body}</p>}
      {l.kind==="VIDEO"&&<AcademyLessonVideos enrollmentId={activeEnrollment.id} lessonId={l.id} available={l.available!==false}/>}
+     {l.kind==="VIDEO"&&l.available!==false&&!l.completed&&<div>
+      <p>После полного получения всех видео этого урока подтвердите изучение. Перемотка сама по себе не засчитывает недоставленные фрагменты.</p>
+      <button disabled={busy} onClick={()=>void act(
+       ()=>api(`/v1/academy/enrollments/${activeEnrollment.id}/lessons/${l.id}/complete`,{}),
+       async()=>{await loadLearning(activeEnrollment);setNotice("Изучение видеоматериалов подтверждено.")})}>
+       Подтвердить изучение видео
+      </button>
+     </div>}
      {l.available!==false&&l.kind==="ASSESSMENT"&&<section aria-label={`Результаты: ${l.title}`}>
       {learnerAttempts.filter(a=>a.lesson_id===l.id).map(a=>
        <p key={a.id}>Попытка {a.attempt_no}: {a.result==="PENDING"?"Ожидает проверки":a.result==="PASSED"?"Зачтено":"Не зачтено"}
