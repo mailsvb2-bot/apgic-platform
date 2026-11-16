@@ -121,6 +121,9 @@ func IssueCDNPlaybackGrant(
 	if err := request.Validate(); err != nil {
 		return CDNPlaybackGrant{}, err
 	}
+	if request.ProviderInstanceID != instance.ID {
+		return CDNPlaybackGrant{}, ErrInvalidCDNPlaybackRequest
+	}
 	if err := authorizeConnectorExecution(ctx, instance, provider, principal, policy); err != nil {
 		return CDNPlaybackGrant{}, err
 	}
@@ -137,6 +140,7 @@ func IssueCDNPlaybackGrant(
 	}
 	now := executionNow(policy)
 	if grant.Validate() != nil || grant.ProviderKind != instance.ProviderKind ||
+		grant.ProviderInstanceID != instance.ID ||
 		grant.Binding != request.Binding || grant.IssuedAt.After(now.Add(CDNPlaybackClockSkew)) ||
 		!grant.ExpiresAt.After(now) {
 		return CDNPlaybackGrant{}, ErrInvalidCDNPlaybackGrant
@@ -156,7 +160,9 @@ func VerifyCDNPlaybackEvidence(
 	attestation CDNPlaybackAttestation,
 	policy ExecutionPolicy,
 ) (VerifiedCDNPlaybackAttestation, error) {
-	if grant.Validate() != nil || attestation.ContractVersion != CDNPlaybackContractVersion ||
+	if grant.Validate() != nil || grant.ProviderInstanceID != instance.ID ||
+		attestation.ContractVersion != CDNPlaybackContractVersion ||
+		attestation.ProviderInstanceID != instance.ID ||
 		attestation.ProviderKind != grant.ProviderKind || attestation.SessionID != grant.SessionID ||
 		attestation.Binding != grant.Binding {
 		return VerifiedCDNPlaybackAttestation{}, ErrInvalidCDNPlaybackAttestation

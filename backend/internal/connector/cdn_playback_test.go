@@ -19,6 +19,7 @@ const (
 	cdnTestLesson      = "66666666-6666-4666-8666-666666666666"
 	cdnTestMedia       = "77777777-7777-4777-8777-777777777777"
 	cdnTestSession     = "88888888-8888-4888-8888-888888888888"
+	cdnTestProviderInstance = "99999999-9999-4999-8999-999999999999"
 )
 
 func validCDNPlaybackBinding() CDNPlaybackBinding {
@@ -38,8 +39,9 @@ func validCDNPlaybackBinding() CDNPlaybackBinding {
 func validCDNPlaybackGrant(now time.Time) CDNPlaybackGrant {
 	return CDNPlaybackGrant{
 		ContractVersion: CDNPlaybackContractVersion,
-		ProviderKind:    "provider-a",
-		SessionID:       cdnTestSession,
+		ProviderKind:       "provider-a",
+		ProviderInstanceID: cdnTestProviderInstance,
+		SessionID:          cdnTestSession,
 		Binding:         validCDNPlaybackBinding(),
 		IssuedAt:        now.UTC(),
 		ExpiresAt:       now.UTC().Add(10 * time.Minute),
@@ -50,8 +52,9 @@ func signedCDNPlaybackAttestation(t *testing.T, grant CDNPlaybackGrant, privateK
 	t.Helper()
 	attestation := CDNPlaybackAttestation{
 		ContractVersion: CDNPlaybackContractVersion,
-		ProviderKind:    grant.ProviderKind,
-		SessionID:       grant.SessionID,
+		ProviderKind:       grant.ProviderKind,
+		ProviderInstanceID: grant.ProviderInstanceID,
+		SessionID:          grant.SessionID,
 		Binding:         grant.Binding,
 		DurationMillis:  100000,
 		WatchedRanges: []CDNPlaybackRange{
@@ -113,6 +116,7 @@ func TestCDNPlaybackAttestationRejectsTamperedBindingAndSignature(t *testing.T) 
 		"wrong key id":        func(a *CDNPlaybackAttestation) { a.KeyID = "untrusted-key" },
 		"changed ranges":      func(a *CDNPlaybackAttestation) { a.WatchedRanges[0].EndMillis-- },
 		"wrong session":       func(a *CDNPlaybackAttestation) { a.SessionID = "99999999-9999-4999-8999-999999999999" },
+		"wrong provider instance": func(a *CDNPlaybackAttestation) { a.ProviderInstanceID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" },
 	}
 	for name, mutate := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -232,8 +236,9 @@ func TestCDNPlaybackRequestValidatesHierarchicalIdempotencyKey(t *testing.T) {
 
 func TestCDNPlaybackRequestRejectsInvalidBinding(t *testing.T) {
 	request := CDNPlaybackRequest{
-		IdempotencyKey: "academy/playback/attempt-1",
-		Binding:        validCDNPlaybackBinding(),
+		IdempotencyKey:    "academy/playback/attempt-1",
+		ProviderInstanceID: cdnTestProviderInstance,
+		Binding:           validCDNPlaybackBinding(),
 	}
 	if err := request.Validate(); err != nil {
 		t.Fatal(err)
@@ -241,6 +246,11 @@ func TestCDNPlaybackRequestRejectsInvalidBinding(t *testing.T) {
 	request.Binding.ContentSHA256 = "not-a-digest"
 	if err := request.Validate(); err == nil {
 		t.Fatal("invalid media digest was accepted")
+	}
+	request.Binding = validCDNPlaybackBinding()
+	request.ProviderInstanceID = "not-a-uuid"
+	if request.Validate() == nil {
+		t.Fatal("invalid provider instance ID was accepted")
 	}
 }
 
@@ -261,7 +271,7 @@ func (p *verifyingCDNPlaybackProvider) VerifyPlaybackAttestation(
 
 func activeCDNPlaybackInstance(t *testing.T) Instance {
 	t.Helper()
-	instance, err := NewInstance("cdn-1", CapabilityCDN, "provider-a", "config/cdn")
+	instance, err := NewInstance(cdnTestProviderInstance, CapabilityCDN, "provider-a", "config/cdn")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -275,8 +285,9 @@ func TestTypedCDNPlaybackGrantUsesCanonicalConnectorAuthorization(t *testing.T) 
 		kind: "provider-a", capabilities: []CapabilityClass{CapabilityCDN},
 	}}
 	request := CDNPlaybackRequest{
-		IdempotencyKey: "academy/playback/attempt-1",
-		Binding:        validCDNPlaybackBinding(),
+		IdempotencyKey:    "academy/playback/attempt-1",
+		ProviderInstanceID: cdnTestProviderInstance,
+		Binding:           validCDNPlaybackBinding(),
 	}
 
 	wrongPrincipal := scopedPrincipal(t, "connector:execute:PAYMENT_PROVIDER")
@@ -292,11 +303,42 @@ func TestTypedCDNPlaybackGrantUsesCanonicalConnectorAuthorization(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if grant.ProviderKind != instance.ProviderKind || grant.Binding != request.Binding || !grant.ExpiresAt.After(time.Now()) {
+	if grant.ProviderKind != instance.ProviderKind || grant.ProviderInstanceID != instance.ID ||
+		grant.Binding != request.Binding || !grant.ExpiresAt.After(time.Now()) {
 		t.Fatalf("provider returned an unbound or expired grant: %#v", grant)
 	}
 	if provider.grantCalls != 1 {
 		t.Fatalf("expected one provider grant call, got %d", provider.grantCalls)
+	}
+}
+
+func TestTypedCDNPlaybackGrantCannotCrossConnectorInstances(t *testing.T) {
+	first := activeCDNPlaybackInstance(t)
+	second := first
+	second.ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+	provider := &fakeCDNPlaybackProvider{fakeProvider: fakeProvider{
+		kind: "provider-a", capabilities: []CapabilityClass{CapabilityCDN},
+	}}
+	request := CDNPlaybackRequest{
+		IdempotencyKey:    "academy/playback/attempt-1",
+		ProviderInstanceID: first.ID,
+		Binding:           validCDNPlaybackBinding(),
+	}
+	principal := scopedPrincipal(t, first.ExecuteScope)
+	if _, err := IssueCDNPlaybackGrant(context.Background(), second, provider, principal, request, ExecutionPolicy{}); err != ErrInvalidCDNPlaybackRequest {
+		t.Fatalf("grant request crossed connector instances: %v", err)
+	}
+	if provider.grantCalls != 0 {
+		t.Fatal("provider was called for a grant bound to another connector instance")
+	}
+	grant := validCDNPlaybackGrant(time.Now().UTC())
+	_, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	attestation := signedCDNPlaybackAttestation(t, grant, privateKey, "cdn-key-1")
+	if _, err := VerifyCDNPlaybackEvidence(context.Background(), second, provider, principal, grant, attestation, ExecutionPolicy{}); err == nil {
+		t.Fatal("grant from another connector instance was accepted")
 	}
 }
 

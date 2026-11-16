@@ -67,12 +67,14 @@ func (b CDNPlaybackBinding) Validate() error {
 // capability. The provider must bind the grant to this exact immutable lesson
 // version, learner, enrollment, entitlement and verified media fingerprint.
 type CDNPlaybackRequest struct {
-	IdempotencyKey string             `json:"idempotency_key"`
-	Binding        CDNPlaybackBinding `json:"binding"`
+	IdempotencyKey    string             `json:"idempotency_key"`
+	ProviderInstanceID string            `json:"provider_instance_id"`
+	Binding           CDNPlaybackBinding `json:"binding"`
 }
 
 func (r CDNPlaybackRequest) Validate() error {
-	if !cdnPlaybackIdempotencyKeyValid(r.IdempotencyKey) || r.Binding.Validate() != nil {
+	if !cdnPlaybackIdempotencyKeyValid(r.IdempotencyKey) ||
+		!cdnPlaybackUUIDPattern.MatchString(r.ProviderInstanceID) || r.Binding.Validate() != nil {
 		return ErrInvalidCDNPlaybackRequest
 	}
 	return nil
@@ -86,9 +88,10 @@ func cdnPlaybackIdempotencyKeyValid(value string) bool {
 // URL. Browser-specific delivery material is owned and returned by the
 // configured provider adapter, never by Academy's persistence/API projection.
 type CDNPlaybackGrant struct {
-	ContractVersion string             `json:"contract_version"`
-	ProviderKind    string             `json:"provider_kind"`
-	SessionID       string             `json:"session_id"`
+	ContractVersion    string             `json:"contract_version"`
+	ProviderKind       string             `json:"provider_kind"`
+	ProviderInstanceID string             `json:"provider_instance_id"`
+	SessionID          string             `json:"session_id"`
 	Binding         CDNPlaybackBinding `json:"binding"`
 	IssuedAt        time.Time          `json:"issued_at"`
 	ExpiresAt       time.Time          `json:"expires_at"`
@@ -97,6 +100,7 @@ type CDNPlaybackGrant struct {
 func (g CDNPlaybackGrant) Validate() error {
 	if g.ContractVersion != CDNPlaybackContractVersion ||
 		!cdnPlaybackProviderPattern.MatchString(g.ProviderKind) ||
+		!cdnPlaybackUUIDPattern.MatchString(g.ProviderInstanceID) ||
 		!cdnPlaybackUUIDPattern.MatchString(g.SessionID) ||
 		g.Binding.Validate() != nil ||
 		!cdnPlaybackUTC(g.IssuedAt) || !cdnPlaybackUTC(g.ExpiresAt) {
@@ -118,9 +122,10 @@ type CDNPlaybackRange struct {
 // delivered by a provider session; Academy still applies its own completion
 // policy and persists replay protection in the canonical PostgreSQL owner.
 type CDNPlaybackAttestation struct {
-	ContractVersion string             `json:"contract_version"`
-	ProviderKind    string             `json:"provider_kind"`
-	SessionID       string             `json:"session_id"`
+	ContractVersion    string             `json:"contract_version"`
+	ProviderKind       string             `json:"provider_kind"`
+	ProviderInstanceID string             `json:"provider_instance_id"`
+	SessionID          string             `json:"session_id"`
 	Binding         CDNPlaybackBinding `json:"binding"`
 	DurationMillis  int64              `json:"duration_millis"`
 	WatchedRanges   []CDNPlaybackRange `json:"watched_ranges"`
@@ -131,9 +136,10 @@ type CDNPlaybackAttestation struct {
 }
 
 type cdnPlaybackAttestationPayload struct {
-	ContractVersion string             `json:"contract_version"`
-	ProviderKind    string             `json:"provider_kind"`
-	SessionID       string             `json:"session_id"`
+	ContractVersion    string             `json:"contract_version"`
+	ProviderKind       string             `json:"provider_kind"`
+	ProviderInstanceID string             `json:"provider_instance_id"`
+	SessionID          string             `json:"session_id"`
 	Binding         CDNPlaybackBinding `json:"binding"`
 	DurationMillis  int64              `json:"duration_millis"`
 	WatchedRanges   []CDNPlaybackRange `json:"watched_ranges"`
@@ -145,8 +151,9 @@ type cdnPlaybackAttestationPayload struct {
 func (a CDNPlaybackAttestation) signingBytes() ([]byte, error) {
 	payload := cdnPlaybackAttestationPayload{
 		ContractVersion: a.ContractVersion,
-		ProviderKind:    a.ProviderKind,
-		SessionID:       a.SessionID,
+		ProviderKind:       a.ProviderKind,
+		ProviderInstanceID: a.ProviderInstanceID,
+		SessionID:          a.SessionID,
 		Binding:         a.Binding,
 		DurationMillis:  a.DurationMillis,
 		WatchedRanges:   append([]CDNPlaybackRange(nil), a.WatchedRanges...),
@@ -175,6 +182,18 @@ func (v VerifiedCDNPlaybackAttestation) Binding() CDNPlaybackBinding {
 
 func (v VerifiedCDNPlaybackAttestation) SessionID() string {
 	return v.attestation.SessionID
+}
+
+func (v VerifiedCDNPlaybackAttestation) ProviderKind() string {
+	return v.attestation.ProviderKind
+}
+
+func (v VerifiedCDNPlaybackAttestation) ProviderInstanceID() string {
+	return v.attestation.ProviderInstanceID
+}
+
+func (v VerifiedCDNPlaybackAttestation) DurationMilliseconds() int64 {
+	return v.attestation.DurationMillis
 }
 
 func (v VerifiedCDNPlaybackAttestation) CompletedAt() time.Time {
@@ -206,6 +225,8 @@ func VerifyCDNPlaybackAttestation(
 		attestation.ContractVersion != CDNPlaybackContractVersion ||
 		!cdnPlaybackProviderPattern.MatchString(attestation.ProviderKind) ||
 		attestation.ProviderKind != grant.ProviderKind ||
+		!cdnPlaybackUUIDPattern.MatchString(attestation.ProviderInstanceID) ||
+		attestation.ProviderInstanceID != grant.ProviderInstanceID ||
 		attestation.SessionID != grant.SessionID ||
 		attestation.Binding != grant.Binding ||
 		attestation.DurationMillis <= 0 ||
