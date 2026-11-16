@@ -1,6 +1,6 @@
 "use client";
 
-import {useCallback,useEffect,useState,type FormEvent} from "react";
+import {useCallback,useEffect,useMemo,useState,type FormEvent} from "react";
 import CloudMediaEditor from "./cloud-media-editor";
 import AcademyLessonVideos from "./academy-lesson-videos";
 
@@ -74,6 +74,10 @@ export default function AcademyPage(){
  const [course,setCourse]=useState<Course|null>(null);
  const [modules,setModules]=useState<Module[]>([]);
  const [lessons,setLessons]=useState<Lesson[]>([]);
+ // Stable options prevent a parent redraw from resetting the author’s file
+ // selection while the selected lesson is unchanged.
+ const mediaLessonOptions=useMemo(()=>lessons.map(l=>({id:l.id,title:l.title,kind:l.kind,module_id:l.module_id})),[lessons]);
+ const mediaModuleOptions=useMemo(()=>modules.map(m=>({id:m.id,title:m.title,ordinal:m.ordinal})),[modules]);
  const [focusedVideoLessonID,setFocusedVideoLessonID]=useState("");
  const [activeEnrollment,setActiveEnrollment]=useState<Enrollment|null>(null);
  const [certificate,setCertificate]=useState<Certificate|null>(null);
@@ -542,7 +546,7 @@ export default function AcademyPage(){
      </section>
     </section>
    </div>
-   {course.state==="DRAFT"&&<CloudMediaEditor key={`${course.id}:${course.version_id}`} courseId={course.id} versionId={course.version_id} modules={modules.map(m=>({id:m.id,title:m.title,ordinal:m.ordinal}))} focusedLessonId={focusedVideoLessonID} lessons={lessons.map(l=>({id:l.id,title:l.title,kind:l.kind,module_id:l.module_id}))}/>}
+   {course.state==="DRAFT"&&<CloudMediaEditor key={`${course.id}:${course.version_id}`} courseId={course.id} versionId={course.version_id} modules={mediaModuleOptions} focusedLessonId={focusedVideoLessonID} lessons={mediaLessonOptions}/>}
    {course.state==="DRAFT"&&<button disabled={busy||lessons.length===0} onClick={()=>void act(
       ()=>api<Course>(`/v1/academy/courses/${course.id}/versions/${course.version_id}/publish`,{}),
       async()=>{setNotice("Версия опубликована и больше не редактируется.");setCourse(null)})}>Опубликовать версию курса</button>}
