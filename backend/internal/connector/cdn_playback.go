@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	CDNPlaybackContractVersion  = "cdn-playback-v1"
+	CDNPlaybackContractVersion  = "cdn-playback-v2"
 	CDNPlaybackMaxGrantLifetime = 15 * time.Minute
 	CDNPlaybackMaxDuration      = 24 * time.Hour
 	CDNPlaybackClockSkew        = 30 * time.Second

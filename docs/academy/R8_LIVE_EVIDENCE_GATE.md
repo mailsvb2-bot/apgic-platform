@@ -43,12 +43,12 @@ Do not skip Android/iOS/PostgreSQL jobs or weaken the release checks to
 compensate for GitHub orchestration failure. Manual Yandex provider acceptance
 remains an independent, real-secret opt-in test and does not replace CI.
 
-## Provider byte-delivery contract added to the existing capability
+## CDN playback contract v2: byte delivery is mandatory
 
-The canonical `CDNPlaybackCapability` now requires `OpenPlaybackStream` in
+The breaking v2 `CDNPlaybackCapability` requires `OpenPlaybackStream` in
 addition to grant issuance, signed attestation verification and active-session
 revocation. A provider that can issue a grant but cannot return bytes is not a
-valid playback provider.
+valid playback provider. The contract version was advanced to v2 rather than silently changing the v1 interface.
 
 The provider returns only an opaque `io.ReadCloser` plus status, video MIME
 type, content length and (for 206) the exact Content-Range. The type has no

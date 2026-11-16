@@ -4,7 +4,7 @@
 CREATE TABLE academy_video_provider_certifications (
   id uuid PRIMARY KEY,
   connector_instance_id uuid NOT NULL REFERENCES connector_instances(id),
-  contract_version text NOT NULL CHECK (contract_version='cdn-playback-v1'),
+  contract_version text NOT NULL CHECK (contract_version='cdn-playback-v2'),
   provider_kind text NOT NULL CHECK (length(btrim(provider_kind)) BETWEEN 1 AND 64),
   key_id text NOT NULL CHECK (length(btrim(key_id)) BETWEEN 1 AND 64),
   acceptance_sha256 text NOT NULL CHECK (acceptance_sha256 ~ '^[0-9a-f]{64}$'),
@@ -89,7 +89,7 @@ RETURNS boolean LANGUAGE sql STABLE AS $fn$
     SELECT 1
     FROM academy_video_provider_certifications cert
     JOIN connector_instances ci ON ci.id=cert.connector_instance_id
-    WHERE cert.contract_version='cdn-playback-v1'
+    WHERE cert.contract_version='cdn-playback-v2'
       AND cert.tested_source_sha=p_source_sha
       AND ci.capability_class='CDN_PROVIDER'
       AND ci.provider_kind=cert.provider_kind
@@ -126,7 +126,7 @@ ALTER TABLE academy_media_playback_facts
     )
     OR
     (
-      contract_version='cdn-playback-v1'
+      contract_version='cdn-playback-v2'
       AND course_id IS NOT NULL AND course_version_id IS NOT NULL
       AND subject_id IS NOT NULL AND entitlement_id IS NOT NULL AND media_id IS NOT NULL
       AND session_id IS NOT NULL
@@ -279,7 +279,7 @@ BEGIN
   WHERE l.id=NEW.lesson_id;
   IF NOT FOUND OR lesson_kind<>'VIDEO'
     OR lesson_version IS DISTINCT FROM enrollment_version
-    OR NEW.contract_version IS DISTINCT FROM 'cdn-playback-v1'
+    OR NEW.contract_version IS DISTINCT FROM 'cdn-playback-v2'
     OR NEW.course_id IS DISTINCT FROM lesson_course
     OR NEW.course_version_id IS DISTINCT FROM enrollment_version
     OR NEW.subject_id IS DISTINCT FROM enrollment_identity
@@ -356,7 +356,7 @@ BEGIN
   IF lesson_kind='VIDEO' AND NOT EXISTS (
     SELECT 1 FROM academy_media_playback_facts f
     WHERE f.enrollment_id=NEW.enrollment_id AND f.lesson_id=NEW.lesson_id
-      AND f.contract_version='cdn-playback-v1'
+      AND f.contract_version='cdn-playback-v2'
       AND f.evidence_ref=NEW.evidence_ref
       AND f.attestation_sha256 IS NOT NULL
       AND f.watched_seconds>=f.required_seconds

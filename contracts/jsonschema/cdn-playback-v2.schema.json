@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://apgic.ru/contracts/cdn-playback-v1.schema.json",
-  "title": "APGIC CDN Playback Contract v1",
+  "$id": "https://apgic.ru/contracts/cdn-playback-v2.schema.json",
+  "title": "APGIC CDN Playback Contract v2",
   "type": "object",
   "additionalProperties": false,
   "$defs": {
