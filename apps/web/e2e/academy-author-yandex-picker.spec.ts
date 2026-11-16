@@ -153,7 +153,8 @@ test("author creates a video lesson before selecting its Yandex Disk file",async
  expect(createdLessonBody?.body).toBe("");
  expect(createdLessonBody?.media_asset_ref).toBeUndefined();
 
- await page.getByLabel("К какому уроку добавить видео?").selectOption(lessonID);
+ await page.getByRole("link",{name:"Прикрепить видео в шаге 3"}).click();
+ await expect(page.getByLabel("К какому уроку добавить видео?")).toHaveValue(lessonID);
  await page.getByRole("button",{name:"Открыть Яндекс Диск"}).click();
  await page.getByRole("button",{name:"Папка: Лекции"}).click();
  await page.getByRole("checkbox",{name:"Урок 1.mp4"}).check();
