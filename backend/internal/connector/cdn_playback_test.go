@@ -293,8 +293,8 @@ func TestCDNPlaybackCapabilityMustUseExistingCDNProviderClass(t *testing.T) {
 func TestCDNPlaybackStreamValidatesExactFullAndPartialRepresentations(t *testing.T) {
 	binding := validCDNPlaybackBinding()
 	newBody := func(length int64) io.ReadCloser {
-	return io.NopCloser(strings.NewReader(strings.Repeat("x", int(length))))
-}
+		return io.NopCloser(strings.NewReader(strings.Repeat("x", int(length))))
+	}
 	full := CDNPlaybackStream{
 		StatusCode: 200, ContentType: "video/mp4", ContentLength: binding.ContentLength,
 		Body: newBody(binding.ContentLength),
