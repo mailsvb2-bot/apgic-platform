@@ -5,7 +5,8 @@ import {appendLessonMediaAssignments} from "./cloud-media-assignments";
 
 type CloudMedia={id:string;title:string;provider:string;provider_file_ref:string;source_url?:string;active:boolean};
 type DiskFile={name:string;path:string;type:string;mime_type:string;size:number};
-type VideoLesson={id:string;title:string;kind:string};
+type VideoLesson={id:string;title:string;kind:string;module_id:string};
+type CourseModule={id:string;title:string;ordinal:number};
 type Mapping={lesson_id:string;media_id:string;ordinal:number};
 type AuthorMediaAssignment=Mapping&{title:string;provider:string;provider_file_ref:string;source_url?:string};
 
@@ -37,8 +38,8 @@ async function importVerifiedMedia(items:Array<{provider:string;provider_file_re
  }
  return imported;
 }
-export default function CloudMediaEditor({courseId,versionId,lessons}:{
- courseId:string;versionId:string;lessons:VideoLesson[];
+export default function CloudMediaEditor({courseId,versionId,lessons,modules}:{
+ courseId:string;versionId:string;lessons:VideoLesson[];modules:CourseModule[];
 }){
  const [media,setMedia]=useState<CloudMedia[]>([]);
  const [diskPath,setDiskPath]=useState("disk:/");
@@ -50,6 +51,10 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
  const [selected,setSelected]=useState<string[]>([]);
  const [lessonId,setLessonId]=useState("");
  const videoLessons=lessons.filter(l=>l.kind==="VIDEO");
+ const chosenLesson=videoLessons.find(l=>l.id===lessonId);
+ const chosenModule=modules.find(m=>m.id===chosenLesson?.module_id);
+ const currentLessonDraft=assignments.filter(a=>a.lesson_id===lessonId);
+ const currentLessonSaved=saved.filter(a=>a.lesson_id===lessonId);
  const [perLesson,setPerLesson]=useState(10);
  const [assignments,setAssignments]=useState<Mapping[]>([]);
  const [saved,setSaved]=useState<AuthorMediaAssignment[]>([]);
@@ -196,15 +201,21 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
   }catch(error){setMessage(String(error))}finally{setBusy(false)}
  }
  return <section id="academy-media-editor" className="panel" aria-label="Медиатека автора">
-  <h3>Шаг 3. Видео для уроков</h3>
-  <p>Сначала выберите видеоурок из созданного выше курса, затем откройте Яндекс Диск и отметьте файлы. Существующий защищённый плеер APGIC остаётся единственным способом просмотра ученика.</p>
-  {videoLessons.length===0?<p role="status">Сначала добавьте модуль и урок типа «Видеоурок» в шаге 2. Затем здесь появится выбор урока.</p>:<>
+  <h3>Шаг 3. Прикрепить видео к уроку</h3>
+  <p>Курс → модуль → видеоурок → видеофайл → сохранение. Яндекс Диск — источник файлов, а доступ ученика проверяет APGIC.</p>
+  {videoLessons.length===0?<p role="status">В этом курсе пока нет видеоуроков. Сначала создайте модуль, затем урок типа «Видеоурок» в шаге 2. Пока прикреплять видео не к чему.</p>:<>
   <label htmlFor="academy-video-lesson">К какому уроку добавить видео?</label>
   <select id="academy-video-lesson" value={lessonId} onChange={e=>{setLessonId(e.target.value);setSelected([]);setDiskSelectedFiles({});}} disabled={busy}>
-   <option value="">Выберите видеоурок</option>
-   {videoLessons.map(l=><option key={l.id} value={l.id}>{l.title}</option>)}
+   <option value="">Выберите модуль и видеоурок</option>
+   {modules.map(module=><optgroup key={module.id} label={`${module.ordinal}. ${module.title}`}>
+    {videoLessons.filter(l=>l.module_id===module.id).map(l=><option key={l.id} value={l.id}>{l.title}</option>)}
+   </optgroup>)}
   </select>
-  {!lessonId?<p role="status">Выберите урок, чтобы открыть медиатеку и прикрепить к нему видео.</p>:<>
+  {!lessonId?<p role="status">Выберите конкретный видеоурок в его модуле. Массовое распределение не требуется.</p>:<>
+  <p role="status"><strong>Редактируем:</strong> {chosenModule?.title||"Модуль"} → {chosenLesson?.title||"Видеоурок"}</p>
+  <h4>Прикреплённые видео этого урока</h4>
+  {currentLessonDraft.length===0?<p>Пока нет видео. Выберите файл на Яндекс Диске ниже.</p>:
+   <ol>{currentLessonDraft.map(a=><li key={a.media_id}>{media.find(m=>m.id===a.media_id)?.title||"Видеофайл"}{currentLessonSaved.some(v=>v.media_id===a.media_id)?" · сохранено":" · не сохранено"}</li>)}</ol>}
   <h4>Ваш Яндекс Диск</h4>
   <a href={`/v1/academy/author/cloud/yandex/connect?course_id=${encodeURIComponent(courseId)}&version_id=${encodeURIComponent(versionId)}&lesson_id=${encodeURIComponent(lessonId)}`}>Подключить Яндекс Диск</a>
   <p>После подтверждения в Яндексе файлы откроются автоматически. Выберите нужные видео.</p>
@@ -270,12 +281,9 @@ export default function CloudMediaEditor({courseId,versionId,lessons}:{
    </p>)}
   </div>
   </details>
-  <h4>Сохранённые материалы уроков</h4>
-  {saved.map(a=><p key={a.lesson_id+":"+a.media_id}>
-    {lessons.find(l=>l.id===a.lesson_id)?.title||"Урок"} · {a.ordinal}. {a.title}
-    {" · "}{a.provider_file_ref}
-
-   </p>)}
+  <details><summary>Сохранённые назначения всех уроков</summary>
+   {saved.length===0?<p>Назначений пока нет.</p>:saved.map(a=><p key={a.lesson_id+":"+a.media_id}>{lessons.find(l=>l.id===a.lesson_id)?.title||"Урок"} · {a.ordinal}. {a.title}</p>)}
+  </details>
   <button type="button" disabled={busy||(!assignments.length&&!saved.length)} onClick={()=>void persist()}>Сохранить видео урока</button>
   </>}
   </>}
