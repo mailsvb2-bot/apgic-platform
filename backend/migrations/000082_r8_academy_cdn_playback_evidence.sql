@@ -191,11 +191,17 @@ BEGIN
     SELECT value FROM jsonb_array_elements(p_ranges) AS ranges(value)
   LOOP
     item_count := item_count + 1;
-    IF jsonb_typeof(item) <> 'object'
-      OR NOT (item ?& ARRAY['start_millis','end_millis'])
-      OR (item - ARRAY['start_millis','end_millis']) <> '{}'::jsonb
-      OR jsonb_typeof(item->'start_millis') <> 'number'
-      OR jsonb_typeof(item->'end_millis') <> 'number' THEN
+    IF jsonb_typeof(item) IS DISTINCT FROM 'object' THEN
+      RETURN false;
+    END IF;
+    IF NOT (item ?& ARRAY['start_millis','end_millis']) THEN
+      RETURN false;
+    END IF;
+    IF (item - ARRAY['start_millis','end_millis']) <> '{}'::jsonb THEN
+      RETURN false;
+    END IF;
+    IF jsonb_typeof(item->'start_millis') IS DISTINCT FROM 'number'
+      OR jsonb_typeof(item->'end_millis') IS DISTINCT FROM 'number' THEN
       RETURN false;
     END IF;
 
