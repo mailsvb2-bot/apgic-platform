@@ -38,8 +38,8 @@ async function importVerifiedMedia(items:Array<{provider:string;provider_file_re
  }
  return imported;
 }
-export default function CloudMediaEditor({courseId,versionId,lessons,modules}:{
- courseId:string;versionId:string;lessons:VideoLesson[];modules:CourseModule[];
+export default function CloudMediaEditor({courseId,versionId,lessons,modules,focusedLessonId}:{
+ courseId:string;versionId:string;lessons:VideoLesson[];modules:CourseModule[];focusedLessonId:string;
 }){
  const [media,setMedia]=useState<CloudMedia[]>([]);
  const [diskPath,setDiskPath]=useState("disk:/");
@@ -61,6 +61,13 @@ export default function CloudMediaEditor({courseId,versionId,lessons,modules}:{
  const [message,setMessage]=useState("");
  const [busy,setBusy]=useState(false);
  const oauthAutoOpened=useRef(false);
+ // Choosing a VIDEO lesson in the parent outline opens the exact same editor.
+ // This is presentation-only: all assignments remain owned by Academy APIs.
+ useEffect(()=>{
+  if(focusedLessonId&&videoLessons.some(l=>l.id===focusedLessonId)){
+   setLessonId(focusedLessonId);setSelected([]);setDiskSelectedFiles({});
+  }
+ },[focusedLessonId,lessons]);
  async function browseDisk(path:string,offset=0){
   setBusy(true);setMessage("");
   try {
