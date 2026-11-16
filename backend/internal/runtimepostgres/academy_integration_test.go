@@ -469,7 +469,9 @@ ON CONFLICT(author_id,provider) DO UPDATE SET
 	providerKeyID := "ci-ed25519-v1"
 	certifiedAt := time.Now().UTC()
 	stepUpAt := certifiedAt.Add(-time.Minute)
-	auditState := `{"decision":"ALLOW","risk":"HIGH_RISK","action":"academy.video.provider.certify"}`
+	acceptanceSHA := acceptanceSHA
+	acceptanceRef := acceptanceRef
+	auditState := `{"decision":"ALLOW","risk":"HIGH_RISK","action":"academy.video.provider.certify","contract_version":"cdn-playback-v1","provider_instance_id":"` + providerInstanceID + `","provider_kind":"test-cdn","key_id":"` + providerKeyID + `","acceptance_sha256":"` + acceptanceSHA + `","acceptance_ref":"` + acceptanceRef + `","tested_source_sha":"` + sourceSHA + `"}`
 
 	// A plausible evidence reference is not an authorization decision. Prove
 	// that a non-authorization audit cannot certify the provider instance.
@@ -492,8 +494,8 @@ ON CONFLICT(author_id,provider) DO UPDATE SET
  id,connector_instance_id,contract_version,provider_kind,key_id,acceptance_sha256,
  acceptance_ref,tested_source_sha,accepted_by,step_up_audit_ref,accepted_at,expires_at
 ) VALUES($1::uuid,$2::uuid,'cdn-playback-v1','test-cdn',$3,$4,$5,$6,$7::uuid,$8::uuid,$9,$10)`,
-		invalidCertificationID, providerInstanceID, providerKeyID, strings.Repeat("b", 64),
-		"ci/r8/synthetic-video-acceptance", sourceSHA, author,
+		invalidCertificationID, providerInstanceID, providerKeyID, acceptanceSHA,
+		acceptanceRef, sourceSHA, author,
 		invalidAuditID, certifiedAt, certifiedAt.Add(time.Hour)); err == nil {
 		t.Fatal("CDN certification accepted a non-authorization audit record")
 	}
@@ -517,10 +519,65 @@ ON CONFLICT(author_id,provider) DO UPDATE SET
  id,connector_instance_id,contract_version,provider_kind,key_id,acceptance_sha256,
  acceptance_ref,tested_source_sha,accepted_by,step_up_audit_ref,accepted_at,expires_at
 ) VALUES($1::uuid,$2::uuid,'cdn-playback-v1','test-cdn',$3,$4,$5,$6,$7::uuid,$8::uuid,$9,$10)`,
-		missingStateCertificationID, providerInstanceID, providerKeyID, strings.Repeat("b", 64),
-		"ci/r8/synthetic-video-acceptance", sourceSHA, author,
+		missingStateCertificationID, providerInstanceID, providerKeyID, acceptanceSHA,
+		acceptanceRef, sourceSHA, author,
 		missingStateAuditID, certifiedAt, certifiedAt.Add(time.Hour)); err == nil {
 		t.Fatal("CDN certification accepted an authorization audit without decision state")
+	}
+
+	// A valid high-risk decision for a different connector must not authorize
+	// this provider instance, even when the JSON decision names this instance.
+	wrongResourceAuditID, err := academyID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.db.ExecContext(ctx, `INSERT INTO audit_records(
+ id,actor_id,action,scope,resource_ref,new_state,reason,policy_version,occurred_at
+) VALUES($1::uuid,$2,'authorization.decision','academy.video.provider.certify',$3,$4::jsonb,$5,'r8-provider-cert-v1',$6)`,
+		wrongResourceAuditID, author, "connector/00000000-0000-0000-0000-000000000099",
+		auditState, "CI wrong-resource authorization fixture", stepUpAt); err != nil {
+		t.Fatal(err)
+	}
+	wrongResourceCertificationID, err := academyID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.db.ExecContext(ctx, `INSERT INTO academy_video_provider_certifications(
+ id,connector_instance_id,contract_version,provider_kind,key_id,acceptance_sha256,
+ acceptance_ref,tested_source_sha,accepted_by,step_up_audit_ref,accepted_at,expires_at
+) VALUES($1::uuid,$2::uuid,'cdn-playback-v1','test-cdn',$3,$4,$5,$6,$7::uuid,$8::uuid,$9,$10)`,
+		wrongResourceCertificationID, providerInstanceID, providerKeyID, acceptanceSHA,
+		acceptanceRef, sourceSHA, author,
+		wrongResourceAuditID, certifiedAt, certifiedAt.Add(time.Hour)); err == nil {
+		t.Fatal("CDN certification accepted a high-risk authorization decision for another connector")
+	}
+
+	// Authorization must cover the exact immutable acceptance digest, not
+	// merely the general action and provider instance.
+	wrongEvidenceAuditID, err := academyID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	wrongEvidenceState := strings.Replace(auditState, acceptanceSHA, strings.Repeat("c", 64), 1)
+	if _, err = store.db.ExecContext(ctx, `INSERT INTO audit_records(
+ id,actor_id,action,scope,resource_ref,new_state,reason,policy_version,occurred_at
+) VALUES($1::uuid,$2,'authorization.decision','academy.video.provider.certify',$3,$4::jsonb,$5,'r8-provider-cert-v1',$6)`,
+		wrongEvidenceAuditID, author, "connector/"+providerInstanceID,
+		wrongEvidenceState, "CI wrong-evidence authorization fixture", stepUpAt); err != nil {
+		t.Fatal(err)
+	}
+	wrongEvidenceCertificationID, err := academyID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.db.ExecContext(ctx, `INSERT INTO academy_video_provider_certifications(
+ id,connector_instance_id,contract_version,provider_kind,key_id,acceptance_sha256,
+ acceptance_ref,tested_source_sha,accepted_by,step_up_audit_ref,accepted_at,expires_at
+) VALUES($1::uuid,$2::uuid,'cdn-playback-v1','test-cdn',$3,$4,$5,$6,$7::uuid,$8::uuid,$9,$10)`,
+		wrongEvidenceCertificationID, providerInstanceID, providerKeyID, acceptanceSHA,
+		acceptanceRef, sourceSHA, author,
+		wrongEvidenceAuditID, certifiedAt, certifiedAt.Add(time.Hour)); err == nil {
+		t.Fatal("CDN certification accepted an authorization decision for a different evidence digest")
 	}
 
 	// The positive fixture uses the canonical audit owner and a fresh
@@ -544,8 +601,8 @@ ON CONFLICT(author_id,provider) DO UPDATE SET
  id,connector_instance_id,contract_version,provider_kind,key_id,acceptance_sha256,
  acceptance_ref,tested_source_sha,accepted_by,step_up_audit_ref,accepted_at,expires_at
 ) VALUES($1::uuid,$2::uuid,'cdn-playback-v1','test-cdn',$3,$4,$5,$6,$7::uuid,$8::uuid,$9,$10)`,
-		certificationID, providerInstanceID, providerKeyID, strings.Repeat("b", 64),
-		"ci/r8/synthetic-video-acceptance", sourceSHA, author,
+		certificationID, providerInstanceID, providerKeyID, acceptanceSHA,
+		acceptanceRef, sourceSHA, author,
 		stepUpAuditID, certifiedAt, certifiedAt.Add(time.Hour)); err != nil {
 		t.Fatal(err)
 	}
