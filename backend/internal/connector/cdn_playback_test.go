@@ -207,7 +207,7 @@ func TestCDNPlaybackCapabilityMustUseExistingCDNProviderClass(t *testing.T) {
 }
 
 func TestCDNPlaybackRequestValidatesHierarchicalIdempotencyKey(t *testing.T) {
-	request := CDNPlaybackRequest{Binding: validCDNPlaybackBinding()}
+	request := CDNPlaybackRequest{ProviderInstanceID: cdnTestProviderInstance, Binding: validCDNPlaybackBinding()}
 	for _, key := range []string{
 		"academy/playback/attempt-1",
 		"attempt-1",
