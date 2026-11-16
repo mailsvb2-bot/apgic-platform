@@ -14,7 +14,7 @@ CREATE TABLE academy_video_provider_certifications (
   ),
   tested_source_sha text NOT NULL CHECK (tested_source_sha ~ '^[0-9a-f]{40}$'),
   accepted_by uuid NOT NULL REFERENCES identities(id),
-  step_up_audit_ref text NOT NULL CHECK (length(btrim(step_up_audit_ref)) BETWEEN 1 AND 2048),
+  step_up_audit_ref uuid NOT NULL REFERENCES audit_records(id),
   accepted_at timestamptz NOT NULL,
   expires_at timestamptz NOT NULL,
   CHECK (expires_at > accepted_at)
@@ -26,6 +26,12 @@ CREATE UNIQUE INDEX academy_video_provider_certification_source_unique
 
 CREATE FUNCTION academy_video_provider_certification_guard()
 RETURNS trigger LANGUAGE plpgsql AS $fn$
+DECLARE
+  auth_actor text;
+  auth_action text;
+  auth_state jsonb;
+  auth_reason text;
+  auth_occurred_at timestamptz;
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM connector_instances ci
@@ -36,6 +42,23 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'academy video certification requires an active matching CDN_PROVIDER instance';
   END IF;
+
+  SELECT actor_id,action,new_state,reason,occurred_at
+    INTO auth_actor,auth_action,auth_state,auth_reason,auth_occurred_at
+  FROM audit_records
+  WHERE id=NEW.step_up_audit_ref;
+  IF NOT FOUND
+    OR auth_actor<>NEW.accepted_by::text
+    OR auth_action<>'authorization.decision'
+    OR auth_state->>'decision'<>'ALLOW'
+    OR auth_state->>'risk'<>'HIGH_RISK'
+    OR auth_state->>'action'<>'academy.video.provider.certify'
+    OR btrim(COALESCE(auth_reason,''))=''
+    OR NEW.accepted_at<auth_occurred_at
+    OR NEW.accepted_at>auth_occurred_at+interval '5 minutes' THEN
+    RAISE EXCEPTION 'academy video certification requires a fresh high-risk ALLOW audit by the accepting operator';
+  END IF;
+
   IF NEW.expires_at <= now() OR NEW.accepted_at > now() THEN
     RAISE EXCEPTION 'academy video certification timestamps are not currently valid';
   END IF;
