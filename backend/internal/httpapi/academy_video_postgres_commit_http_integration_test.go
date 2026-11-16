@@ -367,6 +367,28 @@ FROM apgic_apply_store_lifecycle_event(
 	if err := refund.Commit(); err != nil {
 		t.Fatal(err)
 	}
+	var subscriptionState, entitlementState string
+	var lastSequence, appliedCount int
+	if err := db.QueryRowContext(ctx, `SELECT subscription_state,entitlement_state,last_provider_sequence,applied_event_count
+FROM store_subscription_projections
+WHERE provider_instance_id='00000000-0000-0000-0000-00000000a601'
+  AND subscription_ref='subscription-ci-1'`).Scan(&subscriptionState, &entitlementState, &lastSequence, &appliedCount); err != nil {
+		t.Fatal(err)
+	}
+	if subscriptionState != "REVOKED" || entitlementState != "REVOKED" || lastSequence != 4 || appliedCount != 2 {
+		t.Fatalf("canonical refund projection did not converge: subscription=%s entitlement=%s sequence=%d applied=%d",
+			subscriptionState, entitlementState, lastSequence, appliedCount)
+	}
+	var entitlementEffect, ledgerEffect, ledgerEntryID string
+	if err := db.QueryRowContext(ctx, `SELECT entitlement_effect,ledger_effect,ledger_entry_id::text
+FROM store_lifecycle_effects
+WHERE lifecycle_event_id='00000000-0000-0000-0000-00000000aa64'`).Scan(&entitlementEffect, &ledgerEffect, &ledgerEntryID); err != nil {
+		t.Fatal(err)
+	}
+	if entitlementEffect != "REVOKE" || ledgerEffect != "REFUND" || ledgerEntryID != "00000000-0000-0000-0000-00000000aa52" {
+		t.Fatalf("refund did not persist its canonical Entitlement/Finance effects: entitlement=%s ledger=%s entry=%s",
+			entitlementEffect, ledgerEffect, ledgerEntryID)
+	}
 	if authorized() {
 		t.Fatal("committed canonical Entitlement refund still authorizes an open video stream")
 	}
