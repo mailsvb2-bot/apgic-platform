@@ -68,7 +68,7 @@ func (b CDNPlaybackBinding) Validate() error {
 // version, learner, enrollment, entitlement and verified media fingerprint.
 type CDNPlaybackRequest struct {
 	IdempotencyKey     string             `json:"idempotency_key"`
-	ProviderInstanceID string            `json:"provider_instance_id"`
+	ProviderInstanceID string             `json:"provider_instance_id"`
 	Binding            CDNPlaybackBinding `json:"binding"`
 }
 
