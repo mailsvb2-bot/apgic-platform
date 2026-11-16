@@ -75,3 +75,32 @@ func TestCDNPlaybackBoundedBodyResetsNoProgressAfterBytes(t *testing.T) {
 		t.Fatalf("intermittent provider response = %q, %v", got, err)
 	}
 }
+
+type cdnCloseTrackingStall struct {
+	closed bool
+}
+
+func (r *cdnCloseTrackingStall) Read([]byte) (int, error) { return 0, nil }
+func (r *cdnCloseTrackingStall) Close() error {
+	r.closed = true
+	return nil
+}
+
+func TestCDNPlaybackBoundedBodyClosesStalledUpstreamImmediately(t *testing.T) {
+	upstream := &cdnCloseTrackingStall{}
+	body := &cdnPlaybackBoundedBody{
+		reader: &io.LimitedReader{R: upstream, N: 5},
+		closer: upstream,
+	}
+	buffer := make([]byte, 5)
+	for i := 0; i < 99; i++ {
+		n, err := body.Read(buffer)
+		if n != 0 || err != nil || upstream.closed {
+			t.Fatalf("premature stall failure at read %d: n=%d err=%v closed=%v", i+1, n, err, upstream.closed)
+		}
+	}
+	n, err := body.Read(buffer)
+	if n != 0 || !errors.Is(err, io.ErrNoProgress) || !upstream.closed {
+		t.Fatalf("stall must close upstream: n=%d err=%v closed=%v", n, err, upstream.closed)
+	}
+}
