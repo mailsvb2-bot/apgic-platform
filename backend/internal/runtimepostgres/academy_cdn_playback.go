@@ -73,7 +73,7 @@ func (c *Checker) AcademyRecordCDNPlaybackEvidence(
 	var subjectID, entitlementID, versionID, courseID, authorID string
 	var contentSHA, providerKind string
 	var contentLength int64
-	err = tx.QueryRowContext(ctx, \`SELECT
+	err = tx.QueryRowContext(ctx, `SELECT
  e.identity_id::text,e.entitlement_id::text,e.version_id::text,
  c.id::text,c.author_id::text,cm.sha256,cm.file_size,ci.provider_kind
  FROM academy_enrollments e
@@ -97,7 +97,7 @@ func (c *Checker) AcademyRecordCDNPlaybackEvidence(
  AND e.state='ACTIVE' AND academy_entitlement_is_active(t.id)
  AND cm.provider='YANDEX_DISK' AND cm.resource_id IS NOT NULL
  AND cm.sha256 IS NOT NULL AND cm.file_size>0
- FOR UPDATE OF e,t,ci\`,
+ FOR UPDATE OF e,t,ci`,
 		binding.EnrollmentID, binding.LessonID, binding.MediaID,
 		grant.ProviderInstanceID, connector.CDNPlaybackContractVersion,
 		verified.KeyID(), binding.SubjectID,
@@ -128,7 +128,7 @@ func (c *Checker) AcademyRecordCDNPlaybackEvidence(
 		return AcademyCDNPlaybackReceipt{}, academy.ErrState
 	}
 	var insertedID string
-	err = tx.QueryRowContext(ctx, \`INSERT INTO academy_media_playback_facts (
+	err = tx.QueryRowContext(ctx, `INSERT INTO academy_media_playback_facts (
  id,enrollment_id,lesson_id,provider_event_id,provider_instance_id,evidence_ref,
  watched_seconds,required_seconds,occurred_at,contract_version,course_id,
  course_version_id,subject_id,entitlement_id,media_id,session_id,provider_kind,
@@ -138,8 +138,8 @@ func (c *Checker) AcademyRecordCDNPlaybackEvidence(
  $1::uuid,$2::uuid,$3::uuid,$4,$5::uuid,$6,$7,$8,$9,$10,$11::uuid,
  $12::uuid,$13::uuid,$14::uuid,$15::uuid,$16::uuid,$17,$18,$19,$20,
  $21::jsonb,$22::jsonb,$23,$24
-) ON CONFLICT (provider_instance_id,provider_event_id) DO NOTHING
-RETURNING id::text\`,
+) ON CONFLICT DO NOTHING
+RETURNING id::text`,
 		id, binding.EnrollmentID, binding.LessonID, verified.ProviderEventID(),
 		grant.ProviderInstanceID, evidenceRef, watchedSeconds, requiredSeconds,
 		verified.CompletedAt(), connector.CDNPlaybackContractVersion, binding.CourseID,
@@ -166,11 +166,11 @@ RETURNING id::text\`,
 	}
 
 	var completedLesson string
-	progressErr := tx.QueryRowContext(ctx, \`INSERT INTO academy_progress(
+	progressErr := tx.QueryRowContext(ctx, `INSERT INTO academy_progress(
  enrollment_id,lesson_id,evidence_ref,completed_at
 ) VALUES($1::uuid,$2::uuid,$3,$4)
 ON CONFLICT(enrollment_id,lesson_id) DO NOTHING
-RETURNING lesson_id::text\`,
+RETURNING lesson_id::text`,
 		binding.EnrollmentID, binding.LessonID, evidenceRef, verified.CompletedAt(),
 	).Scan(&completedLesson)
 	if progressErr == nil {
@@ -207,18 +207,18 @@ func academyCDNPlaybackExistingTx(
 	digest string,
 ) (AcademyCDNPlaybackReceipt, bool, error) {
 	binding := verified.Binding()
-	var id, storedDigest, subjectID, entitlementID, versionID, courseID string
+	var id, storedDigest, storedEventID, subjectID, entitlementID, versionID, courseID string
 	var lessonID, mediaID, sessionID, providerKind, contentSHA, keyID string
 	var contentLength int64
-	err := tx.QueryRowContext(ctx, \`SELECT id::text,attestation_sha256,
+	err := tx.QueryRowContext(ctx, `SELECT id::text,attestation_sha256,provider_event_id,
  subject_id::text,entitlement_id::text,course_version_id::text,course_id::text,
  lesson_id::text,media_id::text,session_id::text,provider_kind,content_sha256,
  content_length,key_id
  FROM academy_media_playback_facts
- WHERE provider_instance_id=$1::uuid AND provider_event_id=$2
- FOR SHARE\`,
-		grant.ProviderInstanceID, verified.ProviderEventID(),
-	).Scan(&id, &storedDigest, &subjectID, &entitlementID, &versionID, &courseID,
+ WHERE provider_instance_id=$1::uuid AND (provider_event_id=$2 OR session_id=$3::uuid)
+ FOR SHARE`,
+		grant.ProviderInstanceID, verified.ProviderEventID(), verified.SessionID(),
+	).Scan(&id, &storedDigest, &storedEventID, &subjectID, &entitlementID, &versionID, &courseID,
 		&lessonID, &mediaID, &sessionID, &providerKind, &contentSHA, &contentLength, &keyID)
 	if err == sql.ErrNoRows {
 		return AcademyCDNPlaybackReceipt{}, false, nil
@@ -226,7 +226,7 @@ func academyCDNPlaybackExistingTx(
 	if err != nil {
 		return AcademyCDNPlaybackReceipt{}, false, err
 	}
-	if storedDigest != digest || subjectID != binding.SubjectID ||
+	if storedEventID != verified.ProviderEventID() || storedDigest != digest || subjectID != binding.SubjectID ||
 		entitlementID != binding.EntitlementID || versionID != binding.CourseVersionID ||
 		courseID != binding.CourseID || lessonID != binding.LessonID ||
 		mediaID != binding.MediaID || sessionID != verified.SessionID() ||
