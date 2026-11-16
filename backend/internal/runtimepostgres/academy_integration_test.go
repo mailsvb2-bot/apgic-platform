@@ -672,9 +672,10 @@ ON CONFLICT(author_id,provider) DO UPDATE SET
 	).Scan(&publishTriggerDefinition); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(publishTriggerDefinition, "academy_video_direct_yandex_acceptance_available") ||
-		strings.Contains(publishTriggerDefinition, "academy_video_provider_certification_available") {
-		t.Fatal("canonical Academy version publication trigger still requires the CDN provider")
+	if !strings.Contains(publishTriggerDefinition, "academy_video_delivery_release_available") ||
+		strings.Contains(publishTriggerDefinition, "academy_video_provider_certification_available") ||
+		strings.Contains(publishTriggerDefinition, "academy_video_direct_yandex_acceptance_available") {
+		t.Fatal("Academy version publication trigger bypassed the single delivery-mode acceptance owner")
 	}
 	// A valid certificate for another source tree must not authorize this build.
 	t.Setenv("APGIC_COMMIT_SHA", strings.Repeat("d", 40))
