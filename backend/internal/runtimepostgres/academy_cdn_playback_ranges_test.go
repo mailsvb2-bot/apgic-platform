@@ -107,7 +107,7 @@ func TestAcademyVideoRangesCoverDurationRejectsMalformedRowsPostgres(t *testing.
 		},
 		{
 			name:     "SQL null payload",
-			ranges: nil,
+			ranges:   nil,
 			duration: 60000, want: false,
 		},
 		{
