@@ -633,6 +633,36 @@ ON CONFLICT(author_id,provider) DO UPDATE SET
 		stepUpAuditID, certifiedAt, certifiedAt.Add(time.Hour)); err != nil {
 		t.Fatal(err)
 	}
+	// Direct Yandex delivery is a separate, first-party release mode. A CDN
+	// certificate must NOT enable it. Synthetic CI acceptance exercises the
+	// immutable high-risk audit guard only; it is never real provider evidence.
+	if _, err = store.AcademyPublish(author, course.ID, course.VersionID); !errors.Is(err, academy.ErrState) {
+		t.Fatalf("CDN certificate incorrectly admitted direct Yandex video: %v", err)
+	}
+	directAuditID, err := academyID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	directState := `{"decision":"ALLOW","risk":"HIGH_RISK","action":"academy.video.direct.certify","tested_source_sha":"` + sourceSHA + `","acceptance_sha256":"` + acceptanceSHA + `","acceptance_ref":"` + acceptanceRef + `","real_yandex_range":"PASS","signed_learner_entitlement":"PASS","committed_revocation":"PASS","video_lesson_completion":"PASS","payment_reconciliation":"PASS"}`
+	if _, err = store.db.ExecContext(ctx, `INSERT INTO audit_records(
+ id,actor_id,action,scope,resource_ref,new_state,reason,policy_version,occurred_at
+) VALUES($1::uuid,$2,'authorization.decision','academy.video.direct.certify',
+ 'academy/direct-yandex',$3::jsonb,$4,'r8-direct-yandex-ci-v1',$5)`,
+		directAuditID, author, directState, "CI isolated direct Yandex acceptance fixture", stepUpAt); err != nil {
+		t.Fatal(err)
+	}
+	directCertID, err := academyID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.db.ExecContext(ctx, `INSERT INTO academy_video_direct_yandex_acceptances(
+ id,tested_source_sha,acceptance_sha256,acceptance_ref,
+ accepted_by,step_up_audit_ref,accepted_at,expires_at
+) VALUES($1::uuid,$2,$3,$4,$5::uuid,$6::uuid,$7,$8)`,
+		directCertID, sourceSHA, acceptanceSHA, acceptanceRef,
+		author, directAuditID, certifiedAt, certifiedAt.Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
 	// A valid certificate for another source tree must not authorize this build.
 	t.Setenv("APGIC_COMMIT_SHA", strings.Repeat("d", 40))
 	if _, err = store.AcademyPublish(author, course.ID, course.VersionID); !errors.Is(err, academy.ErrState) {
