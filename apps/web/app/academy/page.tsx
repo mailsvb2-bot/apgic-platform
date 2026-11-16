@@ -492,9 +492,10 @@ export default function AcademyPage(){
       <input id="academy-pass" type="number" min={1} max={100} value={passingScore} onChange={e=>setPassingScore(Number(e.target.value))}/></>}
      <button disabled={busy||!moduleID}>Добавить урок</button>
     </form>
-    <section className="panel"><h3>Содержание</h3>
+    <section className="panel"><h3>Структура курса: модули → уроки</h3>
+     {modules.length===0&&<p role="status">Модулей пока нет. Создайте первый модуль, затем добавьте урок.</p>}
      {modules.map(m=><article key={m.id}><h4>{m.ordinal}. {m.title}</h4>
-      <ul>{lessons.filter(l=>l.module_id===m.id).map(l=><li key={l.id}>{l.title} · {l.kind}</li>)}</ul>
+      {lessons.some(l=>l.module_id===m.id)?<ol>{lessons.filter(l=>l.module_id===m.id).map(l=><li key={l.id}>{l.title} · {l.kind==="VIDEO"?"Видеоурок":l.kind==="READING"?"Текстовый урок":"Проверочное задание"}{l.kind==="VIDEO"&&<span> · <a href="#academy-media-editor">Прикрепить видео в шаге 3</a></span>}</li>)}</ol>:<p>Уроков пока нет. Добавьте урок в этот модуль.</p>}
      </article>)}
      {course.state==="DRAFT"&&<section aria-label="Расписание и лимиты уроков">
       <h4>Расписание уроков и пересдачи</h4>
@@ -540,7 +541,7 @@ export default function AcademyPage(){
      </section>
     </section>
    </div>
-   {course.state==="DRAFT"&&<CloudMediaEditor key={`${course.id}:${course.version_id}`} courseId={course.id} versionId={course.version_id} lessons={lessons.map(l=>({id:l.id,title:l.title,kind:l.kind}))}/>}
+   {course.state==="DRAFT"&&<CloudMediaEditor key={`${course.id}:${course.version_id}`} courseId={course.id} versionId={course.version_id} modules={modules.map(m=>({id:m.id,title:m.title,ordinal:m.ordinal}))} lessons={lessons.map(l=>({id:l.id,title:l.title,kind:l.kind,module_id:l.module_id}))}/>}
    {course.state==="DRAFT"&&<button disabled={busy||lessons.length===0} onClick={()=>void act(
       ()=>api<Course>(`/v1/academy/courses/${course.id}/versions/${course.version_id}/publish`,{}),
       async()=>{setNotice("Версия опубликована и больше не редактируется.");setCourse(null)})}>Опубликовать версию курса</button>}
