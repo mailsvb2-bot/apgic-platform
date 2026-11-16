@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 var ErrInvalidCDNPlaybackStream = errors.New("invalid CDN playback stream")
@@ -157,14 +158,19 @@ type cdnPlaybackContextBody struct {
 	done     chan struct{}
 	once     sync.Once
 	closeErr error
+	cancel context.CancelFunc
 }
 
 // bindCDNPlaybackBody enforces the validated representation length as well as
 // cancellation. A misbehaving adapter cannot send bytes beyond the declared
 // media/range boundary to a learner, even if its body is longer than metadata.
-func bindCDNPlaybackBody(ctx context.Context, body io.ReadCloser, contentLength int64) io.ReadCloser {
+func bindCDNPlaybackBody(ctx context.Context, body io.ReadCloser, contentLength int64, expiresAt ...time.Time) io.ReadCloser {
+	var cancel context.CancelFunc
+	if len(expiresAt) > 0 {
+		ctx, cancel = context.WithDeadline(ctx, expiresAt[0])
+	}
 	bound := &cdnPlaybackContextBody{
-		body: &cdnPlaybackBoundedBody{reader: &io.LimitedReader{R: body, N: contentLength}, closer: body}, ctx: ctx, done: make(chan struct{}),
+		body: &cdnPlaybackBoundedBody{reader: &io.LimitedReader{R: body, N: contentLength}, closer: body}, ctx: ctx, done: make(chan struct{}), cancel: cancel,
 	}
 	go func() {
 		select {
@@ -224,6 +230,9 @@ func (b *cdnPlaybackContextBody) Read(p []byte) (int, error) {
 func (b *cdnPlaybackContextBody) Close() error {
 	b.once.Do(func() {
 		b.closeErr = b.body.Close()
+		if b.cancel != nil {
+			b.cancel()
+		}
 		close(b.done)
 	})
 	return b.closeErr
