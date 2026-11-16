@@ -48,11 +48,11 @@ BEGIN
   FROM audit_records
   WHERE id=NEW.step_up_audit_ref;
   IF NOT FOUND
-    OR auth_actor<>NEW.accepted_by::text
-    OR auth_action<>'authorization.decision'
-    OR auth_state->>'decision'<>'ALLOW'
-    OR auth_state->>'risk'<>'HIGH_RISK'
-    OR auth_state->>'action'<>'academy.video.provider.certify'
+    OR auth_actor IS DISTINCT FROM NEW.accepted_by::text
+    OR auth_action IS DISTINCT FROM 'authorization.decision'
+    OR auth_state->>'decision' IS DISTINCT FROM 'ALLOW'
+    OR auth_state->>'risk' IS DISTINCT FROM 'HIGH_RISK'
+    OR auth_state->>'action' IS DISTINCT FROM 'academy.video.provider.certify'
     OR btrim(COALESCE(auth_reason,''))=''
     OR NEW.accepted_at<auth_occurred_at
     OR NEW.accepted_at>auth_occurred_at+interval '5 minutes' THEN
