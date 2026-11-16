@@ -193,7 +193,7 @@ func (b *cdnPlaybackBoundedBody) Read(p []byte) (int, error) {
 	}
 	return n, err
 }
-func (b *cdnPlaybackBoundedBody) Close() error               { return b.closer.Close() }
+func (b *cdnPlaybackBoundedBody) Close() error { return b.closer.Close() }
 
 func (b *cdnPlaybackContextBody) Read(p []byte) (int, error) {
 	if err := b.ctx.Err(); err != nil {
