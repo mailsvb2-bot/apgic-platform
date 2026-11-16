@@ -273,7 +273,10 @@ func academyDeliveredVideoInterval(status int, headers http.Header, size int64) 
 		return 0, 0, false
 	}
 	if status == http.StatusOK {
-		return 0, size, academyVideoRepresentationSizeMatches(status, headers, size)
+		if !academyVideoRepresentationSizeMatches(status, headers, size) {
+			return 0, 0, false
+		}
+		return 0, size, true
 	}
 	if status != http.StatusPartialContent || !academyVideoRepresentationSizeMatches(status, headers, size) {
 		return 0, 0, false
