@@ -76,10 +76,10 @@ func TestAcademyVideoTrustedStorageRedirects(t *testing.T) {
 	}
 }
 
-// Canon v7 forbids serving Yandex origin bytes from the APGIC Go API. The
-// production route must remain unavailable until an actual certified
-// CDNPlaybackCapability is wired; the legacy transport seam is test-only.
-func TestAcademyProductionVideoRouteFailsClosedWithoutCDNProvider(t *testing.T) {
+// Direct Yandex delivery uses the same authenticated Academy identity
+// boundary as every private learner route. A missing signed session must
+// fail before any PostgreSQL credential lookup or provider network I/O.
+func TestAcademyProductionVideoRouteFailsClosedWithoutSignedSession(t *testing.T) {
 	mux := http.NewServeMux()
 	registerAcademyVideoStream(mux, nil, nil, nil)
 
@@ -90,7 +90,7 @@ func TestAcademyProductionVideoRouteFailsClosedWithoutCDNProvider(t *testing.T) 
 	mux.ServeHTTP(response, request)
 
 	if response.Code != http.StatusServiceUnavailable {
-		t.Fatalf("production video route returned HTTP %d, want 503 until a certified CDN provider is configured", response.Code)
+		t.Fatalf("production video route returned HTTP %d, want 503 without a signed session", response.Code)
 	}
 	if response.Header().Get("Location") != "" {
 		t.Fatalf("production video route exposed a redirect: %q", response.Header().Get("Location"))
@@ -100,7 +100,7 @@ func TestAcademyProductionVideoRouteFailsClosedWithoutCDNProvider(t *testing.T) 
 			t.Fatalf("production video route disclosed origin detail %q", forbidden)
 		}
 	}
-	if !strings.Contains(response.Body.String(), "ACADEMY_UNAVAILABLE") {
-		t.Fatalf("production video route did not return the canonical unavailable error: %s", response.Body.String())
+	if !strings.Contains(response.Body.String(), "ACADEMY_SESSION_UNAVAILABLE") {
+		t.Fatalf("production video route did not return the canonical session unavailable error: %s", response.Body.String())
 	}
 }
