@@ -26,6 +26,23 @@ type academyVideoFingerprintStore interface {
 // Recheck enrollment and entitlement on every video HTTP request; never
 // redirect the browser to an origin URL, even after a failed range request.
 func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions *clientSessionManager, sessionErr error) {
+	registerAcademyVideoStreamWithClients(mux, store, sessions, sessionErr, academy.YandexDiskClient{}, nil)
+}
+
+// The production route always uses the hardened Yandex and media transports.
+// This package-private seam lets PostgreSQL/HTTP integration tests exercise the
+// exact route with deterministic provider responses and no external OAuth account.
+func registerAcademyVideoStreamWithClients(
+	mux *http.ServeMux,
+	store academyStore,
+	sessions *clientSessionManager,
+	sessionErr error,
+	providerClient academy.YandexDiskClient,
+	upstreamClient *http.Client,
+) {
+	if upstreamClient == nil {
+		upstreamClient = academyVideoUpstreamClient()
+	}
 	mux.HandleFunc("GET /v1/academy/enrollments/{enrollmentID}/lessons/{lessonID}/videos/{mediaID}/stream", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "private, no-store")
 		w.Header().Set("Referrer-Policy", "no-referrer")
@@ -71,7 +88,6 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 			return
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
-		providerClient := academy.YandexDiskClient{}
 		metadata, err := providerClient.VerifyVideo(ctx, token, path)
 		if err != nil && academy.YandexProviderError(err) {
 			cancel()
@@ -142,8 +158,7 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 			academyHTTPError(w, r, academy.ErrUnavailable)
 			return
 		}
-		transport := academyVideoUpstreamClient()
-		response, err := transport.Do(request)
+		response, err := upstreamClient.Do(request)
 		if err != nil {
 			academyHTTPError(w, r, academy.ErrUnavailable)
 			return
