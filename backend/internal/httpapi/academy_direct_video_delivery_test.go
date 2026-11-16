@@ -9,14 +9,14 @@ import (
 // These ranges are not proof of human watching or completed study.
 func TestAcademyDeliveredVideoInterval(t *testing.T) {
 	for _, tc := range []struct {
-		name string
-		status int
-		rangeHeader string
+		name          string
+		status        int
+		rangeHeader   string
 		contentLength string
-		size int64
-		wantStart int64
-		wantEnd int64
-		ok bool
+		size          int64
+		wantStart     int64
+		wantEnd       int64
+		ok            bool
 	}{
 		{"full", 200, "", "1000", 1000, 0, 1000, true},
 		{"partial", 206, "bytes 100-199/1000", "100", 1000, 100, 200, true},
@@ -40,7 +40,7 @@ func TestAcademyDeliveredVideoInterval(t *testing.T) {
 			start, end, ok := academyDeliveredVideoInterval(tc.status, headers, tc.size)
 			if start != tc.wantStart || end != tc.wantEnd || ok != tc.ok {
 				t.Fatalf("interval=(%d,%d,%t) want=(%d,%d,%t)",
-					start,end,ok,tc.wantStart,tc.wantEnd,tc.ok)
+					start, end, ok, tc.wantStart, tc.wantEnd, tc.ok)
 			}
 		})
 	}
