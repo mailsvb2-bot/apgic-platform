@@ -159,9 +159,12 @@ type cdnPlaybackContextBody struct {
 	closeErr error
 }
 
-func bindCDNPlaybackBody(ctx context.Context, body io.ReadCloser) io.ReadCloser {
+// bindCDNPlaybackBody enforces the validated representation length as well as
+// cancellation. A misbehaving adapter cannot send bytes beyond the declared
+// media/range boundary to a learner, even if its body is longer than metadata.
+func bindCDNPlaybackBody(ctx context.Context, body io.ReadCloser, contentLength int64) io.ReadCloser {
 	bound := &cdnPlaybackContextBody{
-		body: body, ctx: ctx, done: make(chan struct{}),
+		body: &cdnPlaybackBoundedBody{reader: io.LimitReader(body, contentLength), closer: body}, ctx: ctx, done: make(chan struct{}),
 	}
 	go func() {
 		select {
@@ -172,6 +175,14 @@ func bindCDNPlaybackBody(ctx context.Context, body io.ReadCloser) io.ReadCloser 
 	}()
 	return bound
 }
+
+type cdnPlaybackBoundedBody struct {
+	reader io.Reader
+	closer io.Closer
+}
+
+func (b *cdnPlaybackBoundedBody) Read(p []byte) (int, error) { return b.reader.Read(p) }
+func (b *cdnPlaybackBoundedBody) Close() error { return b.closer.Close() }
 
 func (b *cdnPlaybackContextBody) Read(p []byte) (int, error) {
 	if err := b.ctx.Err(); err != nil {
