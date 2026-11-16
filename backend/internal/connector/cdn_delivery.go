@@ -197,6 +197,9 @@ func (b *cdnPlaybackBoundedBody) Read(p []byte) (int, error) {
 	if n == 0 && err == nil && len(p) > 0 {
 		b.noProgress++
 		if b.noProgress >= 100 {
+			// A permanently stalled adapter is unusable. Release its upstream
+			// resources immediately rather than waiting for an HTTP caller to close.
+			_ = b.closer.Close()
 			return 0, io.ErrNoProgress
 		}
 	} else {
