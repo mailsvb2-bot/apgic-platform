@@ -260,7 +260,7 @@ func OpenCDNPlaybackStream(
 	}
 	// The entitlement watcher cancels ctx on revocation. Bind cancellation to
 	// the provider body so an already-open or blocked read is closed immediately.
-	stream.Body = bindCDNPlaybackBody(ctx, stream.Body, stream.ContentLength)
+	stream.Body = bindCDNPlaybackBody(ctx, stream.Body, stream.ContentLength, grant.ExpiresAt)
 	return stream, nil
 }
 
