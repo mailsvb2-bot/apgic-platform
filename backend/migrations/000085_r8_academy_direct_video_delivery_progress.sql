@@ -71,7 +71,8 @@ RETURNS boolean LANGUAGE sql STABLE AS $fn$
     JOIN academy_lessons l ON l.module_id=m.id AND l.kind='VIDEO'
     JOIN academy_lesson_media lm ON lm.lesson_id=l.id
     JOIN academy_cloud_media cm ON cm.id=lm.media_id
-    JOIN academy_courses c ON c.id=e.course_id
+    JOIN academy_course_versions v ON v.id=e.version_id
+    JOIN academy_courses c ON c.id=v.course_id
     JOIN academy_cloud_connections cc
       ON cc.author_id=cm.author_id AND cc.provider=cm.provider
       AND cc.generation=cm.connection_generation
