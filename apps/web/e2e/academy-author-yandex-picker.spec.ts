@@ -71,6 +71,8 @@ test("author resumes the selected course and lesson, imports Disk video, and sav
  await expect(page.getByRole("heading",{name:"Редактор: Проверочный курс — версия 1"})).toBeVisible();
  await expect(page.getByText("Шаг 1. Курс выбран. Шаг 2. Добавьте видеоуроки ниже. Шаг 3. Выберите для каждого урока видео с Яндекс Диска.")).toBeVisible();
  await expect(page.getByLabel("К какому уроку добавить видео?")).toHaveValue(lessonID);
+ await expect(page.locator("#academy-video-lesson optgroup")).toHaveAttribute("label","1. Модуль 1");
+ await expect(page.getByText("Редактируем:")).toContainText("Модуль 1");
  await expect(page.getByRole("button",{name:"Папка: Лекции"})).toBeVisible();
 
  await page.getByRole("button",{name:"Папка: Лекции"}).click();
@@ -140,6 +142,7 @@ test("author creates a video lesson before selecting its Yandex Disk file",async
  await expect(page.getByRole("heading",{name:"Мои курсы как автора"})).toBeVisible();
  await page.getByRole("button",{name:"Редактирование и содержание"}).click();
  await expect(page.locator("#academy-lesson-title")).toBeVisible();
+ await expect(page.getByText("В этом курсе пока нет видеоуроков.",{exact:false})).toBeVisible();
  await page.locator("#academy-lesson-title").fill("Урок 1");
  // A previous text entry must never become a hidden media identifier.
  await page.locator("#academy-lesson-body").fill("Старый текстовый материал");
