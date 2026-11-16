@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"crypto/ed25519"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"regexp"
@@ -31,6 +33,7 @@ var (
 	cdnPlaybackProviderPattern    = regexp.MustCompile("^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 	cdnPlaybackIdempotencyPattern = regexp.MustCompile("^[A-Za-z0-9][A-Za-z0-9._:-]*(/[A-Za-z0-9][A-Za-z0-9._:-]*)*$")
 	cdnPlaybackDigestPattern      = regexp.MustCompile("^[0-9a-f]{64}$")
+	cdnPlaybackEventIDPattern    = regexp.MustCompile("^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 )
 
 // CDNPlaybackBinding binds provider evidence to the canonical Academy and
@@ -125,6 +128,7 @@ type CDNPlaybackAttestation struct {
 	ContractVersion    string             `json:"contract_version"`
 	ProviderKind       string             `json:"provider_kind"`
 	ProviderInstanceID string             `json:"provider_instance_id"`
+	ProviderEventID    string             `json:"provider_event_id"`
 	SessionID          string             `json:"session_id"`
 	Binding            CDNPlaybackBinding `json:"binding"`
 	DurationMillis     int64              `json:"duration_millis"`
@@ -139,6 +143,7 @@ type cdnPlaybackAttestationPayload struct {
 	ContractVersion    string             `json:"contract_version"`
 	ProviderKind       string             `json:"provider_kind"`
 	ProviderInstanceID string             `json:"provider_instance_id"`
+	ProviderEventID    string             `json:"provider_event_id"`
 	SessionID          string             `json:"session_id"`
 	Binding            CDNPlaybackBinding `json:"binding"`
 	DurationMillis     int64              `json:"duration_millis"`
@@ -148,11 +153,15 @@ type cdnPlaybackAttestationPayload struct {
 	KeyID              string             `json:"key_id"`
 }
 
-func (a CDNPlaybackAttestation) signingBytes() ([]byte, error) {
+// SigningBytes is the canonical provider signature payload. Provider adapters
+// and independent conformance tests use this exact serialization; the signature
+// itself is deliberately excluded from the signed bytes.
+func (a CDNPlaybackAttestation) SigningBytes() ([]byte, error) {
 	payload := cdnPlaybackAttestationPayload{
 		ContractVersion:    a.ContractVersion,
 		ProviderKind:       a.ProviderKind,
 		ProviderInstanceID: a.ProviderInstanceID,
+		ProviderEventID:    a.ProviderEventID,
 		SessionID:          a.SessionID,
 		Binding:            a.Binding,
 		DurationMillis:     a.DurationMillis,
@@ -173,7 +182,10 @@ type VerifiedCDNPlaybackAttestation struct {
 
 func (v VerifiedCDNPlaybackAttestation) Valid() bool {
 	return v.attestation.ContractVersion == CDNPlaybackContractVersion &&
-		v.attestation.Signature != "" && v.attestation.SessionID != ""
+		cdnPlaybackUUIDPattern.MatchString(v.attestation.ProviderInstanceID) &&
+		cdnPlaybackUUIDPattern.MatchString(v.attestation.SessionID) &&
+		cdnPlaybackEventIDPattern.MatchString(v.attestation.ProviderEventID) &&
+		v.attestation.Binding.Validate() == nil && v.attestation.Signature != ""
 }
 
 func (v VerifiedCDNPlaybackAttestation) Binding() CDNPlaybackBinding {
@@ -192,8 +204,72 @@ func (v VerifiedCDNPlaybackAttestation) ProviderInstanceID() string {
 	return v.attestation.ProviderInstanceID
 }
 
+func (v VerifiedCDNPlaybackAttestation) ProviderEventID() string {
+	return v.attestation.ProviderEventID
+}
+
+func (v VerifiedCDNPlaybackAttestation) KeyID() string {
+	return v.attestation.KeyID
+}
+
 func (v VerifiedCDNPlaybackAttestation) DurationMilliseconds() int64 {
 	return v.attestation.DurationMillis
+}
+
+func (v VerifiedCDNPlaybackAttestation) WatchedRanges() []CDNPlaybackRange {
+	if !v.Valid() {
+		return nil
+	}
+	return append([]CDNPlaybackRange(nil), v.attestation.WatchedRanges...)
+}
+
+// CoversEntireDuration is intentionally stricter than summing watched bytes:
+// ranges must cover the complete timeline from zero to duration without gaps.
+func (v VerifiedCDNPlaybackAttestation) CoversEntireDuration() bool {
+	if !v.Valid() || v.attestation.DurationMillis <= 0 || len(v.attestation.WatchedRanges) == 0 {
+		return false
+	}
+	cursor := int64(0)
+	for _, watched := range v.attestation.WatchedRanges {
+		if watched.StartMillis != cursor || watched.EndMillis <= watched.StartMillis {
+			return false
+		}
+		cursor = watched.EndMillis
+	}
+	return cursor == v.attestation.DurationMillis
+}
+
+// CompletedSeconds is a completion-only value. Partial playback evidence may
+// be audited by a future progress contract but cannot mark a VIDEO lesson done.
+func (v VerifiedCDNPlaybackAttestation) CompletedSeconds() int64 {
+	if !v.CoversEntireDuration() {
+		return 0
+	}
+	return (v.attestation.DurationMillis + 999) / 1000
+}
+
+func (v VerifiedCDNPlaybackAttestation) AttestationJSON() ([]byte, error) {
+	if !v.Valid() {
+		return nil, ErrInvalidCDNPlaybackAttestation
+	}
+	return json.Marshal(v.attestation)
+}
+
+func (v VerifiedCDNPlaybackAttestation) EvidenceSHA256() (string, error) {
+	raw, err := v.AttestationJSON()
+	if err != nil {
+		return "", err
+	}
+	digest := sha256.Sum256(raw)
+	return hex.EncodeToString(digest[:]), nil
+}
+
+func (v VerifiedCDNPlaybackAttestation) EvidenceReference() (string, error) {
+	digest, err := v.EvidenceSHA256()
+	if err != nil {
+		return "", err
+	}
+	return "sha256:" + digest, nil
 }
 
 func (v VerifiedCDNPlaybackAttestation) CompletedAt() time.Time {
@@ -224,6 +300,7 @@ func VerifyCDNPlaybackAttestation(
 	if grant.Validate() != nil || trustedKeyID == "" ||
 		attestation.ContractVersion != CDNPlaybackContractVersion ||
 		!cdnPlaybackProviderPattern.MatchString(attestation.ProviderKind) ||
+		!cdnPlaybackEventIDPattern.MatchString(attestation.ProviderEventID) ||
 		attestation.ProviderKind != grant.ProviderKind ||
 		!cdnPlaybackUUIDPattern.MatchString(attestation.ProviderInstanceID) ||
 		attestation.ProviderInstanceID != grant.ProviderInstanceID ||
@@ -235,6 +312,7 @@ func VerifyCDNPlaybackAttestation(
 		!cdnPlaybackUTC(attestation.StartedAt) ||
 		!cdnPlaybackUTC(attestation.CompletedAt) ||
 		!cdnPlaybackUTC(now) ||
+		now.UTC().After(grant.ExpiresAt.Add(CDNPlaybackClockSkew)) ||
 		attestation.StartedAt.Before(grant.IssuedAt) ||
 		attestation.CompletedAt.Before(attestation.StartedAt) ||
 		attestation.CompletedAt.After(grant.ExpiresAt) ||
@@ -261,7 +339,7 @@ func VerifyCDNPlaybackAttestation(
 	if err != nil || len(signature) != ed25519.SignatureSize {
 		return VerifiedCDNPlaybackAttestation{}, ErrInvalidCDNPlaybackAttestation
 	}
-	message, err := attestation.signingBytes()
+	message, err := attestation.SigningBytes()
 	if err != nil || !ed25519.Verify(publicKey, message, signature) {
 		return VerifiedCDNPlaybackAttestation{}, ErrInvalidCDNPlaybackAttestation
 	}
@@ -289,8 +367,8 @@ type CDNPlaybackCapability interface {
 
 // Ensure the existing canonical capability is the only accepted class.
 func cdnPlaybackAttestationMatches(verified, received CDNPlaybackAttestation) bool {
-	verifiedPayload, verifiedErr := verified.signingBytes()
-	receivedPayload, receivedErr := received.signingBytes()
+	verifiedPayload, verifiedErr := verified.SigningBytes()
+	receivedPayload, receivedErr := received.SigningBytes()
 	return verifiedErr == nil && receivedErr == nil &&
 		bytes.Equal(verifiedPayload, receivedPayload) && verified.Signature == received.Signature
 }

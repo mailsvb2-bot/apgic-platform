@@ -17,17 +17,15 @@ func academyVideoPublicationReady(ctx context.Context, tx *sql.Tx, author, versi
 	if !academyVideoPublishEnabled() {
 		return false, nil
 	}
-	// A deployment flag and verified file metadata do not establish that an
-	// actual learner can finish a protected VIDEO lesson. The current R8
-	// runtime has no durable, provider-verified playback completion evidence
-	// or independently certified release admission. Never turn sellability
-	// on merely because an operator toggled the environment variable.
-	//
-	// Re-enable only when the canonical Academy/Entitlement path stores and
-	// verifies a signed playback attestation and the real payment/revocation
-	// acceptance has been independently recorded. This is intentionally
-	// fail-closed even with a valid author-owned cloud attachment.
-	if !academyVideoPlaybackCertificationAvailable() {
+	// The environment switch is only an operator opt-in. A separate immutable
+	// release certification must name an active CDN_PROVIDER instance, its
+	// trusted signing key, exact tested source SHA and acceptance evidence.
+	// No environment flag can manufacture that durable provider proof.
+	var certified bool
+	if err := tx.QueryRowContext(ctx, `SELECT academy_video_provider_certification_available()`).Scan(&certified); err != nil {
+		return false, err
+	}
+	if !certified {
 		return false, nil
 	}
 	var ready bool
@@ -69,9 +67,3 @@ func academyVideoPublicationReady(ctx context.Context, tx *sql.Tx, author, versi
 	return ready, err
 }
 
-// academyVideoPlaybackCertificationAvailable remains false until a genuine
-// version-bound, provider-verified completion contract is implemented.
-// It is deliberately NOT controlled by an environment variable.
-func academyVideoPlaybackCertificationAvailable() bool {
-	return false
-}

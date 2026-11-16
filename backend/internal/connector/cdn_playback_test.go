@@ -54,6 +54,7 @@ func signedCDNPlaybackAttestation(t *testing.T, grant CDNPlaybackGrant, privateK
 		ContractVersion:    CDNPlaybackContractVersion,
 		ProviderKind:       grant.ProviderKind,
 		ProviderInstanceID: grant.ProviderInstanceID,
+		ProviderEventID:    "event-1",
 		SessionID:          grant.SessionID,
 		Binding:            grant.Binding,
 		DurationMillis:     100000,
@@ -71,7 +72,7 @@ func signedCDNPlaybackAttestation(t *testing.T, grant CDNPlaybackGrant, privateK
 
 func resignCDNPlaybackAttestation(t *testing.T, attestation *CDNPlaybackAttestation, privateKey ed25519.PrivateKey) {
 	t.Helper()
-	message, err := attestation.signingBytes()
+	message, err := attestation.SigningBytes()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,8 +93,23 @@ func TestCDNPlaybackAttestationRequiresExactGrantBindingAndTrustedSignature(t *t
 		t.Fatal(err)
 	}
 	if !verified.Valid() || verified.Binding() != grant.Binding || verified.SessionID() != grant.SessionID ||
+		verified.ProviderEventID() != attestation.ProviderEventID ||
 		verified.WatchedMilliseconds() != 90000 || !verified.CompletedAt().Equal(attestation.CompletedAt) {
 		t.Fatalf("verified evidence does not preserve the signed binding: %#v", verified)
+	}
+	if verified.CoversEntireDuration() || verified.CompletedSeconds() != 0 {
+		t.Fatal("partial playback ranges were accepted as a lesson completion")
+	}
+	full := attestation
+	full.WatchedRanges = []CDNPlaybackRange{{StartMillis: 0, EndMillis: full.DurationMillis}}
+	resignCDNPlaybackAttestation(t, &full, privateKey)
+	complete, err := VerifyCDNPlaybackAttestation(grant, full, "cdn-key-1", publicKey, now.Add(3*time.Minute))
+	if err != nil || !complete.CoversEntireDuration() || complete.CompletedSeconds() != 100 {
+		t.Fatalf("full timeline evidence was not recognized: %+v %v", complete, err)
+	}
+	ref, err := complete.EvidenceReference()
+	if err != nil || !strings.HasPrefix(ref, "sha256:") || len(ref) != len("sha256:")+64 {
+		t.Fatalf("signed evidence did not produce a stable digest reference: %q %v", ref, err)
 	}
 }
 
@@ -117,6 +133,7 @@ func TestCDNPlaybackAttestationRejectsTamperedBindingAndSignature(t *testing.T) 
 		"changed ranges":          func(a *CDNPlaybackAttestation) { a.WatchedRanges[0].EndMillis-- },
 		"wrong session":           func(a *CDNPlaybackAttestation) { a.SessionID = "99999999-9999-4999-8999-999999999999" },
 		"wrong provider instance": func(a *CDNPlaybackAttestation) { a.ProviderInstanceID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" },
+		"wrong provider event":    func(a *CDNPlaybackAttestation) { a.ProviderEventID = "event-for-another-session" },
 	}
 	for name, mutate := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -127,6 +144,19 @@ func TestCDNPlaybackAttestationRejectsTamperedBindingAndSignature(t *testing.T) 
 				t.Fatal("tampered provider evidence was accepted")
 			}
 		})
+	}
+}
+
+func TestCDNPlaybackAttestationRejectsVerificationAfterGrantExpiry(t *testing.T) {
+	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 11, 15, 22, 0, 0, 0, time.UTC)
+	grant := validCDNPlaybackGrant(now)
+	attestation := signedCDNPlaybackAttestation(t, grant, privateKey, "cdn-key-1")
+	if _, err := VerifyCDNPlaybackAttestation(grant, attestation, "cdn-key-1", publicKey, grant.ExpiresAt.Add(time.Minute)); err == nil {
+		t.Fatal("provider attestation was accepted after the grant's bounded lifetime")
 	}
 }
 
