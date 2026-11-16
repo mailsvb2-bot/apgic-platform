@@ -164,7 +164,7 @@ type cdnPlaybackContextBody struct {
 // media/range boundary to a learner, even if its body is longer than metadata.
 func bindCDNPlaybackBody(ctx context.Context, body io.ReadCloser, contentLength int64) io.ReadCloser {
 	bound := &cdnPlaybackContextBody{
-		body: &cdnPlaybackBoundedBody{reader: io.LimitReader(body, contentLength), closer: body}, ctx: ctx, done: make(chan struct{}),
+		body: &cdnPlaybackBoundedBody{reader: &io.LimitedReader{R: body, N: contentLength}, closer: body}, ctx: ctx, done: make(chan struct{}),
 	}
 	go func() {
 		select {
@@ -177,11 +177,22 @@ func bindCDNPlaybackBody(ctx context.Context, body io.ReadCloser, contentLength 
 }
 
 type cdnPlaybackBoundedBody struct {
-	reader io.Reader
+	reader *io.LimitedReader
 	closer io.Closer
 }
 
-func (b *cdnPlaybackBoundedBody) Read(p []byte) (int, error) { return b.reader.Read(p) }
+// A truncated provider body must not look like a complete video representation.
+// The length bound still prevents delivery of any extra provider bytes.
+func (b *cdnPlaybackBoundedBody) Read(p []byte) (int, error) {
+	if b.reader.N == 0 {
+		return 0, io.EOF
+	}
+	n, err := b.reader.Read(p)
+	if err == io.EOF && b.reader.N > 0 {
+		return n, io.ErrUnexpectedEOF
+	}
+	return n, err
+}
 func (b *cdnPlaybackBoundedBody) Close() error               { return b.closer.Close() }
 
 func (b *cdnPlaybackContextBody) Read(p []byte) (int, error) {
