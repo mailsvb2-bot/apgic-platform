@@ -33,10 +33,11 @@ func academyVideoPublicationReady(ctx context.Context, tx *sql.Tx, author, versi
 	if !academyVideoPublishEnabled() {
 		return false, nil
 	}
-	// The environment switch is only an operator opt-in. A separate immutable
-	// release certification must name an active CDN_PROVIDER instance, its
-	// trusted signing key, exact tested source SHA and acceptance evidence.
-	// No environment flag can manufacture that durable provider proof.
+	// The environment switch is only an operator opt-in. The direct Yandex
+	// gateway has no CDN dependency, but it still requires an independently
+	// accepted, immutable, high-risk audited real-provider/learner/revocation/
+	// completion/payment journey bound to the exact deployed source SHA.
+	// No environment flag alone may manufacture release evidence.
 	sourceSHA := academyReleaseSourceSHA()
 	if sourceSHA == "" {
 		return false, nil
@@ -45,7 +46,7 @@ func academyVideoPublicationReady(ctx context.Context, tx *sql.Tx, author, versi
 		return false, err
 	}
 	var certified bool
-	if err := tx.QueryRowContext(ctx, `SELECT academy_video_provider_certification_available($1)`, sourceSHA).Scan(&certified); err != nil {
+	if err := tx.QueryRowContext(ctx, `SELECT academy_video_direct_yandex_acceptance_available($1)`, sourceSHA).Scan(&certified); err != nil {
 		return false, err
 	}
 	if !certified {
