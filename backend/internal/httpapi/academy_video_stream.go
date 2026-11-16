@@ -23,15 +23,23 @@ type academyVideoFingerprintStore interface {
 	AcademyLearnerVideoFingerprint(author, provider, path, mediaID string) (string, string, int64, error)
 }
 
-// Recheck enrollment and entitlement on every video HTTP request; never
-// redirect the browser to an origin URL, even after a failed range request.
-func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions *clientSessionManager, sessionErr error) {
-	registerAcademyVideoStreamWithClients(mux, store, sessions, sessionErr, academy.YandexDiskClient{}, nil)
+// Canon v7 assigns media-byte delivery and playback attestation to a
+// versioned CDN_PROVIDER capability. The hardened Yandex byte proxy below is
+// retained only as a package-private transport test harness; it must never be
+// registered as the production learner media route. Until a real certified
+// CDN adapter is configured, production video delivery fails closed.
+func registerAcademyVideoStream(mux *http.ServeMux, _ academyStore, _ *clientSessionManager, _ error) {
+	mux.HandleFunc("GET /v1/academy/enrollments/{enrollmentID}/lessons/{lessonID}/videos/{mediaID}/stream", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "private, no-store")
+		w.Header().Set("Referrer-Policy", "no-referrer")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		academyHTTPError(w, r, academy.ErrUnavailable)
+	})
 }
 
-// The production route always uses the hardened Yandex and media transports.
-// This package-private seam lets PostgreSQL/HTTP integration tests exercise the
-// exact route with deterministic provider responses and no external OAuth account.
+// This package-private seam is used only by transport and PostgreSQL tests to
+// exercise the legacy Yandex-origin security checks with deterministic HTTP
+// responses. It is deliberately not wired into production route registration.
 func registerAcademyVideoStreamWithClients(
 	mux *http.ServeMux,
 	store academyStore,
