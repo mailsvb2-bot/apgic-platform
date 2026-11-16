@@ -1,6 +1,7 @@
 package runtimepostgres
 
 import (
+	"context"
 	"os"
 	"strings"
 	"testing"
@@ -49,5 +50,31 @@ func TestAcademyVideoPublishFlagCannotBypassDirectYandexReleaseAcceptance(t *tes
 	t.Setenv("APGIC_COMMIT_SHA", validSHA)
 	if academyReleaseSourceSHA() != validSHA {
 		t.Fatal("valid exact release source SHA was rejected")
+	}
+}
+
+func TestDirectYandexReleaseAcceptanceRequiresDurableApproval(t *testing.T) {
+	dsn := os.Getenv("APGIC_ORGANIZATION_TEST_DATABASE_URL")
+	if dsn == "" {
+		t.Skip("migrated Academy PostgreSQL integration database is unavailable")
+	}
+	store, err := Open(context.Background(), dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	// Neither the presence of code nor an operator's environment flag can
+	// manufacture an independently audited acceptance for a new commit.
+	t.Setenv("APGIC_ACADEMY_VIDEO_PUBLISH_ENABLED", "true")
+	t.Setenv("APGIC_COMMIT_SHA", strings.Repeat("e", 40))
+	var certified bool
+	err = store.db.QueryRowContext(context.Background(),
+		"SELECT academy_video_direct_yandex_acceptance_available($1)",
+		academyReleaseSourceSHA()).Scan(&certified)
+	if err != nil {
+		t.Fatalf("direct Yandex release acceptance migration missing: %v", err)
+	}
+	if certified {
+		t.Fatal("unapproved commit unexpectedly certified for direct video publication")
 	}
 }
