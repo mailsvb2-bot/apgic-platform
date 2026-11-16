@@ -201,6 +201,65 @@ func IssueCDNPlaybackGrant(
 	return grant, nil
 }
 
+// OpenCDNPlaybackStream is the only connector-executor path for provider bytes.
+// It enforces the exact active connector, principal scope, grant lifetime and
+// client range before provider I/O, then validates the provider's bounded
+// representation. Invalid or cancelled streams are always closed here.
+func OpenCDNPlaybackStream(
+	ctx context.Context,
+	instance Instance,
+	provider Provider,
+	principal security.AuthenticatedServicePrincipal,
+	grant CDNPlaybackGrant,
+	requested *CDNPlaybackByteRange,
+	policy ExecutionPolicy,
+) (CDNPlaybackStream, error) {
+	if grant.Validate() != nil || grant.ProviderInstanceID != instance.ID ||
+		grant.ProviderKind != instance.ProviderKind || instance.Capability != CapabilityCDN {
+		return CDNPlaybackStream{}, ErrInvalidCDNPlaybackGrant
+	}
+	now := executionNow(policy)
+	if !grant.ExpiresAt.After(now) || grant.IssuedAt.After(now.Add(CDNPlaybackClockSkew)) {
+		return CDNPlaybackStream{}, ErrInvalidCDNPlaybackGrant
+	}
+	if err := authorizeConnectorExecution(ctx, instance, provider, principal, policy); err != nil {
+		return CDNPlaybackStream{}, err
+	}
+	if err := ValidateCDNPlaybackProvider(provider); err != nil {
+		return CDNPlaybackStream{}, errors.Join(ErrCapabilityMismatch, err)
+	}
+	if requested != nil {
+		if err := requested.Validate(grant.Binding.ContentLength); err != nil {
+			return CDNPlaybackStream{}, err
+		}
+	}
+	var providerRange *CDNPlaybackByteRange
+	if requested != nil {
+		copyOfRange := *requested
+		providerRange = &copyOfRange
+	}
+	stream, err := provider.(CDNPlaybackCapability).OpenPlaybackStream(ctx, grant, providerRange)
+	if err != nil {
+		if stream.Body != nil {
+			_ = stream.Body.Close()
+		}
+		return CDNPlaybackStream{}, err
+	}
+	if ctx.Err() != nil {
+		if stream.Body != nil {
+			_ = stream.Body.Close()
+		}
+		return CDNPlaybackStream{}, ctx.Err()
+	}
+	if err := ValidateCDNPlaybackStream(grant.Binding, requested, stream); err != nil {
+		if stream.Body != nil {
+			_ = stream.Body.Close()
+		}
+		return CDNPlaybackStream{}, err
+	}
+	return stream, nil
+}
+
 // VerifyCDNPlaybackEvidence verifies evidence through the configured CDN
 // connector while preserving the exact input payload. This prevents an
 // adapter from returning a different, previously verified attestation.
