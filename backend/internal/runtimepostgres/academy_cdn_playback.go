@@ -184,14 +184,14 @@ RETURNING lesson_id::text`,
 		if err := academyEvent(ctx, tx, binding.SubjectID,
 			"academy/enrollment/"+binding.EnrollmentID, "academy.lesson.completed",
 			map[string]any{
-				"enrollment_id": binding.EnrollmentID,
-				"lesson_id": binding.LessonID,
-				"media_id": binding.MediaID,
+				"enrollment_id":        binding.EnrollmentID,
+				"lesson_id":            binding.LessonID,
+				"media_id":             binding.MediaID,
 				"provider_instance_id": grant.ProviderInstanceID,
-				"provider_event_id": verified.ProviderEventID(),
-				"evidence_ref": evidenceRef,
-				"watched_seconds": watchedSeconds,
-				"required_seconds": requiredSeconds,
+				"provider_event_id":    verified.ProviderEventID(),
+				"evidence_ref":         evidenceRef,
+				"watched_seconds":      watchedSeconds,
+				"required_seconds":     requiredSeconds,
 			}); err != nil {
 			return AcademyCDNPlaybackReceipt{}, err
 		}

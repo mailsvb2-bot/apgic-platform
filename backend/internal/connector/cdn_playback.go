@@ -33,7 +33,7 @@ var (
 	cdnPlaybackProviderPattern    = regexp.MustCompile("^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 	cdnPlaybackIdempotencyPattern = regexp.MustCompile("^[A-Za-z0-9][A-Za-z0-9._:-]*(/[A-Za-z0-9][A-Za-z0-9._:-]*)*$")
 	cdnPlaybackDigestPattern      = regexp.MustCompile("^[0-9a-f]{64}$")
-	cdnPlaybackEventIDPattern    = regexp.MustCompile("^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
+	cdnPlaybackEventIDPattern     = regexp.MustCompile("^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 )
 
 // CDNPlaybackBinding binds provider evidence to the canonical Academy and

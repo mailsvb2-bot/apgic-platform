@@ -858,7 +858,7 @@ ON CONFLICT(author_id,provider) DO UPDATE SET
 		ProviderInstanceID: providerInstanceID, ProviderEventID: providerEventID,
 		SessionID: sessionID, Binding: binding, DurationMillis: 60000,
 		WatchedRanges: []connector.CDNPlaybackRange{{StartMillis: 0, EndMillis: 60000}},
-		StartedAt: playbackNow.Add(time.Second), CompletedAt: playbackNow.Add(2 * time.Second),
+		StartedAt:     playbackNow.Add(time.Second), CompletedAt: playbackNow.Add(2 * time.Second),
 		KeyID: providerKeyID,
 	}
 	signingBytes, err := attestation.SigningBytes()

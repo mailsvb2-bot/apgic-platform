@@ -89,4 +89,3 @@ func academyVideoPublicationReady(ctx context.Context, tx *sql.Tx, author, versi
  )`, author, versionID).Scan(&ready)
 	return ready, err
 }
-

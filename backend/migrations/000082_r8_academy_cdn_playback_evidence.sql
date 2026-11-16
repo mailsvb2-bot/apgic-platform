@@ -1,6 +1,5 @@
 -- R8 versioned CDN playback evidence. This extends the existing Academy
 -- evidence owner; it does not create a second media or provider owner.
-BEGIN;
 
 CREATE TABLE academy_video_provider_certifications (
   id uuid PRIMARY KEY,
@@ -363,5 +362,3 @@ BEGIN
   RETURN NEW;
 END;
 $fn$;
-
-COMMIT;
