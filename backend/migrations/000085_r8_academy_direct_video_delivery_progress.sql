@@ -73,11 +73,12 @@ RETURNS boolean LANGUAGE sql STABLE AS $fn$
     JOIN academy_cloud_media cm ON cm.id=lm.media_id
     JOIN academy_course_versions v ON v.id=e.version_id
     JOIN academy_courses c ON c.id=v.course_id
-    JOIN academy_cloud_connections cc
+    LEFT JOIN academy_cloud_connections cc
       ON cc.author_id=cm.author_id AND cc.provider=cm.provider
       AND cc.generation=cm.connection_generation
     WHERE e.id=p_enrollment AND l.id=p_lesson
       AND (
+        cc.generation IS NULL OR
         cm.author_id<>c.author_id OR cm.provider<>'YANDEX_DISK'
         OR cm.sha256 IS NULL OR cm.file_size IS NULL OR cm.file_size<=0
         OR NOT (
