@@ -3,8 +3,11 @@ package httpapi
 import (
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/academy"
 )
 
 // An authorized video can stream for minutes, but a CDN endpoint that never
@@ -72,4 +75,35 @@ func TestAcademyVideoTrustedStorageRedirects(t *testing.T) {
 	if client.CheckRedirect(req, tooMany) == nil {
 		t.Fatal("unbounded redirect")
 	}
+}
+
+
+// Canon v7 forbids serving Yandex origin bytes from the APGIC Go API. The
+// production route must remain unavailable until an actual certified
+// CDNPlaybackCapability is wired; the legacy transport seam is test-only.
+func TestAcademyProductionVideoRouteFailsClosedWithoutCDNProvider(t *testing.T) {
+	mux := http.NewServeMux()
+	registerAcademyVideoStream(mux, nil, nil, nil)
+
+	request := httptest.NewRequest(http.MethodGet,
+		"/v1/academy/enrollments/00000000-0000-0000-0000-000000000001/lessons/00000000-0000-0000-0000-000000000002/videos/00000000-0000-0000-0000-000000000003/stream",
+		nil)
+	response := httptest.NewRecorder()
+	mux.ServeHTTP(response, request)
+
+	if response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("production video route returned HTTP %d, want 503 until a certified CDN provider is configured", response.Code)
+	}
+	if response.Header().Get("Location") != "" {
+		t.Fatalf("production video route exposed a redirect: %q", response.Header().Get("Location"))
+	}
+	for _, forbidden := range []string{"downloader.disk.yandex", "storage.yandex.net", "OAuth ", "disk:/"} {
+		if strings.Contains(response.Body.String(), forbidden) {
+			t.Fatalf("production video route disclosed origin detail %q", forbidden)
+		}
+	}
+	if !strings.Contains(response.Body.String(), "ACADEMY_UNAVAILABLE") {
+		t.Fatalf("production video route did not return the canonical unavailable error: %s", response.Body.String())
+	}
+	_ = academy.ErrUnavailable // document the canonical fail-closed reason used by the route
 }
