@@ -109,7 +109,7 @@
       ],
       "properties": {
         "contract_version": {
-          "const": "cdn-playback-v1"
+          "const": "cdn-playback-v2"
         },
         "provider_kind": {
           "type": "string",
@@ -157,7 +157,7 @@
       ],
       "properties": {
         "contract_version": {
-          "const": "cdn-playback-v1"
+          "const": "cdn-playback-v2"
         },
         "provider_kind": {
           "type": "string",
