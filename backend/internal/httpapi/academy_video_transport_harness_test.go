@@ -2,8 +2,8 @@ package httpapi
 
 import (
 	"context"
-	"io"
 	"crypto/subtle"
+	"io"
 	"net"
 	"net/http"
 	"strconv"
