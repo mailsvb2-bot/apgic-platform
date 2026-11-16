@@ -1,8 +1,12 @@
 package connector
 
 import (
+	"context"
+	"errors"
 	"net/http"
+	"sync"
 	"testing"
+	"time"
 )
 
 func TestSelectCDNPlaybackRange(t *testing.T) {
@@ -75,4 +79,81 @@ func TestSelectCDNPlaybackRange(t *testing.T) {
 			}
 		})
 	}
+}
+
+type blockingCDNPlaybackBody struct {
+	started   chan struct{}
+	release   chan struct{}
+	startOnce sync.Once
+	stopOnce  sync.Once
+}
+
+func newBlockingCDNPlaybackBody() *blockingCDNPlaybackBody {
+	return &blockingCDNPlaybackBody{started: make(chan struct{}), release: make(chan struct{})}
+}
+
+func (b *blockingCDNPlaybackBody) Read([]byte) (int, error) {
+	b.startOnce.Do(func() { close(b.started) })
+	<-b.release
+	return 0, errors.New("provider body closed")
+}
+
+func (b *blockingCDNPlaybackBody) Close() error {
+	b.stopOnce.Do(func() { close(b.release) })
+	return nil
+}
+
+func TestOpenCDNPlaybackStreamClosesInFlightBodyWhenEntitlementContextIsCancelled(t *testing.T) {
+	instance := activeCDNPlaybackInstance(t)
+	principal := scopedPrincipal(t, instance.ExecuteScope)
+	grant := validCDNPlaybackGrant(time.Now().UTC())
+	body := newBlockingCDNPlaybackBody()
+	provider := &fixedCDNPlaybackProvider{
+		fakeCDNPlaybackProvider: &fakeCDNPlaybackProvider{fakeProvider: fakeProvider{
+			kind: "provider-a", capabilities: []CapabilityClass{CapabilityCDN},
+		}},
+		stream: CDNPlaybackStream{
+			StatusCode: http.StatusOK, ContentType: "video/mp4",
+			ContentLength: grant.Binding.ContentLength, Body: body,
+		},
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	stream, err := OpenCDNPlaybackStream(ctx, instance, provider, principal, grant, nil, ExecutionPolicy{})
+	if err != nil {
+		cancel()
+		t.Fatalf("open CDN stream: %v", err)
+	}
+
+	readDone := make(chan error, 1)
+	go func() {
+		_, readErr := stream.Body.Read(make([]byte, 1))
+		readDone <- readErr
+	}()
+	select {
+	case <-body.started:
+	case <-time.After(2 * time.Second):
+		cancel()
+		_ = stream.Body.Close()
+		t.Fatal("provider read did not start")
+	}
+
+	// The HTTP Entitlement watcher cancels this context after the canonical
+	// PostgreSQL revocation is observed. The executor must close the already
+	// opened provider body rather than relying on the provider to poll ctx.
+	cancel()
+	select {
+	case readErr := <-readDone:
+		if !errors.Is(readErr, context.Canceled) {
+			t.Fatalf("in-flight provider read returned %v, want context cancellation", readErr)
+		}
+	case <-time.After(2 * time.Second):
+		_ = stream.Body.Close()
+		t.Fatal("provider body remained blocked after entitlement context cancellation")
+	}
+	select {
+	case <-body.release:
+	default:
+		t.Fatal("provider body was not closed after context cancellation")
+	}
+	_ = stream.Body.Close()
 }

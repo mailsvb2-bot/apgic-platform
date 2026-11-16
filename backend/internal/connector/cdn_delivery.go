@@ -1,6 +1,7 @@
 package connector
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -8,6 +9,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 var ErrInvalidCDNPlaybackStream = errors.New("invalid CDN playback stream")
@@ -144,6 +146,50 @@ type CDNPlaybackStream struct {
 	ContentLength int64
 	ContentRange  string
 	Body          io.ReadCloser
+}
+
+// cdnPlaybackContextBody makes request cancellation close the provider's
+// already-open body. This is the final transport safety net after the HTTP
+// gateway's canonical Entitlement watcher cancels the request context.
+type cdnPlaybackContextBody struct {
+	body     io.ReadCloser
+	ctx      context.Context
+	done     chan struct{}
+	once     sync.Once
+	closeErr error
+}
+
+func bindCDNPlaybackBody(ctx context.Context, body io.ReadCloser) io.ReadCloser {
+	bound := &cdnPlaybackContextBody{
+		body: body, ctx: ctx, done: make(chan struct{}),
+	}
+	go func() {
+		select {
+		case <-ctx.Done():
+			_ = bound.Close()
+		case <-bound.done:
+		}
+	}()
+	return bound
+}
+
+func (b *cdnPlaybackContextBody) Read(p []byte) (int, error) {
+	if err := b.ctx.Err(); err != nil {
+		return 0, err
+	}
+	n, err := b.body.Read(p)
+	if ctxErr := b.ctx.Err(); ctxErr != nil {
+		return 0, ctxErr
+	}
+	return n, err
+}
+
+func (b *cdnPlaybackContextBody) Close() error {
+	b.once.Do(func() {
+		b.closeErr = b.body.Close()
+		close(b.done)
+	})
+	return b.closeErr
 }
 
 // ValidateCDNPlaybackStream checks the provider's representation against the
