@@ -2,7 +2,10 @@ package runtimepostgres
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
 	"database/sql"
+	"encoding/base64"
 	"errors"
 	"os"
 	"strings"
@@ -11,6 +14,7 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/academy"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/connector"
 )
 
 // TestAcademyVersioningRequiresVerifiedAccess proves the author -> curriculum ->
@@ -309,6 +313,11 @@ func TestAcademyStoreVerifiedPaidJourneySurvivesRestart(t *testing.T) {
 	if dsn == "" {
 		t.Skip("isolated PostgreSQL Academy journey database not configured")
 	}
+	// This is a synthetic CI certification fixture, never a production release
+	// admission. Production has no certificate until live provider acceptance.
+	sourceSHA := strings.Repeat("c", 40)
+	t.Setenv("APGIC_ACADEMY_VIDEO_PUBLISH_ENABLED", "true")
+	t.Setenv("APGIC_RELEASE_SOURCE_SHA", sourceSHA)
 	const author = "00000000-0000-0000-0000-00000000b001"
 	const learner = "00000000-0000-0000-0000-00000000b003"
 	const product = "00000000-0000-0000-0000-00000000af03"
@@ -397,6 +406,65 @@ func TestAcademyStoreVerifiedPaidJourneySurvivesRestart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	video, err := store.AcademyAddLesson(author, course.ID, course.VersionID, module.ID, academy.Lesson{
+		Title: "Protected video", Kind: academy.Video, Ordinal: 3,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The test imports synthetic metadata under a fresh OAuth generation. It
+	// exercises database binding only; no real Yandex token or CDN is used.
+	if _, err = store.db.ExecContext(ctx, `INSERT INTO academy_cloud_connections(
+ author_id,provider,encrypted_access_token
+) VALUES($1::uuid,'YANDEX_DISK','ci-only-encrypted-placeholder')
+ON CONFLICT(author_id,provider) DO UPDATE SET
+ encrypted_access_token=EXCLUDED.encrypted_access_token,generation=gen_random_uuid()`, author); err != nil {
+		t.Fatal(err)
+	}
+	var mediaGeneration string
+	if err = store.db.QueryRowContext(ctx, `SELECT generation::text FROM academy_cloud_connections
+ WHERE author_id=$1::uuid AND provider='YANDEX_DISK'`, author).Scan(&mediaGeneration); err != nil {
+		t.Fatal(err)
+	}
+	const videoDigest = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	mediaItems, err := store.academyImportCloudMediaWithGeneration(author, []AcademyCloudMedia{{
+		Provider: "YANDEX_DISK", ProviderFileRef: "disk:/ci-r8-protected-video.mp4",
+		Title: "CI protected video", ResourceID: "ci-r8-protected-video-resource",
+		SHA256: videoDigest, FileSize: 1024,
+	}}, mediaGeneration)
+	if err != nil || len(mediaItems) != 1 {
+		t.Fatalf("synthetic author media import failed: %+v %v", mediaItems, err)
+	}
+	if err = store.AcademyAssignCloudMedia(author, course.ID, course.VersionID, []AcademyMediaAssignment{{
+		LessonID: video.ID, MediaID: mediaItems[0].ID, Ordinal: 1,
+	}}); err != nil {
+		t.Fatalf("author could not assign the verified video: %v", err)
+	}
+	providerInstanceID, err := academyID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.db.ExecContext(ctx, `INSERT INTO connector_instances(
+ id,capability_class,provider_kind,status,config_ref
+) VALUES($1::uuid,'CDN_PROVIDER','test-cdn','ACTIVE',$2)`,
+		providerInstanceID, "ci/r8/cdn/"+providerInstanceID); err != nil {
+		t.Fatal(err)
+	}
+	certificationID, err := academyID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	providerKeyID := "ci-ed25519-v1"
+	certifiedAt := time.Now().UTC()
+	if _, err = store.db.ExecContext(ctx, `INSERT INTO academy_video_provider_certifications(
+ id,connector_instance_id,contract_version,provider_kind,key_id,acceptance_sha256,
+ acceptance_ref,tested_source_sha,accepted_by,step_up_audit_ref,accepted_at,expires_at
+) VALUES($1::uuid,$2::uuid,'cdn-playback-v1','test-cdn',$3,$4,$5,$6,$7::uuid,$8,$9,$10)`,
+		certificationID, providerInstanceID, providerKeyID, strings.Repeat("b", 64),
+		"ci/r8/synthetic-video-acceptance", sourceSHA, author,
+		"ci/r8/synthetic-step-up", certifiedAt.Add(-time.Minute), certifiedAt.Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
 	// A paid lesson's immutable draft schedule and assessment cutoff must
 	// survive publication and agree with both learner readback and writes.
 	released := time.Now().UTC().Add(-time.Hour)
@@ -475,8 +543,8 @@ func TestAcademyStoreVerifiedPaidJourneySurvivesRestart(t *testing.T) {
 		t.Fatalf("course granted access without bound verified purchase: %+v", enrollment)
 	}
 	scheduledLessons, err := store.AcademyLearning(learner, enrollment.ID)
-	if err != nil || len(scheduledLessons) != 2 ||
-		!scheduledLessons[0].Available || !scheduledLessons[1].Available ||
+	if err != nil || len(scheduledLessons) != 3 ||
+		!scheduledLessons[0].Available || !scheduledLessons[1].Available || !scheduledLessons[2].Available ||
 		scheduledLessons[0].Body != "Knowledge persists after a restart." {
 		t.Fatalf("published paid lesson schedule did not unlock readback: %+v %v", scheduledLessons, err)
 	}
@@ -684,7 +752,7 @@ func TestAcademyStoreVerifiedPaidJourneySurvivesRestart(t *testing.T) {
 		}
 		if id == course.ID {
 			foundHistorical = true
-			if total != 1 || completed != 0 || active != 0 || pending != 0 || passed != 0 {
+			if total != 3 || completed != 0 || active != 0 || pending != 0 || passed != 0 {
 				metricsRows.Close()
 				t.Fatalf("terminal enrollment inflated actionable author metrics: total=%d completed=%d active=%d pending=%d passed=%d", total, completed, active, pending, passed)
 			}
@@ -763,6 +831,82 @@ func TestAcademyStoreVerifiedPaidJourneySurvivesRestart(t *testing.T) {
 		t.Fatalf("instructor review did not persist: %+v: %v", evaluated, err)
 	}
 
+	// Provider-signed full-timeline evidence is verified against the exact
+	// connector key and persisted atomically with VIDEO progress and outbox.
+	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	playbackNow := time.Now().UTC().Truncate(time.Millisecond)
+	sessionID, err := academyID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	providerEventID := "event-" + strings.ReplaceAll(sessionID, "-", "")
+	binding := connector.CDNPlaybackBinding{
+		SubjectID: learner, EnrollmentID: enrollment.ID, EntitlementID: enrollment.EntitlementID,
+		CourseID: course.ID, CourseVersionID: course.VersionID, LessonID: video.ID,
+		MediaID: mediaItems[0].ID, ContentSHA256: videoDigest, ContentLength: mediaItems[0].FileSize,
+	}
+	grant := connector.CDNPlaybackGrant{
+		ContractVersion: connector.CDNPlaybackContractVersion, ProviderKind: "test-cdn",
+		ProviderInstanceID: providerInstanceID, SessionID: sessionID, Binding: binding,
+		IssuedAt: playbackNow, ExpiresAt: playbackNow.Add(10 * time.Minute),
+	}
+	attestation := connector.CDNPlaybackAttestation{
+		ContractVersion: connector.CDNPlaybackContractVersion, ProviderKind: "test-cdn",
+		ProviderInstanceID: providerInstanceID, ProviderEventID: providerEventID,
+		SessionID: sessionID, Binding: binding, DurationMillis: 60000,
+		WatchedRanges: []connector.CDNPlaybackRange{{StartMillis: 0, EndMillis: 60000}},
+		StartedAt: playbackNow.Add(time.Second), CompletedAt: playbackNow.Add(2 * time.Second),
+		KeyID: providerKeyID,
+	}
+	signingBytes, err := attestation.SigningBytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	attestation.Signature = base64.StdEncoding.EncodeToString(ed25519.Sign(privateKey, signingBytes))
+	verifiedPlayback, err := connector.VerifyCDNPlaybackAttestation(
+		grant, attestation, providerKeyID, publicKey, playbackNow.Add(3*time.Second),
+	)
+	if err != nil {
+		t.Fatalf("synthetic provider attestation verification failed: %v", err)
+	}
+	playbackReceipt, err := store.AcademyRecordCDNPlaybackEvidence(grant, verifiedPlayback)
+	if err != nil || playbackReceipt.ID == "" || playbackReceipt.Duplicate {
+		t.Fatalf("verified CDN playback was not persisted: %+v %v", playbackReceipt, err)
+	}
+	replayedPlayback, err := store.AcademyRecordCDNPlaybackEvidence(grant, verifiedPlayback)
+	if err != nil || replayedPlayback.ID != playbackReceipt.ID || !replayedPlayback.Duplicate {
+		t.Fatalf("exact provider event replay was not idempotent: %+v %v", replayedPlayback, err)
+	}
+	// A different signed payload reusing the same event/session identity is a
+	// collision, not a second completion or a silent overwrite.
+	collision := attestation
+	collision.WatchedRanges = []connector.CDNPlaybackRange{
+		{StartMillis: 0, EndMillis: 30000}, {StartMillis: 30000, EndMillis: 60000},
+	}
+	collisionBytes, err := collision.SigningBytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	collision.Signature = base64.StdEncoding.EncodeToString(ed25519.Sign(privateKey, collisionBytes))
+	verifiedCollision, err := connector.VerifyCDNPlaybackAttestation(
+		grant, collision, providerKeyID, publicKey, playbackNow.Add(3*time.Second),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.AcademyRecordCDNPlaybackEvidence(grant, verifiedCollision); !errors.Is(err, academy.ErrConflict) {
+		t.Fatalf("changed evidence reused an existing provider event: %v", err)
+	}
+	var videoProgressEvidence string
+	if err = store.db.QueryRowContext(ctx, `SELECT evidence_ref FROM academy_progress
+ WHERE enrollment_id=$1::uuid AND lesson_id=$2::uuid`, enrollment.ID, video.ID).Scan(&videoProgressEvidence); err != nil ||
+		videoProgressEvidence != playbackReceipt.EvidenceRef {
+		t.Fatalf("signed video evidence did not unlock exact lesson progress: %q %v", videoProgressEvidence, err)
+	}
+
 	passedHistory, err := store.AcademyLearnerAttempts(learner, enrollment.ID)
 	if err != nil || len(passedHistory) != 1 || passedHistory[0].Result != "PASSED" ||
 		passedHistory[0].Score == nil || *passedHistory[0].Score != 95 || passedHistory[0].EvaluatedAt == nil {
@@ -789,7 +933,7 @@ func TestAcademyStoreVerifiedPaidJourneySurvivesRestart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("learner cannot resume after process restart: %v", err)
 	}
-	if len(lessons) != 2 || !lessons[0].Completed || !lessons[1].Completed {
+	if len(lessons) != 3 || !lessons[0].Completed || !lessons[1].Completed || !lessons[2].Completed {
 		t.Fatalf("restart lost paid progress: %+v", lessons)
 	}
 	certificate, err := store.AcademyComplete(learner, enrollment.ID)
@@ -844,7 +988,7 @@ func TestAcademyStoreVerifiedPaidJourneySurvivesRestart(t *testing.T) {
 	}
 	var count int
 	err = db.QueryRow("SELECT count(*) FROM academy_progress WHERE enrollment_id=$1::uuid", enrollment.ID).Scan(&count)
-	if err != nil || count != 2 {
+	if err != nil || count != 3 {
 		t.Fatalf("missing durable lesson evidence, count=%d: %v", count, err)
 	}
 	report, err := store.AcademyAuthorReport(author)
