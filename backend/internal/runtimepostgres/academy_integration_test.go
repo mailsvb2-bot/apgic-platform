@@ -891,6 +891,44 @@ ON CONFLICT(author_id,provider) DO UPDATE SET
 	if _, err = store.AcademyComplete(learner, enrollment.ID); !errors.Is(err, academy.ErrState) {
 		t.Fatalf("early completion bypassed lesson evidence: %v", err)
 	}
+	// Direct Yandex completion is based only on fully copied, canonical
+	// server-side byte intervals, then the learner's explicit acknowledgement.
+	// It is deliberately NOT proof that a human watched the display.
+	videoSize := mediaItems[0].FileSize
+	midpoint := videoSize / 2
+	if err = store.AcademyRecordDirectVideoDelivery(author, enrollment.ID, video.ID,
+		mediaItems[0].ID, videoDigest, videoSize, 0, midpoint); err == nil {
+		t.Fatal("another identity forged the learner's video delivery receipt")
+	}
+	if err = store.AcademyRecordDirectVideoDelivery(learner, enrollment.ID, video.ID,
+		mediaItems[0].ID, strings.Repeat("b", 64), videoSize, 0, midpoint); err == nil {
+		t.Fatal("wrong media fingerprint created a direct delivery receipt")
+	}
+	if err = store.AcademyRecordDirectVideoDelivery(learner, enrollment.ID, video.ID,
+		mediaItems[0].ID, videoDigest, videoSize, 0, midpoint); err != nil {
+		t.Fatalf("first verified direct video chunk was rejected: %v", err)
+	}
+	if err = store.AcademyMarkProgress(learner, enrollment.ID, video.ID); !errors.Is(err, academy.ErrDenied) {
+		t.Fatalf("partial direct video delivery unlocked course progress: %v", err)
+	}
+	if err = store.AcademyRecordDirectVideoDelivery(learner, enrollment.ID, video.ID,
+		mediaItems[0].ID, videoDigest, videoSize, midpoint, videoSize); err != nil {
+		t.Fatalf("second verified direct video chunk was rejected: %v", err)
+	}
+	// Exact retries are idempotent and cannot create conflicting facts.
+	if err = store.AcademyRecordDirectVideoDelivery(learner, enrollment.ID, video.ID,
+		mediaItems[0].ID, videoDigest, videoSize, midpoint, videoSize); err != nil {
+		t.Fatalf("direct delivery retry was not idempotent: %v", err)
+	}
+	if err = store.AcademyMarkProgress(learner, enrollment.ID, video.ID); err != nil {
+		t.Fatalf("fully delivered direct Yandex video cannot be acknowledged: %v", err)
+	}
+	var directEvidenceRef string
+	if err = store.db.QueryRowContext(ctx, `SELECT evidence_ref FROM academy_progress
+ WHERE enrollment_id=$1::uuid AND lesson_id=$2::uuid`, enrollment.ID, video.ID).Scan(&directEvidenceRef); err != nil ||
+		!strings.HasPrefix(directEvidenceRef, "academy/direct-delivery-v1/") {
+		t.Fatalf("direct Yandex video lacks canonical progress evidence: %q %v", directEvidenceRef, err)
+	}
 	if err = store.AcademyMarkProgress(learner, enrollment.ID, reading.ID); err != nil {
 		t.Fatal(err)
 	}
@@ -1150,8 +1188,8 @@ ON CONFLICT(author_id,provider) DO UPDATE SET
 	var videoProgressEvidence string
 	if err = store.db.QueryRowContext(ctx, `SELECT evidence_ref FROM academy_progress
  WHERE enrollment_id=$1::uuid AND lesson_id=$2::uuid`, enrollment.ID, video.ID).Scan(&videoProgressEvidence); err != nil ||
-		videoProgressEvidence != playbackReceipt.EvidenceRef {
-		t.Fatalf("signed video evidence did not unlock exact lesson progress: %q %v", videoProgressEvidence, err)
+		videoProgressEvidence != directEvidenceRef {
+		t.Fatalf("later CDN receipt overwrote immutable direct video progress: %q %v", videoProgressEvidence, err)
 	}
 	if _, err = store.db.ExecContext(ctx, `UPDATE academy_media_playback_facts
  SET watched_seconds=watched_seconds-1 WHERE id=$1::uuid`, playbackReceipt.ID); err == nil {
