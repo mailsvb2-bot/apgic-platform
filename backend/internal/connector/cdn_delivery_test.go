@@ -3,6 +3,8 @@ package connector
 import (
 	"context"
 	"errors"
+	"io"
+	"strings"
 	"net/http"
 	"sync"
 	"testing"
@@ -156,4 +158,18 @@ func TestOpenCDNPlaybackStreamClosesInFlightBodyWhenEntitlementContextIsCancelle
 		t.Fatal("provider body was not closed after context cancellation")
 	}
 	_ = stream.Body.Close()
+}
+
+func TestCDNPlaybackBoundedBodyNeverLeaksExtraProviderBytes(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	body := bindCDNPlaybackBody(ctx, io.NopCloser(strings.NewReader("validEXTRA")), 5)
+	defer body.Close()
+	got, err := io.ReadAll(body)
+	if err != nil {
+		t.Fatalf("read bounded CDN body: %v", err)
+	}
+	if string(got) != "valid" {
+		t.Fatalf("CDN provider overrun leaked: %q", got)
+	}
 }
