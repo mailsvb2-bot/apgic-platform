@@ -72,7 +72,7 @@ test("author resumes the selected course and lesson, imports Disk video, and sav
  await expect(page.getByText("Шаг 1. Курс выбран. Шаг 2. Добавьте видеоуроки ниже. Шаг 3. Выберите для каждого урока видео с Яндекс Диска.")).toBeVisible();
  await expect(page.getByLabel("К какому уроку добавить видео?")).toHaveValue(lessonID);
  await expect(page.locator("#academy-video-lesson optgroup")).toHaveAttribute("label","1. Модуль 1");
- await expect(page.getByText("Редактируем:")).toContainText("Модуль 1");
+ await expect(page.locator('#academy-media-editor p[role="status"]').filter({hasText:"Редактируем:"})).toContainText("Модуль 1");
  await expect(page.getByRole("button",{name:"Папка: Лекции"})).toBeVisible();
 
  await page.getByRole("button",{name:"Папка: Лекции"}).click();
