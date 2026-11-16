@@ -225,11 +225,13 @@ SET generation=gen_random_uuid() WHERE author_id=$1::uuid AND provider='YANDEX_D
 	}
 }
 
-// TestAcademyVideoHTTPStopsAfterCommittedEntitlementRevocation exercises the
-// same PostgreSQL-backed learner source and per-write HTTP copier as the
-// production gateway. It uses the paid Academy journey created earlier in the
-// isolated CI database, then commits the canonical Commerce refund event while
-// a learner response is already open. No fake entitlement flag is involved.
+// TestAcademyYandexTransportHarnessStopsAfterCommittedEntitlementRevocation
+// exercises the test-only Yandex-origin transport seam against the same
+// PostgreSQL-backed learner source and per-write authorization check. It uses
+// the paid Academy journey created earlier in the isolated CI database, then
+// commits the canonical Commerce refund event while a learner response is
+// already open. The provider responses and cloud credential are test doubles;
+// this is not production CDN delivery or live OAuth acceptance.
 type academyVideoEntitlementRoundTripper func(*http.Request) (*http.Response, error)
 
 func (f academyVideoEntitlementRoundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
@@ -259,12 +261,14 @@ func (b academyVideoTrackedBody) Close() error {
 	return b.ReadCloser.Close()
 }
 
-// TestAcademyVideoHTTPStopsAfterCommittedEntitlementRevocation exercises the
-// production route, session authentication, Yandex metadata verification,
-// protected downloader transport and PostgreSQL entitlement recheck. The
-// Yandex HTTP responses are deterministic test transports; the entitlement,
-// course, enrollment and refund projection are real PostgreSQL state.
-func TestAcademyVideoHTTPStopsAfterCommittedEntitlementRevocation(t *testing.T) {
+// TestAcademyYandexTransportHarnessStopsAfterCommittedEntitlementRevocation
+// exercises the package-private Yandex transport test seam, session
+// authentication, Yandex metadata verification, protected downloader
+// transport and PostgreSQL entitlement recheck. The Yandex HTTP responses and
+// cloud credential are deterministic test doubles; the entitlement, course,
+// enrollment and refund projection are real PostgreSQL state. Production
+// learner delivery remains closed until a certified CDN adapter is wired.
+func TestAcademyYandexTransportHarnessStopsAfterCommittedEntitlementRevocation(t *testing.T) {
 	dsn := os.Getenv("APGIC_ORGANIZATION_TEST_DATABASE_URL")
 	if dsn == "" {
 		t.Skip("isolated migrated PostgreSQL Academy journey required")
@@ -425,7 +429,7 @@ ORDER BY l.ordinal,lm.ordinal LIMIT 1`, learner, product).Scan(&enrollmentID, &l
 	}
 
 	// Apply the canonical Commerce REFUND in a separate transaction while
-	// the actual production HTTP handler is waiting on the next upstream bytes.
+	// the test-only Yandex-origin HTTP handler is waiting on the next upstream bytes.
 	refund, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -492,7 +496,7 @@ WHERE lifecycle_event_id='00000000-0000-0000-0000-00000000aa64'`).Scan(&entitlem
 		t.Fatal("refunded HTTP response completed successfully instead of being interrupted")
 	}
 	if !upstreamClosed.Load() {
-		t.Fatal("revoked production stream did not close the provider response body")
+		t.Fatal("revoked Yandex test stream did not close the provider response body")
 	}
 
 	seek, err := http.NewRequest(http.MethodGet, server.URL+streamPath, nil)
