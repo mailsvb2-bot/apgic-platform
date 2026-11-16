@@ -466,19 +466,62 @@ ON CONFLICT(author_id,provider) DO UPDATE SET
 	if _, err = store.AcademyPublish(author, course.ID, course.VersionID); !errors.Is(err, academy.ErrState) {
 		t.Fatalf("paid course published without provider certification: %v", err)
 	}
+	providerKeyID := "ci-ed25519-v1"
+	certifiedAt := time.Now().UTC()
+	stepUpAt := certifiedAt.Add(-time.Minute)
+	auditState := `{"decision":"ALLOW","risk":"HIGH_RISK","action":"academy.video.provider.certify"}`
+
+	// A plausible evidence reference is not an authorization decision. Prove
+	// that a non-authorization audit cannot certify the provider instance.
+	invalidAuditID, err := academyID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.db.ExecContext(ctx, `INSERT INTO audit_records(
+ id,actor_id,action,scope,resource_ref,new_state,reason,policy_version,occurred_at
+) VALUES($1::uuid,$2,'manual.note','academy.video.provider.certify',$3,$4::jsonb,$5,'r8-provider-cert-v1',$6)`,
+		invalidAuditID, author, "connector/"+providerInstanceID, auditState,
+		"CI negative authorization fixture", stepUpAt); err != nil {
+		t.Fatal(err)
+	}
+	invalidCertificationID, err := academyID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.db.ExecContext(ctx, `INSERT INTO academy_video_provider_certifications(
+ id,connector_instance_id,contract_version,provider_kind,key_id,acceptance_sha256,
+ acceptance_ref,tested_source_sha,accepted_by,step_up_audit_ref,accepted_at,expires_at
+) VALUES($1::uuid,$2::uuid,'cdn-playback-v1','test-cdn',$3,$4,$5,$6,$7::uuid,$8::uuid,$9,$10)`,
+		invalidCertificationID, providerInstanceID, providerKeyID, strings.Repeat("b", 64),
+		"ci/r8/synthetic-video-acceptance", sourceSHA, author,
+		invalidAuditID, certifiedAt, certifiedAt.Add(time.Hour)); err == nil {
+		t.Fatal("CDN certification accepted a non-authorization audit record")
+	}
+
+	// The positive fixture uses the canonical audit owner and a fresh
+	// high-risk ALLOW decision bound to the accepting identity.
+	stepUpAuditID, err := academyID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.db.ExecContext(ctx, `INSERT INTO audit_records(
+ id,actor_id,action,scope,resource_ref,new_state,reason,policy_version,occurred_at
+) VALUES($1::uuid,$2,'authorization.decision','academy.video.provider.certify',$3,$4::jsonb,$5,'r8-provider-cert-v1',$6)`,
+		stepUpAuditID, author, "connector/"+providerInstanceID, auditState,
+		"CI synthetic high-risk provider certification", stepUpAt); err != nil {
+		t.Fatal(err)
+	}
 	certificationID, err := academyID()
 	if err != nil {
 		t.Fatal(err)
 	}
-	providerKeyID := "ci-ed25519-v1"
-	certifiedAt := time.Now().UTC()
 	if _, err = store.db.ExecContext(ctx, `INSERT INTO academy_video_provider_certifications(
  id,connector_instance_id,contract_version,provider_kind,key_id,acceptance_sha256,
  acceptance_ref,tested_source_sha,accepted_by,step_up_audit_ref,accepted_at,expires_at
-) VALUES($1::uuid,$2::uuid,'cdn-playback-v1','test-cdn',$3,$4,$5,$6,$7::uuid,$8,$9,$10)`,
+) VALUES($1::uuid,$2::uuid,'cdn-playback-v1','test-cdn',$3,$4,$5,$6,$7::uuid,$8::uuid,$9,$10)`,
 		certificationID, providerInstanceID, providerKeyID, strings.Repeat("b", 64),
 		"ci/r8/synthetic-video-acceptance", sourceSHA, author,
-		"ci/r8/synthetic-step-up", certifiedAt.Add(-time.Minute), certifiedAt.Add(time.Hour)); err != nil {
+		stepUpAuditID, certifiedAt, certifiedAt.Add(time.Hour)); err != nil {
 		t.Fatal(err)
 	}
 	// A valid certificate for another source tree must not authorize this build.
