@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -260,11 +261,37 @@ func (c YandexDiskClient) TemporaryDownload(ctx context.Context, token, path str
 	return d.Href, nil
 }
 
-// Restrict provider-supplied download links to the documented downloader hosts.
-// Broad suffix matches would permit arbitrary hosts beneath disk.yandex.net.
+// Yandex's downloader endpoints are fixed. Storage redirect hosts are
+// provider-generated and therefore must be pinned from an observed, approved
+// Yandex response in APGIC_YANDEX_STORAGE_HOSTS. The setting is a comma-separated
+// list of exact DNS names; wildcards, suffix rules and implicit discovery are
+// deliberately unsupported. An empty or malformed setting denies all storage
+// hosts while preserving the two fixed downloader endpoints.
+const yandexStorageHostsEnv = "APGIC_YANDEX_STORAGE_HOSTS"
+
+// normalizeYandexDNSHost accepts only canonical ASCII DNS names. A trailing
+// dot, IP literal, port, wildcard, empty label or non-DNS character is rejected.
+func normalizeYandexDNSHost(host string) (string, bool) {
+	if host == "" || len(host) > 253 || strings.HasSuffix(host, ".") {
+		return "", false
+	}
+	host = strings.ToLower(host)
+	labels := strings.Split(host, ".")
+	if len(labels) < 2 {
+		return "", false
+	}
+	for _, label := range labels {
+		if !validYandexStorageLabel(label) {
+			return "", false
+		}
+	}
+	return host, true
+}
+
+// Restrict provider-supplied download links to the documented fixed hosts.
 func trustedYandexDownloadHost(host string) bool {
-	host = strings.ToLower(strings.TrimSuffix(host, "."))
-	return host == "downloader.disk.yandex.net" || host == "downloader.disk.yandex.ru"
+	normalized, ok := normalizeYandexDNSHost(host)
+	return ok && (normalized == "downloader.disk.yandex.net" || normalized == "downloader.disk.yandex.ru")
 }
 
 // ValidateYandexDownloadURL blocks SSRF via malicious provider hrefs.
@@ -273,19 +300,6 @@ func ValidateYandexDownloadURL(raw string) bool {
 	u, err := url.Parse(raw)
 	return err == nil && u.Scheme == "https" && u.User == nil && u.Fragment == "" &&
 		(u.Port() == "" || u.Port() == "443") && trustedYandexDownloadHost(u.Hostname())
-}
-
-// Yandex's published network settings identify direct-download storage as
-// *.storage.yandex.net. Accept exactly one DNS label under that documented
-// service suffix; do not accept nested names, lookalikes or malformed labels.
-// The downloader hosts remain separate exact entries above.
-func trustedYandexStorageHost(host string) bool {
-	host = strings.ToLower(strings.TrimSuffix(host, "."))
-	if trustedYandexDownloadHost(host) {
-		return true
-	}
-	label, ok := strings.CutSuffix(host, ".storage.yandex.net")
-	return ok && validYandexStorageLabel(label)
 }
 
 func validYandexStorageLabel(label string) bool {
@@ -298,6 +312,53 @@ func validYandexStorageLabel(label string) bool {
 		}
 	}
 	return true
+}
+
+// configuredYandexStorageHosts fails closed on any malformed or wildcard
+// entry. Every accepted value must be one exact host under the documented
+// storage.yandex.net service, not merely a matching suffix.
+func configuredYandexStorageHosts() (map[string]struct{}, bool) {
+	hosts := make(map[string]struct{})
+	raw := os.Getenv(yandexStorageHostsEnv)
+	if raw == "" {
+		return hosts, true
+	}
+	for _, entry := range strings.Split(raw, ",") {
+		if entry == "" || strings.TrimSpace(entry) != entry {
+			return nil, false
+		}
+		host, ok := normalizeYandexDNSHost(entry)
+		if !ok {
+			return nil, false
+		}
+		label, ok := strings.CutSuffix(host, ".storage.yandex.net")
+		if !ok || !validYandexStorageLabel(label) {
+			return nil, false
+		}
+		if _, duplicate := hosts[host]; duplicate {
+			return nil, false
+		}
+		hosts[host] = struct{}{}
+	}
+	return hosts, true
+}
+
+// trustedYandexStorageHost uses exact deployment-pinned hostnames. Dynamic
+// provider hosts are never accepted by wildcard, suffix or label-shape alone.
+func trustedYandexStorageHost(host string) bool {
+	normalized, ok := normalizeYandexDNSHost(host)
+	if !ok {
+		return false
+	}
+	if trustedYandexDownloadHost(normalized) {
+		return true
+	}
+	hosts, valid := configuredYandexStorageHosts()
+	if !valid {
+		return false
+	}
+	_, exists := hosts[normalized]
+	return exists
 }
 
 // ValidateYandexStorageRedirect validates a provider redirect hop.
