@@ -111,6 +111,7 @@ func TestYandexDiskClientCategorizesProviderFailuresWithoutSecrets(t *testing.T)
 }
 
 func TestYandexStorageRedirectRejectsFragmentsAndUntrustedHosts(t *testing.T) {
+	t.Setenv(yandexStorageHostsEnv, "node.storage.yandex.net,mds.storage.yandex.net")
 	cases := []struct {
 		raw  string
 		want bool
@@ -143,7 +144,39 @@ func TestYandexStorageRedirectRejectsFragmentsAndUntrustedHosts(t *testing.T) {
 	}
 }
 
+func TestYandexStorageRedirectRequiresExactConfiguredHosts(t *testing.T) {
+	check := func(raw string, want bool) {
+		t.Helper()
+		target, err := url.Parse(raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := ValidateYandexStorageRedirect(target); got != want {
+			t.Fatalf("redirect %q allowed=%v, want %v", raw, got, want)
+		}
+	}
+
+	t.Setenv(yandexStorageHostsEnv, "")
+	check("https://node.storage.yandex.net/file", false)
+	check("https://downloader.disk.yandex.net/file", true)
+
+	t.Setenv(yandexStorageHostsEnv, "node.storage.yandex.net")
+	check("https://node.storage.yandex.net/file", true)
+	check("https://mds.storage.yandex.net/file", false)
+	check("https://a.node.storage.yandex.net/file", false)
+	check("https://node.storage.yandex.net./file", false)
+	check("https://node.storage.yandex.net.evil.example/file", false)
+
+	// One malformed or wildcard entry invalidates the whole configuration;
+	// a valid first item must not mask an unsafe later item.
+	t.Setenv(yandexStorageHostsEnv, "node.storage.yandex.net,*.storage.yandex.net")
+	check("https://node.storage.yandex.net/file", false)
+	t.Setenv(yandexStorageHostsEnv, "node.storage.yandex.net, mds.storage.yandex.net")
+	check("https://node.storage.yandex.net/file", false)
+}
+
 func TestYandexMediaRedirectRejectsUntrustedHistoryAndStripsCredentials(t *testing.T) {
+	t.Setenv(yandexStorageHostsEnv, "node.storage.yandex.net")
 	trusted, _ := http.NewRequest(http.MethodGet, "https://downloader.disk.yandex.net/file", nil)
 	untrusted, _ := http.NewRequest(http.MethodGet, "https://attacker.example/file", nil)
 	next, _ := http.NewRequest(http.MethodGet, "https://node.storage.yandex.net/file", nil)
