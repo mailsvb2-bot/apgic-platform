@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"os"
 	"strings"
+
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/academy"
 )
 
 func academyVideoPublishEnabled() bool {
@@ -31,6 +33,13 @@ func academyReleaseSourceSHA() string {
 // All publication gates run under the existing AcademyPublish transaction.
 func academyVideoPublicationReady(ctx context.Context, tx *sql.Tx, author, versionID string) (bool, error) {
 	if !academyVideoPublishEnabled() {
+		return false, nil
+	}
+	mode, modeErr := academy.ConfiguredVideoDeliveryMode()
+	if modeErr != nil || mode != academy.VideoDeliveryDirect {
+		// The CDN connector and immutable attestation owner remain in place.
+		// Until the CDN learner route is wired to that executor, accepting a
+		// CDN certification here would sell courses with no playable video.
 		return false, nil
 	}
 	// The environment switch is only an operator opt-in. The direct Yandex
