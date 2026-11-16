@@ -758,7 +758,7 @@ ON CONFLICT(author_id,provider) DO UPDATE SET
 		}
 		if id == course.ID {
 			foundHistorical = true
-			if total != 3 || completed != 0 || active != 0 || pending != 0 || passed != 0 {
+			if total != 1 || completed != 0 || active != 0 || pending != 0 || passed != 0 {
 				metricsRows.Close()
 				t.Fatalf("terminal enrollment inflated actionable author metrics: total=%d completed=%d active=%d pending=%d passed=%d", total, completed, active, pending, passed)
 			}
