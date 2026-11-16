@@ -177,8 +177,8 @@ func bindCDNPlaybackBody(ctx context.Context, body io.ReadCloser, contentLength 
 }
 
 type cdnPlaybackBoundedBody struct {
-	reader *io.LimitedReader
-	closer io.Closer
+	reader     *io.LimitedReader
+	closer     io.Closer
 	noProgress int
 }
 
