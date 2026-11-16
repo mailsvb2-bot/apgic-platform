@@ -469,8 +469,8 @@ ON CONFLICT(author_id,provider) DO UPDATE SET
 	providerKeyID := "ci-ed25519-v1"
 	certifiedAt := time.Now().UTC()
 	stepUpAt := certifiedAt.Add(-time.Minute)
-	acceptanceSHA := acceptanceSHA
-	acceptanceRef := acceptanceRef
+	acceptanceSHA := strings.Repeat("b", 64)
+	acceptanceRef := "ci/r8/synthetic-video-acceptance"
 	auditState := `{"decision":"ALLOW","risk":"HIGH_RISK","action":"academy.video.provider.certify","contract_version":"cdn-playback-v1","provider_instance_id":"` + providerInstanceID + `","provider_kind":"test-cdn","key_id":"` + providerKeyID + `","acceptance_sha256":"` + acceptanceSHA + `","acceptance_ref":"` + acceptanceRef + `","tested_source_sha":"` + sourceSHA + `"}`
 
 	// A plausible evidence reference is not an authorization decision. Prove
