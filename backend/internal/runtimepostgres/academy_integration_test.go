@@ -663,6 +663,37 @@ ON CONFLICT(author_id,provider) DO UPDATE SET
 		author, directAuditID, certifiedAt, certifiedAt.Add(time.Hour)); err != nil {
 		t.Fatal(err)
 	}
+	// The isolated fixture carries both independent approvals. Preserve
+	// CDN certification as a real future mode instead of deleting its SQL
+	// contract. This only tests release-selection logic, not a live CDN.
+	for _, tc := range []struct {
+		mode string
+		want bool
+	}{
+		{mode: "direct", want: true},
+		{mode: "cdn", want: true},
+		{mode: "unsupported", want: false},
+	} {
+		modeTx, err := store.db.BeginTx(ctx, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := modeTx.ExecContext(ctx,
+			"SELECT set_config('apgic.academy_video_delivery_mode',$1,true)",
+			tc.mode); err != nil {
+			modeTx.Rollback()
+			t.Fatal(err)
+		}
+		var authorized bool
+		err = modeTx.QueryRowContext(ctx,
+			"SELECT academy_video_delivery_release_available($1)",
+			sourceSHA).Scan(&authorized)
+		modeTx.Rollback()
+		if err != nil || authorized != tc.want {
+			t.Fatalf("synthetic acceptance mode=%q got=%t want=%t err=%v",
+				tc.mode, authorized, tc.want, err)
+		}
+	}
 	// Both the Go publication gate and the PostgreSQL version trigger must
 	// depend on the same direct-Yandex release owner. A stale CDN-only trigger
 	// would silently reject every legitimate direct production publication.
