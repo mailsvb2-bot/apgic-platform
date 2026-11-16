@@ -87,13 +87,6 @@ func academyVideoUnsatisfiedRangeHeadersAllowed(requestRange string, headers htt
 	return len(values) == 1 && academyVideoUnsatisfiedRangeAllowed(requestRange, values[0])
 }
 
-package httpapi
-
-import (
-	"strconv"
-	"strings"
-)
-
 // academyVideoPartialMatchesRequest rejects inconsistent provider 206 responses
 // before their headers or bytes can reach a learner. It intentionally accepts
 // only a single, fully specified Content-Range with a known representation size.
