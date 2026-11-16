@@ -12,9 +12,9 @@ import (
 
 var ErrInvalidCDNPlaybackStream = errors.New("invalid CDN playback stream")
 
-// CDNPlaybackByteRange is one inclusive byte interval. Multi-range and
-// suffix-range requests are intentionally outside this provider contract;
-// the HTTP gateway parses client input and normalizes it before provider I/O.
+// CDNPlaybackByteRange is one normalized inclusive byte interval. Multi-range
+// requests are intentionally outside this provider contract; open-ended and
+// suffix ranges are normalized to this representation before provider I/O.
 type CDNPlaybackByteRange struct {
 	Start int64
 	End   int64
