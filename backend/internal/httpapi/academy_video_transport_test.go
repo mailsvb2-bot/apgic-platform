@@ -7,7 +7,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
 )
 
 // An authorized video can stream for minutes, but a CDN endpoint that never
