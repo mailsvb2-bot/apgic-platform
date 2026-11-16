@@ -51,13 +51,13 @@ export default function CloudMediaEditor({courseId,versionId,lessons,modules}:{
  const [selected,setSelected]=useState<string[]>([]);
  const [lessonId,setLessonId]=useState("");
  const videoLessons=lessons.filter(l=>l.kind==="VIDEO");
+ const [perLesson,setPerLesson]=useState(10);
+ const [assignments,setAssignments]=useState<Mapping[]>([]);
+ const [saved,setSaved]=useState<AuthorMediaAssignment[]>([]);
  const chosenLesson=videoLessons.find(l=>l.id===lessonId);
  const chosenModule=modules.find(m=>m.id===chosenLesson?.module_id);
  const currentLessonDraft=assignments.filter(a=>a.lesson_id===lessonId);
  const currentLessonSaved=saved.filter(a=>a.lesson_id===lessonId);
- const [perLesson,setPerLesson]=useState(10);
- const [assignments,setAssignments]=useState<Mapping[]>([]);
- const [saved,setSaved]=useState<AuthorMediaAssignment[]>([]);
  const [message,setMessage]=useState("");
  const [busy,setBusy]=useState(false);
  const oauthAutoOpened=useRef(false);
