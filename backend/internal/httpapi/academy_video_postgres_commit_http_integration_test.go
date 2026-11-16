@@ -225,13 +225,11 @@ SET generation=gen_random_uuid() WHERE author_id=$1::uuid AND provider='YANDEX_D
 	}
 }
 
-// TestAcademyYandexTransportHarnessStopsAfterCommittedEntitlementRevocation
-// exercises the test-only Yandex-origin transport seam against the same
-// PostgreSQL-backed learner source and per-write authorization check. It uses
-// the paid Academy journey created earlier in the isolated CI database, then
-// commits the canonical Commerce refund event while a learner response is
-// already open. The provider responses and cloud credential are test doubles;
-// this is not production CDN delivery or live OAuth acceptance.
+// The next test uses this deterministic Yandex-origin transport seam against
+// the PostgreSQL-backed learner source and per-write authorization check. It
+// commits a canonical Commerce refund while a learner response is already
+// open. Provider responses and cloud credentials are test doubles; this is not
+// production CDN delivery or live OAuth acceptance.
 type academyVideoEntitlementRoundTripper func(*http.Request) (*http.Response, error)
 
 func (f academyVideoEntitlementRoundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
