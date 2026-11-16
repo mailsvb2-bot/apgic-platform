@@ -699,8 +699,8 @@ func (p *mutatingRangeCDNPlaybackProvider) OpenPlaybackStream(_ context.Context,
 	return CDNPlaybackStream{
 		StatusCode: 206, ContentType: "video/mp4",
 		ContentLength: grant.Binding.ContentLength,
-		ContentRange: fmt.Sprintf("bytes 0-%d/%d", grant.Binding.ContentLength-1, grant.Binding.ContentLength),
-		Body: io.NopCloser(strings.NewReader(strings.Repeat("x", int(grant.Binding.ContentLength)))),
+		ContentRange:  fmt.Sprintf("bytes 0-%d/%d", grant.Binding.ContentLength-1, grant.Binding.ContentLength),
+		Body:          io.NopCloser(strings.NewReader(strings.Repeat("x", int(grant.Binding.ContentLength)))),
 	}, nil
 }
 
