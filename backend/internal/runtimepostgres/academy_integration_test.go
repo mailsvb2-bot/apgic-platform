@@ -471,7 +471,7 @@ ON CONFLICT(author_id,provider) DO UPDATE SET
 	stepUpAt := certifiedAt.Add(-time.Minute)
 	acceptanceSHA := strings.Repeat("b", 64)
 	acceptanceRef := "ci/r8/synthetic-video-acceptance"
-	auditState := `{"decision":"ALLOW","risk":"HIGH_RISK","action":"academy.video.provider.certify","contract_version":"cdn-playback-v1","provider_instance_id":"` + providerInstanceID + `","provider_kind":"test-cdn","key_id":"` + providerKeyID + `","acceptance_sha256":"` + acceptanceSHA + `","acceptance_ref":"` + acceptanceRef + `","tested_source_sha":"` + sourceSHA + `"}`
+	auditState := `{"decision":"ALLOW","risk":"HIGH_RISK","action":"academy.video.provider.certify","contract_version":"cdn-playback-v2","provider_instance_id":"` + providerInstanceID + `","provider_kind":"test-cdn","key_id":"` + providerKeyID + `","acceptance_sha256":"` + acceptanceSHA + `","acceptance_ref":"` + acceptanceRef + `","tested_source_sha":"` + sourceSHA + `"}`
 
 	// A plausible evidence reference is not an authorization decision. Prove
 	// that a non-authorization audit cannot certify the provider instance.
@@ -493,7 +493,7 @@ ON CONFLICT(author_id,provider) DO UPDATE SET
 	if _, err = store.db.ExecContext(ctx, `INSERT INTO academy_video_provider_certifications(
  id,connector_instance_id,contract_version,provider_kind,key_id,acceptance_sha256,
  acceptance_ref,tested_source_sha,accepted_by,step_up_audit_ref,accepted_at,expires_at
-) VALUES($1::uuid,$2::uuid,'cdn-playback-v1','test-cdn',$3,$4,$5,$6,$7::uuid,$8::uuid,$9,$10)`,
+) VALUES($1::uuid,$2::uuid,'cdn-playback-v2','test-cdn',$3,$4,$5,$6,$7::uuid,$8::uuid,$9,$10)`,
 		invalidCertificationID, providerInstanceID, providerKeyID, acceptanceSHA,
 		acceptanceRef, sourceSHA, author,
 		invalidAuditID, certifiedAt, certifiedAt.Add(time.Hour)); err == nil {
@@ -518,7 +518,7 @@ ON CONFLICT(author_id,provider) DO UPDATE SET
 	if _, err = store.db.ExecContext(ctx, `INSERT INTO academy_video_provider_certifications(
  id,connector_instance_id,contract_version,provider_kind,key_id,acceptance_sha256,
  acceptance_ref,tested_source_sha,accepted_by,step_up_audit_ref,accepted_at,expires_at
-) VALUES($1::uuid,$2::uuid,'cdn-playback-v1','test-cdn',$3,$4,$5,$6,$7::uuid,$8::uuid,$9,$10)`,
+) VALUES($1::uuid,$2::uuid,'cdn-playback-v2','test-cdn',$3,$4,$5,$6,$7::uuid,$8::uuid,$9,$10)`,
 		missingStateCertificationID, providerInstanceID, providerKeyID, acceptanceSHA,
 		acceptanceRef, sourceSHA, author,
 		missingStateAuditID, certifiedAt, certifiedAt.Add(time.Hour)); err == nil {
@@ -545,7 +545,7 @@ ON CONFLICT(author_id,provider) DO UPDATE SET
 	if _, err = store.db.ExecContext(ctx, `INSERT INTO academy_video_provider_certifications(
  id,connector_instance_id,contract_version,provider_kind,key_id,acceptance_sha256,
  acceptance_ref,tested_source_sha,accepted_by,step_up_audit_ref,accepted_at,expires_at
-) VALUES($1::uuid,$2::uuid,'cdn-playback-v1','test-cdn',$3,$4,$5,$6,$7::uuid,$8::uuid,$9,$10)`,
+) VALUES($1::uuid,$2::uuid,'cdn-playback-v2','test-cdn',$3,$4,$5,$6,$7::uuid,$8::uuid,$9,$10)`,
 		wrongResourceCertificationID, providerInstanceID, providerKeyID, acceptanceSHA,
 		acceptanceRef, sourceSHA, author,
 		wrongResourceAuditID, certifiedAt, certifiedAt.Add(time.Hour)); err == nil {
@@ -572,7 +572,7 @@ ON CONFLICT(author_id,provider) DO UPDATE SET
 	if _, err = store.db.ExecContext(ctx, `INSERT INTO academy_video_provider_certifications(
  id,connector_instance_id,contract_version,provider_kind,key_id,acceptance_sha256,
  acceptance_ref,tested_source_sha,accepted_by,step_up_audit_ref,accepted_at,expires_at
-) VALUES($1::uuid,$2::uuid,'cdn-playback-v1','test-cdn',$3,$4,$5,$6,$7::uuid,$8::uuid,$9,$10)`,
+) VALUES($1::uuid,$2::uuid,'cdn-playback-v2','test-cdn',$3,$4,$5,$6,$7::uuid,$8::uuid,$9,$10)`,
 		wrongScopeCertificationID, providerInstanceID, providerKeyID, acceptanceSHA,
 		acceptanceRef, sourceSHA, author,
 		wrongScopeAuditID, certifiedAt, certifiedAt.Add(time.Hour)); err == nil {
@@ -600,7 +600,7 @@ ON CONFLICT(author_id,provider) DO UPDATE SET
 	if _, err = store.db.ExecContext(ctx, `INSERT INTO academy_video_provider_certifications(
  id,connector_instance_id,contract_version,provider_kind,key_id,acceptance_sha256,
  acceptance_ref,tested_source_sha,accepted_by,step_up_audit_ref,accepted_at,expires_at
-) VALUES($1::uuid,$2::uuid,'cdn-playback-v1','test-cdn',$3,$4,$5,$6,$7::uuid,$8::uuid,$9,$10)`,
+) VALUES($1::uuid,$2::uuid,'cdn-playback-v2','test-cdn',$3,$4,$5,$6,$7::uuid,$8::uuid,$9,$10)`,
 		wrongEvidenceCertificationID, providerInstanceID, providerKeyID, acceptanceSHA,
 		acceptanceRef, sourceSHA, author,
 		wrongEvidenceAuditID, certifiedAt, certifiedAt.Add(time.Hour)); err == nil {
@@ -627,7 +627,7 @@ ON CONFLICT(author_id,provider) DO UPDATE SET
 	if _, err = store.db.ExecContext(ctx, `INSERT INTO academy_video_provider_certifications(
  id,connector_instance_id,contract_version,provider_kind,key_id,acceptance_sha256,
  acceptance_ref,tested_source_sha,accepted_by,step_up_audit_ref,accepted_at,expires_at
-) VALUES($1::uuid,$2::uuid,'cdn-playback-v1','test-cdn',$3,$4,$5,$6,$7::uuid,$8::uuid,$9,$10)`,
+) VALUES($1::uuid,$2::uuid,'cdn-playback-v2','test-cdn',$3,$4,$5,$6,$7::uuid,$8::uuid,$9,$10)`,
 		certificationID, providerInstanceID, providerKeyID, acceptanceSHA,
 		acceptanceRef, sourceSHA, author,
 		stepUpAuditID, certifiedAt, certifiedAt.Add(time.Hour)); err != nil {
