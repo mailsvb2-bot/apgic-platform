@@ -76,7 +76,6 @@ func TestAcademyVideoTrustedStorageRedirects(t *testing.T) {
 	}
 }
 
-
 // Canon v7 forbids serving Yandex origin bytes from the APGIC Go API. The
 // production route must remain unavailable until an actual certified
 // CDNPlaybackCapability is wired; the legacy transport seam is test-only.
