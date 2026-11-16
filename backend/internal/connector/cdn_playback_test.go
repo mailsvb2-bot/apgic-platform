@@ -574,3 +574,113 @@ func TestTypedCDNPlaybackEvidenceUsesConfiguredProviderAndExactPayload(t *testin
 		t.Fatal("tampered attestation was accepted by typed connector executor")
 	}
 }
+
+type trackedCDNPlaybackBody struct {
+	io.Reader
+	closed bool
+}
+
+func (b *trackedCDNPlaybackBody) Close() error {
+	b.closed = true
+	return nil
+}
+
+type fixedCDNPlaybackProvider struct {
+	*fakeCDNPlaybackProvider
+	stream CDNPlaybackStream
+	err    error
+}
+
+func (p *fixedCDNPlaybackProvider) OpenPlaybackStream(context.Context, CDNPlaybackGrant, *CDNPlaybackByteRange) (CDNPlaybackStream, error) {
+	p.streamCalls++
+	return p.stream, p.err
+}
+
+func TestTypedCDNPlaybackStreamUsesCanonicalConnectorAuthorization(t *testing.T) {
+	instance := activeCDNPlaybackInstance(t)
+	provider := &fakeCDNPlaybackProvider{fakeProvider: fakeProvider{
+		kind: "provider-a", capabilities: []CapabilityClass{CapabilityCDN},
+	}}
+	grant := validCDNPlaybackGrant(time.Now().UTC())
+	wrongPrincipal := scopedPrincipal(t, "connector:execute:PAYMENT_PROVIDER")
+	if _, err := OpenCDNPlaybackStream(context.Background(), instance, provider, wrongPrincipal, grant, nil, ExecutionPolicy{}); err != ErrConnectorScopeDenied {
+		t.Fatalf("wrong connector scope opened CDN bytes: %v", err)
+	}
+	if provider.streamCalls != 0 {
+		t.Fatal("provider was called before connector authorization")
+	}
+
+	principal := scopedPrincipal(t, instance.ExecuteScope)
+	full, err := OpenCDNPlaybackStream(context.Background(), instance, provider, principal, grant, nil, ExecutionPolicy{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if full.StatusCode != 200 || full.ContentLength != grant.Binding.ContentLength {
+		t.Fatalf("unexpected full stream metadata: %+v", full)
+	}
+	_ = full.Body.Close()
+
+	requested := &CDNPlaybackByteRange{Start: 100, End: 199}
+	partial, err := OpenCDNPlaybackStream(context.Background(), instance, provider, principal, grant, requested, ExecutionPolicy{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if partial.StatusCode != 206 || partial.ContentLength != 100 || partial.ContentRange != "bytes 100-199/1024" {
+		t.Fatalf("unexpected partial stream metadata: %+v", partial)
+	}
+	_ = partial.Body.Close()
+	if provider.streamCalls != 2 {
+		t.Fatalf("provider calls=%d, want 2", provider.streamCalls)
+	}
+}
+
+func TestTypedCDNPlaybackStreamRejectsForeignExpiredAndUnsatisfiableRequestsBeforeProviderIO(t *testing.T) {
+	instance := activeCDNPlaybackInstance(t)
+	provider := &fakeCDNPlaybackProvider{fakeProvider: fakeProvider{
+		kind: "provider-a", capabilities: []CapabilityClass{CapabilityCDN},
+	}}
+	principal := scopedPrincipal(t, instance.ExecuteScope)
+	grant := validCDNPlaybackGrant(time.Now().UTC())
+
+	foreign := instance
+	foreign.ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+	if _, err := OpenCDNPlaybackStream(context.Background(), foreign, provider, principal, grant, nil, ExecutionPolicy{}); err != ErrInvalidCDNPlaybackGrant {
+		t.Fatalf("grant crossed connector instances: %v", err)
+	}
+	expiredAt := grant.ExpiresAt.Add(time.Second)
+	if _, err := OpenCDNPlaybackStream(context.Background(), instance, provider, principal, grant, nil, ExecutionPolicy{Now: func() time.Time { return expiredAt }}); err != ErrInvalidCDNPlaybackGrant {
+		t.Fatalf("expired playback grant was accepted: %v", err)
+	}
+	unsatisfiable := &CDNPlaybackByteRange{Start: grant.Binding.ContentLength, End: grant.Binding.ContentLength}
+	if _, err := OpenCDNPlaybackStream(context.Background(), instance, provider, principal, grant, unsatisfiable, ExecutionPolicy{}); err != ErrInvalidCDNPlaybackStream {
+		t.Fatalf("unsatisfiable range reached provider: %v", err)
+	}
+	if provider.streamCalls != 0 {
+		t.Fatalf("provider was called for rejected requests: %d", provider.streamCalls)
+	}
+}
+
+func TestTypedCDNPlaybackStreamClosesInvalidProviderBody(t *testing.T) {
+	instance := activeCDNPlaybackInstance(t)
+	principal := scopedPrincipal(t, instance.ExecuteScope)
+	grant := validCDNPlaybackGrant(time.Now().UTC())
+	body := &trackedCDNPlaybackBody{Reader: strings.NewReader("not a video")}
+	provider := &fixedCDNPlaybackProvider{
+		fakeCDNPlaybackProvider: &fakeCDNPlaybackProvider{fakeProvider: fakeProvider{
+			kind: "provider-a", capabilities: []CapabilityClass{CapabilityCDN},
+		}},
+		stream: CDNPlaybackStream{
+			StatusCode: 200, ContentType: "text/html",
+			ContentLength: grant.Binding.ContentLength, Body: body,
+		},
+	}
+	if _, err := OpenCDNPlaybackStream(context.Background(), instance, provider, principal, grant, nil, ExecutionPolicy{}); err != ErrInvalidCDNPlaybackStream {
+		t.Fatalf("invalid provider representation was accepted: %v", err)
+	}
+	if !body.closed {
+		t.Fatal("invalid provider response body was not closed")
+	}
+	if provider.streamCalls != 1 {
+		t.Fatalf("provider calls=%d, want 1", provider.streamCalls)
+	}
+}
