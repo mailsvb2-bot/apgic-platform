@@ -41,6 +41,7 @@ func TestAcademyVideoUpstreamClientTransportLimits(t *testing.T) {
 }
 
 func TestAcademyVideoTrustedStorageRedirects(t *testing.T) {
+	t.Setenv("APGIC_YANDEX_STORAGE_HOSTS", "s123vla.storage.yandex.net,s1.storage.yandex.net")
 	client := academyVideoUpstreamClient()
 	trustedOrigin, err := http.NewRequest(http.MethodGet, "https://downloader.disk.yandex.net/rdisk/source", nil)
 	if err != nil {
