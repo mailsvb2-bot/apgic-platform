@@ -228,15 +228,16 @@ func OpenCDNPlaybackStream(
 	if err := ValidateCDNPlaybackProvider(provider); err != nil {
 		return CDNPlaybackStream{}, errors.Join(ErrCapabilityMismatch, err)
 	}
-	if requested != nil {
-		if err := requested.Validate(grant.Binding.ContentLength); err != nil {
-			return CDNPlaybackStream{}, err
-		}
-	}
+	var expectedRange *CDNPlaybackByteRange
 	var providerRange *CDNPlaybackByteRange
 	if requested != nil {
-		copyOfRange := *requested
-		providerRange = &copyOfRange
+		copyForValidation := *requested
+		if err := copyForValidation.Validate(grant.Binding.ContentLength); err != nil {
+			return CDNPlaybackStream{}, err
+		}
+		copyForProvider := copyForValidation
+		expectedRange = &copyForValidation
+		providerRange = &copyForProvider
 	}
 	stream, err := provider.(CDNPlaybackCapability).OpenPlaybackStream(ctx, grant, providerRange)
 	if err != nil {
@@ -251,7 +252,7 @@ func OpenCDNPlaybackStream(
 		}
 		return CDNPlaybackStream{}, ctx.Err()
 	}
-	if err := ValidateCDNPlaybackStream(grant.Binding, requested, stream); err != nil {
+	if err := ValidateCDNPlaybackStream(grant.Binding, expectedRange, stream); err != nil {
 		if stream.Body != nil {
 			_ = stream.Body.Close()
 		}
