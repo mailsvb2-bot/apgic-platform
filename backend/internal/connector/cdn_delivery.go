@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"mime"
+	"net/http"
+	"strconv"
 	"strings"
 )
 
@@ -23,6 +25,114 @@ func (r CDNPlaybackByteRange) Validate(contentLength int64) error {
 		return ErrInvalidCDNPlaybackStream
 	}
 	return nil
+}
+
+// CDNPlaybackRangeSelection is the gateway's decision for one HTTP Range
+// header. A 416 decision includes the only representation metadata safe to
+// return: "bytes */<verified content length>". Invalid syntax is an error and
+// must be rejected as 400 before provider I/O.
+type CDNPlaybackRangeSelection struct {
+	StatusCode   int
+	ByteRange    *CDNPlaybackByteRange
+	ContentRange string
+}
+
+// SelectCDNPlaybackRange parses exactly zero or one Range field value against
+// the immutable imported media length. It never trusts a provider response to
+// decide whether a learner's range is satisfiable.
+//
+// Semantics:
+//   - no Range header: 200 and a nil ByteRange;
+//   - one satisfiable bytes range: 206 and a normalized inclusive interval;
+//   - a syntactically valid but unsatisfiable range: 416 and bytes */length;
+//   - duplicate, malformed, multi-range, signed, whitespace-padded or
+//     overflowing input: ErrInvalidCDNPlaybackRequest (gateway maps to 400).
+//
+// Open-ended and suffix ranges are normalized here so the provider sees only
+// a single bounded inclusive interval. An end beyond EOF is clamped to EOF.
+func SelectCDNPlaybackRange(values []string, contentLength int64) (CDNPlaybackRangeSelection, error) {
+	if contentLength <= 0 {
+		return CDNPlaybackRangeSelection{}, ErrInvalidCDNPlaybackRequest
+	}
+	if len(values) == 0 {
+		return CDNPlaybackRangeSelection{StatusCode: http.StatusOK}, nil
+	}
+	if len(values) != 1 {
+		return CDNPlaybackRangeSelection{}, ErrInvalidCDNPlaybackRequest
+	}
+	value := values[0]
+	if !strings.HasPrefix(value, "bytes=") || strings.ContainsAny(value, "\r\n") {
+		return CDNPlaybackRangeSelection{}, ErrInvalidCDNPlaybackRequest
+	}
+	spec := strings.TrimPrefix(value, "bytes=")
+	if spec == "" || strings.Contains(spec, ",") || strings.Count(spec, "-") != 1 {
+		return CDNPlaybackRangeSelection{}, ErrInvalidCDNPlaybackRequest
+	}
+	startText, endText, _ := strings.Cut(spec, "-")
+	if startText == "" {
+		suffixLength, ok := cdnPlaybackRangeDecimal(endText)
+		if !ok || suffixLength == 0 {
+			return CDNPlaybackRangeSelection{}, ErrInvalidCDNPlaybackRequest
+		}
+		start := int64(0)
+		if suffixLength < contentLength {
+			start = contentLength - suffixLength
+		}
+		end := contentLength - 1
+		return cdnPlaybackRangePartial(start, end, contentLength), nil
+	}
+
+	start, ok := cdnPlaybackRangeDecimal(startText)
+	if !ok {
+		return CDNPlaybackRangeSelection{}, ErrInvalidCDNPlaybackRequest
+	}
+	if endText == "" {
+		if start >= contentLength {
+			return cdnPlaybackRangeUnsatisfied(contentLength), nil
+		}
+		return cdnPlaybackRangePartial(start, contentLength-1, contentLength), nil
+	}
+	end, ok := cdnPlaybackRangeDecimal(endText)
+	if !ok || end < start {
+		return CDNPlaybackRangeSelection{}, ErrInvalidCDNPlaybackRequest
+	}
+	if start >= contentLength {
+		return cdnPlaybackRangeUnsatisfied(contentLength), nil
+	}
+	if end >= contentLength {
+		end = contentLength - 1
+	}
+	return cdnPlaybackRangePartial(start, end, contentLength), nil
+}
+
+func cdnPlaybackRangeDecimal(value string) (int64, bool) {
+	if value == "" {
+		return 0, false
+	}
+	for _, digit := range value {
+		if digit < '0' || digit > '9' {
+			return 0, false
+		}
+	}
+	parsed, err := strconv.ParseInt(value, 10, 64)
+	return parsed, err == nil
+}
+
+func cdnPlaybackRangePartial(start, end, contentLength int64) CDNPlaybackRangeSelection {
+	return CDNPlaybackRangeSelection{
+		StatusCode: http.StatusPartialContent,
+		ByteRange:  &CDNPlaybackByteRange{Start: start, End: end},
+		ContentRange: fmt.Sprintf(
+			"bytes %d-%d/%d", start, end, contentLength,
+		),
+	}
+}
+
+func cdnPlaybackRangeUnsatisfied(contentLength int64) CDNPlaybackRangeSelection {
+	return CDNPlaybackRangeSelection{
+		StatusCode:   http.StatusRequestedRangeNotSatisfiable,
+		ContentRange: fmt.Sprintf("bytes */%d", contentLength),
+	}
 }
 
 // CDNPlaybackStream is the only data a provider may return to the APGIC
@@ -55,7 +165,7 @@ func ValidateCDNPlaybackStream(binding CDNPlaybackBinding, requested *CDNPlaybac
 		return ErrInvalidCDNPlaybackStream
 	}
 	if requested == nil {
-		if stream.StatusCode != 200 || stream.ContentLength != binding.ContentLength || stream.ContentRange != "" {
+		if stream.StatusCode != http.StatusOK || stream.ContentLength != binding.ContentLength || stream.ContentRange != "" {
 			return ErrInvalidCDNPlaybackStream
 		}
 		return nil
@@ -65,7 +175,7 @@ func ValidateCDNPlaybackStream(binding CDNPlaybackBinding, requested *CDNPlaybac
 	}
 	expectedLength := requested.End - requested.Start + 1
 	expectedRange := fmt.Sprintf("bytes %d-%d/%d", requested.Start, requested.End, binding.ContentLength)
-	if stream.StatusCode != 206 || stream.ContentLength != expectedLength || stream.ContentRange != expectedRange {
+	if stream.StatusCode != http.StatusPartialContent || stream.ContentLength != expectedLength || stream.ContentRange != expectedRange {
 		return ErrInvalidCDNPlaybackStream
 	}
 	return nil
