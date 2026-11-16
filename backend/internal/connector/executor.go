@@ -243,6 +243,13 @@ func OpenCDNPlaybackStream(
 	// stream handed to the gateway. A compliant adapter can therefore abort
 	// a stalled OpenPlaybackStream when the grant expires.
 	openCtx, cancelOpen := context.WithDeadline(ctx, grant.ExpiresAt)
+	// Own the deadline until it is explicitly transferred to the returned body.
+	// The deferred fallback covers every early exit and satisfies lostcancel.
+	defer func() {
+		if cancelOpen != nil {
+			cancelOpen()
+		}
+	}()
 	stream, err := provider.(CDNPlaybackCapability).OpenPlaybackStream(openCtx, grant, providerRange)
 	if err != nil {
 		cancelOpen()
@@ -277,6 +284,7 @@ func OpenCDNPlaybackStream(
 	// The entitlement watcher cancels ctx on revocation. Bind cancellation to
 	// the provider body so an already-open or blocked read is closed immediately.
 	stream.Body = bindCDNPlaybackBodyWithCancel(openCtx, stream.Body, stream.ContentLength, cancelOpen)
+	cancelOpen = nil // returned body now owns the deadline and its cancellation
 	return stream, nil
 }
 
