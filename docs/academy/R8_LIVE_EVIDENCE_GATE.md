@@ -2,6 +2,10 @@
 
 The ordinary green CI run is **not** evidence of actual Yandex OAuth, video bytes, a signed learner session, a captured PSP transaction, or Finance reconciliation.
 
+## Canon v7 production delivery boundary (2026-11-16)
+
+The production learner route `GET /v1/academy/enrollments/{enrollmentID}/lessons/{lessonID}/videos/{mediaID}/stream` now fails closed with HTTP 503 until an actual certified `CDNPlaybackCapability` is wired. The legacy Yandex byte-proxy handler is retained only behind a package-private transport-test seam; it is not registered in production. Its live range/revocation smoke can prove origin-host, redirect, range and cancellation behavior, but it cannot be counted as canonical CDN playback or as the production learner delivery path. This follows `R8_EXECUTION_AND_GATES.md`: media bytes and playback attestation belong to the versioned provider capability, not APGIC Go streaming.
+
 ## Explicit real-provider smoke (never use a fake provider or log credentials)
 
 Use a dedicated nonproduction Yandex account with an author-owned MP4 >=128 KiB and valid metadata/fingerprint, on an authorized environment with Go and network access. Supply `APGIC_TEST_YANDEX_OAUTH_TOKEN` and `APGIC_TEST_YANDEX_VIDEO_PATH` using the environment's secret manager, **never as CLI arguments, committed files, issue text or CI logs**.
