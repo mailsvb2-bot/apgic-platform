@@ -18,6 +18,7 @@ import (
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/academy"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/runtimepostgres"
 )
 
@@ -381,7 +382,7 @@ ORDER BY l.ordinal,lm.ordinal LIMIT 1`, learner, product).Scan(&enrollmentID, &l
 			"Content-Length": []string{strconv.FormatInt(size, 10)},
 		}
 		return &http.Response{StatusCode: http.StatusOK, Header: header,
-			Body: academyVideoTrackedBody{ReadCloser: reader, closed: &upstreamClosed},
+			Body:          academyVideoTrackedBody{ReadCloser: reader, closed: &upstreamClosed},
 			ContentLength: size, Request: req}, nil
 	})}
 
