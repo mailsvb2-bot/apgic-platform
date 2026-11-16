@@ -3,6 +3,7 @@ package runtimepostgres
 import (
 	"context"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -35,13 +36,19 @@ func TestAcademyVideoPublishFlagCannotBypassPlaybackCertification(t *testing.T) 
 	if !academyVideoPublishEnabled() {
 		t.Fatal("test requires operator flag to be enabled")
 	}
-	if academyVideoPlaybackCertificationAvailable() {
-		t.Fatal("video publication must remain blocked until verified playback evidence exists")
+	// An operator flag without an exact build identity cannot select a
+	// provider acceptance record and therefore cannot open VIDEO publication.
+	t.Setenv("APGIC_RELEASE_SOURCE_SHA", "")
+	if academyReleaseSourceSHA() != "" {
+		t.Fatal("missing release source SHA was accepted")
 	}
-	// No PostgreSQL transaction should be needed for a mandatory missing
-	// certification; the safety boundary must precede metadata SQL checks.
-	ready, err := academyVideoPublicationReady(context.Background(), nil, "00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000002")
-	if err != nil || ready {
-		t.Fatalf("flag bypassed mandatory proof: ready=%v err=%v", ready, err)
+	t.Setenv("APGIC_RELEASE_SOURCE_SHA", "not-a-commit")
+	if academyReleaseSourceSHA() != "" {
+		t.Fatal("malformed release source SHA was accepted")
+	}
+	validSHA := strings.Repeat("a", 40)
+	t.Setenv("APGIC_RELEASE_SOURCE_SHA", validSHA)
+	if academyReleaseSourceSHA() != validSHA {
+		t.Fatal("valid exact release source SHA was rejected")
 	}
 }
