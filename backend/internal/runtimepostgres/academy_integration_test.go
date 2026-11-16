@@ -552,6 +552,33 @@ ON CONFLICT(author_id,provider) DO UPDATE SET
 		t.Fatal("CDN certification accepted a high-risk authorization decision for another connector")
 	}
 
+	// The step-up scope must be the certification action, not merely a
+	// matching action field inside a different authorization record.
+	wrongScopeAuditID, err := academyID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.db.ExecContext(ctx, `INSERT INTO audit_records(
+ id,actor_id,action,scope,resource_ref,new_state,reason,policy_version,occurred_at
+) VALUES($1::uuid,$2,'authorization.decision','connector:execute:CDN_PROVIDER',$3,$4::jsonb,$5,'r8-provider-cert-v1',$6)`,
+		wrongScopeAuditID, author, "connector/"+providerInstanceID,
+		auditState, "CI wrong-scope authorization fixture", stepUpAt); err != nil {
+		t.Fatal(err)
+	}
+	wrongScopeCertificationID, err := academyID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.db.ExecContext(ctx, `INSERT INTO academy_video_provider_certifications(
+ id,connector_instance_id,contract_version,provider_kind,key_id,acceptance_sha256,
+ acceptance_ref,tested_source_sha,accepted_by,step_up_audit_ref,accepted_at,expires_at
+) VALUES($1::uuid,$2::uuid,'cdn-playback-v1','test-cdn',$3,$4,$5,$6,$7::uuid,$8::uuid,$9,$10)`,
+		wrongScopeCertificationID, providerInstanceID, providerKeyID, acceptanceSHA,
+		acceptanceRef, sourceSHA, author,
+		wrongScopeAuditID, certifiedAt, certifiedAt.Add(time.Hour)); err == nil {
+		t.Fatal("CDN certification accepted a high-risk decision from a different authorization scope")
+	}
+
 	// Authorization must cover the exact immutable acceptance digest, not
 	// merely the general action and provider instance.
 	wrongEvidenceAuditID, err := academyID()
