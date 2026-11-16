@@ -78,3 +78,38 @@ func TestDirectYandexReleaseAcceptanceRequiresDurableApproval(t *testing.T) {
 		t.Fatal("unapproved commit unexpectedly certified for direct video publication")
 	}
 }
+
+func TestAcademyVideoDeliveryModeSQLFailsClosedWithoutApproval(t *testing.T) {
+	dsn := os.Getenv("APGIC_ORGANIZATION_TEST_DATABASE_URL")
+	if dsn == "" {
+		t.Skip("migrated Academy PostgreSQL integration database is unavailable")
+	}
+	store, err := Open(context.Background(), dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	ctx := context.Background()
+	tx, err := store.db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback()
+	for _, mode := range []string{"", "direct", "cdn", "unsupported"} {
+		if _, err := tx.ExecContext(ctx,
+			"SELECT set_config('apgic.academy_video_delivery_mode',$1,true)",
+			mode); err != nil {
+			t.Fatal(err)
+		}
+		var accepted bool
+		if err := tx.QueryRowContext(ctx,
+			"SELECT academy_video_delivery_release_available($1)",
+			strings.Repeat("e", 40)).Scan(&accepted); err != nil {
+			t.Fatalf("mode %q: missing unified release predicate: %v", mode, err)
+		}
+		if accepted {
+			t.Fatalf("unapproved release accepted with delivery mode %q", mode)
+		}
+	}
+}
