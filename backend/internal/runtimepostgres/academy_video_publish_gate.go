@@ -14,7 +14,7 @@ func academyVideoPublishEnabled() bool {
 // academyReleaseSourceSHA binds a provider acceptance to the exact deployed
 // source tree. Missing or malformed build identity always keeps VIDEO closed.
 func academyReleaseSourceSHA() string {
-	value := strings.ToLower(strings.TrimSpace(os.Getenv("APGIC_RELEASE_SOURCE_SHA")))
+	value := strings.ToLower(strings.TrimSpace(os.Getenv("APGIC_COMMIT_SHA")))
 	if len(value) != 40 {
 		return ""
 	}

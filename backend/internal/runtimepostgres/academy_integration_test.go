@@ -317,7 +317,7 @@ func TestAcademyStoreVerifiedPaidJourneySurvivesRestart(t *testing.T) {
 	// admission. Production has no certificate until live provider acceptance.
 	sourceSHA := strings.Repeat("c", 40)
 	t.Setenv("APGIC_ACADEMY_VIDEO_PUBLISH_ENABLED", "true")
-	t.Setenv("APGIC_RELEASE_SOURCE_SHA", sourceSHA)
+	t.Setenv("APGIC_COMMIT_SHA", sourceSHA)
 	const author = "00000000-0000-0000-0000-00000000b001"
 	const learner = "00000000-0000-0000-0000-00000000b003"
 	const product = "00000000-0000-0000-0000-00000000af03"
@@ -482,11 +482,11 @@ ON CONFLICT(author_id,provider) DO UPDATE SET
 		t.Fatal(err)
 	}
 	// A valid certificate for another source tree must not authorize this build.
-	t.Setenv("APGIC_RELEASE_SOURCE_SHA", strings.Repeat("d", 40))
+	t.Setenv("APGIC_COMMIT_SHA", strings.Repeat("d", 40))
 	if _, err = store.AcademyPublish(author, course.ID, course.VersionID); !errors.Is(err, academy.ErrState) {
 		t.Fatalf("video publication accepted a certificate for another source SHA: %v", err)
 	}
-	t.Setenv("APGIC_RELEASE_SOURCE_SHA", sourceSHA)
+	t.Setenv("APGIC_COMMIT_SHA", sourceSHA)
 	if _, err = store.AcademyDeclareOriginalRights(author, course.ID, course.VersionID, "original/verified-paid-curriculum-authored-content"); err != nil {
 		t.Fatalf("failed to attest paid curriculum: %v", err)
 	}

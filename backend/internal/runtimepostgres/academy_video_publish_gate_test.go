@@ -37,16 +37,16 @@ func TestAcademyVideoPublishFlagCannotBypassPlaybackCertification(t *testing.T) 
 	}
 	// An operator flag without an exact build identity cannot select a
 	// provider acceptance record and therefore cannot open VIDEO publication.
-	t.Setenv("APGIC_RELEASE_SOURCE_SHA", "")
+	t.Setenv("APGIC_COMMIT_SHA", "")
 	if academyReleaseSourceSHA() != "" {
 		t.Fatal("missing release source SHA was accepted")
 	}
-	t.Setenv("APGIC_RELEASE_SOURCE_SHA", "not-a-commit")
+	t.Setenv("APGIC_COMMIT_SHA", "not-a-commit")
 	if academyReleaseSourceSHA() != "" {
 		t.Fatal("malformed release source SHA was accepted")
 	}
 	validSHA := strings.Repeat("a", 40)
-	t.Setenv("APGIC_RELEASE_SOURCE_SHA", validSHA)
+	t.Setenv("APGIC_COMMIT_SHA", validSHA)
 	if academyReleaseSourceSHA() != validSHA {
 		t.Fatal("valid exact release source SHA was rejected")
 	}

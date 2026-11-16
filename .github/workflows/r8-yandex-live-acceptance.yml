@@ -91,7 +91,7 @@ jobs:
         shell: bash
         env:
           APGIC_REQUIRE_R8_LIVE_PROOF: "true"
-          APGIC_RELEASE_SOURCE_SHA: ${{ github.sha }}
+          APGIC_COMMIT_SHA: ${{ github.sha }}
           APGIC_TEST_YANDEX_OAUTH_TOKEN: ${{ secrets.APGIC_TEST_YANDEX_OAUTH_TOKEN }}
           APGIC_TEST_YANDEX_VIDEO_PATH: ${{ secrets.APGIC_TEST_YANDEX_VIDEO_PATH }}
         working-directory: backend
