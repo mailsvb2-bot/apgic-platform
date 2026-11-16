@@ -314,9 +314,9 @@ func TestCDNPlaybackStreamValidatesExactFullAndPartialRepresentations(t *testing
 	_ = partial.Body.Close()
 
 	cases := []struct {
-		name string
+		name         string
 		rangeRequest *CDNPlaybackByteRange
-		stream CDNPlaybackStream
+		stream       CDNPlaybackStream
 	}{
 		{name: "provider must not decide 416", rangeRequest: partialRange, stream: CDNPlaybackStream{StatusCode: 416, ContentRange: "bytes */1024", ContentLength: 0, ContentType: "video/mp4", Body: newBody(0)}},
 		{name: "partial without range", stream: CDNPlaybackStream{StatusCode: 206, ContentType: "video/mp4", ContentLength: 100, ContentRange: "bytes 100-199/1024", Body: newBody(100)}},
