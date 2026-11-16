@@ -10,6 +10,8 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -217,5 +219,199 @@ SET generation=gen_random_uuid() WHERE author_id=$1::uuid AND provider='YANDEX_D
 	}
 	if strings.Contains(string(denied), path) || strings.Contains(string(denied), "encrypted-test-only-placeholder") {
 		t.Fatal("revoked seek exposed cloud path or credential")
+	}
+}
+
+// TestAcademyVideoHTTPStopsAfterCommittedEntitlementRevocation exercises the
+// same PostgreSQL-backed learner source and per-write HTTP copier as the
+// production gateway. It uses the paid Academy journey created earlier in the
+// isolated CI database, then commits the canonical Commerce refund event while
+// a learner response is already open. No fake entitlement flag is involved.
+func TestAcademyVideoHTTPStopsAfterCommittedEntitlementRevocation(t *testing.T) {
+	dsn := os.Getenv("APGIC_ORGANIZATION_TEST_DATABASE_URL")
+	if dsn == "" {
+		t.Skip("isolated migrated PostgreSQL Academy journey required")
+	}
+	ctx := context.Background()
+	db, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	store, err := runtimepostgres.Open(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	const learner = "00000000-0000-0000-0000-00000000b003"
+	const product = "00000000-0000-0000-0000-00000000af03"
+	var enrollmentID, lessonID, mediaID string
+	err = db.QueryRowContext(ctx, `SELECT e.id::text,l.id::text,lm.media_id::text
+FROM academy_enrollments e
+JOIN store_entitlements t ON t.id=e.entitlement_id
+JOIN academy_course_versions v ON v.id=e.version_id AND v.state='PUBLISHED'
+JOIN academy_courses c ON c.id=v.course_id AND c.state='PUBLISHED'
+JOIN academy_modules m ON m.version_id=v.id
+JOIN academy_lessons l ON l.module_id=m.id AND l.kind='VIDEO'
+JOIN academy_lesson_media lm ON lm.lesson_id=l.id
+WHERE e.identity_id=$1::uuid AND c.product_id=$2::uuid
+  AND e.state IN ('ACTIVE','COMPLETED') AND academy_entitlement_is_active(t.id)
+ORDER BY l.ordinal,lm.ordinal LIMIT 1`, learner, product).Scan(&enrollmentID, &lessonID, &mediaID)
+	if err != nil {
+		t.Fatalf("active paid VIDEO enrollment fixture missing; run the verified Academy journey first: %v", err)
+	}
+	author, provider, path, err := store.AcademyLearnerVideoSource(learner, enrollmentID, lessonID, mediaID)
+	if err != nil {
+		t.Fatalf("canonical learner source denied before refund: %v", err)
+	}
+	resourceID, digest, size, err := store.AcademyLearnerVideoFingerprint(author, provider, path, mediaID)
+	if err != nil {
+		t.Fatalf("verified media fingerprint unavailable before refund: %v", err)
+	}
+	authorized := func() bool {
+		return academyVideoSourceStillAllowed(store, learner, enrollmentID, lessonID, mediaID,
+			author, provider, path) &&
+			academyVideoFingerprintStillAllowed(store, author, provider, path, mediaID,
+				resourceID, digest, size)
+	}
+	if !authorized() {
+		t.Fatal("active paid enrollment did not authorize its assigned VIDEO")
+	}
+
+	const chunkSize = 64 << 10
+	releaseSecond := make(chan struct{})
+	var releaseOnce sync.Once
+	release := func() { releaseOnce.Do(func() { close(releaseSecond) }) }
+	defer release()
+	var streamStarts atomic.Int32
+	handlerDone := make(chan error, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !authorized() {
+			http.Error(w, "access denied", http.StatusForbidden)
+			return
+		}
+		streamStarts.Add(1)
+		reader, writer := io.Pipe()
+		defer reader.Close()
+		go func() {
+			if _, writeErr := writer.Write(bytes.Repeat([]byte("a"), chunkSize)); writeErr != nil {
+				_ = writer.CloseWithError(writeErr)
+				return
+			}
+			select {
+			case <-releaseSecond:
+				_, _ = writer.Write(bytes.Repeat([]byte("b"), chunkSize))
+			case <-r.Context().Done():
+			}
+			_ = writer.Close()
+		}()
+		w.Header().Set("Content-Type", "video/mp4")
+		w.Header().Set("Content-Length", "131072")
+		w.WriteHeader(http.StatusOK)
+		copyErr := academyCopyVideoAuthorized(w, reader, authorized)
+		if errors.Is(copyErr, errAcademyVideoRevoked) {
+			academyCancelRevokedVideoResponse(w, func() { _ = reader.Close() })
+		}
+		handlerDone <- copyErr
+	}))
+	defer server.Close()
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	response, err := client.Get(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("active paid video returned HTTP %d", response.StatusCode)
+	}
+	first := make([]byte, chunkSize)
+	if _, err := io.ReadFull(response.Body, first); err != nil {
+		t.Fatalf("first authorized video chunk unavailable: %v", err)
+	}
+	if !bytes.Equal(first, bytes.Repeat([]byte("a"), chunkSize)) {
+		t.Fatal("first authorized video chunk was altered")
+	}
+
+	// Apply the same canonical provider lifecycle REFUND used by the R8
+	// lifecycle fixture. The transaction commits on a separate connection
+	// while the already-open HTTP response is waiting for its next chunk.
+	refund, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var applied bool
+	var reason string
+	err = refund.QueryRowContext(ctx, `SELECT applied,reason_code
+FROM apgic_apply_store_lifecycle_event(
+ '00000000-0000-0000-0000-00000000aa64',
+ '00000000-0000-0000-0000-00000000aa74',
+ '00000000-0000-0000-0000-00000000a601',
+ 'store-provider-event-refund-4',
+ 'store-refund-tx-1',
+ 'subscription-ci-1',
+ '00000000-0000-0000-0000-00000000b003',
+ '00000000-0000-0000-0000-00000000a902',
+ 4,'REFUND',10000,'RUB','store-evidence/refund-ci',
+ '00000000-0000-0000-0000-00000000aa52',now()+interval '24 minutes'
+)`).Scan(&applied, &reason)
+	if err != nil {
+		_ = refund.Rollback()
+		t.Fatal(err)
+	}
+	if !applied || reason != "STORE_EVENT_APPLIED" {
+		_ = refund.Rollback()
+		t.Fatalf("canonical refund was not applied: applied=%v reason=%s", applied, reason)
+	}
+	if err := refund.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	if authorized() {
+		t.Fatal("committed canonical Entitlement refund still authorizes an open video stream")
+	}
+
+	release()
+	remaining, readErr := io.ReadAll(response.Body)
+	if len(remaining) != 0 {
+		t.Fatalf("refunded learner received %d additional video bytes after COMMIT", len(remaining))
+	}
+	if readErr == nil {
+		t.Fatal("refunded HTTP response completed successfully instead of being interrupted")
+	}
+	select {
+	case copyErr := <-handlerDone:
+		if !errors.Is(copyErr, errAcademyVideoRevoked) {
+			t.Fatalf("per-write gateway did not stop on committed Entitlement revocation: %v", copyErr)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("HTTP video copier remained active after committed Entitlement revocation")
+	}
+
+	seek, err := http.NewRequest(http.MethodGet, server.URL, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	seek.Header.Set("Range", "bytes=65536-")
+	seekResponse, err := client.Do(seek)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer seekResponse.Body.Close()
+	if seekResponse.StatusCode != http.StatusForbidden {
+		t.Fatalf("new seek after refund returned HTTP %d, want 403", seekResponse.StatusCode)
+	}
+	if seekResponse.Header.Get("Location") != "" || streamStarts.Load() != 1 {
+		t.Fatalf("revoked seek reached media source or exposed redirect: streams=%d location=%q",
+			streamStarts.Load(), seekResponse.Header.Get("Location"))
+	}
+	denied, err := io.ReadAll(seekResponse.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, secret := range []string{path, resourceID, "encrypted-test-only-placeholder"} {
+		if strings.Contains(string(denied), secret) {
+			t.Fatalf("revoked seek disclosed private media metadata %q", secret)
+		}
 	}
 }
