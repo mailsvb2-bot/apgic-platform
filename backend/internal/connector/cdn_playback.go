@@ -67,9 +67,9 @@ func (b CDNPlaybackBinding) Validate() error {
 // capability. The provider must bind the grant to this exact immutable lesson
 // version, learner, enrollment, entitlement and verified media fingerprint.
 type CDNPlaybackRequest struct {
-	IdempotencyKey    string             `json:"idempotency_key"`
+	IdempotencyKey     string             `json:"idempotency_key"`
 	ProviderInstanceID string            `json:"provider_instance_id"`
-	Binding           CDNPlaybackBinding `json:"binding"`
+	Binding            CDNPlaybackBinding `json:"binding"`
 }
 
 func (r CDNPlaybackRequest) Validate() error {
@@ -92,9 +92,9 @@ type CDNPlaybackGrant struct {
 	ProviderKind       string             `json:"provider_kind"`
 	ProviderInstanceID string             `json:"provider_instance_id"`
 	SessionID          string             `json:"session_id"`
-	Binding         CDNPlaybackBinding `json:"binding"`
-	IssuedAt        time.Time          `json:"issued_at"`
-	ExpiresAt       time.Time          `json:"expires_at"`
+	Binding            CDNPlaybackBinding `json:"binding"`
+	IssuedAt           time.Time          `json:"issued_at"`
+	ExpiresAt          time.Time          `json:"expires_at"`
 }
 
 func (g CDNPlaybackGrant) Validate() error {
@@ -126,13 +126,13 @@ type CDNPlaybackAttestation struct {
 	ProviderKind       string             `json:"provider_kind"`
 	ProviderInstanceID string             `json:"provider_instance_id"`
 	SessionID          string             `json:"session_id"`
-	Binding         CDNPlaybackBinding `json:"binding"`
-	DurationMillis  int64              `json:"duration_millis"`
-	WatchedRanges   []CDNPlaybackRange `json:"watched_ranges"`
-	StartedAt       time.Time          `json:"started_at"`
-	CompletedAt     time.Time          `json:"completed_at"`
-	KeyID           string             `json:"key_id"`
-	Signature       string             `json:"signature"`
+	Binding            CDNPlaybackBinding `json:"binding"`
+	DurationMillis     int64              `json:"duration_millis"`
+	WatchedRanges      []CDNPlaybackRange `json:"watched_ranges"`
+	StartedAt          time.Time          `json:"started_at"`
+	CompletedAt        time.Time          `json:"completed_at"`
+	KeyID              string             `json:"key_id"`
+	Signature          string             `json:"signature"`
 }
 
 type cdnPlaybackAttestationPayload struct {
@@ -140,26 +140,26 @@ type cdnPlaybackAttestationPayload struct {
 	ProviderKind       string             `json:"provider_kind"`
 	ProviderInstanceID string             `json:"provider_instance_id"`
 	SessionID          string             `json:"session_id"`
-	Binding         CDNPlaybackBinding `json:"binding"`
-	DurationMillis  int64              `json:"duration_millis"`
-	WatchedRanges   []CDNPlaybackRange `json:"watched_ranges"`
-	StartedAt       time.Time          `json:"started_at"`
-	CompletedAt     time.Time          `json:"completed_at"`
-	KeyID           string             `json:"key_id"`
+	Binding            CDNPlaybackBinding `json:"binding"`
+	DurationMillis     int64              `json:"duration_millis"`
+	WatchedRanges      []CDNPlaybackRange `json:"watched_ranges"`
+	StartedAt          time.Time          `json:"started_at"`
+	CompletedAt        time.Time          `json:"completed_at"`
+	KeyID              string             `json:"key_id"`
 }
 
 func (a CDNPlaybackAttestation) signingBytes() ([]byte, error) {
 	payload := cdnPlaybackAttestationPayload{
-		ContractVersion: a.ContractVersion,
+		ContractVersion:    a.ContractVersion,
 		ProviderKind:       a.ProviderKind,
 		ProviderInstanceID: a.ProviderInstanceID,
 		SessionID:          a.SessionID,
-		Binding:         a.Binding,
-		DurationMillis:  a.DurationMillis,
-		WatchedRanges:   append([]CDNPlaybackRange(nil), a.WatchedRanges...),
-		StartedAt:       a.StartedAt.UTC(),
-		CompletedAt:     a.CompletedAt.UTC(),
-		KeyID:           a.KeyID,
+		Binding:            a.Binding,
+		DurationMillis:     a.DurationMillis,
+		WatchedRanges:      append([]CDNPlaybackRange(nil), a.WatchedRanges...),
+		StartedAt:          a.StartedAt.UTC(),
+		CompletedAt:        a.CompletedAt.UTC(),
+		KeyID:              a.KeyID,
 	}
 	return json.Marshal(payload)
 }
