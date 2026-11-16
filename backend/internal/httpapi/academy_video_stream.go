@@ -38,6 +38,23 @@ type academyDirectVideoDeliveryWriter interface {
 // registerAcademyVideoStream uses the same trusted gateway as the provider
 // integration tests. OAuth credentials and temporary URLs never reach clients.
 func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions *clientSessionManager, sessionErr error) {
+	mode, err := academy.ConfiguredVideoDeliveryMode()
+	if err != nil || mode != academy.VideoDeliveryDirect {
+		// Preserve all CDN connector contracts and evidence storage, but do
+		// not silently fall back to Yandex or advertise a CDN stream before
+		// the production CDN_PROVIDER adapter is registered and certified.
+		// The one public media route stays closed on unknown/CDN modes.
+		mux.HandleFunc("GET /v1/academy/enrollments/{enrollmentID}/lessons/{lessonID}/videos/{mediaID}/stream", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Cache-Control", "private, no-store")
+			w.Header().Set("Referrer-Policy", "no-referrer")
+			w.Header().Set("X-Content-Type-Options", "nosniff")
+			if _, ok := academyIdentity(w, r, sessions, sessionErr); !ok {
+				return
+			}
+			academyHTTPError(w, r, academy.ErrUnavailable)
+		})
+		return
+	}
 	registerAcademyVideoStreamWithClients(mux, store, sessions, sessionErr, academy.YandexDiskClient{}, academyVideoUpstreamClient())
 }
 
