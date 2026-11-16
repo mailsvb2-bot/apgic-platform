@@ -239,18 +239,24 @@ func OpenCDNPlaybackStream(
 		expectedRange = &copyForValidation
 		providerRange = &copyForProvider
 	}
-	stream, err := provider.(CDNPlaybackCapability).OpenPlaybackStream(ctx, grant, providerRange)
+	// The grant deadline must govern provider I/O itself, not only the
+	// stream handed to the gateway. A compliant adapter can therefore abort
+	// a stalled OpenPlaybackStream when the grant expires.
+	openCtx, cancelOpen := context.WithDeadline(ctx, grant.ExpiresAt)
+	stream, err := provider.(CDNPlaybackCapability).OpenPlaybackStream(openCtx, grant, providerRange)
 	if err != nil {
+		cancelOpen()
 		if stream.Body != nil {
 			_ = stream.Body.Close()
 		}
 		return CDNPlaybackStream{}, err
 	}
-	if ctx.Err() != nil {
+	if openCtx.Err() != nil {
+		cancelOpen()
 		if stream.Body != nil {
 			_ = stream.Body.Close()
 		}
-		return CDNPlaybackStream{}, ctx.Err()
+		return CDNPlaybackStream{}, ErrInvalidCDNPlaybackGrant
 	}
 	// Provider I/O can outlast the grant even when the caller's context is
 	// still live. Never hand an already-expired stream to the HTTP gateway.
@@ -258,17 +264,19 @@ func OpenCDNPlaybackStream(
 		if stream.Body != nil {
 			_ = stream.Body.Close()
 		}
+		cancelOpen()
 		return CDNPlaybackStream{}, ErrInvalidCDNPlaybackGrant
 	}
 	if err := ValidateCDNPlaybackStream(grant.Binding, expectedRange, stream); err != nil {
 		if stream.Body != nil {
 			_ = stream.Body.Close()
 		}
+		cancelOpen()
 		return CDNPlaybackStream{}, err
 	}
 	// The entitlement watcher cancels ctx on revocation. Bind cancellation to
 	// the provider body so an already-open or blocked read is closed immediately.
-	stream.Body = bindCDNPlaybackBody(ctx, stream.Body, stream.ContentLength, grant.ExpiresAt)
+	stream.Body = bindCDNPlaybackBody(openCtx, stream.Body, stream.ContentLength, grant.ExpiresAt)
 	return stream, nil
 }
 
