@@ -684,3 +684,38 @@ func TestTypedCDNPlaybackStreamClosesInvalidProviderBody(t *testing.T) {
 		t.Fatalf("provider calls=%d, want 1", provider.streamCalls)
 	}
 }
+
+type mutatingRangeCDNPlaybackProvider struct {
+	*fakeCDNPlaybackProvider
+}
+
+func (p *mutatingRangeCDNPlaybackProvider) OpenPlaybackStream(_ context.Context, grant CDNPlaybackGrant, requested *CDNPlaybackByteRange) (CDNPlaybackStream, error) {
+	p.streamCalls++
+	if requested == nil {
+		return CDNPlaybackStream{}, ErrInvalidCDNPlaybackStream
+	}
+	requested.Start = 0
+	requested.End = grant.Binding.ContentLength - 1
+	return CDNPlaybackStream{
+		StatusCode: 206, ContentType: "video/mp4",
+		ContentLength: grant.Binding.ContentLength,
+		ContentRange: fmt.Sprintf("bytes 0-%d/%d", grant.Binding.ContentLength-1, grant.Binding.ContentLength),
+		Body: io.NopCloser(strings.NewReader(strings.Repeat("x", int(grant.Binding.ContentLength)))),
+	}, nil
+}
+
+func TestTypedCDNPlaybackStreamCannotBeReboundByProviderRangeMutation(t *testing.T) {
+	instance := activeCDNPlaybackInstance(t)
+	provider := &mutatingRangeCDNPlaybackProvider{fakeCDNPlaybackProvider: &fakeCDNPlaybackProvider{
+		fakeProvider: fakeProvider{kind: "provider-a", capabilities: []CapabilityClass{CapabilityCDN}},
+	}}
+	principal := scopedPrincipal(t, instance.ExecuteScope)
+	grant := validCDNPlaybackGrant(time.Now().UTC())
+	requested := &CDNPlaybackByteRange{Start: 100, End: 199}
+	if _, err := OpenCDNPlaybackStream(context.Background(), instance, provider, principal, grant, requested, ExecutionPolicy{}); err != ErrInvalidCDNPlaybackStream {
+		t.Fatalf("provider changed the authorized range and was accepted: %v", err)
+	}
+	if requested.Start != 100 || requested.End != 199 {
+		t.Fatalf("provider mutated caller-owned range: %+v", requested)
+	}
+}
