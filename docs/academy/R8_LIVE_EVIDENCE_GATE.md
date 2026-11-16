@@ -42,3 +42,19 @@ require a **new successful full CI run against the current R8 PR HEAD**.
 Do not skip Android/iOS/PostgreSQL jobs or weaken the release checks to
 compensate for GitHub orchestration failure. Manual Yandex provider acceptance
 remains an independent, real-secret opt-in test and does not replace CI.
+
+## Provider byte-delivery contract added to the existing capability
+
+The canonical `CDNPlaybackCapability` now requires `OpenPlaybackStream` in
+addition to grant issuance, signed attestation verification and active-session
+revocation. A provider that can issue a grant but cannot return bytes is not a
+valid playback provider.
+
+The provider returns only an opaque `io.ReadCloser` plus status, video MIME
+type, content length and (for 206) the exact Content-Range. The type has no
+field for an origin URL, OAuth token, cookie or arbitrary upstream headers.
+A full object is exactly 200; a single inclusive range is exactly 206. The
+gateway must generate 416 before provider I/O for an unsatisfiable range.
+Provider implementations must close active bodies synchronously when the
+matching grant is revoked. This is a contract and validation layer only: no
+production adapter is registered yet, so the learner route remains HTTP 503.

@@ -362,8 +362,15 @@ func cdnPlaybackUTC(value time.Time) bool {
 type CDNPlaybackCapability interface {
 	Provider
 	IssuePlaybackGrant(context.Context, CDNPlaybackRequest) (CDNPlaybackGrant, error)
-	// RevokePlaybackGrant must be idempotent and synchronously invalidate the
-	// provider session, including already-open streams for the exact grant.
+	// OpenPlaybackStream returns only a bounded byte stream and validated
+	// representation metadata. Provider URLs, credentials, redirects and
+	// response headers are never returned to the learner-facing HTTP layer.
+	// A nil range requests the complete object (200); a non-nil range requests
+	// one inclusive byte interval (206). Unsatisfiable ranges are rejected by
+	// the APGIC gateway as 416 before this method is called.
+	OpenPlaybackStream(context.Context, CDNPlaybackGrant, *CDNPlaybackByteRange) (CDNPlaybackStream, error)
+	// RevokePlaybackGrant must be idempotent and synchronously close every
+	// already-open stream belonging to the exact grant, not only deny new opens.
 	RevokePlaybackGrant(context.Context, CDNPlaybackGrant) error
 	VerifyPlaybackAttestation(context.Context, CDNPlaybackGrant, CDNPlaybackAttestation) (VerifiedCDNPlaybackAttestation, error)
 }
@@ -382,7 +389,7 @@ func ValidateCDNPlaybackProvider(provider Provider) error {
 		return errors.New("provider does not expose CDN_PROVIDER capability")
 	}
 	if _, ok := provider.(CDNPlaybackCapability); !ok {
-		return errors.New("CDN_PROVIDER lacks versioned playback, evidence and active-session revocation capability")
+		return errors.New("CDN_PROVIDER lacks versioned byte delivery, evidence and active-session revocation capability")
 	}
 	return nil
 }
