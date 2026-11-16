@@ -416,7 +416,7 @@ func TestAcademyStoreVerifiedPaidJourneySurvivesRestart(t *testing.T) {
 	// exercises database binding only; no real Yandex token or CDN is used.
 	if _, err = store.db.ExecContext(ctx, `INSERT INTO academy_cloud_connections(
  author_id,provider,encrypted_access_token
-) VALUES($1::uuid,'YANDEX_DISK','ci-only-encrypted-placeholder')
+) VALUES($1::uuid,'YANDEX_DISK',repeat('x',64))
 ON CONFLICT(author_id,provider) DO UPDATE SET
  encrypted_access_token=EXCLUDED.encrypted_access_token,generation=gen_random_uuid()`, author); err != nil {
 		t.Fatal(err)
