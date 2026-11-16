@@ -74,6 +74,7 @@ export default function AcademyPage(){
  const [course,setCourse]=useState<Course|null>(null);
  const [modules,setModules]=useState<Module[]>([]);
  const [lessons,setLessons]=useState<Lesson[]>([]);
+ const [focusedVideoLessonID,setFocusedVideoLessonID]=useState("");
  const [activeEnrollment,setActiveEnrollment]=useState<Enrollment|null>(null);
  const [certificate,setCertificate]=useState<Certificate|null>(null);
  const [certificates,setCertificates]=useState<LearnerCertificate[]>([]);
@@ -159,7 +160,7 @@ export default function AcademyPage(){
   finally{setBusy(false)}
  }
  const loadOutline=useCallback(async (selected:Course)=>{
-  setCourse(selected);setActiveEnrollment(null);setCertificate(null);setLearnerAttempts([]);setCohorts([]);
+  setCourse(selected);setFocusedVideoLessonID("");setActiveEnrollment(null);setCertificate(null);setLearnerAttempts([]);setCohorts([]);
   const d=await api<{state:string;modules:Module[];lessons:Lesson[]}>(
    `/v1/academy/courses/${selected.id}/versions/${selected.version_id}/outline`);
   setModules(d.modules);setLessons(d.lessons);setModuleID(d.modules[0]?.id||"");
@@ -495,7 +496,7 @@ export default function AcademyPage(){
     <section className="panel"><h3>Структура курса: модули → уроки</h3>
      {modules.length===0&&<p role="status">Модулей пока нет. Создайте первый модуль, затем добавьте урок.</p>}
      {modules.map(m=><article key={m.id}><h4>{m.ordinal}. {m.title}</h4>
-      {lessons.some(l=>l.module_id===m.id)?<ol>{lessons.filter(l=>l.module_id===m.id).map(l=><li key={l.id}>{l.title} · {l.kind==="VIDEO"?"Видеоурок":l.kind==="READING"?"Текстовый урок":"Проверочное задание"}{l.kind==="VIDEO"&&<span> · <a href="#academy-media-editor">Прикрепить видео в шаге 3</a></span>}</li>)}</ol>:<p>Уроков пока нет. Добавьте урок в этот модуль.</p>}
+      {lessons.some(l=>l.module_id===m.id)?<ol>{lessons.filter(l=>l.module_id===m.id).map(l=><li key={l.id}>{l.title} · {l.kind==="VIDEO"?"Видеоурок":l.kind==="READING"?"Текстовый урок":"Проверочное задание"}{l.kind==="VIDEO"&&<span> · <a href="#academy-media-editor" onClick={()=>setFocusedVideoLessonID(l.id)}>Прикрепить видео в шаге 3</a></span>}</li>)}</ol>:<p>Уроков пока нет. Добавьте урок в этот модуль.</p>}
      </article>)}
      {course.state==="DRAFT"&&<section aria-label="Расписание и лимиты уроков">
       <h4>Расписание уроков и пересдачи</h4>
@@ -541,7 +542,7 @@ export default function AcademyPage(){
      </section>
     </section>
    </div>
-   {course.state==="DRAFT"&&<CloudMediaEditor key={`${course.id}:${course.version_id}`} courseId={course.id} versionId={course.version_id} modules={modules.map(m=>({id:m.id,title:m.title,ordinal:m.ordinal}))} lessons={lessons.map(l=>({id:l.id,title:l.title,kind:l.kind,module_id:l.module_id}))}/>}
+   {course.state==="DRAFT"&&<CloudMediaEditor key={`${course.id}:${course.version_id}`} courseId={course.id} versionId={course.version_id} modules={modules.map(m=>({id:m.id,title:m.title,ordinal:m.ordinal}))} focusedLessonId={focusedVideoLessonID} lessons={lessons.map(l=>({id:l.id,title:l.title,kind:l.kind,module_id:l.module_id}))}/>}
    {course.state==="DRAFT"&&<button disabled={busy||lessons.length===0} onClick={()=>void act(
       ()=>api<Course>(`/v1/academy/courses/${course.id}/versions/${course.version_id}/publish`,{}),
       async()=>{setNotice("Версия опубликована и больше не редактируется.");setCourse(null)})}>Опубликовать версию курса</button>}
