@@ -450,21 +450,6 @@ ON CONFLICT(author_id,provider) DO UPDATE SET
 		providerInstanceID, "ci/r8/cdn/"+providerInstanceID); err != nil {
 		t.Fatal(err)
 	}
-	certificationID, err := academyID()
-	if err != nil {
-		t.Fatal(err)
-	}
-	providerKeyID := "ci-ed25519-v1"
-	certifiedAt := time.Now().UTC()
-	if _, err = store.db.ExecContext(ctx, `INSERT INTO academy_video_provider_certifications(
- id,connector_instance_id,contract_version,provider_kind,key_id,acceptance_sha256,
- acceptance_ref,tested_source_sha,accepted_by,step_up_audit_ref,accepted_at,expires_at
-) VALUES($1::uuid,$2::uuid,'cdn-playback-v1','test-cdn',$3,$4,$5,$6,$7::uuid,$8,$9,$10)`,
-		certificationID, providerInstanceID, providerKeyID, strings.Repeat("b", 64),
-		"ci/r8/synthetic-video-acceptance", sourceSHA, author,
-		"ci/r8/synthetic-step-up", certifiedAt.Add(-time.Minute), certifiedAt.Add(time.Hour)); err != nil {
-		t.Fatal(err)
-	}
 	// A paid lesson's immutable draft schedule and assessment cutoff must
 	// survive publication and agree with both learner readback and writes.
 	released := time.Now().UTC().Add(-time.Hour)
@@ -479,7 +464,22 @@ ON CONFLICT(author_id,provider) DO UPDATE SET
 		t.Fatalf("author could not set paid assessment deadline: %v", err)
 	}
 	if _, err = store.AcademyPublish(author, course.ID, course.VersionID); !errors.Is(err, academy.ErrState) {
-		t.Fatalf("paid course published without author rights attestation: %v", err)
+		t.Fatalf("paid course published without provider certification: %v", err)
+	}
+	certificationID, err := academyID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	providerKeyID := "ci-ed25519-v1"
+	certifiedAt := time.Now().UTC()
+	if _, err = store.db.ExecContext(ctx, `INSERT INTO academy_video_provider_certifications(
+ id,connector_instance_id,contract_version,provider_kind,key_id,acceptance_sha256,
+ acceptance_ref,tested_source_sha,accepted_by,step_up_audit_ref,accepted_at,expires_at
+) VALUES($1::uuid,$2::uuid,'cdn-playback-v1','test-cdn',$3,$4,$5,$6,$7::uuid,$8,$9,$10)`,
+		certificationID, providerInstanceID, providerKeyID, strings.Repeat("b", 64),
+		"ci/r8/synthetic-video-acceptance", sourceSHA, author,
+		"ci/r8/synthetic-step-up", certifiedAt.Add(-time.Minute), certifiedAt.Add(time.Hour)); err != nil {
+		t.Fatal(err)
 	}
 	if _, err = store.AcademyDeclareOriginalRights(author, course.ID, course.VersionID, "original/verified-paid-curriculum-authored-content"); err != nil {
 		t.Fatalf("failed to attest paid curriculum: %v", err)
