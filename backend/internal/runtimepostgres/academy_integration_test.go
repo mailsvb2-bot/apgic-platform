@@ -663,6 +663,19 @@ ON CONFLICT(author_id,provider) DO UPDATE SET
 		author, directAuditID, certifiedAt, certifiedAt.Add(time.Hour)); err != nil {
 		t.Fatal(err)
 	}
+	// Both the Go publication gate and the PostgreSQL version trigger must
+	// depend on the same direct-Yandex release owner. A stale CDN-only trigger
+	// would silently reject every legitimate direct production publication.
+	var publishTriggerDefinition string
+	if err = store.db.QueryRowContext(ctx,
+		"SELECT pg_get_functiondef('academy_version_publish_guard()'::regprocedure)",
+	).Scan(&publishTriggerDefinition); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(publishTriggerDefinition, "academy_video_direct_yandex_acceptance_available") ||
+		strings.Contains(publishTriggerDefinition, "academy_video_provider_certification_available") {
+		t.Fatal("canonical Academy version publication trigger still requires the CDN provider")
+	}
 	// A valid certificate for another source tree must not authorize this build.
 	t.Setenv("APGIC_COMMIT_SHA", strings.Repeat("d", 40))
 	if _, err = store.AcademyPublish(author, course.ID, course.VersionID); !errors.Is(err, academy.ErrState) {
