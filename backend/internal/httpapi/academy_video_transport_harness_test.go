@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"io"
 	"crypto/subtle"
 	"net"
 	"net/http"
@@ -381,4 +382,14 @@ func academyVideoUpstreamClient() *http.Client {
 		},
 		CheckRedirect: academy.YandexMediaCheckRedirect,
 	}
+}
+
+type academyCountingVideoReader struct {
+	reader io.Reader
+	reads  int
+}
+
+func (r *academyCountingVideoReader) Read(p []byte) (int, error) {
+	r.reads++
+	return r.reader.Read(p)
 }
