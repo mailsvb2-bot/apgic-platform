@@ -44,12 +44,18 @@ func (s *Service) Search(topic string) (*SearchView, error) {
 	// Never hold the global demand mutex across external storage I/O: that
 	// would serialize public searches with booking, payment and consultation.
 	if s.specialistStore != nil {
-		s.mu.Lock()
-		profiles := make([]marketplace.SpecialistProfile, 0, len(s.catalog.candidates))
-		for _, candidate := range s.catalog.candidates {
-			profiles = append(profiles, candidate.Profile)
+		// In production the in-memory offer catalog is a disposable snapshot.
+		// Its profiles may have been unpublished since the previous request.
+		// Only the canonical durable publication owner may grant visibility.
+		var profiles []marketplace.SpecialistProfile
+		if !s.liveSupplyMode {
+			s.mu.Lock()
+			profiles = make([]marketplace.SpecialistProfile, 0, len(s.catalog.candidates))
+			for _, candidate := range s.catalog.candidates {
+				profiles = append(profiles, candidate.Profile)
+			}
+			s.mu.Unlock()
 		}
-		s.mu.Unlock()
 
 		durable, err := s.specialistStore.PublishedProfiles()
 		if err != nil {
