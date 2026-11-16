@@ -24,6 +24,13 @@ type academyVideoFingerprintStore interface {
 	AcademyLearnerVideoFingerprint(author, provider, path, mediaID string) (string, string, int64, error)
 }
 
+// First-party delivery facts are written by the existing Academy store only
+// after a complete verified byte representation has been sent to the learner.
+// A range or an interrupted transfer cannot independently complete a lesson.
+type academyDirectVideoDeliveryWriter interface {
+	AcademyRecordDirectVideoDelivery(actor, enrollmentID, lessonID, mediaID, digest string, length, start, end int64) error
+}
+
 // This is the canonical direct Yandex-to-APGIC learner media gateway.
 // The client-injected entrypoint is also used by transport and PostgreSQL
 // integration tests: production and tests execute the same authorization,
@@ -236,10 +243,55 @@ func registerAcademyVideoStreamWithClients(
 		// periodic watcher does, close the live learner response immediately.
 		// Canceling the upstream alone does not interrupt a blocked client
 		// write; the response deadline also prevents further buffered output.
-		if err := academyCopyVideoAuthorized(w, idleBody, authorized); err == errAcademyVideoRevoked {
+		copyErr := academyCopyVideoAuthorized(w, idleBody, authorized)
+		if copyErr == errAcademyVideoRevoked {
 			academyCancelRevokedVideoResponse(w, stopStream)
+			return
+		}
+		// Only successfully copied bytes may enter durable Academy evidence.
+		// Browser-supplied playhead, duration, ended events and redirects are
+		// never trusted. Refund/replacement races are rechecked by the SQL
+		// delivery trigger inside the canonical Academy transaction.
+		if copyErr == nil && authorized() {
+			if writer, ok := store.(academyDirectVideoDeliveryWriter); ok {
+				start, end, valid := academyDeliveredVideoInterval(response.StatusCode, response.Header, size)
+				if valid {
+					_ = writer.AcademyRecordDirectVideoDelivery(actor,
+						r.PathValue("enrollmentID"), r.PathValue("lessonID"),
+						r.PathValue("mediaID"), digest, size, start, end)
+				}
+			}
 		}
 	})
+}
+
+// academyDeliveredVideoInterval translates an already validated upstream
+// representation into one half-open byte interval for the Academy owner.
+// No 416 or malformed/overflowing Content-Range can create progress.
+func academyDeliveredVideoInterval(status int, headers http.Header, size int64) (int64, int64, bool) {
+	if size <= 0 {
+		return 0, 0, false
+	}
+	if status == http.StatusOK {
+		return 0, size, academyVideoRepresentationSizeMatches(status, headers, size)
+	}
+	if status != http.StatusPartialContent || !academyVideoRepresentationSizeMatches(status, headers, size) {
+		return 0, 0, false
+	}
+	span, _, ok := strings.Cut(strings.TrimPrefix(headers.Get("Content-Range"), "bytes "), "/")
+	if !ok {
+		return 0, 0, false
+	}
+	startText, endText, ok := strings.Cut(span, "-")
+	if !ok {
+		return 0, 0, false
+	}
+	start, errStart := strconv.ParseInt(startText, 10, 64)
+	endInclusive, errEnd := strconv.ParseInt(endText, 10, 64)
+	if errStart != nil || errEnd != nil || start < 0 || endInclusive < start || endInclusive >= size {
+		return 0, 0, false
+	}
+	return start, endInclusive + 1, true
 }
 
 // A cloud path can be overwritten even without reconnecting OAuth.
