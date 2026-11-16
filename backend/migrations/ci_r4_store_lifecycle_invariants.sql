@@ -178,11 +178,40 @@ BEGIN
     now() + interval '24 minutes'
   ) AS result;
 
-  IF NOT applied OR reason <> 'STORE_EVENT_APPLIED' THEN
+  IF reason = 'STORE_EVENT_DUPLICATE' THEN
+    -- The R8 HTTP stream test may already have applied this exact canonical
+    -- refund while proving that an open learner response stops after COMMIT.
+    -- Accept only the identical immutable event/effect, never a reused ID
+    -- with different provider, entitlement, amount or ledger evidence.
+    IF applied OR NOT EXISTS (
+      SELECT 1
+      FROM store_subscription_lifecycle_events event
+      JOIN store_lifecycle_effects effect ON effect.lifecycle_event_id=event.id
+      WHERE event.id='00000000-0000-0000-0000-00000000aa64'
+        AND event.provider_instance_id='00000000-0000-0000-0000-00000000a601'
+        AND event.provider_event_id='store-provider-event-refund-4'
+        AND event.external_transaction_id='store-refund-tx-1'
+        AND event.subscription_ref='subscription-ci-1'
+        AND event.identity_id='00000000-0000-0000-0000-00000000b003'
+        AND event.entitlement_id='00000000-0000-0000-0000-00000000a902'
+        AND event.provider_sequence=4
+        AND event.event_type='REFUND'
+        AND event.amount_minor=10000
+        AND event.currency='RUB'
+        AND event.provider_evidence_ref='store-evidence/refund-ci'
+        AND event.ledger_entry_id='00000000-0000-0000-0000-00000000aa52'
+        AND effect.id='00000000-0000-0000-0000-00000000aa74'
+        AND effect.entitlement_effect='REVOKE'
+        AND effect.ledger_effect='REFUND'
+        AND effect.ledger_entry_id='00000000-0000-0000-0000-00000000aa52'
+    ) THEN
+      RAISE EXCEPTION 'duplicate refund event does not match the canonical immutable event/effect';
+    END IF;
+  ELSIF NOT applied OR reason <> 'STORE_EVENT_APPLIED' THEN
     RAISE EXCEPTION 'refund store event was not applied';
   END IF;
 END
-$$;
+$;
 
 DO $$
 BEGIN
