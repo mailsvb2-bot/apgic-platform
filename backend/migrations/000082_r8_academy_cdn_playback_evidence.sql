@@ -227,7 +227,9 @@ BEGIN
 
   RETURN item_count > 0 AND previous_end = p_duration_millis;
 END;
-$fn$;CREATE OR REPLACE FUNCTION academy_media_fact_guard()
+$fn$;
+
+CREATE OR REPLACE FUNCTION academy_media_fact_guard()
 RETURNS trigger LANGUAGE plpgsql AS $fn$
 DECLARE
   enrollment_version uuid;
