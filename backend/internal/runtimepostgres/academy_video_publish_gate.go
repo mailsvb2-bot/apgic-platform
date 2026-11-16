@@ -51,11 +51,12 @@ func academyVideoPublicationReady(ctx context.Context, tx *sql.Tx, author, versi
 	if sourceSHA == "" {
 		return false, nil
 	}
-	if _, err := tx.ExecContext(ctx, `SELECT set_config('apgic.release_source_sha',$1,true)`, sourceSHA); err != nil {
+	if _, err := tx.ExecContext(ctx, `SELECT set_config('apgic.release_source_sha',$1,true),
+ set_config('apgic.academy_video_delivery_mode',$2,true)`, sourceSHA, string(mode)); err != nil {
 		return false, err
 	}
 	var certified bool
-	if err := tx.QueryRowContext(ctx, `SELECT academy_video_direct_yandex_acceptance_available($1)`, sourceSHA).Scan(&certified); err != nil {
+	if err := tx.QueryRowContext(ctx, `SELECT academy_video_delivery_release_available($1)`, sourceSHA).Scan(&certified); err != nil {
 		return false, err
 	}
 	if !certified {
