@@ -214,6 +214,7 @@ BEGIN
       AND cert.contract_version=NEW.contract_version
       AND cert.provider_kind=NEW.provider_kind
       AND cert.key_id=NEW.key_id
+      AND cert.tested_source_sha=NULLIF(current_setting('apgic.release_source_sha',true),'')
       AND cert.expires_at>now()
   ) INTO provider_matches;
   IF NOT provider_matches THEN

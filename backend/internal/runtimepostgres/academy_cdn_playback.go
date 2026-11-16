@@ -35,10 +35,6 @@ func (c *Checker) AcademyRecordCDNPlaybackEvidence(
 		time.Now().UTC().After(grant.ExpiresAt.Add(connector.CDNPlaybackClockSkew)) {
 		return AcademyCDNPlaybackReceipt{}, academy.ErrInvalid
 	}
-	sourceSHA := academyReleaseSourceSHA()
-	if sourceSHA == "" {
-		return AcademyCDNPlaybackReceipt{}, academy.ErrUnavailable
-	}
 	binding := verified.Binding()
 	attestationJSON, err := verified.AttestationJSON()
 	if err != nil {
@@ -73,6 +69,13 @@ func (c *Checker) AcademyRecordCDNPlaybackEvidence(
 		}
 		return existing, nil
 	}
+	sourceSHA := academyReleaseSourceSHA()
+	if sourceSHA == "" {
+		return AcademyCDNPlaybackReceipt{}, academy.ErrUnavailable
+	}
+	if _, err := tx.ExecContext(ctx, `SELECT set_config('apgic.release_source_sha',$1,true)`, sourceSHA); err != nil {
+		return AcademyCDNPlaybackReceipt{}, err
+	}
 
 	var subjectID, entitlementID, versionID, courseID, authorID string
 	var contentSHA, providerKind string
@@ -97,7 +100,7 @@ func (c *Checker) AcademyRecordCDNPlaybackEvidence(
    ON cert.connector_instance_id=ci.id
    AND cert.contract_version=$5 AND cert.provider_kind=ci.provider_kind
    AND cert.key_id=$6 AND cert.tested_source_sha=$7 AND cert.expires_at>now()
- WHERE e.id=$1::uuid AND e.identity_id=$7::uuid AND l.id=$2::uuid
+ WHERE e.id=$1::uuid AND e.identity_id=$8::uuid AND l.id=$2::uuid
  AND e.state='ACTIVE' AND academy_entitlement_is_active(t.id)
  AND cm.provider='YANDEX_DISK' AND cm.resource_id IS NOT NULL
  AND cm.sha256 IS NOT NULL AND cm.file_size>0
