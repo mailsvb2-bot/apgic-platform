@@ -506,8 +506,8 @@ WHERE lifecycle_event_id='00000000-0000-0000-0000-00000000aa64'`).Scan(&entitlem
 		t.Fatal(err)
 	}
 	defer seekResponse.Body.Close()
-	if seekResponse.StatusCode != http.StatusForbidden {
-		t.Fatalf("new seek after refund returned HTTP %d, want 403", seekResponse.StatusCode)
+	if seekResponse.StatusCode != http.StatusPaymentRequired {
+		t.Fatalf("new seek after refund returned HTTP %d, want 402 (canonical entitlement-required response)", seekResponse.StatusCode)
 	}
 	if seekResponse.Header.Get("Location") != "" || yandexCalls.Load() != 2 || upstreamCalls.Load() != 1 {
 		t.Fatalf("revoked seek reached provider or exposed redirect: yandex=%d upstream=%d location=%q",
