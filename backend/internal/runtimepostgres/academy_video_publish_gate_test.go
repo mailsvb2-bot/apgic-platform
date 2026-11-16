@@ -30,13 +30,13 @@ func TestAcademyVideoPublishDefaultsFailClosed(t *testing.T) {
 	}
 }
 
-func TestAcademyVideoPublishFlagCannotBypassPlaybackCertification(t *testing.T) {
+func TestAcademyVideoPublishFlagCannotBypassDirectYandexReleaseAcceptance(t *testing.T) {
 	t.Setenv("APGIC_ACADEMY_VIDEO_PUBLISH_ENABLED", "true")
 	if !academyVideoPublishEnabled() {
 		t.Fatal("test requires operator flag to be enabled")
 	}
 	// An operator flag without an exact build identity cannot select a
-	// provider acceptance record and therefore cannot open VIDEO publication.
+	// independently audited direct-provider acceptance and cannot open VIDEO publication.
 	t.Setenv("APGIC_COMMIT_SHA", "")
 	if academyReleaseSourceSHA() != "" {
 		t.Fatal("missing release source SHA was accepted")
