@@ -4,10 +4,10 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
-	"github.com/mailsvb2-bot/apgic-platform/backend/internal/academy"
 )
 
 // An authorized video can stream for minutes, but a CDN endpoint that never
@@ -105,5 +105,4 @@ func TestAcademyProductionVideoRouteFailsClosedWithoutCDNProvider(t *testing.T) 
 	if !strings.Contains(response.Body.String(), "ACADEMY_UNAVAILABLE") {
 		t.Fatalf("production video route did not return the canonical unavailable error: %s", response.Body.String())
 	}
-	_ = academy.ErrUnavailable // document the canonical fail-closed reason used by the route
 }
