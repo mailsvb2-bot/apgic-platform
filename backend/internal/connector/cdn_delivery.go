@@ -169,6 +169,14 @@ func bindCDNPlaybackBody(ctx context.Context, body io.ReadCloser, contentLength 
 	if len(expiresAt) > 0 {
 		ctx, cancel = context.WithDeadline(ctx, expiresAt[0])
 	}
+	return bindCDNPlaybackBodyWithCancel(ctx, body, contentLength, cancel)
+}
+
+// bindCDNPlaybackBodyWithCancel owns the caller's deadline context until the
+// returned stream is closed or its context expires. This avoids cancelling the
+// provider's active stream when OpenCDNPlaybackStream returns, and releases the
+// provider-open timer as soon as the response body is closed.
+func bindCDNPlaybackBodyWithCancel(ctx context.Context, body io.ReadCloser, contentLength int64, cancel context.CancelFunc) io.ReadCloser {
 	bound := &cdnPlaybackContextBody{
 		body: &cdnPlaybackBoundedBody{reader: &io.LimitedReader{R: body, N: contentLength}, closer: body}, ctx: ctx, done: make(chan struct{}), cancel: cancel,
 	}
