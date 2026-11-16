@@ -240,6 +240,19 @@ type academyVideoTrackedBody struct {
 	closed *atomic.Bool
 }
 
+type academyVideoCredentialOverride struct {
+	*runtimepostgres.Checker
+	author string
+	token  string
+}
+
+func (s academyVideoCredentialOverride) AcademyReadCloudCredential(actor, provider string) (string, error) {
+	if actor != s.author || provider != "YANDEX_DISK" {
+		return "", academy.ErrDenied
+	}
+	return s.token, nil
+}
+
 func (b academyVideoTrackedBody) Close() error {
 	b.closed.Store(true)
 	return b.ReadCloser.Close()
@@ -292,10 +305,11 @@ ORDER BY l.ordinal,lm.ordinal LIMIT 1`, learner, product).Scan(&enrollmentID, &l
 	if err != nil {
 		t.Fatalf("verified media fingerprint unavailable before refund: %v", err)
 	}
-	token, err := store.AcademyReadCloudCredential(author, "YANDEX_DISK")
-	if err != nil || token == "" {
-		t.Fatalf("author Yandex credential unavailable to protected gateway: %v", err)
-	}
+	// The database fixture intentionally stores a non-decryptable placeholder.
+	// Inject a scoped test credential while keeping source, fingerprint,
+	// entitlement and enrollment reads backed by the real PostgreSQL store.
+	token := "ci-protected-oauth-token"
+	streamStore := academyVideoCredentialOverride{Checker: store, author: author, token: token}
 	if size < 2 {
 		t.Fatalf("test video fixture is too small for a two-part stream: %d", size)
 	}
@@ -380,7 +394,7 @@ ORDER BY l.ordinal,lm.ordinal LIMIT 1`, learner, product).Scan(&enrollmentID, &l
 		t.Fatal(err)
 	}
 	mux := http.NewServeMux()
-	registerAcademyVideoStreamWithClients(mux, store, sessions, nil,
+	registerAcademyVideoStreamWithClients(mux, streamStore, sessions, nil,
 		academy.YandexDiskClient{Client: yandexHTTP}, upstreamHTTP)
 	server := httptest.NewTLSServer(mux)
 	defer server.Close()
