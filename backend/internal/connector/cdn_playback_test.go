@@ -256,10 +256,14 @@ func (p *fakeCDNPlaybackProvider) OpenPlaybackStream(_ context.Context, grant CD
 type controlOnlyCDNPlaybackProvider struct{ fakeProvider }
 
 func (p *controlOnlyCDNPlaybackProvider) IssuePlaybackGrant(_ context.Context, request CDNPlaybackRequest) (CDNPlaybackGrant, error) {
-	if err := request.Validate(); err != nil { return CDNPlaybackGrant{}, err }
+	if err := request.Validate(); err != nil {
+		return CDNPlaybackGrant{}, err
+	}
 	return validCDNPlaybackGrant(time.Now().UTC()), nil
 }
-func (p *controlOnlyCDNPlaybackProvider) RevokePlaybackGrant(context.Context, CDNPlaybackGrant) error { return nil }
+func (p *controlOnlyCDNPlaybackProvider) RevokePlaybackGrant(context.Context, CDNPlaybackGrant) error {
+	return nil
+}
 func (p *controlOnlyCDNPlaybackProvider) VerifyPlaybackAttestation(context.Context, CDNPlaybackGrant, CDNPlaybackAttestation) (VerifiedCDNPlaybackAttestation, error) {
 	return VerifiedCDNPlaybackAttestation{}, ErrInvalidCDNPlaybackAttestation
 }
@@ -288,10 +292,12 @@ func TestCDNPlaybackCapabilityMustUseExistingCDNProviderClass(t *testing.T) {
 
 func TestCDNPlaybackStreamValidatesExactFullAndPartialRepresentations(t *testing.T) {
 	binding := validCDNPlaybackBinding()
-	newBody := func() io.ReadCloser { return io.NopCloser(strings.NewReader("bytes")) }
+	newBody := func(length int64) io.ReadCloser {
+	return io.NopCloser(strings.NewReader(strings.Repeat("x", int(length))))
+}
 	full := CDNPlaybackStream{
 		StatusCode: 200, ContentType: "video/mp4", ContentLength: binding.ContentLength,
-		Body: newBody(),
+		Body: newBody(binding.ContentLength),
 	}
 	if err := ValidateCDNPlaybackStream(binding, nil, full); err != nil {
 		t.Fatalf("valid full representation rejected: %v", err)
@@ -300,7 +306,7 @@ func TestCDNPlaybackStreamValidatesExactFullAndPartialRepresentations(t *testing
 	partialRange := &CDNPlaybackByteRange{Start: 100, End: 199}
 	partial := CDNPlaybackStream{
 		StatusCode: 206, ContentType: "video/mp4", ContentLength: 100,
-		ContentRange: "bytes 100-199/1024", Body: newBody(),
+		ContentRange: "bytes 100-199/1024", Body: newBody(100),
 	}
 	if err := ValidateCDNPlaybackStream(binding, partialRange, partial); err != nil {
 		t.Fatalf("valid partial representation rejected: %v", err)
@@ -312,22 +318,24 @@ func TestCDNPlaybackStreamValidatesExactFullAndPartialRepresentations(t *testing
 		rangeRequest *CDNPlaybackByteRange
 		stream CDNPlaybackStream
 	}{
-		{name: "provider must not decide 416", rangeRequest: partialRange, stream: CDNPlaybackStream{StatusCode: 416, ContentRange: "bytes */1024", ContentLength: 0, ContentType: "video/mp4", Body: newBody()}},
-		{name: "partial without range", stream: CDNPlaybackStream{StatusCode: 206, ContentType: "video/mp4", ContentLength: 100, ContentRange: "bytes 100-199/1024", Body: newBody()}},
-		{name: "full response for range", rangeRequest: partialRange, stream: CDNPlaybackStream{StatusCode: 200, ContentType: "video/mp4", ContentLength: binding.ContentLength, Body: newBody()}},
-		{name: "wrong content range", rangeRequest: partialRange, stream: CDNPlaybackStream{StatusCode: 206, ContentType: "video/mp4", ContentLength: 100, ContentRange: "bytes 99-198/1024", Body: newBody()}},
-		{name: "wrong partial length", rangeRequest: partialRange, stream: CDNPlaybackStream{StatusCode: 206, ContentType: "video/mp4", ContentLength: 99, ContentRange: "bytes 100-199/1024", Body: newBody()}},
-		{name: "non-video content", stream: CDNPlaybackStream{StatusCode: 200, ContentType: "text/html", ContentLength: binding.ContentLength, Body: newBody()}},
-		{name: "header injection", stream: CDNPlaybackStream{StatusCode: 200, ContentType: "video/mp4\\r\\nLocation: https://origin.invalid", ContentLength: binding.ContentLength, Body: newBody()}},
+		{name: "provider must not decide 416", rangeRequest: partialRange, stream: CDNPlaybackStream{StatusCode: 416, ContentRange: "bytes */1024", ContentLength: 0, ContentType: "video/mp4", Body: newBody(0)}},
+		{name: "partial without range", stream: CDNPlaybackStream{StatusCode: 206, ContentType: "video/mp4", ContentLength: 100, ContentRange: "bytes 100-199/1024", Body: newBody(100)}},
+		{name: "full response for range", rangeRequest: partialRange, stream: CDNPlaybackStream{StatusCode: 200, ContentType: "video/mp4", ContentLength: binding.ContentLength, Body: newBody(binding.ContentLength)}},
+		{name: "wrong content range", rangeRequest: partialRange, stream: CDNPlaybackStream{StatusCode: 206, ContentType: "video/mp4", ContentLength: 100, ContentRange: "bytes 99-198/1024", Body: newBody(100)}},
+		{name: "wrong partial length", rangeRequest: partialRange, stream: CDNPlaybackStream{StatusCode: 206, ContentType: "video/mp4", ContentLength: 99, ContentRange: "bytes 100-199/1024", Body: newBody(99)}},
+		{name: "non-video content", stream: CDNPlaybackStream{StatusCode: 200, ContentType: "text/html", ContentLength: binding.ContentLength, Body: newBody(binding.ContentLength)}},
+		{name: "header injection", stream: CDNPlaybackStream{StatusCode: 200, ContentType: "video/mp4\r\nLocation: https://origin.invalid", ContentLength: binding.ContentLength, Body: newBody(binding.ContentLength)}},
 		{name: "missing body", stream: CDNPlaybackStream{StatusCode: 200, ContentType: "video/mp4", ContentLength: binding.ContentLength}},
-		{name: "unsatisfiable range", rangeRequest: &CDNPlaybackByteRange{Start: 1024, End: 1024}, stream: CDNPlaybackStream{StatusCode: 206, ContentType: "video/mp4", ContentLength: 1, ContentRange: "bytes 1024-1024/1024", Body: newBody()}},
+		{name: "unsatisfiable range", rangeRequest: &CDNPlaybackByteRange{Start: 1024, End: 1024}, stream: CDNPlaybackStream{StatusCode: 206, ContentType: "video/mp4", ContentLength: 1, ContentRange: "bytes 1024-1024/1024", Body: newBody(1)}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			if err := ValidateCDNPlaybackStream(binding, tc.rangeRequest, tc.stream); err == nil {
 				t.Fatal("invalid provider stream metadata was accepted")
 			}
-			if tc.stream.Body != nil { _ = tc.stream.Body.Close() }
+			if tc.stream.Body != nil {
+				_ = tc.stream.Body.Close()
+			}
 		})
 	}
 }
@@ -342,12 +350,16 @@ func TestCDNPlaybackProviderRangeContractDoesNotExposeOriginFields(t *testing.T)
 	grant := validCDNPlaybackGrant(time.Now().UTC())
 	requested := &CDNPlaybackByteRange{Start: 0, End: 127}
 	stream, err := provider.OpenPlaybackStream(context.Background(), grant, requested)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer stream.Body.Close()
 	if err := ValidateCDNPlaybackStream(grant.Binding, requested, stream); err != nil {
 		t.Fatal(err)
 	}
-	if provider.streamCalls != 1 { t.Fatalf("stream calls=%d, want 1", provider.streamCalls) }
+	if provider.streamCalls != 1 {
+		t.Fatalf("stream calls=%d, want 1", provider.streamCalls)
+	}
 }
 
 func TestCDNPlaybackRequestValidatesHierarchicalIdempotencyKey(t *testing.T) {
