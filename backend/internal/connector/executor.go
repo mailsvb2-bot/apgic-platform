@@ -107,6 +107,59 @@ func Execute(
 	return result, nil
 }
 
+// authorizeConnectorRevocation deliberately permits a disabled or degraded
+// connector: emergency session invalidation must remain possible after new
+// playback has been stopped. It requires a distinct, short-lived revoke scope.
+func authorizeConnectorRevocation(
+	ctx context.Context,
+	instance Instance,
+	provider Provider,
+	principal security.AuthenticatedServicePrincipal,
+	policy ExecutionPolicy,
+) error {
+	if ctx == nil || ctx.Err() != nil || !instance.Capability.Valid() ||
+		!instance.Status.Valid() || instance.ExecuteScope != ExecuteScopeFor(instance.Capability) {
+		return ErrInvalidConnector
+	}
+	if !principal.ValidAt(executionNow(policy)) {
+		return ErrConnectorCredentialDenied
+	}
+	if !principal.HasScope(RevokeScopeFor(instance.Capability)) {
+		return ErrConnectorScopeDenied
+	}
+	if provider == nil || provider.Kind() != instance.ProviderKind {
+		return ErrProviderMismatch
+	}
+	if !providerHasCapability(provider, instance.Capability) {
+		return ErrCapabilityMismatch
+	}
+	return nil
+}
+
+// RevokeCDNPlaybackGrant synchronously asks the owning provider to invalidate
+// the exact playback session. Providers must make this idempotent and close
+// already-open media streams, not merely deny future grant creation.
+func RevokeCDNPlaybackGrant(
+	ctx context.Context,
+	instance Instance,
+	provider Provider,
+	principal security.AuthenticatedServicePrincipal,
+	grant CDNPlaybackGrant,
+	policy ExecutionPolicy,
+) error {
+	if grant.Validate() != nil || grant.ProviderInstanceID != instance.ID ||
+		grant.ProviderKind != instance.ProviderKind || instance.Capability != CapabilityCDN {
+		return ErrInvalidCDNPlaybackGrant
+	}
+	if err := authorizeConnectorRevocation(ctx, instance, provider, principal, policy); err != nil {
+		return err
+	}
+	if err := ValidateCDNPlaybackProvider(provider); err != nil {
+		return errors.Join(ErrCapabilityMismatch, err)
+	}
+	return provider.(CDNPlaybackCapability).RevokePlaybackGrant(ctx, grant)
+}
+
 // IssueCDNPlaybackGrant applies the same connector status, service-principal
 // scope and provider identity checks as Execute before calling the typed CDN
 // contract. A provider cannot grant a different learner, lesson or entitlement.

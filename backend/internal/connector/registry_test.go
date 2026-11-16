@@ -39,3 +39,15 @@ func TestConnectorInstanceRequiresConfigReference(t *testing.T) {
 		t.Fatalf("missing config ref must fail, got %v", err)
 	}
 }
+
+func TestConnectorScopesSeparateExecutionFromRevocation(t *testing.T) {
+	if got := ExecuteScopeFor(CapabilityCDN); got != "connector:execute:CDN_PROVIDER" {
+		t.Fatalf("unexpected CDN execute scope: %q", got)
+	}
+	if got := RevokeScopeFor(CapabilityCDN); got != "connector:revoke:CDN_PROVIDER" {
+		t.Fatalf("unexpected CDN revoke scope: %q", got)
+	}
+	if got := RevokeScopeFor(CapabilityClass("UNKNOWN")); got != "" {
+		t.Fatalf("unknown capability produced a revoke scope: %q", got)
+	}
+}

@@ -362,6 +362,9 @@ func cdnPlaybackUTC(value time.Time) bool {
 type CDNPlaybackCapability interface {
 	Provider
 	IssuePlaybackGrant(context.Context, CDNPlaybackRequest) (CDNPlaybackGrant, error)
+	// RevokePlaybackGrant must be idempotent and synchronously invalidate the
+	// provider session, including already-open streams for the exact grant.
+	RevokePlaybackGrant(context.Context, CDNPlaybackGrant) error
 	VerifyPlaybackAttestation(context.Context, CDNPlaybackGrant, CDNPlaybackAttestation) (VerifiedCDNPlaybackAttestation, error)
 }
 
@@ -379,7 +382,7 @@ func ValidateCDNPlaybackProvider(provider Provider) error {
 		return errors.New("provider does not expose CDN_PROVIDER capability")
 	}
 	if _, ok := provider.(CDNPlaybackCapability); !ok {
-		return errors.New("CDN_PROVIDER lacks versioned playback capability")
+		return errors.New("CDN_PROVIDER lacks versioned playback, evidence and active-session revocation capability")
 	}
 	return nil
 }

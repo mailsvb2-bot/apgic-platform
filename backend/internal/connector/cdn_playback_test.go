@@ -205,7 +205,9 @@ func TestCDNPlaybackAttestationRejectsInvalidRangesAndGrantWindow(t *testing.T) 
 
 type fakeCDNPlaybackProvider struct {
 	fakeProvider
-	grantCalls int
+	grantCalls  int
+	revokeCalls int
+	lastRevoked CDNPlaybackGrant
 }
 
 func (p *fakeCDNPlaybackProvider) IssuePlaybackGrant(_ context.Context, request CDNPlaybackRequest) (CDNPlaybackGrant, error) {
@@ -214,6 +216,12 @@ func (p *fakeCDNPlaybackProvider) IssuePlaybackGrant(_ context.Context, request 
 		return CDNPlaybackGrant{}, err
 	}
 	return validCDNPlaybackGrant(time.Now().UTC()), nil
+}
+
+func (p *fakeCDNPlaybackProvider) RevokePlaybackGrant(_ context.Context, grant CDNPlaybackGrant) error {
+	p.revokeCalls++
+	p.lastRevoked = grant
+	return nil
 }
 
 func (p *fakeCDNPlaybackProvider) VerifyPlaybackAttestation(_ context.Context, _ CDNPlaybackGrant, _ CDNPlaybackAttestation) (VerifiedCDNPlaybackAttestation, error) {
@@ -339,6 +347,49 @@ func TestTypedCDNPlaybackGrantUsesCanonicalConnectorAuthorization(t *testing.T) 
 	}
 	if provider.grantCalls != 1 {
 		t.Fatalf("expected one provider grant call, got %d", provider.grantCalls)
+	}
+}
+
+func TestTypedCDNPlaybackRevocationUsesDedicatedScopeAndSurvivesDisable(t *testing.T) {
+	instance := activeCDNPlaybackInstance(t)
+	instance.Status = StatusDisabled
+	provider := &fakeCDNPlaybackProvider{fakeProvider: fakeProvider{
+		kind: "provider-a", capabilities: []CapabilityClass{CapabilityCDN},
+	}}
+	grant := validCDNPlaybackGrant(time.Now().UTC())
+	grant.ExpiresAt = grant.IssuedAt.Add(time.Minute)
+	policy := ExecutionPolicy{Now: func() time.Time { return grant.ExpiresAt.Add(time.Minute) }}
+
+	wrongPrincipal := scopedPrincipal(t, instance.ExecuteScope)
+	if err := RevokeCDNPlaybackGrant(context.Background(), instance, provider, wrongPrincipal, grant, policy); err != ErrConnectorScopeDenied {
+		t.Fatalf("ordinary execute scope was allowed to revoke playback: %v", err)
+	}
+	if provider.revokeCalls != 0 {
+		t.Fatal("provider was called before revoke scope authorization")
+	}
+	principal := scopedPrincipal(t, RevokeScopeFor(CapabilityCDN))
+	if err := RevokeCDNPlaybackGrant(context.Background(), instance, provider, principal, grant, policy); err != nil {
+		t.Fatalf("disabled connector could not revoke its active playback session: %v", err)
+	}
+	if provider.revokeCalls != 1 || provider.lastRevoked.SessionID != grant.SessionID {
+		t.Fatalf("provider did not receive the exact idempotent revocation: calls=%d grant=%+v", provider.revokeCalls, provider.lastRevoked)
+	}
+}
+
+func TestTypedCDNPlaybackRevocationCannotCrossConnectorInstances(t *testing.T) {
+	first := activeCDNPlaybackInstance(t)
+	second := first
+	second.ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+	provider := &fakeCDNPlaybackProvider{fakeProvider: fakeProvider{
+		kind: "provider-a", capabilities: []CapabilityClass{CapabilityCDN},
+	}}
+	grant := validCDNPlaybackGrant(time.Now().UTC())
+	principal := scopedPrincipal(t, RevokeScopeFor(CapabilityCDN))
+	if err := RevokeCDNPlaybackGrant(context.Background(), second, provider, principal, grant, ExecutionPolicy{}); err != ErrInvalidCDNPlaybackGrant {
+		t.Fatalf("revocation crossed connector instances: %v", err)
+	}
+	if provider.revokeCalls != 0 {
+		t.Fatal("provider was called for a grant from another connector instance")
 	}
 }
 

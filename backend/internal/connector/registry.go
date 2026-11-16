@@ -53,6 +53,16 @@ func ExecuteScopeFor(capability CapabilityClass) string {
 	return "connector:execute:" + string(capability)
 }
 
+// RevokeScopeFor is deliberately separate from execution: a security or
+// Entitlement worker may need to invalidate an active provider session after
+// its connector has been disabled for new work.
+func RevokeScopeFor(capability CapabilityClass) string {
+	if !capability.Valid() {
+		return ""
+	}
+	return "connector:revoke:" + string(capability)
+}
+
 type Status string
 
 const (
