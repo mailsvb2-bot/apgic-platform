@@ -685,6 +685,14 @@ ON CONFLICT(author_id,provider) DO UPDATE SET
 	if _, err = store.AcademyDeclareOriginalRights(author, course.ID, course.VersionID, "original/verified-paid-curriculum-authored-content"); err != nil {
 		t.Fatalf("failed to attest paid curriculum: %v", err)
 	}
+	// Selecting a future CDN mode must not sell an unplayable course merely
+	// because the old CDN attestation contract and certification still exist.
+	// No production CDN learner adapter is registered in this release.
+	t.Setenv("APGIC_ACADEMY_VIDEO_DELIVERY_MODE", "cdn")
+	if _, err = store.AcademyPublish(author, course.ID, course.VersionID); !errors.Is(err, academy.ErrState) {
+		t.Fatalf("unwired CDN mode admitted video publication: %v", err)
+	}
+	t.Setenv("APGIC_ACADEMY_VIDEO_DELIVERY_MODE", "direct")
 	published, err := store.AcademyPublish(author, course.ID, course.VersionID)
 	if err != nil || published.State != "PUBLISHED" {
 		t.Fatalf("published course missing: %+v: %v", published, err)
