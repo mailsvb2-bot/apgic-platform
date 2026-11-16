@@ -481,6 +481,12 @@ ON CONFLICT(author_id,provider) DO UPDATE SET
 		"ci/r8/synthetic-step-up", certifiedAt.Add(-time.Minute), certifiedAt.Add(time.Hour)); err != nil {
 		t.Fatal(err)
 	}
+	// A valid certificate for another source tree must not authorize this build.
+	t.Setenv("APGIC_RELEASE_SOURCE_SHA", strings.Repeat("d", 40))
+	if _, err = store.AcademyPublish(author, course.ID, course.VersionID); !errors.Is(err, academy.ErrState) {
+		t.Fatalf("video publication accepted a certificate for another source SHA: %v", err)
+	}
+	t.Setenv("APGIC_RELEASE_SOURCE_SHA", sourceSHA)
 	if _, err = store.AcademyDeclareOriginalRights(author, course.ID, course.VersionID, "original/verified-paid-curriculum-authored-content"); err != nil {
 		t.Fatalf("failed to attest paid curriculum: %v", err)
 	}
@@ -900,11 +906,61 @@ ON CONFLICT(author_id,provider) DO UPDATE SET
 	if _, err = store.AcademyRecordCDNPlaybackEvidence(grant, verifiedCollision); !errors.Is(err, academy.ErrConflict) {
 		t.Fatalf("changed evidence reused an existing provider event: %v", err)
 	}
+	// A second event ID cannot create another completion for the same provider
+	// session. Session identity is independently unique, not merely event-ID unique.
+	sessionCollision := attestation
+	sessionCollision.ProviderEventID = providerEventID + "-second"
+	sessionCollisionBytes, err := sessionCollision.SigningBytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	sessionCollision.Signature = base64.StdEncoding.EncodeToString(ed25519.Sign(privateKey, sessionCollisionBytes))
+	verifiedSessionCollision, err := connector.VerifyCDNPlaybackAttestation(
+		grant, sessionCollision, providerKeyID, publicKey, playbackNow.Add(3*time.Second),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.AcademyRecordCDNPlaybackEvidence(grant, verifiedSessionCollision); !errors.Is(err, academy.ErrConflict) {
+		t.Fatalf("second provider event reused an existing playback session: %v", err)
+	}
+	// Partial ranges remain valid audit input at the provider boundary but
+	// cannot become Academy lesson completion evidence.
+	partialSessionID, err := academyID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	partialGrant := grant
+	partialGrant.SessionID = partialSessionID
+	partial := attestation
+	partial.SessionID = partialSessionID
+	partial.ProviderEventID = "event-partial-" + strings.ReplaceAll(partialSessionID, "-", "")
+	partial.WatchedRanges = []connector.CDNPlaybackRange{
+		{StartMillis: 0, EndMillis: 30000}, {StartMillis: 40000, EndMillis: 60000},
+	}
+	partialBytes, err := partial.SigningBytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	partial.Signature = base64.StdEncoding.EncodeToString(ed25519.Sign(privateKey, partialBytes))
+	verifiedPartial, err := connector.VerifyCDNPlaybackAttestation(
+		partialGrant, partial, providerKeyID, publicKey, playbackNow.Add(3*time.Second),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.AcademyRecordCDNPlaybackEvidence(partialGrant, verifiedPartial); !errors.Is(err, academy.ErrInvalid) {
+		t.Fatalf("partial video coverage created lesson completion: %v", err)
+	}
 	var videoProgressEvidence string
 	if err = store.db.QueryRowContext(ctx, `SELECT evidence_ref FROM academy_progress
  WHERE enrollment_id=$1::uuid AND lesson_id=$2::uuid`, enrollment.ID, video.ID).Scan(&videoProgressEvidence); err != nil ||
 		videoProgressEvidence != playbackReceipt.EvidenceRef {
 		t.Fatalf("signed video evidence did not unlock exact lesson progress: %q %v", videoProgressEvidence, err)
+	}
+	if _, err = store.db.ExecContext(ctx, `UPDATE academy_media_playback_facts
+ SET watched_seconds=watched_seconds-1 WHERE id=$1::uuid`, playbackReceipt.ID); err == nil {
+		t.Fatal("persisted signed CDN evidence was mutable")
 	}
 
 	passedHistory, err := store.AcademyLearnerAttempts(learner, enrollment.ID)
