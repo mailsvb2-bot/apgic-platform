@@ -31,3 +31,14 @@ export function moveLessonMediaAssignment<T extends LessonMediaMapping>(
  const updated=ordered.map((row,i)=>({...row,ordinal:i+1}));
  return [...current.filter(row=>row.lesson_id!==lessonId),...updated];
 }
+
+// Removing a single video must never silently alter other lessons or leave
+// ambiguous gaps in the selected lesson's playback order.
+export function removeLessonMediaAssignment<T extends LessonMediaMapping>(
+ current:T[],lessonId:string,mediaId:string
+):LessonMediaMapping[]{
+ if(!current.some(row=>row.lesson_id===lessonId&&row.media_id===mediaId))return current;
+ const remaining=current.filter(row=>row.lesson_id===lessonId&&row.media_id!==mediaId)
+  .sort((a,b)=>a.ordinal-b.ordinal).map((row,i)=>({...row,ordinal:i+1}));
+ return [...current.filter(row=>row.lesson_id!==lessonId),...remaining];
+}
