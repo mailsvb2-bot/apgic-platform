@@ -9,6 +9,7 @@ const versionID="22222222-2222-4222-8222-222222222222";
 const moduleID="33333333-3333-4333-8333-333333333333";
 const lessonID="44444444-4444-4444-8444-444444444444";
 const mediaID="55555555-5555-4555-8555-555555555555";
+const existingMediaID="88888888-8888-4888-8888-888888888888";
 const diskFilePath="disk:/Лекции/Урок 1.mp4";
 const learnerVideoFixture=Buffer.from("GkXfo59ChoEBQveBAULygQRC84EIQoKEd2VibUKHgQJChYECGFOAZwEAAAAAAAJHEU2bdLpNu4tTq4QVSalmU6yBoU27i1OrhBZUrmtTrIHWTbuMU6uEElTDZ1OsggEjTbuMU6uEHFO7a1OsggIx7AEAAAAAAABZAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAVSalmsCrXsYMPQkBNgIxMYXZmNjEuNy4xMDNXQYxMYXZmNjEuNy4xMDNEiYhAn0AAAAAAABZUrmvIrgEAAAAAAAA/14EBc8WIXe2KIQMHVf6cgQAitZyDdW5kiIEAhoVWX1ZQOIOBASPjg4QdzWUA4JCwgVC6gS2agQJVsIRVuYEBElTDZ/tzc59jwIBnyJlFo4dFTkNPREVSRIeMTGF2ZjYxLjcuMTAzc3PWY8CLY8WIXe2KIQMHVf5nyKFFo4dFTkNPREVSRIeUTGF2YzYxLjE5LjEwMSBsaWJ2cHhnyKFFo4hEVVJBVElPTkSHkzAwOjAwOjAyLjAwMDAwMDAwMAAfQ7Z1QIjngQCjqYEAAIDQAgCdASpQAC0AAMcIhYWImYSIBAIABnZBXTHWACrjwP7/DWQAo5yBAfQAEQIAAxAoABgAGe/0DAABQFbCkP7+zmAAo5yBA+gAEQIAAxAcABgAGe/0DAABQFbCkP7/YBgAo5yBBdwAEQIAAxAQABgAGe/0DAABQFbCkP7/q1CAHFO7a5G7j7OBALeK94EB8YIBo/CBAw==","base64");
 
@@ -17,7 +18,9 @@ test("author resumes the selected course and lesson, imports Disk video, and sav
   id:courseID,product_id:"66666666-6666-4666-8666-666666666666",
   title:"Проверочный курс",description:"",state:"DRAFT",version_id:versionID,version_no:1
  };
- const media: {id:string;title:string;provider:string;provider_file_ref:string;active:boolean}[]=[];
+ const media: {id:string;title:string;provider:string;provider_file_ref:string;active:boolean}[]=[
+  {id:existingMediaID,title:"Уже добавленное видео.mp4",provider:"YANDEX_DISK",provider_file_ref:"disk:/Уже добавленное видео.mp4",active:true}
+ ];
  let assignments:{lesson_id:string;media_id:string;ordinal:number}[]=[];
  let savedPayload:unknown;
  let importCalls=0;
@@ -83,11 +86,21 @@ test("author resumes the selected course and lesson, imports Disk video, and sav
  await expect(page.getByText("Видео добавлены к выбранному уроку. Нажмите «Сохранить видео урока».")).toBeVisible();
  await expect(page.getByRole("heading",{name:"Уже добавленные видео в медиатеке"})).toBeVisible();
  expect(importCalls).toBe(1);
+ // Previously imported cloud videos attach through the primary lesson action,
+ // without a second Yandex import and without replacing the just added file.
+ await page.getByRole("checkbox",{name:"Уже добавленное видео.mp4"}).check();
+ await page.getByRole("button",{name:"Прикрепить выбранные видео (1)"}).click();
+ await expect(page.getByText("Видео добавлены к уроку без удаления предыдущих.",{exact:false})).toBeVisible();
+ await expect(page.getByRole("button",{name:"Выше"})).toHaveCount(2);
+ expect(importCalls).toBe(1);
 
  await page.getByRole("button",{name:"Сохранить видео урока"}).click();
  await expect(page.getByText("Распределение сохранено")).toBeVisible();
- expect(savedPayload).toEqual([{lesson_id:lessonID,media_id:mediaID,ordinal:1}]);
- expect(assignments).toEqual([{lesson_id:lessonID,media_id:mediaID,ordinal:1}]);
+ expect(savedPayload).toEqual([
+  {lesson_id:lessonID,media_id:mediaID,ordinal:1},
+  {lesson_id:lessonID,media_id:existingMediaID,ordinal:2}
+ ]);
+ expect(assignments).toEqual(savedPayload);
 });
 
 
