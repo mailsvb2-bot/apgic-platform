@@ -58,8 +58,8 @@ export function SpecialistAcademyWorkspace(){
   <p>Тот же аккаунт специалиста: создавайте программы, публикуйте версии, принимайте учеников и проверяйте работы. Финансовые права и обучение управляются каноническими сервисами APGIC.</p>
   <p role="status" aria-live="polite">{notice}</p>
   <div className="hero-actions">
-   <a className="button-link primary-action" href="/academy#academy-author">Создать или редактировать курс</a>
-   <a className="button-link secondary-action" href="/academy#academy-reviews">Проверить работы {pending>0?`(${pending})`:""}</a>
+   <a className="button-link primary-action" href="/academy?tab=courses&create=1">Создать или редактировать курс</a>
+   <a className="button-link secondary-action" href="/academy?tab=reviews">Проверить работы {pending>0?`(${pending})`:""}</a>
    <button type="button" onClick={()=>void refresh()} disabled={busy}>Обновить данные</button>
   </div>
   <div className="how-grid specialist-grid">

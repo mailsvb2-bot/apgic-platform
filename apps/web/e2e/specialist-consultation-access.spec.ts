@@ -17,6 +17,7 @@ test("specialist can resume only an authenticated, server-authorized consultatio
     })});
   });
   await page.goto("/specialist");
+  await page.getByRole("navigation",{name:"Навигация кабинета специалиста"}).getByRole("button",{name:"Консультации"}).click();
   const input=page.getByLabel("Идентификатор записи");
   await input.fill("not-a-booking");
   await page.getByRole("button",{name:"Проверить доступ"}).click();

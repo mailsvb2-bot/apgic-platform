@@ -167,6 +167,14 @@ export default function AcademyPage(){
   setCertificatesUnavailable(credentials.status!=="fulfilled");
  },[]);
  useEffect(()=>{void refresh().catch(error=>setNotice(String(error)))},[refresh]);
+ // Links from the specialist workspace select a real Academy section.
+ // OAuth course/version return parameters remain owned by the existing effect.
+ useEffect(()=>{
+  const params=new URLSearchParams(window.location.search);
+  const tab=params.get("tab");
+  if(tab==="reviews")setView("reviews");
+  if(tab==="courses"){setView("courses");if(params.get("create")==="1")setShowCreate(true);}
+ },[]);
 
  async function act<T>(work:()=>Promise<T>,after:(result:T)=>Promise<void>|void){
   setBusy(true);setNotice("");

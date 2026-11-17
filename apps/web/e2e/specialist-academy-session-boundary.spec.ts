@@ -21,6 +21,7 @@ test("specialist Academy clears historical data when session expires and does no
   await route.fulfill({status:200,contentType:"application/json",body:JSON.stringify(value)});
  });
  await page.goto("/specialist");
+ await page.getByRole("navigation",{name:"Навигация кабинета специалиста"}).getByRole("button",{name:"Курсы и ученики"}).click();
  const workspace=page.locator("#specialist-academy");
  await expect(workspace.getByText("Старый курс прежней сессии").first()).toBeVisible();
  await expect(workspace.getByText(/123456 RUB/)).toBeVisible();

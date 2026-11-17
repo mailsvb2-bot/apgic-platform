@@ -623,13 +623,18 @@ test("specialist onboarding preserves evidence and publish boundaries", async ({
 
   await page.goto("/specialist");
   await expect(page.getByRole("heading", { level: 1, name: "Кабинет специалиста APGIC" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Создайте профессиональный профиль" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Мой профиль" })).toBeVisible();
 
   await page.getByLabel("Имя для публичного профиля").fill("Анна Тестова");
   await page.getByLabel("Профессия").selectOption("PSYCHOLOGIST");
   await page.getByRole("button", { name: "Сохранить профиль" }).click();
   await expect(page.getByText(/Профиль сохранён\. В каталоге вы отображаетесь со статусом/)).toBeVisible();
   await expect(page.getByRole("region", { name: "Кабинет специалиста" })).toBeVisible();
+  await expect(page.getByRole("link",{name:"Посмотреть публичную карточку"}))
+    .toHaveAttribute("href","/specialist/specialist-e2e");
+  await page.getByRole("navigation",{name:"Навигация кабинета специалиста"}).getByRole("button",{name:"О себе"}).click();
+  await expect(page.getByRole("heading",{name:"Описание публичной анкеты"})).toBeVisible();
+  await page.getByRole("navigation",{name:"Навигация кабинета специалиста"}).getByRole("button",{name:"Профиль"}).click();
   // After registration, the conditional profile summary must not push the
   // editable workspace beneath an overlapping sticky heading.
   const specialistLayout = await page.evaluate(() => {
@@ -640,23 +645,49 @@ test("specialist onboarding preserves evidence and publish boundaries", async ({
   expect(specialistLayout.formTop).toBeGreaterThanOrEqual(specialistLayout.headingBottom);
   expect(specialistLayout.formWidth).toBeGreaterThan(0);
 
+  await page.getByRole("navigation", { name: "Навигация кабинета специалиста" }).getByRole("button", { name: "Расписание" }).click();
   await expect(page.getByRole("region", { name: "Календарь и записи специалиста" })).toBeVisible();
+  await page.getByRole("navigation", { name: "Навигация кабинета специалиста" }).getByRole("button", { name: "Профиль" }).click();
   await expect(page.getByRole("navigation", { name: "Разделы кабинета специалиста" }).getByRole("link", { name: "Документы" })).toHaveAttribute("href", "#specialist-documents");
   await expect(page.getByRole("region", { name: "Кабинет специалиста" }).getByRole("status").filter({ hasText: "Специализация не подтверждена" }).first()).toBeVisible();
 
-  await page.getByLabel("Направление").selectOption("anxiety");
+  await page.getByRole("navigation", { name: "Навигация кабинета специалиста" }).getByRole("button", { name: "Направления" }).click();
+  await page.getByLabel("Направление", {exact:true}).selectOption("anxiety");
   await page.getByRole("button", { name: "Добавить направление" }).click();
   await expect(page.getByText("SELF_DECLARED · NOT_APPLICABLE")).toBeVisible();
 
+  await page.getByRole("navigation", { name: "Навигация кабинета специалиста" }).getByRole("button", { name: "Документы" }).click();
   await page.getByLabel("Ссылка или номер подтверждения").fill("document:e2e-diploma");
   await page.getByRole("button", { name: "Передать на проверку" }).click();
-  await expect(page.getByText("DOCUMENT_SUPPORTED · PENDING")).toBeVisible();
   await expect(page.getByText("SUBMITTED · Тревога и стресс")).toBeVisible();
+  await page.getByRole("navigation", { name: "Навигация кабинета специалиста" }).getByRole("button", { name: "Направления" }).click();
+  await expect(page.getByText("DOCUMENT_SUPPORTED · PENDING")).toBeVisible();
+  await page.getByRole("navigation", { name: "Навигация кабинета специалиста" }).getByRole("button", { name: "Публикация" }).click();
   await expect(page.getByText(/Review профиля:/)).toContainText("MANUAL_REVIEW");
 
   await page.getByRole("button", { name: "Проверить и опубликовать" }).click();
   await expect(page.getByRole("status").filter({ hasText: "PUBLISH_REVIEW_INCOMPLETE" })).toContainText("PUBLISH_REVIEW_INCOMPLETE");
   await expect(page.getByText(/Опубликовано:/)).toContainText("пока ничего");
+  // Every dashboard action opens its existing canonical owner, not a mock UI.
+  const dashboardNav=page.getByRole("navigation",{name:"Навигация кабинета специалиста"});
+  await dashboardNav.getByRole("button",{name:"Услуги и цены"}).click();
+  await expect(page.getByRole("heading",{name:"Услуги и доступное время"})).toBeVisible();
+  await dashboardNav.getByRole("button",{name:"Расписание"}).click();
+  await expect(page.getByRole("region",{name:"Календарь и записи специалиста"})).toBeVisible();
+  await dashboardNav.getByRole("button",{name:"Консультации"}).click();
+  await expect(page.getByRole("heading",{name:"Вернуться к своей консультации"})).toBeVisible();
+  await dashboardNav.getByRole("button",{name:"Курсы и ученики"}).click();
+  await expect(page.getByRole("heading",{name:"Мои курсы и ученики"})).toBeVisible();
+  await expect(page.getByRole("link",{name:/Проверить работы/})).toHaveAttribute("href","/academy?tab=reviews");
+  await dashboardNav.getByRole("button",{name:"Профиль"}).click();
+  await page.getByLabel("Имя для публичного профиля").fill("Черновик имени");
+  await expect(page.getByText("Есть несохранённые изменения")).toBeVisible();
+  await dashboardNav.getByRole("button",{name:"Документы"}).click();
+  await dashboardNav.getByRole("button",{name:"Профиль"}).click();
+  await expect(page.getByLabel("Имя для публичного профиля")).toHaveValue("Черновик имени");
+  await page.getByLabel("Имя для публичного профиля").fill("Анна Тестова");
+  await dashboardNav.getByRole("button",{name:"Публикация"}).click();
+
 
   const layout = await page.evaluate(() => ({
     viewportWidth: window.innerWidth,

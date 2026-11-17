@@ -79,7 +79,11 @@ function safeMessage(code?: string) {
   }
 }
 
-export function SpecialistOnboarding() {
+export type SpecialistOnboardingSection = "profile" | "about" | "topics" | "documents" | "publication" | "offers";
+export function SpecialistOnboarding({activeSection,onNavigate}:{
+ activeSection:SpecialistOnboardingSection;
+ onNavigate:(section:SpecialistOnboardingSection)=>void;
+}) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [displayName, setDisplayName] = useState("");
   const [professionCode, setProfessionCode] = useState("PSYCHOLOGIST");
@@ -95,6 +99,7 @@ export function SpecialistOnboarding() {
   const [priceRub, setPriceRub] = useState("");
   const [slotStart, setSlotStart] = useState("");
   const [slotEnd, setSlotEnd] = useState("");
+  const profileUnsaved=profile!==null&&(displayName!==profile.display_name||professionCode!==profile.profession_code);
 
   useEffect(() => {
     void loadProfile();
@@ -335,37 +340,36 @@ export function SpecialistOnboarding() {
 
   return (
     <section className="specialist-onboarding" id="onboarding" aria-labelledby="onboarding-title">
-      <div className="start-heading">
-        <p className="section-kicker">Подключение</p>
-        <h2 id="onboarding-title">Создайте профессиональный профиль</h2>
-        <p>
-          Все изменения сохраняются в APGIC. Заявленные направления не получают статус APGIC VERIFIED
-          до доверенного review.
-        </p>
+      <div className="specialist-onboarding-heading">
+        <p className="section-kicker">Ваши профессиональные данные</p>
+        <h2 id="onboarding-title">{activeSection==="profile"?"Мой профиль":activeSection==="about"?"О себе":activeSection==="topics"?"Направления":activeSection==="documents"?"Документы":activeSection==="publication"?"Публикация":"Услуги и свободное время"}</h2>
+        <p>Каждое изменение сохраняется через APGIC. Заявленные направления не становятся проверенными без независимой проверки.</p>
       </div>
 
-      {profile ? <section className="panel" aria-label="Кабинет специалиста">
+      {profile ? <section className="panel specialist-profile-summary" aria-label="Кабинет специалиста" hidden={activeSection!=="profile"}>
         <p className="section-kicker">Личный кабинет специалиста</p>
         <h3>{profile.display_name}</h3>
         <p>{profile.profession_code === "PSYCHOLOGIST" ? "Психолог" : profile.profession_code === "CAREER_COACH" ? "Карьерный консультант" : "Специалист"}</p>
         <p role="status"><strong>{profile.published_topics.length > 0 ? "Профессионализм подтверждён по опубликованным направлениям" : "Специализация не подтверждена"}</strong></p>
         <p>Ваша анкета сохраняется в APGIC. Без подтверждения квалификации она отображается среди зарегистрированных специалистов; платная запись станет доступна после проверки.</p>
+        <a href={`/specialist/${encodeURIComponent(profile.id)}`} className="specialist-public-card-link">Посмотреть публичную карточку ↗</a>
         <nav aria-label="Разделы кабинета специалиста">
-          <a href="#specialist-profile">Моя анкета</a>{" · "}
-          <a href="#specialist-topics">Направления</a>{" · "}
-          <a href="#specialist-documents">Документы</a>{" · "}
-          <a href="#specialist-publication">Подтверждение</a>{" · "}
-          <a href="#specialist-offers">Услуги и расписание</a>{" · "}
-          <a href="#specialist-consultations">Консультации</a>{" · "}
+          <a href="#specialist-profile" onClick={e=>{e.preventDefault();onNavigate("profile")}}>Моя анкета</a>{" · "}
+          <a href="#specialist-topics" onClick={e=>{e.preventDefault();onNavigate("topics")}}>Направления</a>{" · "}
+          <a href="#specialist-documents" onClick={e=>{e.preventDefault();onNavigate("documents")}}>Документы</a>{" · "}
+          <a href="#specialist-publication" onClick={e=>{e.preventDefault();onNavigate("publication")}}>Подтверждение</a>{" · "}
+          <a href="#specialist-offers" onClick={e=>{e.preventDefault();onNavigate("offers")}}>Услуги и расписание</a>{" · "}
+
           <a href="/specialists">Каталог специалистов</a>
         </nav>
         <p className="form-help">Статус проверки профиля: {profile.review_state}. Подтверждённые направления: {profile.published_topics.length ? profile.published_topics.map(t => topicNames[t] || t).join(", ") : "пока нет"}.</p>
       </section> : null}
       <div className="specialist-workspace">
-        <p className="onboarding-notice" role="status">{notice}</p>
+        <p className="onboarding-notice" role="status" aria-live="polite">{notice}</p>
 
-        <form className="panel specialist-form" id="specialist-profile" onSubmit={saveProfile}>
-          <h3>1. Профиль</h3>
+        <form className="panel specialist-form" id="specialist-profile" onSubmit={saveProfile} hidden={activeSection!=="profile"}>
+          <h3>Основная информация</h3>
+          <p className="form-help">Эти сведения попадут в публичную карточку после проверки.</p>
           <label htmlFor="specialist-name">Имя для публичного профиля</label>
           <input
             id="specialist-name"
@@ -383,14 +387,19 @@ export function SpecialistOnboarding() {
             <option value="PSYCHOLOGIST">Психолог</option>
             <option value="CAREER_COACH">Карьерный консультант</option>
           </select>
+          {profileUnsaved&&<p className="specialist-unsaved" role="status">Есть несохранённые изменения</p>}
           <button type="submit" disabled={busy}>Сохранить профиль</button>
+          {profile&&<button type="button" className="specialist-next" onClick={()=>onNavigate("about")}>Далее: о себе →</button>}
         </form>
 
         {profile && (
           <>
-            <SpecialistPublicEditor />
-            <section className="panel specialist-form" id="specialist-topics" aria-labelledby="capability-title">
-              <h3 id="capability-title">2. Направления работы</h3>
+            <div className="specialist-form-screen" hidden={activeSection!=="about"}>
+              <SpecialistPublicEditor />
+              <div className="specialist-next-actions"><button type="button" onClick={()=>onNavigate("topics")}>Далее: направления →</button></div>
+            </div>
+            <section className="panel specialist-form" id="specialist-topics" aria-labelledby="capability-title" hidden={activeSection!=="topics"}>
+              <h3 id="capability-title">Направления работы</h3>
               <label htmlFor="specialist-topic">Направление</label>
               <select id="specialist-topic" value={topicID} onChange={(event) => setTopicID(event.target.value)}>
                 {Object.entries(topicNames).map(([value, label]) => (
@@ -406,10 +415,11 @@ export function SpecialistOnboarding() {
                   </li>
                 ))}
               </ul>
+              <button type="button" className="specialist-next" onClick={()=>onNavigate("documents")}>Далее: документы →</button>
             </section>
 
-            <form className="panel specialist-form" id="specialist-documents" onSubmit={submitEvidence}>
-              <h3>3. Подтверждение компетенции</h3>
+            <form className="panel specialist-form" id="specialist-documents" onSubmit={submitEvidence} hidden={activeSection!=="documents"}>
+              <h3>Подтверждение компетенции</h3>
               <p className="form-help">
                 Сейчас APGIC принимает ссылку или номер подтверждающего материала. Сами файлы через этот экран не загружаются.
               </p>
@@ -437,10 +447,11 @@ export function SpecialistOnboarding() {
                   </li>
                 ))}
               </ul>
+              <button type="button" className="specialist-next" onClick={()=>onNavigate("publication")}>Далее: публикация →</button>
             </form>
 
-            <section className="panel specialist-form" id="specialist-publication" aria-labelledby="publish-title">
-              <h3 id="publish-title">4. Публикация</h3>
+            <section className="panel specialist-form" id="specialist-publication" aria-labelledby="publish-title" hidden={activeSection!=="publication"}>
+              <h3 id="publish-title">Публикация</h3>
               <p>
                 Review профиля: <strong>{profile.review_state}</strong>. Публикация разрешается только после
                 проверки профиля и требуемой компетенции.
@@ -456,9 +467,10 @@ export function SpecialistOnboarding() {
                   ? profile.published_topics.map((topic) => topicNames[topic] || topic).join(", ")
                   : "пока ничего"}.
               </p>
+              <button type="button" className="specialist-next" onClick={()=>onNavigate("offers")}>Далее: услуги и время →</button>
             </section>
-            <section className="panel specialist-form" id="specialist-offers" aria-labelledby="offer-title">
-              <h3 id="offer-title">5. Реальная цена и доступное время</h3>
+            <section className="panel specialist-form" id="specialist-offers" aria-labelledby="offer-title" hidden={activeSection!=="offers"}>
+              <h3 id="offer-title">Услуги и доступное время</h3>
               <p className="form-help">
                 Для платной консультации нужен уже опубликованный продукт вашей организации,
                 действующее подтверждение компетенции и одобренный профиль. Тестовых цен и слотов нет.
