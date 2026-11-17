@@ -6,7 +6,7 @@ import "testing"
 // representation reached the learner. Only flushed bytes may count.
 func TestAcademyVideoDeliveredEndClampsShortReads(t *testing.T) {
 	tests := []struct {
-		name string
+		name                        string
 		start, end, delivered, want int64
 	}{
 		{"full", 0, 100, 100, 100},

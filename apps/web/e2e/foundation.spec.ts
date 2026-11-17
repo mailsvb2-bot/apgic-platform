@@ -472,6 +472,8 @@ test("specialist calendar handles locally grouped entries and refresh races", as
     }) });
   });
   await page.goto("/specialist");
+  await page.getByRole("navigation", { name: "Навигация кабинета специалиста" })
+    .getByRole("button", { name: "Расписание" }).click();
   const section = page.getByRole("region", { name: "Календарь и записи специалиста" });
   await expect(section.getByText("Свободное время (0)")).toBeVisible();
   await section.getByRole("button", { name: "Обновить" }).click();
@@ -504,12 +506,16 @@ test("specialist public editor proves saved state with canonical reload", async 
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(stored) });
   });
   await page.goto("/specialist");
+  const specialistNav = page.getByRole("navigation", { name: "Навигация кабинета специалиста" });
+  await specialistNav.getByRole("button", { name: "О себе" }).click();
   await page.getByLabel("Короткое профессиональное описание").fill("Работа со стрессом");
   await page.getByLabel("Языки (коды через запятую, например ru, en)").fill("ru, en");
   await page.getByRole("button", { name: "Сохранить описание" }).click();
   await expect(page.getByRole("status").filter({ hasText: "повторно загружено с сервера" })).toBeVisible();
   expect(reads).toBeGreaterThanOrEqual(2);
   await page.reload();
+  await page.getByRole("navigation", { name: "Навигация кабинета специалиста" })
+    .getByRole("button", { name: "О себе" }).click();
   await expect(page.getByLabel("Короткое профессиональное описание")).toHaveValue("Работа со стрессом");
   await expect(page.getByLabel("Языки (коды через запятую, например ru, en)")).toHaveValue("ru, en");
 });
@@ -648,7 +654,7 @@ test("specialist onboarding preserves evidence and publish boundaries", async ({
   await page.getByRole("navigation", { name: "Навигация кабинета специалиста" }).getByRole("button", { name: "Расписание" }).click();
   await expect(page.getByRole("region", { name: "Календарь и записи специалиста" })).toBeVisible();
   await page.getByRole("navigation", { name: "Навигация кабинета специалиста" }).getByRole("button", { name: "Профиль" }).click();
-  await expect(page.getByRole("navigation",{name:"Навигация кабинета специалиста"}).getByRole("button",{name:"Документы"})).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Разделы кабинета специалиста" }).getByRole("link", { name: "Документы" })).toHaveAttribute("href", "#specialist-documents");
   await expect(page.getByRole("region", { name: "Кабинет специалиста" }).getByRole("status").filter({ hasText: "Специализация не подтверждена" }).first()).toBeVisible();
 
   await page.getByRole("navigation", { name: "Навигация кабинета специалиста" }).getByRole("button", { name: "Направления" }).click();
