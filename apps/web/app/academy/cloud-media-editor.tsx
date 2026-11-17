@@ -173,13 +173,15 @@ export default function CloudMediaEditor({courseId,versionId,lessons,modules,foc
   if(!targets.length||!ids.length){setMessage("Нужны видеоуроки и выбранные материалы");return}
   if(perLesson<1||perLesson>100||!Number.isInteger(perLesson)){setMessage("Видео на урок: от 1 до 100");return}
   if(ids.length>targets.length*perLesson){setMessage("Видео больше, чем свободных мест в выбранных уроках");return}
-  const all=ids.map((id,i)=>({
-   lesson_id:targets[Math.floor(i/perLesson)].id,
-   media_id:id,ordinal:(i%perLesson)+1
-  }));
-  if(all.length>2000){setMessage("Разбейте импорт на группы до 2000 файлов");return}
-  setAssignments(all);
-  setMessage(`Подготовлено ${all.length} назначений для ${Math.ceil(all.length/perLesson)} уроков. Проверьте перед сохранением.`);
+  const groups=targets.map((lesson,i)=>({
+   lessonId:lesson.id,mediaIds:ids.slice(i*perLesson,(i+1)*perLesson)
+  })).filter(group=>group.mediaIds.length>0);
+  let result:Mapping[]=assignments;
+  for(const group of groups)result=appendLessonMediaAssignments(result,group.lessonId,group.mediaIds);
+  if(result.length>2000){setMessage("Разбейте распределение на группы до 2000 назначений");return}
+  const added=result.length-assignments.length;
+  setAssignments(result);
+  setMessage(`Добавлено ${added} видео к ${groups.length} урокам без удаления существующих привязок. Проверьте и сохраните.`);
  }
  function allocate(){
   if(!lessonId||!selected.length)return;
