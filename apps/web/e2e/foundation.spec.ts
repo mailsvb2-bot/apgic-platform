@@ -654,7 +654,7 @@ test("specialist onboarding preserves evidence and publish boundaries", async ({
   await page.getByRole("navigation", { name: "Навигация кабинета специалиста" }).getByRole("button", { name: "Расписание" }).click();
   await expect(page.getByRole("region", { name: "Календарь и записи специалиста" })).toBeVisible();
   await page.getByRole("navigation", { name: "Навигация кабинета специалиста" }).getByRole("button", { name: "Профиль" }).click();
-  await expect(page.getByRole("navigation", { name: "Разделы кабинета специалиста" }).getByRole("link", { name: "Документы" })).toHaveAttribute("href", "#specialist-documents");
+  await expect(page.getByRole("navigation", { name: "Навигация кабинета специалиста" }).getByRole("button", { name: "Документы" })).toBeVisible();
   await expect(page.getByRole("region", { name: "Кабинет специалиста" }).getByRole("status").filter({ hasText: "Специализация не подтверждена" }).first()).toBeVisible();
 
   await page.getByRole("navigation", { name: "Навигация кабинета специалиста" }).getByRole("button", { name: "Направления" }).click();
