@@ -42,7 +42,7 @@ func TestAcademyMediaAssignedGatewayReceiptConstraintPostgres(t *testing.T) {
 	if _, err := tx.Exec(fmt.Sprintf("ALTER TABLE pg_temp.apgic_receipt_type_probe ADD CONSTRAINT receipt_type_probe %s", definition)); err != nil {
 		t.Fatal(err)
 	}
-	for _, kind := range []string{"academy.media.assigned", "academy.lesson.added", "booking.ledger_committed"} {
+	for _, kind := range []string{"academy.media.assigned", "academy.cohort.created", "academy.cohort.joined", "academy.lesson.added", "booking.ledger_committed"} {
 		if _, err := tx.Exec("INSERT INTO pg_temp.apgic_receipt_type_probe(event_type) VALUES($1)", kind); err != nil {
 			t.Fatalf("%s unexpectedly rejected: %v", kind, err)
 		}

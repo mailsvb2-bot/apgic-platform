@@ -1,7 +1,7 @@
 -- R8 Academy: the canonical media-assignment owner already emits
 -- academy.media.assigned to outbox_events. The gateway receipt check introduced
 -- by 000072 omitted that one event and rejected delivery with SQLSTATE 23514.
--- Keep exactly the prior accepted kinds plus this canonical event. Preserve
+-- Keep exactly the prior accepted kinds plus the previously omitted canonical media and cohort events. Preserve
 -- all existing digest, foreign-key, idempotency and delivery constraints.
 ALTER TABLE event_gateway_receipts
   DROP CONSTRAINT event_gateway_receipts_event_type_check;
@@ -15,6 +15,8 @@ ALTER TABLE event_gateway_receipts
       'academy.module.added',
       'academy.lesson.added',
       'academy.media.assigned',
+      'academy.cohort.created',
+      'academy.cohort.joined',
       'academy.original_rights.attested',
       'academy.version.published',
       'academy.enrollment.created',
