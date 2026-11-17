@@ -71,9 +71,10 @@ async function mockAcademyVideo(page:Page){
   await route.fulfill({status,contentType:"application/json",body:JSON.stringify(data)});
  });
  await page.goto("/academy");
- await expect(page.getByRole("heading",{name:"Обучение и курсы"})).toBeVisible();
+ await page.getByRole("button",{name:"Моё обучение"}).click();
+ await expect(page.getByRole("heading",{name:"Моё обучение",exact:true})).toBeVisible();
  await expect(page.getByText("Проверочный курс")).toBeVisible();
- await page.getByRole("button",{name:"Продолжить"}).click();
+ await page.getByRole("button",{name:"Продолжить",exact:true}).click();
  await expect(page.locator("video")).toHaveCount(1);
  return {revoke:()=>{allowed=false},reads:()=>manifestReads};
 }

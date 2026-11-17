@@ -72,7 +72,7 @@ export default function AccountPage(){
   }catch(error){setNotice(String(error))}
   finally{setBusy(false)}
  }
- return <main className="site-shell">
+ return <main className="site-shell apgic-account">
   <header className="site-header"><a className="brand" href="/">APGIC</a>
    <nav className="top-nav"><a href="/academy">Обучение</a><a href="/organization">Организация</a><a href="/specialist">Специалист</a><a href="/personal">Личный кабинет</a></nav>
   </header>

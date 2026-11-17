@@ -3,6 +3,7 @@
 import {useCallback,useEffect,useMemo,useState,type FormEvent} from "react";
 import CloudMediaEditor from "./cloud-media-editor";
 import AcademyLessonVideos from "./academy-lesson-videos";
+import "./academy-workspace.css";
 
 type AcademyNotifications = {enabled:boolean;learning_updates:boolean;assessment_results:boolean;certificate_updates:boolean};
 type AuthorProduct = {id:string;name:string};
@@ -48,6 +49,9 @@ async function downloadAcademyHistory():Promise<void>{
 }
 
 export default function AcademyPage(){
+ const [view,setView]=useState<"home"|"courses"|"learning"|"catalog"|"reports"|"reviews">("home");
+ const [editorStep,setEditorStep]=useState<"structure"|"media"|"publish">("structure");
+ const [showCreate,setShowCreate]=useState(false);
  const [catalog,setCatalog]=useState<Course[]>([]);
  const [mine,setMine]=useState<Course[]>([]);
  const [ownedCoursesError,setOwnedCoursesError]=useState("");
@@ -138,6 +142,13 @@ export default function AcademyPage(){
    setOwnedCoursesError(owned.reason instanceof Error?owned.reason.message:"Не удалось проверить авторскую сессию");
   }
   setOwnedCoursesLoaded(true);
+  if(owned.status==="rejected"&&learning.status==="rejected"){
+   setView(current=>current==="home"?"catalog":current);
+  }
+  if(owned.status==="fulfilled"&&owned.value.courses.length===0&&
+     learning.status==="fulfilled"&&learning.value.enrollments.length>0){
+   setView(current=>current==="home"?"learning":current);
+  }
   if(learning.status==="fulfilled")setEnrollments(learning.value.enrollments);
   if(reviews.status==="fulfilled")setPendingReviews(reviews.value.attempts);
   if(report.status==="fulfilled")setAuthorReport(report.value);
@@ -164,7 +175,7 @@ export default function AcademyPage(){
   finally{setBusy(false)}
  }
  const loadOutline=useCallback(async (selected:Course)=>{
-  setCourse(selected);setFocusedVideoLessonID("");setActiveEnrollment(null);setCertificate(null);setLearnerAttempts([]);setCohorts([]);
+  setView("courses");setCourse(selected);setFocusedVideoLessonID("");setActiveEnrollment(null);setCertificate(null);setLearnerAttempts([]);setCohorts([]);
   const d=await api<{state:string;modules:Module[];lessons:Lesson[]}>(
    `/v1/academy/courses/${selected.id}/versions/${selected.version_id}/outline`);
   setModules(d.modules);setLessons(d.lessons);setModuleID(d.modules[0]?.id||"");
@@ -193,7 +204,7 @@ export default function AcademyPage(){
   let cancelled=false;
   void loadOutline(selected).then(()=>{
    if(cancelled)return;
-   setNotice(errorNotice||"Яндекс Диск подключён. Открываем ваши видео...");
+   setEditorStep("media");setNotice(errorNotice||"Яндекс Диск подключён. Открываем ваши видео...");
    window.requestAnimationFrame(()=>{
     document.getElementById("academy-media-editor")?.scrollIntoView({behavior:"smooth",block:"start"});
    });
@@ -211,7 +222,7 @@ export default function AcademyPage(){
    api<{appeals:LearnerAppeal[]}>("/v1/academy/me/appeals")
     .then(value=>({ok:true,items:value.appeals})).catch(()=>({ok:false,items:[] as LearnerAppeal[]}))
   ]);
-  setActiveEnrollment(item);setCourse(null);setCertificate(null);
+  setView("learning");setActiveEnrollment(item);setCourse(null);setCertificate(null);
   setLessons(d.lessons);setLearnerAttempts(history.attempts);setLearnerAppeals(appealList.items);setModules([]);
   setCohorts(cohortResult.items);setCohortError(!cohortResult.ok);setAppealError(!appealList.ok);
  }
@@ -359,6 +370,7 @@ export default function AcademyPage(){
    }
    setPendingDraft(null);
    try{
+    setEditorStep("structure");
     await loadOutline(created);
     await refresh();
     setNotice("Черновик курса сохранён.");
@@ -394,23 +406,64 @@ export default function AcademyPage(){
     setLessonTitle("");setLessonBody("");
     await loadOutline(course);
     if(created.kind==="VIDEO"&&created.id){
+     setEditorStep("media");
      setFocusedVideoLessonID(created.id);
      window.requestAnimationFrame(()=>document.getElementById("academy-media-editor")?.scrollIntoView({behavior:"smooth",block:"start"}));
     }
    });
  }
- return <main className="site-shell">
-  <header className="site-header"><a className="brand" href="/">APGIC</a>
-   <nav className="top-nav" aria-label="Разделы"><a href="/">Найти специалиста</a><a href="/organization">Организация</a><a href="/specialist">Специалист</a></nav>
-  </header>
-  <section className="how-section" style={{paddingTop:36}}>
-   <p className="section-kicker">APGIC Academy</p>
-   <h1>Обучение и курсы</h1>
-   <p>Обучение имеет собственные версии, историю прохождения и проверяемые сертификаты.
-   Сертификат не присваивает статус проверенного специалиста.</p>
-   <p role="status" aria-live="polite">{notice}</p>
+ return <main className="academy-workspace">
+  <aside className="academy-sidebar" aria-label="Навигация Академии">
+   <a className="academy-logo" href="/"><span className="academy-logo-mark">A</span><span>APGIC<small>Академия</small></span></a>
+   <nav aria-label="Разделы кабинета">
+    {([["home","Главная","⌂"],["courses","Мои курсы","▤"],["learning","Моё обучение","▷"],["catalog","Каталог","◈"],["reviews","Проверка работ","✓"],["reports","Ученики и продажи","▥"]] as const).map(([key,label,icon])=>
+     <button type="button" key={key} aria-current={view===key?"page":undefined} className={view===key?"academy-nav-current":""} onClick={()=>{setView(key);if(key==="courses")setCourse(null)}}>
+      <span aria-hidden="true">{icon}</span>{label}</button>)}
+    <a href="/account">⚙　Мой аккаунт</a><a href="/organization">◇　Организация</a><a href="/specialist">○　Специалист</a>
+   </nav>
+  </aside>
+  <div className="academy-main">
+   <header className="academy-header">
+    <div><p>APGIC / Академия</p><strong>{view==="home"?"Кабинет автора":view==="courses"?"Мои курсы":view==="learning"?"Моё обучение":view==="catalog"?"Каталог":view==="reviews"?"Проверка работ":"Ученики и продажи"}</strong></div>
+    <button className="academy-blue-button" type="button" onClick={()=>{setView("courses");setCourse(null);setShowCreate(true)}}>＋ Создать курс</button>
+   </header>
+   {notice&&<p role="status" aria-live="polite" className="academy-notice">{notice}</p>}
+   {view==="home"&&<div className="academy-home">
+    <div className="academy-intro"><p>Ваше пространство</p><h1>Кабинет автора</h1><span>Курсы, ученики и результаты — всё под рукой.</span></div>
+    <section className="academy-feature">
+     <div className="academy-feature-art" aria-hidden="true">▶</div>
+     <div><p className="academy-overline">ПРОДОЛЖИТЬ РАБОТУ</p>
+      <h2>{mine.find(c=>c.state==="DRAFT")?.title||mine[0]?.title||"Создайте первый курс"}</h2>
+      <p>{mine.length?"Выберите курс и продолжите с сохранённого шага.":"Сначала название, затем уроки и видео. Всё по шагам."}</p>
+      <button type="button" disabled={busy} className="academy-blue-button" onClick={()=>{const next=mine.find(c=>c.state==="DRAFT")||mine[0];if(next){setEditorStep("structure");void act(()=>Promise.resolve(next),loadOutline)}else{setView("courses");setShowCreate(true)}}}>{mine.length?"Продолжить редактирование":"Создать курс"} →</button>
+     </div>
+    </section>
+    <div className="academy-home-grid">
+     <section className="academy-home-card"><header><h2>Мои курсы</h2><button type="button" onClick={()=>{setView("courses");setCourse(null)}}>Все курсы →</button></header>
+      {ownedCoursesError?<p role="alert">{ownedCoursesError}</p>:mine.length===0?<p>Курсов пока нет. Создайте первый курс.</p>:
+       <ul>{mine.slice(0,3).map(c=><li key={c.id}><span><strong>{c.title}</strong><small>{c.state==="PUBLISHED"?"Опубликован":"Черновик"} · версия {c.version_no}</small></span>
+        <button type="button" disabled={busy} onClick={()=>{setEditorStep("structure");void act(()=>Promise.resolve(c),loadOutline)}}>Открыть →</button>
+       </li>)}</ul>}
+     </section>
+     <section className="academy-home-card"><header><h2>Быстрые действия</h2></header>
+      <div className="academy-quick-grid">
+       <button type="button" onClick={()=>{setView("courses");setCourse(null)}}>▤ К списку курсов</button>
+       <button type="button" disabled={!mine.length||busy} onClick={()=>{const c=mine.find(x=>x.state==="DRAFT")||mine[0];if(c){void act(()=>Promise.resolve(c),async()=>{await loadOutline(c);setEditorStep("media")})}}}>▷ Добавить видео</button>
+       <button type="button" onClick={()=>setView("reviews")}>✓ Проверить работы</button>
+       <button type="button" onClick={()=>setView("reports")}>▥ Результаты курсов</button>
+      </div>
+     </section>
+    </div>
+    <div className="academy-home-grid">
+     <button type="button" className="academy-metric" onClick={()=>setView("reports")}><strong>{authorReport?.courses.reduce((sum,c)=>sum+c.enrollments,0)??"—"}</strong><span>Зачислений на курсы</span><small>По данным Academy →</small></button>
+     <button type="button" className="academy-metric" onClick={()=>setView("reviews")}><strong>{pendingReviews.length}</strong><span>Работ на проверку</span><small>Открыть работы →</small></button>
+    </div>
+   </div>}
+  {(view==="catalog"||view==="learning"||view==="courses")&&<section className="how-section academy-main-section">
+   <h1>{view==="catalog"?"Каталог":view==="learning"?"Моё обучение":"Мои курсы"}</h1>
+   <p>{view==="catalog"?"Выберите курс для обучения.":view==="learning"?"Продолжайте обучение и управляйте сертификатами.":"Выберите курс или создайте новый. Дальше — простой редактор по шагам."}</p>
    <div className="how-grid">
-    <section className="panel"><h2>Каталог</h2>
+    {view==="catalog"&&<section className="panel"><h2>Доступные курсы</h2>
      {catalog.length===0?<p>Опубликованных курсов пока нет.</p>:catalog.map(c=>
       <article key={c.id}><h3>{c.title}</h3><p>{c.description}</p>
        <p>Версия {c.version_no}</p>
@@ -420,8 +473,8 @@ export default function AcademyPage(){
         <p>Для записи нужна подтверждённая покупка курса. Эта страница не принимает платежи и не выдаёт доступ без Commerce/Entitlement.</p>}
       </article>)}
      <p>Доступ предоставляется только по подтверждённому entitlement. Если покупки нет, платформа не создаёт фиктивную оплату.</p>
-    </section>
-    <section className="panel"><h2>Мои обучения</h2>
+    </section>}
+    {view==="learning"&&<section className="panel"><h2>Мои обучения</h2>
      <button disabled={busy} onClick={()=>void act(()=>downloadAcademyHistory(),async()=>{setNotice("История обучения выгружена.")})}>Скачать историю обучения (JSON)</button>
      <section aria-label="Уведомления об обучении">
       <h3>Уведомления</h3>
@@ -452,8 +505,8 @@ export default function AcademyPage(){
         ()=>api<{lessons:Lesson[]}>(`/v1/academy/enrollments/${e.id}/learn`),
         async()=>{await loadLearning(e)})}>Продолжить</button>
       </div>)}
-    </section>
-    <form id="academy-author" className="panel specialist-form" onSubmit={createCourse}>
+    </section>}
+    {view==="courses"&&!course&&showCreate&&<form id="academy-author" className="panel specialist-form" onSubmit={createCourse}>
      <h2>Создать курс</h2>
      <p>Сначала содержание. Продажи и платежи можно настроить позже, когда курс будет готов.</p>
      <label htmlFor="academy-title">Название курса</label>
@@ -462,11 +515,11 @@ export default function AcademyPage(){
      <textarea id="academy-description" value={description} onChange={e=>setDescription(e.target.value)}/>
      <button disabled={busy||pendingDraft!==null||title.trim().length<3}>Создать курс</button>
      {pendingDraft&&<button type="button" disabled={busy} onClick={()=>void verifyDraft()}>Проверить сохранение черновика</button>}
-    </form>
+    </form>}
    </div>
-  </section>
-  <section className="how-section">
-   <h2>Мои курсы как автора</h2>
+  </section>}
+  {view==="courses"&&!course&&<section className="how-section academy-course-list">
+   <div className="academy-section-top"><h2>Ваши курсы</h2><button type="button" onClick={()=>setShowCreate(x=>!x)}>{showCreate?"Скрыть создание":"+ Новый курс"}</button></div>
    <p><a href="/account">Войти в тот же аккаунт с телефона или другого компьютера</a></p>
    {ownedCoursesError?<p role="alert">Не удалось загрузить ваши курсы: {ownedCoursesError}. Проверьте авторизацию на этом устройстве. Курсы другого аккаунта не отображаются автоматически.</p>:null}
    {ownedCoursesLoaded&&!ownedCoursesError&&mine.length===0?<p role="status">В текущей сессии нет авторских курсов. Если курсы есть на другом устройстве, возможно, там используется другая учётная запись. Не создавайте их повторно до проверки доступа к исходному аккаунту.</p>:null}
@@ -474,22 +527,28 @@ export default function AcademyPage(){
     {mine.map(c=><article className="panel" key={c.id}>
      <h3>{c.title}</h3><p>Версия {c.version_no} · {c.state}</p>
      <button disabled={busy} onClick={()=>void act(
-      ()=>api<{modules:Module[];lessons:Lesson[];state:string}>(`/v1/academy/courses/${c.id}/versions/${c.version_id}/outline`),
-      async()=>loadOutline(c))}>Редактирование и содержание</button>
+      ()=>Promise.resolve(c),
+      async()=>{setEditorStep("structure");await loadOutline(c)})}>Открыть редактор</button>
      <button disabled={busy} onClick={()=>void act(
       ()=>api<Course>(`/v1/academy/courses/${c.id}/versions`,{}),
       async d=>loadOutline({...c,version_id:d.version_id,version_no:d.version_no}))}>Новая версия</button>
     </article>)}
    </div>
-  </section>
-  {course&&<section className="how-section">
-   <h2>Редактор: {course.title} — версия {course.version_no}</h2>
-   <p>Шаг 1. Курс выбран. Шаг 2. Добавьте видеоуроки ниже. Шаг 3. Выберите для каждого урока видео с Яндекс Диска.</p>
-   <div className="how-grid">
+  </section>}
+  {view==="courses"&&course&&<section className="how-section academy-course-editor">
+   <button type="button" className="academy-return" onClick={()=>setCourse(null)}>← Все курсы</button>
+   <p className="academy-overline">Версия {course.version_no} · {course.state==="DRAFT"?"Черновик":"Опубликован"}</p>
+   <h1>{course.title}</h1>
+   <nav className="academy-steps" aria-label="Редактирование курса">
+    <button type="button" aria-current={editorStep==="structure"?"step":undefined} onClick={()=>setEditorStep("structure")}>1. Уроки</button>
+    <button type="button" aria-current={editorStep==="media"?"step":undefined} disabled={!modules.length||course.state!=="DRAFT"} onClick={()=>setEditorStep("media")}>2. Видео</button>
+    <button type="button" aria-current={editorStep==="publish"?"step":undefined} disabled={!lessons.length} onClick={()=>setEditorStep("publish")}>3. Публикация</button>
+   </nav>
+   {editorStep==="structure"&&<div className="how-grid">
     <form className="panel specialist-form" onSubmit={addModule}>
      <h3>Модуль</h3><label htmlFor="academy-module">Название</label>
      <input id="academy-module" value={moduleTitle} onChange={e=>setModuleTitle(e.target.value)} required/>
-     <button disabled={busy}>Добавить модуль</button>
+     <button disabled={busy||course.state!=="DRAFT"}>Добавить модуль</button>
     </form>
     <form className="panel specialist-form" onSubmit={addLesson}>
      <h3>Урок</h3><label htmlFor="academy-module-select">Модуль</label>
@@ -507,7 +566,7 @@ export default function AcademyPage(){
      <textarea id="academy-lesson-body" value={lessonBody} onChange={e=>setLessonBody(e.target.value)}/></>}
      {lessonKind==="ASSESSMENT"&&<><label htmlFor="academy-pass">Проходной балл</label>
       <input id="academy-pass" type="number" min={1} max={100} value={passingScore} onChange={e=>setPassingScore(Number(e.target.value))}/></>}
-     <button disabled={busy||!moduleID}>Добавить урок</button>
+     <button disabled={busy||!moduleID||course.state!=="DRAFT"}>Добавить урок</button>
     </form>
     <section className="panel"><h3>Структура курса: модули → уроки</h3>
      {modules.length===0&&<p role="status">Модулей пока нет. Создайте первый модуль, затем добавьте урок.</p>}
@@ -557,13 +616,16 @@ export default function AcademyPage(){
       {rightsRecorded&&<p>Подтверждение зафиксировано. Изменения уроков потребуют нового подтверждения.</p>}
      </section>
     </section>
-   </div>
-   {course.state==="DRAFT"&&<CloudMediaEditor key={`${course.id}:${course.version_id}`} courseId={course.id} versionId={course.version_id} modules={mediaModuleOptions} focusedLessonId={focusedVideoLessonID} lessons={mediaLessonOptions}/>}
-   {course.state==="DRAFT"&&<button disabled={busy||lessons.length===0} onClick={()=>void act(
+   </div>}
+   {editorStep==="structure"&&<div className="academy-next"><button type="button" className="academy-blue-button" disabled={!modules.length||course.state!=="DRAFT"} onClick={()=>setEditorStep("media")}>Далее: видео →</button></div>}
+   {editorStep==="media"&&course.state==="DRAFT"&&<CloudMediaEditor key={`${course.id}:${course.version_id}`} courseId={course.id} versionId={course.version_id} modules={mediaModuleOptions} focusedLessonId={focusedVideoLessonID} lessons={mediaLessonOptions}/>}
+   {editorStep==="media"&&<div className="academy-next"><button type="button" onClick={()=>setEditorStep("structure")}>← К урокам</button><button type="button" className="academy-blue-button" onClick={()=>setEditorStep("publish")}>Далее: публикация →</button></div>}
+   {editorStep==="publish"&&<section className="panel"><h2>Подготовка к публикации</h2><p>Модулей: {modules.length} · уроков: {lessons.length} · видеоуроков: {lessons.filter(l=>l.kind==="VIDEO").length}</p><p>Проверьте содержание и подтверждение авторских прав перед публикацией.</p><button type="button" onClick={()=>setEditorStep("structure")}>Проверить структуру и права</button><button type="button" onClick={()=>setEditorStep("media")}>Проверить видео</button></section>}
+   {editorStep==="publish"&&course.state==="DRAFT"&&<button className="academy-blue-button" disabled={busy||lessons.length===0} onClick={()=>void act(
       ()=>api<Course>(`/v1/academy/courses/${course.id}/versions/${course.version_id}/publish`,{}),
       async()=>{setNotice("Версия опубликована и больше не редактируется.");setCourse(null)})}>Опубликовать версию курса</button>}
   </section>}
-  {course&&course.state==="PUBLISHED"&&<section className="how-section">
+  {view==="courses"&&course&&course.state==="PUBLISHED"&&<section className="how-section">
    <h2>Учебные потоки преподавателя</h2>
    <form className="panel specialist-form" onSubmit={e=>{e.preventDefault();void act(
     ()=>api<Cohort>(`/v1/academy/versions/${course.version_id}/cohorts`,{
@@ -585,7 +647,7 @@ export default function AcademyPage(){
    </form>
    {authorCohorts.filter(h=>h.version_id===course.version_id).map(h=><p key={h.id}>{h.label}: {h.members} из {h.capacity} мест</p>)}
   </section>}
-  {activeEnrollment&&<section className="how-section">
+  {view==="learning"&&activeEnrollment&&<section className="how-section">
    <h2>Прохождение курса</h2>
    <h3>Доступные учебные потоки</h3>
    {cohortError?<p role="alert">Список потоков временно недоступен; обучение продолжается.</p>:cohorts.length===0?<p>Потоки для этой версии курса ещё не объявлены.</p>:cohorts.map(h=><article className="panel" key={h.id}>
@@ -652,7 +714,8 @@ export default function AcademyPage(){
     async cert=>{setCertificate(cert);setNotice("Курс завершён, сертификат выпущен.")})}>Завершить курс и получить сертификат</button>
    {certificate&&<p>Сертификат: <a href={certificate.verification_url}>{certificate.verification_url}</a>. Статус профессиональной верификации: {certificate.evidence_candidate_state}.</p>}
   </section>}
-  {authorReport&&<section className="how-section" aria-label="Результаты обучения и подтверждённые оплаты">
+  {view==="reports"&&!authorReport&&<p role="status" className="panel">Отчёт пока недоступен. Обновите страницу или попробуйте позже.</p>}
+  {view==="reports"&&authorReport&&<section className="how-section" aria-label="Результаты обучения и подтверждённые оплаты">
    <h2>Результаты моих курсов</h2>
    <div className="how-grid">{authorReport.courses.map(item=><article className="panel" key={item.course_id}>
     <h3>{item.title}</h3>
@@ -663,7 +726,7 @@ export default function AcademyPage(){
    </article>)}</div>
    <p>Валовая сумма подтверждённых списаний не является доходом автора. Возвраты, комиссии, доли правообладателей и выплаты рассчитывает только канонический финансовый контур. До его сверки чистый доход не показывается.</p>
   </section>}
-  <section id="academy-reviews" className="how-section"><h2>Проверка заданий преподавателем</h2>
+  {view==="reviews"&&<section id="academy-reviews" className="how-section"><h2>Проверка заданий преподавателем</h2>
    <div className="how-grid">{pendingReviews.map(item=><article className="panel" key={item.attempt_id}>
     <h3>{item.course_title} — {item.lesson_title}</h3>
     <p>Попытка {item.attempt_no}, рубрика {item.rubric_version}, порог {item.passing_score}/100</p>
@@ -682,6 +745,7 @@ export default function AcademyPage(){
     <input id="academy-evidence" value={evaluationEvidence} onChange={e=>setEvaluationEvidence(e.target.value)} required/>
     <button disabled={busy}>Зафиксировать оценку</button>
    </form>
-  </section>
+  </section>}
+  </div>
  </main>;
 }

@@ -13,7 +13,10 @@ test("Academy embedded Yandex Disk workflow preserves canonical OAuth and verifi
  assert.match(page,/cloud_connected/);
  assert.match(page,/course_id/);
  assert.match(page,/version_id/);
- assert.match(page,/Шаг 1\. Курс/);
+ assert.match(page,/1\. Уроки/);
+ assert.match(page,/2\. Видео/);
+ assert.match(page,/3\. Публикация/);
+ assert.match(page,/setEditorStep\("media"\)/);
  assert.ok(page.indexOf("<CloudMediaEditor")>page.indexOf('<h3>Урок</h3>'));
  assert.match(editor,/\/v1\/academy\/author\/cloud\/yandex\/connect/);
  assert.match(editor,/\/v1\/academy\/author\/cloud\/yandex\/files/);

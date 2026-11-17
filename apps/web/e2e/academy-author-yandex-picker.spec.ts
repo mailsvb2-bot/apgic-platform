@@ -74,8 +74,8 @@ test("author resumes the selected course and lesson, imports Disk video, and sav
  });
 
  await page.goto("/academy?cloud_connected=yandex&course_id="+courseID+"&version_id="+versionID+"&lesson_id="+lessonID);
- await expect(page.getByRole("heading",{name:"Редактор: Проверочный курс — версия 1"})).toBeVisible();
- await expect(page.getByText("Шаг 1. Курс выбран. Шаг 2. Добавьте видеоуроки ниже. Шаг 3. Выберите для каждого урока видео с Яндекс Диска.")).toBeVisible();
+ await expect(page.getByRole("heading",{name:"Проверочный курс"})).toBeVisible();
+ await expect(page.getByRole("button",{name:"2. Видео"})).toHaveAttribute("aria-current","step");
  await expect(page.getByLabel("К какому уроку добавить видео?")).toHaveValue(lessonID);
  await expect(page.locator("#academy-video-lesson optgroup")).toHaveAttribute("label","1. Модуль 1");
  await expect(page.locator('#academy-media-editor p[role="status"]').filter({hasText:"Редактируем:"})).toContainText("Модуль 1");
@@ -157,10 +157,14 @@ test("author creates a video lesson before selecting its Yandex Disk file",async
  });
 
  await page.goto("/academy");
- await expect(page.getByRole("heading",{name:"Мои курсы как автора"})).toBeVisible();
- await page.getByRole("button",{name:"Редактирование и содержание"}).click();
+ await expect(page.getByRole("heading",{name:"Кабинет автора"})).toBeVisible();
+ await page.getByRole("button",{name:"Мои курсы"}).click();
+ await expect(page.getByRole("heading",{name:"Ваши курсы"})).toBeVisible();
+ await page.getByRole("button",{name:"Открыть редактор"}).click();
  await expect(page.locator("#academy-lesson-title")).toBeVisible();
+ await page.getByRole("button",{name:"2. Видео"}).click();
  await expect(page.getByText("В этом курсе пока нет видеоуроков.",{exact:false})).toBeVisible();
+ await page.getByRole("button",{name:"1. Уроки"}).click();
  await page.locator("#academy-lesson-title").fill("Урок 1");
  // Simulate switching from a text lesson to the VIDEO default. Hidden text
  // must not leak into the canonical video attachment field.
@@ -270,7 +274,8 @@ test("learner HTML5 player plays, seeks with a byte range, then unloads on entit
  });
 
  await page.goto("/academy");
- await page.getByRole("button",{name:"Продолжить"}).click();
+ await page.getByRole("button",{name:"Моё обучение"}).click();
+ await page.getByRole("button",{name:"Продолжить",exact:true}).click();
  await expect(page.getByRole("heading",{name:"Прохождение курса"})).toBeVisible();
  const video=page.locator("video");
  await expect(video).toHaveAttribute("src",streamPath);
@@ -397,7 +402,8 @@ test("learner video error is visible and retry revalidates entitlement before re
  });
 
  await page.goto("/academy");
- await page.getByRole("button",{name:"Продолжить"}).click();
+ await page.getByRole("button",{name:"Моё обучение"}).click();
+ await page.getByRole("button",{name:"Продолжить",exact:true}).click();
  await expect(page.getByRole("heading",{name:"Прохождение курса"})).toBeVisible();
  const video=page.locator("video");
  await expect(video).toHaveCount(1);

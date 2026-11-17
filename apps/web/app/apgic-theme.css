@@ -1,0 +1,35 @@
+/* APGIC unified visual skin. No API behavior or entitlement rules here. */
+:root{color-scheme:light;color:#142441;background:#f6f8ff}
+body{background:radial-gradient(ellipse 55rem 36rem at 100% 0%,#e7efff 0%,transparent 65%),#f7f9fe;color:#152540}
+.site-shell{width:min(1240px,100%);}
+.site-header{gap:22px;min-height:82px;border-bottom:1px solid #e6ebf5}
+.brand{font-size:1.12rem;color:#101d34;letter-spacing:-.02em}
+.brand-mark{background:linear-gradient(135deg,#4b92fb,#1557df);border-radius:12px}
+.top-nav{gap:clamp(8px,1.65vw,22px)}
+.top-nav a{color:#40536e;font-weight:650;border-radius:10px;padding:8px 6px;transition:color .2s,background-color .2s}
+.top-nav a:hover,.top-nav a:focus-visible{color:#1557df;background:#ecf3ff;text-decoration:none}
+.primary-action,.site-shell .button-link.primary-action{background:#1763ed;color:white;border:1px solid #1763ed;box-shadow:0 8px 24px rgba(23,99,237,.12)}
+.secondary-action{border-color:#b9cbef;background:#fff;color:#2854a0}
+.site-shell .button-link{border-radius:13px}
+.hero-card,.panel,.how-grid article,.personal-section,.personal-empty{border-color:#e2e8f3;border-radius:20px;background:#fff;box-shadow:0 8px 24px rgba(33,64,111,.045)}
+.hero-card{background:rgba(255,255,255,.94)}
+.eyebrow,.section-kicker,.personal-heading .eyebrow{color:#2b66db}
+.hero-lead,.how-grid p,.start-heading p,.site-footer p{color:#566680}
+.site-shell .panel button:not(:disabled){transition:background-color .17s}
+.personal-shell{max-width:1280px}
+.personal-heading{padding:34px 0 26px}
+.personal-heading h1{font-size:clamp(2rem,4vw,3rem);letter-spacing:-.04em;color:#142441}
+.personal-heading p:last-child{color:#687791}
+.personal-section,.personal-empty{border:1px solid #e2e8f3}
+.personal-booking,.personal-request-list li{border-color:#e2e8f3}
+.personal-state{background:#edf3ff;color:#2555af}
+.personal-muted{color:#63718b}
+.personal-preferences input,.personal-preferences select{border-color:#bdcce5;color:#182b4b}
+.personal-section button,.personal-toolbar button,.personal-empty button{background:#1763ed;color:#fff;border-radius:11px;box-shadow:0 6px 17px rgba(20,95,228,.1)}
+.personal-section button:hover:not(:disabled),.personal-toolbar button:hover:not(:disabled),.personal-empty button:hover:not(:disabled){background:#1254d2}
+.apgic-account .how-grid{gap:20px}
+.apgic-account .panel{border-color:#e3eaf7}
+.apgic-account .panel button{background:#1763ed;color:white;border:0}
+.apgic-account .panel button:disabled{opacity:.57}
+.apgic-account h1{letter-spacing:-.04em}
+@media(max-width:720px){.site-header{padding-top:9px;padding-bottom:9px;min-height:auto}.top-nav{gap:4px}.top-nav a{font-size:.83rem;padding:7px}.personal-shell{padding-left:16px;padding-right:16px}}

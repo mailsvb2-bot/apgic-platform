@@ -38,7 +38,8 @@ test("R6 home entry leads to the governed Duty/Now journey without granting acce
 test("R8 and R9 public home links lead to honest catalogue surfaces",async({page})=>{
   await page.goto("/");
   await page.getByRole("navigation",{name:"Разделы"}).getByRole("link",{name:"Обучение"}).click();
-  await expect(page.getByRole("heading",{name:"Обучение и курсы"})).toBeVisible();
+  await page.getByRole("button",{name:"Каталог",exact:true}).click();
+  await expect(page.getByRole("heading",{name:"Каталог",exact:true})).toBeVisible();
   await page.goto("/");
   await page.getByRole("navigation",{name:"Разделы"}).getByRole("link",{name:"Афиша"}).click();
   await expect(page.getByRole("heading",{name:"Встречи, вебинары и мастер-классы"})).toBeVisible();

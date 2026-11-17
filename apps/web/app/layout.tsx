@@ -1,5 +1,6 @@
 import "./globals.css";
 import "./live-events/live-events.css";
+import "./apgic-theme.css";
 
 export const metadata = {
   title: "APGIC — подобрать специалиста под ваш запрос",
