@@ -190,6 +190,7 @@ export default function CloudMediaEditor({courseId,versionId,lessons,modules,foc
    setMessage("Выбранные видео устарели после переподключения облака. Обновите медиатеку.");return;
   }
   setAssignments(current=>appendLessonMediaAssignments(current,lessonId,selected));
+  setSelected([]);
   setMessage("Видео добавлены к уроку без удаления предыдущих. Нажмите «Сохранить видео урока».");
  }
  async function persist(){
