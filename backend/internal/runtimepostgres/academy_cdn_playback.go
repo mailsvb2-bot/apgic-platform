@@ -172,6 +172,25 @@ RETURNING id::text`,
 		return AcademyCDNPlaybackReceipt{}, err
 	}
 
+	// Each CDN receipt covers one video, not necessarily the whole lesson.
+	// The same canonical PostgreSQL owner must see verified receipts for every
+	// assigned video before a single lesson-completion fact is written.
+	var allMediaComplete bool
+	if err := tx.QueryRowContext(ctx,
+		`SELECT academy_cdn_video_playback_complete($1::uuid,$2::uuid)`,
+		binding.EnrollmentID, binding.LessonID,
+	).Scan(&allMediaComplete); err != nil {
+		return AcademyCDNPlaybackReceipt{}, err
+	}
+	if !allMediaComplete {
+		if err := tx.Commit(); err != nil {
+			return AcademyCDNPlaybackReceipt{}, err
+		}
+		return AcademyCDNPlaybackReceipt{
+			ID: insertedID, EvidenceRef: evidenceRef, CompletedAt: verified.CompletedAt(),
+		}, nil
+	}
+
 	var completedLesson string
 	progressErr := tx.QueryRowContext(ctx, `INSERT INTO academy_progress(
  enrollment_id,lesson_id,evidence_ref,completed_at
