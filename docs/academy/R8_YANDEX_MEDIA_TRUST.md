@@ -23,3 +23,7 @@ Configuration is fail-closed:
 Do not infer or invent storage hostnames from the documented wildcard namespace. Populate this setting only from a real provider response observed during authorized acceptance, then bind the resulting host list to the deployment configuration review. A signed download URL, its query string, OAuth token, or author-owned media path must never be copied into this setting or into logs.
 
 This setting is not a provider certification and does not enable VIDEO publication. The independent CDN playback certification, signed attestation persistence, real author/learner journey, and committed Entitlement-revocation acceptance remain separate fail-closed gates.
+
+### Dynamic Yandex storage nodes
+
+An operator may explicitly opt in with `APGIC_YANDEX_TRUST_STORAGE_NODES=true` after validating real provider redirect destinations and DNS/IP dial guards. Default is disabled; exact `APGIC_YANDEX_STORAGE_HOSTS` pins remain supported. Only a single DNS label directly under `storage.yandex.net` is accepted; credentials must not follow redirects, and path/query values never appear in refusal logs. This opt-in is not automatically activated by deployment.

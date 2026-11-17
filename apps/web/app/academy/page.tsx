@@ -173,12 +173,17 @@ export default function AcademyPage(){
  // A missing course/version pair is not an error when exactly one draft exists.
  useEffect(()=>{
   const params=new URLSearchParams(window.location.search);
-  if(params.get("cloud_connected")!=="yandex")return;
+  const cloudError=params.get("cloud_error");
+  if(params.get("cloud_connected")!=="yandex"&&cloudError!=="denied"&&cloudError!=="failed")return;
+  const errorNotice=cloudError==="denied"
+   ? "Доступ к Яндекс Диску не предоставлен. Чтобы добавить видео, нажмите «Подключить Яндекс Диск» и подтвердите доступ."
+   : cloudError==="failed"?"Яндекс не завершил подключение Диска. Повторите подключение чуть позже.":"";
   const drafts=mine.filter(c=>c.state==="DRAFT");
   const courseId=params.get("course_id"),versionId=params.get("version_id");
   const selected=courseId&&versionId
    ? drafts.find(c=>c.id===courseId&&c.version_id===versionId)
    : drafts.length===1?drafts[0]:undefined;
+  if(errorNotice&&!selected){setNotice(errorNotice);return;}
   if(!selected){
    if(drafts.length>1)setNotice("Яндекс Диск подключён. Выберите нужный черновик ниже.");
    else if(drafts.length===0)setNotice("Яндекс Диск подключён. Создайте курс, чтобы добавить видео.");
@@ -188,7 +193,7 @@ export default function AcademyPage(){
   let cancelled=false;
   void loadOutline(selected).then(()=>{
    if(cancelled)return;
-   setNotice("Яндекс Диск подключён. Открываем ваши видео...");
+   setNotice(errorNotice||"Яндекс Диск подключён. Открываем ваши видео...");
    window.requestAnimationFrame(()=>{
     document.getElementById("academy-media-editor")?.scrollIntoView({behavior:"smooth",block:"start"});
    });

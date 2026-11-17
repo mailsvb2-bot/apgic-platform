@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"errors"
+	"time"
 	"net/http"
 
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/academy"
@@ -45,6 +46,8 @@ func academyVerifyCloudImport(ctx context.Context, actor string, items []academy
 	return verifier.AcademyVerifyYandexDiskMedia(ctx, actor, items)
 }
 
+const academyCloudImportWriteBudget = 75 * time.Second
+
 func registerAcademyCloudMedia(mux *http.ServeMux, store academyStore, sessions *clientSessionManager, sessionErr error) {
 	mux.HandleFunc("GET /v1/academy/author/cloud-media", func(w http.ResponseWriter, r *http.Request) {
 		actor, ok := academyIdentity(w, r, sessions, sessionErr)
@@ -84,6 +87,8 @@ func registerAcademyCloudMedia(mux *http.ServeMux, store academyStore, sessions 
 			academyHTTPError(w, r, academy.ErrUnavailable)
 			return
 		}
+		// Author import can take longer than the default 15s HTTP write budget.
+		_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(academyCloudImportWriteBudget))
 		out, err := importer.AcademyImportVerifiedCloudMedia(r.Context(), actor, body.Items)
 		if err != nil {
 			switch {

@@ -25,8 +25,8 @@ type academyVideoFingerprintStore interface {
 }
 
 // First-party delivery facts are written by the existing Academy store only
-// after a complete verified byte representation has been sent to the learner.
-// A range or an interrupted transfer cannot independently complete a lesson.
+// for verified bytes flushed to the learner. A range or interrupted transfer
+// cannot independently complete a lesson: all intervals must cover every file.
 type academyDirectVideoDeliveryWriter interface {
 	AcademyRecordDirectVideoDelivery(actor, enrollmentID, lessonID, mediaID, digest string, length, start, end int64) error
 }
@@ -77,6 +77,8 @@ func registerAcademyVideoStreamWithClients(
 		if !ok {
 			return
 		}
+		deadline := newAcademyVideoResponseDeadline(w)
+		deadline.extend(academyVideoPreflightTimeout)
 		// Reject ambiguous or malformed browser Range headers before any
 		// credential lookup or outbound cloud request.
 		requestedRange, validRange := academyVideoRequestedRange(r.Header)
@@ -170,7 +172,8 @@ func registerAcademyVideoStreamWithClients(
 		go func() {
 			defer close(watchDone)
 			academyWatchVideoEntitlement(streamCtx, func() {
-				academyCancelRevokedVideoResponse(w, stopStream)
+				stopStream()
+				deadline.revoke()
 			}, time.Second, authorized)
 		}()
 		// The watcher must exit before ServeHTTP returns: it owns a reference
@@ -251,6 +254,7 @@ func registerAcademyVideoStreamWithClients(
 			w.Header().Set("Content-Range", v)
 		}
 		w.Header().Set("Accept-Ranges", "bytes")
+		deadline.extend(academyVideoWriteIdleTimeout)
 		w.WriteHeader(response.StatusCode)
 		// Bound idle provider body reads, not total video duration. An upstream
 		// that stalls indefinitely after its headers must not pin a gateway
@@ -260,24 +264,25 @@ func registerAcademyVideoStreamWithClients(
 		// periodic watcher does, close the live learner response immediately.
 		// Canceling the upstream alone does not interrupt a blocked client
 		// write; the response deadline also prevents further buffered output.
-		copyErr := academyCopyVideoAuthorized(w, idleBody, authorized)
+		learner := &academyVideoLearnerWriter{w: w, deadline: deadline}
+		copyErr := academyCopyVideoAuthorized(learner, idleBody, authorized)
 		if copyErr == errAcademyVideoRevoked {
-			academyCancelRevokedVideoResponse(w, stopStream)
+			stopStream()
+			deadline.revoke()
 			return
 		}
-		// Only successfully copied bytes may enter durable Academy evidence.
-		// Browser-supplied playhead, duration, ended events and redirects are
-		// never trusted. Refund/replacement races are rechecked by the SQL
-		// delivery trigger inside the canonical Academy transaction.
-		if copyErr == nil && authorized() {
-			if writer, ok := store.(academyDirectVideoDeliveryWriter); ok {
-				start, end, valid := academyDeliveredVideoInterval(response.StatusCode, response.Header, size)
-				if valid {
-					_ = writer.AcademyRecordDirectVideoDelivery(actor,
-						r.PathValue("enrollmentID"), r.PathValue("lessonID"),
-						r.PathValue("mediaID"), digest, size, start, end)
-				}
-			}
+		// Only flushed bytes count. The SQL owner checks entitlement and
+		// every assigned media file before permitting lesson completion.
+		start, end, valid := academyDeliveredVideoInterval(response.StatusCode, response.Header, size)
+		if !valid { return }
+		if copyErr != nil {
+			if deadline.wasRevoked() || learner.delivered <= 0 || !authorized() { return }
+			if start+learner.delivered < end { end = start+learner.delivered }
+		} else if !authorized() { return }
+		if writer, ok := store.(academyDirectVideoDeliveryWriter); ok {
+			_ = writer.AcademyRecordDirectVideoDelivery(actor,
+				r.PathValue("enrollmentID"),r.PathValue("lessonID"),
+				r.PathValue("mediaID"),digest,size,start,end)
 		}
 	})
 }

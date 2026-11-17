@@ -2,6 +2,7 @@
 
 import {useCallback,useEffect,useRef,useState,type FormEvent} from "react";
 import {appendLessonMediaAssignments,moveLessonMediaAssignment,removeLessonMediaAssignment} from "./cloud-media-assignments";
+import {importVerifiedMediaInBatches,type CloudImportItem} from "./cloud-media-import";
 
 type CloudMedia={id:string;title:string;provider:string;provider_file_ref:string;source_url?:string;active:boolean};
 type DiskFile={name:string;path:string;type:string;mime_type:string;size:number};
@@ -27,16 +28,8 @@ async function request<T>(url:string,body?:unknown,signal?:AbortSignal):Promise<
 // The provider verifies each selected file on the server before saving it.
 // Chunking preserves the existing 2,000-file author workflow while keeping
 // each authenticated verification request bounded and safely retryable.
-async function importVerifiedMedia(items:Array<{provider:string;provider_file_ref:string;title:string}>):Promise<CloudMedia[]>{
- const imported:CloudMedia[]=[];
- for(let i=0;i<items.length;i+=100){
-  try{const batch=await request<{media:CloudMedia[]}>("/v1/academy/author/cloud-media/import",{items:items.slice(i,i+100)});imported.push(...batch.media);}
-  catch(e){
-   const reason=e instanceof Error?e.message:"Операция не выполнена";
-   throw new Error(i>0?`Импортировано ${i} из ${items.length}. ${reason}`:reason);
-  }
- }
- return imported;
+function importVerifiedBatch(items:CloudImportItem[]):Promise<CloudMedia[]>{
+ return request<{media:CloudMedia[]}>("/v1/academy/author/cloud-media/import",{items}).then(result=>result.media);
 }
 export default function CloudMediaEditor({courseId,versionId,lessons,modules,focusedLessonId}:{
  courseId:string;versionId:string;lessons:VideoLesson[];modules:CourseModule[];focusedLessonId:string;
@@ -107,12 +100,19 @@ export default function CloudMediaEditor({courseId,versionId,lessons,modules,foc
    const chosen=Object.values(diskSelectedFiles).filter(isImportableVideo);
    if(!chosen.length||chosen.length!==Object.keys(diskSelectedFiles).length)throw new Error("Выбери только непустые видеофайлы");
    if(chosen.length>2000)throw new Error("За одну операцию можно добавить до 2000 файлов");
-   const imported=await importVerifiedMedia(chosen.map(f=>({
+   const result=await importVerifiedMediaInBatches(chosen.map(f=>({
     provider:"YANDEX_DISK",provider_file_ref:f.path,title:f.name
-   })));
-   if(imported.length!==chosen.length||imported.some(item=>!item.id))throw new Error("Импорт выполнен не полностью. Обновите медиатеку перед назначением.");
-   await reload();
-   setAssignments(current=>appendLessonMediaAssignments(current,lessonId,imported.map(item=>item.id)));
+   })),importVerifiedBatch,(done,total)=>{if(total>0)setMessage(`Проверяем видео на Яндекс Диске: ${done} из ${total}…`)});
+   const imported=result.imported.filter(item=>Boolean(item.id));
+   if(imported.length){
+    await reload();
+    setAssignments(current=>appendLessonMediaAssignments(current,lessonId,imported.map(item=>item.id)));
+   }
+   if(result.failure){
+    const done=new Set(result.importedRefs);
+    setDiskSelectedFiles(Object.fromEntries(chosen.filter(f=>!done.has(f.path)).map(f=>[f.path,f])));
+    throw new Error(`Добавлено ${imported.length} из ${chosen.length}. ${result.failure} Нажмите «Добавить к уроку» ещё раз.`);
+   }
    setDiskSelectedFiles({});setMessage("Видео добавлены к выбранному уроку. Нажмите «Сохранить видео урока».");
   }catch(error){setMessage(String(error))}finally{setBusy(false)}
  }
@@ -162,8 +162,14 @@ export default function CloudMediaEditor({courseId,versionId,lessons,modules,foc
     return {provider:"YANDEX_DISK",provider_file_ref:parts[0].trim(),title:parts.slice(1).join("|").trim()||parts[0].trim()};
    });
    if(items.some(x=>!x.provider_file_ref))throw new Error("Пустой идентификатор файла");
-   await importVerifiedMedia(items);
-   await reload();setRows("");setMessage("Видеозаписи добавлены в медиатеку");
+   const result=await importVerifiedMediaInBatches(items,importVerifiedBatch,(done,total)=>{if(total>0)setMessage(`Проверяем видео на Яндекс Диске: ${done} из ${total}…`)});
+   if(result.imported.length)await reload();
+   if(result.failure){
+    const done=new Set(result.importedRefs);
+    setRows(lines.filter((_,index)=>!done.has(items[index].provider_file_ref)).join("\n"));
+    throw new Error(`Добавлено ${result.imported.length} из ${items.length}. ${result.failure} В поле остались недобавленные файлы.`);
+   }
+   setRows("");setMessage("Видеозаписи добавлены в медиатеку");
   }catch(error){setMessage(String(error))}finally{setBusy(false)}
  }
  function allocateAll(){

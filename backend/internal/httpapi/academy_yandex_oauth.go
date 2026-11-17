@@ -134,7 +134,164 @@ func cloudOAuthEditorReturnIDs(rawQuery string) (string, string, string, bool) {
 }
 
 func cloudOAuthCallbackDestination(state cloudOAuthState) string {
-	query := url.Values{"cloud_connected": {"yandex"}}
+ return cloudOAuthReturnDestination(state,url.Values{"cloud_connected":{"yandex"}})
+}
+// RFC 6749 error callback, never interpreted as an OAuth grant.
+var cloudOAuthProviderErrorPattern=regexp.MustCompile(`^[a-z_]{1,64}package httpapi
+
+import (
+	"context"
+	"crypto/hmac"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/json"
+	"errors"
+	"io"
+	"net/http"
+	"net/url"
+	"os"
+	"regexp"
+	"strings"
+	"time"
+
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/academy"
+)
+
+type academyCloudCredentialWriter interface {
+	AcademyStoreCloudCredential(actor, provider, token string) error
+}
+type cloudOAuthState struct {
+	Actor         string `json:"actor"`
+	Verifier      string `json:"verifier"`
+	Nonce         string `json:"nonce"`
+	ReturnCourse  string `json:"return_course,omitempty"`
+	ReturnVersion string `json:"return_version,omitempty"`
+	ReturnLesson  string `json:"return_lesson,omitempty"`
+	Expires       int64  `json:"expires"`
+}
+
+func cloudRandom(n int) (string, error) {
+	b := make([]byte, n)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(b), nil
+}
+func cloudStateKey() ([]byte, error) {
+	s := os.Getenv("APGIC_ACADEMY_OAUTH_STATE_KEY")
+	key, err := base64.StdEncoding.DecodeString(s)
+	if err != nil || len(key) < 32 {
+		return nil, errors.New("OAuth state key is unavailable")
+	}
+	return key, nil
+}
+func cloudSeal(state cloudOAuthState, key []byte) (string, error) {
+	raw, err := json.Marshal(state)
+	if err != nil {
+		return "", err
+	}
+	mac := hmac.New(sha256.New, key)
+	mac.Write(raw)
+	return base64.RawURLEncoding.EncodeToString(raw) + "." + base64.RawURLEncoding.EncodeToString(mac.Sum(nil)), nil
+}
+func cloudOpen(value string, key []byte) (cloudOAuthState, error) {
+	var state cloudOAuthState
+	parts := strings.Split(value, ".")
+	if len(parts) != 2 {
+		return state, academy.ErrDenied
+	}
+	raw, err := base64.RawURLEncoding.DecodeString(parts[0])
+	if err != nil || len(raw) > 2048 {
+		return state, academy.ErrDenied
+	}
+	signature, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return state, academy.ErrDenied
+	}
+	mac := hmac.New(sha256.New, key)
+	mac.Write(raw)
+	if !hmac.Equal(signature, mac.Sum(nil)) {
+		return state, academy.ErrDenied
+	}
+	if json.Unmarshal(raw, &state) != nil || state.Actor == "" ||
+		!cloudOAuthPKCEVerifierPattern.MatchString(state.Verifier) ||
+		!cloudOAuthStateNoncePattern.MatchString(state.Nonce) || state.Expires <= time.Now().Unix() ||
+		(state.ReturnCourse == "") != (state.ReturnVersion == "") ||
+		(state.ReturnLesson != "" && state.ReturnCourse == "") ||
+		(state.ReturnCourse != "" && (!cloudOAuthEditorIDPattern.MatchString(state.ReturnCourse) ||
+			!cloudOAuthEditorIDPattern.MatchString(state.ReturnVersion))) ||
+		(state.ReturnLesson != "" && !cloudOAuthEditorIDPattern.MatchString(state.ReturnLesson)) {
+		return state, academy.ErrDenied
+	}
+	return state, nil
+}
+
+// A callback may finish only under the same signed APGIC identity that
+// initiated the OAuth flow. Switching accounts must never attach another
+// person's cloud credentials to the original author.
+func cloudOAuthActorMatches(state cloudOAuthState, actor string) bool {
+	return actor != "" && state.Actor != "" && state.Actor == actor
+}
+
+// PKCE verifier and state nonce are generated from 32 and 24 random bytes.
+// Reject any signed state that does not preserve those canonical shapes.
+var cloudOAuthPKCEVerifierPattern = regexp.MustCompile("^[A-Za-z0-9_-]{43}$")
+var cloudOAuthStateNoncePattern = regexp.MustCompile("^[A-Za-z0-9_-]{32}$")
+
+// Only a pair of canonical course/version UUIDs may survive the OAuth
+// round-trip. No browser-controlled return URL or open redirect is accepted.
+var cloudOAuthEditorIDPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$`)
+
+func cloudOAuthEditorReturnIDs(rawQuery string) (string, string, string, bool) {
+	query, err := url.ParseQuery(rawQuery)
+	if err != nil || len(query) > 3 {
+		return "", "", "", false
+	}
+	if len(query) == 0 {
+		return "", "", "", true
+	}
+	for key := range query {
+		if key != "course_id" && key != "version_id" && key != "lesson_id" {
+			return "", "", "", false
+		}
+	}
+	course, version := query["course_id"], query["version_id"]
+	if len(course) != 1 || len(version) != 1 ||
+		!cloudOAuthEditorIDPattern.MatchString(course[0]) ||
+		!cloudOAuthEditorIDPattern.MatchString(version[0]) {
+		return "", "", "", false
+	}
+	var lessonID string
+	if lesson, ok := query["lesson_id"]; ok {
+		if len(lesson) != 1 || !cloudOAuthEditorIDPattern.MatchString(lesson[0]) {
+			return "", "", "", false
+		}
+		lessonID = lesson[0]
+	}
+	return course[0], version[0], lessonID, true
+}
+
+)
+func cloudOAuthProviderError(rawQuery string,state cloudOAuthState,validState bool)(string,bool){
+ q,err:=url.ParseQuery(rawQuery);if err!=nil{return "",false}
+ codes,ok:=q["error"];if !ok||len(codes)!=1||!cloudOAuthProviderErrorPattern.MatchString(codes[0]){return "",false}
+ if _,code:=q["code"];code{return "",false}
+ for key,values:=range q{
+  switch key{
+  case "error","error_description","state","cid":
+   if len(values)!=1||len(values[0])>512{return "",false}
+  default:return "",false
+  }
+ }
+ result:=url.Values{"cloud_error":{"failed"}}
+ if codes[0]=="access_denied"{result.Set("cloud_error","denied")}
+ if validState&&state.Nonce!=""&&len(q["state"])==1&&q["state"][0]==state.Nonce{
+  return cloudOAuthReturnDestination(state,result),true
+ }
+ return "/academy?"+result.Encode(),true
+}
+func cloudOAuthReturnDestination(state cloudOAuthState,query url.Values) string {
 	if state.ReturnCourse != "" && state.ReturnVersion != "" {
 		query.Set("course_id", state.ReturnCourse)
 		query.Set("version_id", state.ReturnVersion)
@@ -295,6 +452,20 @@ func registerAcademyYandexOAuth(mux *http.ServeMux, store academyStore, sessions
 		w.Header().Set("Cache-Control", "no-store")
 		cookie, err := r.Cookie(cookieName)
 		http.SetCookie(w, &http.Cookie{Name: cookieName, Path: "/v1/academy/author/cloud/yandex", Value: "", MaxAge: -1, Secure: true, HttpOnly: true, SameSite: http.SameSiteLaxMode})
+		if strings.Contains(r.URL.RawQuery,"error="){
+			var state cloudOAuthState
+			stateValid:=false
+			if err==nil {
+				if key,keyErr:=cloudStateKey();keyErr==nil {
+					if opened,openErr:=cloudOpen(cookie.Value,key);openErr==nil {
+						state,stateValid=opened,true
+					}
+				}
+			}
+			if destination,ok:=cloudOAuthProviderError(r.URL.RawQuery,state,stateValid);ok{
+				http.Redirect(w,r,destination,http.StatusSeeOther);return
+			}
+		}
 		if err != nil {
 			academyHTTPError(w, r, academy.ErrDenied)
 			return

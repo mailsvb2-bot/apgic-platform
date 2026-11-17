@@ -343,6 +343,11 @@ func configuredYandexStorageHosts() (map[string]struct{}, bool) {
 	return hosts, true
 }
 
+// Explicit operator-only option. Default off. Never accept malformed
+// configured pins even if the dynamic Yandex node option is enabled.
+const yandexStorageNodeTrustEnv = "APGIC_YANDEX_TRUST_STORAGE_NODES"
+func yandexStorageNodeTrustEnabled() bool { return os.Getenv(yandexStorageNodeTrustEnv)=="true" }
+
 // trustedYandexStorageHost uses exact deployment-pinned hostnames. Dynamic
 // provider hosts are never accepted by wildcard, suffix or label-shape alone.
 func trustedYandexStorageHost(host string) bool {
@@ -357,8 +362,22 @@ func trustedYandexStorageHost(host string) bool {
 	if !valid {
 		return false
 	}
-	_, exists := hosts[normalized]
-	return exists
+	if _, exists := hosts[normalized]; exists { return true }
+	if !yandexStorageNodeTrustEnabled() { return false }
+	label, ok := strings.CutSuffix(normalized, ".storage.yandex.net")
+	return ok && validYandexStorageLabel(label)
+}
+
+// Log the host only for a well-formed storage node. Do not log URLs,
+// paths, signed query parameters, OAuth tokens or unvalidated host strings.
+func logRefusedYandexStorageRedirect(target *url.URL) {
+ if target==nil || target.Scheme!="https"{log.Printf("academy_yandex_storage_redirect_refused reason=scheme");return}
+ host,ok:=normalizeYandexDNSHost(target.Hostname())
+ if !ok{log.Printf("academy_yandex_storage_redirect_refused reason=host_invalid");return}
+ if label,storage:=strings.CutSuffix(host,".storage.yandex.net");storage&&validYandexStorageLabel(label){
+  log.Printf("academy_yandex_storage_redirect_refused reason=storage_node_not_pinned host=%s",host);return
+ }
+ log.Printf("academy_yandex_storage_redirect_refused reason=host_untrusted")
 }
 
 // ValidateYandexStorageRedirect validates a provider redirect hop.
@@ -371,7 +390,11 @@ const YandexMediaMaxRedirects = 3
 
 // Reject untrusted destinations and strip credentials on redirect.
 func YandexMediaCheckRedirect(req *http.Request, via []*http.Request) error {
-	if len(via) == 0 || len(via) > YandexMediaMaxRedirects || req == nil || !ValidateYandexStorageRedirect(req.URL) {
+	if len(via) == 0 || len(via) > YandexMediaMaxRedirects || req == nil {
+		return http.ErrUseLastResponse
+	}
+	if !ValidateYandexStorageRedirect(req.URL) {
+		logRefusedYandexStorageRedirect(req.URL)
 		return http.ErrUseLastResponse
 	}
 	// A trusted destination is insufficient if an earlier hop escaped the
