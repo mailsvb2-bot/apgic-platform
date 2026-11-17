@@ -2,9 +2,25 @@
 
 The ordinary green CI run is **not** evidence of actual Yandex OAuth, video bytes, a signed learner session, a captured PSP transaction, or Finance reconciliation.
 
-## Canon v7 production delivery boundary (2026-11-16)
+## Two production delivery modes (main, 2026-11-17)
 
-The production learner route `GET /v1/academy/enrollments/{enrollmentID}/lessons/{lessonID}/videos/{mediaID}/stream` now fails closed with HTTP 503 until an actual certified `CDNPlaybackCapability` is wired. The legacy Yandex byte-proxy handler is retained only behind a package-private transport-test seam; it is not registered in production. Its live range/revocation smoke can prove origin-host, redirect, range and cancellation behavior, but it cannot be counted as canonical CDN playback or as the production learner delivery path. This follows `R8_EXECUTION_AND_GATES.md`: media bytes and playback attestation belong to the versioned provider capability, not APGIC Go streaming.
+`APGIC_ACADEMY_VIDEO_DELIVERY_MODE=direct` (default) registers the
+first-party Yandex-to-APGIC byte-range learner route. This route is implemented
+in production code, but a green CI run does not authorize live VIDEO course
+publication: an exact-SHA, independently accepted Yandex/payment/revocation
+journey, active entitlements and publication opt-in are still mandatory.
+
+`APGIC_ACADEMY_VIDEO_DELIVERY_MODE=cdn` is a separately preserved transport.
+Existing `CDNPlaybackCapability`, typed grant/stream/revocation/external
+attestation methods, certification and PostgreSQL evidence are retained.
+Until a real CDN provider adapter is connected and independently certified,
+the learner HTTP route intentionally responds 503; merely changing the
+environment selector cannot bypass this boundary.
+
+Both modes use Academy as the only course, entitlement, media mapping and
+progress authority. Complete delivery in direct mode and certified playback
+evidence in CDN mode must cover every video assigned to the lesson.
+See `R8_VIDEO_DELIVERY_MODES.md` for the switch and activation prerequisites.
 
 ## Explicit real-provider smoke (never use a fake provider or log credentials)
 
@@ -20,7 +36,7 @@ With `APGIC_REQUIRE_R8_LIVE_PROOF=true`, missing token or video **fails**, rathe
 
 These tests exercise real cloud range bytes through the hardened media transport, post-revocation denial and cancellation of continued byte copying. **They do not establish** a genuine independently signed learner/author identity, real Entitlement revocation persisted in PostgreSQL, actual client browser playback, real captured PSP purchase or Finance reconciliation. Those are separate release blockers.
 
-## Remaining operator evidence before removing Draft from #343
+## Remaining independent operator evidence before live VIDEO publication
 
 1. Record exact commit SHA, deployed SHA, test invocation, environment identifier, test results, and redacted provider response status; keep tokens, temporary download URLs and user identities out of evidence.
 2. Perform real author Yandex OAuth against the actual deployed API with a signed author session; import, map and verify an MP4.
@@ -28,7 +44,7 @@ These tests exercise real cloud range bytes through the hardened media transport
 4. Revoke the entitlement in canonical PostgreSQL/Commerce lifecycle and confirm that new range requests fail and an already-running stream is interrupted. Re-run for OAuth disconnect and account reconnect.
 5. Confirm no provider URL/token in browser JSON, redirect Location, referrer, logs or telemetry. Record browser and native device results.
 
-Do **not** set `APGIC_ACADEMY_VIDEO_PUBLISH_ENABLED=true` or merge #343 solely on a green CI run or on the real-provider smoke above. VIDEO publication stays default-off until the complete protected journey has been independently evidenced.
+Do **not** set `APGIC_ACADEMY_VIDEO_PUBLISH_ENABLED=true` or treat an already merged feature PR as independent release authorization solely on a green CI run or on the real-provider smoke above. VIDEO publication stays default-off until the complete protected journey has been independently evidenced.
 
 ## CI startup failure is not a test verdict
 
@@ -38,7 +54,7 @@ does not establish application or test failure **and is not a PASS**. Do not
 count a prior green workflow on an older SHA as an acceptable final-HEAD gate.
 
 Record the failed run ID, exact SHA and the absence of job results, and
-require a **new successful full CI run against the current R8 PR HEAD**.
+require a **new successful full CI run against the current main HEAD**.
 Do not skip Android/iOS/PostgreSQL jobs or weaken the release checks to
 compensate for GitHub orchestration failure. Manual Yandex provider acceptance
 remains an independent, real-secret opt-in test and does not replace CI.
