@@ -347,22 +347,14 @@ export function SpecialistOnboarding({activeSection,onNavigate}:{
       </div>
 
       {profile ? <section className="panel specialist-profile-summary" aria-label="Кабинет специалиста" hidden={activeSection!=="profile"}>
-        <p className="section-kicker">Личный кабинет специалиста</p>
-        <h3>{profile.display_name}</h3>
-        <p>{profile.profession_code === "PSYCHOLOGIST" ? "Психолог" : profile.profession_code === "CAREER_COACH" ? "Карьерный консультант" : "Специалист"}</p>
-        <p role="status"><strong>{profile.published_topics.length > 0 ? "Профессионализм подтверждён по опубликованным направлениям" : "Специализация не подтверждена"}</strong></p>
-        <p>Ваша анкета сохраняется в APGIC. Без подтверждения квалификации она отображается среди зарегистрированных специалистов; платная запись станет доступна после проверки.</p>
-        <a href={`/specialist/${encodeURIComponent(profile.id)}`} className="specialist-public-card-link">Посмотреть публичную карточку ↗</a>
-        <nav aria-label="Разделы кабинета специалиста">
-          <a href="#specialist-profile" onClick={e=>{e.preventDefault();onNavigate("profile")}}>Моя анкета</a>{" · "}
-          <a href="#specialist-topics" onClick={e=>{e.preventDefault();onNavigate("topics")}}>Направления</a>{" · "}
-          <a href="#specialist-documents" onClick={e=>{e.preventDefault();onNavigate("documents")}}>Документы</a>{" · "}
-          <a href="#specialist-publication" onClick={e=>{e.preventDefault();onNavigate("publication")}}>Подтверждение</a>{" · "}
-          <a href="#specialist-offers" onClick={e=>{e.preventDefault();onNavigate("offers")}}>Услуги и расписание</a>{" · "}
-
-          <a href="/specialists">Каталог специалистов</a>
-        </nav>
-        <p className="form-help">Статус проверки профиля: {profile.review_state}. Подтверждённые направления: {profile.published_topics.length ? profile.published_topics.map(t => topicNames[t] || t).join(", ") : "пока нет"}.</p>
+        <div className="specialist-profile-summary-head">
+          <div><h3>{profile.display_name}</h3><p>{profile.profession_code === "PSYCHOLOGIST" ? "Психолог" : profile.profession_code === "CAREER_COACH" ? "Карьерный консультант" : "Специалист"}</p></div>
+          <span role="status" className="specialist-profile-status">{profile.published_topics.length > 0 ? "Опубликованы проверенные направления" : "Специализация не подтверждена"}</span>
+        </div>
+        <div className="specialist-profile-summary-foot">
+          <p>Проверка: <strong>{profile.review_state}</strong> · Опубликованные направления: <strong>{profile.published_topics.length ? profile.published_topics.map(t=>topicNames[t]||t).join(", ") : "пока нет"}</strong></p>
+          <a href={`/specialist/${encodeURIComponent(profile.id)}`}>Посмотреть публичную карточку ↗</a>
+        </div>
       </section> : null}
       <div className="specialist-workspace">
         <p className="onboarding-notice" role="status" aria-live="polite">{notice}</p>

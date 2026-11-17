@@ -76,3 +76,11 @@
  .specialist-dashboard-sidebar,.specialist-dashboard-body{overflow-x:clip}
  .specialist-dashboard-sidebar nav,.specialist-dashboard-progress{max-width:100%;overflow-x:auto;overflow-y:hidden}
 }
+.specialist-dashboard .specialist-profile-summary{padding:18px 22px;margin-bottom:14px}
+.specialist-dashboard .specialist-profile-summary-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:13px}
+.specialist-dashboard .specialist-profile-summary-head h3{font-size:1.12rem;margin:0 0 4px}
+.specialist-dashboard .specialist-profile-summary-head p{font-size:.9rem;color:#5a6980;margin:0}
+.specialist-dashboard .specialist-profile-status{display:inline-block;padding:8px 11px;border-radius:9px;background:#edf4ff;color:#2458a6;font-size:.85rem;font-weight:760}
+.specialist-dashboard .specialist-profile-summary-foot{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:9px;border-top:1px solid #e4eaf5;margin-top:14px;padding-top:13px}
+.specialist-dashboard .specialist-profile-summary-foot p{margin:0;font-size:.85rem;color:#52617b}
+.specialist-dashboard .specialist-profile-summary-foot a{font-size:.86rem;color:#195cce;font-weight:700;text-decoration:none}
