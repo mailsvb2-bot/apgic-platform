@@ -29,7 +29,10 @@ async function request<T>(url:string,body?:unknown,signal?:AbortSignal):Promise<
 // Chunking preserves the existing 2,000-file author workflow while keeping
 // each authenticated verification request bounded and safely retryable.
 function importVerifiedBatch(items:CloudImportItem[]):Promise<CloudMedia[]>{
- return request<{media:CloudMedia[]}>("/v1/academy/author/cloud-media/import",{items}).then(result=>result.media);
+ return request<{media:CloudMedia[]}>("/v1/academy/author/cloud-media/import",{items}).then(result=>{
+  if(result.media.length!==items.length||result.media.some(item=>!item.id))throw new Error("Импорт выполнен не полностью. Обновите медиатеку перед назначением.");
+  return result.media;
+ });
 }
 export default function CloudMediaEditor({courseId,versionId,lessons,modules,focusedLessonId}:{
  courseId:string;versionId:string;lessons:VideoLesson[];modules:CourseModule[];focusedLessonId:string;
