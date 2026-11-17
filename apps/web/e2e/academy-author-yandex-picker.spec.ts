@@ -94,7 +94,7 @@ test("author resumes the selected course and lesson, imports Disk video, and sav
  await page.getByRole("checkbox",{name:"Уже добавленное видео.mp4"}).check();
  await page.getByRole("button",{name:"Прикрепить выбранные видео (1)"}).click();
  await expect(page.getByText("Видео добавлены к уроку без удаления предыдущих.",{exact:false})).toBeVisible();
- await expect(page.getByRole("button",{name:"Выше"})).toHaveCount(2);
+ await expect(page.getByRole("button",{name:"Выше",exact:true})).toHaveCount(2);
  expect(importCalls).toBe(1);
 
  await page.getByRole("button",{name:"Сохранить видео урока"}).click();
