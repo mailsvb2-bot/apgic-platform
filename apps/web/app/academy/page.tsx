@@ -102,7 +102,7 @@ export default function AcademyPage(){
  const [moduleTitle,setModuleTitle]=useState("");
  const [lessonTitle,setLessonTitle]=useState("");
  const [lessonBody,setLessonBody]=useState("");
- const [lessonKind,setLessonKind]=useState<Lesson["kind"]>("READING");
+ const [lessonKind,setLessonKind]=useState<Lesson["kind"]>("VIDEO");
  const [moduleID,setModuleID]=useState("");
  const [passingScore,setPassingScore]=useState(80);
  const [attemptResponse,setAttemptResponse]=useState<Record<string,string>>({});
@@ -385,7 +385,14 @@ export default function AcademyPage(){
     // never reuse hidden/stale text input as a media asset identifier.
     passing_score:lessonKind==="ASSESSMENT"?passingScore:0,
     rubric_version:lessonKind==="ASSESSMENT"?"human-review-v1":""}),
-   async()=>{setLessonTitle("");setLessonBody("");await loadOutline(course)});
+   async created=>{
+    setLessonTitle("");setLessonBody("");
+    await loadOutline(course);
+    if(created.kind==="VIDEO"&&created.id){
+     setFocusedVideoLessonID(created.id);
+     window.requestAnimationFrame(()=>document.getElementById("academy-media-editor")?.scrollIntoView({behavior:"smooth",block:"start"}));
+    }
+   });
  }
  return <main className="site-shell">
   <header className="site-header"><a className="brand" href="/">APGIC</a>
