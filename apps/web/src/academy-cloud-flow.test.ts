@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 import {test} from "node:test";
 import {fileURLToPath} from "node:url";
-import {appendLessonMediaAssignments,moveLessonMediaAssignment} from "../app/academy/cloud-media-assignments.ts";
+import {appendLessonMediaAssignments,moveLessonMediaAssignment,removeLessonMediaAssignment} from "../app/academy/cloud-media-assignments.ts";
 
 // Lock the confirmed live flow: an author signs into APGIC, OAuth returns
 // into this exact draft, the embedded Disk picker browses folders and
@@ -58,4 +58,20 @@ test("one lesson may contain several ordered videos and reordering never touches
  assert.deepEqual(reordered.filter(x=>x.lesson_id==="lesson-b"),initial.filter(x=>x.lesson_id==="lesson-b"));
  assert.deepEqual(moveLessonMediaAssignment(reordered,"lesson-a","v1",-1),reordered);
  assert.deepEqual(initial,[{lesson_id:"lesson-a",media_id:"v1",ordinal:1},{lesson_id:"lesson-b",media_id:"other",ordinal:1}]);
+});
+
+test("removing one video compacts only that lesson without clearing another",()=>{
+ const input=[
+  {lesson_id:"a",media_id:"one",ordinal:1},
+  {lesson_id:"a",media_id:"two",ordinal:2},
+  {lesson_id:"a",media_id:"three",ordinal:3},
+  {lesson_id:"b",media_id:"four",ordinal:1}
+ ];
+ const result=removeLessonMediaAssignment(input,"a","two");
+ assert.deepEqual(result.filter(x=>x.lesson_id==="a").sort((x,y)=>x.ordinal-y.ordinal),[
+  {lesson_id:"a",media_id:"one",ordinal:1},
+  {lesson_id:"a",media_id:"three",ordinal:2}
+ ]);
+ assert.deepEqual(result.filter(x=>x.lesson_id==="b"),input.filter(x=>x.lesson_id==="b"));
+ assert.deepEqual(removeLessonMediaAssignment(input,"a","absent"),input);
 });
