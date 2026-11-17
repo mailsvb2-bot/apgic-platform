@@ -73,6 +73,7 @@ test("author resumes the selected course and lesson, imports Disk video, and sav
  await expect(page.getByLabel("К какому уроку добавить видео?")).toHaveValue(lessonID);
  await expect(page.locator("#academy-video-lesson optgroup")).toHaveAttribute("label","1. Модуль 1");
  await expect(page.locator('#academy-media-editor p[role="status"]').filter({hasText:"Редактируем:"})).toContainText("Модуль 1");
+ await page.getByText("Добавить новые файлы с Яндекс Диска").click();
  await expect(page.getByRole("button",{name:"Папка: Лекции"})).toBeVisible();
 
  await page.getByRole("button",{name:"Папка: Лекции"}).click();
@@ -145,7 +146,9 @@ test("author creates a video lesson before selecting its Yandex Disk file",async
  await expect(page.locator("#academy-lesson-title")).toBeVisible();
  await expect(page.getByText("В этом курсе пока нет видеоуроков.",{exact:false})).toBeVisible();
  await page.locator("#academy-lesson-title").fill("Урок 1");
- // A previous text entry must never become a hidden media identifier.
+ // Simulate switching from a text lesson to the VIDEO default. Hidden text
+ // must not leak into the canonical video attachment field.
+ await page.locator("#academy-lesson-kind").selectOption("READING");
  await page.locator("#academy-lesson-body").fill("Старый текстовый материал");
  await page.locator("#academy-lesson-kind").selectOption("VIDEO");
  await page.getByRole("button",{name:"Добавить урок",exact:true}).click();
