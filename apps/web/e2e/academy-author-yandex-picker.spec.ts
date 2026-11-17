@@ -80,6 +80,7 @@ test("author resumes the selected course and lesson, imports Disk video, and sav
  await page.getByRole("checkbox",{name:"Урок 1.mp4"}).check();
  await page.getByRole("button",{name:"Добавить к уроку (1)"}).click();
  await expect(page.getByText("Видео добавлены к выбранному уроку. Нажмите «Сохранить видео урока».")).toBeVisible();
+ await expect(page.getByRole("heading",{name:"Уже добавленные видео в медиатеке"})).toBeVisible();
  expect(importCalls).toBe(1);
 
  await page.getByRole("button",{name:"Сохранить видео урока"}).click();
@@ -153,8 +154,10 @@ test("author creates a video lesson before selecting its Yandex Disk file",async
  expect(createdLessonBody?.body).toBe("");
  expect(createdLessonBody?.media_asset_ref).toBeUndefined();
 
- await page.getByRole("link",{name:"Прикрепить видео в шаге 3"}).click();
+ // Creating a VIDEO lesson must open its own media editor automatically.
  await expect(page.getByLabel("К какому уроку добавить видео?")).toHaveValue(lessonID);
+ await expect(page.getByText("Медиатека пока пуста.",{exact:false})).toBeVisible();
+ await page.getByText("Добавить новые файлы с Яндекс Диска").click();
  await page.getByRole("button",{name:"Открыть Яндекс Диск"}).click();
  await page.getByRole("button",{name:"Папка: Лекции"}).click();
  await page.getByRole("checkbox",{name:"Урок 1.mp4"}).check();
