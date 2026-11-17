@@ -57,8 +57,11 @@ test("author resumes the selected course and lesson, imports Disk video, and sav
   }else if(method==="POST"&&path==="/v1/academy/author/cloud-media/import"){
    const body=request.postDataJSON() as {items:{provider_file_ref:string;title:string}[]};
    importCalls++;
-   for(const item of body.items)media.push({id:mediaID,title:item.title,provider:"YANDEX_DISK",provider_file_ref:item.provider_file_ref,active:true});
-   status=201;data={media:media.slice()};
+   const added=body.items.map(item=>({id:mediaID,title:item.title,provider:"YANDEX_DISK",provider_file_ref:item.provider_file_ref,active:true}));
+   media.push(...added);
+   // The canonical import endpoint returns only this request's imported
+   // items, not the entire pre-existing author media library.
+   status=201;data={media:added};
   }else if(method==="POST"&&path==="/v1/academy/courses/"+courseID+"/versions/"+versionID+"/media/assign"){
    const body=request.postDataJSON() as {items:{lesson_id:string;media_id:string;ordinal:number}[]};
    savedPayload=body.items;
