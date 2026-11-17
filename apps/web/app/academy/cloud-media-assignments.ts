@@ -16,3 +16,18 @@ export function appendLessonMediaAssignments<T extends LessonMediaMapping>(
  }
  return [...current,...additions];
 }
+
+// Reorder only the selected lesson and keep the canonical assignment snapshot
+// of every other lesson byte-for-byte unchanged. Sequential ordinals start at 1.
+export function moveLessonMediaAssignment<T extends LessonMediaMapping>(
+ current:T[],lessonId:string,mediaId:string,direction:-1|1
+):LessonMediaMapping[]{
+ const lesson=current.filter(row=>row.lesson_id===lessonId).sort((a,b)=>a.ordinal-b.ordinal);
+ const index=lesson.findIndex(row=>row.media_id===mediaId);
+ const destination=index+direction;
+ if(index<0||destination<0||destination>=lesson.length)return current;
+ const ordered=[...lesson];
+ [ordered[index],ordered[destination]]=[ordered[destination],ordered[index]];
+ const updated=ordered.map((row,i)=>({...row,ordinal:i+1}));
+ return [...current.filter(row=>row.lesson_id!==lessonId),...updated];
+}
