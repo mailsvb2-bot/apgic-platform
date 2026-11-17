@@ -228,6 +228,21 @@ export default function CloudMediaEditor({courseId,versionId,lessons,modules,foc
     {" "}<button type="button" disabled={busy||i===currentLessonDraft.length-1} onClick={()=>setAssignments(old=>moveLessonMediaAssignment(old,lessonId,a.media_id,1))}>Ниже</button>
     {" "}<button type="button" disabled={busy} onClick={()=>setAssignments(old=>removeLessonMediaAssignment(old,lessonId,a.media_id))}>Убрать</button>
    </li>)}</ol>}
+  <h4>Уже добавленные видео в медиатеке</h4>
+  <p>Выберите одно или несколько видео для этого урока. Повторно загружать их с Яндекс Диска не нужно.</p>
+  {media.length===0?<p role="status">Медиатека пока пуста. Вы можете открыть Яндекс Диск ниже.</p>:
+   <div style={{maxHeight:240,overflowY:"auto"}}>
+    {media.map(m=><label key={m.id} style={{display:"block"}}>
+     <input type="checkbox" checked={selected.includes(m.id)}
+      disabled={busy||currentLessonDraft.some(a=>a.media_id===m.id)}
+      onChange={e=>setSelected(old=>e.target.checked?[...old,m.id]:old.filter(id=>id!==m.id))}/>
+     {m.title}{currentLessonDraft.some(a=>a.media_id===m.id)?" · уже в уроке":""}
+    </label>)}
+   </div>}
+  <button type="button" disabled={busy||selected.length===0} onClick={allocate}>
+   Прикрепить выбранные видео ({selected.length})
+  </button>
+  <details><summary>Добавить новые файлы с Яндекс Диска</summary>
   <h4>Ваш Яндекс Диск</h4>
   <a href={`/v1/academy/author/cloud/yandex/connect?course_id=${encodeURIComponent(courseId)}&version_id=${encodeURIComponent(versionId)}&lesson_id=${encodeURIComponent(lessonId)}`}>Подключить Яндекс Диск</a>
   <p>После подтверждения в Яндексе файлы откроются автоматически. Выберите нужные видео.</p>
@@ -251,6 +266,7 @@ export default function CloudMediaEditor({courseId,versionId,lessons,modules,foc
    <button type="button" disabled={busy||diskOffset+100>=diskTotal} onClick={()=>void browseDisk(diskPath,diskOffset+100)}>Далее</button>
   </div>}
   <button type="button" disabled={busy||!lessonId||!Object.keys(diskSelectedFiles).length} onClick={()=>void importDiskSelection()}>Добавить к уроку ({Object.keys(diskSelectedFiles).length})</button>
+  </details>
   <p role="status" aria-live="polite">{message}</p>
   <details><summary>Дополнительно: импорт по путям файлов</summary><form onSubmit={importRows}>
    <label htmlFor="cloud-media-rows">Список файлов: ID файла | название (каждый файл с новой строки)</label>
@@ -265,22 +281,12 @@ export default function CloudMediaEditor({courseId,versionId,lessons,modules,foc
     setMessage("Устаревшие назначения убраны из черновика. Нажмите «Сохранить распределение», чтобы применить изменения.");
    }}>Убрать все устаревшие назначения</button>}
   </div>}
-  <details><summary>Дополнительно: выбрать видео из уже добавленной медиатеки и массово распределить</summary>
-  <h4>Выбрать сразу несколько видео</h4>
-  <div style={{maxHeight:220,overflowY:"auto"}}>
-   {media.map(m=><label key={m.id} style={{display:"block"}}>
-    <input type="checkbox" checked={selected.includes(m.id)} onChange={e=>setSelected(old=>e.target.checked?[...old,m.id]:old.filter(id=>id!==m.id))}/>
-    {m.title} · {m.provider_file_ref}
-
-   </label>)}
-  </div>
+  <details><summary>Дополнительно: массово распределить видео по урокам</summary>
   <h4>Массовое автоматическое распределение</h4>
   <p>Выделите все видео (или оставьте список без выделения), выберите число видео на урок. Порядок определяется списком медиатеки и уроков.</p>
   <label htmlFor="cloud-per-lesson">Видео на урок</label>
   <input id="cloud-per-lesson" type="number" min={1} max={100} value={perLesson} onChange={e=>setPerLesson(Number(e.target.value))}/>
   <button type="button" disabled={busy||!media.length} onClick={allocateAll}>Распределить по всем видеоурокам</button>
-  <p>Или назначить выбранные видео выбранному выше уроку.</p>
-  <button type="button" disabled={busy||!selected.length||!lessonId} onClick={allocate}>Назначить выбранные</button>
   <p>Подготовлено назначений: {assignments.length}. Сохранённые назначения восстанавливаются при повторном входе; изменения вступят в силу только после сохранения. Удаление всех назначений очищает видеопривязки черновика.</p>
   <button type="button" disabled={busy} onClick={()=>{
    setAssignments(saved.map(({lesson_id,media_id,ordinal})=>({lesson_id,media_id,ordinal})));
