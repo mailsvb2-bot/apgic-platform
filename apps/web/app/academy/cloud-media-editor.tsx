@@ -1,7 +1,7 @@
 "use client";
 
 import {useCallback,useEffect,useRef,useState,type FormEvent} from "react";
-import {appendLessonMediaAssignments,moveLessonMediaAssignment} from "./cloud-media-assignments";
+import {appendLessonMediaAssignments,moveLessonMediaAssignment,removeLessonMediaAssignment} from "./cloud-media-assignments";
 
 type CloudMedia={id:string;title:string;provider:string;provider_file_ref:string;source_url?:string;active:boolean};
 type DiskFile={name:string;path:string;type:string;mime_type:string;size:number};
@@ -224,7 +224,7 @@ export default function CloudMediaEditor({courseId,versionId,lessons,modules,foc
     {media.find(m=>m.id===a.media_id)?.title||"Видеофайл"}{currentLessonSaved.some(v=>v.media_id===a.media_id&&v.ordinal===a.ordinal)?" · сохранено":" · не сохранено"}
     {" "}<button type="button" disabled={busy||i===0} onClick={()=>setAssignments(old=>moveLessonMediaAssignment(old,lessonId,a.media_id,-1))}>Выше</button>
     {" "}<button type="button" disabled={busy||i===currentLessonDraft.length-1} onClick={()=>setAssignments(old=>moveLessonMediaAssignment(old,lessonId,a.media_id,1))}>Ниже</button>
-    {" "}<button type="button" disabled={busy} onClick={()=>setAssignments(old=>old.filter(v=>!(v.lesson_id===lessonId&&v.media_id===a.media_id)))}>Убрать</button>
+    {" "}<button type="button" disabled={busy} onClick={()=>setAssignments(old=>removeLessonMediaAssignment(old,lessonId,a.media_id))}>Убрать</button>
    </li>)}</ol>}
   <h4>Ваш Яндекс Диск</h4>
   <a href={`/v1/academy/author/cloud/yandex/connect?course_id=${encodeURIComponent(courseId)}&version_id=${encodeURIComponent(versionId)}&lesson_id=${encodeURIComponent(lessonId)}`}>Подключить Яндекс Диск</a>
