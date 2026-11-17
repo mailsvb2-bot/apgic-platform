@@ -274,15 +274,23 @@ func registerAcademyVideoStreamWithClients(
 		// Only flushed bytes count. The SQL owner checks entitlement and
 		// every assigned media file before permitting lesson completion.
 		start, end, valid := academyDeliveredVideoInterval(response.StatusCode, response.Header, size)
-		if !valid { return }
+		if !valid {
+			return
+		}
 		if copyErr != nil {
-			if deadline.wasRevoked() || learner.delivered <= 0 || !authorized() { return }
-			if start+learner.delivered < end { end = start+learner.delivered }
-		} else if !authorized() { return }
+			if deadline.wasRevoked() || learner.delivered <= 0 || !authorized() {
+				return
+			}
+			if start+learner.delivered < end {
+				end = start + learner.delivered
+			}
+		} else if !authorized() {
+			return
+		}
 		if writer, ok := store.(academyDirectVideoDeliveryWriter); ok {
 			_ = writer.AcademyRecordDirectVideoDelivery(actor,
-				r.PathValue("enrollmentID"),r.PathValue("lessonID"),
-				r.PathValue("mediaID"),digest,size,start,end)
+				r.PathValue("enrollmentID"), r.PathValue("lessonID"),
+				r.PathValue("mediaID"), digest, size, start, end)
 		}
 	})
 }

@@ -134,28 +134,43 @@ func cloudOAuthEditorReturnIDs(rawQuery string) (string, string, string, bool) {
 }
 
 func cloudOAuthCallbackDestination(state cloudOAuthState) string {
- return cloudOAuthReturnDestination(state,url.Values{"cloud_connected":{"yandex"}})
+	return cloudOAuthReturnDestination(state, url.Values{"cloud_connected": {"yandex"}})
 }
+
 var cloudOAuthProviderErrorPattern = regexp.MustCompile(`^[a-z_]{1,64}$`)
-func cloudOAuthProviderError(rawQuery string,state cloudOAuthState,validState bool)(string,bool){
- q,err:=url.ParseQuery(rawQuery);if err!=nil{return "",false}
- codes,ok:=q["error"];if !ok||len(codes)!=1||!cloudOAuthProviderErrorPattern.MatchString(codes[0]){return "",false}
- if _,code:=q["code"];code{return "",false}
- for key,values:=range q{
-  switch key{
-  case "error","error_description","state","cid":
-   if len(values)!=1||len(values[0])>512{return "",false}
-  default:return "",false
-  }
- }
- result:=url.Values{"cloud_error":{"failed"}}
- if codes[0]=="access_denied"{result.Set("cloud_error","denied")}
- if validState&&state.Nonce!=""&&len(q["state"])==1&&q["state"][0]==state.Nonce{
-  return cloudOAuthReturnDestination(state,result),true
- }
- return "/academy?"+result.Encode(),true
+
+func cloudOAuthProviderError(rawQuery string, state cloudOAuthState, validState bool) (string, bool) {
+	q, err := url.ParseQuery(rawQuery)
+	if err != nil {
+		return "", false
+	}
+	codes, ok := q["error"]
+	if !ok || len(codes) != 1 || !cloudOAuthProviderErrorPattern.MatchString(codes[0]) {
+		return "", false
+	}
+	if _, code := q["code"]; code {
+		return "", false
+	}
+	for key, values := range q {
+		switch key {
+		case "error", "error_description", "state", "cid":
+			if len(values) != 1 || len(values[0]) > 512 {
+				return "", false
+			}
+		default:
+			return "", false
+		}
+	}
+	result := url.Values{"cloud_error": {"failed"}}
+	if codes[0] == "access_denied" {
+		result.Set("cloud_error", "denied")
+	}
+	if validState && state.Nonce != "" && len(q["state"]) == 1 && q["state"][0] == state.Nonce {
+		return cloudOAuthReturnDestination(state, result), true
+	}
+	return "/academy?" + result.Encode(), true
 }
-func cloudOAuthReturnDestination(state cloudOAuthState,query url.Values) string {
+func cloudOAuthReturnDestination(state cloudOAuthState, query url.Values) string {
 	if state.ReturnCourse != "" && state.ReturnVersion != "" {
 		query.Set("course_id", state.ReturnCourse)
 		query.Set("version_id", state.ReturnVersion)
@@ -316,18 +331,19 @@ func registerAcademyYandexOAuth(mux *http.ServeMux, store academyStore, sessions
 		w.Header().Set("Cache-Control", "no-store")
 		cookie, err := r.Cookie(cookieName)
 		http.SetCookie(w, &http.Cookie{Name: cookieName, Path: "/v1/academy/author/cloud/yandex", Value: "", MaxAge: -1, Secure: true, HttpOnly: true, SameSite: http.SameSiteLaxMode})
-		if strings.Contains(r.URL.RawQuery,"error="){
+		if strings.Contains(r.URL.RawQuery, "error=") {
 			var state cloudOAuthState
-			stateValid:=false
-			if err==nil {
-				if key,keyErr:=cloudStateKey();keyErr==nil {
-					if opened,openErr:=cloudOpen(cookie.Value,key);openErr==nil {
-						state,stateValid=opened,true
+			stateValid := false
+			if err == nil {
+				if key, keyErr := cloudStateKey(); keyErr == nil {
+					if opened, openErr := cloudOpen(cookie.Value, key); openErr == nil {
+						state, stateValid = opened, true
 					}
 				}
 			}
-			if destination,ok:=cloudOAuthProviderError(r.URL.RawQuery,state,stateValid);ok{
-				http.Redirect(w,r,destination,http.StatusSeeOther);return
+			if destination, ok := cloudOAuthProviderError(r.URL.RawQuery, state, stateValid); ok {
+				http.Redirect(w, r, destination, http.StatusSeeOther)
+				return
 			}
 		}
 		if err != nil {

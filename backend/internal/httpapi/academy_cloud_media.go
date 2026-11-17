@@ -3,8 +3,8 @@ package httpapi
 import (
 	"context"
 	"errors"
-	"time"
 	"net/http"
+	"time"
 
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/academy"
 )

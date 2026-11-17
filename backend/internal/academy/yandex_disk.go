@@ -346,7 +346,8 @@ func configuredYandexStorageHosts() (map[string]struct{}, bool) {
 // Explicit operator-only option. Default off. Never accept malformed
 // configured pins even if the dynamic Yandex node option is enabled.
 const yandexStorageNodeTrustEnv = "APGIC_YANDEX_TRUST_STORAGE_NODES"
-func yandexStorageNodeTrustEnabled() bool { return os.Getenv(yandexStorageNodeTrustEnv)=="true" }
+
+func yandexStorageNodeTrustEnabled() bool { return os.Getenv(yandexStorageNodeTrustEnv) == "true" }
 
 // trustedYandexStorageHost uses exact deployment-pinned hostnames. Dynamic
 // provider hosts are never accepted by wildcard, suffix or label-shape alone.
@@ -362,8 +363,12 @@ func trustedYandexStorageHost(host string) bool {
 	if !valid {
 		return false
 	}
-	if _, exists := hosts[normalized]; exists { return true }
-	if !yandexStorageNodeTrustEnabled() { return false }
+	if _, exists := hosts[normalized]; exists {
+		return true
+	}
+	if !yandexStorageNodeTrustEnabled() {
+		return false
+	}
 	label, ok := strings.CutSuffix(normalized, ".storage.yandex.net")
 	return ok && validYandexStorageLabel(label)
 }
@@ -371,13 +376,20 @@ func trustedYandexStorageHost(host string) bool {
 // Log the host only for a well-formed storage node. Do not log URLs,
 // paths, signed query parameters, OAuth tokens or unvalidated host strings.
 func logRefusedYandexStorageRedirect(target *url.URL) {
- if target==nil || target.Scheme!="https"{log.Printf("academy_yandex_storage_redirect_refused reason=scheme");return}
- host,ok:=normalizeYandexDNSHost(target.Hostname())
- if !ok{log.Printf("academy_yandex_storage_redirect_refused reason=host_invalid");return}
- if label,storage:=strings.CutSuffix(host,".storage.yandex.net");storage&&validYandexStorageLabel(label){
-  log.Printf("academy_yandex_storage_redirect_refused reason=storage_node_not_pinned host=%s",host);return
- }
- log.Printf("academy_yandex_storage_redirect_refused reason=host_untrusted")
+	if target == nil || target.Scheme != "https" {
+		log.Printf("academy_yandex_storage_redirect_refused reason=scheme")
+		return
+	}
+	host, ok := normalizeYandexDNSHost(target.Hostname())
+	if !ok {
+		log.Printf("academy_yandex_storage_redirect_refused reason=host_invalid")
+		return
+	}
+	if label, storage := strings.CutSuffix(host, ".storage.yandex.net"); storage && validYandexStorageLabel(label) {
+		log.Printf("academy_yandex_storage_redirect_refused reason=storage_node_not_pinned host=%s", host)
+		return
+	}
+	log.Printf("academy_yandex_storage_redirect_refused reason=host_untrusted")
 }
 
 // ValidateYandexStorageRedirect validates a provider redirect hop.
