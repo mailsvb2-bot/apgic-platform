@@ -41,15 +41,12 @@ jobs:
             echo "::error::Live evidence requires explicit LIVE confirmation; a skipped job is not acceptance."
             exit 1
           fi
-      - name: Require the active R8 PR branch and exact checked-out SHA
+      - name: Require canonical main and exact checked-out SHA
         shell: bash
-        env:
-          EXPECTED_BRANCH: fix/r8-live-oauth-secret-scope-20261114
         run: |
           set -euo pipefail
-          expected_ref="refs/heads/${EXPECTED_BRANCH}"
-          if [ "${GITHUB_REF:-}" != "$expected_ref" ]; then
-            echo "::error::R8 live provider acceptance must run from ${expected_ref}; refusing ${GITHUB_REF:-unset}."
+          if [ "${GITHUB_REF:-}" != "refs/heads/main" ]; then
+            echo "::error::R8 live provider acceptance must run from canonical main; refusing ${GITHUB_REF:-unset}."
             exit 1
           fi
           checked_out_sha="$(git rev-parse HEAD)"
@@ -57,6 +54,7 @@ jobs:
             echo "::error::Workflow event SHA does not match the checked-out candidate."
             exit 1
           fi
+          echo "Verified canonical main acceptance candidate: $checked_out_sha"
       - name: Require real provider inputs (never print secrets)
         shell: bash
         env:
