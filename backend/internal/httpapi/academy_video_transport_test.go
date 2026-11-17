@@ -3,6 +3,8 @@ package httpapi
 import (
 	"errors"
 	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -41,8 +43,13 @@ func TestAcademyVideoUpstreamClientTransportLimits(t *testing.T) {
 }
 
 func TestAcademyVideoTrustedStorageRedirects(t *testing.T) {
+	t.Setenv("APGIC_YANDEX_STORAGE_HOSTS", "s123vla.storage.yandex.net,s1.storage.yandex.net")
 	client := academyVideoUpstreamClient()
-	via := []*http.Request{{}}
+	trustedOrigin, err := http.NewRequest(http.MethodGet, "https://downloader.disk.yandex.net/rdisk/source", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	via := []*http.Request{trustedOrigin}
 	for raw, allowed := range map[string]bool{
 		"https://s123vla.storage.yandex.net/rdisk/abc?x=1": true,
 		"https://downloader.disk.yandex.ru/disk/abc":       true,
@@ -62,9 +69,38 @@ func TestAcademyVideoTrustedStorageRedirects(t *testing.T) {
 			t.Fatal("credential leaked to redirect")
 		}
 	}
-	tooMany := []*http.Request{{}, {}, {}, {}}
+	tooMany := []*http.Request{trustedOrigin, trustedOrigin, trustedOrigin, trustedOrigin}
 	req, _ := http.NewRequest(http.MethodGet, "https://s1.storage.yandex.net/x", nil)
 	if client.CheckRedirect(req, tooMany) == nil {
 		t.Fatal("unbounded redirect")
+	}
+}
+
+// Direct Yandex delivery uses the same authenticated Academy identity
+// boundary as every private learner route. A missing signed session must
+// fail before any PostgreSQL credential lookup or provider network I/O.
+func TestAcademyProductionVideoRouteFailsClosedWithoutSignedSession(t *testing.T) {
+	mux := http.NewServeMux()
+	registerAcademyVideoStream(mux, nil, nil, nil)
+
+	request := httptest.NewRequest(http.MethodGet,
+		"/v1/academy/enrollments/00000000-0000-0000-0000-000000000001/lessons/00000000-0000-0000-0000-000000000002/videos/00000000-0000-0000-0000-000000000003/stream",
+		nil)
+	response := httptest.NewRecorder()
+	mux.ServeHTTP(response, request)
+
+	if response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("production video route returned HTTP %d, want 503 without a signed session", response.Code)
+	}
+	if response.Header().Get("Location") != "" {
+		t.Fatalf("production video route exposed a redirect: %q", response.Header().Get("Location"))
+	}
+	for _, forbidden := range []string{"downloader.disk.yandex", "storage.yandex.net", "OAuth ", "disk:/"} {
+		if strings.Contains(response.Body.String(), forbidden) {
+			t.Fatalf("production video route disclosed origin detail %q", forbidden)
+		}
+	}
+	if !strings.Contains(response.Body.String(), "ACADEMY_SESSION_UNAVAILABLE") {
+		t.Fatalf("production video route did not return the canonical session unavailable error: %s", response.Body.String())
 	}
 }

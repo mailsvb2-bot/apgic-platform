@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -260,11 +261,37 @@ func (c YandexDiskClient) TemporaryDownload(ctx context.Context, token, path str
 	return d.Href, nil
 }
 
-// Restrict provider-supplied download links to the documented downloader hosts.
-// Broad suffix matches would permit arbitrary hosts beneath disk.yandex.net.
+// Yandex's downloader endpoints are fixed. Storage redirect hosts are
+// provider-generated and therefore must be pinned from an observed, approved
+// Yandex response in APGIC_YANDEX_STORAGE_HOSTS. The setting is a comma-separated
+// list of exact DNS names; wildcards, suffix rules and implicit discovery are
+// deliberately unsupported. An empty or malformed setting denies all storage
+// hosts while preserving the two fixed downloader endpoints.
+const yandexStorageHostsEnv = "APGIC_YANDEX_STORAGE_HOSTS"
+
+// normalizeYandexDNSHost accepts only canonical ASCII DNS names. A trailing
+// dot, IP literal, port, wildcard, empty label or non-DNS character is rejected.
+func normalizeYandexDNSHost(host string) (string, bool) {
+	if host == "" || len(host) > 253 || strings.HasSuffix(host, ".") {
+		return "", false
+	}
+	host = strings.ToLower(host)
+	labels := strings.Split(host, ".")
+	if len(labels) < 2 {
+		return "", false
+	}
+	for _, label := range labels {
+		if !validYandexStorageLabel(label) {
+			return "", false
+		}
+	}
+	return host, true
+}
+
+// Restrict provider-supplied download links to the documented fixed hosts.
 func trustedYandexDownloadHost(host string) bool {
-	host = strings.ToLower(strings.TrimSuffix(host, "."))
-	return host == "downloader.disk.yandex.net" || host == "downloader.disk.yandex.ru"
+	normalized, ok := normalizeYandexDNSHost(host)
+	return ok && (normalized == "downloader.disk.yandex.net" || normalized == "downloader.disk.yandex.ru")
 }
 
 // ValidateYandexDownloadURL blocks SSRF via malicious provider hrefs.
@@ -275,19 +302,68 @@ func ValidateYandexDownloadURL(raw string) bool {
 		(u.Port() == "" || u.Port() == "443") && trustedYandexDownloadHost(u.Hostname())
 }
 
-// Yandex downloader can redirect to its HTTPS storage node.
+func validYandexStorageLabel(label string) bool {
+	if len(label) == 0 || len(label) > 63 || label[0] == '-' || label[len(label)-1] == '-' {
+		return false
+	}
+	for _, char := range label {
+		if !((char >= 'a' && char <= 'z') || (char >= '0' && char <= '9') || char == '-') {
+			return false
+		}
+	}
+	return true
+}
+
+// configuredYandexStorageHosts fails closed on any malformed or wildcard
+// entry. Every accepted value must be one exact host under the documented
+// storage.yandex.net service, not merely a matching suffix.
+func configuredYandexStorageHosts() (map[string]struct{}, bool) {
+	hosts := make(map[string]struct{})
+	raw := os.Getenv(yandexStorageHostsEnv)
+	if raw == "" {
+		return hosts, true
+	}
+	for _, entry := range strings.Split(raw, ",") {
+		if entry == "" || strings.TrimSpace(entry) != entry {
+			return nil, false
+		}
+		host, ok := normalizeYandexDNSHost(entry)
+		if !ok {
+			return nil, false
+		}
+		label, ok := strings.CutSuffix(host, ".storage.yandex.net")
+		if !ok || !validYandexStorageLabel(label) {
+			return nil, false
+		}
+		if _, duplicate := hosts[host]; duplicate {
+			return nil, false
+		}
+		hosts[host] = struct{}{}
+	}
+	return hosts, true
+}
+
+// trustedYandexStorageHost uses exact deployment-pinned hostnames. Dynamic
+// provider hosts are never accepted by wildcard, suffix or label-shape alone.
 func trustedYandexStorageHost(host string) bool {
-	host = strings.ToLower(strings.TrimSuffix(host, "."))
-	if trustedYandexDownloadHost(host) {
+	normalized, ok := normalizeYandexDNSHost(host)
+	if !ok {
+		return false
+	}
+	if trustedYandexDownloadHost(normalized) {
 		return true
 	}
-	label, ok := strings.CutSuffix(host, ".storage.yandex.net")
-	return ok && label != "" && !strings.Contains(label, ".")
+	hosts, valid := configuredYandexStorageHosts()
+	if !valid {
+		return false
+	}
+	_, exists := hosts[normalized]
+	return exists
 }
 
 // ValidateYandexStorageRedirect validates a provider redirect hop.
 func ValidateYandexStorageRedirect(target *url.URL) bool {
-	return target != nil && target.Scheme == "https" && target.User == nil &&
+	return target != nil && target.Scheme == "https" && target.User == nil && target.Fragment == "" &&
 		(target.Port() == "" || target.Port() == "443") && trustedYandexStorageHost(target.Hostname())
 }
 
@@ -298,7 +374,14 @@ func YandexMediaCheckRedirect(req *http.Request, via []*http.Request) error {
 	if len(via) == 0 || len(via) > YandexMediaMaxRedirects || req == nil || !ValidateYandexStorageRedirect(req.URL) {
 		return http.ErrUseLastResponse
 	}
-	for _, name := range []string{"Authorization", "Cookie", "Proxy-Authorization", "Referer"} {
+	// A trusted destination is insufficient if an earlier hop escaped the
+	// allowlist. Refuse the entire redirect chain rather than re-entering it.
+	for _, previous := range via {
+		if previous == nil || !ValidateYandexStorageRedirect(previous.URL) {
+			return http.ErrUseLastResponse
+		}
+	}
+	for _, name := range []string{"Authorization", "Cookie", "Proxy-Authorization", "Referer", "Origin", "X-Api-Key", "X-Auth-Token"} {
 		req.Header.Del(name)
 	}
 	return nil

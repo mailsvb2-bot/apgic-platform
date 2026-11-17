@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"crypto/subtle"
+	"io"
 	"net"
 	"net/http"
 	"strconv"
@@ -23,9 +24,51 @@ type academyVideoFingerprintStore interface {
 	AcademyLearnerVideoFingerprint(author, provider, path, mediaID string) (string, string, int64, error)
 }
 
-// Recheck enrollment and entitlement on every video HTTP request; never
-// redirect the browser to an origin URL, even after a failed range request.
+// First-party delivery facts are written by the existing Academy store only
+// after a complete verified byte representation has been sent to the learner.
+// A range or an interrupted transfer cannot independently complete a lesson.
+type academyDirectVideoDeliveryWriter interface {
+	AcademyRecordDirectVideoDelivery(actor, enrollmentID, lessonID, mediaID, digest string, length, start, end int64) error
+}
+
+// This is the canonical direct Yandex-to-APGIC learner media gateway.
+// The client-injected entrypoint is also used by transport and PostgreSQL
+// integration tests: production and tests execute the same authorization,
+// source fingerprint, Range, revocation and bounded-copy logic.
+// registerAcademyVideoStream uses the same trusted gateway as the provider
+// integration tests. OAuth credentials and temporary URLs never reach clients.
 func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions *clientSessionManager, sessionErr error) {
+	mode, err := academy.ConfiguredVideoDeliveryMode()
+	if err != nil || mode != academy.VideoDeliveryDirect {
+		// Preserve all CDN connector contracts and evidence storage, but do
+		// not silently fall back to Yandex or advertise a CDN stream before
+		// the production CDN_PROVIDER adapter is registered and certified.
+		// The one public media route stays closed on unknown/CDN modes.
+		mux.HandleFunc("GET /v1/academy/enrollments/{enrollmentID}/lessons/{lessonID}/videos/{mediaID}/stream", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Cache-Control", "private, no-store")
+			w.Header().Set("Referrer-Policy", "no-referrer")
+			w.Header().Set("X-Content-Type-Options", "nosniff")
+			if _, ok := academyIdentity(w, r, sessions, sessionErr); !ok {
+				return
+			}
+			academyHTTPError(w, r, academy.ErrUnavailable)
+		})
+		return
+	}
+	registerAcademyVideoStreamWithClients(mux, store, sessions, sessionErr, academy.YandexDiskClient{}, academyVideoUpstreamClient())
+}
+
+func registerAcademyVideoStreamWithClients(
+	mux *http.ServeMux,
+	store academyStore,
+	sessions *clientSessionManager,
+	sessionErr error,
+	providerClient academy.YandexDiskClient,
+	upstreamClient *http.Client,
+) {
+	if upstreamClient == nil {
+		upstreamClient = academyVideoUpstreamClient()
+	}
 	mux.HandleFunc("GET /v1/academy/enrollments/{enrollmentID}/lessons/{lessonID}/videos/{mediaID}/stream", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "private, no-store")
 		w.Header().Set("Referrer-Policy", "no-referrer")
@@ -38,7 +81,11 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 		// credential lookup or outbound cloud request.
 		requestedRange, validRange := academyVideoRequestedRange(r.Header)
 		if !validRange {
-			http.Error(w, "Invalid range", http.StatusRequestedRangeNotSatisfiable)
+			// 416 is reserved for a syntactically valid range that cannot be
+			// satisfied by the selected representation. Malformed, duplicate
+			// or multi-range input is rejected before metadata lookup as 400;
+			// returning 416 here would omit the required Content-Range size.
+			http.Error(w, "Invalid range", http.StatusBadRequest)
 			return
 		}
 		owner, ok := store.(academyVideoStreamingStore)
@@ -67,7 +114,6 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 			return
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
-		providerClient := academy.YandexDiskClient{}
 		metadata, err := providerClient.VerifyVideo(ctx, token, path)
 		if err != nil && academy.YandexProviderError(err) {
 			cancel()
@@ -138,8 +184,7 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 			academyHTTPError(w, r, academy.ErrUnavailable)
 			return
 		}
-		transport := academyVideoUpstreamClient()
-		response, err := transport.Do(request)
+		response, err := upstreamClient.Do(request)
 		if err != nil {
 			academyHTTPError(w, r, academy.ErrUnavailable)
 			return
@@ -215,10 +260,58 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 		// periodic watcher does, close the live learner response immediately.
 		// Canceling the upstream alone does not interrupt a blocked client
 		// write; the response deadline also prevents further buffered output.
-		if err := academyCopyVideoAuthorized(w, idleBody, authorized); err == errAcademyVideoRevoked {
+		copyErr := academyCopyVideoAuthorized(w, idleBody, authorized)
+		if copyErr == errAcademyVideoRevoked {
 			academyCancelRevokedVideoResponse(w, stopStream)
+			return
+		}
+		// Only successfully copied bytes may enter durable Academy evidence.
+		// Browser-supplied playhead, duration, ended events and redirects are
+		// never trusted. Refund/replacement races are rechecked by the SQL
+		// delivery trigger inside the canonical Academy transaction.
+		if copyErr == nil && authorized() {
+			if writer, ok := store.(academyDirectVideoDeliveryWriter); ok {
+				start, end, valid := academyDeliveredVideoInterval(response.StatusCode, response.Header, size)
+				if valid {
+					_ = writer.AcademyRecordDirectVideoDelivery(actor,
+						r.PathValue("enrollmentID"), r.PathValue("lessonID"),
+						r.PathValue("mediaID"), digest, size, start, end)
+				}
+			}
 		}
 	})
+}
+
+// academyDeliveredVideoInterval translates an already validated upstream
+// representation into one half-open byte interval for the Academy owner.
+// No 416 or malformed/overflowing Content-Range can create progress.
+func academyDeliveredVideoInterval(status int, headers http.Header, size int64) (int64, int64, bool) {
+	if size <= 0 {
+		return 0, 0, false
+	}
+	if status == http.StatusOK {
+		if !academyVideoRepresentationSizeMatches(status, headers, size) {
+			return 0, 0, false
+		}
+		return 0, size, true
+	}
+	if status != http.StatusPartialContent || !academyVideoRepresentationSizeMatches(status, headers, size) {
+		return 0, 0, false
+	}
+	span, _, ok := strings.Cut(strings.TrimPrefix(headers.Get("Content-Range"), "bytes "), "/")
+	if !ok {
+		return 0, 0, false
+	}
+	startText, endText, ok := strings.Cut(span, "-")
+	if !ok {
+		return 0, 0, false
+	}
+	start, errStart := strconv.ParseInt(startText, 10, 64)
+	endInclusive, errEnd := strconv.ParseInt(endText, 10, 64)
+	if errStart != nil || errEnd != nil || start < 0 || endInclusive < start || endInclusive >= size {
+		return 0, 0, false
+	}
+	return start, endInclusive + 1, true
 }
 
 // A cloud path can be overwritten even without reconnecting OAuth.
@@ -368,4 +461,14 @@ func academyVideoUpstreamClient() *http.Client {
 		},
 		CheckRedirect: academy.YandexMediaCheckRedirect,
 	}
+}
+
+type academyCountingVideoReader struct {
+	reader io.Reader
+	reads  int
+}
+
+func (r *academyCountingVideoReader) Read(p []byte) (int, error) {
+	r.reads++
+	return r.reader.Read(p)
 }

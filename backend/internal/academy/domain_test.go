@@ -19,6 +19,14 @@ func TestLessonValidationAndProviderBoundary(t *testing.T) {
 	if err := ValidateLesson(Lesson{Kind: Reading, Ordinal: 1, Title: "Read", Body: "Learning text"}); err != nil {
 		t.Fatal(err)
 	}
+	// Authors create the VIDEO lesson first, then attach verified provider
+	// media through the canonical lesson-media assignment operation.
+	if err := ValidateLesson(Lesson{Kind: Video, Ordinal: 1, Title: "Watch"}); err != nil {
+		t.Fatalf("unassigned draft video lesson must be creatable: %v", err)
+	}
+	if err := ValidateLesson(Lesson{Kind: Video, Ordinal: 1, Title: "Watch", MediaAssetRef: "https://example.invalid/video.mp4"}); !errors.Is(err, ErrInvalid) {
+		t.Fatal("external video URL must remain rejected")
+	}
 	if !errors.Is(CanMarkProgress(Video, false, false), ErrDenied) {
 		t.Fatal("client cannot self-attest playback")
 	}

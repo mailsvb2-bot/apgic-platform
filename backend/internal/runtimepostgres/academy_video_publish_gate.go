@@ -4,10 +4,28 @@ import (
 	"context"
 	"database/sql"
 	"os"
+	"strings"
+
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/academy"
 )
 
 func academyVideoPublishEnabled() bool {
 	return os.Getenv("APGIC_ACADEMY_VIDEO_PUBLISH_ENABLED") == "true"
+}
+
+// academyReleaseSourceSHA binds a provider acceptance to the exact deployed
+// source tree. Missing or malformed build identity always keeps VIDEO closed.
+func academyReleaseSourceSHA() string {
+	value := strings.ToLower(strings.TrimSpace(os.Getenv("APGIC_COMMIT_SHA")))
+	if len(value) != 40 {
+		return ""
+	}
+	for _, ch := range value {
+		if !((ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f')) {
+			return ""
+		}
+	}
+	return value
 }
 
 // Video publishing remains disabled by default until the actual staging
@@ -17,17 +35,31 @@ func academyVideoPublicationReady(ctx context.Context, tx *sql.Tx, author, versi
 	if !academyVideoPublishEnabled() {
 		return false, nil
 	}
-	// A deployment flag and verified file metadata do not establish that an
-	// actual learner can finish a protected VIDEO lesson. The current R8
-	// runtime has no durable, provider-verified playback completion evidence
-	// or independently certified release admission. Never turn sellability
-	// on merely because an operator toggled the environment variable.
-	//
-	// Re-enable only when the canonical Academy/Entitlement path stores and
-	// verifies a signed playback attestation and the real payment/revocation
-	// acceptance has been independently recorded. This is intentionally
-	// fail-closed even with a valid author-owned cloud attachment.
-	if !academyVideoPlaybackCertificationAvailable() {
+	mode, modeErr := academy.ConfiguredVideoDeliveryMode()
+	if modeErr != nil || mode != academy.VideoDeliveryDirect {
+		// The CDN connector and immutable attestation owner remain in place.
+		// Until the CDN learner route is wired to that executor, accepting a
+		// CDN certification here would sell courses with no playable video.
+		return false, nil
+	}
+	// The environment switch is only an operator opt-in. The direct Yandex
+	// gateway has no CDN dependency, but it still requires an independently
+	// accepted, immutable, high-risk audited real-provider/learner/revocation/
+	// completion/payment journey bound to the exact deployed source SHA.
+	// No environment flag alone may manufacture release evidence.
+	sourceSHA := academyReleaseSourceSHA()
+	if sourceSHA == "" {
+		return false, nil
+	}
+	if _, err := tx.ExecContext(ctx, `SELECT set_config('apgic.release_source_sha',$1,true),
+ set_config('apgic.academy_video_delivery_mode',$2,true)`, sourceSHA, string(mode)); err != nil {
+		return false, err
+	}
+	var certified bool
+	if err := tx.QueryRowContext(ctx, `SELECT academy_video_delivery_release_available($1)`, sourceSHA).Scan(&certified); err != nil {
+		return false, err
+	}
+	if !certified {
 		return false, nil
 	}
 	var ready bool
@@ -67,11 +99,4 @@ func academyVideoPublicationReady(ctx context.Context, tx *sql.Tx, author, versi
        OR cm.sha256 IS NULL OR cm.file_size IS NULL OR cm.file_size<=0)
  )`, author, versionID).Scan(&ready)
 	return ready, err
-}
-
-// academyVideoPlaybackCertificationAvailable remains false until a genuine
-// version-bound, provider-verified completion contract is implemented.
-// It is deliberately NOT controlled by an environment variable.
-func academyVideoPlaybackCertificationAvailable() bool {
-	return false
 }

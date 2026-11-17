@@ -651,15 +651,29 @@ func (c *Checker) AcademyMarkProgress(actor, enrollmentID, lessonID string) erro
 			return err
 		}
 	}
-	if err = academy.CanMarkProgress(academy.LessonKind(kind), passed, false); err != nil {
+	// For VIDEO, the browser's ended flag is not evidence. Only a complete
+	// set of server-recorded, fingerprint-bound byte deliveries for every
+	// assigned media file can authorize a learner's explicit acknowledgement.
+	var directDeliveryComplete bool
+	if kind == string(academy.Video) {
+		directDeliveryComplete, err = academyDirectVideoDeliveryCompleteTx(ctx, tx, enrollmentID, lessonID)
+		if err != nil {
+			return err
+		}
+	}
+	if err = academy.CanMarkProgress(academy.LessonKind(kind), passed, directDeliveryComplete); err != nil {
 		return err
 	}
 	id, err := academyID()
 	if err != nil {
 		return err
 	}
+	evidenceRef := "learning/progress/" + id
+	if kind == string(academy.Video) {
+		evidenceRef = "academy/direct-delivery-v1/" + id
+	}
 	result, err := tx.ExecContext(ctx, `INSERT INTO academy_progress(enrollment_id,lesson_id,evidence_ref)
- VALUES($1::uuid,$2::uuid,$3) ON CONFLICT DO NOTHING`, enrollmentID, lessonID, "learning/progress/"+id)
+ VALUES($1::uuid,$2::uuid,$3) ON CONFLICT DO NOTHING`, enrollmentID, lessonID, evidenceRef)
 	if err != nil {
 		return err
 	}

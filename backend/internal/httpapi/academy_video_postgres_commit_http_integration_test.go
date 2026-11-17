@@ -4,16 +4,21 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/academy"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/runtimepostgres"
 )
 
@@ -217,5 +222,306 @@ SET generation=gen_random_uuid() WHERE author_id=$1::uuid AND provider='YANDEX_D
 	}
 	if strings.Contains(string(denied), path) || strings.Contains(string(denied), "encrypted-test-only-placeholder") {
 		t.Fatal("revoked seek exposed cloud path or credential")
+	}
+}
+
+// The next test uses this deterministic Yandex-origin transport seam against
+// the PostgreSQL-backed learner source and per-write authorization check. It
+// commits a canonical Commerce refund while a learner response is already
+// open. Provider responses and cloud credentials are test doubles; this is not
+// production CDN delivery or live OAuth acceptance.
+type academyVideoEntitlementRoundTripper func(*http.Request) (*http.Response, error)
+
+func (f academyVideoEntitlementRoundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
+	return f(r)
+}
+
+type academyVideoTrackedBody struct {
+	io.ReadCloser
+	closed *atomic.Bool
+}
+
+type academyVideoCredentialOverride struct {
+	*runtimepostgres.Checker
+	author string
+	token  string
+}
+
+func (s academyVideoCredentialOverride) AcademyReadCloudCredential(actor, provider string) (string, error) {
+	if actor != s.author || provider != "YANDEX_DISK" {
+		return "", academy.ErrDenied
+	}
+	return s.token, nil
+}
+
+func (b academyVideoTrackedBody) Close() error {
+	b.closed.Store(true)
+	return b.ReadCloser.Close()
+}
+
+// TestAcademyYandexTransportHarnessStopsAfterCommittedEntitlementRevocation
+// exercises the package-private Yandex transport test seam, session
+// authentication, Yandex metadata verification, protected downloader
+// transport and PostgreSQL entitlement recheck. The Yandex HTTP responses and
+// cloud credential are deterministic test doubles; the entitlement, course,
+// enrollment and refund projection are real PostgreSQL state. Production
+// learner delivery remains closed until a certified CDN adapter is wired.
+func TestAcademyYandexTransportHarnessStopsAfterCommittedEntitlementRevocation(t *testing.T) {
+	dsn := os.Getenv("APGIC_ORGANIZATION_TEST_DATABASE_URL")
+	if dsn == "" {
+		t.Skip("isolated migrated PostgreSQL Academy journey required")
+	}
+	ctx := context.Background()
+	db, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	store, err := runtimepostgres.Open(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	const learner = "00000000-0000-0000-0000-00000000b003"
+	const product = "00000000-0000-0000-0000-00000000af03"
+	var enrollmentID, lessonID, mediaID string
+	err = db.QueryRowContext(ctx, `SELECT e.id::text,l.id::text,lm.media_id::text
+FROM academy_enrollments e
+JOIN store_entitlements t ON t.id=e.entitlement_id
+JOIN academy_course_versions v ON v.id=e.version_id AND v.state='PUBLISHED'
+JOIN academy_courses c ON c.id=v.course_id AND c.state='PUBLISHED'
+JOIN academy_modules m ON m.version_id=v.id
+JOIN academy_lessons l ON l.module_id=m.id AND l.kind='VIDEO'
+JOIN academy_lesson_media lm ON lm.lesson_id=l.id
+WHERE e.identity_id=$1::uuid AND c.product_id=$2::uuid
+  AND e.state IN ('ACTIVE','COMPLETED') AND academy_entitlement_is_active(t.id)
+ORDER BY l.ordinal,lm.ordinal LIMIT 1`, learner, product).Scan(&enrollmentID, &lessonID, &mediaID)
+	if err != nil {
+		t.Fatalf("active paid VIDEO enrollment fixture missing; run the verified Academy journey first: %v", err)
+	}
+	author, provider, path, err := store.AcademyLearnerVideoSource(learner, enrollmentID, lessonID, mediaID)
+	if err != nil {
+		t.Fatalf("canonical learner source denied before refund: %v", err)
+	}
+	resourceID, digest, size, err := store.AcademyLearnerVideoFingerprint(author, provider, path, mediaID)
+	if err != nil {
+		t.Fatalf("verified media fingerprint unavailable before refund: %v", err)
+	}
+	// The database fixture intentionally stores a non-decryptable placeholder.
+	// Inject a scoped test credential while keeping source, fingerprint,
+	// entitlement and enrollment reads backed by the real PostgreSQL store.
+	token := "ci-protected-oauth-token"
+	streamStore := academyVideoCredentialOverride{Checker: store, author: author, token: token}
+	if size < 2 {
+		t.Fatalf("test video fixture is too small for a two-part stream: %d", size)
+	}
+	firstSize := int(size / 2)
+	if firstSize > 64<<10 {
+		firstSize = 64 << 10
+	}
+	secondSize := int(size) - firstSize
+	firstChunk := bytes.Repeat([]byte("a"), firstSize)
+	secondChunk := bytes.Repeat([]byte("b"), secondSize)
+	releaseSecond := make(chan struct{})
+	var releaseOnce sync.Once
+	release := func() { releaseOnce.Do(func() { close(releaseSecond) }) }
+	defer release()
+
+	var yandexCalls, upstreamCalls atomic.Int32
+	var upstreamClosed atomic.Bool
+	yandexHTTP := &http.Client{Transport: academyVideoEntitlementRoundTripper(func(req *http.Request) (*http.Response, error) {
+		if req.URL.Scheme != "https" || req.URL.Host != "cloud-api.yandex.net" ||
+			req.Header.Get("Authorization") != "OAuth "+token {
+			return nil, errors.New("Yandex metadata request did not use the protected provider transport")
+		}
+		if req.URL.Query().Get("path") != path {
+			return nil, errors.New("Yandex metadata request path did not match the assigned media")
+		}
+		yandexCalls.Add(1)
+		header := http.Header{"Content-Type": []string{"application/json"}}
+		switch req.URL.Path {
+		case "/v1/disk/resources":
+			payload, marshalErr := json.Marshal(academy.YandexDiskFile{
+				Name: "ci-protected-video.mp4", Path: path, Type: "file",
+				MimeType: "video/mp4", Size: size, ResourceID: resourceID, SHA256: digest,
+			})
+			if marshalErr != nil {
+				return nil, marshalErr
+			}
+			return &http.Response{StatusCode: http.StatusOK, Header: header,
+				Body: io.NopCloser(bytes.NewReader(payload)), ContentLength: int64(len(payload)), Request: req}, nil
+		case "/v1/disk/resources/download":
+			payload := []byte(`{"href":"https://downloader.disk.yandex.net/resource?ticket=opaque","method":"GET","templated":false}`)
+			return &http.Response{StatusCode: http.StatusOK, Header: header,
+				Body: io.NopCloser(bytes.NewReader(payload)), ContentLength: int64(len(payload)), Request: req}, nil
+		default:
+			return nil, errors.New("unexpected Yandex API endpoint")
+		}
+	})}
+	upstreamHTTP := &http.Client{Transport: academyVideoEntitlementRoundTripper(func(req *http.Request) (*http.Response, error) {
+		if req.URL.Scheme != "https" || req.URL.Host != "downloader.disk.yandex.net" ||
+			req.Header.Get("Authorization") != "" || req.Header.Get("Cookie") != "" ||
+			req.Header.Get("Proxy-Authorization") != "" || req.Header.Get("Range") != "" {
+			return nil, errors.New("media upstream received an untrusted URL or credential header")
+		}
+		upstreamCalls.Add(1)
+		reader, writer := io.Pipe()
+		go func() {
+			if _, writeErr := writer.Write(firstChunk); writeErr != nil {
+				_ = writer.CloseWithError(writeErr)
+				return
+			}
+			select {
+			case <-releaseSecond:
+				_, _ = writer.Write(secondChunk)
+			case <-req.Context().Done():
+			}
+			_ = writer.Close()
+		}()
+		header := http.Header{
+			"Content-Type":   []string{"video/mp4"},
+			"Content-Length": []string{strconv.FormatInt(size, 10)},
+		}
+		return &http.Response{StatusCode: http.StatusOK, Header: header,
+			Body:          academyVideoTrackedBody{ReadCloser: reader, closed: &upstreamClosed},
+			ContentLength: size, Request: req}, nil
+	})}
+
+	sessions, err := newClientSessionManager([]byte(strings.Repeat("k", 32)), time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sessionCookie, err := sessions.issue(learner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mux := http.NewServeMux()
+	registerAcademyVideoStreamWithClients(mux, streamStore, sessions, nil,
+		academy.YandexDiskClient{Client: yandexHTTP}, upstreamHTTP)
+	server := httptest.NewTLSServer(mux)
+	defer server.Close()
+	client := server.Client()
+	client.Timeout = 10 * time.Second
+	streamPath := "/v1/academy/enrollments/" + enrollmentID + "/lessons/" + lessonID + "/videos/" + mediaID + "/stream"
+	request, err := http.NewRequest(http.MethodGet, server.URL+streamPath, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.AddCookie(sessionCookie)
+	response, err := client.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK || response.Header.Get("Location") != "" {
+		t.Fatalf("active learner stream returned HTTP %d or exposed redirect %q",
+			response.StatusCode, response.Header.Get("Location"))
+	}
+	first := make([]byte, firstSize)
+	if _, err := io.ReadFull(response.Body, first); err != nil {
+		t.Fatalf("first authorized video chunk unavailable: %v", err)
+	}
+	if !bytes.Equal(first, firstChunk) {
+		t.Fatal("first authorized video chunk was altered")
+	}
+
+	// Apply the canonical Commerce REFUND in a separate transaction while
+	// the test-only Yandex-origin HTTP handler is waiting on the next upstream bytes.
+	refund, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var applied bool
+	var reason string
+	err = refund.QueryRowContext(ctx, `SELECT applied,reason_code
+FROM apgic_apply_store_lifecycle_event(
+ '00000000-0000-0000-0000-00000000aa64',
+ '00000000-0000-0000-0000-00000000aa74',
+ '00000000-0000-0000-0000-00000000a601',
+ 'store-provider-event-refund-4',
+ 'store-refund-tx-1',
+ 'subscription-ci-1',
+ '00000000-0000-0000-0000-00000000b003',
+ '00000000-0000-0000-0000-00000000a902',
+ 4,'REFUND',10000,'RUB','store-evidence/refund-ci',
+ '00000000-0000-0000-0000-00000000aa52',now()+interval '24 minutes'
+)`).Scan(&applied, &reason)
+	if err != nil {
+		_ = refund.Rollback()
+		t.Fatal(err)
+	}
+	if !applied || reason != "STORE_EVENT_APPLIED" {
+		_ = refund.Rollback()
+		t.Fatalf("canonical refund was not applied: applied=%v reason=%s", applied, reason)
+	}
+	if err := refund.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	var subscriptionState, entitlementState string
+	var lastSequence, appliedCount int
+	if err := db.QueryRowContext(ctx, `SELECT subscription_state,entitlement_state,last_provider_sequence,applied_event_count
+FROM store_subscription_projections
+WHERE provider_instance_id='00000000-0000-0000-0000-00000000a601'
+  AND subscription_ref='subscription-ci-1'`).Scan(&subscriptionState, &entitlementState, &lastSequence, &appliedCount); err != nil {
+		t.Fatal(err)
+	}
+	if subscriptionState != "REVOKED" || entitlementState != "REVOKED" || lastSequence != 4 || appliedCount != 2 {
+		t.Fatalf("canonical refund projection did not converge: subscription=%s entitlement=%s sequence=%d applied=%d",
+			subscriptionState, entitlementState, lastSequence, appliedCount)
+	}
+	var entitlementEffect, ledgerEffect, ledgerEntryID string
+	if err := db.QueryRowContext(ctx, `SELECT entitlement_effect,ledger_effect,ledger_entry_id::text
+FROM store_lifecycle_effects
+WHERE lifecycle_event_id='00000000-0000-0000-0000-00000000aa64'`).Scan(&entitlementEffect, &ledgerEffect, &ledgerEntryID); err != nil {
+		t.Fatal(err)
+	}
+	if entitlementEffect != "REVOKE" || ledgerEffect != "REFUND" || ledgerEntryID != "00000000-0000-0000-0000-00000000aa52" {
+		t.Fatalf("refund did not persist its canonical Entitlement/Finance effects: entitlement=%s ledger=%s entry=%s",
+			entitlementEffect, ledgerEffect, ledgerEntryID)
+	}
+	if academyVideoSourceStillAllowed(store, learner, enrollmentID, lessonID, mediaID,
+		author, provider, path) {
+		t.Fatal("committed canonical Entitlement refund still authorizes the learner source")
+	}
+
+	release()
+	remaining, readErr := io.ReadAll(response.Body)
+	if len(remaining) != 0 {
+		t.Fatalf("refunded learner received %d additional video bytes after COMMIT", len(remaining))
+	}
+	if readErr == nil {
+		t.Fatal("refunded HTTP response completed successfully instead of being interrupted")
+	}
+	if !upstreamClosed.Load() {
+		t.Fatal("revoked Yandex test stream did not close the provider response body")
+	}
+
+	seek, err := http.NewRequest(http.MethodGet, server.URL+streamPath, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	seek.AddCookie(sessionCookie)
+	seek.Header.Set("Range", "bytes=65536-")
+	seekResponse, err := client.Do(seek)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer seekResponse.Body.Close()
+	if seekResponse.StatusCode != http.StatusPaymentRequired {
+		t.Fatalf("new seek after refund returned HTTP %d, want 402 (canonical entitlement-required response)", seekResponse.StatusCode)
+	}
+	if seekResponse.Header.Get("Location") != "" || yandexCalls.Load() != 2 || upstreamCalls.Load() != 1 {
+		t.Fatalf("revoked seek reached provider or exposed redirect: yandex=%d upstream=%d location=%q",
+			yandexCalls.Load(), upstreamCalls.Load(), seekResponse.Header.Get("Location"))
+	}
+	denied, err := io.ReadAll(seekResponse.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, secret := range []string{path, resourceID, token, "https://downloader.disk.yandex.net"} {
+		if strings.Contains(string(denied), secret) {
+			t.Fatalf("revoked seek disclosed private media metadata %q", secret)
+		}
 	}
 }

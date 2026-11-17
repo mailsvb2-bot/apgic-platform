@@ -1,0 +1,77 @@
+import assert from "node:assert/strict";
+import {readFileSync} from "node:fs";
+import {test} from "node:test";
+import {fileURLToPath} from "node:url";
+import {appendLessonMediaAssignments,moveLessonMediaAssignment,removeLessonMediaAssignment} from "../app/academy/cloud-media-assignments.ts";
+
+// Lock the confirmed live flow: an author signs into APGIC, OAuth returns
+// into this exact draft, the embedded Disk picker browses folders and
+// verified imports stay on the existing author-owned API.
+test("Academy embedded Yandex Disk workflow preserves canonical OAuth and verified import",()=>{
+ const page=readFileSync(fileURLToPath(new URL("../app/academy/page.tsx",import.meta.url)),"utf8");
+ const editor=readFileSync(fileURLToPath(new URL("../app/academy/cloud-media-editor.tsx",import.meta.url)),"utf8");
+ assert.match(page,/cloud_connected/);
+ assert.match(page,/course_id/);
+ assert.match(page,/version_id/);
+ assert.match(page,/Шаг 1\. Курс/);
+ assert.ok(page.indexOf("<CloudMediaEditor")>page.indexOf('<h3>Урок</h3>'));
+ assert.match(editor,/\/v1\/academy\/author\/cloud\/yandex\/connect/);
+ assert.match(editor,/\/v1\/academy\/author\/cloud\/yandex\/files/);
+ assert.match(editor,/cloud_connected/);
+ assert.match(editor,/lesson_id=\$\{encodeURIComponent\(lessonId\)\}/);
+ assert.match(editor,/query\.get\("lesson_id"\)/);
+ // The OAuth effect runs before the library reload effect. The reload must
+ // not erase the lesson restored from signed OAuth state.
+ assert.ok(page.includes('key={`${course.id}:${course.version_id}`}'));
+ assert.equal(editor.includes('setLessonId("")'),false);
+ assert.match(editor,/browseDisk\("disk:\/"\)/);
+ assert.match(editor,/\/v1\/academy\/author\/cloud-media\/import/);
+ assert.match(editor,/\/v1\/academy\/author\/courses\/\$\{courseId\}\/versions\/\$\{versionId\}\/media/);
+ assert.match(editor,/\/v1\/academy\/courses\/\$\{courseId\}\/versions\/\$\{versionId\}\/media\/assign/);
+ assert.match(editor,/videoLessons\.length===0/);
+ assert.match(editor,/!lessonId\?<p role="status">/);
+});
+
+test("new videos append to selected lesson without changing other lessons or duplicating assignments",()=>{
+ const initial=[
+  {lesson_id:"a",media_id:"m1",ordinal:1},
+  {lesson_id:"b",media_id:"m2",ordinal:1},
+ ];
+ assert.deepEqual(appendLessonMediaAssignments(initial,"a",["m1","m3","m3","m4"]),[
+  ...initial,{lesson_id:"a",media_id:"m3",ordinal:2},{lesson_id:"a",media_id:"m4",ordinal:3}
+ ]);
+ assert.deepEqual(initial,[{lesson_id:"a",media_id:"m1",ordinal:1},{lesson_id:"b",media_id:"m2",ordinal:1}]);
+ assert.deepEqual(appendLessonMediaAssignments(initial,"",["m9"]),initial);
+});
+
+test("one lesson may contain several ordered videos and reordering never touches another lesson",()=>{
+ const initial=[
+  {lesson_id:"lesson-a",media_id:"v1",ordinal:1},
+  {lesson_id:"lesson-b",media_id:"other",ordinal:1},
+ ];
+ const appended=appendLessonMediaAssignments(initial,"lesson-a",["v2","v3","v2"]);
+ assert.deepEqual(appended.filter(x=>x.lesson_id==="lesson-a").map(x=>[x.media_id,x.ordinal]),[
+  ["v1",1],["v2",2],["v3",3]
+ ]);
+ const reordered=moveLessonMediaAssignment(appended,"lesson-a","v3",-1);
+ assert.deepEqual(reordered.filter(x=>x.lesson_id==="lesson-a").sort((a,b)=>a.ordinal-b.ordinal).map(x=>x.media_id),["v1","v3","v2"]);
+ assert.deepEqual(reordered.filter(x=>x.lesson_id==="lesson-b"),initial.filter(x=>x.lesson_id==="lesson-b"));
+ assert.deepEqual(moveLessonMediaAssignment(reordered,"lesson-a","v1",-1),reordered);
+ assert.deepEqual(initial,[{lesson_id:"lesson-a",media_id:"v1",ordinal:1},{lesson_id:"lesson-b",media_id:"other",ordinal:1}]);
+});
+
+test("removing one video compacts only that lesson without clearing another",()=>{
+ const input=[
+  {lesson_id:"a",media_id:"one",ordinal:1},
+  {lesson_id:"a",media_id:"two",ordinal:2},
+  {lesson_id:"a",media_id:"three",ordinal:3},
+  {lesson_id:"b",media_id:"four",ordinal:1}
+ ];
+ const result=removeLessonMediaAssignment(input,"a","two");
+ assert.deepEqual(result.filter(x=>x.lesson_id==="a").sort((x,y)=>x.ordinal-y.ordinal),[
+  {lesson_id:"a",media_id:"one",ordinal:1},
+  {lesson_id:"a",media_id:"three",ordinal:2}
+ ]);
+ assert.deepEqual(result.filter(x=>x.lesson_id==="b"),input.filter(x=>x.lesson_id==="b"));
+ assert.deepEqual(removeLessonMediaAssignment(input,"a","absent"),input);
+});

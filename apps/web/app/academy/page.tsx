@@ -1,6 +1,6 @@
 "use client";
 
-import {useCallback,useEffect,useState,type FormEvent} from "react";
+import {useCallback,useEffect,useMemo,useState,type FormEvent} from "react";
 import CloudMediaEditor from "./cloud-media-editor";
 import AcademyLessonVideos from "./academy-lesson-videos";
 
@@ -74,6 +74,11 @@ export default function AcademyPage(){
  const [course,setCourse]=useState<Course|null>(null);
  const [modules,setModules]=useState<Module[]>([]);
  const [lessons,setLessons]=useState<Lesson[]>([]);
+ // Stable options prevent a parent redraw from resetting the author’s file
+ // selection while the selected lesson is unchanged.
+ const mediaLessonOptions=useMemo(()=>lessons.map(l=>({id:l.id,title:l.title,kind:l.kind,module_id:l.module_id})),[lessons]);
+ const mediaModuleOptions=useMemo(()=>modules.map(m=>({id:m.id,title:m.title,ordinal:m.ordinal})),[modules]);
+ const [focusedVideoLessonID,setFocusedVideoLessonID]=useState("");
  const [activeEnrollment,setActiveEnrollment]=useState<Enrollment|null>(null);
  const [certificate,setCertificate]=useState<Certificate|null>(null);
  const [certificates,setCertificates]=useState<LearnerCertificate[]>([]);
@@ -97,7 +102,7 @@ export default function AcademyPage(){
  const [moduleTitle,setModuleTitle]=useState("");
  const [lessonTitle,setLessonTitle]=useState("");
  const [lessonBody,setLessonBody]=useState("");
- const [lessonKind,setLessonKind]=useState<Lesson["kind"]>("READING");
+ const [lessonKind,setLessonKind]=useState<Lesson["kind"]>("VIDEO");
  const [moduleID,setModuleID]=useState("");
  const [passingScore,setPassingScore]=useState(80);
  const [attemptResponse,setAttemptResponse]=useState<Record<string,string>>({});
@@ -159,7 +164,7 @@ export default function AcademyPage(){
   finally{setBusy(false)}
  }
  const loadOutline=useCallback(async (selected:Course)=>{
-  setCourse(selected);setActiveEnrollment(null);setCertificate(null);setLearnerAttempts([]);setCohorts([]);
+  setCourse(selected);setFocusedVideoLessonID("");setActiveEnrollment(null);setCertificate(null);setLearnerAttempts([]);setCohorts([]);
   const d=await api<{state:string;modules:Module[];lessons:Lesson[]}>(
    `/v1/academy/courses/${selected.id}/versions/${selected.version_id}/outline`);
   setModules(d.modules);setLessons(d.lessons);setModuleID(d.modules[0]?.id||"");
@@ -376,10 +381,18 @@ export default function AcademyPage(){
    `/v1/academy/courses/${course.id}/versions/${course.version_id}/modules/${moduleID}/lessons`,
    {title:lessonTitle,ordinal:existing.length+1,kind:lessonKind,
     body:lessonKind==="READING"?lessonBody:"",
-    media_asset_ref:lessonKind==="VIDEO"?lessonBody:"",
+    // Video sources are attached later through the verified Disk picker;
+    // never reuse hidden/stale text input as a media asset identifier.
     passing_score:lessonKind==="ASSESSMENT"?passingScore:0,
     rubric_version:lessonKind==="ASSESSMENT"?"human-review-v1":""}),
-   async()=>{setLessonTitle("");setLessonBody("");await loadOutline(course)});
+   async created=>{
+    setLessonTitle("");setLessonBody("");
+    await loadOutline(course);
+    if(created.kind==="VIDEO"&&created.id){
+     setFocusedVideoLessonID(created.id);
+     window.requestAnimationFrame(()=>document.getElementById("academy-media-editor")?.scrollIntoView({behavior:"smooth",block:"start"}));
+    }
+   });
  }
  return <main className="site-shell">
   <header className="site-header"><a className="brand" href="/">APGIC</a>
@@ -466,7 +479,7 @@ export default function AcademyPage(){
   </section>
   {course&&<section className="how-section">
    <h2>Редактор: {course.title} — версия {course.version_no}</h2>
-   {course.state==="DRAFT"&&<CloudMediaEditor key={`${course.id}:${course.version_id}`} courseId={course.id} versionId={course.version_id} lessons={lessons.map(l=>({id:l.id,title:l.title,kind:l.kind}))}/>}
+   <p>Шаг 1. Курс выбран. Шаг 2. Добавьте видеоуроки ниже. Шаг 3. Выберите для каждого урока видео с Яндекс Диска.</p>
    <div className="how-grid">
     <form className="panel specialist-form" onSubmit={addModule}>
      <h3>Модуль</h3><label htmlFor="academy-module">Название</label>
@@ -483,17 +496,18 @@ export default function AcademyPage(){
      <label htmlFor="academy-lesson-kind">Тип активности</label>
      <select id="academy-lesson-kind" value={lessonKind} onChange={e=>setLessonKind(e.target.value as Lesson["kind"])}>
       <option value="READING">Текстовый урок</option><option value="ASSESSMENT">Проверочное задание</option>
-      <option value="VIDEO">Видеоматериал по media asset reference</option>
+      <option value="VIDEO">Видеоурок (видео выберем ниже)</option>
      </select>
-     <label htmlFor="academy-lesson-body">Материал или идентификатор медиаресурса</label>
-     <textarea id="academy-lesson-body" value={lessonBody} onChange={e=>setLessonBody(e.target.value)}/>
+     {lessonKind!=="VIDEO"&&<><label htmlFor="academy-lesson-body">Материал урока</label>
+     <textarea id="academy-lesson-body" value={lessonBody} onChange={e=>setLessonBody(e.target.value)}/></>}
      {lessonKind==="ASSESSMENT"&&<><label htmlFor="academy-pass">Проходной балл</label>
       <input id="academy-pass" type="number" min={1} max={100} value={passingScore} onChange={e=>setPassingScore(Number(e.target.value))}/></>}
      <button disabled={busy||!moduleID}>Добавить урок</button>
     </form>
-    <section className="panel"><h3>Содержание</h3>
+    <section className="panel"><h3>Структура курса: модули → уроки</h3>
+     {modules.length===0&&<p role="status">Модулей пока нет. Создайте первый модуль, затем добавьте урок.</p>}
      {modules.map(m=><article key={m.id}><h4>{m.ordinal}. {m.title}</h4>
-      <ul>{lessons.filter(l=>l.module_id===m.id).map(l=><li key={l.id}>{l.title} · {l.kind}</li>)}</ul>
+      {lessons.some(l=>l.module_id===m.id)?<ol>{lessons.filter(l=>l.module_id===m.id).map(l=><li key={l.id}>{l.title} · {l.kind==="VIDEO"?"Видеоурок":l.kind==="READING"?"Текстовый урок":"Проверочное задание"}{l.kind==="VIDEO"&&<span> · <a href="#academy-media-editor" onClick={()=>setFocusedVideoLessonID(l.id)}>Прикрепить видео в шаге 3</a></span>}</li>)}</ol>:<p>Уроков пока нет. Добавьте урок в этот модуль.</p>}
      </article>)}
      {course.state==="DRAFT"&&<section aria-label="Расписание и лимиты уроков">
       <h4>Расписание уроков и пересдачи</h4>
@@ -537,11 +551,12 @@ export default function AcademyPage(){
        Зафиксировать права на текущую версию</button>
       {rightsRecorded&&<p>Подтверждение зафиксировано. Изменения уроков потребуют нового подтверждения.</p>}
      </section>
-     <button disabled={busy||lessons.length===0} onClick={()=>void act(
-      ()=>api<Course>(`/v1/academy/courses/${course.id}/versions/${course.version_id}/publish`,{}),
-      async()=>{setNotice("Версия опубликована и больше не редактируется.");setCourse(null)})}>Опубликовать версию</button>
     </section>
    </div>
+   {course.state==="DRAFT"&&<CloudMediaEditor key={`${course.id}:${course.version_id}`} courseId={course.id} versionId={course.version_id} modules={mediaModuleOptions} focusedLessonId={focusedVideoLessonID} lessons={mediaLessonOptions}/>}
+   {course.state==="DRAFT"&&<button disabled={busy||lessons.length===0} onClick={()=>void act(
+      ()=>api<Course>(`/v1/academy/courses/${course.id}/versions/${course.version_id}/publish`,{}),
+      async()=>{setNotice("Версия опубликована и больше не редактируется.");setCourse(null)})}>Опубликовать версию курса</button>}
   </section>}
   {course&&course.state==="PUBLISHED"&&<section className="how-section">
    <h2>Учебные потоки преподавателя</h2>
@@ -582,6 +597,14 @@ export default function AcademyPage(){
      {l.available===false&&<p role="status">Урок ещё не открыт или срок его изучения истёк.</p>}
      {l.available!==false&&l.kind==="READING"&&<p style={{whiteSpace:"pre-wrap"}}>{l.body}</p>}
      {l.kind==="VIDEO"&&<AcademyLessonVideos enrollmentId={activeEnrollment.id} lessonId={l.id} available={l.available!==false}/>}
+     {l.kind==="VIDEO"&&l.available!==false&&!l.completed&&<div>
+      <p>После полного получения всех видео этого урока подтвердите изучение. Перемотка сама по себе не засчитывает недоставленные фрагменты.</p>
+      <button disabled={busy} onClick={()=>void act(
+       ()=>api(`/v1/academy/enrollments/${activeEnrollment.id}/lessons/${l.id}/complete`,{}),
+       async()=>{await loadLearning(activeEnrollment);setNotice("Изучение видеоматериалов подтверждено.")})}>
+       Подтвердить изучение видео
+      </button>
+     </div>}
      {l.available!==false&&l.kind==="ASSESSMENT"&&<section aria-label={`Результаты: ${l.title}`}>
       {learnerAttempts.filter(a=>a.lesson_id===l.id).map(a=>
        <p key={a.id}>Попытка {a.attempt_no}: {a.result==="PENDING"?"Ожидает проверки":a.result==="PASSED"?"Зачтено":"Не зачтено"}

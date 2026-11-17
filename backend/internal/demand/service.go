@@ -605,6 +605,8 @@ func (s *Service) SlotsForOffer(specialistID, offerID string) ([]Slot, error) {
 			return nil, err
 		}
 	}
+	// With a journey store, Expire also refreshes the canonical live offers,
+	// holds and bookings. Do not issue a second redundant catalog query here.
 	if err := s.expireHoldsLocked(); err != nil {
 		return nil, err
 	}

@@ -1,0 +1,342 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apgic.ru/contracts/cdn-playback-v2.schema.json",
+  "title": "APGIC CDN Playback Contract v2",
+  "type": "object",
+  "additionalProperties": false,
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+    },
+    "binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "subject_id",
+        "enrollment_id",
+        "entitlement_id",
+        "course_id",
+        "course_version_id",
+        "lesson_id",
+        "media_id",
+        "content_sha256",
+        "content_length"
+      ],
+      "properties": {
+        "subject_id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "enrollment_id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "entitlement_id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "course_id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "course_version_id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "lesson_id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "media_id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "content_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "content_length": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "range": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "start_millis",
+        "end_millis"
+      ],
+      "properties": {
+        "start_millis": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end_millis": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "idempotency_key",
+        "provider_instance_id",
+        "binding"
+      ],
+      "properties": {
+        "idempotency_key": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*(/[A-Za-z0-9][A-Za-z0-9._:-]*)*$",
+          "maxLength": 128
+        },
+        "binding": {
+          "$ref": "#/$defs/binding"
+        },
+        "provider_instance_id": {
+          "$ref": "#/$defs/uuid"
+        }
+      }
+    },
+    "grant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract_version",
+        "provider_kind",
+        "provider_instance_id",
+        "session_id",
+        "binding",
+        "issued_at",
+        "expires_at"
+      ],
+      "properties": {
+        "contract_version": {
+          "const": "cdn-playback-v2"
+        },
+        "provider_kind": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+        },
+        "provider_instance_id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "provider_event_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+        },
+        "session_id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "binding": {
+          "$ref": "#/$defs/binding"
+        },
+        "issued_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "attestation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract_version",
+        "provider_kind",
+        "provider_instance_id",
+        "provider_event_id",
+        "session_id",
+        "binding",
+        "duration_millis",
+        "watched_ranges",
+        "started_at",
+        "completed_at",
+        "key_id",
+        "signature"
+      ],
+      "properties": {
+        "contract_version": {
+          "const": "cdn-playback-v2"
+        },
+        "provider_kind": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+        },
+        "provider_instance_id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "session_id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "binding": {
+          "$ref": "#/$defs/binding"
+        },
+        "duration_millis": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 86400000
+        },
+        "watched_ranges": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 10000,
+          "items": {
+            "$ref": "#/$defs/range"
+          }
+        },
+        "started_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "completed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "key_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+        },
+        "signature": {
+          "type": "string",
+          "contentEncoding": "base64",
+          "minLength": 88,
+          "maxLength": 88
+        }
+      }
+    },
+    "byte_range": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "start",
+        "end"
+      ],
+      "properties": {
+        "start": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "delivery_request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "grant"
+      ],
+      "properties": {
+        "grant": {
+          "$ref": "#/$defs/grant"
+        },
+        "range": {
+          "$ref": "#/$defs/byte_range"
+        }
+      }
+    },
+    "delivery_response": {
+      "type": "object",
+      "additionalProperties": false,
+      "oneOf": [
+        {
+          "required": [
+            "status_code",
+            "content_type",
+            "content_length"
+          ],
+          "properties": {
+            "status_code": {
+              "const": 200
+            },
+            "content_type": {
+              "type": "string",
+              "pattern": "^video/[A-Za-z0-9.+-]+(?:;.*)?$"
+            },
+            "content_length": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "not": {
+            "required": [
+              "content_range"
+            ]
+          }
+        },
+        {
+          "required": [
+            "status_code",
+            "content_type",
+            "content_length",
+            "content_range"
+          ],
+          "properties": {
+            "status_code": {
+              "const": 206
+            },
+            "content_type": {
+              "type": "string",
+              "pattern": "^video/[A-Za-z0-9.+-]+(?:;.*)?$"
+            },
+            "content_length": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "content_range": {
+              "type": "string",
+              "pattern": "^bytes [0-9]+-[0-9]+/[0-9]+$"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "properties": {
+    "request": {
+      "$ref": "#/$defs/request"
+    },
+    "grant": {
+      "$ref": "#/$defs/grant"
+    },
+    "attestation": {
+      "$ref": "#/$defs/attestation"
+    },
+    "delivery_request": {
+      "$ref": "#/$defs/delivery_request"
+    },
+    "delivery_response": {
+      "$ref": "#/$defs/delivery_response"
+    }
+  },
+  "anyOf": [
+    {
+      "required": [
+        "request"
+      ]
+    },
+    {
+      "required": [
+        "grant"
+      ]
+    },
+    {
+      "required": [
+        "attestation"
+      ]
+    },
+    {
+      "required": [
+        "delivery_request"
+      ]
+    },
+    {
+      "required": [
+        "delivery_response"
+      ]
+    }
+  ]
+}

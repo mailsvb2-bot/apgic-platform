@@ -307,6 +307,18 @@ func TestLivePricedSpecialistToDurableHoldAfterRestart(t *testing.T) {
 	if err := store.RevokeCapability(created.ID, "anxiety", "reviewer:postgres-revoke"); err != nil {
 		t.Fatalf("revocation replay must be idempotent: %v", err)
 	}
+	// Exercise the original long-lived service, which still caches the
+	// previously eligible priced offer. Search must honor the current
+	// PostgreSQL publication owner rather than resurrect that cache entry.
+	withdrawnSearch, err := service.Search("anxiety")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range withdrawnSearch.Entries {
+		if entry.SpecialistID == created.ID {
+			t.Fatal("revoked specialist leaked through stale live search cache")
+		}
+	}
 	currentDirectory, err := store.PublicProfiles(context.Background(), "anxiety", 21, 0)
 	if err != nil {
 		t.Fatal(err)

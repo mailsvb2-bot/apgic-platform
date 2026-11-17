@@ -2,7 +2,10 @@ package runtimepostgres
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
 	"database/sql"
+	"encoding/base64"
 	"errors"
 	"os"
 	"strings"
@@ -11,6 +14,7 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/academy"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/connector"
 )
 
 // TestAcademyVersioningRequiresVerifiedAccess proves the author -> curriculum ->
@@ -309,6 +313,11 @@ func TestAcademyStoreVerifiedPaidJourneySurvivesRestart(t *testing.T) {
 	if dsn == "" {
 		t.Skip("isolated PostgreSQL Academy journey database not configured")
 	}
+	// This is a synthetic CI certification fixture, never a production release
+	// admission. Production has no certificate until live provider acceptance.
+	sourceSHA := strings.Repeat("c", 40)
+	t.Setenv("APGIC_ACADEMY_VIDEO_PUBLISH_ENABLED", "true")
+	t.Setenv("APGIC_COMMIT_SHA", sourceSHA)
 	const author = "00000000-0000-0000-0000-00000000b001"
 	const learner = "00000000-0000-0000-0000-00000000b003"
 	const product = "00000000-0000-0000-0000-00000000af03"
@@ -397,6 +406,50 @@ func TestAcademyStoreVerifiedPaidJourneySurvivesRestart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	video, err := store.AcademyAddLesson(author, course.ID, course.VersionID, module.ID, academy.Lesson{
+		Title: "Protected video", Kind: academy.Video, Ordinal: 3,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The test imports synthetic metadata under a fresh OAuth generation. It
+	// exercises database binding only; no real Yandex token or CDN is used.
+	if _, err = store.db.ExecContext(ctx, `INSERT INTO academy_cloud_connections(
+ author_id,provider,encrypted_access_token
+) VALUES($1::uuid,'YANDEX_DISK',repeat('x',64))
+ON CONFLICT(author_id,provider) DO UPDATE SET
+ encrypted_access_token=EXCLUDED.encrypted_access_token,generation=gen_random_uuid()`, author); err != nil {
+		t.Fatal(err)
+	}
+	var mediaGeneration string
+	if err = store.db.QueryRowContext(ctx, `SELECT generation::text FROM academy_cloud_connections
+ WHERE author_id=$1::uuid AND provider='YANDEX_DISK'`, author).Scan(&mediaGeneration); err != nil {
+		t.Fatal(err)
+	}
+	const videoDigest = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	mediaItems, err := store.academyImportCloudMediaWithGeneration(author, []AcademyCloudMedia{{
+		Provider: "YANDEX_DISK", ProviderFileRef: "disk:/ci-r8-protected-video.mp4",
+		Title: "CI protected video", ResourceID: "ci-r8-protected-video-resource",
+		SHA256: videoDigest, FileSize: 1024,
+	}}, mediaGeneration)
+	if err != nil || len(mediaItems) != 1 {
+		t.Fatalf("synthetic author media import failed: %+v %v", mediaItems, err)
+	}
+	if err = store.AcademyAssignCloudMedia(author, course.ID, course.VersionID, []AcademyMediaAssignment{{
+		LessonID: video.ID, MediaID: mediaItems[0].ID, Ordinal: 1,
+	}}); err != nil {
+		t.Fatalf("author could not assign the verified video: %v", err)
+	}
+	providerInstanceID, err := academyID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.db.ExecContext(ctx, `INSERT INTO connector_instances(
+ id,capability_class,provider_kind,status,config_ref
+) VALUES($1::uuid,'CDN_PROVIDER','test-cdn','ACTIVE',$2)`,
+		providerInstanceID, "ci/r8/cdn/"+providerInstanceID); err != nil {
+		t.Fatal(err)
+	}
 	// A paid lesson's immutable draft schedule and assessment cutoff must
 	// survive publication and agree with both learner readback and writes.
 	released := time.Now().UTC().Add(-time.Hour)
@@ -411,11 +464,267 @@ func TestAcademyStoreVerifiedPaidJourneySurvivesRestart(t *testing.T) {
 		t.Fatalf("author could not set paid assessment deadline: %v", err)
 	}
 	if _, err = store.AcademyPublish(author, course.ID, course.VersionID); !errors.Is(err, academy.ErrState) {
-		t.Fatalf("paid course published without author rights attestation: %v", err)
+		t.Fatalf("paid course published without provider certification: %v", err)
 	}
+	providerKeyID := "ci-ed25519-v1"
+	certifiedAt := time.Now().UTC()
+	stepUpAt := certifiedAt.Add(-time.Minute)
+	acceptanceSHA := strings.Repeat("b", 64)
+	acceptanceRef := "ci/r8/synthetic-video-acceptance"
+	auditState := `{"decision":"ALLOW","risk":"HIGH_RISK","action":"academy.video.provider.certify","contract_version":"cdn-playback-v2","provider_instance_id":"` + providerInstanceID + `","provider_kind":"test-cdn","key_id":"` + providerKeyID + `","acceptance_sha256":"` + acceptanceSHA + `","acceptance_ref":"` + acceptanceRef + `","tested_source_sha":"` + sourceSHA + `"}`
+
+	// A plausible evidence reference is not an authorization decision. Prove
+	// that a non-authorization audit cannot certify the provider instance.
+	invalidAuditID, err := academyID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.db.ExecContext(ctx, `INSERT INTO audit_records(
+ id,actor_id,action,scope,resource_ref,new_state,reason,policy_version,occurred_at
+) VALUES($1::uuid,$2,'manual.note','academy.video.provider.certify',$3,$4::jsonb,$5,'r8-provider-cert-v1',$6)`,
+		invalidAuditID, author, "connector/"+providerInstanceID, auditState,
+		"CI negative authorization fixture", stepUpAt); err != nil {
+		t.Fatal(err)
+	}
+	invalidCertificationID, err := academyID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.db.ExecContext(ctx, `INSERT INTO academy_video_provider_certifications(
+ id,connector_instance_id,contract_version,provider_kind,key_id,acceptance_sha256,
+ acceptance_ref,tested_source_sha,accepted_by,step_up_audit_ref,accepted_at,expires_at
+) VALUES($1::uuid,$2::uuid,'cdn-playback-v2','test-cdn',$3,$4,$5,$6,$7::uuid,$8::uuid,$9,$10)`,
+		invalidCertificationID, providerInstanceID, providerKeyID, acceptanceSHA,
+		acceptanceRef, sourceSHA, author,
+		invalidAuditID, certifiedAt, certifiedAt.Add(time.Hour)); err == nil {
+		t.Fatal("CDN certification accepted a non-authorization audit record")
+	}
+
+	missingStateAuditID, err := academyID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.db.ExecContext(ctx, `INSERT INTO audit_records(
+ id,actor_id,action,scope,resource_ref,new_state,reason,policy_version,occurred_at
+) VALUES($1::uuid,$2,'authorization.decision','academy.video.provider.certify',$3,NULL,$4,'r8-provider-cert-v1',$5)`,
+		missingStateAuditID, author, "connector/"+providerInstanceID,
+		"CI missing decision state", stepUpAt); err != nil {
+		t.Fatal(err)
+	}
+	missingStateCertificationID, err := academyID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.db.ExecContext(ctx, `INSERT INTO academy_video_provider_certifications(
+ id,connector_instance_id,contract_version,provider_kind,key_id,acceptance_sha256,
+ acceptance_ref,tested_source_sha,accepted_by,step_up_audit_ref,accepted_at,expires_at
+) VALUES($1::uuid,$2::uuid,'cdn-playback-v2','test-cdn',$3,$4,$5,$6,$7::uuid,$8::uuid,$9,$10)`,
+		missingStateCertificationID, providerInstanceID, providerKeyID, acceptanceSHA,
+		acceptanceRef, sourceSHA, author,
+		missingStateAuditID, certifiedAt, certifiedAt.Add(time.Hour)); err == nil {
+		t.Fatal("CDN certification accepted an authorization audit without decision state")
+	}
+
+	// A valid high-risk decision for a different connector must not authorize
+	// this provider instance, even when the JSON decision names this instance.
+	wrongResourceAuditID, err := academyID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.db.ExecContext(ctx, `INSERT INTO audit_records(
+ id,actor_id,action,scope,resource_ref,new_state,reason,policy_version,occurred_at
+) VALUES($1::uuid,$2,'authorization.decision','academy.video.provider.certify',$3,$4::jsonb,$5,'r8-provider-cert-v1',$6)`,
+		wrongResourceAuditID, author, "connector/00000000-0000-0000-0000-000000000099",
+		auditState, "CI wrong-resource authorization fixture", stepUpAt); err != nil {
+		t.Fatal(err)
+	}
+	wrongResourceCertificationID, err := academyID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.db.ExecContext(ctx, `INSERT INTO academy_video_provider_certifications(
+ id,connector_instance_id,contract_version,provider_kind,key_id,acceptance_sha256,
+ acceptance_ref,tested_source_sha,accepted_by,step_up_audit_ref,accepted_at,expires_at
+) VALUES($1::uuid,$2::uuid,'cdn-playback-v2','test-cdn',$3,$4,$5,$6,$7::uuid,$8::uuid,$9,$10)`,
+		wrongResourceCertificationID, providerInstanceID, providerKeyID, acceptanceSHA,
+		acceptanceRef, sourceSHA, author,
+		wrongResourceAuditID, certifiedAt, certifiedAt.Add(time.Hour)); err == nil {
+		t.Fatal("CDN certification accepted a high-risk authorization decision for another connector")
+	}
+
+	// The step-up scope must be the certification action, not merely a
+	// matching action field inside a different authorization record.
+	wrongScopeAuditID, err := academyID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.db.ExecContext(ctx, `INSERT INTO audit_records(
+ id,actor_id,action,scope,resource_ref,new_state,reason,policy_version,occurred_at
+) VALUES($1::uuid,$2,'authorization.decision','connector:execute:CDN_PROVIDER',$3,$4::jsonb,$5,'r8-provider-cert-v1',$6)`,
+		wrongScopeAuditID, author, "connector/"+providerInstanceID,
+		auditState, "CI wrong-scope authorization fixture", stepUpAt); err != nil {
+		t.Fatal(err)
+	}
+	wrongScopeCertificationID, err := academyID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.db.ExecContext(ctx, `INSERT INTO academy_video_provider_certifications(
+ id,connector_instance_id,contract_version,provider_kind,key_id,acceptance_sha256,
+ acceptance_ref,tested_source_sha,accepted_by,step_up_audit_ref,accepted_at,expires_at
+) VALUES($1::uuid,$2::uuid,'cdn-playback-v2','test-cdn',$3,$4,$5,$6,$7::uuid,$8::uuid,$9,$10)`,
+		wrongScopeCertificationID, providerInstanceID, providerKeyID, acceptanceSHA,
+		acceptanceRef, sourceSHA, author,
+		wrongScopeAuditID, certifiedAt, certifiedAt.Add(time.Hour)); err == nil {
+		t.Fatal("CDN certification accepted a high-risk decision from a different authorization scope")
+	}
+
+	// Authorization must cover the exact immutable acceptance digest, not
+	// merely the general action and provider instance.
+	wrongEvidenceAuditID, err := academyID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	wrongEvidenceState := strings.Replace(auditState, acceptanceSHA, strings.Repeat("c", 64), 1)
+	if _, err = store.db.ExecContext(ctx, `INSERT INTO audit_records(
+ id,actor_id,action,scope,resource_ref,new_state,reason,policy_version,occurred_at
+) VALUES($1::uuid,$2,'authorization.decision','academy.video.provider.certify',$3,$4::jsonb,$5,'r8-provider-cert-v1',$6)`,
+		wrongEvidenceAuditID, author, "connector/"+providerInstanceID,
+		wrongEvidenceState, "CI wrong-evidence authorization fixture", stepUpAt); err != nil {
+		t.Fatal(err)
+	}
+	wrongEvidenceCertificationID, err := academyID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.db.ExecContext(ctx, `INSERT INTO academy_video_provider_certifications(
+ id,connector_instance_id,contract_version,provider_kind,key_id,acceptance_sha256,
+ acceptance_ref,tested_source_sha,accepted_by,step_up_audit_ref,accepted_at,expires_at
+) VALUES($1::uuid,$2::uuid,'cdn-playback-v2','test-cdn',$3,$4,$5,$6,$7::uuid,$8::uuid,$9,$10)`,
+		wrongEvidenceCertificationID, providerInstanceID, providerKeyID, acceptanceSHA,
+		acceptanceRef, sourceSHA, author,
+		wrongEvidenceAuditID, certifiedAt, certifiedAt.Add(time.Hour)); err == nil {
+		t.Fatal("CDN certification accepted an authorization decision for a different evidence digest")
+	}
+
+	// The positive fixture uses the canonical audit owner and a fresh
+	// high-risk ALLOW decision bound to the accepting identity.
+	stepUpAuditID, err := academyID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.db.ExecContext(ctx, `INSERT INTO audit_records(
+ id,actor_id,action,scope,resource_ref,new_state,reason,policy_version,occurred_at
+) VALUES($1::uuid,$2,'authorization.decision','academy.video.provider.certify',$3,$4::jsonb,$5,'r8-provider-cert-v1',$6)`,
+		stepUpAuditID, author, "connector/"+providerInstanceID, auditState,
+		"CI synthetic high-risk provider certification", stepUpAt); err != nil {
+		t.Fatal(err)
+	}
+	certificationID, err := academyID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.db.ExecContext(ctx, `INSERT INTO academy_video_provider_certifications(
+ id,connector_instance_id,contract_version,provider_kind,key_id,acceptance_sha256,
+ acceptance_ref,tested_source_sha,accepted_by,step_up_audit_ref,accepted_at,expires_at
+) VALUES($1::uuid,$2::uuid,'cdn-playback-v2','test-cdn',$3,$4,$5,$6,$7::uuid,$8::uuid,$9,$10)`,
+		certificationID, providerInstanceID, providerKeyID, acceptanceSHA,
+		acceptanceRef, sourceSHA, author,
+		stepUpAuditID, certifiedAt, certifiedAt.Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	// Direct Yandex delivery is a separate, first-party release mode. A CDN
+	// certificate must NOT enable it. Synthetic CI acceptance exercises the
+	// immutable high-risk audit guard only; it is never real provider evidence.
+	if _, err = store.AcademyPublish(author, course.ID, course.VersionID); !errors.Is(err, academy.ErrState) {
+		t.Fatalf("CDN certificate incorrectly admitted direct Yandex video: %v", err)
+	}
+	directAuditID, err := academyID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	directState := `{"decision":"ALLOW","risk":"HIGH_RISK","action":"academy.video.direct.certify","tested_source_sha":"` + sourceSHA + `","acceptance_sha256":"` + acceptanceSHA + `","acceptance_ref":"` + acceptanceRef + `","real_yandex_range":"PASS","signed_learner_entitlement":"PASS","committed_revocation":"PASS","video_lesson_completion":"PASS","payment_reconciliation":"PASS"}`
+	if _, err = store.db.ExecContext(ctx, `INSERT INTO audit_records(
+ id,actor_id,action,scope,resource_ref,new_state,reason,policy_version,occurred_at
+) VALUES($1::uuid,$2,'authorization.decision','academy.video.direct.certify',
+ 'academy/direct-yandex',$3::jsonb,$4,'r8-direct-yandex-ci-v1',$5)`,
+		directAuditID, author, directState, "CI isolated direct Yandex acceptance fixture", stepUpAt); err != nil {
+		t.Fatal(err)
+	}
+	directCertID, err := academyID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.db.ExecContext(ctx, `INSERT INTO academy_video_direct_yandex_acceptances(
+ id,tested_source_sha,acceptance_sha256,acceptance_ref,
+ accepted_by,step_up_audit_ref,accepted_at,expires_at
+) VALUES($1::uuid,$2,$3,$4,$5::uuid,$6::uuid,$7,$8)`,
+		directCertID, sourceSHA, acceptanceSHA, acceptanceRef,
+		author, directAuditID, certifiedAt, certifiedAt.Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	// The isolated fixture carries both independent approvals. Preserve
+	// CDN certification as a real future mode instead of deleting its SQL
+	// contract. This only tests release-selection logic, not a live CDN.
+	for _, tc := range []struct {
+		mode string
+		want bool
+	}{
+		{mode: "direct", want: true},
+		{mode: "cdn", want: true},
+		{mode: "unsupported", want: false},
+	} {
+		modeTx, err := store.db.BeginTx(ctx, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := modeTx.ExecContext(ctx,
+			"SELECT set_config('apgic.academy_video_delivery_mode',$1,true)",
+			tc.mode); err != nil {
+			modeTx.Rollback()
+			t.Fatal(err)
+		}
+		var authorized bool
+		err = modeTx.QueryRowContext(ctx,
+			"SELECT academy_video_delivery_release_available($1)",
+			sourceSHA).Scan(&authorized)
+		modeTx.Rollback()
+		if err != nil || authorized != tc.want {
+			t.Fatalf("synthetic acceptance mode=%q got=%t want=%t err=%v",
+				tc.mode, authorized, tc.want, err)
+		}
+	}
+	// Both the Go publication gate and the PostgreSQL version trigger must
+	// depend on the same direct-Yandex release owner. A stale CDN-only trigger
+	// would silently reject every legitimate direct production publication.
+	var publishTriggerDefinition string
+	if err = store.db.QueryRowContext(ctx,
+		"SELECT pg_get_functiondef('academy_version_publish_guard()'::regprocedure)",
+	).Scan(&publishTriggerDefinition); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(publishTriggerDefinition, "academy_video_delivery_release_available") ||
+		strings.Contains(publishTriggerDefinition, "academy_video_provider_certification_available") ||
+		strings.Contains(publishTriggerDefinition, "academy_video_direct_yandex_acceptance_available") {
+		t.Fatal("Academy version publication trigger bypassed the single delivery-mode acceptance owner")
+	}
+	// A valid certificate for another source tree must not authorize this build.
+	t.Setenv("APGIC_COMMIT_SHA", strings.Repeat("d", 40))
+	if _, err = store.AcademyPublish(author, course.ID, course.VersionID); !errors.Is(err, academy.ErrState) {
+		t.Fatalf("video publication accepted a certificate for another source SHA: %v", err)
+	}
+	t.Setenv("APGIC_COMMIT_SHA", sourceSHA)
 	if _, err = store.AcademyDeclareOriginalRights(author, course.ID, course.VersionID, "original/verified-paid-curriculum-authored-content"); err != nil {
 		t.Fatalf("failed to attest paid curriculum: %v", err)
 	}
+	// Selecting a future CDN mode must not sell an unplayable course merely
+	// because the old CDN attestation contract and certification still exist.
+	// No production CDN learner adapter is registered in this release.
+	t.Setenv("APGIC_ACADEMY_VIDEO_DELIVERY_MODE", "cdn")
+	if _, err = store.AcademyPublish(author, course.ID, course.VersionID); !errors.Is(err, academy.ErrState) {
+		t.Fatalf("unwired CDN mode admitted video publication: %v", err)
+	}
+	t.Setenv("APGIC_ACADEMY_VIDEO_DELIVERY_MODE", "direct")
 	published, err := store.AcademyPublish(author, course.ID, course.VersionID)
 	if err != nil || published.State != "PUBLISHED" {
 		t.Fatalf("published course missing: %+v: %v", published, err)
@@ -475,8 +784,8 @@ func TestAcademyStoreVerifiedPaidJourneySurvivesRestart(t *testing.T) {
 		t.Fatalf("course granted access without bound verified purchase: %+v", enrollment)
 	}
 	scheduledLessons, err := store.AcademyLearning(learner, enrollment.ID)
-	if err != nil || len(scheduledLessons) != 2 ||
-		!scheduledLessons[0].Available || !scheduledLessons[1].Available ||
+	if err != nil || len(scheduledLessons) != 3 ||
+		!scheduledLessons[0].Available || !scheduledLessons[1].Available || !scheduledLessons[2].Available ||
 		scheduledLessons[0].Body != "Knowledge persists after a restart." {
 		t.Fatalf("published paid lesson schedule did not unlock readback: %+v %v", scheduledLessons, err)
 	}
@@ -622,6 +931,44 @@ func TestAcademyStoreVerifiedPaidJourneySurvivesRestart(t *testing.T) {
 	if _, err = store.AcademyComplete(learner, enrollment.ID); !errors.Is(err, academy.ErrState) {
 		t.Fatalf("early completion bypassed lesson evidence: %v", err)
 	}
+	// Direct Yandex completion is based only on fully copied, canonical
+	// server-side byte intervals, then the learner's explicit acknowledgement.
+	// It is deliberately NOT proof that a human watched the display.
+	videoSize := mediaItems[0].FileSize
+	midpoint := videoSize / 2
+	if err = store.AcademyRecordDirectVideoDelivery(author, enrollment.ID, video.ID,
+		mediaItems[0].ID, videoDigest, videoSize, 0, midpoint); err == nil {
+		t.Fatal("another identity forged the learner's video delivery receipt")
+	}
+	if err = store.AcademyRecordDirectVideoDelivery(learner, enrollment.ID, video.ID,
+		mediaItems[0].ID, strings.Repeat("b", 64), videoSize, 0, midpoint); err == nil {
+		t.Fatal("wrong media fingerprint created a direct delivery receipt")
+	}
+	if err = store.AcademyRecordDirectVideoDelivery(learner, enrollment.ID, video.ID,
+		mediaItems[0].ID, videoDigest, videoSize, 0, midpoint); err != nil {
+		t.Fatalf("first verified direct video chunk was rejected: %v", err)
+	}
+	if err = store.AcademyMarkProgress(learner, enrollment.ID, video.ID); !errors.Is(err, academy.ErrDenied) {
+		t.Fatalf("partial direct video delivery unlocked course progress: %v", err)
+	}
+	if err = store.AcademyRecordDirectVideoDelivery(learner, enrollment.ID, video.ID,
+		mediaItems[0].ID, videoDigest, videoSize, midpoint, videoSize); err != nil {
+		t.Fatalf("second verified direct video chunk was rejected: %v", err)
+	}
+	// Exact retries are idempotent and cannot create conflicting facts.
+	if err = store.AcademyRecordDirectVideoDelivery(learner, enrollment.ID, video.ID,
+		mediaItems[0].ID, videoDigest, videoSize, midpoint, videoSize); err != nil {
+		t.Fatalf("direct delivery retry was not idempotent: %v", err)
+	}
+	if err = store.AcademyMarkProgress(learner, enrollment.ID, video.ID); err != nil {
+		t.Fatalf("fully delivered direct Yandex video cannot be acknowledged: %v", err)
+	}
+	var directEvidenceRef string
+	if err = store.db.QueryRowContext(ctx, `SELECT evidence_ref FROM academy_progress
+ WHERE enrollment_id=$1::uuid AND lesson_id=$2::uuid`, enrollment.ID, video.ID).Scan(&directEvidenceRef); err != nil ||
+		!strings.HasPrefix(directEvidenceRef, "academy/direct-delivery-v1/") {
+		t.Fatalf("direct Yandex video lacks canonical progress evidence: %q %v", directEvidenceRef, err)
+	}
 	if err = store.AcademyMarkProgress(learner, enrollment.ID, reading.ID); err != nil {
 		t.Fatal(err)
 	}
@@ -763,6 +1110,132 @@ func TestAcademyStoreVerifiedPaidJourneySurvivesRestart(t *testing.T) {
 		t.Fatalf("instructor review did not persist: %+v: %v", evaluated, err)
 	}
 
+	// Provider-signed full-timeline evidence is verified against the exact
+	// connector key and persisted atomically with VIDEO progress and outbox.
+	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	playbackNow := time.Now().UTC().Truncate(time.Millisecond)
+	sessionID, err := academyID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	providerEventID := "event-" + strings.ReplaceAll(sessionID, "-", "")
+	binding := connector.CDNPlaybackBinding{
+		SubjectID: learner, EnrollmentID: enrollment.ID, EntitlementID: enrollment.EntitlementID,
+		CourseID: course.ID, CourseVersionID: course.VersionID, LessonID: video.ID,
+		MediaID: mediaItems[0].ID, ContentSHA256: videoDigest, ContentLength: mediaItems[0].FileSize,
+	}
+	grant := connector.CDNPlaybackGrant{
+		ContractVersion: connector.CDNPlaybackContractVersion, ProviderKind: "test-cdn",
+		ProviderInstanceID: providerInstanceID, SessionID: sessionID, Binding: binding,
+		IssuedAt: playbackNow, ExpiresAt: playbackNow.Add(10 * time.Minute),
+	}
+	attestation := connector.CDNPlaybackAttestation{
+		ContractVersion: connector.CDNPlaybackContractVersion, ProviderKind: "test-cdn",
+		ProviderInstanceID: providerInstanceID, ProviderEventID: providerEventID,
+		SessionID: sessionID, Binding: binding, DurationMillis: 60000,
+		WatchedRanges: []connector.CDNPlaybackRange{{StartMillis: 0, EndMillis: 60000}},
+		StartedAt:     playbackNow.Add(time.Second), CompletedAt: playbackNow.Add(2 * time.Second),
+		KeyID: providerKeyID,
+	}
+	signingBytes, err := attestation.SigningBytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	attestation.Signature = base64.StdEncoding.EncodeToString(ed25519.Sign(privateKey, signingBytes))
+	verifiedPlayback, err := connector.VerifyCDNPlaybackAttestation(
+		grant, attestation, providerKeyID, publicKey, playbackNow.Add(3*time.Second),
+	)
+	if err != nil {
+		t.Fatalf("synthetic provider attestation verification failed: %v", err)
+	}
+	playbackReceipt, err := store.AcademyRecordCDNPlaybackEvidence(grant, verifiedPlayback)
+	if err != nil || playbackReceipt.ID == "" || playbackReceipt.Duplicate {
+		t.Fatalf("verified CDN playback was not persisted: %+v %v", playbackReceipt, err)
+	}
+	replayedPlayback, err := store.AcademyRecordCDNPlaybackEvidence(grant, verifiedPlayback)
+	if err != nil || replayedPlayback.ID != playbackReceipt.ID || !replayedPlayback.Duplicate {
+		t.Fatalf("exact provider event replay was not idempotent: %+v %v", replayedPlayback, err)
+	}
+	// A different signed payload reusing the same event/session identity is a
+	// collision, not a second completion or a silent overwrite.
+	collision := attestation
+	collision.WatchedRanges = []connector.CDNPlaybackRange{
+		{StartMillis: 0, EndMillis: 30000}, {StartMillis: 30000, EndMillis: 60000},
+	}
+	collisionBytes, err := collision.SigningBytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	collision.Signature = base64.StdEncoding.EncodeToString(ed25519.Sign(privateKey, collisionBytes))
+	verifiedCollision, err := connector.VerifyCDNPlaybackAttestation(
+		grant, collision, providerKeyID, publicKey, playbackNow.Add(3*time.Second),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.AcademyRecordCDNPlaybackEvidence(grant, verifiedCollision); !errors.Is(err, academy.ErrConflict) {
+		t.Fatalf("changed evidence reused an existing provider event: %v", err)
+	}
+	// A second event ID cannot create another completion for the same provider
+	// session. Session identity is independently unique, not merely event-ID unique.
+	sessionCollision := attestation
+	sessionCollision.ProviderEventID = providerEventID + "-second"
+	sessionCollisionBytes, err := sessionCollision.SigningBytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	sessionCollision.Signature = base64.StdEncoding.EncodeToString(ed25519.Sign(privateKey, sessionCollisionBytes))
+	verifiedSessionCollision, err := connector.VerifyCDNPlaybackAttestation(
+		grant, sessionCollision, providerKeyID, publicKey, playbackNow.Add(3*time.Second),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.AcademyRecordCDNPlaybackEvidence(grant, verifiedSessionCollision); !errors.Is(err, academy.ErrConflict) {
+		t.Fatalf("second provider event reused an existing playback session: %v", err)
+	}
+	// Partial ranges remain valid audit input at the provider boundary but
+	// cannot become Academy lesson completion evidence.
+	partialSessionID, err := academyID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	partialGrant := grant
+	partialGrant.SessionID = partialSessionID
+	partial := attestation
+	partial.SessionID = partialSessionID
+	partial.ProviderEventID = "event-partial-" + strings.ReplaceAll(partialSessionID, "-", "")
+	partial.WatchedRanges = []connector.CDNPlaybackRange{
+		{StartMillis: 0, EndMillis: 30000}, {StartMillis: 40000, EndMillis: 60000},
+	}
+	partialBytes, err := partial.SigningBytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	partial.Signature = base64.StdEncoding.EncodeToString(ed25519.Sign(privateKey, partialBytes))
+	verifiedPartial, err := connector.VerifyCDNPlaybackAttestation(
+		partialGrant, partial, providerKeyID, publicKey, playbackNow.Add(3*time.Second),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.AcademyRecordCDNPlaybackEvidence(partialGrant, verifiedPartial); !errors.Is(err, academy.ErrInvalid) {
+		t.Fatalf("partial video coverage created lesson completion: %v", err)
+	}
+	var videoProgressEvidence string
+	if err = store.db.QueryRowContext(ctx, `SELECT evidence_ref FROM academy_progress
+ WHERE enrollment_id=$1::uuid AND lesson_id=$2::uuid`, enrollment.ID, video.ID).Scan(&videoProgressEvidence); err != nil ||
+		videoProgressEvidence != directEvidenceRef {
+		t.Fatalf("later CDN receipt overwrote immutable direct video progress: %q %v", videoProgressEvidence, err)
+	}
+	if _, err = store.db.ExecContext(ctx, `UPDATE academy_media_playback_facts
+ SET watched_seconds=watched_seconds-1 WHERE id=$1::uuid`, playbackReceipt.ID); err == nil {
+		t.Fatal("persisted signed CDN evidence was mutable")
+	}
+
 	passedHistory, err := store.AcademyLearnerAttempts(learner, enrollment.ID)
 	if err != nil || len(passedHistory) != 1 || passedHistory[0].Result != "PASSED" ||
 		passedHistory[0].Score == nil || *passedHistory[0].Score != 95 || passedHistory[0].EvaluatedAt == nil {
@@ -789,7 +1262,7 @@ func TestAcademyStoreVerifiedPaidJourneySurvivesRestart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("learner cannot resume after process restart: %v", err)
 	}
-	if len(lessons) != 2 || !lessons[0].Completed || !lessons[1].Completed {
+	if len(lessons) != 3 || !lessons[0].Completed || !lessons[1].Completed || !lessons[2].Completed {
 		t.Fatalf("restart lost paid progress: %+v", lessons)
 	}
 	certificate, err := store.AcademyComplete(learner, enrollment.ID)
@@ -844,7 +1317,7 @@ func TestAcademyStoreVerifiedPaidJourneySurvivesRestart(t *testing.T) {
 	}
 	var count int
 	err = db.QueryRow("SELECT count(*) FROM academy_progress WHERE enrollment_id=$1::uuid", enrollment.ID).Scan(&count)
-	if err != nil || count != 2 {
+	if err != nil || count != 3 {
 		t.Fatalf("missing durable lesson evidence, count=%d: %v", count, err)
 	}
 	report, err := store.AcademyAuthorReport(author)
@@ -946,6 +1419,23 @@ func TestAcademyStoreRefundWithdrawsLearningAccess(t *testing.T) {
 	defer store.Close()
 	if _, err = store.AcademyLearning(learner, enrollmentID); !errors.Is(err, academy.ErrEntitlement) {
 		t.Fatalf("revoked purchased lesson body remains accessible: %v", err)
+	}
+	// The exact server-only source resolver used by the HTTP video gateway
+	// must reject the same refunded enrollment before a new stream or seek.
+	var videoLessonID, videoMediaID string
+	if err = db.QueryRow(`SELECT l.id::text,lm.media_id::text
+ FROM academy_enrollments e
+ JOIN academy_course_versions v ON v.id=e.version_id
+ JOIN academy_modules m ON m.version_id=v.id
+ JOIN academy_lessons l ON l.module_id=m.id AND l.kind='VIDEO'
+ JOIN academy_lesson_media lm ON lm.lesson_id=l.id
+ WHERE e.id=$1::uuid
+ ORDER BY l.ordinal
+ LIMIT 1`, enrollmentID).Scan(&videoLessonID, &videoMediaID); err != nil {
+		t.Fatalf("paid course video assignment missing from refund fixture: %v", err)
+	}
+	if _, _, _, err = store.AcademyLearnerVideoSource(learner, enrollmentID, videoLessonID, videoMediaID); !errors.Is(err, academy.ErrEntitlement) {
+		t.Fatalf("refunded entitlement still resolves a learner video source: %v", err)
 	}
 	if _, err = store.AcademyLearnerCohorts(learner, enrollmentID); !errors.Is(err, academy.ErrEntitlement) {
 		t.Fatalf("revoked entitlement still disclosed learner cohort schedule: %v", err)

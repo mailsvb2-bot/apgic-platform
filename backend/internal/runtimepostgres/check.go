@@ -64,6 +64,8 @@ var requiredTables = []string{
 	"finance_operator_grant_revocations",
 	"finance_discrepancy_resolutions",
 	"finance_provider_stream_cursors",
+	"academy_media_playback_facts",
+	"academy_video_provider_certifications",
 }
 
 var requiredIndexes = []string{

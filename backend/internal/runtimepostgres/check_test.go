@@ -42,6 +42,7 @@ func TestRequiredCanonicalTablesAndIndexesAreStable(t *testing.T) {
 		"finance_reconciliation_results": true, "finance_reconciliation_discrepancies": true,
 		"finance_dispute_effects": true, "finance_operator_grants": true,
 		"finance_operator_grant_revocations": true, "finance_discrepancy_resolutions": true, "finance_provider_stream_cursors": true,
+		"academy_media_playback_facts": true, "academy_video_provider_certifications": true,
 	}
 	if len(requiredTables) != len(wantTables) {
 		t.Fatalf("required tables = %v", requiredTables)

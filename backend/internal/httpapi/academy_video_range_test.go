@@ -2,7 +2,11 @@ package httpapi
 
 import (
 	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
+
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/academy"
 )
 
 func TestAcademyVideoSingleRange(t *testing.T) {
@@ -41,5 +45,38 @@ func TestAcademyVideoRequestedRangeRejectsDuplicateAndMalformedHeaders(t *testin
 				t.Fatalf("range=(%q,%v), want (%q,%v)", value, ok, tc.want, tc.ok)
 			}
 		})
+	}
+}
+
+func TestAcademyVideoStreamRejectsMalformedRangeAsBadRequestBeforeProviderLookup(t *testing.T) {
+	key := []byte(strings.Repeat("k", 48))
+	sessions, err := newClientSessionManager(key, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cookie, err := sessions.issue("identity-cryptographically-signed")
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := &academyStoreStub{}
+	mux := http.NewServeMux()
+	registerAcademyVideoStreamWithClients(mux, store, sessions, nil, academy.YandexDiskClient{}, nil)
+	request := httptest.NewRequest(http.MethodGet,
+		"/v1/academy/enrollments/00000000-0000-4000-8000-000000000001/lessons/00000000-0000-4000-8000-000000000002/videos/00000000-0000-4000-8000-000000000003/stream",
+		nil)
+	request.AddCookie(cookie)
+	request.Header.Add("Range", "bytes=0-99,100-199")
+	response := httptest.NewRecorder()
+
+	mux.ServeHTTP(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("malformed multi-range returned %d, want 400", response.Code)
+	}
+	if response.Header().Get("Content-Range") != "" {
+		t.Fatal("malformed range was misrepresented as an unsatisfied representation range")
+	}
+	if store.calls != 0 {
+		t.Fatalf("malformed range reached Academy/provider storage %d times", store.calls)
 	}
 }

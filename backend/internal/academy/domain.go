@@ -111,7 +111,11 @@ func ValidateLesson(l Lesson) error {
 			return ErrInvalid
 		}
 	case Video:
-		if strings.TrimSpace(l.MediaAssetRef) == "" || strings.Contains(l.MediaAssetRef, "://") {
+		// A VIDEO lesson is created before its files are selected in the
+		// author media editor. The canonical playable source is the separately
+		// verified academy_lesson_media mapping, not this legacy opaque field.
+		// Keep rejecting browser-supplied URLs and malformed opaque values.
+		if strings.TrimSpace(l.MediaAssetRef) != l.MediaAssetRef || strings.Contains(l.MediaAssetRef, "://") {
 			return ErrInvalid
 		}
 	case Assessment:
