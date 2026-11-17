@@ -1,7 +1,7 @@
 "use client";
 
 import {useCallback,useEffect,useRef,useState,type FormEvent} from "react";
-import {appendLessonMediaAssignments} from "./cloud-media-assignments";
+import {appendLessonMediaAssignments,moveLessonMediaAssignment} from "./cloud-media-assignments";
 
 type CloudMedia={id:string;title:string;provider:string;provider_file_ref:string;source_url?:string;active:boolean};
 type DiskFile={name:string;path:string;type:string;mime_type:string;size:number};
@@ -56,7 +56,7 @@ export default function CloudMediaEditor({courseId,versionId,lessons,modules,foc
  const [saved,setSaved]=useState<AuthorMediaAssignment[]>([]);
  const chosenLesson=videoLessons.find(l=>l.id===lessonId);
  const chosenModule=modules.find(m=>m.id===chosenLesson?.module_id);
- const currentLessonDraft=assignments.filter(a=>a.lesson_id===lessonId);
+ const currentLessonDraft=assignments.filter(a=>a.lesson_id===lessonId).sort((a,b)=>a.ordinal-b.ordinal);
  const currentLessonSaved=saved.filter(a=>a.lesson_id===lessonId);
  const [message,setMessage]=useState("");
  const [busy,setBusy]=useState(false);
@@ -187,10 +187,8 @@ export default function CloudMediaEditor({courseId,versionId,lessons,modules,foc
   if(selected.some(id=>!activeIDs.has(id))){
    setMessage("Выбранные видео устарели после переподключения облака. Обновите медиатеку.");return;
   }
-  const known=assignments.filter(a=>a.lesson_id!==lessonId);
-  const incoming=selected.map((id,i)=>({lesson_id:lessonId,media_id:id,ordinal:i+1}));
-  setAssignments([...known,...incoming]);
-  setMessage("Распределение подготовлено. Нажмите «Сохранить распределение»");
+  setAssignments(current=>appendLessonMediaAssignments(current,lessonId,selected));
+  setMessage("Видео добавлены к уроку без удаления предыдущих. Нажмите «Сохранить видео урока».");
  }
  async function persist(){
   if(!assignments.length&&!saved.length)return;
@@ -221,8 +219,13 @@ export default function CloudMediaEditor({courseId,versionId,lessons,modules,foc
   {!lessonId?<p role="status">Выберите конкретный видеоурок в его модуле. Массовое распределение не требуется.</p>:<>
   <p role="status"><strong>Редактируем:</strong> {chosenModule?.title||"Модуль"} → {chosenLesson?.title||"Видеоурок"}</p>
   <h4>Прикреплённые видео этого урока</h4>
-  {currentLessonDraft.length===0?<p>Пока нет видео. Выберите файл на Яндекс Диске ниже.</p>:
-   <ol>{currentLessonDraft.map(a=><li key={a.media_id}>{media.find(m=>m.id===a.media_id)?.title||"Видеофайл"}{currentLessonSaved.some(v=>v.media_id===a.media_id)?" · сохранено":" · не сохранено"}</li>)}</ol>}
+  {currentLessonDraft.length===0?<p>Пока нет видео. Выберите один или несколько файлов на Яндекс Диске ниже.</p>:
+   <ol>{currentLessonDraft.map((a,i)=><li key={a.media_id}>
+    {media.find(m=>m.id===a.media_id)?.title||"Видеофайл"}{currentLessonSaved.some(v=>v.media_id===a.media_id&&v.ordinal===a.ordinal)?" · сохранено":" · не сохранено"}
+    {" "}<button type="button" disabled={busy||i===0} onClick={()=>setAssignments(old=>moveLessonMediaAssignment(old,lessonId,a.media_id,-1))}>Выше</button>
+    {" "}<button type="button" disabled={busy||i===currentLessonDraft.length-1} onClick={()=>setAssignments(old=>moveLessonMediaAssignment(old,lessonId,a.media_id,1))}>Ниже</button>
+    {" "}<button type="button" disabled={busy} onClick={()=>setAssignments(old=>old.filter(v=>!(v.lesson_id===lessonId&&v.media_id===a.media_id)))}>Убрать</button>
+   </li>)}</ol>}
   <h4>Ваш Яндекс Диск</h4>
   <a href={`/v1/academy/author/cloud/yandex/connect?course_id=${encodeURIComponent(courseId)}&version_id=${encodeURIComponent(versionId)}&lesson_id=${encodeURIComponent(lessonId)}`}>Подключить Яндекс Диск</a>
   <p>После подтверждения в Яндексе файлы откроются автоматически. Выберите нужные видео.</p>
