@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 import {test} from "node:test";
 import {fileURLToPath} from "node:url";
-import {appendLessonMediaAssignments} from "../app/academy/cloud-media-assignments.ts";
+import {appendLessonMediaAssignments,moveLessonMediaAssignment} from "../app/academy/cloud-media-assignments.ts";
 
 // Lock the confirmed live flow: an author signs into APGIC, OAuth returns
 // into this exact draft, the embedded Disk picker browses folders and
@@ -42,4 +42,20 @@ test("new videos append to selected lesson without changing other lessons or dup
  ]);
  assert.deepEqual(initial,[{lesson_id:"a",media_id:"m1",ordinal:1},{lesson_id:"b",media_id:"m2",ordinal:1}]);
  assert.deepEqual(appendLessonMediaAssignments(initial,"",["m9"]),initial);
+});
+
+test("one lesson may contain several ordered videos and reordering never touches another lesson",()=>{
+ const initial=[
+  {lesson_id:"lesson-a",media_id:"v1",ordinal:1},
+  {lesson_id:"lesson-b",media_id:"other",ordinal:1},
+ ];
+ const appended=appendLessonMediaAssignments(initial,"lesson-a",["v2","v3","v2"]);
+ assert.deepEqual(appended.filter(x=>x.lesson_id==="lesson-a").map(x=>[x.media_id,x.ordinal]),[
+  ["v1",1],["v2",2],["v3",3]
+ ]);
+ const reordered=moveLessonMediaAssignment(appended,"lesson-a","v3",-1);
+ assert.deepEqual(reordered.filter(x=>x.lesson_id==="lesson-a").sort((a,b)=>a.ordinal-b.ordinal).map(x=>x.media_id),["v1","v3","v2"]);
+ assert.deepEqual(reordered.filter(x=>x.lesson_id==="lesson-b"),initial.filter(x=>x.lesson_id==="lesson-b"));
+ assert.deepEqual(moveLessonMediaAssignment(reordered,"lesson-a","v1",-1),reordered);
+ assert.deepEqual(initial,[{lesson_id:"lesson-a",media_id:"v1",ordinal:1},{lesson_id:"lesson-b",media_id:"other",ordinal:1}]);
 });
