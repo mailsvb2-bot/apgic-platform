@@ -3,6 +3,9 @@ package runtimepostgres
 import (
 	"context"
 	"database/sql"
+	"errors"
+
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/academy"
 	"os"
 	"testing"
 
@@ -61,5 +64,36 @@ func TestAcademyStandaloneDraftAtomicAndUnpublished(t *testing.T) {
 	var n int
 	if err = db.QueryRow("SELECT count(*) FROM outbox_events WHERE aggregate_ref=$1", "academy/course/"+course.ID).Scan(&n); err != nil || n != 1 {
 		t.Fatalf("expected single event, got %d err=%v", n, err)
+	}
+	// Author curriculum publication must not require a paid product, an
+	// enrolled learner, a certified video distribution or a fake checkout.
+	module, err := store.AcademyAddModule(actor, course.ID, course.VersionID, academy.Module{
+		Title: "Модуль автора", Ordinal: 1,
+	})
+	if err != nil { t.Fatal(err) }
+	if _, err = store.AcademyAddLesson(actor, course.ID, course.VersionID, module.ID,
+		academy.Lesson{Title: "Видео автора", Kind: academy.Video, Ordinal: 1,
+			MediaAssetRef: "private/not-delivery-approved"}); err != nil { t.Fatal(err) }
+	if _, err = store.AcademyPublish(actor, course.ID, course.VersionID); !errors.Is(err, academy.ErrState) {
+		t.Fatalf("unattested curriculum published: %v", err)
+	}
+	if _, err = store.AcademyDeclareOriginalRights(actor, course.ID, course.VersionID,
+		"original/author-produced-course"); err != nil { t.Fatal(err) }
+	t.Setenv("APGIC_ACADEMY_VIDEO_PUBLISH_ENABLED", "false")
+	published, err := store.AcademyPublish(actor, course.ID, course.VersionID)
+	if err != nil || published.State != "PUBLISHED" {
+		t.Fatalf("author could not publish without sales or students: %+v %v", published, err)
+	}
+	if err = db.QueryRow("SELECT status FROM products WHERE id=$1::uuid", course.ProductID).Scan(&status); err != nil { t.Fatal(err) }
+	if status != "DRAFT" { t.Fatalf("publishing curriculum changed Commerce status: %s", status) }
+	if err = db.QueryRow("SELECT count(*) FROM academy_enrollments WHERE version_id=$1::uuid", course.VersionID).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("publishing invented learner enrollment: %d %v", n, err)
+	}
+	if access, err := store.AcademyMyCourseAccess(actor); err != nil {
+		t.Fatal(err)
+	} else {
+		for _, id := range access {
+			if id == course.ID { t.Fatal("published course granted unauthorized learner video access") }
+		}
 	}
 }
