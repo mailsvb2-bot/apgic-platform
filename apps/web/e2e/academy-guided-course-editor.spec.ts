@@ -11,13 +11,17 @@ test("guided course editor connects module, lesson, video, schedule, rights and 
  const calls:{method:string;path:string;body:unknown}[]=[];
  let modules:{id:string;version_id:string;ordinal:number;title:string}[]=[];
  let publishingApproved=false;
+ let refreshUnavailableAfterPublish=false;
  let lessons:{id:string;module_id:string;title:string;ordinal:number;kind:string}[]=[];
  await page.route("**/v1/academy/**",async route=>{
   const req=route.request(),path=new URL(req.url()).pathname,method=req.method();
   const body=method==="POST"?req.postDataJSON():undefined;
   let data:unknown={};let status=200;
   if(method==="GET"){
-   if(path==="/v1/academy/courses")data={courses:[]};
+   if(path==="/v1/academy/courses"){
+    if(refreshUnavailableAfterPublish){status=503;data={code:"ACADEMY_UNAVAILABLE"};}
+    else data={courses:[]};
+   }
    else if(path==="/v1/academy/my-courses")data={courses:[course]};
    else if(path==="/v1/academy/my-enrollments")data={enrollments:[]};
    else if(path==="/v1/academy/review/attempts")data={attempts:[]};
@@ -102,9 +106,11 @@ test("guided course editor connects module, lesson, video, schedule, rights and 
  await expect(page.locator(".academy-publish-submit").getByRole("alert")).toContainText("Версия осталась черновиком");
  await expect(page.getByRole("button",{name:"Опубликовать версию курса"})).toBeVisible();
  publishingApproved=true;
+ refreshUnavailableAfterPublish=true; // POST succeeds; follow-up GET temporarily fails.
  await page.getByRole("button",{name:"Опубликовать версию курса"}).click();
  await expect(page.getByRole("status").filter({hasText:"Версия опубликована"})).toBeVisible();
  await expect(page.locator(".academy-publish-submit")).toHaveCount(0);
+ await expect(page.getByRole("status").filter({hasText:"Версия опубликована"})).toBeVisible();
  const paths=calls.map(c=>c.path);
  for(const segment of ["/modules","/lessons","/schedule","/rights/original","/publish"]){
   expect(paths.filter(path=>path.endsWith(segment))).toHaveLength(segment==="/publish"?2:1);
