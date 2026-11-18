@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"io"
+	"net/http"
 	"strings"
 	"testing"
 )
@@ -46,5 +47,42 @@ func TestAcademyVideoCleanEOFDoesNotCreditUndeliveredBytes(t *testing.T) {
 	}
 	if got := academyVideoDeliveredEnd(0, advertisedLength, int64(learner.Len())); got != 17 {
 		t.Fatalf("credited %d bytes from a short clean EOF, want 17", got)
+	}
+}
+
+ 
+// Validate the HTTP representation and delivery accounting together. A seek
+// response must never credit bytes outside the verified media file or beyond
+// those actually flushed, even when the provider closes cleanly.
+func TestAcademyVideoHTTPRangeDeliveryAccounting(t *testing.T) {
+	tests := []struct {
+		name string
+		status int
+		headers http.Header
+		size, delivered, wantStart, wantEnd int64
+		valid bool
+	}{
+		{"full-short", http.StatusOK, http.Header{"Content-Length": {"128"}}, 128, 17, 0, 17, true},
+		{"seek-short", http.StatusPartialContent, http.Header{"Content-Range": {"bytes 40-99/128"}}, 128, 12, 40, 52, true},
+		{"seek-complete", http.StatusPartialContent, http.Header{"Content-Range": {"bytes 40-99/128"}}, 128, 60, 40, 100, true},
+		{"seek-overdelivery", http.StatusPartialContent, http.Header{"Content-Range": {"bytes 40-99/128"}}, 128, 100, 40, 100, true},
+		{"seek-zero", http.StatusPartialContent, http.Header{"Content-Range": {"bytes 40-99/128"}}, 128, 0, 40, 40, true},
+		{"wrong-total", http.StatusPartialContent, http.Header{"Content-Range": {"bytes 40-99/129"}}, 128, 12, 0, 0, false},
+		{"unsatisfied", http.StatusRequestedRangeNotSatisfiable, http.Header{"Content-Range": {"bytes */128"}}, 128, 12, 0, 0, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			start, end, valid := academyDeliveredVideoInterval(tc.status, tc.headers, tc.size)
+			if valid != tc.valid {
+				t.Fatalf("valid=%v, want %v", valid, tc.valid)
+			}
+			if !valid {
+				return
+			}
+			got := academyVideoDeliveredEnd(start, end, tc.delivered)
+			if start != tc.wantStart || got != tc.wantEnd {
+				t.Fatalf("credited [%d,%d), want [%d,%d)", start, got, tc.wantStart, tc.wantEnd)
+			}
+		})
 	}
 }
