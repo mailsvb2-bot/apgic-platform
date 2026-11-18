@@ -617,7 +617,7 @@ export default function AcademyPage(){
        onClick={async()=>{
         setRightsFeedback("");setPublishError("");
         if(!rightsSource.trim()){
-         setRightsFeedback("Укажите источник своих материалов (не менее 12 символов).");
+         setRightsFeedback("Укажите источник материалов. Можно назвать его даже «№1». ");
          rightsInputRef.current?.focus();
          return;
         }
@@ -652,7 +652,7 @@ export default function AcademyPage(){
      onClick={async()=>{
       if(busy)return;
       if(!rightsSource.trim()){
-       setPublishError("Источник материалов слишком короткий. Укажите не менее 12 символов, например «мои авторские лекции».");
+       setPublishError("Укажите источник материалов. Подойдёт любое непустое название, даже «№1».");
        rightsInputRef.current?.scrollIntoView({behavior:"smooth",block:"center"});
        rightsInputRef.current?.focus({preventScroll:true});
        return;
