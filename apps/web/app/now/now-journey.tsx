@@ -6,7 +6,7 @@ type Duty={id:string;help_intent_id?:string;state:string;topic_id?:string;price_
 type Slot={id:string;starts_at:string;ends_at:string};
 type Fulfillment={dispatch_id:string;dispatch_state:string;booking_id?:string;booking_state?:string;payment_verified:boolean;next_action:string;room_ready:boolean};
 type ApiError={code?:string;message_safe?:string};
-const styles={panel:{background:"var(--surface, #fff)",border:"1px solid #ccc",borderRadius:14,padding:22,marginTop:16} as const,button:{padding:"0.7rem 1.1rem",borderRadius:8,marginTop:14,cursor:"pointer"} as const};
+const styles={panel:{background:"var(--apgic-color-surface, #fff)",border:"1px solid var(--apgic-color-line, #dce5f4)",borderRadius:18,padding:22,marginTop:16} as const,button:{padding:"0.7rem 1.1rem",minHeight:46,borderRadius:11,marginTop:14,cursor:"pointer",background:"var(--apgic-color-primary, #1763ed)",color:"#fff",border:"none"} as const};
 async function api<T>(path:string,body?:unknown,method="POST"):Promise<T>{
  const response=await fetch("/v1"+path,{method:body===undefined?"GET":method,credentials:"same-origin",cache:"no-store",headers:{"Content-Type":"application/json"},body:body===undefined?undefined:JSON.stringify(body)});
  const result=await response.json() as T & ApiError;
@@ -22,10 +22,15 @@ export function NowJourney(){
  const [slots,setSlots]=useState<Slot[]>([]);
  const [chosenSlot,setChosenSlot]=useState("");
  const [error,setError]=useState("");const [notice,setNotice]=useState("");
+ const [dutyDisabled,setDutyDisabled]=useState(false);
  const retryKeyRef=useRef<string|null>(null);
  useEffect(()=>{
   // Reload/resume reads canonical server state, not a stale browser flag.
-  void api<Duty>("/instant/active").then(setDispatch).catch(()=>undefined);
+  let active=true;
+  void api<Duty>("/instant/active").then(value=>{if(active)setDispatch(value)}).catch(error=>{
+   if(active&&error instanceof Error&&/DUTY_NOT_ENABLED|Консультации сейчас пока недоступны/.test(error.message))setDutyDisabled(true);
+  });
+  return()=>{active=false};
  },[]);
  useEffect(()=>{
   if(!dispatch || (dispatch.state!=="OFFERED" && dispatch.state!=="ACCEPTED"))return;
@@ -52,7 +57,7 @@ export function NowJourney(){
   finally{setBusy(false);}
  }
  async function request(){
-  if(!intent)return;setBusy(true);setError("");
+  if(!intent||dutyDisabled)return;setBusy(true);setError("");
   try{
    if(dispatch && !["OFFERED","ACCEPTED"].includes(dispatch.state))retryKeyRef.current=null;
    if(!retryKeyRef.current){
@@ -100,6 +105,7 @@ export function NowJourney(){
  }
  const terminal=dispatch && !["OFFERED","ACCEPTED"].includes(dispatch.state);
  return <section aria-label="Быстрая консультация" style={styles.panel}>
+  {dutyDisabled&&<p role="status" style={{padding:"12px 16px",border:"1px solid var(--apgic-color-line, #dce5f4)",borderRadius:11,background:"var(--apgic-color-soft, #edf4ff)"}}>Консультации «сейчас» пока не подключены. Вы можете выбрать специалиста и записаться на доступное время через <a href="/specialists">каталог специалистов</a>.</p>}
   {!intent&&!dispatch&&<>
    <label htmlFor="duty-description"><strong>С чем хотите обратиться?</strong></label>
    <textarea id="duty-description" value={text} onChange={e=>setText(e.target.value)} rows={4} maxLength={2000} placeholder="Опишите своими словами, что сейчас важно" style={{display:"block",width:"100%",marginTop:12}}/>
@@ -116,7 +122,7 @@ export function NowJourney(){
    <button type="button" style={styles.button} disabled={!topic||busy} onClick={confirm}>Подтвердить тему</button>
    <button type="button" style={{...styles.button,marginLeft:12}} onClick={()=>{setIntent(null);setTopic("");}}>Изменить описание</button>
   </>}
-  {confirmed&&!dispatch&&<><h2>Запрос подтверждён</h2><p>Система направит предложение одному доступному квалифицированному специалисту. Время ответа ограничено.</p><button style={styles.button} type="button" disabled={busy} onClick={request}>Найти дежурного</button></>}
+  {confirmed&&!dispatch&&<><h2>Запрос подтверждён</h2><p>Система направит предложение одному доступному квалифицированному специалисту. Время ответа ограничено.</p><button style={styles.button} type="button" disabled={busy||dutyDisabled} onClick={request}>Найти дежурного</button></>}
   {dispatch&&<div aria-live="polite">
    <h2>{dispatch.state==="OFFERED"?"Ожидаем ответ специалиста":dispatch.state==="ACCEPTED"?"Специалист ответил":dispatch.state==="UNFILLED"?"Свободного специалиста нет":dispatch.state==="DECLINED"?"Специалист не смог принять":dispatch.state==="EXPIRED"?"Предложение истекло":dispatch.state==="INVALIDATED"?"Предложение отозвано":"Статус предложения"}</h2>
    {dispatch.state==="OFFERED"&&<p>Предложение отправлено. Ожидание до {dispatch.expires_at?new Date(dispatch.expires_at).toLocaleTimeString("ru-RU"):"истечения предложения"}.</p>}
@@ -134,7 +140,7 @@ export function NowJourney(){
    {fulfillment?.booking_id&&<p><a href={"/bookings/"+encodeURIComponent(fulfillment.booking_id)}>Открыть запись R2 и состояние оплаты</a></p>}
    {dispatch.price_minor&&<p>Цена предложения: <strong>{(dispatch.price_minor/100).toLocaleString("ru-RU")} {dispatch.currency}</strong>. Списание сейчас не выполняется.</p>}
    {["OFFERED","ACCEPTED"].includes(dispatch.state)&&!fulfillment?.booking_id&&<button style={styles.button} type="button" disabled={busy} onClick={cancel}>Отменить обращение</button>}
-   {terminal&&(intent ? <button style={styles.button} type="button" disabled={busy} onClick={request}>Попробовать другого</button> : <button type="button" style={styles.button} onClick={()=>{setDispatch(null);setConfirmed(false);}}>Начать новый запрос</button>)}
+   {terminal&&(intent ? <button style={styles.button} type="button" disabled={busy||dutyDisabled} onClick={request}>Попробовать другого</button> : <button type="button" style={styles.button} onClick={()=>{setDispatch(null);setConfirmed(false);}}>Начать новый запрос</button>)}
    <p style={{fontSize:13}}>Состояние: {dispatch.state} · Следующее действие: {dispatch.next_action}</p>
   </div>}
   {notice&&<p role="status">{notice}</p>}
