@@ -644,6 +644,7 @@ export default function AcademyPage(){
        }
        setMine(previous=>previous.map(item=>item.id===published.id?published:item));
        setCourse(null);setNotice("Курс опубликован. Настройки доступа и цены можно изменить отдельно.");
+       window.scrollTo({top:0,behavior:"smooth"});
        void refresh().catch(()=>setNotice("Курс опубликован. Не удалось обновить список — откройте «Мои курсы»."));
       }catch(error){
        const detail=error instanceof Error?error.message:"Неизвестная ошибка";
@@ -657,7 +658,7 @@ export default function AcademyPage(){
   {view==="courses"&&course&&<section className="academy-course-offer" aria-label="Доступ и стоимость курса">
    <div className="panel academy-offer-panel">
     <h2>Доступ к курсу</h2>
-    <p className="academy-offer-current">Сейчас: <strong>{course.access_mode==="FREE"?"Бесплатно":course.access_mode==="PAID"?"Платный · "+((course.price_minor||0)/100).toLocaleString("ru-RU")+" ₽":"Доступ не открыт"}</strong></p>
+    <p className="academy-offer-current">Условия: <strong>{course.access_mode==="FREE"?"Бесплатно":course.access_mode==="PAID"?"Платный · "+((course.price_minor||0)/100).toLocaleString("ru-RU")+" ₽":"Доступ не открыт"}</strong>{course.state!=="PUBLISHED"&&<span> · курс пока черновик</span>}</p>
     <form onSubmit={async e=>{
      e.preventDefault();
      const rub=Number(offerPriceRub);
@@ -677,7 +678,7 @@ export default function AcademyPage(){
       setCourse(old=>old?{...old,access_mode:confirmed.access_mode,price_minor:confirmed.price_minor,currency:confirmed.currency}:old);
       setMine(readback.courses);
       setOfferFeedback({kind:"success",message:saved.access_mode==="FREE"?
-       "Сохранено: курс доступен бесплатно.":"Сохранено: "+(saved.price_minor/100).toLocaleString("ru-RU")+" ₽. Приём платежей пока не подключён."});
+       (course.state==="PUBLISHED"?"Сохранено: курс доступен бесплатно.":"Сохранено: бесплатный доступ после публикации курса."):"Сохранено: "+(saved.price_minor/100).toLocaleString("ru-RU")+" ₽. Приём платежей пока не подключён."});
      }catch(error){
       setOfferFeedback({kind:"error",message:error instanceof Error?error.message:"Не удалось сохранить условия доступа."});
      }finally{setBusy(false)}
