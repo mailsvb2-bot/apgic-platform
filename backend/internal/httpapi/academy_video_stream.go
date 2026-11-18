@@ -277,14 +277,17 @@ func registerAcademyVideoStreamWithClients(
 		if !valid {
 			return
 		}
-		if copyErr != nil {
-			if deadline.wasRevoked() || learner.delivered <= 0 || !authorized() {
-				return
-			}
-			if start+learner.delivered < end {
-				end = start + learner.delivered
-			}
-		} else if !authorized() {
+		// io.Copy may return nil after a premature EOF even when the upstream
+		// promised a longer Content-Length or Content-Range. Never credit bytes
+		// that were not actually flushed to the learner.
+		if copyErr != nil && (deadline.wasRevoked() || !authorized()) {
+			return
+		}
+		if !authorized() {
+			return
+		}
+		end = academyVideoDeliveredEnd(start, end, learner.delivered)
+		if end <= start {
 			return
 		}
 		if writer, ok := store.(academyDirectVideoDeliveryWriter); ok {
@@ -484,4 +487,16 @@ type academyCountingVideoReader struct {
 func (r *academyCountingVideoReader) Read(p []byte) (int, error) {
 	r.reads++
 	return r.reader.Read(p)
+}
+
+// academyVideoDeliveredEnd clamps credited progress to bytes actually
+// flushed, including a clean EOF from a truncated upstream response.
+func academyVideoDeliveredEnd(start, end, delivered int64) int64 {
+	if delivered <= 0 || end <= start {
+		return start
+	}
+	if delivered >= end-start {
+		return end
+	}
+	return start + delivered
 }
