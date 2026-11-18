@@ -376,6 +376,7 @@ jobs:
           (cd backend && go test ./internal/httpapi -run TestAcademyVideoHTTPPerWriteDeniesCommittedPostgresRevocation -count=1 -v)
           (cd backend && go test ./internal/runtimepostgres -run TestAccountDevicePairingPostgresOneTimeClaim -count=1 -v)
           (cd backend && go test ./internal/runtimepostgres -run TestAcademyNotificationConsentDurableOptOut -count=1 -v)
+          (cd backend && go test ./internal/runtimepostgres -run TestAcademyOwnerPriceAndFreeEnrollmentNoPayment -count=1 -v)
       - name: Prove R4 revenue convergence (provider-executed, non-custodial, reconciled)
         working-directory: backend
         env:
