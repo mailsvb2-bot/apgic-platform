@@ -775,6 +775,9 @@ jobs:
         run: python3 tools/client_credential_guard.py --surface WEB
       - working-directory: apps/web
         run: npm test
+      - name: Reject inert Web controls and placeholder links
+        working-directory: apps/web
+        run: npm run audit:controls
       - name: Prove Web/iOS/Android analytics semantic parity
         run: node tools/r1_analytics_parity_e2e.mjs
       - working-directory: apps/web

@@ -12,10 +12,11 @@ test("Duty/Now requires a confirmed request and cannot create unpaid consultatio
   await page.getByRole("button", { name: "Подтвердить тему" }).click();
   await expect(page.getByRole("heading", { name: "Запрос подтверждён" })).toBeVisible();
 
-  await page.getByRole("button", { name: "Найти дежурного" }).click();
-  // The isolated CI backend has no real payments or qualified duty supply.
-  // A client cannot be offered a fake consultation.
-  await expect(page.locator('section[aria-label="Быстрая консультация"]').getByRole("alert")).toContainText("Консультации сейчас пока недоступны");
+  // The isolated CI backend explicitly disables Duty/Now. A confirmed
+  // request must not enable a dispatch that the canonical API rejects.
+  await expect(page.getByRole("button", { name: "Найти дежурного" })).toBeDisabled();
+  await expect(page.locator('section[aria-label="Быстрая консультация"]').getByRole("status").filter({hasText:"пока не подключены"})).toBeVisible();
+  await expect(page.locator('section[aria-label="Быстрая консультация"]').getByRole("link", {name:"каталог специалистов"})).toHaveAttribute("href","/specialists");
   await expect(page.getByText("Специалист принял запрос")).toHaveCount(0);
 });
 

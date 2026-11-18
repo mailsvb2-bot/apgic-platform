@@ -1,5 +1,5 @@
 /* APGIC Academy: guided author workspace; existing API owners remain unchanged. */
-.academy-workspace{--academy-blue:#1763ed;--academy-ink:#11203e;--academy-muted:#667593;--academy-line:#e1e7f3;display:grid;grid-template-columns:244px minmax(0,1fr);min-height:100vh;max-width:100%;background:#f6f8fe;color:var(--academy-ink);font-family:Inter,ui-sans-serif,system-ui,sans-serif}
+.academy-workspace{--academy-blue:var(--apgic-color-primary);--academy-ink:var(--apgic-color-ink);--academy-muted:var(--apgic-color-muted);--academy-line:var(--apgic-color-line);display:grid;grid-template-columns:244px minmax(0,1fr);min-height:100vh;max-width:100%;background:#f6f8fe;color:var(--academy-ink);font-family:Inter,ui-sans-serif,system-ui,sans-serif}
 .academy-workspace *{box-sizing:border-box;min-width:0}
 .academy-sidebar{background:#fff;border-right:1px solid var(--academy-line);padding:28px 15px;position:sticky;top:0;align-self:start;min-height:100vh}
 .academy-logo{display:flex;align-items:center;gap:12px;padding:4px 15px 34px;color:#111e36;text-decoration:none;font-size:1.42rem;letter-spacing:-.03em;font-weight:850}
@@ -145,3 +145,10 @@
 .academy-course-editor .academy-publish-rights input[type="checkbox"]{width:auto;min-height:0;accent-color:#1763ed;margin-right:8px}
 .academy-course-editor .panel.academy-publish-rights button{width:auto;background:#1763ed;color:#fff;border:0;border-radius:11px;padding:12px 17px;font-weight:750;justify-self:start}
 .academy-course-editor .academy-publish-caution{font-size:.92rem;color:#50627e;background:#edf5ff;border:1px solid #d4e2fa;border-radius:11px;padding:13px 17px}
+
+
+/* Publishing feedback must remain in view after the user presses Publish. */
+.academy-publish-submit{display:grid;justify-items:start;gap:12px;margin-top:14px}
+.academy-course-editor .academy-publish-submit .academy-blue-button{max-width:100%}
+.academy-publish-error{max-width:780px;margin:0;border:1px solid #df9d9d;border-radius:10px;padding:13px 16px;background:#fff3f3;color:#8b2323;font-weight:650;line-height:1.55}
+.academy-course-editor .academy-publish-rights .academy-publish-check-hint{margin-top:10px;color:#536584;font-size:.88rem;line-height:1.5}

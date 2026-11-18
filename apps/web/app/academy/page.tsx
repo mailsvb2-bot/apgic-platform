@@ -101,6 +101,7 @@ export default function AcademyPage(){
  const [rightsSource,setRightsSource]=useState("");
  const [rightsAgreed,setRightsAgreed]=useState(false);
  const [rightsRecorded,setRightsRecorded]=useState(false);
+ const [publishError,setPublishError]=useState("");
 
  const refresh=useCallback(async()=>{
   const publicCourses=await api<{courses:Course[]}>("/v1/academy/courses");
@@ -155,6 +156,7 @@ export default function AcademyPage(){
   finally{setBusy(false)}
  }
  const loadOutline=useCallback(async (selected:Course)=>{
+  setPublishError("");setRightsRecorded(false);setRightsAgreed(false);setRightsSource("");
   setView("courses");setCourse(selected);setFocusedVideoLessonID("");setActiveEnrollment(null);setCertificate(null);setLearnerAttempts([]);setCohorts([]);
   const d=await api<{state:string;modules:Module[];lessons:Lesson[]}>(
    `/v1/academy/courses/${selected.id}/versions/${selected.version_id}/outline`);
@@ -575,11 +577,33 @@ export default function AcademyPage(){
         {provenance_ref:rightsSource,acknowledged:true}),()=>setRightsRecorded(true))}>
        Зафиксировать права на текущую версию</button>
       {rightsRecorded&&<p>Подтверждение зафиксировано. Изменения уроков потребуют нового подтверждения.</p>}
+      {!rightsRecorded&&<p className="academy-publish-check-hint">Если права на эту версию ещё не были сохранены, заполните источник, поставьте отметку и нажмите «Зафиксировать права». Публикация — отдельный следующий шаг.</p>}
      </section>}
    {editorStep==="publish"&&course.state==="DRAFT"&&<p className="academy-publish-caution">3. Публикация необратима для этой версии. Если есть видеоуроки, сервер дополнительно требует проверенные файлы Яндекс Диска и разрешённую видеодоставку для текущего релиза. Пока эти проверки не пройдены, курс останется черновиком. Это нельзя исправить одним подтверждением авторских прав.</p>}
-   {editorStep==="publish"&&course.state==="DRAFT"&&<button className="academy-blue-button" disabled={busy||lessons.length===0} onClick={()=>void act(
-      async()=>{try{return await api<Course>(`/v1/academy/courses/${course.id}/versions/${course.version_id}/publish`,{})}catch(error){throw new Error("Публикация не выполнена. Проверьте подтверждение прав, наличие уроков, права на продукт и готовность видеодоставки. Причина сервера: "+(error instanceof Error?error.message:"Неизвестная ошибка"))}},
-      async()=>{setNotice("Версия опубликована и больше не редактируется.");setCourse(null)})}>Опубликовать версию курса</button>}
+   {editorStep==="publish"&&course.state==="DRAFT"&&<div className="academy-publish-submit">
+    <button type="button" className="academy-blue-button" disabled={busy||lessons.length===0} onClick={async()=>{
+      if(busy)return;
+      setPublishError("");setNotice("");setBusy(true);
+      try{
+       const published=await api<Course>(`/v1/academy/courses/${course.id}/versions/${course.version_id}/publish`,{});
+       if(published.state!=="PUBLISHED"||published.id!==course.id||published.version_id!==course.version_id){
+        throw new Error("Ответ публикации не подтвердил опубликованную версию. Проверьте список курсов перед повторной попыткой.");
+       }
+       // The committed publish receipt is authoritative: a failed subsequent
+       // readback must not turn a successful irreversible operation into an
+       // apparent failure that encourages a duplicate retry.
+       setMine(previous=>previous.map(item=>item.id===published.id?published:item));
+       setCourse(null);setNotice("Версия опубликована и больше не редактируется.");
+       void refresh().catch(()=>setNotice("Версия опубликована. Не удалось обновить список курсов — попробуйте «Мои курсы» позже."));
+      }catch(error){
+       const detail=error instanceof Error?error.message:"Неизвестная ошибка";
+       setPublishError("Версия осталась черновиком или результат не подтверждён. "+(detail==="Недопустимое изменение состояния."||detail==="ACADEMY_STATE_CONFLICT"?
+        "Сервер отклонил публикацию: проверьте сохранённые права, материалы уроков и допуск видеодоставки. Для видеокурсов разрешение выдаётся только после приёмки текущего релиза.":
+        detail)+" Если операция уже была выполнена, проверьте список курсов перед повторным нажатием.");
+      }finally{setBusy(false)}
+     }}>Опубликовать версию курса</button>
+    {publishError&&<p className="academy-publish-error" role="alert">{publishError}</p>}
+   </div>}
   </section>}
   {view==="courses"&&course&&course.state==="PUBLISHED"&&<section className="how-section">
    <h2>Учебные потоки преподавателя</h2>

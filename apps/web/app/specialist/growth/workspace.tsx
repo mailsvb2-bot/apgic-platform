@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { growthURL } from "../../../src/growth-client";
 
 type Offer = {
@@ -60,36 +60,50 @@ export function GrowthWorkspace() {
   const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [growthUnavailable, setGrowthUnavailable] = useState(false);
 
-  const load = async () => {
-    const [supply, history, metrics] = await Promise.all([
+  // Read each canonical owner independently. Missing Growth configuration must
+  // not erase the already available specialist offers or silently invent links.
+  const load = useCallback(async () => {
+    const [supply, history, metrics] = await Promise.allSettled([
       api<{ offers: Offer[] }>("/v1/specialist/offers"),
       api<{ links: Link[] }>("/v1/specialist/growth-links"),
       api<{ items: Report[] }>("/v1/specialist/growth-report"),
     ]);
-    setOffers((supply.offers || []).filter((o) => o.state === "ACTIVE"));
-    setLinks(history.links || []);
-    setReports(metrics.items || []);
-  };
+    const problems: string[] = [];
+    if (supply.status === "fulfilled") {
+      setOffers((supply.value.offers || []).filter(o => o.state === "ACTIVE"));
+    } else {
+      setOffers([]);
+      problems.push(supply.reason instanceof Error ? supply.reason.message : "Не удалось загрузить предложения.");
+    }
+    if (history.status === "fulfilled") {
+      setLinks(history.value.links || []);
+      setGrowthUnavailable(false);
+    } else {
+      setLinks([]);
+      const message = history.reason instanceof Error ? history.reason.message : "Не удалось загрузить ссылки.";
+      if (/GROWTH_NOT_CONFIGURED|не настроено/.test(message)) setGrowthUnavailable(true);
+      else {setGrowthUnavailable(false);problems.push(message)}
+    }
+    if (metrics.status === "fulfilled") setReports(metrics.value.items || []);
+    else {
+      setReports([]);
+      const message = metrics.reason instanceof Error ? metrics.reason.message : "Не удалось загрузить отчёт.";
+      if (!/GROWTH_NOT_CONFIGURED|не настроено/.test(message)) problems.push(message);
+    }
+    setError([...new Set(problems)].join(" "));
+  }, []);
 
   useEffect(() => {
     let active = true;
-    void Promise.all([
-      api<{ offers: Offer[] }>("/v1/specialist/offers"),
-      api<{ links: Link[] }>("/v1/specialist/growth-links"),
-      api<{ items: Report[] }>("/v1/specialist/growth-report"),
-    ]).then(([supply, history, metrics]) => {
-      if (!active) return;
-      setOffers((supply.offers || []).filter((o) => o.state === "ACTIVE"));
-      setLinks(history.links || []);
-      setReports(metrics.items || []);
-    }).catch((cause) => {
-      if (active) setError(cause instanceof Error ? cause.message : "Не удалось прочитать кабинет.");
+    void load().catch(error => {
+      if (active) setError(error instanceof Error ? error.message : "Не удалось прочитать кабинет.");
     }).finally(() => {
       if (active) setLoading(false);
     });
-    return () => { active = false; };
-  }, []);
+    return () => {active = false};
+  }, [load]);
 
   const issue = async (offerID: string) => {
     setBusy(true);
@@ -156,6 +170,7 @@ export function GrowthWorkspace() {
 
   return <div>
     {error && <p role="alert">{error}</p>}
+    {growthUnavailable && <p role="status">Привлечение клиентов по ссылкам пока не настроено. Ваши действующие предложения доступны ниже, но выдача новых ссылок временно отключена.</p>}
     {notice && <p role="status">{notice}</p>}
     {loading && <p role="status">Загружаем проверенные предложения и историю ссылок…</p>}
     {!loading && offers.length === 0 &&
@@ -164,7 +179,7 @@ export function GrowthWorkspace() {
       {offers.map((offer) => <article key={offer.id}>
         <h2>{offer.topic_id}</h2>
         <p>Цена: {new Intl.NumberFormat("ru-RU").format(offer.price_minor / 100)} {offer.currency}</p>
-        <button type="button" disabled={busy} onClick={() => void issue(offer.id)}>
+        <button type="button" disabled={busy||growthUnavailable} onClick={() => void issue(offer.id)}>
           Получить ссылку для предложения
         </button>
       </article>)}

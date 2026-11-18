@@ -1,4 +1,4 @@
-.specialist-dashboard{--sp-blue:#1763ed;--sp-border:#e1e8f4;--sp-muted:#667795;display:grid;grid-template-columns:244px minmax(0,1fr);min-height:100vh;background:#f6f8fe;color:#142341;font-family:Inter,ui-sans-serif,system-ui,sans-serif}
+.specialist-dashboard{--sp-blue:var(--apgic-color-primary);--sp-border:var(--apgic-color-line);--sp-muted:var(--apgic-color-muted);display:grid;grid-template-columns:244px minmax(0,1fr);min-height:100vh;background:#f6f8fe;color:#142341;font-family:Inter,ui-sans-serif,system-ui,sans-serif}
 .specialist-dashboard *{box-sizing:border-box;min-width:0}
 .specialist-dashboard [hidden]{display:none!important}
 .specialist-dashboard-sidebar{position:sticky;top:0;align-self:start;min-height:100vh;background:#fff;border-right:1px solid var(--sp-border);padding:26px 14px}
@@ -100,3 +100,10 @@
 .specialist-academy-summary details{margin-top:10px}
 .specialist-academy-summary summary{cursor:pointer;color:#42618c}
 @media(max-width:650px){.specialist-academy-course-list li{align-items:flex-start;flex-direction:column}}
+
+
+/* WCAG AA: explicit contrast for the specialist's five-step progress selector.
+   Do not rely on opacity inherited from inactive/active component states. */
+.specialist-dashboard .specialist-dashboard-progress button:not([aria-current="step"]) strong{color:#304a68}
+.specialist-dashboard .specialist-dashboard-progress button[aria-current="step"]{background:#1047a9;border-color:#1047a9;color:#fff;opacity:1}
+.specialist-dashboard .specialist-dashboard-progress button[aria-current="step"] strong{color:#fff}
