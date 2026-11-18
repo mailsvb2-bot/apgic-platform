@@ -170,6 +170,18 @@ export default function AcademyPage(){
   const d=await api<{state:string;modules:Module[];lessons:Lesson[]}>(
    `/v1/academy/courses/${selected.id}/versions/${selected.version_id}/outline`);
   setModules(d.modules);setLessons(d.lessons);setModuleID(d.modules[0]?.id||"");
+  if(selected.state==="DRAFT"){
+   try{
+    const rights=await api<{confirmed:boolean;provenance_ref:string}>(
+     `/v1/academy/courses/${selected.id}/versions/${selected.version_id}/rights/original`);
+    if(rights.confirmed){
+     setRightsRecorded(true);setRightsSource(rights.provenance_ref);setRightsAgreed(true);
+     setRightsFeedback("Права уже подтверждены для этой версии.");
+    }
+   }catch{
+    setRightsFeedback("Не удалось проверить сохранённые права. Можно подтвердить их заново.");
+   }
+  }
   setStructureAction("overview");
  },[]);
  // Open a specific course from the specialist workspace without creating a duplicate.
