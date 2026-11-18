@@ -48,7 +48,7 @@ test("author saves paid price; learner cannot fake bank payment; free course can
  await offer.getByLabel(/Платный/).check();
  await offer.getByRole("spinbutton",{name:"Цена курса в рублях"}).fill("2499");
  await offer.getByRole("button",{name:"Сохранить"}).click();
- await expect(offer.getByText(/Платный.*2.499/)).toBeVisible();
+ await expect(offer.locator(".academy-offer-current strong")).toContainText(/Платный.*2.499/);
  await expect(offer.getByRole("status")).toContainText("Сохранено: 2");
  const saveColor=await offer.getByRole("button",{name:"Сохранить"}).evaluate(el=>getComputedStyle(el).backgroundColor);
  expect(saveColor).toBe("rgb(23, 99, 237)");
