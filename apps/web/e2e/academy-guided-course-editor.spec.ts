@@ -102,7 +102,7 @@ test("guided course editor connects module, lesson, video, schedule, rights and 
  await expect(rights.getByText("Подтверждение зафиксировано.")).toBeVisible();
  await expect(page.getByText(/не требует учеников, продаж или разрешения на видеодоставку/)).toBeVisible();
  await page.getByRole("button",{name:"Опубликовать версию курса"}).click();
- await expect(page.locator(".academy-publish-submit").getByRole("alert")).toContainText("проверьте сохранённые права");
+ await expect(page.locator(".academy-publish-submit").getByRole("alert")).toContainText("Содержание изменилось после подтверждения прав");
  await expect(page.locator(".academy-publish-submit").getByRole("alert")).toContainText("Версия осталась черновиком");
  await expect(page.getByRole("button",{name:"Опубликовать версию курса"})).toBeVisible();
  publishingApproved=true;
