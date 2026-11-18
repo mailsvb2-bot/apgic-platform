@@ -606,16 +606,18 @@ export default function AcademyPage(){
       <p>Один раз укажите, откуда материалы курса, и подтвердите своё право их публиковать.</p>
       <label htmlFor="academy-original-rights">Источник материалов</label>
       <input id="academy-original-rights" ref={rightsInputRef} value={rightsSource}
+       aria-describedby="academy-original-rights-hint"
        placeholder="Например: мои авторские лекции и видеозаписи"
        onChange={e=>{setRightsSource(e.target.value);setRightsRecorded(false);setRightsFeedback("");setPublishError("")}}/>
+      <p id="academy-original-rights-hint">Назовите источник материалов как удобно, например «№1» или «мои лекции». Галочка сама по себе не сохраняет подтверждение.</p>
       <label className="academy-rights-checkbox"><input type="checkbox" checked={rightsAgreed}
        onChange={e=>{setRightsAgreed(e.target.checked);setRightsFeedback("");setPublishError("")}}/>
        Подтверждаю авторство и право публикации</label>
       <button type="button" className="academy-blue-button" disabled={busy}
        onClick={async()=>{
         setRightsFeedback("");setPublishError("");
-        if(rightsSource.trim().length<12){
-         setRightsFeedback("Укажите источник своих материалов (не менее 12 символов).");
+        if(!rightsSource.trim()){
+         setRightsFeedback("Укажите источник материалов. Можно назвать его даже «№1». ");
          rightsInputRef.current?.focus();
          return;
         }
@@ -631,6 +633,11 @@ export default function AcademyPage(){
         try{
          await api<{id:string}>(`/v1/academy/courses/${course.id}/versions/${course.version_id}/rights/original`,
           {provenance_ref:rightsSource.trim(),acknowledged:true});
+         const checked=await api<{confirmed:boolean;provenance_ref:string}>(
+          `/v1/academy/courses/${course.id}/versions/${course.version_id}/rights/original`);
+         if(!checked.confirmed||checked.provenance_ref!==rightsSource.trim()){
+          throw new Error("Подтверждение не найдено в сохранённых данных этой версии. Проверьте уроки и повторите.");
+         }
          setRightsRecorded(true);
          setRightsFeedback("Права подтверждены. Теперь можно опубликовать курс.");
         }catch(error){
@@ -644,14 +651,30 @@ export default function AcademyPage(){
     <button type="button" className="academy-blue-button" disabled={busy||lessons.length===0}
      onClick={async()=>{
       if(busy)return;
-      if(!rightsRecorded){
-       setPublishError("Сначала подтвердите авторские права выше.");
+      if(!rightsSource.trim()){
+       setPublishError("Укажите источник материалов. Подойдёт любое непустое название, даже «№1».");
        rightsInputRef.current?.scrollIntoView({behavior:"smooth",block:"center"});
        rightsInputRef.current?.focus({preventScroll:true});
        return;
       }
+      if(!rightsAgreed){
+       setPublishError("Поставьте отметку «Подтверждаю авторство и право публикации» выше.");
+       return;
+      }
       setPublishError("");setNotice("");setBusy(true);
       try{
+       const rightsPath=`/v1/academy/courses/${course.id}/versions/${course.version_id}/rights/original`;
+       // Publish must be authorized by the exact-version server record,
+       // not by local checkbox state. Save consent when not yet recorded.
+       if(!rightsRecorded){
+        await api<{id:string}>(rightsPath,{provenance_ref:rightsSource.trim(),acknowledged:true});
+       }
+       const stored=await api<{confirmed:boolean;provenance_ref:string}>(rightsPath);
+       if(!stored.confirmed||stored.provenance_ref!==rightsSource.trim()){
+        setRightsRecorded(false);
+        throw new Error("Права не сохранены для текущего содержания. Подтвердите их снова после проверки уроков.");
+       }
+       setRightsRecorded(true);
        const published=await api<Course>(`/v1/academy/courses/${course.id}/versions/${course.version_id}/publish`,{});
        if(published.state!=="PUBLISHED"||published.id!==course.id||published.version_id!==course.version_id){
         throw new Error("Проверка результата не удалась. Откройте «Мои курсы» и проверьте статус.");

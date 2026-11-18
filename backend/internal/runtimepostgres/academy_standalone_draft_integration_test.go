@@ -91,10 +91,10 @@ func TestAcademyStandaloneDraftAtomicAndUnpublished(t *testing.T) {
 		t.Fatalf("another identity can read course rights: confirmed=%t err=%v", confirmed, err)
 	}
 	if _, err = store.AcademyDeclareOriginalRights(actor, course.ID, course.VersionID,
-		"original/author-produced-course"); err != nil {
+		"№1"); err != nil {
 		t.Fatal(err)
 	}
-	if confirmed, provenance, err := store.AcademyOriginalRightsStatus(actor, course.ID, course.VersionID); err != nil || !confirmed || provenance != "original/author-produced-course" {
+	if confirmed, provenance, err := store.AcademyOriginalRightsStatus(actor, course.ID, course.VersionID); err != nil || !confirmed || provenance != "№1" {
 		t.Fatalf("reopened curriculum lost signed rights: confirmed=%t provenance=%q err=%v", confirmed, provenance, err)
 	}
 	t.Setenv("APGIC_ACADEMY_VIDEO_PUBLISH_ENABLED", "false")
