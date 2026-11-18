@@ -513,6 +513,11 @@ func (c *Checker) AcademyEnroll(actor, courseID string) (academy.Enrollment, err
 	if _, err = tx.ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtext($1),hashtext($2))", actor, courseID); err != nil {
 		return academy.Enrollment{}, err
 	}
+	// A published VIDEO curriculum is not automatically cleared for learner
+	// delivery. The same admission predicate governs enrollment and discovery.
+	if err = academyConfigureLearnerVideoRelease(ctx, tx); err != nil {
+		return academy.Enrollment{}, err
+	}
 	var versionID, entitlementID string
 	err = tx.QueryRowContext(ctx, `SELECT v.id::text,t.id::text `+academyVerifiedEnrollmentFrom+`
  AND c.id=$2::uuid ORDER BY v.version_no DESC LIMIT 1`, actor, courseID).Scan(&versionID, &entitlementID)
