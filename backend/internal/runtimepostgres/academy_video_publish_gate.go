@@ -101,7 +101,6 @@ func academyVideoPublicationReady(ctx context.Context, tx *sql.Tx, author, versi
 	return ready, err
 }
 
-
 // academyConfigureLearnerVideoRelease configures transaction-local provider
 // release identity for learner-facing reads. The same immutable acceptance
 // gate remains authoritative, but curriculum publication never consults it.
