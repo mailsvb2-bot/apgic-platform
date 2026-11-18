@@ -81,6 +81,7 @@ func academyAuthor(ctx context.Context, tx *sql.Tx, actor, courseID string) (boo
 	}
 	return author == actor, err
 }
+
 // academyOwnedProduct proves the canonical Commerce owner without requiring the
 // underlying product to be offered for sale. Publication does not mutate Commerce.
 func academyOwnedProduct(ctx context.Context, tx *sql.Tx, actor, productID string) (bool, error) {
