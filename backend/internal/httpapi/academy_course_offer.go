@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"net/http"
+	"errors"
 
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/academy"
 )
@@ -60,6 +61,12 @@ func registerAcademyCourseOffers(mux *http.ServeMux, store academyStore, session
 			return
 		}
 		if _, err := quote.AcademyCheckoutOffer(r.PathValue("courseID")); err != nil {
+			if errors.Is(err, academy.ErrState) {
+				writeDemandError(w, r, http.StatusConflict, "ACADEMY_OFFER_NOT_READY",
+					"Покупка пока недоступна. Проверьте, что товар курса опубликован, цена сохранена и видеодоставка готова.",
+					false, nil)
+				return
+			}
 			academyHTTPError(w, r, err)
 			return
 		}
