@@ -98,11 +98,13 @@ test("guided course editor connects module, lesson, video, schedule, rights and 
  await expect(rights.getByText("Подтверждение зафиксировано.")).toBeVisible();
  await expect(page.getByText(/сервер дополнительно требует проверенные файлы Яндекс Диска/)).toBeVisible();
  await page.getByRole("button",{name:"Опубликовать версию курса"}).click();
- await expect(page.getByRole("status").filter({hasText:"Доставка видео пока не подтверждена"})).toBeVisible();
+ await expect(page.locator(".academy-publish-submit").getByRole("alert")).toContainText("Доставка видео пока не подтверждена");
+ await expect(page.locator(".academy-publish-submit").getByRole("alert")).toContainText("Версия осталась черновиком");
  await expect(page.getByRole("button",{name:"Опубликовать версию курса"})).toBeVisible();
  publishingApproved=true;
  await page.getByRole("button",{name:"Опубликовать версию курса"}).click();
  await expect(page.getByRole("status").filter({hasText:"Версия опубликована"})).toBeVisible();
+ await expect(page.locator(".academy-publish-submit")).toHaveCount(0);
  const paths=calls.map(c=>c.path);
  for(const segment of ["/modules","/lessons","/schedule","/rights/original","/publish"]){
   expect(paths.filter(path=>path.endsWith(segment))).toHaveLength(segment==="/publish"?2:1);
