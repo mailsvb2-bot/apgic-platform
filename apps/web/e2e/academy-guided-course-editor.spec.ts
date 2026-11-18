@@ -102,12 +102,12 @@ test("guided course editor connects module, lesson, video, schedule, rights and 
  await expect(page.getByRole("heading",{name:"2. Подтвердите авторские права"})).toBeVisible();
  const rights=page.getByRole("region",{name:"Декларация авторских прав"});
  await rights.getByRole("button",{name:"Подтвердить права"}).click();
- await expect(rights.getByRole("status")).toContainText("Укажите источник своих материалов");
+ await expect(rights.getByRole("status")).toContainText("Укажите источник материалов");
  expect(calls.filter(c=>c.path.endsWith("/rights/original"))).toHaveLength(0);
  // A real unpublished course with no attestation must guide the author rather
  // than send an irreversible POST or show the old multi-sentence server error.
  await page.getByRole("button",{name:"Опубликовать курс"}).click();
- await expect(page.locator(".academy-publish-submit").getByRole("alert")).toContainText("не менее 12 символов");
+ await expect(page.locator(".academy-publish-submit").getByRole("alert")).toContainText("Укажите источник материалов");
  expect(calls.filter(c=>c.path.endsWith("/publish"))).toHaveLength(0);
 
  await rights.locator("#academy-original-rights").fill("author-original-materials-reference");
@@ -134,7 +134,7 @@ test("guided course editor connects module, lesson, video, schedule, rights and 
  expect(dims.document).toBeLessThanOrEqual(dims.viewport+1);
 });
 
-test("publishing reports short rights source and saves explicit consent through canonical readback",async({page})=>{
+test("publishing accepts short rights source and saves explicit consent through canonical readback",async({page})=>{
  const calls:string[]=[];
  let stored=false;
  const lesson={id:lessonId,module_id:moduleId,title:"Введение",kind:"READING",ordinal:1};
@@ -151,7 +151,7 @@ test("publishing reports short rights source and saves explicit consent through 
    else if(path==="/v1/academy/me/course-access")data={course_ids:[]};
    else if(path==="/v1/academy/me/certificates")data={certificates:[]};
    else if(path.endsWith("/outline"))data={state:"DRAFT",modules:[{id:moduleId,version_id:versionId,ordinal:1,title:"Основы"}],lessons:[lesson]};
-   else if(path.endsWith("/rights/original"))data={confirmed:stored,provenance_ref:stored?"мои авторские лекции":""};
+   else if(path.endsWith("/rights/original"))data={confirmed:stored,provenance_ref:stored?"№1":""};
    else{status=501;data={code:"UNMOCKED",path};}
   }else if(method==="POST"){
    calls.push(path);
@@ -166,13 +166,13 @@ test("publishing reports short rights source and saves explicit consent through 
  await page.getByRole("button",{name:"3. Публикация"}).click();
  const rights=page.getByRole("region",{name:"Декларация авторских прав"});
  const input=rights.locator("#academy-original-rights");
- await expect(input).toHaveAttribute("minlength","12");
- await input.fill("мои лекции");
+ await expect(input).not.toHaveAttribute("minlength");
+ await input.fill("   ");
  await rights.getByRole("checkbox").check();
  await page.getByRole("button",{name:"Опубликовать курс"}).click();
  await expect(page.locator(".academy-publish-submit").getByRole("alert")).toContainText("не менее 12 символов");
  expect(calls).toHaveLength(0);
- await input.fill("мои авторские лекции");
+ await input.fill("№1");
  await page.getByRole("button",{name:"Опубликовать курс"}).click();
  await expect(page.getByRole("status").filter({hasText:"Курс опубликован"})).toBeVisible();
  expect(calls.filter(p=>p.endsWith("/rights/original"))).toHaveLength(1);
