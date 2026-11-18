@@ -35,9 +35,9 @@ type Course struct {
 	State       string `json:"state"`
 	VersionID   string `json:"version_id,omitempty"`
 	VersionNo   int    `json:"version_no,omitempty"`
-	AccessMode string `json:"access_mode"`
-	PriceMinor int64  `json:"price_minor"`
-	Currency   string `json:"currency"`
+	AccessMode  string `json:"access_mode"`
+	PriceMinor  int64  `json:"price_minor"`
+	Currency    string `json:"currency"`
 }
 
 // CourseOffer is an author-controlled Commerce offer, not a payment receipt.
