@@ -23,7 +23,10 @@ func TestAcademyRevocationClosesLiveLearnerHTTPResponse(t *testing.T) {
 	}
 }
 
-// A browser seek is a distinct 206 response; revocation must terminate it
+// A browser seek is a distinct 206 response; the declared range must
+// leave room for additional bytes so Content-Length cannot itself reject
+// the post-revocation write and create a false-positive revocation test.
+// Revocation must terminate it
 // with the same transport guarantees as a full 200 response.
 func TestAcademyRevocationClosesLiveHTTPSeekResponse(t *testing.T) {
 	for _, protocol := range []struct {
@@ -44,14 +47,16 @@ func testAcademyRevokedHTTPTransport(t *testing.T, h2, seek bool) {
 		defer cancel()
 		w.Header().Set("Content-Type", "video/mp4")
 		if seek {
-			if r.Header.Get("Range") != "bytes=5-9" {
+			if r.Header.Get("Range") != "bytes=5-39" {
 				writeResult <- context.Canceled
 				http.Error(w, "missing seek range", http.StatusBadRequest)
 				return
 			}
-			w.Header().Set("Content-Range", "bytes 5-9/10")
+			w.Header().Set("Content-Range", "bytes 5-39/40")
+			w.Header().Set("Content-Length", "35")
 			w.WriteHeader(http.StatusPartialContent)
 		} else {
+			w.Header().Set("Content-Length", "40")
 			w.WriteHeader(http.StatusOK)
 		}
 		if _, err := w.Write([]byte("first")); err != nil {
@@ -69,7 +74,7 @@ func testAcademyRevokedHTTPTransport(t *testing.T, h2, seek bool) {
 			return
 		}
 		academyCancelRevokedVideoResponse(w, cancel)
-		_, err := w.Write([]byte("forbidden-after-revoke"))
+		_, err := w.Write([]byte("more-bytes"))
 		if err == nil {
 			err = http.NewResponseController(w).Flush()
 		}
@@ -90,7 +95,7 @@ func testAcademyRevokedHTTPTransport(t *testing.T, h2, seek bool) {
 		t.Fatal(err)
 	}
 	if seek {
-		req.Header.Set("Range", "bytes=5-9")
+		req.Header.Set("Range", "bytes=5-39")
 	}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -98,7 +103,7 @@ func testAcademyRevokedHTTPTransport(t *testing.T, h2, seek bool) {
 	}
 	defer resp.Body.Close()
 	if seek {
-		if resp.StatusCode != http.StatusPartialContent || resp.Header.Get("Content-Range") != "bytes 5-9/10" {
+		if resp.StatusCode != http.StatusPartialContent || resp.Header.Get("Content-Range") != "bytes 5-39/40" {
 			t.Fatalf("seek response must be 206 with exact range, got %d %q", resp.StatusCode, resp.Header.Get("Content-Range"))
 		}
 	} else if resp.StatusCode != http.StatusOK {
