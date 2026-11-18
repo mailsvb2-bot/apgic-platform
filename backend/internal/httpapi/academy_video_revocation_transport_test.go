@@ -13,9 +13,20 @@ import (
 // cancelled context. This is a transport-level revocation proof, not a
 // substitute for the PostgreSQL COMMIT -> cross-worker notification E2E.
 func TestAcademyRevocationClosesLiveLearnerHTTPResponse(t *testing.T) {
+	for _, protocol := range []struct {
+		name string
+		h2 bool
+	}{{"http1", false}, {"http2", true}} {
+		t.Run(protocol.name, func(t *testing.T) {
+			testAcademyRevokedHTTPTransport(t, protocol.h2)
+		})
+	}
+}
+
+func testAcademyRevokedHTTPTransport(t *testing.T, h2 bool) {
 	revoke := make(chan struct{})
 	writeResult := make(chan error, 1)
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithCancel(r.Context())
 		defer cancel()
 		w.Header().Set("Content-Type", "video/mp4")
@@ -41,14 +52,27 @@ func TestAcademyRevocationClosesLiveLearnerHTTPResponse(t *testing.T) {
 		}
 		writeResult <- err
 	}))
+	server.EnableHTTP2 = h2
+	if h2 {
+		server.StartTLS()
+	} else {
+		server.Start()
+	}
 	defer server.Close()
 
-	client := &http.Client{Timeout: 3 * time.Second}
+	client := server.Client()
+	client.Timeout = 3 * time.Second
 	resp, err := client.Get(server.URL)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer resp.Body.Close()
+	if h2 && resp.ProtoMajor != 2 {
+		t.Fatalf("expected HTTP/2, got %s", resp.Proto)
+	}
+	if !h2 && resp.ProtoMajor != 1 {
+		t.Fatalf("expected HTTP/1.1, got %s", resp.Proto)
+	}
 	first := make([]byte, len("first"))
 	if _, err := io.ReadFull(resp.Body, first); err != nil {
 		t.Fatal(err)
@@ -65,7 +89,10 @@ func TestAcademyRevocationClosesLiveLearnerHTTPResponse(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("revoked response did not terminate its live write")
 	}
-	remaining, _ := io.ReadAll(resp.Body)
+	remaining, readErr := io.ReadAll(resp.Body)
+	if readErr != nil {
+		t.Logf("revoked stream terminated with %v", readErr)
+	}
 	if len(remaining) != 0 {
 		t.Fatalf("revoked connection delivered %d additional bytes", len(remaining))
 	}
