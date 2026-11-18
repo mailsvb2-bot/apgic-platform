@@ -589,8 +589,12 @@ export default function AcademyPage(){
        if(published.state!=="PUBLISHED"||published.id!==course.id||published.version_id!==course.version_id){
         throw new Error("Ответ публикации не подтвердил опубликованную версию. Проверьте список курсов перед повторной попыткой.");
        }
-       await refresh();
+       // The committed publish receipt is authoritative: a failed subsequent
+       // readback must not turn a successful irreversible operation into an
+       // apparent failure that encourages a duplicate retry.
+       setMine(previous=>previous.map(item=>item.id===published.id?published:item));
        setCourse(null);setNotice("Версия опубликована и больше не редактируется.");
+       void refresh().catch(()=>setNotice("Версия опубликована. Не удалось обновить список курсов — попробуйте «Мои курсы» позже."));
       }catch(error){
        const detail=error instanceof Error?error.message:"Неизвестная ошибка";
        setPublishError("Версия осталась черновиком или результат не подтверждён. "+(detail==="Недопустимое изменение состояния."||detail==="ACADEMY_STATE_CONFLICT"?
