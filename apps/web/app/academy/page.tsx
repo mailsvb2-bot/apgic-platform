@@ -606,7 +606,7 @@ export default function AcademyPage(){
       <p>Один раз укажите, откуда материалы курса, и подтвердите своё право их публиковать.</p>
       <label htmlFor="academy-original-rights">Источник материалов</label>
       <input id="academy-original-rights" ref={rightsInputRef} value={rightsSource}
-       maxLength={2048} aria-describedby="academy-original-rights-hint"
+       aria-describedby="academy-original-rights-hint"
        placeholder="Например: мои авторские лекции и видеозаписи"
        onChange={e=>{setRightsSource(e.target.value);setRightsRecorded(false);setRightsFeedback("");setPublishError("")}}/>
       <p id="academy-original-rights-hint">Назовите источник материалов как удобно, например «№1» или «мои лекции». Галочка сама по себе не сохраняет подтверждение.</p>
