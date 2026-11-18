@@ -9,7 +9,7 @@ import (
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/academy"
 )
 
-type academyCheckoutQuoteStub struct { *academyStoreStub }
+type academyCheckoutQuoteStub struct{ *academyStoreStub }
 
 func (s *academyCheckoutQuoteStub) AcademyCheckoutOffer(courseID string) (academy.CourseOffer, error) {
 	return academy.CourseOffer{CourseID: courseID, AccessMode: "PAID",
