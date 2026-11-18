@@ -4,12 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-
-	"github.com/mailsvb2-bot/apgic-platform/backend/internal/academy"
 	"os"
 	"testing"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/academy"
 )
 
 func TestAcademyStandaloneDraftAtomicAndUnpublished(t *testing.T) {
@@ -70,10 +69,14 @@ func TestAcademyStandaloneDraftAtomicAndUnpublished(t *testing.T) {
 	module, err := store.AcademyAddModule(actor, course.ID, course.VersionID, academy.Module{
 		Title: "Модуль автора", Ordinal: 1,
 	})
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	if _, err = store.AcademyAddLesson(actor, course.ID, course.VersionID, module.ID,
 		academy.Lesson{Title: "Видео автора", Kind: academy.Video, Ordinal: 1,
-			MediaAssetRef: "private/not-delivery-approved"}); err != nil { t.Fatal(err) }
+			MediaAssetRef: "private/not-delivery-approved"}); err != nil {
+		t.Fatal(err)
+	}
 	if _, err = store.AcademyPublish(actor, course.ID, course.VersionID); !errors.Is(err, academy.ErrState) {
 		t.Fatalf("unattested curriculum published: %v", err)
 	}
@@ -85,7 +88,9 @@ func TestAcademyStandaloneDraftAtomicAndUnpublished(t *testing.T) {
 		t.Fatalf("author could not publish without sales or students: %+v %v", published, err)
 	}
 	if err = db.QueryRow("SELECT status FROM products WHERE id=$1::uuid", course.ProductID).Scan(&status); err != nil { t.Fatal(err) }
-	if status != "DRAFT" { t.Fatalf("publishing curriculum changed Commerce status: %s", status) }
+	if status != "DRAFT" {
+		t.Fatalf("publishing curriculum changed Commerce status: %s", status)
+	}
 	if err = db.QueryRow("SELECT count(*) FROM academy_enrollments WHERE version_id=$1::uuid", course.VersionID).Scan(&n); err != nil || n != 0 {
 		t.Fatalf("publishing invented learner enrollment: %d %v", n, err)
 	}
@@ -93,7 +98,9 @@ func TestAcademyStandaloneDraftAtomicAndUnpublished(t *testing.T) {
 		t.Fatal(err)
 	} else {
 		for _, id := range access {
-			if id == course.ID { t.Fatal("published course granted unauthorized learner video access") }
+			if id == course.ID {
+				t.Fatal("published course granted unauthorized learner video access")
+			}
 		}
 	}
 }
