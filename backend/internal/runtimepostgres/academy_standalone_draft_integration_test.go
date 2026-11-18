@@ -81,13 +81,17 @@ func TestAcademyStandaloneDraftAtomicAndUnpublished(t *testing.T) {
 		t.Fatalf("unattested curriculum published: %v", err)
 	}
 	if _, err = store.AcademyDeclareOriginalRights(actor, course.ID, course.VersionID,
-		"original/author-produced-course"); err != nil { t.Fatal(err) }
+		"original/author-produced-course"); err != nil {
+		t.Fatal(err)
+	}
 	t.Setenv("APGIC_ACADEMY_VIDEO_PUBLISH_ENABLED", "false")
 	published, err := store.AcademyPublish(actor, course.ID, course.VersionID)
 	if err != nil || published.State != "PUBLISHED" {
 		t.Fatalf("author could not publish without sales or students: %+v %v", published, err)
 	}
-	if err = db.QueryRow("SELECT status FROM products WHERE id=$1::uuid", course.ProductID).Scan(&status); err != nil { t.Fatal(err) }
+	if err = db.QueryRow("SELECT status FROM products WHERE id=$1::uuid", course.ProductID).Scan(&status); err != nil {
+		t.Fatal(err)
+	}
 	if status != "DRAFT" {
 		t.Fatalf("publishing curriculum changed Commerce status: %s", status)
 	}
