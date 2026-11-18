@@ -382,6 +382,39 @@ raise SystemExit(0 if walk(payload) else 1)
 PY
 }
 
+# CoreSimulator may acknowledge an install before SpringBoard/FrontBoard
+# registers the bundle after a fresh install or simulator reboot. Prove the
+# app is registered, then recover only the observed NotFound launch race.
+# Never interpret a launch error as successful native capability evidence.
+launch_installed_capability_state() {
+  local state="$1"
+  local launch_log="/tmp/apgic-ios-capability-launch-${state}.log"
+  local attempt
+  for attempt in 1 2 3; do
+    if ! xcrun simctl get_app_container "$UDID" com.apgic.ci app >/dev/null 2>&1; then
+      echo "iOS state $state: bundle not registered (attempt $attempt/3)" >&2
+      xcrun simctl install "$UDID" "$APP" ||
+        fail "state $state: failed to restore simulator app registration"
+      sleep 2
+    fi
+    if SIMCTL_CHILD_APGIC_E2E_CAPABILITY_STATE="$state" \
+        xcrun simctl launch --terminate-running-process "$UDID" com.apgic.ci >"$launch_log" 2>&1; then
+      return 0
+    fi
+    cat "$launch_log" >&2
+    if ! grep -Eiq 'unknown to FrontBoard|NotFound.*[Aa]pplication|Application.*unknown' "$launch_log"; then
+      return 1
+    fi
+    if [[ "$attempt" -lt 3 ]]; then
+      echo "iOS state $state: FrontBoard registration race; reinstall and retry" >&2
+      xcrun simctl install "$UDID" "$APP" ||
+        fail "state $state: failed to reinstall app after FrontBoard NotFound"
+      sleep 2
+    fi
+  done
+  return 1
+}
+
 assert_state() {
   local state="$1"
   local reason="$2"
@@ -410,9 +443,8 @@ assert_state() {
     xcrun simctl install "$UDID" "$APP" ||
       fail "state $state: failed to reinstall isolated simulator app"
     rm -f "$output"
-    SIMCTL_CHILD_APGIC_E2E_CAPABILITY_STATE="$state" \
-      xcrun simctl launch --terminate-running-process "$UDID" com.apgic.ci >/dev/null ||
-      fail "state $state: simulator could not launch app"
+    launch_installed_capability_state "$state" ||
+      fail "state $state: simulator could not launch registered app"
     for observation in $(seq 1 30); do
       if "$IDB" ui describe-all --udid "$UDID" --api axbridge --json --nested >"$output" 2>/dev/null &&
          json_has_ax_label "$output" "capability-state:${state}" &&
