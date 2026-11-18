@@ -526,6 +526,33 @@ func (c *Checker) AcademyEnroll(actor, courseID string) (academy.Enrollment, err
 	if err = academyConfigureLearnerVideoRelease(ctx, tx); err != nil {
 		return academy.Enrollment{}, err
 	}
+	// A free course has an explicit non-cash grant in the SAME entitlement
+	// registry used by paid courses. Never manufacture a payment verification.
+	var freeProductID, freeVersionID string
+	err = tx.QueryRowContext(ctx, `SELECT c.product_id::text,v.id::text
+ FROM academy_courses c
+ JOIN commerce_product_access_terms terms ON terms.product_id=c.product_id
+ JOIN academy_course_versions v ON v.course_id=c.id AND v.state='PUBLISHED'
+ WHERE c.id=$1::uuid AND c.state='PUBLISHED'
+ AND terms.access_mode='FREE' AND terms.price_minor=0
+ AND academy_video_learner_delivery_ready(v.id)
+ ORDER BY v.version_no DESC LIMIT 1`, courseID).Scan(&freeProductID, &freeVersionID)
+	if err == nil {
+		grantID, idErr := academyID()
+		if idErr != nil {
+			return academy.Enrollment{}, idErr
+		}
+		_, err = tx.ExecContext(ctx, `INSERT INTO store_entitlements(
+ id,identity_id,product_ref,kind,state,verification_id,activated_at,updated_at)
+ VALUES($1::uuid,$2::uuid,$3,'FREE','ACTIVE',NULL,now(),now())
+ ON CONFLICT(identity_id,product_ref) WHERE kind='FREE' DO NOTHING`,
+			grantID, actor, freeProductID)
+		if err != nil {
+			return academy.Enrollment{}, err
+		}
+	} else if !errors.Is(err, sql.ErrNoRows) {
+		return academy.Enrollment{}, err
+	}
 	var versionID, entitlementID string
 	err = tx.QueryRowContext(ctx, `SELECT v.id::text,t.id::text `+academyVerifiedEnrollmentFrom+`
  AND c.id=$2::uuid ORDER BY v.version_no DESC LIMIT 1`, actor, courseID).Scan(&versionID, &entitlementID)
