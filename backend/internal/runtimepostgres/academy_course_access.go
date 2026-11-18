@@ -15,6 +15,7 @@ const academyVerifiedEnrollmentFrom = ` FROM academy_courses c
  JOIN store_entitlements t ON t.product_ref=c.product_id::text
  WHERE c.state='PUBLISHED' AND t.identity_id=$1::uuid
  AND academy_entitlement_is_active(t.id)
+ AND academy_video_learner_delivery_ready(v.id)
  AND v.version_no=(
    SELECT MAX(latest.version_no) FROM academy_course_versions latest
    WHERE latest.course_id=c.id AND latest.state='PUBLISHED'
