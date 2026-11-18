@@ -6,6 +6,10 @@ import (
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/academy"
 )
 
+type academyCourseCheckoutQuoteStore interface {
+	AcademyCheckoutOffer(courseID string) (academy.CourseOffer, error)
+}
+
 // Keep the HTTP layer a thin adapter to the existing Academy/Commerce owner.
 // Pricing never grants enrollment or changes a product's settlement recipient.
 type academyCourseOfferStore interface {
@@ -48,6 +52,15 @@ func registerAcademyCourseOffers(mux *http.ServeMux, store academyStore, session
 		}
 		if !academyUUID(r.PathValue("courseID")) {
 			academyHTTPError(w, r, academy.ErrInvalid)
+			return
+		}
+		quote, available := store.(academyCourseCheckoutQuoteStore)
+		if !available {
+			academyHTTPError(w, r, academy.ErrUnavailable)
+			return
+		}
+		if _, err := quote.AcademyCheckoutOffer(r.PathValue("courseID")); err != nil {
+			academyHTTPError(w, r, err)
 			return
 		}
 		writeDemandError(w, r, http.StatusServiceUnavailable,
