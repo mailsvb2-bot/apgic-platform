@@ -37,9 +37,16 @@ func (c *Checker) AcademyMyCourseAccess(actor string) ([]string, error) {
 	if actor == "" {
 		return nil, academy.ErrDenied
 	}
-	ctx, cancel := academyContext()
+	ctx, cancel, tx, err := academyBegin(c)
 	defer cancel()
-	rows, err := c.db.QueryContext(ctx, `SELECT DISTINCT c.id::text `+academyVerifiedEnrollmentFrom+`
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	if err = academyConfigureLearnerVideoRelease(ctx, tx); err != nil {
+		return nil, err
+	}
+	rows, err := tx.QueryContext(ctx, `SELECT DISTINCT c.id::text `+academyVerifiedEnrollmentFrom+`
  ORDER BY c.id::text`, actor)
 	if err != nil {
 		return nil, err
