@@ -43,9 +43,9 @@ test("author saves paid price; learner cannot fake bank payment; free course can
  await page.getByRole("button",{name:"Открыть редактор"}).click();
  const offer=page.getByRole("region",{name:"Доступ и стоимость курса"});
  await expect(offer.getByText(/Запись пока не открыта/)).toBeVisible();
- await offer.getByLabel("Закрытый — платный").check();
+ await offer.getByLabel(/Платный/).check();
  await offer.getByRole("spinbutton",{name:"Цена курса в рублях"}).fill("2499");
- await offer.getByRole("button",{name:"Сохранить условия доступа"}).click();
+ await offer.getByRole("button",{name:"Сохранить"}).click();
  await expect(offer.getByText(/Платный.*2.499/)).toBeVisible();
  expect(mutations.find(x=>x.path.endsWith("/offer"))?.body).toEqual({access_mode:"PAID",price_minor:249900});
  await page.getByRole("button",{name:"Каталог",exact:true}).click();
@@ -56,8 +56,8 @@ test("author saves paid price; learner cannot fake bank payment; free course can
  expect(mutations.filter(x=>x.path.endsWith("/enroll"))).toHaveLength(0);
  await page.getByRole("button",{name:"Мои курсы",exact:true}).click();
  await page.getByRole("button",{name:"Открыть редактор"}).click();
- await offer.getByLabel("Открытый — бесплатно").check();
- await offer.getByRole("button",{name:"Сохранить условия доступа"}).click();
+ await offer.getByLabel(/Открытый/).check();
+ await offer.getByRole("button",{name:"Сохранить"}).click();
  await page.getByRole("button",{name:"Каталог",exact:true}).click();
  await expect(card.getByText(/Бесплатно/)).toBeVisible();
  await card.getByRole("button",{name:"Начать бесплатно"}).click();
