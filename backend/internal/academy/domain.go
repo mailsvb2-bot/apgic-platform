@@ -40,6 +40,15 @@ type Course struct {
 	Currency   string `json:"currency"`
 }
 
+// CourseOffer is an author-controlled Commerce offer, not a payment receipt.
+type CourseOffer struct {
+	CourseID   string `json:"course_id"`
+	AccessMode string `json:"access_mode"`
+	PriceMinor int64  `json:"price_minor"`
+	Currency   string `json:"currency"`
+	Revision   int64  `json:"revision"`
+}
+
 // OriginalRightsDeclaration is only an authenticated author's declaration;
 // it does not independently verify ownership or a third-party content license.
 type OriginalRightsDeclaration struct {
