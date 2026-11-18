@@ -100,3 +100,25 @@ func academyVideoPublicationReady(ctx context.Context, tx *sql.Tx, author, versi
  )`, author, versionID).Scan(&ready)
 	return ready, err
 }
+
+
+// academyConfigureLearnerVideoRelease configures transaction-local provider
+// release identity for learner-facing reads. The same immutable acceptance
+// gate remains authoritative, but curriculum publication never consults it.
+// No published course, payment or client input can set these values.
+func academyConfigureLearnerVideoRelease(ctx context.Context, tx *sql.Tx) error {
+	if !academyVideoPublishEnabled() {
+		return nil
+	}
+	mode, err := academy.ConfiguredVideoDeliveryMode()
+	if err != nil || mode != academy.VideoDeliveryDirect {
+		return nil // Unwired CDN mode must remain unavailable to learners.
+	}
+	sourceSHA := academyReleaseSourceSHA()
+	if sourceSHA == "" {
+		return nil
+	}
+	_, err = tx.ExecContext(ctx, `SELECT set_config('apgic.release_source_sha',$1,true),
+ set_config('apgic.academy_video_delivery_mode',$2,true)`, sourceSHA, string(mode))
+	return err
+}
