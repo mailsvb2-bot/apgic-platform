@@ -15,9 +15,16 @@ func (c *Checker) AcademyLearnerVideoManifest(actor, enrollmentID, lessonID stri
 	if !academyMediaUUID(actor) || !academyMediaUUID(enrollmentID) || !academyMediaUUID(lessonID) {
 		return nil, academy.ErrInvalid
 	}
-	ctx, cancel := academyContext()
+	ctx, cancel, tx, err := academyBegin(c)
 	defer cancel()
-	rows, err := c.db.QueryContext(ctx, `SELECT media.id::text,media.title,lm.ordinal
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	if err = academyConfigureLearnerVideoRelease(ctx, tx); err != nil {
+		return nil, err
+	}
+	rows, err := tx.QueryContext(ctx, `SELECT media.id::text,media.title,lm.ordinal
  FROM academy_enrollments e
  JOIN store_entitlements t ON t.id=e.entitlement_id
  JOIN academy_course_versions v ON v.id=e.version_id AND v.state='PUBLISHED'
@@ -35,6 +42,7 @@ func (c *Checker) AcademyLearnerVideoManifest(actor, enrollmentID, lessonID stri
  LEFT JOIN academy_assessment_limits limits ON limits.lesson_id=l.id
  WHERE e.id=$1::uuid AND e.identity_id=$2::uuid AND l.id=$3::uuid
  AND e.state IN ('ACTIVE','COMPLETED') AND academy_entitlement_is_active(t.id)
+ AND academy_video_learner_delivery_ready(v.id)
  AND `+academyAssessmentOpenSQL+`
  ORDER BY lm.ordinal`, enrollmentID, actor, lessonID)
 	if err != nil {
