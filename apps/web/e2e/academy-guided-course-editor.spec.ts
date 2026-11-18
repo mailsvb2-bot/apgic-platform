@@ -170,7 +170,7 @@ test("publishing accepts short rights source and saves explicit consent through 
  await input.fill("   ");
  await rights.getByRole("checkbox").check();
  await page.getByRole("button",{name:"Опубликовать курс"}).click();
- await expect(page.locator(".academy-publish-submit").getByRole("alert")).toContainText("не менее 12 символов");
+ await expect(page.locator(".academy-publish-submit").getByRole("alert")).toContainText("Укажите источник материалов");
  expect(calls).toHaveLength(0);
  await input.fill("№1");
  await page.getByRole("button",{name:"Опубликовать курс"}).click();
