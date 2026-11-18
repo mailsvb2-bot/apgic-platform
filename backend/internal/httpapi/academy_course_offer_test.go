@@ -5,7 +5,16 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/academy"
 )
+
+type academyCheckoutQuoteStub struct { *academyStoreStub }
+
+func (s *academyCheckoutQuoteStub) AcademyCheckoutOffer(courseID string) (academy.CourseOffer, error) {
+	return academy.CourseOffer{CourseID: courseID, AccessMode: "PAID",
+		PriceMinor: 249900, Currency: "RUB", Revision: 1}, nil
+}
 
 func TestAcademyExternalCheckoutCannotClaimPaymentWithoutBank(t *testing.T) {
 	key := []byte(strings.Repeat("c", 32))
@@ -18,7 +27,7 @@ func TestAcademyExternalCheckoutCannotClaimPaymentWithoutBank(t *testing.T) {
 		t.Fatal(err)
 	}
 	mux := http.NewServeMux()
-	registerAcademyCourseOffers(mux, nil, sessions, nil)
+	registerAcademyCourseOffers(mux, &academyCheckoutQuoteStub{&academyStoreStub{}}, sessions, nil)
 	url := "/v1/academy/courses/22222222-2222-4222-8222-222222222222/checkout"
 	unauthorized := httptest.NewRecorder()
 	mux.ServeHTTP(unauthorized, httptest.NewRequest(http.MethodPost, url, nil))
