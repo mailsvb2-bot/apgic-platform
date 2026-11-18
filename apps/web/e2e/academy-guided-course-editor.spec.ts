@@ -107,7 +107,7 @@ test("guided course editor connects module, lesson, video, schedule, rights and 
  // A real unpublished course with no attestation must guide the author rather
  // than send an irreversible POST or show the old multi-sentence server error.
  await page.getByRole("button",{name:"Опубликовать курс"}).click();
- await expect(page.locator(".academy-publish-submit").getByRole("alert")).toHaveText("Сначала подтвердите авторские права выше.");
+ await expect(page.locator(".academy-publish-submit").getByRole("alert")).toContainText("не менее 12 символов");
  expect(calls.filter(c=>c.path.endsWith("/publish"))).toHaveLength(0);
 
  await rights.locator("#academy-original-rights").fill("author-original-materials-reference");
@@ -132,4 +132,49 @@ test("guided course editor connects module, lesson, video, schedule, rights and 
  expect(calls.find(c=>c.path.endsWith("/rights/original"))?.body).toMatchObject({acknowledged:true});
  const dims=await page.evaluate(()=>({viewport:innerWidth,document:document.documentElement.scrollWidth}));
  expect(dims.document).toBeLessThanOrEqual(dims.viewport+1);
+});
+
+test("publishing reports short rights source and saves explicit consent through canonical readback",async({page})=>{
+ const calls:string[]=[];
+ let stored=false;
+ const lesson={id:lessonId,module_id:moduleId,title:"Введение",kind:"READING",ordinal:1};
+ await page.route("**/v1/academy/**",async route=>{
+  const req=route.request(),path=new URL(req.url()).pathname,method=req.method();
+  let status=200;let data:unknown={};
+  if(method==="GET"){
+   if(path==="/v1/academy/courses")data={courses:[]};
+   else if(path==="/v1/academy/my-courses")data={courses:[course]};
+   else if(path==="/v1/academy/my-enrollments")data={enrollments:[]};
+   else if(path==="/v1/academy/review/attempts")data={attempts:[]};
+   else if(path==="/v1/academy/author/report")data={courses:[],gross_captures:[],revenue_state:"UNAVAILABLE"};
+   else if(path==="/v1/academy/author/cohorts")data={cohorts:[]};
+   else if(path==="/v1/academy/me/course-access")data={course_ids:[]};
+   else if(path==="/v1/academy/me/certificates")data={certificates:[]};
+   else if(path.endsWith("/outline"))data={state:"DRAFT",modules:[{id:moduleId,version_id:versionId,ordinal:1,title:"Основы"}],lessons:[lesson]};
+   else if(path.endsWith("/rights/original"))data={confirmed:stored,provenance_ref:stored?"мои авторские лекции":""};
+   else{status=501;data={code:"UNMOCKED",path};}
+  }else if(method==="POST"){
+   calls.push(path);
+   if(path.endsWith("/rights/original")){stored=true;data={id:"rights-attestation"};}
+   else if(path.endsWith("/publish"))data={...course,state:"PUBLISHED"};
+   else{status=501;data={code:"UNMOCKED_MUTATION",path};}
+  }
+  await route.fulfill({status,contentType:"application/json",body:JSON.stringify(data)});
+ });
+ await page.goto("/academy?tab=courses");
+ await page.getByRole("button",{name:"Открыть редактор"}).click();
+ await page.getByRole("button",{name:"3. Публикация"}).click();
+ const rights=page.getByRole("region",{name:"Декларация авторских прав"});
+ const input=rights.locator("#academy-original-rights");
+ await expect(input).toHaveAttribute("minlength","12");
+ await input.fill("мои лекции");
+ await rights.getByRole("checkbox").check();
+ await page.getByRole("button",{name:"Опубликовать курс"}).click();
+ await expect(page.locator(".academy-publish-submit").getByRole("alert")).toContainText("не менее 12 символов");
+ expect(calls).toHaveLength(0);
+ await input.fill("мои авторские лекции");
+ await page.getByRole("button",{name:"Опубликовать курс"}).click();
+ await expect(page.getByRole("status").filter({hasText:"Курс опубликован"})).toBeVisible();
+ expect(calls.filter(p=>p.endsWith("/rights/original"))).toHaveLength(1);
+ expect(calls.filter(p=>p.endsWith("/publish"))).toHaveLength(1);
 });
