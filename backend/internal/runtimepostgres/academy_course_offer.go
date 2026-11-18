@@ -78,3 +78,37 @@ func (c *Checker) AcademySetCourseOffer(actor, courseID, mode string, priceMinor
 		Currency: "RUB", Revision: revision,
 	}, nil
 }
+
+
+// AcademyCheckoutOffer is the signed checkout boundary's authoritative quote
+// source. An author-controlled paid label alone never makes an unpublished
+// Commerce product sellable, and clients cannot supply a different price.
+func (c *Checker) AcademyCheckoutOffer(courseID string) (academy.CourseOffer, error) {
+	if !academyMediaUUID(courseID) {
+		return academy.CourseOffer{}, academy.ErrInvalid
+	}
+	if c == nil || c.db == nil {
+		return academy.CourseOffer{}, academy.ErrUnavailable
+	}
+	ctx, cancel := academyContext()
+	defer cancel()
+	var offer academy.CourseOffer
+	err := c.db.QueryRowContext(ctx, `SELECT c.id::text,terms.access_mode,
+ terms.price_minor,terms.currency,terms.revision
+ FROM academy_courses c
+ JOIN products p ON p.id=c.product_id
+ JOIN commerce_product_access_terms terms ON terms.product_id=c.product_id
+ WHERE c.id=$1::uuid AND c.state='PUBLISHED'
+ AND EXISTS(SELECT 1 FROM academy_course_versions v
+            WHERE v.course_id=c.id AND v.state='PUBLISHED')
+ AND p.status='PUBLISHED' AND terms.access_mode='PAID'
+ AND terms.price_minor>0`, courseID).Scan(
+		&offer.CourseID, &offer.AccessMode, &offer.PriceMinor, &offer.Currency, &offer.Revision)
+	if errors.Is(err, sql.ErrNoRows) {
+		return academy.CourseOffer{}, academy.ErrState
+	}
+	if err != nil {
+		return academy.CourseOffer{}, err
+	}
+	return offer, nil
+}
