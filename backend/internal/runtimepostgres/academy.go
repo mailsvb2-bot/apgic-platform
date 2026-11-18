@@ -489,7 +489,8 @@ func (c *Checker) AcademyCatalog() ([]academy.Course, error) {
  JOIN LATERAL (
   SELECT id,version_no FROM academy_course_versions
   WHERE course_id=c.id AND state='PUBLISHED' ORDER BY version_no DESC LIMIT 1
- )v ON true WHERE c.state='PUBLISHED' ORDER BY c.title,c.id LIMIT 100`)
+ )v ON true WHERE c.state='PUBLISHED' AND terms.access_mode IN ('FREE','PAID')
+ ORDER BY c.title,c.id LIMIT 100`)
 	if err != nil {
 		return nil, err
 	}
