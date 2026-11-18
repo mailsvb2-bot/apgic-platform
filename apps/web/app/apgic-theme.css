@@ -60,7 +60,7 @@ body{background:radial-gradient(ellipse 55rem 36rem at 100% 0%,#e7efff 0%,transp
  background:var(--apgic-color-surface);
  box-shadow:var(--apgic-shadow-card);
 }
-:where(.site-shell,.personal-shell,.apgic-account,.academy-workspace,.specialist-dashboard)
+:where(.personal-shell,.apgic-account,.academy-workspace,.specialist-dashboard)
  :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]):not([type="file"]),select,textarea){
  border:1px solid var(--apgic-color-line);
  border-radius:var(--apgic-radius-control);
@@ -68,22 +68,22 @@ body{background:radial-gradient(ellipse 55rem 36rem at 100% 0%,#e7efff 0%,transp
  color:var(--apgic-color-ink);
  max-width:100%;
 }
-:where(.site-shell,.personal-shell,.apgic-account,.academy-workspace,.specialist-dashboard)
+:where(.personal-shell,.apgic-account,.academy-workspace,.specialist-dashboard)
  :is(button,a,input,select,textarea,summary):focus-visible{
  outline:3px solid var(--apgic-color-focus);
  outline-offset:3px;
 }
-:where(.site-shell,.personal-shell,.apgic-account,.academy-workspace,.specialist-dashboard) button:not(:disabled){
+:where(.personal-shell,.apgic-account,.academy-workspace,.specialist-dashboard) button:not(:disabled){
  cursor:pointer;
 }
-:where(.site-shell,.personal-shell,.apgic-account,.academy-workspace,.specialist-dashboard) button:disabled{
+:where(.personal-shell,.apgic-account,.academy-workspace,.specialist-dashboard) button:disabled{
  cursor:not-allowed;
  opacity:.55;
 }
-:where(.site-shell,.personal-shell,.apgic-account,.academy-workspace,.specialist-dashboard) :is(button,.button-link){
+:where(.personal-shell,.apgic-account,.academy-workspace,.specialist-dashboard) :is(button,.button-link){
  transition:background-color .16s ease,border-color .16s ease,color .16s ease;
 }
 @media(prefers-reduced-motion:reduce){
  html{scroll-behavior:auto}
- :where(.site-shell,.personal-shell,.apgic-account,.academy-workspace,.specialist-dashboard) *{transition:none!important;animation:none!important}
+ :where(.personal-shell,.apgic-account,.academy-workspace,.specialist-dashboard) *{transition:none!important;animation:none!important}
 }
