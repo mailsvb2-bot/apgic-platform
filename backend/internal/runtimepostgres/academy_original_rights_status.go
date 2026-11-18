@@ -16,19 +16,21 @@ func (c *Checker) AcademyOriginalRightsStatus(actor, courseID, versionID string)
 	if c == nil || c.db == nil {
 		return false, "", academy.ErrUnavailable
 	}
-	ctx, cancel := academyContext()
+	ctx, cancel, tx, err := academyBegin(c)
 	defer cancel()
-	var owner bool
-	if err := c.db.QueryRowContext(ctx, `SELECT EXISTS(
- SELECT 1 FROM academy_courses c
- WHERE c.id=$2::uuid AND c.author_id=$1::uuid)`, actor, courseID).Scan(&owner); err != nil {
+	if err != nil {
+		return false, "", err
+	}
+	defer tx.Rollback()
+	owner, err := academyAuthor(ctx, tx, actor, courseID)
+	if err != nil {
 		return false, "", err
 	}
 	if !owner {
 		return false, "", academy.ErrDenied
 	}
 	var state string
-	err := c.db.QueryRowContext(ctx, `SELECT state FROM academy_course_versions
+	err = tx.QueryRowContext(ctx, `SELECT state FROM academy_course_versions
  WHERE id=$1::uuid AND course_id=$2::uuid`, versionID, courseID).Scan(&state)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, "", academy.ErrNotFound
@@ -37,7 +39,7 @@ func (c *Checker) AcademyOriginalRightsStatus(actor, courseID, versionID string)
 		return false, "", err
 	}
 	var provenance string
-	err = c.db.QueryRowContext(ctx, `SELECT provenance_ref FROM academy_original_rights
+	err = tx.QueryRowContext(ctx, `SELECT provenance_ref FROM academy_original_rights
  WHERE version_id=$1::uuid AND author_id=$2::uuid
  AND curriculum_sha256=academy_curriculum_fingerprint($1::uuid)
  ORDER BY attested_at DESC LIMIT 1`, versionID, actor).Scan(&provenance)
