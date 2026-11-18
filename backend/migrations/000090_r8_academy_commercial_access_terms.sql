@@ -129,3 +129,16 @@ BEGIN
  RETURN NEW;
 END;
 $fn$;
+
+-- Accept the canonical author offer audit/outbox event, preserving the exact
+-- legacy gateway whitelist and idempotent delivery constraints.
+ALTER TABLE event_gateway_receipts DROP CONSTRAINT event_gateway_receipts_event_type_check;
+ALTER TABLE event_gateway_receipts ADD CONSTRAINT event_gateway_receipts_event_type_check
+ CHECK (event_type='booking.ledger_committed' OR event_type IN(
+ 'academy.course.created','academy.version.drafted','academy.module.added',
+ 'academy.lesson.added','academy.media.assigned','academy.cohort.created',
+ 'academy.cohort.joined','academy.original_rights.attested',
+ 'academy.version.published','academy.offer.updated',
+ 'academy.enrollment.created','academy.lesson.completed',
+ 'academy.learning.completed','academy.assessment.submitted',
+ 'academy.assessment.evaluated'));
