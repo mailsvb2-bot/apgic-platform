@@ -7,8 +7,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/mailsvb2-bot/apgic-platform/backend/internal/academy"
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/academy"
 )
 
 // End-to-end DB proof: free admission is a real non-payment entitlement;
@@ -67,7 +67,10 @@ func TestAcademyOwnerPriceAndFreeEnrollmentNoPayment(t *testing.T) {
 	if _, err = store.AcademySetCourseOffer(outsider, course.ID, "FREE", 0); !errors.Is(err, academy.ErrDenied) {
 		t.Fatalf("foreign offer change allowed: %v", err)
 	}
-	for _, tc := range []struct{ mode string; price int64 }{
+	for _, tc := range []struct {
+		mode  string
+		price int64
+	}{
 		{"FREE", 100}, {"PAID", 0}, {"PAID", -1}, {"PAID", 10000000001}, {"OPEN", 0},
 	} {
 		if _, err = store.AcademySetCourseOffer(author, course.ID, tc.mode, tc.price); !errors.Is(err, academy.ErrInvalid) {
