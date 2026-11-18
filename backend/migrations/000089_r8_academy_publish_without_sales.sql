@@ -59,7 +59,8 @@ BEGIN
    WHERE m.version_id=p_version_id AND l.kind='VIDEO' AND NOT EXISTS (
      SELECT 1 FROM academy_lesson_media lm
      JOIN academy_cloud_media cm ON cm.id=lm.media_id
-     JOIN academy_courses c ON c.id=m.course_id
+     JOIN academy_course_versions v ON v.id=m.version_id
+     JOIN academy_courses c ON c.id=v.course_id
      JOIN academy_cloud_connections cc ON cc.author_id=c.author_id
        AND cc.provider=cm.provider AND cc.generation=cm.connection_generation
      WHERE lm.lesson_id=l.id AND cm.author_id=c.author_id
@@ -71,7 +72,8 @@ BEGIN
    JOIN academy_lessons l ON l.id=lm.lesson_id
    JOIN academy_modules m ON m.id=l.module_id
    JOIN academy_cloud_media cm ON cm.id=lm.media_id
-   JOIN academy_courses c ON c.id=m.course_id
+   JOIN academy_course_versions v ON v.id=m.version_id
+     JOIN academy_courses c ON c.id=v.course_id
    LEFT JOIN academy_cloud_connections cc ON cc.author_id=c.author_id
      AND cc.provider=cm.provider AND cc.generation=cm.connection_generation
    WHERE m.version_id=p_version_id AND l.kind='VIDEO'
