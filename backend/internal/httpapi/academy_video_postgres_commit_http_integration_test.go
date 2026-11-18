@@ -267,6 +267,12 @@ func (b academyVideoTrackedBody) Close() error {
 // enrollment and refund projection are real PostgreSQL state. Production
 // learner delivery remains closed until a certified CDN adapter is wired.
 func TestAcademyYandexTransportHarnessStopsAfterCommittedEntitlementRevocation(t *testing.T) {
+	// Only the isolated CI fixture has a synthetic HIGH_RISK provider approval
+	// bound to this exact SHA. The canonical learner gate must check it on every
+	// source read, even before the refund/revocation challenge begins.
+	t.Setenv("APGIC_ACADEMY_VIDEO_PUBLISH_ENABLED", "true")
+	t.Setenv("APGIC_ACADEMY_VIDEO_DELIVERY_MODE", "direct")
+	t.Setenv("APGIC_COMMIT_SHA", strings.Repeat("c", 40))
 	dsn := os.Getenv("APGIC_ORGANIZATION_TEST_DATABASE_URL")
 	if dsn == "" {
 		t.Skip("isolated migrated PostgreSQL Academy journey required")
