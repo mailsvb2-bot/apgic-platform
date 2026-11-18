@@ -55,14 +55,14 @@ func TestAcademyVideoCleanEOFDoesNotCreditUndeliveredBytes(t *testing.T) {
 // those actually flushed, even when the provider closes cleanly.
 func TestAcademyVideoHTTPRangeDeliveryAccounting(t *testing.T) {
 	tests := []struct {
-		name string
-		status int
-		headers http.Header
-		size int64
+		name      string
+		status    int
+		headers   http.Header
+		size      int64
 		delivered int64
 		wantStart int64
-		wantEnd int64
-		valid bool
+		wantEnd   int64
+		valid     bool
 	}{
 		{"full-short", http.StatusOK, http.Header{"Content-Length": {"128"}}, 128, 17, 0, 17, true},
 		{"seek-short", http.StatusPartialContent, http.Header{"Content-Range": {"bytes 40-99/128"}}, 128, 12, 40, 52, true},
