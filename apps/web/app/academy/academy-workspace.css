@@ -1,5 +1,5 @@
 /* APGIC Academy: guided author workspace; existing API owners remain unchanged. */
-.academy-workspace{--academy-blue:#1763ed;--academy-ink:#11203e;--academy-muted:#667593;--academy-line:#e1e7f3;display:grid;grid-template-columns:244px minmax(0,1fr);min-height:100vh;max-width:100%;background:#f6f8fe;color:var(--academy-ink);font-family:Inter,ui-sans-serif,system-ui,sans-serif}
+.academy-workspace{--academy-blue:var(--apgic-color-primary);--academy-ink:var(--apgic-color-ink);--academy-muted:var(--apgic-color-muted);--academy-line:var(--apgic-color-line);display:grid;grid-template-columns:244px minmax(0,1fr);min-height:100vh;max-width:100%;background:#f6f8fe;color:var(--academy-ink);font-family:Inter,ui-sans-serif,system-ui,sans-serif}
 .academy-workspace *{box-sizing:border-box;min-width:0}
 .academy-sidebar{background:#fff;border-right:1px solid var(--academy-line);padding:28px 15px;position:sticky;top:0;align-self:start;min-height:100vh}
 .academy-logo{display:flex;align-items:center;gap:12px;padding:4px 15px 34px;color:#111e36;text-decoration:none;font-size:1.42rem;letter-spacing:-.03em;font-weight:850}
