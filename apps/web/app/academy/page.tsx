@@ -611,9 +611,23 @@ export default function AcademyPage(){
       <label className="academy-rights-checkbox"><input type="checkbox" checked={rightsAgreed}
        onChange={e=>{setRightsAgreed(e.target.checked);setRightsFeedback("");setPublishError("")}}/>
        Подтверждаю авторство и право публикации</label>
-      <button type="button" className="academy-blue-button" disabled={busy||!rightsAgreed||rightsSource.trim().length<12||lessons.length===0}
+      <button type="button" className="academy-blue-button" disabled={busy}
        onClick={async()=>{
-        setRightsFeedback("");setPublishError("");setBusy(true);
+        setRightsFeedback("");setPublishError("");
+        if(rightsSource.trim().length<12){
+         setRightsFeedback("Укажите источник своих материалов (не менее 12 символов).");
+         rightsInputRef.current?.focus();
+         return;
+        }
+        if(!rightsAgreed){
+         setRightsFeedback("Поставьте отметку о праве публикации.");
+         return;
+        }
+        if(lessons.length===0){
+         setRightsFeedback("Сначала добавьте хотя бы один урок.");
+         return;
+        }
+        setBusy(true);
         try{
          await api<{id:string}>(`/v1/academy/courses/${course.id}/versions/${course.version_id}/rights/original`,
           {provenance_ref:rightsSource.trim(),acknowledged:true});
