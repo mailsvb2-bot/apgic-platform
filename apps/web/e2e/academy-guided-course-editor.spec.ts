@@ -10,6 +10,7 @@ const course={id:courseId,version_id:versionId,version_no:1,product_id:courseId,
 test("guided course editor connects module, lesson, video, schedule, rights and publish to canonical APIs",async({page})=>{
  const calls:{method:string;path:string;body:unknown}[]=[];
  let modules:{id:string;version_id:string;ordinal:number;title:string}[]=[];
+ let publishingApproved=false;
  let lessons:{id:string;module_id:string;title:string;ordinal:number;kind:string}[]=[];
  await page.route("**/v1/academy/**",async route=>{
   const req=route.request(),path=new URL(req.url()).pathname,method=req.method();
@@ -41,7 +42,10 @@ test("guided course editor connects module, lesson, video, schedule, rights and 
     data=lessons[0];
    }else if(path===`/v1/academy/lessons/${lessonId}/schedule`)data={state:"SAVED"};
    else if(path===`/v1/academy/courses/${courseId}/versions/${versionId}/rights/original`)data={id:"rights-proof"};
-   else if(path===`/v1/academy/courses/${courseId}/versions/${versionId}/publish`)data={...course,state:"PUBLISHED"};
+   else if(path===`/v1/academy/courses/${courseId}/versions/${versionId}/publish`){
+    if(!publishingApproved){status=409;data={code:"VIDEO_RELEASE_NOT_APPROVED",message_safe:"Доставка видео пока не подтверждена"};}
+    else data={...course,state:"PUBLISHED"};
+   }
    else{status=501;data={code:"UNMOCKED_MUTATION",path};}
   }
   await route.fulfill({status,contentType:"application/json",body:JSON.stringify(data)});
@@ -94,10 +98,14 @@ test("guided course editor connects module, lesson, video, schedule, rights and 
  await expect(rights.getByText("Подтверждение зафиксировано.")).toBeVisible();
  await expect(page.getByText(/сервер дополнительно требует проверенные файлы Яндекс Диска/)).toBeVisible();
  await page.getByRole("button",{name:"Опубликовать версию курса"}).click();
+ await expect(page.getByRole("status").filter({hasText:"Доставка видео пока не подтверждена"})).toBeVisible();
+ await expect(page.getByRole("button",{name:"Опубликовать версию курса"})).toBeVisible();
+ publishingApproved=true;
+ await page.getByRole("button",{name:"Опубликовать версию курса"}).click();
  await expect(page.getByRole("status").filter({hasText:"Версия опубликована"})).toBeVisible();
  const paths=calls.map(c=>c.path);
  for(const segment of ["/modules","/lessons","/schedule","/rights/original","/publish"]){
-  expect(paths.filter(path=>path.endsWith(segment))).toHaveLength(1);
+  expect(paths.filter(path=>path.endsWith(segment))).toHaveLength(segment==="/publish"?2:1);
  }
  expect(calls.find(c=>c.path.endsWith("/lessons"))?.body).toMatchObject({kind:"VIDEO",body:"",ordinal:1});
  expect(calls.find(c=>c.path.endsWith("/rights/original"))?.body).toMatchObject({acknowledged:true});
