@@ -481,7 +481,7 @@ func (c *Checker) AcademyCatalog() ([]academy.Course, error) {
 	ctx, cancel := academyContext()
 	defer cancel()
 	rows, err := c.db.QueryContext(ctx, `SELECT c.id::text,c.product_id::text,c.title,c.description,v.id::text,v.version_no,
- COALESCE(terms.access_mode,CASE WHEN p.status='PUBLISHED' THEN 'PAID' ELSE 'UNLISTED' END),
+ COALESCE(terms.access_mode,'UNLISTED'),
  COALESCE(terms.price_minor,0),'RUB'
  FROM academy_courses c
  JOIN products p ON p.id=c.product_id
@@ -988,7 +988,7 @@ func (c *Checker) AcademyAuthorCourses(actor string) ([]academy.Course, error) {
 	defer cancel()
 	rows, err := c.db.QueryContext(ctx, `SELECT c.id::text,c.product_id::text,c.title,c.description,c.state,
  COALESCE(v.id::text,''),COALESCE(v.version_no,0),
- COALESCE(terms.access_mode,CASE WHEN p.status='PUBLISHED' THEN 'PAID' ELSE 'UNLISTED' END),
+ COALESCE(terms.access_mode,'UNLISTED'),
  COALESCE(terms.price_minor,0),'RUB'
  FROM academy_courses c
  JOIN products p ON p.id=c.product_id
