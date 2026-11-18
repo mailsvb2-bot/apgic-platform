@@ -18,10 +18,17 @@ func (c *Checker) AcademyLearnerVideoSource(actor, enrollmentID, lessonID, media
 			return "", "", "", academy.ErrInvalid
 		}
 	}
-	ctx, cancel := academyContext()
+	ctx, cancel, tx, err := academyBegin(c)
 	defer cancel()
+	if err != nil {
+		return "", "", "", err
+	}
+	defer tx.Rollback()
+	if err = academyConfigureLearnerVideoRelease(ctx, tx); err != nil {
+		return "", "", "", err
+	}
 	var author, provider, path string
-	err := c.db.QueryRowContext(ctx, `SELECT c.author_id::text,media.provider,media.provider_file_ref
+	err = tx.QueryRowContext(ctx, `SELECT c.author_id::text,media.provider,media.provider_file_ref
  FROM academy_enrollments e
  JOIN store_entitlements t ON t.id=e.entitlement_id
  JOIN academy_course_versions v ON v.id=e.version_id AND v.state='PUBLISHED'
@@ -40,6 +47,7 @@ func (c *Checker) AcademyLearnerVideoSource(actor, enrollmentID, lessonID, media
  LEFT JOIN academy_assessment_limits limits ON limits.lesson_id=l.id
  WHERE e.id=$1::uuid AND e.identity_id=$2::uuid AND l.id=$3::uuid AND media.id=$4::uuid
  AND e.state IN ('ACTIVE','COMPLETED') AND academy_entitlement_is_active(t.id)
+ AND academy_video_learner_delivery_ready(v.id)
  AND `+academyAssessmentOpenSQL, enrollmentID, actor, lessonID, mediaID).Scan(&author, &provider, &path)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", "", "", academy.ErrEntitlement
