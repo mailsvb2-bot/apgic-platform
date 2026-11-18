@@ -51,7 +51,11 @@ test("author saves paid price; learner cannot fake bank payment; free course can
  await expect(offer.locator(".academy-offer-current strong")).toContainText(/Платный.*2.499/);
  await expect(offer.getByRole("status")).toContainText("Сохранено: 2");
  const saveColor=await offer.getByRole("button",{name:"Сохранить"}).evaluate(el=>getComputedStyle(el).backgroundColor);
- expect(saveColor).toBe("rgb(23, 99, 237)");
+ const channel=saveColor.match(/\\d+/g)?.map(Number)||[];
+ expect(channel).toHaveLength(3);
+ expect(channel[0]).toBeLessThan(55);
+ expect(channel[2]).toBeGreaterThan(190); // APGIC blue, including hover transition
+ expect(saveColor).not.toBe("rgb(22, 63, 49)"); // old dark-green theme
  expect(mutations.find(x=>x.path.endsWith("/offer"))?.body).toEqual({access_mode:"PAID",price_minor:249900});
  await page.getByRole("button",{name:"Каталог",exact:true}).click();
  const card=page.getByRole("article").filter({hasText:"Авторский курс"});
