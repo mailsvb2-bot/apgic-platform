@@ -95,9 +95,10 @@ func academyOwnedProduct(ctx context.Context, tx *sql.Tx, actor, productID strin
  ON m.organization_id=o.organization_id AND m.identity_id=o.identity_id
  WHERE o.organization_id=p.owner_id AND o.identity_id=$1::uuid
  AND o.status='ACTIVE' AND m.status='ACTIVE'
- )))`, actor, productID).Scan(&allowed)
+ ))))`, actor, productID).Scan(&allowed)
 	return allowed, err
 }
+
 func academyPublishedProductOwner(ctx context.Context, tx *sql.Tx, actor, productID string) (bool, error) {
 	var allowed bool
 	err := tx.QueryRowContext(ctx, `SELECT EXISTS(
