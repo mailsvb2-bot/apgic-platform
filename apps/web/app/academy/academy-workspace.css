@@ -145,3 +145,10 @@
 .academy-course-editor .academy-publish-rights input[type="checkbox"]{width:auto;min-height:0;accent-color:#1763ed;margin-right:8px}
 .academy-course-editor .panel.academy-publish-rights button{width:auto;background:#1763ed;color:#fff;border:0;border-radius:11px;padding:12px 17px;font-weight:750;justify-self:start}
 .academy-course-editor .academy-publish-caution{font-size:.92rem;color:#50627e;background:#edf5ff;border:1px solid #d4e2fa;border-radius:11px;padding:13px 17px}
+
+
+/* Publishing feedback must remain in view after the user presses Publish. */
+.academy-publish-submit{display:grid;justify-items:start;gap:12px;margin-top:14px}
+.academy-course-editor .academy-publish-submit .academy-blue-button{max-width:100%}
+.academy-publish-error{max-width:780px;margin:0;border:1px solid #df9d9d;border-radius:10px;padding:13px 16px;background:#fff3f3;color:#8b2323;font-weight:650;line-height:1.55}
+.academy-course-editor .academy-publish-rights .academy-publish-check-hint{margin-top:10px;color:#536584;font-size:.88rem;line-height:1.5}
