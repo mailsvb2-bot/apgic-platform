@@ -46,7 +46,7 @@ test("author workspace routes every primary navigation and editor step to canoni
  await expect(page.locator("#academy-media-editor")).toBeVisible();
  await page.getByRole("button",{name:"3. Публикация"}).click();
  await expect(page.getByRole("heading",{name:"1. Проверьте содержание курса"})).toBeVisible();
- await expect(page.getByRole("heading",{name:"2. Подтвердите права на материалы"})).toBeVisible();
+ await expect(page.getByRole("heading",{name:"2. Подтвердите авторские права"})).toBeVisible();
  await page.getByRole("button",{name:"Проверить уроки"}).click();
  await page.getByRole("button",{name:"＋ Модуль"}).click();
  await expect(page.locator("#academy-module")).toBeVisible();
