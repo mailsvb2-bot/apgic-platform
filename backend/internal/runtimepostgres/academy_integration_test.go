@@ -725,7 +725,9 @@ ON CONFLICT(author_id,provider) DO UPDATE SET
 		t.Fatal(err)
 	} else {
 		for _, id := range access {
-			if id == course.ID { t.Fatal("unapproved SHA granted learner access") }
+			if id == course.ID {
+				t.Fatal("unapproved SHA granted learner access")
+			}
 		}
 	}
 	t.Setenv("APGIC_COMMIT_SHA", sourceSHA)
@@ -738,7 +740,9 @@ ON CONFLICT(author_id,provider) DO UPDATE SET
 		t.Fatal(err)
 	} else {
 		for _, id := range access {
-			if id == course.ID { t.Fatal("unwired CDN granted learner access") }
+			if id == course.ID {
+				t.Fatal("unwired CDN granted learner access")
+			}
 		}
 	}
 	t.Setenv("APGIC_ACADEMY_VIDEO_DELIVERY_MODE", "direct")
