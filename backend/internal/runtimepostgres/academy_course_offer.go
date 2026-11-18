@@ -90,17 +90,29 @@ func (c *Checker) AcademyCheckoutOffer(courseID string) (academy.CourseOffer, er
 	if c == nil || c.db == nil {
 		return academy.CourseOffer{}, academy.ErrUnavailable
 	}
-	ctx, cancel := academyContext()
+	ctx, cancel, tx, err := academyBegin(c)
 	defer cancel()
+	if err != nil {
+		return academy.CourseOffer{}, err
+	}
+	defer tx.Rollback()
+	// Never make an unplayable video course eligible for an external charge.
+	if err = academyConfigureLearnerVideoRelease(ctx, tx); err != nil {
+		return academy.CourseOffer{}, err
+	}
 	var offer academy.CourseOffer
-	err := c.db.QueryRowContext(ctx, `SELECT c.id::text,terms.access_mode,
+	err = tx.QueryRowContext(ctx, `SELECT c.id::text,terms.access_mode,
  terms.price_minor,terms.currency,terms.revision
  FROM academy_courses c
  JOIN products p ON p.id=c.product_id
  JOIN commerce_product_access_terms terms ON terms.product_id=c.product_id
  WHERE c.id=$1::uuid AND c.state='PUBLISHED'
  AND EXISTS(SELECT 1 FROM academy_course_versions v
-            WHERE v.course_id=c.id AND v.state='PUBLISHED')
+            WHERE v.course_id=c.id AND v.state='PUBLISHED'
+              AND v.version_no=(SELECT MAX(newest.version_no)
+                FROM academy_course_versions newest WHERE newest.course_id=c.id
+                  AND newest.state='PUBLISHED')
+              AND academy_video_learner_delivery_ready(v.id))
  AND p.status='PUBLISHED' AND terms.access_mode='PAID'
  AND terms.price_minor>0`, courseID).Scan(
 		&offer.CourseID, &offer.AccessMode, &offer.PriceMinor, &offer.Currency, &offer.Revision)
