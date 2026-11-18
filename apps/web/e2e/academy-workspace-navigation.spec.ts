@@ -45,8 +45,10 @@ test("author workspace routes every primary navigation and editor step to canoni
  await page.getByRole("button",{name:"2. Видео"}).click();
  await expect(page.locator("#academy-media-editor")).toBeVisible();
  await page.getByRole("button",{name:"3. Публикация"}).click();
- await expect(page.getByRole("heading",{name:"Подготовка к публикации"})).toBeVisible();
- await page.getByRole("button",{name:"Проверить структуру и права"}).click();
+ await expect(page.getByRole("heading",{name:"1. Проверьте содержание курса"})).toBeVisible();
+ await expect(page.getByRole("heading",{name:"2. Подтвердите права на материалы"})).toBeVisible();
+ await page.getByRole("button",{name:"Проверить уроки"}).click();
+ await page.getByRole("button",{name:"＋ Модуль"}).click();
  await expect(page.locator("#academy-module")).toBeVisible();
  await page.getByRole("button",{name:"← Все курсы"}).click();
  await page.getByRole("button",{name:"＋ Создать курс"}).click();
@@ -94,10 +96,12 @@ test("create course button writes through the existing Academy drafts endpoint o
  await page.goto("/academy");
  await page.getByRole("button",{name:"＋ Создать курс"}).click();
  await expect(page.locator("#academy-title")).toBeVisible();
+ await expect(page.getByRole("link",{name:"Настроить организацию и продажи"})).toHaveAttribute("href","/organization");
  await page.locator("#academy-title").fill("Новый курс");
  await page.locator("#academy-description").fill("Описание");
  await page.locator("#academy-author").getByRole("button",{name:"Создать курс",exact:true}).click();
  await expect(page.getByRole("heading",{name:"Новый курс"})).toBeVisible();
+ await page.getByRole("button",{name:"＋ Модуль"}).click();
  await expect(page.locator("#academy-module")).toBeVisible();
  expect(drafts).toBe(1);
 });

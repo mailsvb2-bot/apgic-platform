@@ -6,9 +6,6 @@ import AcademyLessonVideos from "./academy-lesson-videos";
 import "./academy-workspace.css";
 
 type AcademyNotifications = {enabled:boolean;learning_updates:boolean;assessment_results:boolean;certificate_updates:boolean};
-type AuthorProduct = {id:string;name:string};
-type AcademyOrg = {id:string;name:string;directions:{id:string;name:string;status:string}[]};
-type AcademyOrgProduct = {id:string;name:string;status:string};
 type Course = {id:string;product_id:string;title:string;description:string;state:string;version_id:string;version_no:number};
 type Module = {id:string;version_id:string;title:string;ordinal:number};
 type Lesson = {id:string;module_id:string;title:string;kind:"READING"|"VIDEO"|"ASSESSMENT";ordinal:number;body?:string;media_asset_ref?:string;completed?:boolean;passing_score?:number;available?:boolean};
@@ -56,23 +53,6 @@ export default function AcademyPage(){
  const [mine,setMine]=useState<Course[]>([]);
  const [ownedCoursesError,setOwnedCoursesError]=useState("");
  const [ownedCoursesLoaded,setOwnedCoursesLoaded]=useState(false);
- const [eligibleProducts,setEligibleProducts]=useState<AuthorProduct[]>([]);
- const [productLoadError,setProductLoadError]=useState("");
- const [orgs,setOrgs]=useState<AcademyOrg[]>([]);
- const [newOrgName,setNewOrgName]=useState("");
- const [newDirectionName,setNewDirectionName]=useState("Обучение");
- const [orgMutationUncertain,setOrgMutationUncertain]=useState(false);
- const [directionMutationUncertain,setDirectionMutationUncertain]=useState(false);
- const [productMutationUncertain,setProductMutationUncertain]=useState(false);
- const [orgID,setOrgID]=useState("");
- const [directionID,setDirectionID]=useState("");
- const [orgProducts,setOrgProducts]=useState<AcademyOrgProduct[]>([]);
- const [preparedProductID,setPreparedProductID]=useState("");
- const [commercialRef,setCommercialRef]=useState("");
- const [authorRefs,setAuthorRefs]=useState("");
- const [beneficiaryRef,setBeneficiaryRef]=useState("");
- const [productStepError,setProductStepError]=useState("");
- const [productBusy,setProductBusy]=useState(false);
  const [enrollments,setEnrollments]=useState<Enrollment[]>([]);
  const [verifiedCourseIDs,setVerifiedCourseIDs]=useState<string[]>([]);
  const [course,setCourse]=useState<Course|null>(null);
@@ -100,10 +80,10 @@ export default function AcademyPage(){
  // A lost HTTP response must not lead to a second, non-idempotent draft POST.
  const [pendingDraft,setPendingDraft]=useState<{title:string;description:string;baseline:string[]}|null>(null);
  const [notifications,setNotifications]=useState<AcademyNotifications|null>(null);
- const [productID,setProductID]=useState("");
  const [title,setTitle]=useState("");
  const [description,setDescription]=useState("");
  const [moduleTitle,setModuleTitle]=useState("");
+ const [structureAction,setStructureAction]=useState<"overview"|"module"|"lesson">("overview");
  const [lessonTitle,setLessonTitle]=useState("");
  const [lessonBody,setLessonBody]=useState("");
  const [lessonKind,setLessonKind]=useState<Lesson["kind"]>("VIDEO");
@@ -124,13 +104,12 @@ export default function AcademyPage(){
  const refresh=useCallback(async()=>{
   const publicCourses=await api<{courses:Course[]}>("/v1/academy/courses");
   setCatalog(publicCourses.courses);
-  const [owned,learning,reviews,report,cohortList,eligible,access,credentials]=await Promise.allSettled([
+  const [owned,learning,reviews,report,cohortList,access,credentials]=await Promise.allSettled([
    api<{courses:Course[]}>("/v1/academy/my-courses"),
    api<{enrollments:Enrollment[]}>("/v1/academy/my-enrollments"),
    api<{attempts:ReviewAttempt[]}>("/v1/academy/review/attempts"),
    api<AuthorReport>("/v1/academy/author/report"),
    api<{cohorts:Cohort[]}>("/v1/academy/author/cohorts"),
-   api<{products:AuthorProduct[]}>("/v1/academy/author/eligible-products"),
    api<{course_ids:string[]}>("/v1/academy/me/course-access"),
    api<{certificates:LearnerCertificate[]}>("/v1/academy/me/certificates")
   ]);
@@ -153,14 +132,6 @@ export default function AcademyPage(){
   if(reviews.status==="fulfilled")setPendingReviews(reviews.value.attempts);
   if(report.status==="fulfilled")setAuthorReport(report.value);
   if(cohortList.status==="fulfilled")setAuthorCohorts(cohortList.value.cohorts);
-  if(eligible.status==="fulfilled"){
-   setEligibleProducts(eligible.value.products);
-   setProductLoadError("");
-  }else{
-   setEligibleProducts([]);
-   setProductID("");
-   setProductLoadError(eligible.reason instanceof Error?eligible.reason.message:"Не удалось загрузить Commerce-продукты");
-  }
   // Fail closed on expired sessions or unavailable entitlement projection.
   setVerifiedCourseIDs(access.status==="fulfilled"?access.value.course_ids:[]);
   setCertificates(credentials.status==="fulfilled"?credentials.value.certificates:[]);
@@ -187,6 +158,7 @@ export default function AcademyPage(){
   const d=await api<{state:string;modules:Module[];lessons:Lesson[]}>(
    `/v1/academy/courses/${selected.id}/versions/${selected.version_id}/outline`);
   setModules(d.modules);setLessons(d.lessons);setModuleID(d.modules[0]?.id||"");
+  setStructureAction("overview");
  },[]);
  // Resume a verified author's draft directly after the OAuth callback.
  // A missing course/version pair is not an error when exactly one draft exists.
@@ -233,100 +205,6 @@ export default function AcademyPage(){
   setView("learning");setActiveEnrollment(item);setCourse(null);setCertificate(null);
   setLessons(d.lessons);setLearnerAttempts(history.attempts);setLearnerAppeals(appealList.items);setModules([]);
   setCohorts(cohortResult.items);setCohortError(!cohortResult.ok);setAppealError(!appealList.ok);
- }
- async function loadOrgProducts(id:string){
-  if(!id){setOrgProducts([]);return;}
-  const data=await api<{products:AcademyOrgProduct[]}>(`/v1/organizations/${id}/products`);
-  setOrgProducts(data.products);
- }
- async function loadOrganizations(){
-  setProductStepError("");
-  try{
-   const result=await api<{organizations:AcademyOrg[]}>("/v1/organizations");
-   setOrgs(result.organizations);
-   setOrgMutationUncertain(false);
-   const first=result.organizations.find(o=>o.id===orgID)||result.organizations[0];
-   setOrgID(first?.id||"");
-   if(first){await loadOrgProducts(first.id)}else{setOrgProducts([])}
-  }catch(e){setProductStepError(e instanceof Error?e.message:String(e))}
- }
- async function createAcademyOrganization(event:FormEvent){
-  event.preventDefault();if(orgMutationUncertain||productBusy)return;
-  setProductBusy(true);setProductStepError("");
-  try{
-   const created=await api<AcademyOrg>("/v1/organizations",{name:newOrgName});
-   setOrgs(current=>[...current,created]);setOrgID(created.id);setNewOrgName("");
-   setDirectionID("");setOrgProducts([]);
-  }catch(e){
-   setOrgMutationUncertain(true);
-   setProductStepError("Создание организации не подтверждено. Обновите организации перед повтором: "+String(e));
-  }finally{setProductBusy(false)}
- }
- async function createAcademyDirection(event:FormEvent){
-  event.preventDefault();if(directionMutationUncertain||productBusy||!orgID)return;
-  setProductBusy(true);setProductStepError("");
-  try{
-   const updated=await api<AcademyOrg>(`/v1/organizations/${orgID}/directions`,{
-    name:newDirectionName,direction_type:"EDUCATION"
-   });
-   setOrgs(current=>current.map(o=>o.id===updated.id?updated:o));
-   const found=updated.directions.find(d=>d.status==="ACTIVE"&&d.name===newDirectionName);
-   if(found)setDirectionID(found.id);
-  }catch(e){
-   setDirectionMutationUncertain(true);
-   setProductStepError("Создание направления не подтверждено. Проверьте список направлений перед повтором: "+String(e));
-  }finally{setProductBusy(false)}
- }
- async function reloadAcademyOrganization(){
-  try{
-   const data=await api<{organizations:AcademyOrg[]}>("/v1/organizations");
-   setOrgs(data.organizations);setOrgMutationUncertain(false);setDirectionMutationUncertain(false);
-   const selected=data.organizations.find(o=>o.id===orgID)||data.organizations[0];
-   if(selected){setOrgID(selected.id);await loadOrgProducts(selected.id)}
-   else{setOrgID("");setOrgProducts([])}
-   setProductMutationUncertain(false);setProductStepError("");
-  }catch(e){setProductStepError("Не удалось проверить сохранённое состояние: "+String(e))}
- }
- async function prepareCommerceProduct(event:FormEvent){
-  event.preventDefault();
-  if(productMutationUncertain||!orgID||!directionID||!title.trim()||!commercialRef.trim()||!beneficiaryRef.trim()||!authorRefs.trim())return;
-  setProductBusy(true);setProductStepError("");
-  try{
-   // On ambiguous errors never automatically retry this non-idempotent POST.
-   // Reload canonical products so the author can recover a persisted draft.
-   const created=await api<AcademyOrgProduct>(`/v1/organizations/${orgID}/products`,{
-    name:title, direction_id:directionID, commercial_owner_ref:commercialRef.trim(),
-    author_refs:authorRefs.split(",").map(x=>x.trim()).filter(Boolean),
-    revenue_beneficiary_ref:beneficiaryRef.trim()
-   });
-   setPreparedProductID(created.id);
-   await loadOrgProducts(orgID);
-  }catch(e){
-   setProductMutationUncertain(true);
-   setProductStepError("Создание продукта не подтверждено. Обновите список продуктов и выберите существующий черновик прежде чем повторять: "+(e instanceof Error?e.message:String(e)));
-   try{await loadOrgProducts(orgID)}catch{/* Preserve original error */ }
-  }finally{setProductBusy(false)}
- }
- async function publishPreparedProduct(){
-  if(!orgID||!preparedProductID)return;
-  setProductBusy(true);setProductStepError("");
-  try{
-   const found=orgProducts.find(p=>p.id===preparedProductID);
-   if(found?.status!=="PUBLISHED"){
-    try{await api(`/v1/organizations/${orgID}/products/${preparedProductID}/publish`,{})}
-    catch(e){
-     // Publication may have committed even when the response was lost.
-     await loadOrgProducts(orgID);
-     setProductStepError("Публикация не подтверждена. Проверьте статус продукта и повторите только если он остался черновиком: "+(e instanceof Error?e.message:String(e)));
-     return;
-    }
-   }
-   await loadOrgProducts(orgID);
-   await refresh();
-   setProductID(preparedProductID);
-   setNotice("Продукт опубликован. Теперь создайте курс.");
-  }catch(e){setProductStepError(e instanceof Error?e.message:String(e))}
-  finally{setProductBusy(false)}
  }
  async function reconcileDraft(requested:{title:string;description:string;baseline:string[]}){
   const owned=await api<{courses:Course[]}>("/v1/academy/my-courses");
@@ -397,7 +275,13 @@ export default function AcademyPage(){
   event.preventDefault();if(!course)return;
   await act(()=>api<Module>(
    `/v1/academy/courses/${course.id}/versions/${course.version_id}/modules`,
-   {title:moduleTitle,ordinal:modules.length+1}),async()=>{setModuleTitle("");await loadOutline(course)});
+   {title:moduleTitle,ordinal:modules.length+1}),async created=>{
+    setModuleTitle("");
+    await loadOutline(course);
+    if(created.id)setModuleID(created.id);
+    setStructureAction("lesson");
+    setNotice("Модуль добавлен. Теперь создайте в нём первый урок.");
+   });
  }
  async function addLesson(event:FormEvent){
   event.preventDefault();if(!course||!moduleID)return;
@@ -412,7 +296,7 @@ export default function AcademyPage(){
     rubric_version:lessonKind==="ASSESSMENT"?"human-review-v1":""}),
    async created=>{
     setLessonTitle("");setLessonBody("");
-    await loadOutline(course);
+    await loadOutline(course);setModuleID(moduleID);setStructureAction("overview");
     if(created.kind==="VIDEO"&&created.id){
      setEditorStep("media");
      setFocusedVideoLessonID(created.id);
@@ -467,7 +351,7 @@ export default function AcademyPage(){
      <button type="button" className="academy-metric" onClick={()=>setView("reviews")}><strong>{pendingReviews.length}</strong><span>Работ на проверку</span><small>Открыть работы →</small></button>
     </div>
    </div>}
-  {(view==="catalog"||view==="learning"||view==="courses")&&<section className="how-section academy-main-section">
+  {(view==="catalog"||view==="learning"||(view==="courses"&&!course))&&<section className="how-section academy-main-section">
    <h1>{view==="catalog"?"Каталог":view==="learning"?"Моё обучение":"Мои курсы"}</h1>
    <p>{view==="catalog"?"Выберите курс для обучения.":view==="learning"?"Продолжайте обучение и управляйте сертификатами.":"Выберите курс или создайте новый. Дальше — простой редактор по шагам."}</p>
    <div className="how-grid">
@@ -516,7 +400,8 @@ export default function AcademyPage(){
     </section>}
     {view==="courses"&&!course&&showCreate&&<form id="academy-author" className="panel specialist-form" onSubmit={createCourse}>
      <h2>Создать курс</h2>
-     <p>Сначала содержание. Продажи и платежи можно настроить позже, когда курс будет готов.</p>
+     <p>Сначала создайте содержание курса. Настройка организации, направления и продукта для продаж доступна отдельно — в едином кабинете организации.</p>
+     <a className="academy-organization-link" href="/organization">Настроить организацию и продажи ↗</a>
      <label htmlFor="academy-title">Название курса</label>
      <input id="academy-title" value={title} onChange={e=>setTitle(e.target.value)} required minLength={3} maxLength={200} placeholder="Например: Гипноз с нуля"/>
      <label htmlFor="academy-description">Описание (необязательно)</label>
@@ -552,36 +437,86 @@ export default function AcademyPage(){
     <button type="button" aria-current={editorStep==="media"?"step":undefined} disabled={!modules.length||course.state!=="DRAFT"} onClick={()=>setEditorStep("media")}>2. Видео</button>
     <button type="button" aria-current={editorStep==="publish"?"step":undefined} disabled={!lessons.length} onClick={()=>setEditorStep("publish")}>3. Публикация</button>
    </nav>
-   {editorStep==="structure"&&<div className="how-grid">
-    <form className="panel specialist-form" onSubmit={addModule}>
-     <h3>Модуль</h3><label htmlFor="academy-module">Название</label>
-     <input id="academy-module" value={moduleTitle} onChange={e=>setModuleTitle(e.target.value)} required/>
-     <button disabled={busy||course.state!=="DRAFT"}>Добавить модуль</button>
-    </form>
-    <form className="panel specialist-form" onSubmit={addLesson}>
-     <h3>Урок</h3><label htmlFor="academy-module-select">Модуль</label>
-     <select id="academy-module-select" value={moduleID} onChange={e=>setModuleID(e.target.value)} required>
-      {modules.map(m=><option key={m.id} value={m.id}>{m.ordinal}. {m.title}</option>)}
-     </select>
-     <label htmlFor="academy-lesson-title">Название</label>
-     <input id="academy-lesson-title" value={lessonTitle} onChange={e=>setLessonTitle(e.target.value)} required/>
-     <label htmlFor="academy-lesson-kind">Тип активности</label>
-     <select id="academy-lesson-kind" value={lessonKind} onChange={e=>setLessonKind(e.target.value as Lesson["kind"])}>
-      <option value="READING">Текстовый урок</option><option value="ASSESSMENT">Проверочное задание</option>
-      <option value="VIDEO">Видеоурок (видео выберем ниже)</option>
-     </select>
-     {lessonKind!=="VIDEO"&&<><label htmlFor="academy-lesson-body">Материал урока</label>
-     <textarea id="academy-lesson-body" value={lessonBody} onChange={e=>setLessonBody(e.target.value)}/></>}
-     {lessonKind==="ASSESSMENT"&&<><label htmlFor="academy-pass">Проходной балл</label>
-      <input id="academy-pass" type="number" min={1} max={100} value={passingScore} onChange={e=>setPassingScore(Number(e.target.value))}/></>}
-     <button disabled={busy||!moduleID||course.state!=="DRAFT"}>Добавить урок</button>
-    </form>
-    <section className="panel"><h3>Структура курса: модули → уроки</h3>
-     {modules.length===0&&<p role="status">Модулей пока нет. Создайте первый модуль, затем добавьте урок.</p>}
-     {modules.map(m=><article key={m.id}><h4>{m.ordinal}. {m.title}</h4>
-      {lessons.some(l=>l.module_id===m.id)?<ol>{lessons.filter(l=>l.module_id===m.id).map(l=><li key={l.id}>{l.title} · {l.kind==="VIDEO"?"Видеоурок":l.kind==="READING"?"Текстовый урок":"Проверочное задание"}{l.kind==="VIDEO"&&<span> · <a href="#academy-media-editor" onClick={()=>setFocusedVideoLessonID(l.id)}>Прикрепить видео в шаге 3</a></span>}</li>)}</ol>:<p>Уроков пока нет. Добавьте урок в этот модуль.</p>}
-     </article>)}
-     {course.state==="DRAFT"&&<section aria-label="Расписание и лимиты уроков">
+   {editorStep==="structure"&&<div className="academy-structure">
+    <section className="panel academy-outline-tree" aria-label="Дерево курса">
+     <div className="academy-tree-heading">
+      <div><p className="academy-overline">Содержание</p><h2>Модули и уроки</h2></div>
+      <button type="button" disabled={busy||course.state!=="DRAFT"}
+       onClick={()=>setStructureAction("module")}>＋ Модуль</button>
+     </div>
+     {modules.length===0?<div className="academy-empty-outline">
+      <strong>Пока нет модулей</strong>
+      <p>Начните с раздела курса. Например: «Основы», затем добавьте в него уроки.</p>
+      <button type="button" disabled={busy||course.state!=="DRAFT"} onClick={()=>setStructureAction("module")}>Создать первый модуль</button>
+     </div>:<div className="academy-module-list">
+      {[...modules].sort((a,b)=>a.ordinal-b.ordinal).map(m=><article key={m.id} className={moduleID===m.id?"academy-module-selected":""}>
+       <button type="button" className="academy-module-heading" aria-current={moduleID===m.id?"true":undefined}
+        onClick={()=>{setModuleID(m.id);setStructureAction("overview")}}>
+        <span className="academy-module-number">{m.ordinal}</span><strong>{m.title}</strong>
+        <small>{lessons.filter(l=>l.module_id===m.id).length} ур.</small>
+       </button>
+       {lessons.filter(l=>l.module_id===m.id).sort((a,b)=>a.ordinal-b.ordinal).map((l,i)=>
+        <div className="academy-lesson-line" key={l.id}>
+         <span className="academy-lesson-icon" aria-hidden="true">{l.kind==="VIDEO"?"▶":l.kind==="READING"?"▤":"✓"}</span>
+         <span className="academy-lesson-name">{i+1}. {l.title}<small>{l.kind==="VIDEO"?"Видеоурок":l.kind==="READING"?"Текст":"Задание"}</small></span>
+         {l.kind==="VIDEO"&&<button type="button" className="academy-lesson-video"
+          disabled={course.state!=="DRAFT"} onClick={()=>{setFocusedVideoLessonID(l.id);setEditorStep("media")}}>
+          Видео →</button>}
+        </div>)}
+       {course.state==="DRAFT"&&<button type="button" className="academy-add-lesson"
+        onClick={()=>{setModuleID(m.id);setStructureAction("lesson")}}>＋ Добавить урок</button>}
+      </article>)}
+     </div>}
+    </section>
+    <section className="panel academy-outline-action" aria-label="Действия с курсом">
+     {structureAction==="overview"&&<>
+      <p className="academy-overline">Следующее действие</p>
+      <h2>{modules.length===0?"Создайте первый модуль":lessons.length===0?"Добавьте первый урок":"Редактирование курса"}</h2>
+      <p>{modules.length===0?"Модуль — это раздел курса, объединяющий несколько уроков.":
+       lessons.length===0?"Выберите модуль слева и создайте в нём первый урок.":
+       "Выберите модуль или урок слева. Видео прикрепляется к конкретному видеоуроку."}</p>
+      <div className="academy-action-summary">
+       <span><strong>{modules.length}</strong> модулей</span><span><strong>{lessons.length}</strong> уроков</span>
+       <span><strong>{lessons.filter(l=>l.kind==="VIDEO").length}</strong> видеоуроков</span>
+      </div>
+      <button type="button" className="academy-blue-button" disabled={busy||course.state!=="DRAFT"}
+       onClick={()=>setStructureAction(modules.length?"lesson":"module")}>
+       {modules.length?"＋ Добавить урок":"＋ Создать модуль"}</button>
+      {modules.length>0&&<button type="button" className="academy-secondary-action" onClick={()=>setStructureAction("module")} disabled={busy||course.state!=="DRAFT"}>Добавить ещё модуль</button>}
+     </>}
+     {structureAction==="module"&&<form className="academy-compact-form" onSubmit={addModule}>
+      <p className="academy-overline">Новый раздел</p><h2>Добавить модуль</h2>
+      <p>Например: «Теория», «Практика», «Итоговые задания».</p>
+      <label htmlFor="academy-module">Название модуля</label>
+      <input id="academy-module" value={moduleTitle} onChange={e=>setModuleTitle(e.target.value)} required maxLength={200} autoFocus placeholder="Например: Основы"/>
+      <div className="academy-action-buttons"><button type="submit" className="academy-blue-button" disabled={busy||course.state!=="DRAFT"||!moduleTitle.trim()}>Сохранить модуль</button>
+       <button type="button" onClick={()=>setStructureAction("overview")}>Отмена</button></div>
+     </form>}
+     {structureAction==="lesson"&&<form className="academy-compact-form" onSubmit={addLesson}>
+      <p className="academy-overline">Новый материал</p><h2>Добавить урок</h2>
+      <label htmlFor="academy-module-select">В какой модуль?</label>
+      <select id="academy-module-select" value={moduleID} onChange={e=>setModuleID(e.target.value)} required>
+       {modules.map(m=><option key={m.id} value={m.id}>{m.ordinal}. {m.title}</option>)}
+      </select>
+      <label htmlFor="academy-lesson-title">Название урока</label>
+      <input id="academy-lesson-title" value={lessonTitle} onChange={e=>setLessonTitle(e.target.value)} required maxLength={200} autoFocus placeholder="Например: Введение"/>
+      <label htmlFor="academy-lesson-kind">Формат урока</label>
+      <select id="academy-lesson-kind" value={lessonKind} onChange={e=>setLessonKind(e.target.value as Lesson["kind"])}>
+       <option value="VIDEO">Видео</option><option value="READING">Текст</option><option value="ASSESSMENT">Проверочное задание</option>
+      </select>
+      {lessonKind!=="VIDEO"&&<><label htmlFor="academy-lesson-body">Содержание урока</label>
+       <textarea id="academy-lesson-body" value={lessonBody} onChange={e=>setLessonBody(e.target.value)}/></>}
+      {lessonKind==="ASSESSMENT"&&<><label htmlFor="academy-pass">Проходной балл</label>
+       <input id="academy-pass" type="number" min={1} max={100} value={passingScore} onChange={e=>setPassingScore(Number(e.target.value))}/></>}
+      {lessonKind==="VIDEO"&&<p className="academy-form-tip">После создания сразу откроется загрузка видео именно в этот урок.</p>}
+      <div className="academy-action-buttons"><button type="submit" className="academy-blue-button" disabled={busy||!moduleID||course.state!=="DRAFT"||!lessonTitle.trim()}>Сохранить урок</button>
+       <button type="button" onClick={()=>setStructureAction("overview")}>Отмена</button></div>
+     </form>}
+    </section>
+    <div className="academy-extra-settings">
+     <h2>Дополнительные настройки</h2>
+     <p>Здесь можно настроить даты открытия уроков и правила пересдач. Права на материалы подтверждаются на шаге «Публикация».</p>
+     {course.state==="DRAFT"&&<details className="academy-advanced-details" aria-label="Расписание и лимиты уроков"><summary>Расписание и ограничения уроков</summary><section>
       <h4>Расписание уроков и пересдачи</h4>
       {lessons.map(lesson=><div key={lesson.id}>
        <h5>{lesson.title}</h5>
@@ -607,9 +542,15 @@ export default function AcademyPage(){
         <button disabled={busy}>Сохранить правила экзамена</button>
        </form>}
       </div>)}
-     </section>}
-     <section aria-label="Декларация авторских прав">
-      <h4>Авторские права на материалы курса</h4>
+     </section></details>}
+    </div>
+   </div>}
+   {editorStep==="structure"&&<div className="academy-next"><button type="button" className="academy-blue-button" disabled={!modules.length||course.state!=="DRAFT"} onClick={()=>setEditorStep("media")}>Далее: видео →</button></div>}
+   {editorStep==="media"&&course.state==="DRAFT"&&<CloudMediaEditor key={`${course.id}:${course.version_id}`} courseId={course.id} versionId={course.version_id} modules={mediaModuleOptions} focusedLessonId={focusedVideoLessonID} lessons={mediaLessonOptions}/>}
+   {editorStep==="media"&&<div className="academy-next"><button type="button" onClick={()=>setEditorStep("structure")}>← К урокам</button><button type="button" className="academy-blue-button" onClick={()=>setEditorStep("publish")}>Далее: публикация →</button></div>}
+   {editorStep==="publish"&&<section className="panel academy-publish-overview"><h2>1. Проверьте содержание курса</h2><p>Модулей: {modules.length} · уроков: {lessons.length} · видеоуроков: {lessons.filter(l=>l.kind==="VIDEO").length}</p><p>Перед публикацией проверьте содержание и прикреплённые видео. После публикации эта версия станет неизменяемой.</p><div className="academy-publish-review-actions"><button type="button" onClick={()=>setEditorStep("structure")}>Проверить уроки</button><button type="button" onClick={()=>setEditorStep("media")}>Проверить видео</button></div></section>}
+   {editorStep==="publish"&&course.state==="DRAFT"&&<section className="panel academy-publish-rights" aria-label="Декларация авторских прав">
+      <h2>2. Подтвердите права на материалы</h2>
       <p>Подтвердите авторство оригинального содержания. Сторонняя лицензия требует отдельной проверки.</p>
       <label htmlFor="academy-original-rights">Источник оригинальных материалов</label>
       <input id="academy-original-rights" value={rightsSource}
@@ -622,13 +563,8 @@ export default function AcademyPage(){
         {provenance_ref:rightsSource,acknowledged:true}),()=>setRightsRecorded(true))}>
        Зафиксировать права на текущую версию</button>
       {rightsRecorded&&<p>Подтверждение зафиксировано. Изменения уроков потребуют нового подтверждения.</p>}
-     </section>
-    </section>
-   </div>}
-   {editorStep==="structure"&&<div className="academy-next"><button type="button" className="academy-blue-button" disabled={!modules.length||course.state!=="DRAFT"} onClick={()=>setEditorStep("media")}>Далее: видео →</button></div>}
-   {editorStep==="media"&&course.state==="DRAFT"&&<CloudMediaEditor key={`${course.id}:${course.version_id}`} courseId={course.id} versionId={course.version_id} modules={mediaModuleOptions} focusedLessonId={focusedVideoLessonID} lessons={mediaLessonOptions}/>}
-   {editorStep==="media"&&<div className="academy-next"><button type="button" onClick={()=>setEditorStep("structure")}>← К урокам</button><button type="button" className="academy-blue-button" onClick={()=>setEditorStep("publish")}>Далее: публикация →</button></div>}
-   {editorStep==="publish"&&<section className="panel"><h2>Подготовка к публикации</h2><p>Модулей: {modules.length} · уроков: {lessons.length} · видеоуроков: {lessons.filter(l=>l.kind==="VIDEO").length}</p><p>Проверьте содержание и подтверждение авторских прав перед публикацией.</p><button type="button" onClick={()=>setEditorStep("structure")}>Проверить структуру и права</button><button type="button" onClick={()=>setEditorStep("media")}>Проверить видео</button></section>}
+     </section>}
+   {editorStep==="publish"&&course.state==="DRAFT"&&<p className="academy-publish-caution">3. После проверки содержания и прав нажмите «Опубликовать». Сервер проверит необходимые разрешения и не опубликует неподтверждённую версию.</p>}
    {editorStep==="publish"&&course.state==="DRAFT"&&<button className="academy-blue-button" disabled={busy||lessons.length===0} onClick={()=>void act(
       ()=>api<Course>(`/v1/academy/courses/${course.id}/versions/${course.version_id}/publish`,{}),
       async()=>{setNotice("Версия опубликована и больше не редактируется.");setCourse(null)})}>Опубликовать версию курса</button>}

@@ -161,17 +161,19 @@ test("author creates a video lesson before selecting its Yandex Disk file",async
  await page.getByRole("button",{name:"Мои курсы"}).click();
  await expect(page.getByRole("heading",{name:"Ваши курсы"})).toBeVisible();
  await page.getByRole("button",{name:"Открыть редактор"}).click();
+ await page.getByRole("region",{name:"Дерево курса"}).getByRole("button",{name:"＋ Добавить урок"}).click();
  await expect(page.locator("#academy-lesson-title")).toBeVisible();
  await page.getByRole("button",{name:"2. Видео"}).click();
  await expect(page.getByText("В этом курсе пока нет видеоуроков.",{exact:false})).toBeVisible();
  await page.getByRole("button",{name:"1. Уроки"}).click();
+ await page.getByRole("region",{name:"Дерево курса"}).getByRole("button",{name:"＋ Добавить урок"}).click();
  await page.locator("#academy-lesson-title").fill("Урок 1");
  // Simulate switching from a text lesson to the VIDEO default. Hidden text
  // must not leak into the canonical video attachment field.
  await page.locator("#academy-lesson-kind").selectOption("READING");
  await page.locator("#academy-lesson-body").fill("Старый текстовый материал");
  await page.locator("#academy-lesson-kind").selectOption("VIDEO");
- await page.getByRole("button",{name:"Добавить урок",exact:true}).click();
+ await page.getByRole("button",{name:"Сохранить урок",exact:true}).click();
  await expect(page.getByLabel("К какому уроку добавить видео?")).toBeVisible();
  expect(createdLessonBody?.kind).toBe("VIDEO");
  expect(createdLessonBody?.body).toBe("");
