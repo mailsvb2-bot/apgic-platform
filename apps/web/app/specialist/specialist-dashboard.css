@@ -84,3 +84,19 @@
 .specialist-dashboard .specialist-profile-summary-foot{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:9px;border-top:1px solid #e4eaf5;margin-top:14px;padding-top:13px}
 .specialist-dashboard .specialist-profile-summary-foot p{margin:0;font-size:.85rem;color:#52617b}
 .specialist-dashboard .specialist-profile-summary-foot a{font-size:.86rem;color:#195cce;font-weight:700;text-decoration:none}
+
+
+/* Compact Academy summary; retain canonical Academy navigation and read-only data. */
+.specialist-dashboard .specialist-academy-course-panel,
+.specialist-dashboard .specialist-academy-summary{min-height:0}
+.specialist-academy-course-panel h3{display:flex;align-items:center;gap:10px}
+.specialist-academy-course-panel h3 small{font-size:.8rem;color:#53698b;background:#edf4ff;border-radius:999px;padding:3px 9px}
+.specialist-academy-course-list{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:0}
+.specialist-academy-course-list li{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 0;border-top:1px solid #e4ebf6;min-width:0}
+.specialist-academy-course-list li>div{display:grid;gap:4px;min-width:0}
+.specialist-academy-course-list strong{overflow-wrap:anywhere;color:#173258;font-size:.96rem}
+.specialist-academy-course-list span{font-size:.83rem;color:#536a88}
+.specialist-academy-course-list a,.specialist-academy-summary>a{display:inline-flex;align-items:center;white-space:nowrap;text-decoration:none;font-weight:750;color:#155bd8;border:1px solid #bed1f5;background:#f1f6ff;border-radius:9px;padding:9px 12px}
+.specialist-academy-summary details{margin-top:10px}
+.specialist-academy-summary summary{cursor:pointer;color:#42618c}
+@media(max-width:650px){.specialist-academy-course-list li{align-items:flex-start;flex-direction:column}}

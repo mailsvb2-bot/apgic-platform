@@ -13,7 +13,7 @@ test("specialist Academy clears historical data when session expires and does no
   }
   const title=changedIdentity?"Новый курс другой сессии":"Старый курс прежней сессии";
   const value=path==="/v1/academy/my-courses"
-   ?{courses:[{id:"course-1",title,state:"PUBLISHED",version_no:1}]}
+   ?{courses:[{id:"course-1",version_id:"version-1",title,state:"PUBLISHED",version_no:1}]}
    :{courses:[{course_id:"course-1",title,enrollments:3,completed:2,pending_assessments:1,passed_assessments:2}],
      gross_captures:[{course_id:"course-1",currency:"RUB",captured_count:1,
        captured_gross_minor:changedIdentity?200:123456,active_count:1,active_gross_minor:200}],
@@ -24,6 +24,7 @@ test("specialist Academy clears historical data when session expires and does no
  await page.getByRole("navigation",{name:"Навигация кабинета специалиста"}).getByRole("button",{name:"Курсы и ученики"}).click();
  const workspace=page.locator("#specialist-academy");
  await expect(workspace.getByText("Старый курс прежней сессии").first()).toBeVisible();
+ await expect(workspace.getByRole("link",{name:"Открыть курс Старый курс прежней сессии, версия 1"})).toHaveAttribute("href","/academy?tab=courses&course_id=course-1&version_id=version-1");
  await expect(workspace.getByText(/123456 RUB/)).toBeVisible();
 
  authorized=false;

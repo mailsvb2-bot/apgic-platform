@@ -56,6 +56,7 @@ export default function AcademyPage(){
  const [enrollments,setEnrollments]=useState<Enrollment[]>([]);
  const [verifiedCourseIDs,setVerifiedCourseIDs]=useState<string[]>([]);
  const [course,setCourse]=useState<Course|null>(null);
+ const [openedDeepLink,setOpenedDeepLink]=useState(false);
  const [modules,setModules]=useState<Module[]>([]);
  const [lessons,setLessons]=useState<Lesson[]>([]);
  // Stable options prevent a parent redraw from resetting the author’s file
@@ -160,6 +161,17 @@ export default function AcademyPage(){
   setModules(d.modules);setLessons(d.lessons);setModuleID(d.modules[0]?.id||"");
   setStructureAction("overview");
  },[]);
+ // Open a specific course from the specialist workspace without creating a duplicate.
+ // The canonical my-courses response is the only source of selectable identities.
+ useEffect(()=>{
+  if(!ownedCoursesLoaded||openedDeepLink||ownedCoursesError)return;
+  const params=new URLSearchParams(window.location.search);
+  if(params.get("tab")!=="courses"||!params.get("course_id")||!params.get("version_id"))return;
+  setOpenedDeepLink(true);
+  const selected=mine.find(c=>c.id===params.get("course_id")&&c.version_id===params.get("version_id"));
+  if(!selected){setNotice("Курс не найден в этом аккаунте. Выберите курс из списка.");return;}
+  void loadOutline(selected).catch(()=>setNotice("Не удалось открыть выбранный курс. Выберите его из списка."));
+ },[mine,ownedCoursesLoaded,openedDeepLink,ownedCoursesError,loadOutline]);
  // Resume a verified author's draft directly after the OAuth callback.
  // A missing course/version pair is not an error when exactly one draft exists.
  useEffect(()=>{
@@ -564,9 +576,9 @@ export default function AcademyPage(){
        Зафиксировать права на текущую версию</button>
       {rightsRecorded&&<p>Подтверждение зафиксировано. Изменения уроков потребуют нового подтверждения.</p>}
      </section>}
-   {editorStep==="publish"&&course.state==="DRAFT"&&<p className="academy-publish-caution">3. После проверки содержания и прав нажмите «Опубликовать». Сервер проверит необходимые разрешения и не опубликует неподтверждённую версию.</p>}
+   {editorStep==="publish"&&course.state==="DRAFT"&&<p className="academy-publish-caution">3. Публикация необратима для этой версии. Если есть видеоуроки, сервер дополнительно требует проверенные файлы Яндекс Диска и разрешённую видеодоставку для текущего релиза. Пока эти проверки не пройдены, курс останется черновиком. Это нельзя исправить одним подтверждением авторских прав.</p>}
    {editorStep==="publish"&&course.state==="DRAFT"&&<button className="academy-blue-button" disabled={busy||lessons.length===0} onClick={()=>void act(
-      ()=>api<Course>(`/v1/academy/courses/${course.id}/versions/${course.version_id}/publish`,{}),
+      async()=>{try{return await api<Course>(`/v1/academy/courses/${course.id}/versions/${course.version_id}/publish`,{})}catch(error){throw new Error("Публикация не выполнена. Проверьте подтверждение прав, наличие уроков, права на продукт и готовность видеодоставки. Причина сервера: "+(error instanceof Error?error.message:"Неизвестная ошибка"))}},
       async()=>{setNotice("Версия опубликована и больше не редактируется.");setCourse(null)})}>Опубликовать версию курса</button>}
   </section>}
   {view==="courses"&&course&&course.state==="PUBLISHED"&&<section className="how-section">
