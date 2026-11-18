@@ -50,17 +50,17 @@ func TestAcademyVideoCleanEOFDoesNotCreditUndeliveredBytes(t *testing.T) {
 	}
 }
 
- 
+
 // Validate the HTTP representation and delivery accounting together. A seek
 // response must never credit bytes outside the verified media file or beyond
 // those actually flushed, even when the provider closes cleanly.
 func TestAcademyVideoHTTPRangeDeliveryAccounting(t *testing.T) {
 	tests := []struct {
-		name string
-		status int
-		headers http.Header
-		size, delivered, wantStart, wantEnd int64
-		valid bool
+		name                                   string
+		status                                 int
+		headers                                http.Header
+		size, delivered, wantStart, wantEnd    int64
+		valid                                  bool
 	}{
 		{"full-short", http.StatusOK, http.Header{"Content-Length": {"128"}}, 128, 17, 0, 17, true},
 		{"seek-short", http.StatusPartialContent, http.Header{"Content-Range": {"bytes 40-99/128"}}, 128, 12, 40, 52, true},
