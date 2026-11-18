@@ -182,6 +182,15 @@ func TestAcademyAuthorSignedCommerceToPublishedCoursePostgres(t *testing.T) {
 	if publishedCourse.State != "PUBLISHED" || publishedCourse.ID != created.ID {
 		t.Fatalf("author publication failed: %+v", publishedCourse)
 	}
+	// Publication is private to the author until an explicit course offer.
+	hidden := request("GET", "/v1/academy/courses", nil, nil)
+	require(hidden, http.StatusOK)
+	if strings.Contains(hidden.Body.String(), created.ID) {
+		t.Fatalf("unlisted published curriculum was exposed publicly: %s", hidden.Body.String())
+	}
+	offered := request("POST", "/v1/academy/courses/"+created.ID+"/offer", authorCookie,
+		map[string]any{"access_mode": "PAID", "price_minor": 50000})
+	require(offered, http.StatusOK)
 	catalog := request("GET", "/v1/academy/courses", nil, nil)
 	require(catalog, http.StatusOK)
 	if !strings.Contains(catalog.Body.String(), created.ID) {

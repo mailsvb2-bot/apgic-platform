@@ -47,7 +47,7 @@ test("guided course editor connects module, lesson, video, schedule, rights and 
    }else if(path===`/v1/academy/lessons/${lessonId}/schedule`)data={state:"SAVED"};
    else if(path===`/v1/academy/courses/${courseId}/versions/${versionId}/rights/original`)data={id:"rights-proof"};
    else if(path===`/v1/academy/courses/${courseId}/versions/${versionId}/publish`){
-    if(!publishingApproved){status=409;data={code:"VIDEO_RELEASE_NOT_APPROVED",message_safe:"Доставка видео пока не подтверждена"};}
+    if(!publishingApproved){status=409;data={code:"ACADEMY_STATE_CONFLICT",message_safe:"Содержание изменилось после подтверждения прав"};}
     else data={...course,state:"PUBLISHED"};
    }
    else{status=501;data={code:"UNMOCKED_MUTATION",path};}
@@ -100,9 +100,9 @@ test("guided course editor connects module, lesson, video, schedule, rights and 
  await rights.getByRole("checkbox").check();
  await rights.getByRole("button",{name:"Зафиксировать права на текущую версию"}).click();
  await expect(rights.getByText("Подтверждение зафиксировано.")).toBeVisible();
- await expect(page.getByText(/сервер дополнительно требует проверенные файлы Яндекс Диска/)).toBeVisible();
+ await expect(page.getByText(/не требует учеников, продаж или разрешения на видеодоставку/)).toBeVisible();
  await page.getByRole("button",{name:"Опубликовать версию курса"}).click();
- await expect(page.locator(".academy-publish-submit").getByRole("alert")).toContainText("Доставка видео пока не подтверждена");
+ await expect(page.locator(".academy-publish-submit").getByRole("alert")).toContainText("Содержание изменилось после подтверждения прав");
  await expect(page.locator(".academy-publish-submit").getByRole("alert")).toContainText("Версия осталась черновиком");
  await expect(page.getByRole("button",{name:"Опубликовать версию курса"})).toBeVisible();
  publishingApproved=true;

@@ -13,8 +13,14 @@ import (
 const academyVerifiedEnrollmentFrom = ` FROM academy_courses c
  JOIN academy_course_versions v ON v.course_id=c.id AND v.state='PUBLISHED'
  JOIN store_entitlements t ON t.product_ref=c.product_id::text
+ JOIN products p ON p.id=c.product_id
+ LEFT JOIN commerce_product_access_terms terms ON terms.product_id=c.product_id
  WHERE c.state='PUBLISHED' AND t.identity_id=$1::uuid
+ AND ((t.kind='FREE' AND terms.access_mode='FREE')
+   OR (t.kind<>'FREE' AND p.status='PUBLISHED'
+     AND (terms.access_mode='PAID' OR terms.product_id IS NULL)))
  AND academy_entitlement_is_active(t.id)
+ AND academy_video_learner_delivery_ready(v.id)
  AND v.version_no=(
    SELECT MAX(latest.version_no) FROM academy_course_versions latest
    WHERE latest.course_id=c.id AND latest.state='PUBLISHED'
@@ -36,9 +42,16 @@ func (c *Checker) AcademyMyCourseAccess(actor string) ([]string, error) {
 	if actor == "" {
 		return nil, academy.ErrDenied
 	}
-	ctx, cancel := academyContext()
+	ctx, cancel, tx, err := academyBegin(c)
 	defer cancel()
-	rows, err := c.db.QueryContext(ctx, `SELECT DISTINCT c.id::text `+academyVerifiedEnrollmentFrom+`
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	if err = academyConfigureLearnerVideoRelease(ctx, tx); err != nil {
+		return nil, err
+	}
+	rows, err := tx.QueryContext(ctx, `SELECT DISTINCT c.id::text `+academyVerifiedEnrollmentFrom+`
  ORDER BY c.id::text`, actor)
 	if err != nil {
 		return nil, err

@@ -6,7 +6,8 @@ import AcademyLessonVideos from "./academy-lesson-videos";
 import "./academy-workspace.css";
 
 type AcademyNotifications = {enabled:boolean;learning_updates:boolean;assessment_results:boolean;certificate_updates:boolean};
-type Course = {id:string;product_id:string;title:string;description:string;state:string;version_id:string;version_no:number};
+type Course = {id:string;product_id:string;title:string;description:string;state:string;version_id:string;version_no:number;access_mode?:"FREE"|"PAID"|"UNLISTED";price_minor?:number;currency?:string};
+type CourseOffer = {course_id:string;access_mode:"FREE"|"PAID";price_minor:number;currency:"RUB";revision:number};
 type Module = {id:string;version_id:string;title:string;ordinal:number};
 type Lesson = {id:string;module_id:string;title:string;kind:"READING"|"VIDEO"|"ASSESSMENT";ordinal:number;body?:string;media_asset_ref?:string;completed?:boolean;passing_score?:number;available?:boolean};
 type Enrollment = {id:string;version_id:string;course_id?:string;course_title?:string;version_no?:number;state:string;access_state?:"ACTIVE"|"REVOKED"};
@@ -102,6 +103,9 @@ export default function AcademyPage(){
  const [rightsAgreed,setRightsAgreed]=useState(false);
  const [rightsRecorded,setRightsRecorded]=useState(false);
  const [publishError,setPublishError]=useState("");
+ const [offerMode,setOfferMode]=useState<"FREE"|"PAID">("FREE");
+ const [offerPriceRub,setOfferPriceRub]=useState("1000");
+ const [checkoutProblem,setCheckoutProblem]=useState<Record<string,string>>({});
 
  const refresh=useCallback(async()=>{
   const publicCourses=await api<{courses:Course[]}>("/v1/academy/courses");
@@ -157,6 +161,8 @@ export default function AcademyPage(){
  }
  const loadOutline=useCallback(async (selected:Course)=>{
   setPublishError("");setRightsRecorded(false);setRightsAgreed(false);setRightsSource("");
+  setOfferMode(selected.access_mode==="PAID"?"PAID":"FREE");
+  setOfferPriceRub(selected.price_minor?String(selected.price_minor/100):"1000");
   setView("courses");setCourse(selected);setFocusedVideoLessonID("");setActiveEnrollment(null);setCertificate(null);setLearnerAttempts([]);setCohorts([]);
   const d=await api<{state:string;modules:Module[];lessons:Lesson[]}>(
    `/v1/academy/courses/${selected.id}/versions/${selected.version_id}/outline`);
@@ -373,10 +379,27 @@ export default function AcademyPage(){
      {catalog.length===0?<p>Опубликованных курсов пока нет.</p>:catalog.map(c=>
       <article key={c.id}><h3>{c.title}</h3><p>{c.description}</p>
        <p>Версия {c.version_no}</p>
-       {verifiedCourseIDs.includes(c.id)?<button disabled={busy} onClick={()=>void act(
-        ()=>api<Enrollment>(`/v1/academy/courses/${c.id}/enroll`,{}),
-        async e=>{setNotice("Подтверждено право доступа.");await loadLearning(e)})}>Начать обучение</button>:
-        <p>Для записи нужна подтверждённая покупка курса. Эта страница не принимает платежи и не выдаёт доступ без Commerce/Entitlement.</p>}
+       {c.access_mode==="FREE"&&<p><strong>Бесплатно</strong> — автор открыл курс для свободного обучения.</p>}
+       {c.access_mode==="PAID"&&<p><strong>{((c.price_minor||0)/100).toLocaleString("ru-RU")} ₽</strong> — платный курс специалиста.</p>}
+       {(c.access_mode==="FREE"||verifiedCourseIDs.includes(c.id))?
+        <button type="button" disabled={busy} onClick={()=>void act(
+         ()=>api<Enrollment>(`/v1/academy/courses/${c.id}/enroll`,{}),
+         async e=>{setNotice("Право на обучение подтверждено.");await loadLearning(e)})}>
+         {c.access_mode==="FREE"?"Начать бесплатно":"Начать обучение"}
+        </button>:
+        c.access_mode==="PAID"?
+         <div>
+          <button type="button" disabled={busy} onClick={async()=>{
+           setCheckoutProblem(prev=>({...prev,[c.id]:""}));
+           try{
+            await api(`/v1/academy/courses/${c.id}/checkout`,{});
+            setCheckoutProblem(prev=>({...prev,[c.id]:"Проверьте статус заказа: платёжный провайдер не подтвердил покупку."}));
+           }catch(error){setCheckoutProblem(prev=>({...prev,[c.id]:error instanceof Error?error.message:"Оплата пока недоступна."}))}
+          }}>Купить курс</button>
+          {checkoutProblem[c.id]&&<p role="alert">{checkoutProblem[c.id]}</p>}
+          <p>Оплату выполняет внешний банк. APGIC не получает деньги. Т-Банк и мультирасчёты пока не подключены.</p>
+         </div>:
+         <p>Автор ещё не открыл запись на этот курс.</p>}
       </article>)}
      <p>Доступ предоставляется только по подтверждённому entitlement. Если покупки нет, платформа не создаёт фиктивную оплату.</p>
     </section>}
@@ -579,7 +602,7 @@ export default function AcademyPage(){
       {rightsRecorded&&<p>Подтверждение зафиксировано. Изменения уроков потребуют нового подтверждения.</p>}
       {!rightsRecorded&&<p className="academy-publish-check-hint">Если права на эту версию ещё не были сохранены, заполните источник, поставьте отметку и нажмите «Зафиксировать права». Публикация — отдельный следующий шаг.</p>}
      </section>}
-   {editorStep==="publish"&&course.state==="DRAFT"&&<p className="academy-publish-caution">3. Публикация необратима для этой версии. Если есть видеоуроки, сервер дополнительно требует проверенные файлы Яндекс Диска и разрешённую видеодоставку для текущего релиза. Пока эти проверки не пройдены, курс останется черновиком. Это нельзя исправить одним подтверждением авторских прав.</p>}
+   {editorStep==="publish"&&course.state==="DRAFT"&&<p className="academy-publish-caution">3. Публикация фиксирует версию курса и не требует учеников, продаж или разрешения на видеодоставку. Для будущего доступа учеников к видео действуют отдельные проверки подключения Яндекс Диска и готовности видеосервиса. Само опубликование курс не продаёт.</p>}
    {editorStep==="publish"&&course.state==="DRAFT"&&<div className="academy-publish-submit">
     <button type="button" className="academy-blue-button" disabled={busy||lessons.length===0} onClick={async()=>{
       if(busy)return;
@@ -598,12 +621,40 @@ export default function AcademyPage(){
       }catch(error){
        const detail=error instanceof Error?error.message:"Неизвестная ошибка";
        setPublishError("Версия осталась черновиком или результат не подтверждён. "+(detail==="Недопустимое изменение состояния."||detail==="ACADEMY_STATE_CONFLICT"?
-        "Сервер отклонил публикацию: проверьте сохранённые права, материалы уроков и допуск видеодоставки. Для видеокурсов разрешение выдаётся только после приёмки текущего релиза.":
+        "Сервер отклонил публикацию: проверьте сохранённые права на текущую версию, наличие уроков и принадлежность курса вашему аккаунту.":
         detail)+" Если операция уже была выполнена, проверьте список курсов перед повторным нажатием.");
       }finally{setBusy(false)}
      }}>Опубликовать версию курса</button>
     {publishError&&<p className="academy-publish-error" role="alert">{publishError}</p>}
    </div>}
+  </section>}
+  {view==="courses"&&course&&<section className="how-section academy-course-offer" aria-label="Доступ и стоимость курса">
+   <div className="panel specialist-form">
+    <h2>Доступ и стоимость курса</h2>
+    <p>Публикация программы не запускает продажи. Вы решаете, открыть бесплатный просмотр или назначить цену.</p>
+    <p>Сейчас: <strong>{course.access_mode==="FREE"?"Бесплатный":course.access_mode==="PAID"?"Платный":"Запись пока не открыта"}</strong>{course.access_mode==="PAID"?" · "+((course.price_minor||0)/100).toLocaleString("ru-RU")+" ₽":""}</p>
+    <form onSubmit={e=>{e.preventDefault();const rub=Number(offerPriceRub);
+     if(offerMode==="PAID"&&(!Number.isSafeInteger(rub)||rub<1||rub>100000000)){setNotice("Укажите целую стоимость от 1 до 100 000 000 ₽.");return}
+     void act(()=>api<CourseOffer>(`/v1/academy/courses/${course.id}/offer`,{
+      access_mode:offerMode,price_minor:offerMode==="FREE"?0:rub*100
+     }),async saved=>{
+      setCourse(old=>old?{...old,access_mode:saved.access_mode,price_minor:saved.price_minor,currency:saved.currency}:old);
+      setMine(items=>items.map(item=>item.id===saved.course_id?{...item,access_mode:saved.access_mode,price_minor:saved.price_minor}:item));
+      setNotice(saved.access_mode==="FREE"?"Бесплатный доступ сохранён.":"Цена сохранена. Оплата откроется после подключения Т-Банка.");
+     });
+    }}>
+     <fieldset className="academy-offer-choice"><legend>Как ученики получают доступ?</legend>
+      <label><input type="radio" name="academy-access-mode" checked={offerMode==="FREE"} onChange={()=>setOfferMode("FREE")}/> Открытый — бесплатно</label>
+      <label><input type="radio" name="academy-access-mode" checked={offerMode==="PAID"} onChange={()=>setOfferMode("PAID")}/> Закрытый — платный</label>
+     </fieldset>
+     {offerMode==="PAID"&&<label>Цена курса, ₽
+      <input type="number" min={1} max={100000000} step={1} required value={offerPriceRub} onChange={e=>setOfferPriceRub(e.target.value)} aria-label="Цена курса в рублях"/>
+     </label>}
+     <button type="submit" disabled={busy}>Сохранить условия доступа</button>
+    </form>
+    {offerMode==="PAID"&&<p>Покупка потребует подтверждённого платежа во внешнем банке. До подключения Т-Банка платные зачисления не создаются.</p>}
+    <p>Для видеокурсов допуск к просмотру учеником дополнительно зависит от готовности защищённой видеодоставки.</p>
+   </div>
   </section>}
   {view==="courses"&&course&&course.state==="PUBLISHED"&&<section className="how-section">
    <h2>Учебные потоки преподавателя</h2>

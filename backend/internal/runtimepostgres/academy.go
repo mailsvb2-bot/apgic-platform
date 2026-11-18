@@ -81,6 +81,24 @@ func academyAuthor(ctx context.Context, tx *sql.Tx, actor, courseID string) (boo
 	}
 	return author == actor, err
 }
+
+// academyOwnedProduct proves the canonical Commerce owner without requiring the
+// underlying product to be offered for sale. Publication does not mutate Commerce.
+func academyOwnedProduct(ctx context.Context, tx *sql.Tx, actor, productID string) (bool, error) {
+	var allowed bool
+	err := tx.QueryRowContext(ctx, `SELECT EXISTS(
+ SELECT 1 FROM products p WHERE p.id=$2::uuid AND
+ ((p.owner_type='IDENTITY' AND p.owner_id=$1::uuid)
+ OR (p.owner_type='ORGANIZATION' AND EXISTS (
+ SELECT 1 FROM organization_ownerships o
+ JOIN organization_memberships m
+ ON m.organization_id=o.organization_id AND m.identity_id=o.identity_id
+ WHERE o.organization_id=p.owner_id AND o.identity_id=$1::uuid
+ AND o.status='ACTIVE' AND m.status='ACTIVE'
+ ))))`, actor, productID).Scan(&allowed)
+	return allowed, err
+}
+
 func academyPublishedProductOwner(ctx context.Context, tx *sql.Tx, actor, productID string) (bool, error) {
 	var allowed bool
 	err := tx.QueryRowContext(ctx, `SELECT EXISTS(
@@ -412,28 +430,9 @@ func (c *Checker) AcademyPublish(actor, courseID, versionID string) (academy.Cou
 	if state != "DRAFT" {
 		return academy.Course{}, academy.ErrState
 	}
-	// Until a trusted media-playback connector can attest completion, publishing
-	// VIDEO lessons would sell an unfinishable course. Keep draft authoring only.
-	var unsupportedVideo bool
-	err = tx.QueryRowContext(ctx, `SELECT EXISTS(
-  SELECT 1 FROM academy_lessons l JOIN academy_modules m ON m.id=l.module_id
-  WHERE m.version_id=$1::uuid AND l.kind='VIDEO'
- )`, versionID).Scan(&unsupportedVideo)
-	if err != nil {
-		return academy.Course{}, err
-	}
-	if unsupportedVideo {
-		// Never sell a VIDEO course unless the deployment explicitly enables
-		// the verified media journey and every video lesson has an assigned,
-		// author-owned Yandex source and a saved encrypted connection.
-		ready, readinessErr := academyVideoPublicationReady(ctx, tx, actor, versionID)
-		if readinessErr != nil {
-			return academy.Course{}, readinessErr
-		}
-		if !ready {
-			return academy.Course{}, academy.ErrState
-		}
-	}
+	// Publishing is author-owned curriculum release, NOT commercialization.
+	// Video readiness is checked at the learner admission/stream boundary.
+	// This allows course authoring to finish before any students or sales exist.
 	var attested bool
 	err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM academy_original_rights
   WHERE version_id=$1::uuid AND author_id=$2::uuid
@@ -444,7 +443,7 @@ func (c *Checker) AcademyPublish(actor, courseID, versionID string) (academy.Cou
 	if !attested {
 		return academy.Course{}, academy.ErrState
 	}
-	allowed, err := academyPublishedProductOwner(ctx, tx, actor, pID)
+	allowed, err := academyOwnedProduct(ctx, tx, actor, pID)
 	if err != nil {
 		return academy.Course{}, err
 	}
@@ -481,11 +480,17 @@ func (c *Checker) AcademyCatalog() ([]academy.Course, error) {
 	}
 	ctx, cancel := academyContext()
 	defer cancel()
-	rows, err := c.db.QueryContext(ctx, `SELECT c.id::text,c.product_id::text,c.title,c.description,v.id::text,v.version_no
- FROM academy_courses c JOIN LATERAL (
+	rows, err := c.db.QueryContext(ctx, `SELECT c.id::text,c.product_id::text,c.title,c.description,v.id::text,v.version_no,
+ COALESCE(terms.access_mode,'UNLISTED'),
+ COALESCE(terms.price_minor,0),'RUB'
+ FROM academy_courses c
+ JOIN products p ON p.id=c.product_id
+ LEFT JOIN commerce_product_access_terms terms ON terms.product_id=c.product_id
+ JOIN LATERAL (
   SELECT id,version_no FROM academy_course_versions
   WHERE course_id=c.id AND state='PUBLISHED' ORDER BY version_no DESC LIMIT 1
- )v ON true WHERE c.state='PUBLISHED' ORDER BY c.title,c.id LIMIT 100`)
+ )v ON true WHERE c.state='PUBLISHED' AND terms.access_mode IN ('FREE','PAID')
+ ORDER BY c.title,c.id LIMIT 100`)
 	if err != nil {
 		return nil, err
 	}
@@ -493,7 +498,8 @@ func (c *Checker) AcademyCatalog() ([]academy.Course, error) {
 	courses := []academy.Course{}
 	for rows.Next() {
 		var co academy.Course
-		if err = rows.Scan(&co.ID, &co.ProductID, &co.Title, &co.Description, &co.VersionID, &co.VersionNo); err != nil {
+		if err = rows.Scan(&co.ID, &co.ProductID, &co.Title, &co.Description, &co.VersionID, &co.VersionNo,
+			&co.AccessMode, &co.PriceMinor, &co.Currency); err != nil {
 			return nil, err
 		}
 		co.State = "PUBLISHED"
@@ -514,6 +520,38 @@ func (c *Checker) AcademyEnroll(actor, courseID string) (academy.Enrollment, err
 	// Serialize two enroll requests from the same learner and course. On replay,
 	// read the already persisted entitlement rather than inventing a new basis.
 	if _, err = tx.ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtext($1),hashtext($2))", actor, courseID); err != nil {
+		return academy.Enrollment{}, err
+	}
+	// A published VIDEO curriculum is not automatically cleared for learner
+	// delivery. The same admission predicate governs enrollment and discovery.
+	if err = academyConfigureLearnerVideoRelease(ctx, tx); err != nil {
+		return academy.Enrollment{}, err
+	}
+	// A free course has an explicit non-cash grant in the SAME entitlement
+	// registry used by paid courses. Never manufacture a payment verification.
+	var freeProductID, freeVersionID string
+	err = tx.QueryRowContext(ctx, `SELECT c.product_id::text,v.id::text
+ FROM academy_courses c
+ JOIN commerce_product_access_terms terms ON terms.product_id=c.product_id
+ JOIN academy_course_versions v ON v.course_id=c.id AND v.state='PUBLISHED'
+ WHERE c.id=$1::uuid AND c.state='PUBLISHED'
+ AND terms.access_mode='FREE' AND terms.price_minor=0
+ AND academy_video_learner_delivery_ready(v.id)
+ ORDER BY v.version_no DESC LIMIT 1`, courseID).Scan(&freeProductID, &freeVersionID)
+	if err == nil {
+		grantID, idErr := academyID()
+		if idErr != nil {
+			return academy.Enrollment{}, idErr
+		}
+		_, err = tx.ExecContext(ctx, `INSERT INTO store_entitlements(
+ id,identity_id,product_ref,kind,state,verification_id,activated_at,updated_at)
+ VALUES($1::uuid,$2::uuid,$3,'FREE','ACTIVE',NULL,now(),now())
+ ON CONFLICT(identity_id,product_ref) WHERE kind='FREE' DO NOTHING`,
+			grantID, actor, freeProductID)
+		if err != nil {
+			return academy.Enrollment{}, err
+		}
+	} else if !errors.Is(err, sql.ErrNoRows) {
 		return academy.Enrollment{}, err
 	}
 	var versionID, entitlementID string
@@ -950,8 +988,12 @@ func (c *Checker) AcademyAuthorCourses(actor string) ([]academy.Course, error) {
 	ctx, cancel := academyContext()
 	defer cancel()
 	rows, err := c.db.QueryContext(ctx, `SELECT c.id::text,c.product_id::text,c.title,c.description,c.state,
- COALESCE(v.id::text,''),COALESCE(v.version_no,0)
+ COALESCE(v.id::text,''),COALESCE(v.version_no,0),
+ COALESCE(terms.access_mode,'UNLISTED'),
+ COALESCE(terms.price_minor,0),'RUB'
  FROM academy_courses c
+ JOIN products p ON p.id=c.product_id
+ LEFT JOIN commerce_product_access_terms terms ON terms.product_id=c.product_id
  LEFT JOIN LATERAL(SELECT id,version_no FROM academy_course_versions
    WHERE course_id=c.id ORDER BY (state='DRAFT') DESC,version_no DESC LIMIT 1)v ON true
  WHERE c.author_id=$1::uuid ORDER BY c.created_at DESC LIMIT 100`, actor)
@@ -962,7 +1004,8 @@ func (c *Checker) AcademyAuthorCourses(actor string) ([]academy.Course, error) {
 	result := []academy.Course{}
 	for rows.Next() {
 		var co academy.Course
-		if err = rows.Scan(&co.ID, &co.ProductID, &co.Title, &co.Description, &co.State, &co.VersionID, &co.VersionNo); err != nil {
+		if err = rows.Scan(&co.ID, &co.ProductID, &co.Title, &co.Description, &co.State, &co.VersionID, &co.VersionNo,
+			&co.AccessMode, &co.PriceMinor, &co.Currency); err != nil {
 			return nil, err
 		}
 		result = append(result, co)

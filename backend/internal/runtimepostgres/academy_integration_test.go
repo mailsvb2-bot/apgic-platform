@@ -703,26 +703,47 @@ ON CONFLICT(author_id,provider) DO UPDATE SET
 	).Scan(&publishTriggerDefinition); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(publishTriggerDefinition, "academy_video_delivery_release_available") ||
-		strings.Contains(publishTriggerDefinition, "academy_video_provider_certification_available") ||
-		strings.Contains(publishTriggerDefinition, "academy_video_direct_yandex_acceptance_available") {
-		t.Fatal("Academy version publication trigger bypassed the single delivery-mode acceptance owner")
+	if strings.Contains(publishTriggerDefinition, "academy_video_delivery_release_available") ||
+		!strings.Contains(publishTriggerDefinition, "academy_curriculum_fingerprint") ||
+		!strings.Contains(publishTriggerDefinition, "cannot publish course without lessons") {
+		t.Fatal("Academy publication trigger must enforce rights and content, not release approval")
 	}
-	// A valid certificate for another source tree must not authorize this build.
+	var learnerGateDefinition string
+	if err = store.db.QueryRowContext(ctx,
+		"SELECT pg_get_functiondef('academy_video_learner_delivery_ready(uuid)'::regprocedure)",
+	).Scan(&learnerGateDefinition); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(learnerGateDefinition, "academy_video_delivery_release_available") ||
+		!strings.Contains(learnerGateDefinition, "academy_lesson_media") {
+		t.Fatal("learner release gate must verify exact source SHA and assigned media")
+	}
+	// A certificate for another source tree cannot give the learner access,
+	// but curriculum publication is independent of the video release.
 	t.Setenv("APGIC_COMMIT_SHA", strings.Repeat("d", 40))
-	if _, err = store.AcademyPublish(author, course.ID, course.VersionID); !errors.Is(err, academy.ErrState) {
-		t.Fatalf("video publication accepted a certificate for another source SHA: %v", err)
+	if access, err := store.AcademyMyCourseAccess(learner); err != nil {
+		t.Fatal(err)
+	} else {
+		for _, id := range access {
+			if id == course.ID {
+				t.Fatal("unapproved SHA granted learner access")
+			}
+		}
 	}
 	t.Setenv("APGIC_COMMIT_SHA", sourceSHA)
 	if _, err = store.AcademyDeclareOriginalRights(author, course.ID, course.VersionID, "original/verified-paid-curriculum-authored-content"); err != nil {
 		t.Fatalf("failed to attest paid curriculum: %v", err)
 	}
-	// Selecting a future CDN mode must not sell an unplayable course merely
-	// because the old CDN attestation contract and certification still exist.
-	// No production CDN learner adapter is registered in this release.
+	// The unconnected CDN cannot serve a learner even when authoring is complete.
 	t.Setenv("APGIC_ACADEMY_VIDEO_DELIVERY_MODE", "cdn")
-	if _, err = store.AcademyPublish(author, course.ID, course.VersionID); !errors.Is(err, academy.ErrState) {
-		t.Fatalf("unwired CDN mode admitted video publication: %v", err)
+	if access, err := store.AcademyMyCourseAccess(learner); err != nil {
+		t.Fatal(err)
+	} else {
+		for _, id := range access {
+			if id == course.ID {
+				t.Fatal("unwired CDN granted learner access")
+			}
+		}
 	}
 	t.Setenv("APGIC_ACADEMY_VIDEO_DELIVERY_MODE", "direct")
 	published, err := store.AcademyPublish(author, course.ID, course.VersionID)
