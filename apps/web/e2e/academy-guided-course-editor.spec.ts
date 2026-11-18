@@ -101,6 +101,9 @@ test("guided course editor connects module, lesson, video, schedule, rights and 
  await page.getByRole("button",{name:"3. Публикация"}).click();
  await expect(page.getByRole("heading",{name:"2. Подтвердите авторские права"})).toBeVisible();
  const rights=page.getByRole("region",{name:"Декларация авторских прав"});
+ await rights.getByRole("button",{name:"Подтвердить права"}).click();
+ await expect(rights.getByRole("status")).toContainText("Укажите источник своих материалов");
+ expect(calls.filter(c=>c.path.endsWith("/rights/original"))).toHaveLength(0);
  // A real unpublished course with no attestation must guide the author rather
  // than send an irreversible POST or show the old multi-sentence server error.
  await page.getByRole("button",{name:"Опубликовать курс"}).click();
