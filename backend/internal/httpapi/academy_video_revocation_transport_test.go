@@ -18,19 +18,42 @@ func TestAcademyRevocationClosesLiveLearnerHTTPResponse(t *testing.T) {
 		h2   bool
 	}{{"http1", false}, {"http2", true}} {
 		t.Run(protocol.name, func(t *testing.T) {
-			testAcademyRevokedHTTPTransport(t, protocol.h2)
+			testAcademyRevokedHTTPTransport(t, protocol.h2, false)
 		})
 	}
 }
 
-func testAcademyRevokedHTTPTransport(t *testing.T, h2 bool) {
+// A browser seek is a distinct 206 response; revocation must terminate it
+// with the same transport guarantees as a full 200 response.
+func TestAcademyRevocationClosesLiveHTTPSeekResponse(t *testing.T) {
+	for _, protocol := range []struct {
+		name string
+		h2   bool
+	}{{"http1", false}, {"http2", true}} {
+		t.Run(protocol.name, func(t *testing.T) {
+			testAcademyRevokedHTTPTransport(t, protocol.h2, true)
+		})
+	}
+}
+
+func testAcademyRevokedHTTPTransport(t *testing.T, h2, seek bool) {
 	revoke := make(chan struct{})
 	writeResult := make(chan error, 1)
 	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithCancel(r.Context())
 		defer cancel()
 		w.Header().Set("Content-Type", "video/mp4")
-		w.WriteHeader(http.StatusOK)
+		if seek {
+			if r.Header.Get("Range") != "bytes=5-9" {
+				writeResult <- context.Canceled
+				http.Error(w, "missing seek range", http.StatusBadRequest)
+				return
+			}
+			w.Header().Set("Content-Range", "bytes 5-9/10")
+			w.WriteHeader(http.StatusPartialContent)
+		} else {
+			w.WriteHeader(http.StatusOK)
+		}
 		if _, err := w.Write([]byte("first")); err != nil {
 			writeResult <- err
 			return
@@ -62,11 +85,25 @@ func testAcademyRevokedHTTPTransport(t *testing.T, h2 bool) {
 
 	client := server.Client()
 	client.Timeout = 3 * time.Second
-	resp, err := client.Get(server.URL)
+	req, err := http.NewRequest(http.MethodGet, server.URL, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if seek {
+		req.Header.Set("Range", "bytes=5-9")
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer resp.Body.Close()
+	if seek {
+		if resp.StatusCode != http.StatusPartialContent || resp.Header.Get("Content-Range") != "bytes 5-9/10" {
+			t.Fatalf("seek response must be 206 with exact range, got %d %q", resp.StatusCode, resp.Header.Get("Content-Range"))
+		}
+	} else if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected full 200 response, got %d", resp.StatusCode)
+	}
 	if h2 && resp.ProtoMajor != 2 {
 		t.Fatalf("expected HTTP/2, got %s", resp.Proto)
 	}
