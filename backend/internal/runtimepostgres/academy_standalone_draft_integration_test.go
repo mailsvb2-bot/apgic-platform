@@ -80,9 +80,22 @@ func TestAcademyStandaloneDraftAtomicAndUnpublished(t *testing.T) {
 	if _, err = store.AcademyPublish(actor, course.ID, course.VersionID); !errors.Is(err, academy.ErrState) {
 		t.Fatalf("unattested curriculum published: %v", err)
 	}
+	if confirmed, _, err := store.AcademyOriginalRightsStatus(actor, course.ID, course.VersionID); err != nil || confirmed {
+		t.Fatalf("unattested curriculum incorrectly confirms rights: confirmed=%t err=%v", confirmed, err)
+	}
+	foreign, err := academyID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if confirmed, _, err := store.AcademyOriginalRightsStatus(foreign, course.ID, course.VersionID); !errors.Is(err, academy.ErrDenied) || confirmed {
+		t.Fatalf("another identity can read course rights: confirmed=%t err=%v", confirmed, err)
+	}
 	if _, err = store.AcademyDeclareOriginalRights(actor, course.ID, course.VersionID,
 		"original/author-produced-course"); err != nil {
 		t.Fatal(err)
+	}
+	if confirmed, provenance, err := store.AcademyOriginalRightsStatus(actor, course.ID, course.VersionID); err != nil || !confirmed || provenance != "original/author-produced-course" {
+		t.Fatalf("reopened curriculum lost signed rights: confirmed=%t provenance=%q err=%v", confirmed, provenance, err)
 	}
 	t.Setenv("APGIC_ACADEMY_VIDEO_PUBLISH_ENABLED", "false")
 	published, err := store.AcademyPublish(actor, course.ID, course.VersionID)

@@ -1,6 +1,6 @@
 "use client";
 
-import {useCallback,useEffect,useMemo,useState,type FormEvent} from "react";
+import {useCallback,useEffect,useMemo,useRef,useState,type FormEvent} from "react";
 import CloudMediaEditor from "./cloud-media-editor";
 import AcademyLessonVideos from "./academy-lesson-videos";
 import "./academy-workspace.css";
@@ -103,6 +103,9 @@ export default function AcademyPage(){
  const [rightsAgreed,setRightsAgreed]=useState(false);
  const [rightsRecorded,setRightsRecorded]=useState(false);
  const [publishError,setPublishError]=useState("");
+ const [rightsFeedback,setRightsFeedback]=useState("");
+ const [offerFeedback,setOfferFeedback]=useState<{kind:"success"|"error";message:string}|null>(null);
+ const rightsInputRef=useRef<HTMLInputElement>(null);
  const [offerMode,setOfferMode]=useState<"FREE"|"PAID">("FREE");
  const [offerPriceRub,setOfferPriceRub]=useState("1000");
  const [checkoutProblem,setCheckoutProblem]=useState<Record<string,string>>({});
@@ -160,13 +163,25 @@ export default function AcademyPage(){
   finally{setBusy(false)}
  }
  const loadOutline=useCallback(async (selected:Course)=>{
-  setPublishError("");setRightsRecorded(false);setRightsAgreed(false);setRightsSource("");
+  setPublishError("");setRightsFeedback("");setOfferFeedback(null);setRightsRecorded(false);setRightsAgreed(false);setRightsSource("");
   setOfferMode(selected.access_mode==="PAID"?"PAID":"FREE");
   setOfferPriceRub(selected.price_minor?String(selected.price_minor/100):"1000");
   setView("courses");setCourse(selected);setFocusedVideoLessonID("");setActiveEnrollment(null);setCertificate(null);setLearnerAttempts([]);setCohorts([]);
   const d=await api<{state:string;modules:Module[];lessons:Lesson[]}>(
    `/v1/academy/courses/${selected.id}/versions/${selected.version_id}/outline`);
   setModules(d.modules);setLessons(d.lessons);setModuleID(d.modules[0]?.id||"");
+  if(selected.state==="DRAFT"){
+   try{
+    const rights=await api<{confirmed:boolean;provenance_ref:string}>(
+     `/v1/academy/courses/${selected.id}/versions/${selected.version_id}/rights/original`);
+    if(rights.confirmed){
+     setRightsRecorded(true);setRightsSource(rights.provenance_ref);setRightsAgreed(true);
+     setRightsFeedback("Права уже подтверждены для этой версии.");
+    }
+   }catch{
+    setRightsFeedback("Не удалось проверить сохранённые права. Можно подтвердить их заново.");
+   }
+  }
   setStructureAction("overview");
  },[]);
  // Open a specific course from the specialist workspace without creating a duplicate.
@@ -587,73 +602,125 @@ export default function AcademyPage(){
    {editorStep==="media"&&<div className="academy-next"><button type="button" onClick={()=>setEditorStep("structure")}>← К урокам</button><button type="button" className="academy-blue-button" onClick={()=>setEditorStep("publish")}>Далее: публикация →</button></div>}
    {editorStep==="publish"&&<section className="panel academy-publish-overview"><h2>1. Проверьте содержание курса</h2><p>Модулей: {modules.length} · уроков: {lessons.length} · видеоуроков: {lessons.filter(l=>l.kind==="VIDEO").length}</p><p>Перед публикацией проверьте содержание и прикреплённые видео. После публикации эта версия станет неизменяемой.</p><div className="academy-publish-review-actions"><button type="button" onClick={()=>setEditorStep("structure")}>Проверить уроки</button><button type="button" onClick={()=>setEditorStep("media")}>Проверить видео</button></div></section>}
    {editorStep==="publish"&&course.state==="DRAFT"&&<section className="panel academy-publish-rights" aria-label="Декларация авторских прав">
-      <h2>2. Подтвердите права на материалы</h2>
-      <p>Подтвердите авторство оригинального содержания. Сторонняя лицензия требует отдельной проверки.</p>
-      <label htmlFor="academy-original-rights">Источник оригинальных материалов</label>
-      <input id="academy-original-rights" value={rightsSource}
-       onChange={e=>{setRightsSource(e.target.value);setRightsRecorded(false)}}/>
-      <label><input type="checkbox" checked={rightsAgreed} onChange={e=>setRightsAgreed(e.target.checked)}/>
-       Подтверждаю авторство и право публикации этих оригинальных материалов</label>
-      <button type="button" disabled={busy||!rightsAgreed||rightsSource.trim().length<12||lessons.length===0}
-       onClick={()=>void act(()=>api<{id:string}>(
-        `/v1/academy/courses/${course.id}/versions/${course.version_id}/rights/original`,
-        {provenance_ref:rightsSource,acknowledged:true}),()=>setRightsRecorded(true))}>
-       Зафиксировать права на текущую версию</button>
-      {rightsRecorded&&<p>Подтверждение зафиксировано. Изменения уроков потребуют нового подтверждения.</p>}
-      {!rightsRecorded&&<p className="academy-publish-check-hint">Если права на эту версию ещё не были сохранены, заполните источник, поставьте отметку и нажмите «Зафиксировать права». Публикация — отдельный следующий шаг.</p>}
+      <h2>2. Подтвердите авторские права</h2>
+      <p>Один раз укажите, откуда материалы курса, и подтвердите своё право их публиковать.</p>
+      <label htmlFor="academy-original-rights">Источник материалов</label>
+      <input id="academy-original-rights" ref={rightsInputRef} value={rightsSource}
+       placeholder="Например: мои авторские лекции и видеозаписи"
+       onChange={e=>{setRightsSource(e.target.value);setRightsRecorded(false);setRightsFeedback("");setPublishError("")}}/>
+      <label className="academy-rights-checkbox"><input type="checkbox" checked={rightsAgreed}
+       onChange={e=>{setRightsAgreed(e.target.checked);setRightsFeedback("");setPublishError("")}}/>
+       Подтверждаю авторство и право публикации</label>
+      <button type="button" className="academy-blue-button" disabled={busy}
+       onClick={async()=>{
+        setRightsFeedback("");setPublishError("");
+        if(rightsSource.trim().length<12){
+         setRightsFeedback("Укажите источник своих материалов (не менее 12 символов).");
+         rightsInputRef.current?.focus();
+         return;
+        }
+        if(!rightsAgreed){
+         setRightsFeedback("Поставьте отметку о праве публикации.");
+         return;
+        }
+        if(lessons.length===0){
+         setRightsFeedback("Сначала добавьте хотя бы один урок.");
+         return;
+        }
+        setBusy(true);
+        try{
+         await api<{id:string}>(`/v1/academy/courses/${course.id}/versions/${course.version_id}/rights/original`,
+          {provenance_ref:rightsSource.trim(),acknowledged:true});
+         setRightsRecorded(true);
+         setRightsFeedback("Права подтверждены. Теперь можно опубликовать курс.");
+        }catch(error){
+         setRightsRecorded(false);
+         setRightsFeedback(error instanceof Error?error.message:"Не удалось сохранить подтверждение.");
+        }finally{setBusy(false)}
+       }}>Подтвердить права</button>
+      {rightsFeedback&&<p className={rightsRecorded?"academy-inline-result":"academy-inline-error"} role="status">{rightsFeedback}</p>}
      </section>}
-   {editorStep==="publish"&&course.state==="DRAFT"&&<p className="academy-publish-caution">3. Публикация фиксирует версию курса и не требует учеников, продаж или разрешения на видеодоставку. Для будущего доступа учеников к видео действуют отдельные проверки подключения Яндекс Диска и готовности видеосервиса. Само опубликование курс не продаёт.</p>}
    {editorStep==="publish"&&course.state==="DRAFT"&&<div className="academy-publish-submit">
-    <button type="button" className="academy-blue-button" disabled={busy||lessons.length===0} onClick={async()=>{
+    <button type="button" className="academy-blue-button" disabled={busy||lessons.length===0}
+     onClick={async()=>{
       if(busy)return;
+      if(!rightsRecorded){
+       setPublishError("Сначала подтвердите авторские права выше.");
+       rightsInputRef.current?.scrollIntoView({behavior:"smooth",block:"center"});
+       rightsInputRef.current?.focus({preventScroll:true});
+       return;
+      }
       setPublishError("");setNotice("");setBusy(true);
       try{
        const published=await api<Course>(`/v1/academy/courses/${course.id}/versions/${course.version_id}/publish`,{});
        if(published.state!=="PUBLISHED"||published.id!==course.id||published.version_id!==course.version_id){
-        throw new Error("Ответ публикации не подтвердил опубликованную версию. Проверьте список курсов перед повторной попыткой.");
+        throw new Error("Проверка результата не удалась. Откройте «Мои курсы» и проверьте статус.");
        }
-       // The committed publish receipt is authoritative: a failed subsequent
-       // readback must not turn a successful irreversible operation into an
-       // apparent failure that encourages a duplicate retry.
        setMine(previous=>previous.map(item=>item.id===published.id?published:item));
-       setCourse(null);setNotice("Версия опубликована и больше не редактируется.");
-       void refresh().catch(()=>setNotice("Версия опубликована. Не удалось обновить список курсов — попробуйте «Мои курсы» позже."));
+       setCourse(null);setNotice("Курс опубликован. Настройки доступа и цены можно изменить отдельно.");
+       window.scrollTo({top:0,behavior:"smooth"});
+       void refresh().catch(()=>setNotice("Курс опубликован. Не удалось обновить список — откройте «Мои курсы»."));
       }catch(error){
        const detail=error instanceof Error?error.message:"Неизвестная ошибка";
-       setPublishError("Версия осталась черновиком или результат не подтверждён. "+(detail==="Недопустимое изменение состояния."||detail==="ACADEMY_STATE_CONFLICT"?
-        "Сервер отклонил публикацию: проверьте сохранённые права на текущую версию, наличие уроков и принадлежность курса вашему аккаунту.":
-        detail)+" Если операция уже была выполнена, проверьте список курсов перед повторным нажатием.");
+       setPublishError(detail==="Недопустимое изменение состояния."||detail==="ACADEMY_STATE_CONFLICT"?
+        "Публикация не выполнена. Проверьте подтверждение прав и содержание курса.":"Публикация не выполнена: "+detail);
       }finally{setBusy(false)}
-     }}>Опубликовать версию курса</button>
+     }}>Опубликовать курс</button>
     {publishError&&<p className="academy-publish-error" role="alert">{publishError}</p>}
    </div>}
   </section>}
-  {view==="courses"&&course&&<section className="how-section academy-course-offer" aria-label="Доступ и стоимость курса">
-   <div className="panel specialist-form">
-    <h2>Доступ и стоимость курса</h2>
-    <p>Публикация программы не запускает продажи. Вы решаете, открыть бесплатный просмотр или назначить цену.</p>
-    <p>Сейчас: <strong>{course.access_mode==="FREE"?"Бесплатный":course.access_mode==="PAID"?"Платный":"Запись пока не открыта"}</strong>{course.access_mode==="PAID"?" · "+((course.price_minor||0)/100).toLocaleString("ru-RU")+" ₽":""}</p>
-    <form onSubmit={e=>{e.preventDefault();const rub=Number(offerPriceRub);
-     if(offerMode==="PAID"&&(!Number.isSafeInteger(rub)||rub<1||rub>100000000)){setNotice("Укажите целую стоимость от 1 до 100 000 000 ₽.");return}
-     void act(()=>api<CourseOffer>(`/v1/academy/courses/${course.id}/offer`,{
-      access_mode:offerMode,price_minor:offerMode==="FREE"?0:rub*100
-     }),async saved=>{
-      setCourse(old=>old?{...old,access_mode:saved.access_mode,price_minor:saved.price_minor,currency:saved.currency}:old);
-      setMine(items=>items.map(item=>item.id===saved.course_id?{...item,access_mode:saved.access_mode,price_minor:saved.price_minor}:item));
-      setNotice(saved.access_mode==="FREE"?"Бесплатный доступ сохранён.":"Цена сохранена. Оплата откроется после подключения Т-Банка.");
-     });
+  {view==="courses"&&course&&<section className="academy-course-offer" aria-label="Доступ и стоимость курса">
+   <div className="panel academy-offer-panel">
+    <h2>Доступ к курсу</h2>
+    <p className="academy-offer-current">Условия: <strong>{course.access_mode==="FREE"?"Бесплатно":course.access_mode==="PAID"?"Платный · "+((course.price_minor||0)/100).toLocaleString("ru-RU")+" ₽":"Доступ не открыт"}</strong>{course.state!=="PUBLISHED"&&<span> · курс пока черновик</span>}</p>
+    <form onSubmit={async e=>{
+     e.preventDefault();
+     const rub=Number(offerPriceRub);
+     if(offerMode==="PAID"&&(!Number.isSafeInteger(rub)||rub<1||rub>100000000)){
+      setOfferFeedback({kind:"error",message:"Укажите цену целым числом от 1 до 100 000 000 ₽."});return;
+     }
+     setOfferFeedback(null);setBusy(true);
+     try{
+      const saved=await api<CourseOffer>(`/v1/academy/courses/${course.id}/offer`,{
+       access_mode:offerMode,price_minor:offerMode==="FREE"?0:rub*100
+      });
+      const readback=await api<{courses:Course[]}>("/v1/academy/my-courses");
+      const confirmed=readback.courses.find(item=>item.id===course.id);
+      if(!confirmed||confirmed.access_mode!==saved.access_mode||confirmed.price_minor!==saved.price_minor){
+       throw new Error("Сохранение не подтверждено сервером. Перезагрузите список курсов.");
+      }
+      setCourse(old=>old?{...old,access_mode:confirmed.access_mode,price_minor:confirmed.price_minor,currency:confirmed.currency}:old);
+      setMine(readback.courses);
+      // The author readback is the canonical saved state. Keep the catalog
+      // projection in sync immediately, including newly opened courses.
+      setCatalog(items=>{
+       const other=items.filter(item=>item.id!==confirmed.id);
+       return confirmed.state==="PUBLISHED"&&
+        (confirmed.access_mode==="FREE"||confirmed.access_mode==="PAID")?
+        [...other,confirmed]:other;
+      });
+      setOfferFeedback({kind:"success",message:saved.access_mode==="FREE"?
+       (course.state==="PUBLISHED"?"Сохранено: курс доступен бесплатно.":"Сохранено: бесплатный доступ после публикации курса."):"Сохранено: "+(saved.price_minor/100).toLocaleString("ru-RU")+" ₽. Приём платежей пока не подключён."});
+     }catch(error){
+      setOfferFeedback({kind:"error",message:error instanceof Error?error.message:"Не удалось сохранить условия доступа."});
+     }finally{setBusy(false)}
     }}>
-     <fieldset className="academy-offer-choice"><legend>Как ученики получают доступ?</legend>
-      <label><input type="radio" name="academy-access-mode" checked={offerMode==="FREE"} onChange={()=>setOfferMode("FREE")}/> Открытый — бесплатно</label>
-      <label><input type="radio" name="academy-access-mode" checked={offerMode==="PAID"} onChange={()=>setOfferMode("PAID")}/> Закрытый — платный</label>
+     <fieldset className="academy-offer-choice"><legend>Как открыть курс?</legend>
+      <label><input type="radio" name="academy-access-mode" checked={offerMode==="FREE"}
+       onChange={()=>{setOfferMode("FREE");setOfferFeedback(null)}}/> <span>Открытый <small>Бесплатно для учеников</small></span></label>
+      <label><input type="radio" name="academy-access-mode" checked={offerMode==="PAID"}
+       onChange={()=>{setOfferMode("PAID");setOfferFeedback(null)}}/> <span>Платный <small>Доступ после оплаты</small></span></label>
      </fieldset>
-     {offerMode==="PAID"&&<label>Цена курса, ₽
-      <input type="number" min={1} max={100000000} step={1} required value={offerPriceRub} onChange={e=>setOfferPriceRub(e.target.value)} aria-label="Цена курса в рублях"/>
+     {offerMode==="PAID"&&<label className="academy-offer-price">Стоимость курса, ₽
+      <input type="number" min={1} max={100000000} step={1} required value={offerPriceRub}
+       onChange={e=>{setOfferPriceRub(e.target.value);setOfferFeedback(null)}} aria-label="Цена курса в рублях"/>
      </label>}
-     <button type="submit" disabled={busy}>Сохранить условия доступа</button>
+     <button type="submit" className="academy-blue-button" disabled={busy}>
+      {busy?"Сохраняем…":"Сохранить"}
+     </button>
+     {offerFeedback&&<p className={offerFeedback.kind==="success"?"academy-inline-result":"academy-inline-error"} role="status">{offerFeedback.message}</p>}
     </form>
-    {offerMode==="PAID"&&<p>Покупка потребует подтверждённого платежа во внешнем банке. До подключения Т-Банка платные зачисления не создаются.</p>}
-    <p>Для видеокурсов допуск к просмотру учеником дополнительно зависит от готовности защищённой видеодоставки.</p>
+    {offerMode==="PAID"&&<p className="academy-offer-note">Оплата заработает после подключения Т-Банка. Деньги не проходят через APGIC.</p>}
    </div>
   </section>}
   {view==="courses"&&course&&course.state==="PUBLISHED"&&<section className="how-section">

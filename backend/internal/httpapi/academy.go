@@ -134,6 +134,32 @@ func registerAcademy(mux *http.ServeMux, store academyStore, sessions *clientSes
 		}
 		writeJSON(w, http.StatusCreated, lesson)
 	})
+	// Exact-version rights status is author-only and is read from the canonical
+	// Academy storage. Returning to an editor never erases signed attestation.
+	mux.HandleFunc("GET /v1/academy/courses/{courseID}/versions/{versionID}/rights/original", func(w http.ResponseWriter, r *http.Request) {
+		if store == nil {
+			academyHTTPError(w, r, academy.ErrUnavailable)
+			return
+		}
+		actor, ok := academyIdentity(w, r, sessions, sessionConfigErr)
+		if !ok {
+			return
+		}
+		reader, ok := store.(interface {
+			AcademyOriginalRightsStatus(string, string, string) (bool, string, error)
+		})
+		if !ok {
+			academyHTTPError(w, r, academy.ErrUnavailable)
+			return
+		}
+		confirmed, provenance, err := reader.AcademyOriginalRightsStatus(actor, r.PathValue("courseID"), r.PathValue("versionID"))
+		if err != nil {
+			academyHTTPError(w, r, err)
+			return
+		}
+		w.Header().Set("Cache-Control", "private, no-store")
+		writeJSON(w, http.StatusOK, map[string]any{"confirmed": confirmed, "provenance_ref": provenance})
+	})
 	mux.HandleFunc("POST /v1/academy/courses/{courseID}/versions/{versionID}/rights/original", func(w http.ResponseWriter, r *http.Request) {
 		if store == nil {
 			academyHTTPError(w, r, academy.ErrUnavailable)

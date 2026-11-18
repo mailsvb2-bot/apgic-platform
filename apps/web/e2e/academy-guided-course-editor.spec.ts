@@ -11,6 +11,7 @@ test("guided course editor connects module, lesson, video, schedule, rights and 
  const calls:{method:string;path:string;body:unknown}[]=[];
  let modules:{id:string;version_id:string;ordinal:number;title:string}[]=[];
  let publishingApproved=false;
+ let rightsConfirmed=false;
  let refreshUnavailableAfterPublish=false;
  let lessons:{id:string;module_id:string;title:string;ordinal:number;kind:string}[]=[];
  await page.route("**/v1/academy/**",async route=>{
@@ -32,6 +33,8 @@ test("guided course editor connects module, lesson, video, schedule, rights and 
    else if(path==="/v1/academy/me/certificates")data={certificates:[]};
    else if(path===`/v1/academy/courses/${courseId}/versions/${versionId}/outline`)
     data={state:"DRAFT",modules,lessons};
+   else if(path===`/v1/academy/courses/${courseId}/versions/${versionId}/rights/original`)
+    data={confirmed:rightsConfirmed,provenance_ref:rightsConfirmed?"author-original-materials-reference":""};
    else if(path==="/v1/academy/author/cloud-media")data={media:[]};
    else if(path===`/v1/academy/author/courses/${courseId}/versions/${versionId}/media`)
     data={assignments:[]};
@@ -45,7 +48,9 @@ test("guided course editor connects module, lesson, video, schedule, rights and 
     lessons=[{id:lessonId,module_id:moduleId,title:(body as {title:string}).title,ordinal:1,kind:(body as {kind:string}).kind}];
     data=lessons[0];
    }else if(path===`/v1/academy/lessons/${lessonId}/schedule`)data={state:"SAVED"};
-   else if(path===`/v1/academy/courses/${courseId}/versions/${versionId}/rights/original`)data={id:"rights-proof"};
+   else if(path===`/v1/academy/courses/${courseId}/versions/${versionId}/rights/original`){
+    rightsConfirmed=true;data={id:"rights-proof"};
+   }
    else if(path===`/v1/academy/courses/${courseId}/versions/${versionId}/publish`){
     if(!publishingApproved){status=409;data={code:"ACADEMY_STATE_CONFLICT",message_safe:"Содержание изменилось после подтверждения прав"};}
     else data={...course,state:"PUBLISHED"};
@@ -94,23 +99,31 @@ test("guided course editor connects module, lesson, video, schedule, rights and 
  await schedule.getByRole("button",{name:"Сохранить расписание"}).click();
  await expect(page.getByRole("status").filter({hasText:"Расписание урока сохранено."})).toBeVisible();
  await page.getByRole("button",{name:"3. Публикация"}).click();
- await expect(page.getByRole("heading",{name:"2. Подтвердите права на материалы"})).toBeVisible();
+ await expect(page.getByRole("heading",{name:"2. Подтвердите авторские права"})).toBeVisible();
  const rights=page.getByRole("region",{name:"Декларация авторских прав"});
+ await rights.getByRole("button",{name:"Подтвердить права"}).click();
+ await expect(rights.getByRole("status")).toContainText("Укажите источник своих материалов");
+ expect(calls.filter(c=>c.path.endsWith("/rights/original"))).toHaveLength(0);
+ // A real unpublished course with no attestation must guide the author rather
+ // than send an irreversible POST or show the old multi-sentence server error.
+ await page.getByRole("button",{name:"Опубликовать курс"}).click();
+ await expect(page.locator(".academy-publish-submit").getByRole("alert")).toHaveText("Сначала подтвердите авторские права выше.");
+ expect(calls.filter(c=>c.path.endsWith("/publish"))).toHaveLength(0);
+
  await rights.locator("#academy-original-rights").fill("author-original-materials-reference");
  await rights.getByRole("checkbox").check();
- await rights.getByRole("button",{name:"Зафиксировать права на текущую версию"}).click();
- await expect(rights.getByText("Подтверждение зафиксировано.")).toBeVisible();
- await expect(page.getByText(/не требует учеников, продаж или разрешения на видеодоставку/)).toBeVisible();
- await page.getByRole("button",{name:"Опубликовать версию курса"}).click();
+ await rights.getByRole("button",{name:"Подтвердить права"}).click();
+ await expect(rights.getByRole("status")).toContainText("Права подтверждены");
+ await page.getByRole("button",{name:"Опубликовать курс"}).click();
  await expect(page.locator(".academy-publish-submit").getByRole("alert")).toContainText("Содержание изменилось после подтверждения прав");
- await expect(page.locator(".academy-publish-submit").getByRole("alert")).toContainText("Версия осталась черновиком");
- await expect(page.getByRole("button",{name:"Опубликовать версию курса"})).toBeVisible();
+ await expect(page.locator(".academy-publish-submit").getByRole("alert")).toContainText("Публикация не выполнена");
+ await expect(page.getByRole("button",{name:"Опубликовать курс"})).toBeVisible();
  publishingApproved=true;
  refreshUnavailableAfterPublish=true; // POST succeeds; follow-up GET temporarily fails.
- await page.getByRole("button",{name:"Опубликовать версию курса"}).click();
- await expect(page.getByRole("status").filter({hasText:"Версия опубликована"})).toBeVisible();
+ await page.getByRole("button",{name:"Опубликовать курс"}).click();
+ await expect(page.getByRole("status").filter({hasText:"Курс опубликован"})).toBeVisible();
  await expect(page.locator(".academy-publish-submit")).toHaveCount(0);
- await expect(page.getByRole("status").filter({hasText:"Версия опубликована"})).toBeVisible();
+ await expect(page.getByRole("status").filter({hasText:"Курс опубликован"})).toBeVisible();
  const paths=calls.map(c=>c.path);
  for(const segment of ["/modules","/lessons","/schedule","/rights/original","/publish"]){
   expect(paths.filter(path=>path.endsWith(segment))).toHaveLength(segment==="/publish"?2:1);
