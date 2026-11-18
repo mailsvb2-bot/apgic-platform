@@ -606,17 +606,17 @@ export default function AcademyPage(){
       <p>Один раз укажите, откуда материалы курса, и подтвердите своё право их публиковать.</p>
       <label htmlFor="academy-original-rights">Источник материалов</label>
       <input id="academy-original-rights" ref={rightsInputRef} value={rightsSource}
-       minLength={12} maxLength={2048} aria-describedby="academy-original-rights-hint"
+       maxLength={2048} aria-describedby="academy-original-rights-hint"
        placeholder="Например: мои авторские лекции и видеозаписи"
        onChange={e=>{setRightsSource(e.target.value);setRightsRecorded(false);setRightsFeedback("");setPublishError("")}}/>
-      <p id="academy-original-rights-hint">Укажите источник материалов (не менее 12 символов), например «мои авторские лекции». Галочка сама по себе не сохраняет права.</p>
+      <p id="academy-original-rights-hint">Назовите источник материалов как удобно, например «№1» или «мои лекции». Галочка сама по себе не сохраняет подтверждение.</p>
       <label className="academy-rights-checkbox"><input type="checkbox" checked={rightsAgreed}
        onChange={e=>{setRightsAgreed(e.target.checked);setRightsFeedback("");setPublishError("")}}/>
        Подтверждаю авторство и право публикации</label>
       <button type="button" className="academy-blue-button" disabled={busy}
        onClick={async()=>{
         setRightsFeedback("");setPublishError("");
-        if(rightsSource.trim().length<12){
+        if(!rightsSource.trim()){
          setRightsFeedback("Укажите источник своих материалов (не менее 12 символов).");
          rightsInputRef.current?.focus();
          return;
@@ -651,7 +651,7 @@ export default function AcademyPage(){
     <button type="button" className="academy-blue-button" disabled={busy||lessons.length===0}
      onClick={async()=>{
       if(busy)return;
-      if(rightsSource.trim().length<12){
+      if(!rightsSource.trim()){
        setPublishError("Источник материалов слишком короткий. Укажите не менее 12 символов, например «мои авторские лекции».");
        rightsInputRef.current?.scrollIntoView({behavior:"smooth",block:"center"});
        rightsInputRef.current?.focus({preventScroll:true});
