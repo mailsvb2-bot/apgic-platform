@@ -33,3 +33,57 @@ body{background:radial-gradient(ellipse 55rem 36rem at 100% 0%,#e7efff 0%,transp
 .apgic-account .panel button:disabled{opacity:.57}
 .apgic-account h1{letter-spacing:-.04em}
 @media(max-width:720px){.site-header{padding-top:9px;padding-bottom:9px;min-height:auto}.top-nav{gap:4px}.top-nav a{font-size:.83rem;padding:7px}.personal-shell{padding-left:16px;padding-right:16px}}
+
+
+/* APGIC design contract, shared across public, personal, specialist and Academy.
+   Overrides only appearance; all actions and canonical service owners stay intact. */
+:root{
+ --apgic-color-primary:#1763ed;
+ --apgic-color-primary-hover:#1254d2;
+ --apgic-color-ink:#142441;
+ --apgic-color-muted:#586985;
+ --apgic-color-line:#dce5f4;
+ --apgic-color-surface:#ffffff;
+ --apgic-color-canvas:#f6f8fe;
+ --apgic-color-soft:#edf4ff;
+ --apgic-color-focus:#9abefa;
+ --apgic-radius-control:11px;
+ --apgic-radius-card:18px;
+ --apgic-shadow-card:0 8px 26px rgba(33,64,111,.055);
+}
+:where(.academy-workspace){--academy-blue:var(--apgic-color-primary);--academy-ink:var(--apgic-color-ink);--academy-muted:var(--apgic-color-muted);--academy-line:var(--apgic-color-line)}
+:where(.specialist-dashboard){--sp-blue:var(--apgic-color-primary);--sp-border:var(--apgic-color-line);--sp-muted:var(--apgic-color-muted)}
+:where(.academy-workspace,.specialist-dashboard){background:var(--apgic-color-canvas);color:var(--apgic-color-ink)}
+:where(.academy-main .panel,.specialist-dashboard .panel,.site-shell .panel,.personal-section,.personal-empty){
+ border-color:var(--apgic-color-line);
+ border-radius:var(--apgic-radius-card);
+ background:var(--apgic-color-surface);
+ box-shadow:var(--apgic-shadow-card);
+}
+:where(.site-shell,.personal-shell,.apgic-account,.academy-workspace,.specialist-dashboard)
+ :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]):not([type="file"]),select,textarea){
+ border:1px solid var(--apgic-color-line);
+ border-radius:var(--apgic-radius-control);
+ background:var(--apgic-color-surface);
+ color:var(--apgic-color-ink);
+ max-width:100%;
+}
+:where(.site-shell,.personal-shell,.apgic-account,.academy-workspace,.specialist-dashboard)
+ :is(button,a,input,select,textarea,summary):focus-visible{
+ outline:3px solid var(--apgic-color-focus);
+ outline-offset:3px;
+}
+:where(.site-shell,.personal-shell,.apgic-account,.academy-workspace,.specialist-dashboard) button:not(:disabled){
+ cursor:pointer;
+}
+:where(.site-shell,.personal-shell,.apgic-account,.academy-workspace,.specialist-dashboard) button:disabled{
+ cursor:not-allowed;
+ opacity:.55;
+}
+:where(.site-shell,.personal-shell,.apgic-account,.academy-workspace,.specialist-dashboard) :is(button,.button-link){
+ transition:background-color .16s ease,border-color .16s ease,color .16s ease;
+}
+@media(prefers-reduced-motion:reduce){
+ html{scroll-behavior:auto}
+ :where(.site-shell,.personal-shell,.apgic-account,.academy-workspace,.specialist-dashboard) *{transition:none!important;animation:none!important}
+}
