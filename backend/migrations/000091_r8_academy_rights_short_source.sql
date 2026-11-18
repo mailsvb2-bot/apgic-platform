@@ -4,4 +4,4 @@ ALTER TABLE academy_original_rights
  DROP CONSTRAINT academy_original_rights_provenance_ref_check;
 ALTER TABLE academy_original_rights
  ADD CONSTRAINT academy_original_rights_provenance_ref_check
- CHECK (length(btrim(provenance_ref)) BETWEEN 1 AND 2048);
+ CHECK (btrim(provenance_ref) <> '');
