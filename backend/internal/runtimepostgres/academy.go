@@ -480,8 +480,13 @@ func (c *Checker) AcademyCatalog() ([]academy.Course, error) {
 	}
 	ctx, cancel := academyContext()
 	defer cancel()
-	rows, err := c.db.QueryContext(ctx, `SELECT c.id::text,c.product_id::text,c.title,c.description,v.id::text,v.version_no
- FROM academy_courses c JOIN LATERAL (
+	rows, err := c.db.QueryContext(ctx, `SELECT c.id::text,c.product_id::text,c.title,c.description,v.id::text,v.version_no,
+ COALESCE(terms.access_mode,CASE WHEN p.status='PUBLISHED' THEN 'PAID' ELSE 'UNLISTED' END),
+ COALESCE(terms.price_minor,0),'RUB'
+ FROM academy_courses c
+ JOIN products p ON p.id=c.product_id
+ LEFT JOIN commerce_product_access_terms terms ON terms.product_id=c.product_id
+ JOIN LATERAL (
   SELECT id,version_no FROM academy_course_versions
   WHERE course_id=c.id AND state='PUBLISHED' ORDER BY version_no DESC LIMIT 1
  )v ON true WHERE c.state='PUBLISHED' ORDER BY c.title,c.id LIMIT 100`)
@@ -492,7 +497,8 @@ func (c *Checker) AcademyCatalog() ([]academy.Course, error) {
 	courses := []academy.Course{}
 	for rows.Next() {
 		var co academy.Course
-		if err = rows.Scan(&co.ID, &co.ProductID, &co.Title, &co.Description, &co.VersionID, &co.VersionNo); err != nil {
+		if err = rows.Scan(&co.ID, &co.ProductID, &co.Title, &co.Description, &co.VersionID, &co.VersionNo,
+			&co.AccessMode, &co.PriceMinor, &co.Currency); err != nil {
 			return nil, err
 		}
 		co.State = "PUBLISHED"
@@ -954,8 +960,12 @@ func (c *Checker) AcademyAuthorCourses(actor string) ([]academy.Course, error) {
 	ctx, cancel := academyContext()
 	defer cancel()
 	rows, err := c.db.QueryContext(ctx, `SELECT c.id::text,c.product_id::text,c.title,c.description,c.state,
- COALESCE(v.id::text,''),COALESCE(v.version_no,0)
+ COALESCE(v.id::text,''),COALESCE(v.version_no,0),
+ COALESCE(terms.access_mode,CASE WHEN p.status='PUBLISHED' THEN 'PAID' ELSE 'UNLISTED' END),
+ COALESCE(terms.price_minor,0),'RUB'
  FROM academy_courses c
+ JOIN products p ON p.id=c.product_id
+ LEFT JOIN commerce_product_access_terms terms ON terms.product_id=c.product_id
  LEFT JOIN LATERAL(SELECT id,version_no FROM academy_course_versions
    WHERE course_id=c.id ORDER BY (state='DRAFT') DESC,version_no DESC LIMIT 1)v ON true
  WHERE c.author_id=$1::uuid ORDER BY c.created_at DESC LIMIT 100`, actor)
@@ -966,7 +976,8 @@ func (c *Checker) AcademyAuthorCourses(actor string) ([]academy.Course, error) {
 	result := []academy.Course{}
 	for rows.Next() {
 		var co academy.Course
-		if err = rows.Scan(&co.ID, &co.ProductID, &co.Title, &co.Description, &co.State, &co.VersionID, &co.VersionNo); err != nil {
+		if err = rows.Scan(&co.ID, &co.ProductID, &co.Title, &co.Description, &co.State, &co.VersionID, &co.VersionNo,
+			&co.AccessMode, &co.PriceMinor, &co.Currency); err != nil {
 			return nil, err
 		}
 		result = append(result, co)
