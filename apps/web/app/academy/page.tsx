@@ -691,6 +691,14 @@ export default function AcademyPage(){
       }
       setCourse(old=>old?{...old,access_mode:confirmed.access_mode,price_minor:confirmed.price_minor,currency:confirmed.currency}:old);
       setMine(readback.courses);
+      // The author readback is the canonical saved state. Keep the catalog
+      // projection in sync immediately, including newly opened courses.
+      setCatalog(items=>{
+       const other=items.filter(item=>item.id!==confirmed.id);
+       return confirmed.state==="PUBLISHED"&&
+        (confirmed.access_mode==="FREE"||confirmed.access_mode==="PAID")?
+        [...other,confirmed]:other;
+      });
       setOfferFeedback({kind:"success",message:saved.access_mode==="FREE"?
        (course.state==="PUBLISHED"?"Сохранено: курс доступен бесплатно.":"Сохранено: бесплатный доступ после публикации курса."):"Сохранено: "+(saved.price_minor/100).toLocaleString("ru-RU")+" ₽. Приём платежей пока не подключён."});
      }catch(error){
