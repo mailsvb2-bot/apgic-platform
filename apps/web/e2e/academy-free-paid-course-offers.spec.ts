@@ -44,7 +44,7 @@ test("author saves paid price; learner cannot fake bank payment; free course can
  await page.goto("/academy?tab=courses");
  await page.getByRole("button",{name:"Открыть редактор"}).click();
  const offer=page.getByRole("region",{name:"Доступ и стоимость курса"});
- await expect(offer.getByText(/Запись пока не открыта/)).toBeVisible();
+ await expect(offer.getByText(/Доступ не открыт/)).toBeVisible();
  await offer.getByLabel(/Платный/).check();
  await offer.getByRole("spinbutton",{name:"Цена курса в рублях"}).fill("2499");
  await offer.getByRole("button",{name:"Сохранить"}).click();
