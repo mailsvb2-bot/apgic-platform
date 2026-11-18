@@ -15,7 +15,7 @@ import (
 func TestAcademyRevocationClosesLiveLearnerHTTPResponse(t *testing.T) {
 	for _, protocol := range []struct {
 		name string
-		h2 bool
+		h2   bool
 	}{{"http1", false}, {"http2", true}} {
 		t.Run(protocol.name, func(t *testing.T) {
 			testAcademyRevokedHTTPTransport(t, protocol.h2)
