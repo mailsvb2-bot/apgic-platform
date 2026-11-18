@@ -81,6 +81,22 @@ func academyAuthor(ctx context.Context, tx *sql.Tx, actor, courseID string) (boo
 	}
 	return author == actor, err
 }
+// academyOwnedProduct proves the canonical Commerce owner without requiring the
+// underlying product to be offered for sale. Publication does not mutate Commerce.
+func academyOwnedProduct(ctx context.Context, tx *sql.Tx, actor, productID string) (bool, error) {
+	var allowed bool
+	err := tx.QueryRowContext(ctx, `SELECT EXISTS(
+ SELECT 1 FROM products p WHERE p.id=$2::uuid AND
+ ((p.owner_type='IDENTITY' AND p.owner_id=$1::uuid)
+ OR (p.owner_type='ORGANIZATION' AND EXISTS (
+ SELECT 1 FROM organization_ownerships o
+ JOIN organization_memberships m
+ ON m.organization_id=o.organization_id AND m.identity_id=o.identity_id
+ WHERE o.organization_id=p.owner_id AND o.identity_id=$1::uuid
+ AND o.status='ACTIVE' AND m.status='ACTIVE'
+ )))`, actor, productID).Scan(&allowed)
+	return allowed, err
+}
 func academyPublishedProductOwner(ctx context.Context, tx *sql.Tx, actor, productID string) (bool, error) {
 	var allowed bool
 	err := tx.QueryRowContext(ctx, `SELECT EXISTS(
@@ -412,28 +428,9 @@ func (c *Checker) AcademyPublish(actor, courseID, versionID string) (academy.Cou
 	if state != "DRAFT" {
 		return academy.Course{}, academy.ErrState
 	}
-	// Until a trusted media-playback connector can attest completion, publishing
-	// VIDEO lessons would sell an unfinishable course. Keep draft authoring only.
-	var unsupportedVideo bool
-	err = tx.QueryRowContext(ctx, `SELECT EXISTS(
-  SELECT 1 FROM academy_lessons l JOIN academy_modules m ON m.id=l.module_id
-  WHERE m.version_id=$1::uuid AND l.kind='VIDEO'
- )`, versionID).Scan(&unsupportedVideo)
-	if err != nil {
-		return academy.Course{}, err
-	}
-	if unsupportedVideo {
-		// Never sell a VIDEO course unless the deployment explicitly enables
-		// the verified media journey and every video lesson has an assigned,
-		// author-owned Yandex source and a saved encrypted connection.
-		ready, readinessErr := academyVideoPublicationReady(ctx, tx, actor, versionID)
-		if readinessErr != nil {
-			return academy.Course{}, readinessErr
-		}
-		if !ready {
-			return academy.Course{}, academy.ErrState
-		}
-	}
+	// Publishing is author-owned curriculum release, NOT commercialization.
+	// Video readiness is checked at the learner admission/stream boundary.
+	// This allows course authoring to finish before any students or sales exist.
 	var attested bool
 	err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM academy_original_rights
   WHERE version_id=$1::uuid AND author_id=$2::uuid
@@ -444,7 +441,7 @@ func (c *Checker) AcademyPublish(actor, courseID, versionID string) (academy.Cou
 	if !attested {
 		return academy.Course{}, academy.ErrState
 	}
-	allowed, err := academyPublishedProductOwner(ctx, tx, actor, pID)
+	allowed, err := academyOwnedProduct(ctx, tx, actor, pID)
 	if err != nil {
 		return academy.Course{}, err
 	}
