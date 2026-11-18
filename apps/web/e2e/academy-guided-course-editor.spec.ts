@@ -92,6 +92,7 @@ test("guided course editor connects module, lesson, video, schedule, rights and 
  await rights.getByRole("checkbox").check();
  await rights.getByRole("button",{name:"Зафиксировать права на текущую версию"}).click();
  await expect(rights.getByText("Подтверждение зафиксировано.")).toBeVisible();
+ await expect(page.getByText(/сервер дополнительно требует проверенные файлы Яндекс Диска/)).toBeVisible();
  await page.getByRole("button",{name:"Опубликовать версию курса"}).click();
  await expect(page.getByRole("status").filter({hasText:"Версия опубликована"})).toBeVisible();
  const paths=calls.map(c=>c.path);
