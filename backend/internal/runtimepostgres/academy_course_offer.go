@@ -79,7 +79,6 @@ func (c *Checker) AcademySetCourseOffer(actor, courseID, mode string, priceMinor
 	}, nil
 }
 
-
 // AcademyCheckoutOffer is the signed checkout boundary's authoritative quote
 // source. An author-controlled paid label alone never makes an unpublished
 // Commerce product sellable, and clients cannot supply a different price.
