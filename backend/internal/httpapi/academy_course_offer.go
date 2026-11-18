@@ -1,8 +1,8 @@
 package httpapi
 
 import (
-	"net/http"
 	"errors"
+	"net/http"
 
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/academy"
 )
