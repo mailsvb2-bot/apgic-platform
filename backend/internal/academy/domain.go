@@ -35,6 +35,9 @@ type Course struct {
 	State       string `json:"state"`
 	VersionID   string `json:"version_id,omitempty"`
 	VersionNo   int    `json:"version_no,omitempty"`
+	AccessMode string `json:"access_mode"`
+	PriceMinor int64  `json:"price_minor"`
+	Currency   string `json:"currency"`
 }
 
 // OriginalRightsDeclaration is only an authenticated author's declaration;
