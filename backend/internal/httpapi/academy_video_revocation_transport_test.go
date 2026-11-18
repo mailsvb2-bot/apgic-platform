@@ -36,6 +36,9 @@ func TestAcademyRevocationClosesLiveLearnerHTTPResponse(t *testing.T) {
 		}
 		academyCancelRevokedVideoResponse(w, cancel)
 		_, err := w.Write([]byte("forbidden-after-revoke"))
+		if err == nil {
+			err = http.NewResponseController(w).Flush()
+		}
 		writeResult <- err
 	}))
 	defer server.Close()
