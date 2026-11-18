@@ -51,7 +51,7 @@ test("author saves paid price; learner cannot fake bank payment; free course can
  await expect(offer.locator(".academy-offer-current strong")).toContainText(/Платный.*2.499/);
  await expect(offer.getByRole("status")).toContainText("Сохранено: 2");
  const saveColor=await offer.getByRole("button",{name:"Сохранить"}).evaluate(el=>getComputedStyle(el).backgroundColor);
- const channel=saveColor.match(/\\d+/g)?.map(Number)||[];
+ const channel=saveColor.match(/\d+/g)?.map(Number)||[];
  expect(channel).toHaveLength(3);
  expect(channel[0]).toBeLessThan(55);
  expect(channel[2]).toBeGreaterThan(190); // APGIC blue, including hover transition
