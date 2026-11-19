@@ -129,8 +129,9 @@ export function AvatarWorkspace() {
    });
    const data=await response.json();
    if(!response.ok)throw Error(data.message_safe||"Действие не выполнено");
-   setSession(data.session as Session);
-   if(action==="END"||action==="HUMAN_HANDOFF"||action==="SAFETY_ESCALATE")clearPrivate();
+   if(!data.session||data.session.state==="ACTIVE")throw Error("Сервер не подтвердил завершение разговора.");
+   setSession(action==="END"?null:data.session as Session);
+   clearPrivate();
    if(data.provider_close==="DELIVERY_UNCERTAIN")setNotice("Локальная сессия заблокирована; внешнее удаление ещё не подтверждено.");
    else if(action==="HUMAN_HANDOFF")setNotice("Аватар отключён. Для разговора с человеком создайте отдельный запрос. Переписка не передаётся.");
    else if(action==="SAFETY_ESCALATE")setNotice(safetyNotice);
@@ -179,9 +180,11 @@ export function AvatarWorkspace() {
     {session.mode==="VOICE"&&<button type="button" disabled={busy||!voiceAvailable} onClick={speakInput}>Говорить в микрофон</button>}
     {session.mode==="VOICE"&&!voiceAvailable&&<p>Браузер не поддерживает распознавание речи; текстовый ввод остаётся доступен.</p>}
    </>}
-   <button type="button" disabled={busy} onClick={()=>void act("HUMAN_HANDOFF")}>Перейти к человеку и отключить ИИ</button>
-   <button type="button" disabled={busy} onClick={()=>void act("SAFETY_ESCALATE")}>Нужна срочная помощь — отключить ИИ</button>
-   <button type="button" disabled={busy} onClick={()=>void act("END")}>Завершить и очистить разговор</button>
+   {session.state==="ACTIVE"&&<>
+    <button type="button" disabled={busy} onClick={()=>void act("HUMAN_HANDOFF")}>Перейти к человеку и отключить ИИ</button>
+    <button type="button" disabled={busy} onClick={()=>void act("SAFETY_ESCALATE")}>Нужна срочная помощь — отключить ИИ</button>
+    <button type="button" disabled={busy} onClick={()=>void act("END")}>Завершить и очистить разговор</button>
+   </>}
    <a href="/#start">Подобрать живого специалиста независимо от ИИ</a>
   </div>}
   <a href="/#start">Не использовать ИИ — перейти к специалистам</a>
