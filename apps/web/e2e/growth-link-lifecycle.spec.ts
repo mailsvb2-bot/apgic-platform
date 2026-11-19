@@ -115,3 +115,26 @@ test("R10 signed POST remains visible when successful GET lags behind new link",
  await expect(page.getByRole("status").filter({hasText:"ещё отсутствует в повторно прочитанном списке"})).toBeVisible();
  expect(issued).toBe(1);
 });
+
+
+test("R10 revoked owner readback overrides a previously issued POST token",async({page})=>{
+ let issued=0;
+ await page.route("**/v1/specialist/offers",route=>route.fulfill({json:{offers:[offer]}}));
+ await page.route("**/v1/specialist/growth-report",route=>route.fulfill({json:{items:[]}}));
+ await page.route("**/v1/specialist/growth-links",route=>{
+  if(route.request().method()==="POST"){
+   issued++;
+   return route.fulfill({status:201,json:activeLink});
+  }
+  if(issued) return route.fulfill({status:200,json:{links:[{
+   ...activeLink,state:"REVOKED",path:""
+  }]}});
+  return route.fulfill({status:200,json:{links:[]}});
+ });
+ await page.goto("/specialist/growth");
+ await page.getByRole("button",{name:"Получить ссылку для предложения"}).click();
+ await expect(page.getByRole("status").filter({hasText:"Статус ссылки изменился при повторной проверке"})).toBeVisible();
+ await expect(page.getByRole("region",{name:"Мои ссылки распространения"}).getByText(/^Статус: Отозвана ·/)).toBeVisible();
+ await expect(page.locator('a[href="/g/g1.abc.def"]')).toHaveCount(0);
+ expect(issued).toBe(1);
+});
