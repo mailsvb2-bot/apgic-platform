@@ -109,7 +109,7 @@ export default function FinanceOperationsQueue() {
     setEvidenceText("");
     setProviderEvidenceID("");
     setSupersedingResultID("");
-    invalidateKey();
+    setIdempotencyKey("");
     setOutcomeUnknown(false);
     setResultMessage("");
   };
