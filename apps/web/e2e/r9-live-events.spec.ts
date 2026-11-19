@@ -53,3 +53,22 @@ test("R9 unauthorized registration readback cannot enable event mutations",async
  await expect(page.getByText("Для проверки регистрации требуется действующая сессия.")).toBeVisible();
  await expect(page.getByRole("button",{name:"Зарегистрироваться бесплатно"})).toHaveCount(0);
 });
+
+
+test("R9 cancelled registration can be rebooked only after canonical readback",async({page})=>{
+ await page.route("**/v1/live-events/event-3",async route=>route.fulfill({
+  status:200,contentType:"application/json",body:JSON.stringify({
+   id:"event-3",title:"Повторная запись",description:"Вебинар",format:"WEBINAR",
+   starts_at:"2026-12-01T12:00:00Z",ends_at:"2026-12-01T13:00:00Z",
+   capacity:20,registered:1,state:"PUBLISHED",price_minor:0,recording_available:false
+  })
+ }));
+ await page.route("**/v1/live-events/event-3/registration",async route=>route.fulfill({
+  status:200,contentType:"application/json",body:JSON.stringify({
+   id:"registration-3",event_id:"event-3",state:"CANCELLED",registered_at:"2026-11-19T10:00:00Z"
+  })
+ }));
+ await page.goto("/live-events/event-3");
+ await expect(page.getByRole("button",{name:"Зарегистрироваться бесплатно"})).toBeEnabled();
+ await expect(page.getByRole("button",{name:"Получить защищённый вход в эфир"})).toHaveCount(0);
+});
