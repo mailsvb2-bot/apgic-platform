@@ -166,9 +166,29 @@ export function GrowthWorkspace() {
     setError("");
     setNotice("");
     try {
-      await api("/v1/specialist/growth-links/" + encodeURIComponent(id) + "/revoke", { method: "POST" });
-      await load();
-      setNotice("Ссылка отозвана. Ранее подтверждённые результаты сохранены.");
+      const result = await api<{ state: Link["state"] }>(
+        "/v1/specialist/growth-links/" + encodeURIComponent(id) + "/revoke",
+        { method: "POST" },
+      );
+      if (result.state !== "REVOKED") {
+        throw new Error("Сервер не подтвердил отзыв ссылки. Проверьте её состояние.");
+      }
+      // Invalidate the displayed signed path immediately after the canonical
+      // owner confirms revocation; a lagging/failed GET must never resurrect it.
+      const revoked = links.map(link => link.id === id
+        ? { ...link, state: "REVOKED" as const, path: undefined } : link);
+      setLinks(revoked);
+      const checked = await load();
+      if (checked === null) {
+        setLinks(revoked);
+        setNotice("Сервер подтвердил отзыв ссылки. Повторная проверка списка недоступна; отозванная ссылка не может быть распространена.");
+      } else if (checked.some(link => link.id === id && link.state === "ACTIVE")) {
+        setLinks(checked.map(link => link.id === id
+          ? { ...link, state: "REVOKED" as const, path: undefined } : link));
+        setNotice("Сервер подтвердил отзыв ссылки, но повторное чтение показывает прежнее состояние. Старая ссылка скрыта; проверьте список позже.");
+      } else {
+        setNotice("Ссылка отозвана. Ранее подтверждённые результаты сохранены.");
+      }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Не удалось отозвать ссылку.");
     } finally {

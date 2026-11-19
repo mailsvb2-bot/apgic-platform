@@ -138,3 +138,45 @@ test("R10 revoked owner readback overrides a previously issued POST token",async
  await expect(page.locator('a[href="/g/g1.abc.def"]')).toHaveCount(0);
  expect(issued).toBe(1);
 });
+
+
+test("R10 confirmed revoke hides signed path despite a failed history readback",async({page})=>{
+ let revokeCount=0;
+ await page.route("**/v1/specialist/offers",route=>route.fulfill({json:{offers:[offer]}}));
+ await page.route("**/v1/specialist/growth-report",route=>route.fulfill({json:{items:[]}}));
+ await page.route("**/v1/specialist/growth-links/*/revoke",route=>{
+  revokeCount++;
+  return route.fulfill({status:200,json:{state:"REVOKED"}});
+ });
+ await page.route("**/v1/specialist/growth-links",route=>{
+  if(revokeCount) return route.fulfill({status:503,json:{
+   code:"GROWTH_STORAGE_FAILED",message_safe:"Повторная проверка ссылок недоступна."
+  }});
+  return route.fulfill({status:200,json:{links:[activeLink]}});
+ });
+ await page.goto("/specialist/growth");
+ await expect(page.locator('a[href="/g/g1.abc.def"]')).toBeVisible();
+ await page.getByRole("button",{name:"Отозвать"}).click();
+ await expect(page.getByRole("status").filter({hasText:"Сервер подтвердил отзыв ссылки. Повторная проверка списка недоступна"})).toBeVisible();
+ await expect(page.getByRole("region",{name:"Мои ссылки распространения"}).getByText(/^Статус: Отозвана ·/)).toBeVisible();
+ await expect(page.locator('a[href="/g/g1.abc.def"]')).toHaveCount(0);
+ expect(revokeCount).toBe(1);
+});
+
+test("R10 confirmed revoke does not resurrect signed path from stale GET 200",async({page})=>{
+ let revokeCount=0;
+ await page.route("**/v1/specialist/offers",route=>route.fulfill({json:{offers:[offer]}}));
+ await page.route("**/v1/specialist/growth-report",route=>route.fulfill({json:{items:[]}}));
+ await page.route("**/v1/specialist/growth-links/*/revoke",route=>{
+  revokeCount++;
+  return route.fulfill({status:200,json:{state:"REVOKED"}});
+ });
+ await page.route("**/v1/specialist/growth-links",route=>
+  route.fulfill({status:200,json:{links:[activeLink]}}));
+ await page.goto("/specialist/growth");
+ await page.getByRole("button",{name:"Отозвать"}).click();
+ await expect(page.getByRole("status").filter({hasText:"повторное чтение показывает прежнее состояние"})).toBeVisible();
+ await expect(page.getByRole("region",{name:"Мои ссылки распространения"}).getByText(/^Статус: Отозвана ·/)).toBeVisible();
+ await expect(page.locator('a[href="/g/g1.abc.def"]')).toHaveCount(0);
+ expect(revokeCount).toBe(1);
+});
