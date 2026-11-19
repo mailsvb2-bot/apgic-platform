@@ -116,10 +116,13 @@ export function GrowthWorkspace() {
         body: JSON.stringify({ offer_id: offerID }),
       });
       const readbackLinks = await load();
-      const listed = readbackLinks?.some(link =>
-        link.id === confirmed.id && link.state === "ACTIVE" && Boolean(link.path));
-      if (listed) {
+      const readbackLink = readbackLinks?.find(link => link.id === confirmed.id);
+      if (readbackLink?.state === "ACTIVE" && readbackLink.path) {
         setNotice("Действующая ссылка готова. Повторное нажатие не создаёт новый источник.");
+      } else if (readbackLink) {
+        // A more recent owner-scoped readback wins over the preceding POST.
+        // Never resurrect an already revoked, expired or unavailable link.
+        setNotice("Статус ссылки изменился при повторной проверке. Актуальное состояние показано ниже; старая ссылка не выдаётся.");
       } else if (confirmed.state === "ACTIVE" && confirmed.path) {
         // The canonical POST already returned an owner-scoped signed link.
         // A failed GET must not erase this confirmed result or advertise
