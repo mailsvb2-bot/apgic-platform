@@ -260,6 +260,10 @@ test("R8 revoked author and learner readbacks do not retain private report or en
   else if(path==="/v1/academy/author/cohorts")data={cohorts:[]};
   else if(path==="/v1/academy/me/course-access")data={course_ids:[courseId]};
   else if(path==="/v1/academy/me/certificates")data={certificates:[]};
+  else if(path.endsWith("/learn"))data={lessons:[{id:lessonId,module_id:moduleId,title:"Закрытый учебный материал",kind:"READING",body:"Личные учебные заметки",ordinal:1,available:true,completed:false}]};
+  else if(path.endsWith("/attempts"))data={attempts:[]};
+  else if(path.endsWith("/cohorts"))data={cohorts:[]};
+  else if(path==="/v1/academy/me/appeals")data={appeals:[]};
   else if(path==="/v1/academy/me/notifications")data={
    enabled:false,learning_updates:false,assessment_results:false,certificate_updates:false
   };
@@ -270,10 +274,15 @@ test("R8 revoked author and learner readbacks do not retain private report or en
  await expect(page.getByRole("heading",{name:"Частный доход автора"})).toBeVisible();
  await page.getByRole("button",{name:"Моё обучение"}).click();
  await expect(page.getByText("Закрытый курс ученика")).toBeVisible();
+ await page.getByRole("button",{name:"Продолжить"}).click();
+ await expect(page.getByRole("heading",{name:"Прохождение курса"})).toBeVisible();
+ await expect(page.getByText("Закрытый учебный материал")).toBeVisible();
  revoked=true;
  await page.getByRole("button",{name:"Настроить уведомления"}).click();
  await expect(page.getByRole("alert").filter({hasText:"История обучения временно недоступна"})).toBeVisible();
  await expect(page.getByText("Закрытый курс ученика")).toHaveCount(0);
+ await expect(page.getByText("Закрытый учебный материал")).toHaveCount(0);
+ await expect(page.getByRole("heading",{name:"Прохождение курса"})).toHaveCount(0);
  await expect(page.getByText("Пока нет зачислений.")).toHaveCount(0);
  await page.getByRole("button",{name:"Ученики и продажи"}).click();
  await expect(page.getByRole("status").filter({hasText:"Отчёт пока недоступен"})).toBeVisible();
