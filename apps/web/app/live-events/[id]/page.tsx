@@ -87,7 +87,7 @@ export default function EventPage({params}:{params:Promise<{id:string}>}){
       UCR подтвердил доступ до {new Date(grant.expires_at).toLocaleTimeString("ru-RU")}.{" "}
       <a href={grant.join_url} target="_blank" rel="noopener noreferrer">Войти в групповую медиасессию</a>.
      </p>}
-    </div>:registrationState==="KNOWN"&&!registration?<button type="button" disabled={busy||event.state!=="PUBLISHED"||event.capacity<=event.registered||event.price_minor!==0} onClick={()=>void act("registrations")}>Зарегистрироваться бесплатно</button>:null}
+    </div>:registrationState==="KNOWN"&&(!registration||registration.state==="CANCELLED")?<button type="button" disabled={busy||event.state!=="PUBLISHED"||event.capacity<=event.registered||event.price_minor!==0} onClick={()=>void act("registrations")}>Зарегистрироваться бесплатно</button>:null}
    </>}
    {notice&&<p role="status">{notice}</p>}
    {error&&<p role="alert">{error}</p>}
