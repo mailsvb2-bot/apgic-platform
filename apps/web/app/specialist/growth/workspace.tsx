@@ -93,7 +93,7 @@ export function GrowthWorkspace() {
       if (!/GROWTH_NOT_CONFIGURED|не настроено/.test(message)) problems.push(message);
     }
     setError([...new Set(problems)].join(" "));
-    return history.status === "fulfilled";
+    return history.status === "fulfilled" ? (history.value.links || []) : null;
   }, []);
 
   useEffect(() => {
@@ -115,15 +115,22 @@ export function GrowthWorkspace() {
         method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({ offer_id: offerID }),
       });
-      const readbackOk = await load();
-      if (readbackOk) {
+      const readbackLinks = await load();
+      const readbackLink = readbackLinks?.find(link => link.id === confirmed.id);
+      if (readbackLink?.state === "ACTIVE" && readbackLink.path) {
         setNotice("Действующая ссылка готова. Повторное нажатие не создаёт новый источник.");
+      } else if (readbackLink) {
+        // A more recent owner-scoped readback wins over the preceding POST.
+        // Never resurrect an already revoked, expired or unavailable link.
+        setNotice("Статус ссылки изменился при повторной проверке. Актуальное состояние показано ниже; старая ссылка не выдаётся.");
       } else if (confirmed.state === "ACTIVE" && confirmed.path) {
         // The canonical POST already returned an owner-scoped signed link.
         // A failed GET must not erase this confirmed result or advertise
         // an invisible link. No locally synthesized tokens or paths.
         setLinks(previous => [confirmed, ...previous.filter(link => link.id !== confirmed.id)]);
-        setNotice("Ссылка выдана сервером и доступна ниже. Повторная проверка списка временно недоступна; не создавайте новую ссылку.");
+        setNotice(readbackLinks === null
+          ? "Ссылка выдана сервером и доступна ниже. Повторная проверка списка временно недоступна; не создавайте новую ссылку."
+          : "Ссылка выдана сервером и доступна ниже, но ещё отсутствует в повторно прочитанном списке. Повторно создавать ссылку не нужно.");
       } else {
         setNotice("Сервер принял запрос, но не подтвердил доступную ссылку. Повторите проверку позже.");
       }
