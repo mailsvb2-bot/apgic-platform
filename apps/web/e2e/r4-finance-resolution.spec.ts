@@ -66,3 +66,67 @@ test("R4 unknown network outcome freezes decision and retries the identical key 
  expect(requests).toHaveLength(2);
  expect(requests[1]).toEqual(requests[0]);
 });
+
+
+test("R4 confirmed economic decision never claims queue refresh when its readback fails", async ({page}) => {
+ const id="00000000-0000-0000-0000-000000000101";
+ let saved=false;
+ let calls=0;
+ await page.route("**/v1/finance/operations/discrepancies?limit=100",route=>{
+  calls++;
+  if(saved) return route.fulfill({status:503,json:{code:"FINANCE_DISCREPANCIES_UNAVAILABLE"}});
+  return route.fulfill({status:200,json:{items:[{
+   discrepancy_id:id,kind:"STATEMENT_MISSING",currency:"RUB",
+   expected_fee_minor:1,provider_fee_minor:0,expected_gross_minor:100,provider_gross_minor:0,
+   created_at:"2026-10-19T10:00:00Z",provider_instance_id:"provider",
+   settlement_instruction_id:"instruction",evidence_refs:["statement"]
+  }]}});
+ });
+ await page.route("**/v1/finance/operations/discrepancies/*/resolutions",route=>{
+  saved=true;
+  return route.fulfill({status:201,json:{resolution_id:"confirmed",replayed:false}});
+ });
+ await page.goto("/finance/operations");
+ await page.getByLabel("Расхождение",{exact:true}).selectOption(id);
+ await page.getByLabel("Тип решения").selectOption("OPERATIONAL_EXCEPTION_ACCEPTED");
+ await page.getByLabel("Обоснование").fill("Provider correction approved with audit evidence");
+ await page.getByLabel("Ссылки на доказательства, по одной на строку").fill("audit/finance-001");
+ await page.getByRole("button",{name:"Записать решение с серверной проверкой"}).click();
+ await expect(page.getByRole("alert").filter({hasText:"Не удалось получить очередь с сервера"})).toBeVisible();
+ await expect(page.getByRole("status").filter({hasText:"Сервер подтвердил запись решения, но повторная проверка очереди недоступна"})).toBeVisible();
+ await expect(page.getByText("Решение записано сервером; очередь обновлена.")).toHaveCount(0);
+ expect(calls).toBeGreaterThanOrEqual(2);
+});
+
+
+test("R4 uncertainty unlocks only after authorized queue confirms discrepancy is no longer open",async({page})=>{
+ const id="00000000-0000-0000-0000-000000000101";
+ let missing=false;
+ let sent=0;
+ await page.route("**/v1/finance/operations/discrepancies?limit=100",route=>
+  route.fulfill({status:200,json:{items:missing?[]:[{
+   discrepancy_id:id,kind:"STATEMENT_MISSING",currency:"RUB",
+   expected_fee_minor:1,provider_fee_minor:0,expected_gross_minor:100,provider_gross_minor:0,
+   created_at:"2026-10-19T10:00:00Z",provider_instance_id:"provider",
+   settlement_instruction_id:"instruction",evidence_refs:["statement"]
+  }]}}));
+ await page.route("**/v1/finance/operations/discrepancies/*/resolutions",route=>{
+  sent++;
+  return route.abort("failed");
+ });
+ await page.goto("/finance/operations");
+ await page.getByLabel("Расхождение",{exact:true}).selectOption(id);
+ await page.getByLabel("Тип решения").selectOption("OPERATIONAL_EXCEPTION_ACCEPTED");
+ await page.getByLabel("Обоснование").fill("Verified independently; reconciliation delayed");
+ await page.getByLabel("Ссылки на доказательства, по одной на строку").fill("ticket/finance-123");
+ await page.getByRole("button",{name:"Записать решение с серверной проверкой"}).click();
+ await expect(page.getByRole("status").filter({hasText:"Сетевой результат неизвестен"})).toBeVisible();
+ await expect(page.getByLabel("Расхождение",{exact:true})).toBeDisabled();
+ await page.getByRole("button",{name:"Обновить очередь"}).click();
+ await expect(page.getByLabel("Расхождение",{exact:true})).toBeDisabled();
+ missing=true;
+ await page.getByRole("button",{name:"Обновить очередь"}).click();
+ await expect(page.getByRole("status").filter({hasText:"расхождение больше не открыто"})).toBeVisible();
+ await expect(page.getByText("Открытых расхождений нет.")).toBeVisible();
+ expect(sent).toBe(1);
+});
