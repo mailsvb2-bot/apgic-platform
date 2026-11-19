@@ -94,3 +94,24 @@ test("confirmed Growth link survives failed immediate owner readback", async ({p
  await expect(page.getByRole("alert").filter({hasText:"Повторная проверка ссылок недоступна."})).toBeVisible();
  expect(issued).toBe(1);
 });
+
+
+test("R10 signed POST remains visible when successful GET lags behind new link",async({page})=>{
+ let issued=0;
+ await page.route("**/v1/specialist/offers",route=>route.fulfill({json:{offers:[offer]}}));
+ await page.route("**/v1/specialist/growth-report",route=>route.fulfill({json:{items:[]}}));
+ await page.route("**/v1/specialist/growth-links",route=>{
+  if(route.request().method()==="POST"){
+   issued++;
+   return route.fulfill({status:201,json:activeLink});
+  }
+  // A replica may return HTTP 200 but not yet contain the newly issued link.
+  return route.fulfill({status:200,json:{links:[]}});
+ });
+ await page.goto("/specialist/growth");
+ await expect(page.getByText("Вы ещё не создавали ссылок.")).toBeVisible();
+ await page.getByRole("button",{name:"Получить ссылку для предложения"}).click();
+ await expect(page.locator('a[href="/g/g1.abc.def"]')).toBeVisible();
+ await expect(page.getByRole("status").filter({hasText:"ещё отсутствует в повторно прочитанном списке"})).toBeVisible();
+ expect(issued).toBe(1);
+});
