@@ -429,7 +429,18 @@ export default function AcademyPage(){
        {(c.access_mode==="FREE"||verifiedCourseIDs.includes(c.id))?
         <button type="button" disabled={busy} onClick={()=>void act(
          ()=>api<Enrollment>(`/v1/academy/courses/${c.id}/enroll`,{}),
-         async e=>{setNotice("Право на обучение подтверждено.");await loadLearning(e)})}>
+         async e=>{
+          try {
+           await loadLearning(e);
+           setNotice("Право на обучение подтверждено.");
+          } catch {
+           // Enrollment POST succeeded: a separate lesson read outage must
+           // not be described as a failed enrollment or trigger another POST.
+           setView("learning");
+           setActiveEnrollment(null);
+           setNotice("Зачисление подтверждено сервером, но уроки временно не открылись. Найдите курс в «Моём обучении» и нажмите «Продолжить» позже.");
+          }
+         })}>
          {c.access_mode==="FREE"?"Начать бесплатно":"Начать обучение"}
         </button>:
         c.access_mode==="PAID"?
