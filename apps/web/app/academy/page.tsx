@@ -382,7 +382,10 @@ export default function AcademyPage(){
      <section className="academy-home-card"><header><h2>Быстрые действия</h2></header>
       <div className="academy-quick-grid">
        <button type="button" onClick={()=>{setView("courses");setCourse(null)}}>▤ К списку курсов</button>
-       <button type="button" disabled={!mine.length||busy} onClick={()=>{const c=mine.find(x=>x.state==="DRAFT")||mine[0];if(c){void act(()=>Promise.resolve(c),async()=>{await loadOutline(c);setEditorStep("media")})}}}>▷ Добавить видео</button>
+       <button type="button" disabled={busy||!mine.some(x=>x.state==="DRAFT")}
+        title={mine.some(x=>x.state==="DRAFT")?"Открыть видеоуроки черновика":"Видео добавляется только в черновик. Для опубликованного курса сначала создайте новую версию."}
+        onClick={()=>{const draft=mine.find(x=>x.state==="DRAFT");if(draft){void act(()=>Promise.resolve(draft),async()=>{await loadOutline(draft);setEditorStep("media")})}}}>
+        {mine.some(x=>x.state==="DRAFT")?"▷ Добавить видео":"▷ Видео: нужен черновик"}</button>
        <button type="button" onClick={()=>setView("reviews")}>✓ Проверить работы</button>
        <button type="button" onClick={()=>setView("reports")}>▥ Результаты курсов</button>
       </div>
