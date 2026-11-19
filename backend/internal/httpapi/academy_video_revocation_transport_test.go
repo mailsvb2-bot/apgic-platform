@@ -18,7 +18,7 @@ func TestAcademyRevocationClosesLiveLearnerHTTPResponse(t *testing.T) {
 		h2   bool
 	}{{"http1", false}, {"http2", true}} {
 		t.Run(protocol.name, func(t *testing.T) {
-			testAcademyRevokedHTTPTransport(t, protocol.h2, false)
+			testAcademyRevokedHTTPTransport(t, protocol.h2, false, false)
 		})
 	}
 }
@@ -34,12 +34,26 @@ func TestAcademyRevocationClosesLiveHTTPSeekResponse(t *testing.T) {
 		h2   bool
 	}{{"http1", false}, {"http2", true}} {
 		t.Run(protocol.name, func(t *testing.T) {
-			testAcademyRevokedHTTPTransport(t, protocol.h2, true)
+			testAcademyRevokedHTTPTransport(t, protocol.h2, true, false)
 		})
 	}
 }
 
-func testAcademyRevokedHTTPTransport(t *testing.T, h2, seek bool) {
+// Chunked 200 responses have no declared Content-Length. Prove that the
+// cancellation itself, not the declared representation length, prevents
+// additional bytes on both supported HTTP transports.
+func TestAcademyRevocationClosesLiveChunkedHTTPResponse(t *testing.T) {
+	for _, protocol := range []struct {
+		name string
+		h2   bool
+	}{{"http1", false}, {"http2", true}} {
+		t.Run(protocol.name, func(t *testing.T) {
+			testAcademyRevokedHTTPTransport(t, protocol.h2, false, true)
+		})
+	}
+}
+
+func testAcademyRevokedHTTPTransport(t *testing.T, h2, seek, chunked bool) {
 	revoke := make(chan struct{})
 	writeResult := make(chan error, 1)
 	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -56,7 +70,9 @@ func testAcademyRevokedHTTPTransport(t *testing.T, h2, seek bool) {
 			w.Header().Set("Content-Length", "35")
 			w.WriteHeader(http.StatusPartialContent)
 		} else {
-			w.Header().Set("Content-Length", "40")
+			if !chunked {
+				w.Header().Set("Content-Length", "40")
+			}
 			w.WriteHeader(http.StatusOK)
 		}
 		if _, err := w.Write([]byte("first")); err != nil {
