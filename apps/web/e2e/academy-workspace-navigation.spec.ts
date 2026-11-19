@@ -149,7 +149,7 @@ test("public catalog outage does not block author drafts or learner navigation",
   await route.fulfill({status,contentType:"application/json",body:JSON.stringify(data)});
  });
  await page.goto("/academy");
- await expect(page.getByText("Курс по гипнозу",{exact:true})).toBeVisible();
+ await expect(page.getByRole("heading",{name:"Курс по гипнозу",exact:true})).toBeVisible();
  await page.getByRole("button",{name:"Мои курсы",exact:true}).click();
  await expect(page.getByRole("button",{name:"Открыть редактор"})).toBeVisible();
  await page.getByRole("button",{name:"Каталог",exact:true}).click();
