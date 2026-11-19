@@ -138,6 +138,9 @@ export default function AcademyPage(){
    setOwnedCoursesError("");
   }else{
    setMine([]);
+   // A previously open author editor must not remain visible after its
+   // owner-scoped course list becomes unauthorizable or unavailable.
+   setCourse(null);
    setOwnedCoursesError(owned.reason instanceof Error?owned.reason.message:"Не удалось проверить авторскую сессию");
   }
   setOwnedCoursesLoaded(true);
