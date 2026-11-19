@@ -128,12 +128,12 @@ func testAcademyRevokedHTTPTransport(t *testing.T, h2, seek, chunked bool) {
 	// A seek must leave bytes outstanding after the first flush. Otherwise
 	// the declared length, rather than revocation, could stop later writes.
 	if seek && resp.ContentLength != 35 {
-	\tt.Fatalf("seek must declare 35 bytes, got %d", resp.ContentLength)
+		t.Fatalf("seek must declare 35 bytes, got %d", resp.ContentLength)
 	}
 	// The chunked case is a separate proof: no declared length may
 	// accidentally terminate the response before the revoke signal.
 	if chunked && resp.ContentLength != -1 {
-	\tt.Fatalf("chunked response unexpectedly declared length %d", resp.ContentLength)
+		t.Fatalf("chunked response unexpectedly declared length %d", resp.ContentLength)
 	}
 	if h2 && resp.ProtoMajor != 2 {
 		t.Fatalf("expected HTTP/2, got %s", resp.Proto)
