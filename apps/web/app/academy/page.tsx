@@ -151,6 +151,9 @@ export default function AcademyPage(){
   // These are identity-scoped projections. An expired session or a failed
   // readback must never leave the previous owner's private history on screen.
   setEnrollments(learning.status==="fulfilled"?learning.value.enrollments:[]);
+  // The learner lesson panel is a privileged projection too: revoke it when
+  // the owner-scoped enrollment list can no longer be verified.
+  if(learning.status==="rejected")setActiveEnrollment(null);
   setLearningError(learning.status==="rejected"
    ?learning.reason instanceof Error?learning.reason.message:"Не удалось проверить зачисления":"");
   setPendingReviews(reviews.status==="fulfilled"?reviews.value.attempts:[]);
