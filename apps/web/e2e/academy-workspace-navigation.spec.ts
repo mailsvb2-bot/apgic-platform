@@ -160,3 +160,34 @@ test("public catalog outage does not block author drafts or learner navigation",
  await expect(page.getByRole("heading",{name:"Курс по гипнозу"})).toBeVisible();
  expect(requests).toContain("/v1/academy/my-courses");
 });
+
+
+test("learner can open lessons when attempt-history API is temporarily unavailable",async({page})=>{
+ const enrollment={id:"55555555-5555-4555-8555-555555555555",course_id:courseId,
+  course_title:"Курс по гипнозу",version_id:versionId,version_no:1,state:"ACTIVE",access_state:"ACTIVE"};
+ await page.route("**/v1/academy/**",async route=>{
+  const path=new URL(route.request().url()).pathname;
+  let data:unknown={},status=200;
+  if(path==="/v1/academy/courses")data={courses:[]};
+  else if(path==="/v1/academy/my-courses")data={courses:[]};
+  else if(path==="/v1/academy/my-enrollments")data={enrollments:[enrollment]};
+  else if(path==="/v1/academy/review/attempts")data={attempts:[]};
+  else if(path==="/v1/academy/author/report")data={courses:[],gross_captures:[],revenue_state:"UNAVAILABLE"};
+  else if(path==="/v1/academy/author/cohorts")data={cohorts:[]};
+  else if(path==="/v1/academy/me/course-access")data={course_ids:[courseId]};
+  else if(path==="/v1/academy/me/certificates")data={certificates:[]};
+  else if(path.endsWith("/learn"))data={lessons:[{id:lessonId,module_id:moduleId,title:"Теория",kind:"READING",body:"Содержание урока",ordinal:1,available:true,completed:false}]};
+  else if(path.endsWith("/attempts")){status=503;data={code:"ATTEMPTS_UNAVAILABLE"};}
+  else if(path.endsWith("/cohorts"))data={cohorts:[]};
+  else if(path==="/v1/academy/me/appeals")data={appeals:[]};
+  else{status=501;data={code:"UNMOCKED",path};}
+  await route.fulfill({status,contentType:"application/json",body:JSON.stringify(data)});
+ });
+ await page.goto("/academy");
+ await page.getByRole("button",{name:"Моё обучение",exact:true}).click();
+ await page.getByRole("button",{name:"Продолжить"}).click();
+ await expect(page.getByRole("heading",{name:"Прохождение курса"})).toBeVisible();
+ await expect(page.getByRole("heading",{name:"Теория"})).toBeVisible();
+ await expect(page.getByText("Содержание урока")).toBeVisible();
+ await expect(page.getByRole("alert").filter({hasText:"История выполненных заданий временно недоступна"})).toBeVisible();
+});

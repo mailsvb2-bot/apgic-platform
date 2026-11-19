@@ -94,6 +94,7 @@ export default function AcademyPage(){
  const [passingScore,setPassingScore]=useState(80);
  const [attemptResponse,setAttemptResponse]=useState<Record<string,string>>({});
  const [learnerAttempts,setLearnerAttempts]=useState<LearnerAttempt[]>([]);
+ const [attemptHistoryError,setAttemptHistoryError]=useState(false);
  const [learnerAppeals,setLearnerAppeals]=useState<LearnerAppeal[]>([]);
  const [attemptID,setAttemptID]=useState("");
  const [pendingReviews,setPendingReviews]=useState<ReviewAttempt[]>([]);
@@ -241,16 +242,18 @@ export default function AcademyPage(){
   return ()=>{cancelled=true};
  },[mine,loadOutline,ownedCoursesLoaded,ownedCoursesError]);
  async function loadLearning(item:Enrollment){
-  const [d,history,cohortResult,appealList]=await Promise.all([
+  const [d,historyResult,cohortResult,appealList]=await Promise.all([
    api<{lessons:Lesson[]}>(`/v1/academy/enrollments/${item.id}/learn`),
-   api<{attempts:LearnerAttempt[]}>(`/v1/academy/enrollments/${item.id}/attempts`),
+   api<{attempts:LearnerAttempt[]}>(`/v1/academy/enrollments/${item.id}/attempts`)
+    .then(value=>({ok:true,items:value.attempts})).catch(()=>({ok:false,items:[] as LearnerAttempt[]})),
    api<{cohorts:Cohort[]}>(`/v1/academy/enrollments/${item.id}/cohorts`)
     .then(value=>({ok:true,items:value.cohorts})).catch(()=>({ok:false,items:[] as Cohort[]})),
    api<{appeals:LearnerAppeal[]}>("/v1/academy/me/appeals")
     .then(value=>({ok:true,items:value.appeals})).catch(()=>({ok:false,items:[] as LearnerAppeal[]}))
   ]);
   setView("learning");setActiveEnrollment(item);setCourse(null);setCertificate(null);
-  setLessons(d.lessons);setLearnerAttempts(history.attempts);setLearnerAppeals(appealList.items);setModules([]);
+  setLessons(d.lessons);setLearnerAttempts(historyResult.items);setAttemptHistoryError(!historyResult.ok);
+  setLearnerAppeals(appealList.items);setModules([]);
   setCohorts(cohortResult.items);setCohortError(!cohortResult.ok);setAppealError(!appealList.ok);
  }
  async function reconcileDraft(requested:{title:string;description:string;baseline:string[]}){
@@ -792,6 +795,7 @@ export default function AcademyPage(){
   </section>}
   {view==="learning"&&activeEnrollment&&<section className="how-section">
    <h2>Прохождение курса</h2>
+   {attemptHistoryError&&<p role="alert">История выполненных заданий временно недоступна. Уроки можно изучать; повторите открытие курса, чтобы загрузить историю.</p>}
    <h3>Доступные учебные потоки</h3>
    {cohortError?<p role="alert">Список потоков временно недоступен; обучение продолжается.</p>:cohorts.length===0?<p>Потоки для этой версии курса ещё не объявлены.</p>:cohorts.map(h=><article className="panel" key={h.id}>
     <strong>{h.label}</strong><p>Мест: {h.members} из {h.capacity}; начало: {h.starts_at?new Date(h.starts_at).toLocaleString("ru-RU"):"не задано"}</p>
