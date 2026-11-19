@@ -103,7 +103,6 @@ export default function FinanceOperationsQueue() {
     (kind !== "SUPERSEDED_BY_MATCHED_RECONCILIATION" || supersedingResultID.trim()));
   const invalidateKey = () => { if (!outcomeUnknown) setIdempotencyKey(""); };
   const select = (id: string) => {
-    if (outcomeUnknown) return;
     setSelectedID(id);
     setKind("PROVIDER_CORRECTION_CONFIRMED");
     setReason("");
