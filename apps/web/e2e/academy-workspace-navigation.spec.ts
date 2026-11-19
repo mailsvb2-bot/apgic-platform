@@ -233,3 +233,95 @@ test("published-only author starts a fresh draft instead of an immutable editor"
  await expect(page.locator("#academy-title")).toBeVisible();
  await expect(page.getByRole("heading",{name:"Ваши курсы"})).toBeVisible();
 });
+
+
+test("R8 revoked author and learner readbacks do not retain private report or enrollment",async({page})=>{
+ let revoked=false;
+ const enrollment={id:"55555555-5555-4555-8555-555555555555",course_id:courseId,
+  course_title:"Закрытый курс ученика",version_id:versionId,version_no:1,
+  state:"ACTIVE",access_state:"ACTIVE"};
+ await page.route("**/v1/academy/**",async route=>{
+  const path=new URL(route.request().url()).pathname;
+  if(revoked&&["/v1/academy/my-courses","/v1/academy/my-enrollments",
+    "/v1/academy/review/attempts","/v1/academy/author/report",
+    "/v1/academy/author/cohorts","/v1/academy/me/course-access",
+    "/v1/academy/me/certificates"].includes(path)){
+   return route.fulfill({status:401,json:{code:"CLIENT_SESSION_INVALID",message_safe:"Требуется повторный вход."}});
+  }
+  let data:unknown={};
+  if(path==="/v1/academy/courses")data={courses:[]};
+  else if(path==="/v1/academy/my-courses")data={courses:[course]};
+  else if(path==="/v1/academy/my-enrollments")data={enrollments:[enrollment]};
+  else if(path==="/v1/academy/review/attempts")data={attempts:[]};
+  else if(path==="/v1/academy/author/report")data={courses:[{
+   course_id:courseId,title:"Частный доход автора",enrollments:3,completed:1,
+   active_access:3,pending_assessments:0,passed_assessments:1
+  }],gross_captures:[],revenue_state:"UNAVAILABLE"};
+  else if(path==="/v1/academy/author/cohorts")data={cohorts:[]};
+  else if(path==="/v1/academy/me/course-access")data={course_ids:[courseId]};
+  else if(path==="/v1/academy/me/certificates")data={certificates:[]};
+  else if(path.endsWith("/learn"))data={lessons:[{id:lessonId,module_id:moduleId,title:"Закрытый учебный материал",kind:"READING",body:"Личные учебные заметки",ordinal:1,available:true,completed:false}]};
+  else if(path.endsWith("/attempts"))data={attempts:[]};
+  else if(path.endsWith("/cohorts"))data={cohorts:[]};
+  else if(path==="/v1/academy/me/appeals")data={appeals:[]};
+  else if(path==="/v1/academy/me/notifications")data={
+   enabled:false,learning_updates:false,assessment_results:false,certificate_updates:false
+  };
+  else return route.fulfill({status:501,json:{code:"UNMOCKED",path}});
+  return route.fulfill({status:200,json:data});
+ });
+ await page.goto("/academy?tab=reports");
+ await expect(page.getByRole("heading",{name:"Частный доход автора"})).toBeVisible();
+ await page.getByRole("button",{name:"Моё обучение"}).click();
+ await expect(page.getByText("Закрытый курс ученика")).toBeVisible();
+ await page.getByRole("button",{name:"Продолжить"}).click();
+ await expect(page.getByRole("heading",{name:"Прохождение курса"})).toBeVisible();
+ await expect(page.getByText("Закрытый учебный материал")).toBeVisible();
+ revoked=true;
+ await page.getByRole("button",{name:"Настроить уведомления"}).click();
+ await expect(page.getByRole("alert").filter({hasText:"История обучения временно недоступна"})).toBeVisible();
+ await expect(page.getByText("Закрытый курс ученика")).toHaveCount(0);
+ await expect(page.getByText("Закрытый учебный материал")).toHaveCount(0);
+ await expect(page.getByRole("heading",{name:"Прохождение курса"})).toHaveCount(0);
+ await expect(page.getByText("Пока нет зачислений.")).toHaveCount(0);
+ await page.getByRole("button",{name:"Ученики и продажи"}).click();
+ await expect(page.getByRole("status").filter({hasText:"Отчёт пока недоступен"})).toBeVisible();
+ await expect(page.getByText("Частный доход автора")).toHaveCount(0);
+ await page.getByRole("button",{name:"Проверка работ"}).click();
+ await expect(page.getByRole("alert").filter({hasText:"Очередь проверки работ недоступна"})).toBeVisible();
+ await expect(page.getByRole("button",{name:"Зафиксировать оценку"})).toBeDisabled();
+});
+
+
+test("R8 editor cannot remain open after canonical author ownership readback fails",async({page})=>{
+ let revoked=false;
+ let newVersions=0;
+ await page.route("**/v1/academy/**",async route=>{
+  const request=route.request(),path=new URL(request.url()).pathname;
+  if(request.method()==="POST"&&path===`/v1/academy/courses/${courseId}/versions`){
+   newVersions++;
+   revoked=true;
+   return route.fulfill({status:201,json:{...course,version_no:2}});
+  }
+  if(revoked&&path==="/v1/academy/my-courses")
+   return route.fulfill({status:401,json:{code:"SESSION_EXPIRED",message_safe:"Требуется вход"}});
+  let data:unknown={};
+  if(path==="/v1/academy/courses")data={courses:[]};
+  else if(path==="/v1/academy/my-courses")data={courses:[course]};
+  else if(path==="/v1/academy/my-enrollments")data={enrollments:[]};
+  else if(path==="/v1/academy/review/attempts")data={attempts:[]};
+  else if(path==="/v1/academy/author/report")data={courses:[],gross_captures:[],revenue_state:"UNAVAILABLE"};
+  else if(path==="/v1/academy/author/cohorts")data={cohorts:[]};
+  else if(path==="/v1/academy/me/course-access")data={course_ids:[]};
+  else if(path==="/v1/academy/me/certificates")data={certificates:[]};
+  else if(path.endsWith("/outline"))data={state:"DRAFT",modules:[],lessons:[]};
+  else return route.fulfill({status:501,json:{code:"UNMOCKED",path}});
+  return route.fulfill({status:200,json:data});
+ });
+ await page.goto("/academy?tab=courses");
+ await page.getByRole("button",{name:"Новая версия"}).click();
+ await expect(page.getByRole("alert").filter({hasText:"Не удалось загрузить ваши курсы"})).toBeVisible();
+ await expect(page.getByRole("heading",{name:"Курс по гипнозу"})).toHaveCount(0);
+ await expect(page.getByRole("button",{name:"Создать первый модуль"})).toHaveCount(0);
+ expect(newVersions).toBe(1);
+});

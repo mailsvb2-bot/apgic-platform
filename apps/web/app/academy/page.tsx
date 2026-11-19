@@ -56,6 +56,7 @@ export default function AcademyPage(){
  const [ownedCoursesError,setOwnedCoursesError]=useState("");
  const [ownedCoursesLoaded,setOwnedCoursesLoaded]=useState(false);
  const [enrollments,setEnrollments]=useState<Enrollment[]>([]);
+ const [learningError,setLearningError]=useState("");
  const [verifiedCourseIDs,setVerifiedCourseIDs]=useState<string[]>([]);
  const [course,setCourse]=useState<Course|null>(null);
  const [openedDeepLink,setOpenedDeepLink]=useState(false);
@@ -98,6 +99,7 @@ export default function AcademyPage(){
  const [learnerAppeals,setLearnerAppeals]=useState<LearnerAppeal[]>([]);
  const [attemptID,setAttemptID]=useState("");
  const [pendingReviews,setPendingReviews]=useState<ReviewAttempt[]>([]);
+ const [reviewError,setReviewError]=useState("");
  const [authorReport,setAuthorReport]=useState<AuthorReport|null>(null);
  const [evaluationScore,setEvaluationScore]=useState(80);
  const [evaluationEvidence,setEvaluationEvidence]=useState("");
@@ -136,6 +138,9 @@ export default function AcademyPage(){
    setOwnedCoursesError("");
   }else{
    setMine([]);
+   // A previously open author editor must not remain visible after its
+   // owner-scoped course list becomes unauthorizable or unavailable.
+   setCourse(null);
    setOwnedCoursesError(owned.reason instanceof Error?owned.reason.message:"Не удалось проверить авторскую сессию");
   }
   setOwnedCoursesLoaded(true);
@@ -146,10 +151,19 @@ export default function AcademyPage(){
      learning.status==="fulfilled"&&learning.value.enrollments.length>0){
    setView(current=>current==="home"?"learning":current);
   }
-  if(learning.status==="fulfilled")setEnrollments(learning.value.enrollments);
-  if(reviews.status==="fulfilled")setPendingReviews(reviews.value.attempts);
-  if(report.status==="fulfilled")setAuthorReport(report.value);
-  if(cohortList.status==="fulfilled")setAuthorCohorts(cohortList.value.cohorts);
+  // These are identity-scoped projections. An expired session or a failed
+  // readback must never leave the previous owner's private history on screen.
+  setEnrollments(learning.status==="fulfilled"?learning.value.enrollments:[]);
+  // The learner lesson panel is a privileged projection too: revoke it when
+  // the owner-scoped enrollment list can no longer be verified.
+  if(learning.status==="rejected")setActiveEnrollment(null);
+  setLearningError(learning.status==="rejected"
+   ?learning.reason instanceof Error?learning.reason.message:"Не удалось проверить зачисления":"");
+  setPendingReviews(reviews.status==="fulfilled"?reviews.value.attempts:[]);
+  setReviewError(reviews.status==="rejected"
+   ?reviews.reason instanceof Error?reviews.reason.message:"Не удалось проверить работы":"");
+  setAuthorReport(report.status==="fulfilled"?report.value:null);
+  setAuthorCohorts(cohortList.status==="fulfilled"?cohortList.value.cohorts:[]);
   // Fail closed on expired sessions or unavailable entitlement projection.
   setVerifiedCourseIDs(access.status==="fulfilled"?access.value.course_ids:[]);
   setCertificates(credentials.status==="fulfilled"?credentials.value.certificates:[]);
@@ -418,7 +432,18 @@ export default function AcademyPage(){
        {(c.access_mode==="FREE"||verifiedCourseIDs.includes(c.id))?
         <button type="button" disabled={busy} onClick={()=>void act(
          ()=>api<Enrollment>(`/v1/academy/courses/${c.id}/enroll`,{}),
-         async e=>{setNotice("Право на обучение подтверждено.");await loadLearning(e)})}>
+         async e=>{
+          try {
+           await loadLearning(e);
+           setNotice("Право на обучение подтверждено.");
+          } catch {
+           // Enrollment POST succeeded: a separate lesson read outage must
+           // not be described as a failed enrollment or trigger another POST.
+           setView("learning");
+           setActiveEnrollment(null);
+           setNotice("Зачисление подтверждено сервером, но уроки временно не открылись. Найдите курс в «Моём обучении» и нажмите «Продолжить» позже.");
+          }
+         })}>
          {c.access_mode==="FREE"?"Начать бесплатно":"Начать обучение"}
         </button>:
         c.access_mode==="PAID"?
@@ -462,7 +487,7 @@ export default function AcademyPage(){
         {" "}<a href={item.verification_url} rel="noreferrer">Проверить сертификат</a>
        </p>)}
      </section>
-     {enrollments.length===0?<p>Пока нет зачислений.</p>:enrollments.map(e=>
+     {learningError?<p role="alert">История обучения временно недоступна: {learningError}. Проверьте вход и повторите загрузку.</p>:enrollments.length===0?<p>Пока нет зачислений.</p>:enrollments.map(e=>
       <div key={e.id}><p>{e.course_title||"Курс"} · версия {e.version_no??"—"} · {e.state} · доступ {e.access_state??"неизвестен"}</p>
        <button disabled={busy||e.access_state!=="ACTIVE"} onClick={()=>void act(
         ()=>api<{lessons:Lesson[]}>(`/v1/academy/enrollments/${e.id}/learn`),
@@ -874,6 +899,7 @@ export default function AcademyPage(){
    <p>Валовая сумма подтверждённых списаний не является доходом автора. Возвраты, комиссии, доли правообладателей и выплаты рассчитывает только канонический финансовый контур. До его сверки чистый доход не показывается.</p>
   </section>}
   {view==="reviews"&&<section id="academy-reviews" className="how-section"><h2>Проверка заданий преподавателем</h2>
+   {reviewError&&<p role="alert">Очередь проверки работ недоступна: {reviewError}. Проверка новых оценок заблокирована до подтверждения прав.</p>}
    <div className="how-grid">{pendingReviews.map(item=><article className="panel" key={item.attempt_id}>
     <h3>{item.course_title} — {item.lesson_title}</h3>
     <p>Попытка {item.attempt_no}, рубрика {item.rubric_version}, порог {item.passing_score}/100</p>
@@ -890,7 +916,7 @@ export default function AcademyPage(){
     <input id="academy-score" type="number" min={0} max={100} value={evaluationScore} onChange={e=>setEvaluationScore(Number(e.target.value))}/>
     <label htmlFor="academy-evidence">Ссылка на проверяемое доказательство решения (opaque reference)</label>
     <input id="academy-evidence" value={evaluationEvidence} onChange={e=>setEvaluationEvidence(e.target.value)} required/>
-    <button disabled={busy}>Зафиксировать оценку</button>
+    <button disabled={busy||Boolean(reviewError)}>Зафиксировать оценку</button>
    </form>
   </section>}
   </div>
