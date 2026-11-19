@@ -74,3 +74,45 @@ test("author saves paid price; learner cannot fake bank payment; free course can
  await expect.poll(()=>mutations.filter(x=>x.path.endsWith("/enroll")).length).toBe(1);
  expect(mutations.filter(x=>x.path.endsWith("/checkout"))).toHaveLength(1);
 });
+
+
+test("R8 confirmed free enrollment survives lesson-read outage without duplicate enrollment",async({page})=>{
+ let enrolled=false;
+ let enrolPosts=0;
+ const freeCourse={
+  id:courseID,version_id:versionID,version_no:1,product_id:courseID,
+  title:"Бесплатный курс",description:"Доступ открыт",state:"PUBLISHED",
+  access_mode:"FREE",price_minor:0,currency:"RUB"
+ };
+ const enrollment={id:"33333333-3333-4333-8333-333333333333",
+  course_id:courseID,course_title:"Бесплатный курс",version_id:versionID,
+  version_no:1,state:"ACTIVE",access_state:"ACTIVE"};
+ await page.route("**/v1/academy/**",async route=>{
+  const request=route.request();
+  const path=new URL(request.url()).pathname;
+  if(request.method()==="POST"&&path===`/v1/academy/courses/${courseID}/enroll`){
+   enrolPosts++;
+   enrolled=true;
+   return route.fulfill({status:201,json:enrollment});
+  }
+  if(path===`/v1/academy/enrollments/${enrollment.id}/learn`)
+   return route.fulfill({status:503,json:{code:"LEARN_UNAVAILABLE"}});
+  let data:unknown={};
+  if(path==="/v1/academy/courses")data={courses:[freeCourse]};
+  else if(path==="/v1/academy/my-courses")data={courses:[]};
+  else if(path==="/v1/academy/my-enrollments")data={enrollments:enrolled?[enrollment]:[]};
+  else if(path==="/v1/academy/review/attempts")data={attempts:[]};
+  else if(path==="/v1/academy/author/report")data={courses:[],gross_captures:[],revenue_state:"UNAVAILABLE"};
+  else if(path==="/v1/academy/author/cohorts")data={cohorts:[]};
+  else if(path==="/v1/academy/me/course-access")data={course_ids:[]};
+  else if(path==="/v1/academy/me/certificates")data={certificates:[]};
+  else return route.fulfill({status:501,json:{code:"UNMOCKED",path}});
+  return route.fulfill({status:200,json:data});
+ });
+ await page.goto("/academy?tab=catalog");
+ await page.getByRole("button",{name:"Начать бесплатно"}).click();
+ await expect(page.getByRole("status").filter({hasText:"Зачисление подтверждено сервером, но уроки временно не открылись"})).toBeVisible();
+ await expect(page.getByRole("heading",{name:"Моё обучение",exact:true})).toBeVisible();
+ await expect(page.getByRole("button",{name:"Продолжить"})).toBeVisible();
+ expect(enrolPosts).toBe(1);
+});
