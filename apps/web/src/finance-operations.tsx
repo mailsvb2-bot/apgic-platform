@@ -74,7 +74,7 @@ export default function FinanceOperationsQueue() {
       if (response.status === 401 || response.status === 403) {
         setItems([]);
         setState("DENIED");
-        return;
+        return false;
       }
       if (!response.ok) throw new Error("finance operations unavailable");
       const payload: unknown = await response.json();
@@ -83,10 +83,12 @@ export default function FinanceOperationsQueue() {
       setItems(payload.items);
       setSelectedID(previous => payload.items.some(item => item.discrepancy_id === previous) ? previous : "");
       setState("READY");
+      return true;
     } catch {
       if (!mounted.current || epoch !== loadEpoch.current) return;
       setItems([]);
       setState("ERROR");
+      return false;
     }
   }, []);
 
@@ -165,8 +167,10 @@ export default function FinanceOperationsQueue() {
       if (response.ok) {
         setOutcomeUnknown(false);
         select("");
-        await refresh();
-        if (mounted.current) setResultMessage("Решение записано сервером; очередь обновлена.");
+        const readbackConfirmed = await refresh();
+        if (mounted.current) setResultMessage(readbackConfirmed
+          ? "Решение записано сервером; очередь прочитана повторно."
+          : "Сервер подтвердил запись решения, но повторная проверка очереди недоступна. Не отправляйте новое решение; обновите очередь позже.");
       } else {
         if (response.status === 428) setMfaState("IDLE");
         setResultMessage(response.status === 428
