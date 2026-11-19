@@ -51,6 +51,7 @@ export default function AcademyPage(){
  const [editorStep,setEditorStep]=useState<"structure"|"media"|"publish">("structure");
  const [showCreate,setShowCreate]=useState(false);
  const [catalog,setCatalog]=useState<Course[]>([]);
+ const [catalogError,setCatalogError]=useState("");
  const [mine,setMine]=useState<Course[]>([]);
  const [ownedCoursesError,setOwnedCoursesError]=useState("");
  const [ownedCoursesLoaded,setOwnedCoursesLoaded]=useState(false);
@@ -106,14 +107,18 @@ export default function AcademyPage(){
  const [rightsFeedback,setRightsFeedback]=useState("");
  const [offerFeedback,setOfferFeedback]=useState<{kind:"success"|"error";message:string}|null>(null);
  const rightsInputRef=useRef<HTMLInputElement>(null);
+ // The OAuth callback is consumed once per navigation; an unrelated refresh
+ // must not reopen media and erase unsaved work in another editor step.
+ const consumedCloudCallback=useRef<string|null>(null);
  const [offerMode,setOfferMode]=useState<"FREE"|"PAID">("FREE");
  const [offerPriceRub,setOfferPriceRub]=useState("1000");
  const [checkoutProblem,setCheckoutProblem]=useState<Record<string,string>>({});
 
  const refresh=useCallback(async()=>{
-  const publicCourses=await api<{courses:Course[]}>("/v1/academy/courses");
-  setCatalog(publicCourses.courses);
-  const [owned,learning,reviews,report,cohortList,access,credentials]=await Promise.allSettled([
+  // Public discovery must never become a prerequisite for author work or
+  // learner history: each canonical read has an independent failure boundary.
+  const [publicCourses,owned,learning,reviews,report,cohortList,access,credentials]=await Promise.allSettled([
+   api<{courses:Course[]}>("/v1/academy/courses"),
    api<{courses:Course[]}>("/v1/academy/my-courses"),
    api<{enrollments:Enrollment[]}>("/v1/academy/my-enrollments"),
    api<{attempts:ReviewAttempt[]}>("/v1/academy/review/attempts"),
@@ -122,6 +127,9 @@ export default function AcademyPage(){
    api<{course_ids:string[]}>("/v1/academy/me/course-access"),
    api<{certificates:LearnerCertificate[]}>("/v1/academy/me/certificates")
   ]);
+  setCatalog(publicCourses.status==="fulfilled"?publicCourses.value.courses:[]);
+  setCatalogError(publicCourses.status==="rejected"
+   ?publicCourses.reason instanceof Error?publicCourses.reason.message:"Ошибка загрузки каталога":"");
   if(owned.status==="fulfilled"){
    setMine(owned.value.courses);
    setOwnedCoursesError("");
@@ -201,6 +209,10 @@ export default function AcademyPage(){
   const params=new URLSearchParams(window.location.search);
   const cloudError=params.get("cloud_error");
   if(params.get("cloud_connected")!=="yandex"&&cloudError!=="denied"&&cloudError!=="failed")return;
+  if(!ownedCoursesLoaded||ownedCoursesError)return;
+  const callbackKey=window.location.search;
+  if(consumedCloudCallback.current===callbackKey)return;
+  consumedCloudCallback.current=callbackKey;
   const errorNotice=cloudError==="denied"
    ? "Доступ к Яндекс Диску не предоставлен. Чтобы добавить видео, нажмите «Подключить Яндекс Диск» и подтвердите доступ."
    : cloudError==="failed"?"Яндекс не завершил подключение Диска. Повторите подключение чуть позже.":"";
@@ -227,7 +239,7 @@ export default function AcademyPage(){
    if(!cancelled)setNotice("Не удалось открыть редактор. Выберите курс ниже.");
   });
   return ()=>{cancelled=true};
- },[mine,loadOutline]);
+ },[mine,loadOutline,ownedCoursesLoaded,ownedCoursesError]);
  async function loadLearning(item:Enrollment){
   const [d,history,cohortResult,appealList]=await Promise.all([
    api<{lessons:Lesson[]}>(`/v1/academy/enrollments/${item.id}/learn`),
@@ -375,7 +387,10 @@ export default function AcademyPage(){
      <section className="academy-home-card"><header><h2>Быстрые действия</h2></header>
       <div className="academy-quick-grid">
        <button type="button" onClick={()=>{setView("courses");setCourse(null)}}>▤ К списку курсов</button>
-       <button type="button" disabled={!mine.length||busy} onClick={()=>{const c=mine.find(x=>x.state==="DRAFT")||mine[0];if(c){void act(()=>Promise.resolve(c),async()=>{await loadOutline(c);setEditorStep("media")})}}}>▷ Добавить видео</button>
+       <button type="button" disabled={busy||!mine.some(x=>x.state==="DRAFT")}
+        title={mine.some(x=>x.state==="DRAFT")?"Открыть видеоуроки черновика":"Видео добавляется только в черновик. Для опубликованного курса сначала создайте новую версию."}
+        onClick={()=>{const draft=mine.find(x=>x.state==="DRAFT");if(draft){void act(()=>Promise.resolve(draft),async()=>{await loadOutline(draft);setEditorStep("media")})}}}>
+        {mine.some(x=>x.state==="DRAFT")?"▷ Добавить видео":"▷ Видео: нужен черновик"}</button>
        <button type="button" onClick={()=>setView("reviews")}>✓ Проверить работы</button>
        <button type="button" onClick={()=>setView("reports")}>▥ Результаты курсов</button>
       </div>
@@ -391,7 +406,8 @@ export default function AcademyPage(){
    <p>{view==="catalog"?"Выберите курс для обучения.":view==="learning"?"Продолжайте обучение и управляйте сертификатами.":"Выберите курс или создайте новый. Дальше — простой редактор по шагам."}</p>
    <div className="how-grid">
     {view==="catalog"&&<section className="panel"><h2>Доступные курсы</h2>
-     {catalog.length===0?<p>Опубликованных курсов пока нет.</p>:catalog.map(c=>
+     {catalogError?<p role="alert">Каталог временно недоступен: {catalogError}. Ваши курсы и обучения можно открыть отдельно.</p>:null}
+     {!catalogError&&catalog.length===0?<p>Опубликованных курсов пока нет.</p>:catalog.map(c=>
       <article key={c.id}><h3>{c.title}</h3><p>{c.description}</p>
        <p>Версия {c.version_no}</p>
        {c.access_mode==="FREE"&&<p><strong>Бесплатно</strong> — автор открыл курс для свободного обучения.</p>}
@@ -635,11 +651,16 @@ export default function AcademyPage(){
           {provenance_ref:rightsSource.trim(),acknowledged:true});
          const checked=await api<{confirmed:boolean;provenance_ref:string}>(
           `/v1/academy/courses/${course.id}/versions/${course.version_id}/rights/original`);
-         if(!checked.confirmed||checked.provenance_ref!==rightsSource.trim()){
+         if(!checked.confirmed){
           throw new Error("Подтверждение не найдено в сохранённых данных этой версии. Проверьте уроки и повторите.");
          }
+         // Repeated submissions return the original immutable signed record.
+         // Readback, not the editable text, determines exact-version validity.
+         setRightsSource(checked.provenance_ref);
          setRightsRecorded(true);
-         setRightsFeedback("Права подтверждены. Теперь можно опубликовать курс.");
+         setRightsFeedback(checked.provenance_ref===rightsSource.trim()
+          ?"Права подтверждены. Теперь можно опубликовать курс."
+          :"Права уже подтверждены для этой версии. Используется ранее сохранённый источник: «"+checked.provenance_ref+"».");
         }catch(error){
          setRightsRecorded(false);
          setRightsFeedback(error instanceof Error?error.message:"Не удалось сохранить подтверждение.");
@@ -670,10 +691,11 @@ export default function AcademyPage(){
         await api<{id:string}>(rightsPath,{provenance_ref:rightsSource.trim(),acknowledged:true});
        }
        const stored=await api<{confirmed:boolean;provenance_ref:string}>(rightsPath);
-       if(!stored.confirmed||stored.provenance_ref!==rightsSource.trim()){
+       if(!stored.confirmed){
         setRightsRecorded(false);
         throw new Error("Права не сохранены для текущего содержания. Подтвердите их снова после проверки уроков.");
        }
+       setRightsSource(stored.provenance_ref);
        setRightsRecorded(true);
        const published=await api<Course>(`/v1/academy/courses/${course.id}/versions/${course.version_id}/publish`,{});
        if(published.state!=="PUBLISHED"||published.id!==course.id||published.version_id!==course.version_id){

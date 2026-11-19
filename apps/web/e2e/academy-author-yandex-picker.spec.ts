@@ -54,6 +54,8 @@ test("author resumes the selected course and lesson, imports Disk video, and sav
      ?[{name:"Урок 1.mp4",path:diskFilePath,type:"file",mime_type:"video/mp4",size:1024}]
      :[];
    data={files,total:files.length,offset:Number(url.searchParams.get("offset")||0)};
+  }else if(method==="POST"&&path==="/v1/academy/courses/"+courseID+"/versions/"+versionID+"/modules"){
+   status=201;data={id:"99999999-9999-4999-8999-999999999999",version_id:versionID,title:"Новый модуль",ordinal:2};
   }else if(method==="POST"&&path==="/v1/academy/author/cloud-media/import"){
    const body=request.postDataJSON() as {items:{provider_file_ref:string;title:string}[]};
    importCalls++;
@@ -104,6 +106,14 @@ test("author resumes the selected course and lesson, imports Disk video, and sav
   {lesson_id:lessonID,media_id:existingMediaID,ordinal:2}
  ]);
  expect(assignments).toEqual(savedPayload);
+ // A successful editor mutation refreshes my-courses. The consumed OAuth
+ // query must not send the author back to the media step or lose their form.
+ await page.getByRole("button",{name:"1. Уроки"}).click();
+ await page.getByRole("region",{name:"Дерево курса"}).getByRole("button",{name:"＋ Модуль"}).click();
+ await page.locator("#academy-module").fill("Новый модуль");
+ await page.getByRole("button",{name:"Сохранить модуль"}).click();
+ await expect(page.getByRole("button",{name:"Сохранить урок"})).toBeVisible();
+ await expect(page.getByRole("button",{name:"1. Уроки"})).toHaveAttribute("aria-current","step");
 });
 
 
