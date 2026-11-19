@@ -264,7 +264,20 @@ export default function AcademyPage(){
     .then(value=>({ok:true,items:value.cohorts})).catch(()=>({ok:false,items:[] as Cohort[]})),
    api<{appeals:LearnerAppeal[]}>("/v1/academy/me/appeals")
     .then(value=>({ok:true,items:value.appeals})).catch(()=>({ok:false,items:[] as LearnerAppeal[]}))
-  ]);
+  ]).catch(error=>{
+   // A rejected canonical /learn entitlement readback invalidates the
+   // previously opened learner projection. Never keep old lesson bytes in
+   // the React tree after a denied or unavailable protected read.
+   setActiveEnrollment(null);
+   setLessons([]);
+   setLearnerAttempts([]);
+   setLearnerAppeals([]);
+   setCohorts([]);
+   setAttemptHistoryError(false);
+   setCohortError(false);
+   setAppealError(false);
+   throw error;
+  });
   setView("learning");setActiveEnrollment(item);setCourse(null);setCertificate(null);
   setLessons(d.lessons);setLearnerAttempts(historyResult.items);setAttemptHistoryError(!historyResult.ok);
   setLearnerAppeals(appealList.items);setModules([]);
@@ -490,8 +503,7 @@ export default function AcademyPage(){
      {learningError?<p role="alert">История обучения временно недоступна: {learningError}. Проверьте вход и повторите загрузку.</p>:enrollments.length===0?<p>Пока нет зачислений.</p>:enrollments.map(e=>
       <div key={e.id}><p>{e.course_title||"Курс"} · версия {e.version_no??"—"} · {e.state} · доступ {e.access_state??"неизвестен"}</p>
        <button disabled={busy||e.access_state!=="ACTIVE"} onClick={()=>void act(
-        ()=>api<{lessons:Lesson[]}>(`/v1/academy/enrollments/${e.id}/learn`),
-        async()=>{await loadLearning(e)})}>Продолжить</button>
+        ()=>loadLearning(e),()=>{})}>Продолжить</button>
       </div>)}
     </section>}
     {view==="courses"&&!course&&showCreate&&<form id="academy-author" className="panel specialist-form" onSubmit={createCourse}>

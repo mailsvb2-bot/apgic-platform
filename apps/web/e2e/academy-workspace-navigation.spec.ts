@@ -325,3 +325,47 @@ test("R8 editor cannot remain open after canonical author ownership readback fai
  await expect(page.getByRole("button",{name:"Создать первый модуль"})).toHaveCount(0);
  expect(newVersions).toBe(1);
 });
+
+
+test("R8 Continue makes one authorized lesson read and clears private lessons on later denial",async({page})=>{
+ const enrollment={id:"55555555-5555-4555-8555-555555555555",course_id:courseId,
+  course_title:"Защищённый курс",version_id:versionId,version_no:1,state:"ACTIVE",access_state:"ACTIVE"};
+ let learnCalls=0;
+ await page.route("**/v1/academy/**",async route=>{
+  const path=new URL(route.request().url()).pathname;
+  if(path===`/v1/academy/enrollments/${enrollment.id}/learn`){
+   learnCalls++;
+   if(learnCalls===2)return route.fulfill({status:403,json:{
+    code:"ACADEMY_ENTITLEMENT_REQUIRED",message_safe:"Доступ к урокам отозван."
+   }});
+   return route.fulfill({status:200,json:{lessons:[{
+    id:lessonId,module_id:moduleId,title:"Защищённый урок",kind:"READING",
+    body:"Приватное содержимое ученика",ordinal:1,available:true,completed:false
+   }]}});
+  }
+  let data:unknown={};
+  if(path==="/v1/academy/courses"||path==="/v1/academy/my-courses")data={courses:[]};
+  else if(path==="/v1/academy/my-enrollments")data={enrollments:[enrollment]};
+  else if(path==="/v1/academy/review/attempts")data={attempts:[]};
+  else if(path==="/v1/academy/author/report")data={courses:[],gross_captures:[],revenue_state:"UNAVAILABLE"};
+  else if(path==="/v1/academy/author/cohorts")data={cohorts:[]};
+  else if(path==="/v1/academy/me/course-access")data={course_ids:[courseId]};
+  else if(path==="/v1/academy/me/certificates")data={certificates:[]};
+  else if(path.endsWith("/attempts"))data={attempts:[]};
+  else if(path.endsWith("/cohorts"))data={cohorts:[]};
+  else if(path==="/v1/academy/me/appeals")data={appeals:[]};
+  else return route.fulfill({status:501,json:{code:"UNMOCKED",path}});
+  return route.fulfill({status:200,json:data});
+ });
+ await page.goto("/academy?tab=learning");
+ const continueButton=page.getByRole("button",{name:"Продолжить"});
+ await expect(continueButton).toBeVisible();
+ await continueButton.click();
+ await expect(page.getByText("Приватное содержимое ученика")).toBeVisible();
+ expect(learnCalls).toBe(1);
+ await continueButton.click();
+ await expect(page.getByRole("status").filter({hasText:"Доступ к урокам отозван."})).toBeVisible();
+ await expect(page.getByText("Приватное содержимое ученика")).toHaveCount(0);
+ await expect(page.getByRole("heading",{name:"Прохождение курса"})).toHaveCount(0);
+ expect(learnCalls).toBe(2);
+});
