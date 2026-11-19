@@ -193,9 +193,12 @@ export default function FinanceOperationsQueue() {
   }
 
   async function verifyQueue() {
+    // Save the selected ID before refresh updates React state. A verified
+    // empty list must still be able to resolve an uncertain submit.
+    const pendingID = selectedID;
     const verifiedItems = await refresh();
-    if (verifiedItems !== null && outcomeUnknown && selectedID &&
-        !verifiedItems.some(item => item.discrepancy_id === selectedID)) {
+    if (verifiedItems != null && outcomeUnknown && pendingID &&
+        !verifiedItems.some(item => item.discrepancy_id === pendingID)) {
       // A successful, authorized readback proves this discrepancy is no longer
       // open; it does not prove which actor resolved it. No new economic write.
       setOutcomeUnknown(false);
