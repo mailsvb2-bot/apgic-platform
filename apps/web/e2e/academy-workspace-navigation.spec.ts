@@ -38,7 +38,7 @@ test("author workspace routes every primary navigation and editor step to canoni
  await expect(page.getByText("9",{exact:true})).toBeVisible();
  await expect(page.getByRole("button",{name:"＋ Создать курс"})).toBeVisible();
  await page.getByRole("button",{name:"Мои курсы",exact:true}).click();
- await expect(page.getByRole("heading",{name:"Ваши курсы"})).toBeVisible();
+ await expect(page.getByRole("heading",{name:"Мои курсы",exact:true})).toBeVisible();
  await page.getByRole("button",{name:"Открыть редактор"}).click();
  await expect(page.getByRole("heading",{name:"Курс по гипнозу"})).toBeVisible();
  await expect(page.getByRole("button",{name:"1. Уроки"})).toHaveAttribute("aria-current","step");
@@ -190,4 +190,46 @@ test("learner can open lessons when attempt-history API is temporarily unavailab
  await expect(page.getByRole("heading",{name:"Теория"})).toBeVisible();
  await expect(page.getByText("Содержание урока")).toBeVisible();
  await expect(page.getByRole("alert").filter({hasText:"История выполненных заданий временно недоступна"})).toBeVisible();
+});
+
+
+test("specialist reports deep link opens the canonical Academy results panel",async({page})=>{
+ await page.route("**/v1/academy/**",async route=>{
+  const path=new URL(route.request().url()).pathname;
+  let data:unknown={},status=200;
+  if(path==="/v1/academy/courses"||path==="/v1/academy/my-courses")data={courses:[]};
+  else if(path==="/v1/academy/my-enrollments")data={enrollments:[]};
+  else if(path==="/v1/academy/review/attempts")data={attempts:[]};
+  else if(path==="/v1/academy/author/report")data={courses:[],gross_captures:[],revenue_state:"UNAVAILABLE"};
+  else if(path==="/v1/academy/author/cohorts")data={cohorts:[]};
+  else if(path==="/v1/academy/me/course-access")data={course_ids:[]};
+  else if(path==="/v1/academy/me/certificates")data={certificates:[]};
+  else {status=501;data={code:"UNMOCKED",path};}
+  await route.fulfill({status,contentType:"application/json",body:JSON.stringify(data)});
+ });
+ await page.goto("/academy?tab=reports");
+ await expect(page.getByRole("button",{name:"Ученики и продажи"})).toHaveAttribute("aria-current","page");
+ await expect(page.getByText("Кабинет автора",{exact:true})).toHaveCount(0);
+});
+
+test("published-only author starts a fresh draft instead of an immutable editor",async({page})=>{
+ const published={...course,state:"PUBLISHED"};
+ await page.route("**/v1/academy/**",async route=>{
+  const path=new URL(route.request().url()).pathname;
+  let data:unknown={},status=200;
+  if(path==="/v1/academy/courses"||path==="/v1/academy/my-courses")data={courses:[published]};
+  else if(path==="/v1/academy/my-enrollments")data={enrollments:[]};
+  else if(path==="/v1/academy/review/attempts")data={attempts:[]};
+  else if(path==="/v1/academy/author/report")data={courses:[],gross_captures:[],revenue_state:"UNAVAILABLE"};
+  else if(path==="/v1/academy/author/cohorts")data={cohorts:[]};
+  else if(path==="/v1/academy/me/course-access")data={course_ids:[]};
+  else if(path==="/v1/academy/me/certificates")data={certificates:[]};
+  else {status=501;data={code:"UNMOCKED",path};}
+  await route.fulfill({status,contentType:"application/json",body:JSON.stringify(data)});
+ });
+ await page.goto("/academy");
+ await expect(page.getByRole("button",{name:"Продолжить редактирование"})).toHaveCount(0);
+ await page.locator(".academy-feature").getByRole("button",{name:"Создать новый курс"}).click();
+ await expect(page.locator("#academy-title")).toBeVisible();
+ await expect(page.getByRole("heading",{name:"Ваши курсы"})).toBeVisible();
 });

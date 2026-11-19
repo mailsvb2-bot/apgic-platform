@@ -161,7 +161,7 @@ export default function AcademyPage(){
  useEffect(()=>{
   const params=new URLSearchParams(window.location.search);
   const tab=params.get("tab");
-  if(tab==="reviews")setView("reviews");
+  if(tab==="reviews"||tab==="reports"||tab==="learning"||tab==="catalog")setView(tab);
   if(tab==="courses"){setView("courses");if(params.get("create")==="1")setShowCreate(true);}
  },[]);
 
@@ -376,8 +376,8 @@ export default function AcademyPage(){
      <div className="academy-feature-art" aria-hidden="true">▶</div>
      <div><p className="academy-overline">ПРОДОЛЖИТЬ РАБОТУ</p>
       <h2>{mine.find(c=>c.state==="DRAFT")?.title||mine[0]?.title||"Создайте первый курс"}</h2>
-      <p>{mine.length?"Выберите курс и продолжите с сохранённого шага.":"Сначала название, затем уроки и видео. Всё по шагам."}</p>
-      <button type="button" disabled={busy} className="academy-blue-button" onClick={()=>{const next=mine.find(c=>c.state==="DRAFT")||mine[0];if(next){setEditorStep("structure");void act(()=>Promise.resolve(next),loadOutline)}else{setView("courses");setShowCreate(true)}}}>{mine.length?"Продолжить редактирование":"Создать курс"} →</button>
+      <p>{mine.some(c=>c.state==="DRAFT")?"Продолжите работу с сохранённым черновиком.":mine.length?"Все курсы опубликованы. Откройте существующий курс для просмотра или создайте новый черновик.":"Сначала название, затем уроки и видео. Всё по шагам."}</p>
+      <button type="button" disabled={busy||Boolean(ownedCoursesError)} className="academy-blue-button" onClick={()=>{const draft=mine.find(c=>c.state==="DRAFT");if(draft){setEditorStep("structure");void act(()=>Promise.resolve(draft),loadOutline)}else{setView("courses");setCourse(null);setShowCreate(true)}}}>{mine.some(c=>c.state==="DRAFT")?"Продолжить редактирование":"Создать новый курс"} →</button>
      </div>
     </section>
     <div className="academy-home-grid">
