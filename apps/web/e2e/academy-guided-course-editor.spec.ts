@@ -178,3 +178,45 @@ test("publishing accepts short rights source and saves explicit consent through 
  expect(calls.filter(p=>p.endsWith("/rights/original"))).toHaveLength(1);
  expect(calls.filter(p=>p.endsWith("/publish"))).toHaveLength(1);
 });
+
+test("reconfirming an already signed source uses immutable server evidence and publishes",async({page})=>{
+ const immutableSource="исходные материалы";
+ let rightsPosts=0,publicationPosts=0;
+ const fixture={...course};
+ const lesson={id:lessonId,module_id:moduleId,title:"Содержание",kind:"READING",ordinal:1};
+ await page.route("**/v1/academy/**",async route=>{
+  const req=route.request(),path=new URL(req.url()).pathname,method=req.method();
+  let status=200;let data:unknown={};
+  if(method==="GET"){
+   if(path==="/v1/academy/courses")data={courses:[]};
+   else if(path==="/v1/academy/my-courses")data={courses:[fixture]};
+   else if(path==="/v1/academy/my-enrollments")data={enrollments:[]};
+   else if(path==="/v1/academy/review/attempts")data={attempts:[]};
+   else if(path==="/v1/academy/author/report")data={courses:[],gross_captures:[],revenue_state:"UNAVAILABLE"};
+   else if(path==="/v1/academy/author/cohorts")data={cohorts:[]};
+   else if(path==="/v1/academy/me/course-access")data={course_ids:[]};
+   else if(path==="/v1/academy/me/certificates")data={certificates:[]};
+   else if(path.endsWith("/outline"))data={state:"DRAFT",modules:[{id:moduleId,version_id:versionId,title:"Первый модуль",ordinal:1}],lessons:[lesson]};
+   else if(path.endsWith("/rights/original"))data={confirmed:true,provenance_ref:immutableSource};
+   else {status=501;data={code:"UNMOCKED",path};}
+  }else if(method==="POST"){
+   if(path.endsWith("/rights/original")){rightsPosts++;data={id:"already-signed",provenance_ref:immutableSource};}
+   else if(path.endsWith("/publish")){publicationPosts++;data={...fixture,state:"PUBLISHED"};}
+   else {status=501;data={code:"UNMOCKED_POST",path};}
+  }
+  await route.fulfill({status,contentType:"application/json",body:JSON.stringify(data)});
+ });
+ await page.goto("/academy?tab=courses");
+ await page.getByRole("button",{name:"Открыть редактор"}).click();
+ await page.getByRole("button",{name:"3. Публикация"}).click();
+ const rights=page.getByRole("region",{name:"Декларация авторских прав"});
+ await expect(rights.locator("#academy-original-rights")).toHaveValue(immutableSource);
+ await rights.locator("#academy-original-rights").fill("№1");
+ await rights.getByRole("button",{name:"Подтвердить права"}).click();
+ await expect(rights.getByRole("status")).toContainText("ранее сохранённый источник");
+ await expect(rights.locator("#academy-original-rights")).toHaveValue(immutableSource);
+ await page.getByRole("button",{name:"Опубликовать курс"}).click();
+ await expect(page.getByRole("status").filter({hasText:"Курс опубликован"})).toBeVisible();
+ expect(rightsPosts).toBe(1);
+ expect(publicationPosts).toBe(1);
+});
