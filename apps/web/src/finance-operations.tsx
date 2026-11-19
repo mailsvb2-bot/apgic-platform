@@ -74,7 +74,7 @@ export default function FinanceOperationsQueue() {
       if (response.status === 401 || response.status === 403) {
         setItems([]);
         setState("DENIED");
-        return false;
+        return null;
       }
       if (!response.ok) throw new Error("finance operations unavailable");
       const payload: unknown = await response.json();
@@ -83,12 +83,12 @@ export default function FinanceOperationsQueue() {
       setItems(payload.items);
       setSelectedID(previous => payload.items.some(item => item.discrepancy_id === previous) ? previous : "");
       setState("READY");
-      return true;
+      return payload.items;
     } catch {
       if (!mounted.current || epoch !== loadEpoch.current) return;
       setItems([]);
       setState("ERROR");
-      return false;
+      return null;
     }
   }, []);
 
@@ -167,7 +167,7 @@ export default function FinanceOperationsQueue() {
       if (response.ok) {
         setOutcomeUnknown(false);
         select("");
-        const readbackConfirmed = await refresh();
+        const readbackConfirmed = (await refresh()) !== null;
         if (mounted.current) setResultMessage(readbackConfirmed
           ? "Решение записано сервером; очередь прочитана повторно."
           : "Сервер подтвердил запись решения, но повторная проверка очереди недоступна. Не отправляйте новое решение; обновите очередь позже.");
@@ -192,11 +192,24 @@ export default function FinanceOperationsQueue() {
     }
   }
 
+  async function verifyQueue() {
+    const verifiedItems = await refresh();
+    if (verifiedItems !== null && outcomeUnknown && selectedID &&
+        !verifiedItems.some(item => item.discrepancy_id === selectedID)) {
+      // A successful, authorized readback proves this discrepancy is no longer
+      // open; it does not prove which actor resolved it. No new economic write.
+      setOutcomeUnknown(false);
+      setIdempotencyKey("");
+      setSelectedID("");
+      setResultMessage("Сервер подтвердил, что расхождение больше не открыто. Новое финансовое решение по нему не отправлялось.");
+    }
+  }
+
   return (
     <main className="journey-stage" aria-label="Финансовые расхождения">
       <h1>Финансовая сверка</h1>
       <p>Очередь показывает только расхождения, подтверждённые серверной сверкой с платёжным провайдером. APGIC не хранит и не переводит деньги.</p>
-      <button type="button" onClick={() => void refresh()} disabled={state === "LOADING"}>
+      <button type="button" onClick={() => void verifyQueue()} disabled={state === "LOADING"}>
         {state === "LOADING" ? "Обновляем…" : "Обновить очередь"}
       </button>
       {state === "DENIED" ? <p role="alert">Доступ запрещён. Нужна действующая сессия финансового оператора с выданным полномочием.</p> : null}
