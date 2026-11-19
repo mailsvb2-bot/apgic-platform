@@ -264,7 +264,20 @@ export default function AcademyPage(){
     .then(value=>({ok:true,items:value.cohorts})).catch(()=>({ok:false,items:[] as Cohort[]})),
    api<{appeals:LearnerAppeal[]}>("/v1/academy/me/appeals")
     .then(value=>({ok:true,items:value.appeals})).catch(()=>({ok:false,items:[] as LearnerAppeal[]}))
-  ]);
+  ]).catch(error=>{
+   // A rejected canonical /learn entitlement readback invalidates the
+   // previously opened learner projection. Never keep old lesson bytes in
+   // the React tree after a denied or unavailable protected read.
+   setActiveEnrollment(null);
+   setLessons([]);
+   setLearnerAttempts([]);
+   setLearnerAppeals([]);
+   setCohorts([]);
+   setAttemptHistoryError(false);
+   setCohortError(false);
+   setAppealError(false);
+   throw error;
+  });
   setView("learning");setActiveEnrollment(item);setCourse(null);setCertificate(null);
   setLessons(d.lessons);setLearnerAttempts(historyResult.items);setAttemptHistoryError(!historyResult.ok);
   setLearnerAppeals(appealList.items);setModules([]);
