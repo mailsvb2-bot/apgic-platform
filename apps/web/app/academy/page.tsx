@@ -106,6 +106,9 @@ export default function AcademyPage(){
  const [rightsFeedback,setRightsFeedback]=useState("");
  const [offerFeedback,setOfferFeedback]=useState<{kind:"success"|"error";message:string}|null>(null);
  const rightsInputRef=useRef<HTMLInputElement>(null);
+ // The OAuth callback is consumed once per navigation; an unrelated refresh
+ // must not reopen media and erase unsaved work in another editor step.
+ const consumedCloudCallback=useRef<string|null>(null);
  const [offerMode,setOfferMode]=useState<"FREE"|"PAID">("FREE");
  const [offerPriceRub,setOfferPriceRub]=useState("1000");
  const [checkoutProblem,setCheckoutProblem]=useState<Record<string,string>>({});
@@ -201,6 +204,10 @@ export default function AcademyPage(){
   const params=new URLSearchParams(window.location.search);
   const cloudError=params.get("cloud_error");
   if(params.get("cloud_connected")!=="yandex"&&cloudError!=="denied"&&cloudError!=="failed")return;
+  if(!ownedCoursesLoaded||ownedCoursesError)return;
+  const callbackKey=window.location.search;
+  if(consumedCloudCallback.current===callbackKey)return;
+  consumedCloudCallback.current=callbackKey;
   const errorNotice=cloudError==="denied"
    ? "Доступ к Яндекс Диску не предоставлен. Чтобы добавить видео, нажмите «Подключить Яндекс Диск» и подтвердите доступ."
    : cloudError==="failed"?"Яндекс не завершил подключение Диска. Повторите подключение чуть позже.":"";
@@ -227,7 +234,7 @@ export default function AcademyPage(){
    if(!cancelled)setNotice("Не удалось открыть редактор. Выберите курс ниже.");
   });
   return ()=>{cancelled=true};
- },[mine,loadOutline]);
+ },[mine,loadOutline,ownedCoursesLoaded,ownedCoursesError]);
  async function loadLearning(item:Enrollment){
   const [d,history,cohortResult,appealList]=await Promise.all([
    api<{lessons:Lesson[]}>(`/v1/academy/enrollments/${item.id}/learn`),
@@ -635,11 +642,16 @@ export default function AcademyPage(){
           {provenance_ref:rightsSource.trim(),acknowledged:true});
          const checked=await api<{confirmed:boolean;provenance_ref:string}>(
           `/v1/academy/courses/${course.id}/versions/${course.version_id}/rights/original`);
-         if(!checked.confirmed||checked.provenance_ref!==rightsSource.trim()){
+         if(!checked.confirmed){
           throw new Error("Подтверждение не найдено в сохранённых данных этой версии. Проверьте уроки и повторите.");
          }
+         // Repeated submissions return the original immutable signed record.
+         // Readback, not the editable text, determines exact-version validity.
+         setRightsSource(checked.provenance_ref);
          setRightsRecorded(true);
-         setRightsFeedback("Права подтверждены. Теперь можно опубликовать курс.");
+         setRightsFeedback(checked.provenance_ref===rightsSource.trim()
+          ?"Права подтверждены. Теперь можно опубликовать курс."
+          :"Права уже подтверждены для этой версии. Используется ранее сохранённый источник: «"+checked.provenance_ref+"».");
         }catch(error){
          setRightsRecorded(false);
          setRightsFeedback(error instanceof Error?error.message:"Не удалось сохранить подтверждение.");
@@ -670,10 +682,11 @@ export default function AcademyPage(){
         await api<{id:string}>(rightsPath,{provenance_ref:rightsSource.trim(),acknowledged:true});
        }
        const stored=await api<{confirmed:boolean;provenance_ref:string}>(rightsPath);
-       if(!stored.confirmed||stored.provenance_ref!==rightsSource.trim()){
+       if(!stored.confirmed){
         setRightsRecorded(false);
         throw new Error("Права не сохранены для текущего содержания. Подтвердите их снова после проверки уроков.");
        }
+       setRightsSource(stored.provenance_ref);
        setRightsRecorded(true);
        const published=await api<Course>(`/v1/academy/courses/${course.id}/versions/${course.version_id}/publish`,{});
        if(published.state!=="PUBLISHED"||published.id!==course.id||published.version_id!==course.version_id){
