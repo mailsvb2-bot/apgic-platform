@@ -51,6 +51,7 @@ export default function FinanceOperationsQueue() {
   const [providerEvidenceID, setProviderEvidenceID] = useState("");
   const [supersedingResultID, setSupersedingResultID] = useState("");
   const [idempotencyKey, setIdempotencyKey] = useState("");
+  const [outcomeUnknown, setOutcomeUnknown] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [resultMessage, setResultMessage] = useState("");
   const [totp, setTotp] = useState("");
@@ -100,8 +101,9 @@ export default function FinanceOperationsQueue() {
   const valid = Boolean(selected && reason.trim().length >= 8 && evidenceRefs.length > 0 &&
     (kind !== "PROVIDER_CORRECTION_CONFIRMED" || providerEvidenceID.trim()) &&
     (kind !== "SUPERSEDED_BY_MATCHED_RECONCILIATION" || supersedingResultID.trim()));
-  const invalidateKey = () => setIdempotencyKey("");
+  const invalidateKey = () => { if (!outcomeUnknown) setIdempotencyKey(""); };
   const select = (id: string) => {
+    if (outcomeUnknown) return;
     setSelectedID(id);
     setKind("PROVIDER_CORRECTION_CONFIRMED");
     setReason("");
@@ -109,6 +111,7 @@ export default function FinanceOperationsQueue() {
     setProviderEvidenceID("");
     setSupersedingResultID("");
     invalidateKey();
+    setOutcomeUnknown(false);
     setResultMessage("");
   };
   async function verifySecondFactor() {
@@ -161,6 +164,7 @@ export default function FinanceOperationsQueue() {
       );
       if (!mounted.current) return;
       if (response.ok) {
+        setOutcomeUnknown(false);
         select("");
         await refresh();
         if (mounted.current) setResultMessage("Решение записано сервером; очередь обновлена.");
@@ -175,7 +179,10 @@ export default function FinanceOperationsQueue() {
               : "Сервер не подтвердил запись решения. Исправьте данные либо повторите с тем же ключом.");
       }
     } catch {
-      if (mounted.current) setResultMessage("Сетевой результат неизвестен. Повтор сохранит ключ идемпотентности.");
+      if (mounted.current) {
+        setOutcomeUnknown(true);
+        setResultMessage("Сетевой результат неизвестен. Поля решения заблокированы: повторите тот же запрос с тем же ключом идемпотентности или обновите очередь для проверки статуса.");
+      }
     } finally {
       inFlight.current = false;
       if (mounted.current) setSubmitting(false);
@@ -216,7 +223,7 @@ export default function FinanceOperationsQueue() {
         <section aria-label="Решение по расхождению">
           <h2>Рассмотреть расхождение</h2>
           <label htmlFor="finance-select-discrepancy">Расхождение</label>
-          <select id="finance-select-discrepancy" value={selectedID} disabled={submitting}
+          <select id="finance-select-discrepancy" value={selectedID} disabled={submitting || outcomeUnknown}
             onChange={event => select(event.target.value)}>
             <option value="">Выберите запись из очереди</option>
             {items.map(item => <option key={item.discrepancy_id} value={item.discrepancy_id}>{item.discrepancy_id}</option>)}
@@ -239,27 +246,27 @@ export default function FinanceOperationsQueue() {
               </section>
               <p>Инструкция: {selected.settlement_instruction_id}. Провайдер: {selected.provider_instance_id}.</p>
               <label htmlFor="finance-resolution-kind">Тип решения</label>
-              <select id="finance-resolution-kind" value={kind} disabled={submitting}
+              <select id="finance-resolution-kind" value={kind} disabled={submitting || outcomeUnknown}
                 onChange={event => { setKind(event.target.value as ResolutionKind); invalidateKey(); }}>
                 {Object.entries(RESOLUTION_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
               </select>
               <label htmlFor="finance-resolution-reason">Обоснование</label>
-              <textarea id="finance-resolution-reason" value={reason} disabled={submitting}
+              <textarea id="finance-resolution-reason" value={reason} disabled={submitting || outcomeUnknown}
                 onChange={event => { setReason(event.target.value); invalidateKey(); }} />
               <label htmlFor="finance-resolution-refs">Ссылки на доказательства, по одной на строку</label>
-              <textarea id="finance-resolution-refs" value={evidenceText} disabled={submitting}
+              <textarea id="finance-resolution-refs" value={evidenceText} disabled={submitting || outcomeUnknown}
                 onChange={event => { setEvidenceText(event.target.value); invalidateKey(); }} />
               {kind === "PROVIDER_CORRECTION_CONFIRMED" ? (
                 <>
                   <label htmlFor="finance-provider-evidence">ID нового доказательства провайдера</label>
-                  <input id="finance-provider-evidence" value={providerEvidenceID} disabled={submitting}
+                  <input id="finance-provider-evidence" value={providerEvidenceID} disabled={submitting || outcomeUnknown}
                     onChange={event => { setProviderEvidenceID(event.target.value); invalidateKey(); }} />
                 </>
               ) : null}
               {kind === "SUPERSEDED_BY_MATCHED_RECONCILIATION" ? (
                 <>
                   <label htmlFor="finance-superseding-result">ID успешной повторной сверки</label>
-                  <input id="finance-superseding-result" value={supersedingResultID} disabled={submitting}
+                  <input id="finance-superseding-result" value={supersedingResultID} disabled={submitting || outcomeUnknown}
                     onChange={event => { setSupersedingResultID(event.target.value); invalidateKey(); }} />
                 </>
               ) : null}
