@@ -503,8 +503,7 @@ export default function AcademyPage(){
      {learningError?<p role="alert">История обучения временно недоступна: {learningError}. Проверьте вход и повторите загрузку.</p>:enrollments.length===0?<p>Пока нет зачислений.</p>:enrollments.map(e=>
       <div key={e.id}><p>{e.course_title||"Курс"} · версия {e.version_no??"—"} · {e.state} · доступ {e.access_state??"неизвестен"}</p>
        <button disabled={busy||e.access_state!=="ACTIVE"} onClick={()=>void act(
-        ()=>api<{lessons:Lesson[]}>(`/v1/academy/enrollments/${e.id}/learn`),
-        async()=>{await loadLearning(e)})}>Продолжить</button>
+        ()=>loadLearning(e),()=>{})}>Продолжить</button>
       </div>)}
     </section>}
     {view==="courses"&&!course&&showCreate&&<form id="academy-author" className="panel specialist-form" onSubmit={createCourse}>
