@@ -189,5 +189,5 @@ test("learner can open lessons when attempt-history API is temporarily unavailab
  await expect(page.getByRole("heading",{name:"Прохождение курса"})).toBeVisible();
  await expect(page.getByRole("heading",{name:"Теория"})).toBeVisible();
  await expect(page.getByText("Содержание урока")).toBeVisible();
- await expect(page.getByRole("alert")).toContainText("История выполненных заданий временно недоступна");
+ await expect(page.getByRole("alert").filter({hasText:"История выполненных заданий временно недоступна"})).toBeVisible();
 });
