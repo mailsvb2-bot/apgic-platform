@@ -16,6 +16,7 @@ export default function EventPage({params}:{params:Promise<{id:string}>}){
  const {id}=use(params);
  const [event,setEvent]=useState<LiveEvent|null>(null);
  const [registration,setRegistration]=useState<Registration|null>(null);
+ const [registrationState,setRegistrationState]=useState<"CHECKING"|"KNOWN"|"UNAVAILABLE">("CHECKING");
  const [grant,setGrant]=useState<MediaGrant|null>(null);
  const [busy,setBusy]=useState(false);
  const [loading,setLoading]=useState(true);
@@ -23,10 +24,28 @@ export default function EventPage({params}:{params:Promise<{id:string}>}){
  const [notice,setNotice]=useState("");
  const path=`/v1/live-events/${encodeURIComponent(id)}`;
  const reload=useCallback(async ()=>{
-  const e=await api<LiveEvent>(path);setEvent(e);
-  const registrationResponse=await fetch(path+"/registration",{credentials:"include",cache:"no-store"});
-  if(registrationResponse.ok)setRegistration(await registrationResponse.json() as Registration);
-  else setRegistration(null);
+  setRegistrationState("CHECKING");
+  try {
+   const e=await api<LiveEvent>(path);setEvent(e);
+   const registrationResponse=await fetch(path+"/registration",{credentials:"include",cache:"no-store"});
+   if(registrationResponse.ok){
+    const current=await registrationResponse.json() as Registration;
+    if(!current||typeof current.state!=="string")throw new Error("Статус регистрации не подтверждён сервером.");
+    setRegistration(current);
+   }else if(registrationResponse.status===404){
+    // Only canonical "not found" means the visitor has no registration.
+    setRegistration(null);
+   }else{
+    throw new Error(registrationResponse.status===401||registrationResponse.status===403
+     ?"Для проверки регистрации требуется действующая сессия. Войдите в свой аккаунт."
+     :"Состояние регистрации временно недоступно. Повторите проверку перед регистрацией.");
+   }
+   setRegistrationState("KNOWN");
+  }catch(error){
+   // Unknown server state must never masquerade as an unregistered visitor.
+   setRegistrationState("UNAVAILABLE");
+   throw error;
+  }
  },[path]);
  useEffect(()=>{let active=true;reload().catch(e=>{if(active)setError(messageFromError(e))}).finally(()=>{if(active)setLoading(false)});return()=>{active=false}},[reload]);
  async function act(operation:"registrations"|"unregister"){
@@ -56,7 +75,9 @@ export default function EventPage({params}:{params:Promise<{id:string}>}){
     <p><strong>Свободно:</strong> {Math.max(0,event.capacity-event.registered)} из {event.capacity}</p>
     <p><strong>Стоимость:</strong> {event.price_minor===0?"Бесплатно":"Проверка оплаты требуется"}</p>
     <p>Запись трансляции: {event.recording_available?"Предусмотрена с отдельным согласием":"не ведётся"}</p>
-    {registration?.state==="REGISTERED"?<div>
+    {registrationState==="UNAVAILABLE"&&<div role="alert"><p>Статус участия не подтверждён. Повторная регистрация и вход в эфир заблокированы до проверки.</p><button type="button" disabled={busy} onClick={()=>{setError("");void reload().catch(e=>setError(messageFromError(e)))}}>Повторить проверку регистрации</button></div>}
+    {registrationState==="CHECKING"&&<p role="status">Проверяем вашу регистрацию…</p>}
+    {registrationState==="KNOWN"&&registration?.state==="REGISTERED"?<div>
      <p role="status">Вы зарегистрированы.</p>
      <div className="live-action-row">
       <button type="button" disabled={busy} onClick={()=>void requestMediaGrant()}>Получить защищённый вход в эфир</button>
@@ -66,7 +87,7 @@ export default function EventPage({params}:{params:Promise<{id:string}>}){
       UCR подтвердил доступ до {new Date(grant.expires_at).toLocaleTimeString("ru-RU")}.{" "}
       <a href={grant.join_url} target="_blank" rel="noopener noreferrer">Войти в групповую медиасессию</a>.
      </p>}
-    </div>:<button type="button" disabled={busy||event.state!=="PUBLISHED"||event.capacity<=event.registered} onClick={()=>void act("registrations")}>Зарегистрироваться бесплатно</button>}
+    </div>:registrationState==="KNOWN"&&!registration?<button type="button" disabled={busy||event.state!=="PUBLISHED"||event.capacity<=event.registered||event.price_minor!==0} onClick={()=>void act("registrations")}>Зарегистрироваться бесплатно</button>:null}
    </>}
    {notice&&<p role="status">{notice}</p>}
    {error&&<p role="alert">{error}</p>}
