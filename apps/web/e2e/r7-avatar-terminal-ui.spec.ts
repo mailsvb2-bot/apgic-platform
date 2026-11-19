@@ -77,3 +77,30 @@ test("R7 terminal handoff cannot repeat privileged session actions",async({page}
  await expect(page.getByRole("button",{name:"Перейти к человеку и отключить ИИ"})).toHaveCount(0);
  await expect(page.getByRole("link",{name:"Подобрать живого специалиста независимо от ИИ"})).toHaveAttribute("href","/#start");
 });
+
+
+test("R7 uncertain provider closure does not silently issue a fresh session",async({page})=>{
+ await page.route("**/v1/personas",async route=>route.fulfill({
+  status:200,contentType:"application/json",body:JSON.stringify({
+   available:true,personas:[{id:"persona-a",label:"Собеседник",language:"ru-RU",
+    supports_text:true,supports_voice:false,supports_video:false}]
+  })
+ }));
+ await page.route("**/v1/avatar-sessions/current",async route=>route.fulfill({
+  status:200,contentType:"application/json",body:JSON.stringify({
+   session:{session_id:"session-1",persona_id:"persona-a",language:"ru-RU",
+    state:"ACTIVE",mode:"TEXT",safety_state:"NORMAL"}
+  })
+ }));
+ await page.route("**/v1/avatar-sessions/session-1/actions",async route=>route.fulfill({
+  status:200,contentType:"application/json",body:JSON.stringify({
+   session:{session_id:"session-1",persona_id:"persona-a",language:"ru-RU",
+    state:"ENDED",mode:"TEXT",safety_state:"NORMAL"},provider_close:"DELIVERY_UNCERTAIN"
+  })
+ }));
+ await page.goto("/avatar");
+ await page.getByRole("button",{name:"Завершить и очистить разговор"}).click();
+ await expect(page.getByText("Локальная сессия заблокирована; внешнее удаление ещё не подтверждено.")).toBeVisible();
+ await expect(page.getByRole("button",{name:"Начать разговор"})).toHaveCount(0);
+ await expect(page.getByRole("button",{name:"Завершить и очистить разговор"})).toHaveCount(0);
+});
