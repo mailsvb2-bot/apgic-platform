@@ -153,7 +153,7 @@ test("public catalog outage does not block author drafts or learner navigation",
  await page.getByRole("button",{name:"Мои курсы",exact:true}).click();
  await expect(page.getByRole("button",{name:"Открыть редактор"})).toBeVisible();
  await page.getByRole("button",{name:"Каталог",exact:true}).click();
- await expect(page.getByRole("alert")).toContainText("Каталог временно недоступен");
+ await expect(page.locator(".academy-main-section [role=\"alert\"]")).toContainText("Каталог временно недоступен");
  await expect(page.getByText("Опубликованных курсов пока нет.")).toHaveCount(0);
  await page.getByRole("button",{name:"Мои курсы",exact:true}).click();
  await page.getByRole("button",{name:"Открыть редактор"}).click();
