@@ -105,3 +105,27 @@ test("create course button writes through the existing Academy drafts endpoint o
  await expect(page.locator("#academy-module")).toBeVisible();
  expect(drafts).toBe(1);
 });
+
+test("published-only author cannot open a nonexistent video editor",async({page})=>{
+ const published={...course,state:"PUBLISHED"};
+ await page.route("**/v1/academy/**",async route=>{
+  const path=new URL(route.request().url()).pathname;
+  let data:unknown={};let status=200;
+  if(path==="/v1/academy/courses")data={courses:[published]};
+  else if(path==="/v1/academy/my-courses")data={courses:[published]};
+  else if(path==="/v1/academy/my-enrollments")data={enrollments:[]};
+  else if(path==="/v1/academy/review/attempts")data={attempts:[]};
+  else if(path==="/v1/academy/author/report")data={courses:[],gross_captures:[],revenue_state:"UNAVAILABLE"};
+  else if(path==="/v1/academy/author/cohorts")data={cohorts:[]};
+  else if(path==="/v1/academy/me/course-access")data={course_ids:[]};
+  else if(path==="/v1/academy/me/certificates")data={certificates:[]};
+  else {status=501;data={code:"UNMOCKED",path};}
+  await route.fulfill({status,contentType:"application/json",body:JSON.stringify(data)});
+ });
+ await page.goto("/academy");
+ const action=page.getByRole("button",{name:"▷ Видео: нужен черновик"});
+ await expect(action).toBeDisabled();
+ await expect(action).toHaveAttribute("title",/создайте новую версию/);
+ await page.getByRole("button",{name:"Мои курсы",exact:true}).click();
+ await expect(page.getByRole("button",{name:"Новая версия"})).toBeVisible();
+});
