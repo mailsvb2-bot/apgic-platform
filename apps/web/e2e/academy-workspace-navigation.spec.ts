@@ -38,7 +38,7 @@ test("author workspace routes every primary navigation and editor step to canoni
  await expect(page.getByText("9",{exact:true})).toBeVisible();
  await expect(page.getByRole("button",{name:"＋ Создать курс"})).toBeVisible();
  await page.getByRole("button",{name:"Мои курсы",exact:true}).click();
- await expect(page.getByRole("heading",{name:"Ваши курсы"})).toBeVisible();
+ await expect(page.getByRole("heading",{name:"Мои курсы",exact:true})).toBeVisible();
  await page.getByRole("button",{name:"Открыть редактор"}).click();
  await expect(page.getByRole("heading",{name:"Курс по гипнозу"})).toBeVisible();
  await expect(page.getByRole("button",{name:"1. Уроки"})).toHaveAttribute("aria-current","step");
