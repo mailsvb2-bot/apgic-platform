@@ -51,6 +51,7 @@ export default function AcademyPage(){
  const [editorStep,setEditorStep]=useState<"structure"|"media"|"publish">("structure");
  const [showCreate,setShowCreate]=useState(false);
  const [catalog,setCatalog]=useState<Course[]>([]);
+ const [catalogError,setCatalogError]=useState("");
  const [mine,setMine]=useState<Course[]>([]);
  const [ownedCoursesError,setOwnedCoursesError]=useState("");
  const [ownedCoursesLoaded,setOwnedCoursesLoaded]=useState(false);
@@ -114,9 +115,10 @@ export default function AcademyPage(){
  const [checkoutProblem,setCheckoutProblem]=useState<Record<string,string>>({});
 
  const refresh=useCallback(async()=>{
-  const publicCourses=await api<{courses:Course[]}>("/v1/academy/courses");
-  setCatalog(publicCourses.courses);
-  const [owned,learning,reviews,report,cohortList,access,credentials]=await Promise.allSettled([
+  // Public discovery must never become a prerequisite for author work or
+  // learner history: each canonical read has an independent failure boundary.
+  const [publicCourses,owned,learning,reviews,report,cohortList,access,credentials]=await Promise.allSettled([
+   api<{courses:Course[]}>("/v1/academy/courses"),
    api<{courses:Course[]}>("/v1/academy/my-courses"),
    api<{enrollments:Enrollment[]}>("/v1/academy/my-enrollments"),
    api<{attempts:ReviewAttempt[]}>("/v1/academy/review/attempts"),
@@ -125,6 +127,9 @@ export default function AcademyPage(){
    api<{course_ids:string[]}>("/v1/academy/me/course-access"),
    api<{certificates:LearnerCertificate[]}>("/v1/academy/me/certificates")
   ]);
+  setCatalog(publicCourses.status==="fulfilled"?publicCourses.value.courses:[]);
+  setCatalogError(publicCourses.status==="rejected"
+   ?publicCourses.reason instanceof Error?publicCourses.reason.message:"Ошибка загрузки каталога":"");
   if(owned.status==="fulfilled"){
    setMine(owned.value.courses);
    setOwnedCoursesError("");
@@ -401,7 +406,8 @@ export default function AcademyPage(){
    <p>{view==="catalog"?"Выберите курс для обучения.":view==="learning"?"Продолжайте обучение и управляйте сертификатами.":"Выберите курс или создайте новый. Дальше — простой редактор по шагам."}</p>
    <div className="how-grid">
     {view==="catalog"&&<section className="panel"><h2>Доступные курсы</h2>
-     {catalog.length===0?<p>Опубликованных курсов пока нет.</p>:catalog.map(c=>
+     {catalogError?<p role="alert">Каталог временно недоступен: {catalogError}. Ваши курсы и обучения можно открыть отдельно.</p>:null}
+     {!catalogError&&catalog.length===0?<p>Опубликованных курсов пока нет.</p>:catalog.map(c=>
       <article key={c.id}><h3>{c.title}</h3><p>{c.description}</p>
        <p>Версия {c.version_no}</p>
        {c.access_mode==="FREE"&&<p><strong>Бесплатно</strong> — автор открыл курс для свободного обучения.</p>}
