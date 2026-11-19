@@ -130,7 +130,8 @@ export function AvatarWorkspace() {
    const data=await response.json();
    if(!response.ok)throw Error(data.message_safe||"Действие не выполнено");
    if(!data.session||data.session.state==="ACTIVE")throw Error("Сервер не подтвердил завершение разговора.");
-   setSession(action==="END"?null:data.session as Session);
+   // An uncertain provider Close must not immediately permit a second lease.
+   setSession(action==="END"&&data.provider_close==="CONFIRMED"?null:data.session as Session);
    clearPrivate();
    if(data.provider_close==="DELIVERY_UNCERTAIN")setNotice("Локальная сессия заблокирована; внешнее удаление ещё не подтверждено.");
    else if(action==="HUMAN_HANDOFF")setNotice("Аватар отключён. Для разговора с человеком создайте отдельный запрос. Переписка не передаётся.");
