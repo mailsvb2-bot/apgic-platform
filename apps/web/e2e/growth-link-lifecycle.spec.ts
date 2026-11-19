@@ -68,3 +68,29 @@ test("failed storage does not expose stale specialist links", async ({ page }) =
   await expect(page.getByRole("alert").filter({ hasText: "Не удалось получить проверенные ссылки." }).first()).toBeVisible();
   await expect(page.locator('a[href^="/g/"]')).toHaveCount(0);
 });
+
+
+test("confirmed Growth link survives failed immediate owner readback", async ({page}) => {
+ let listFailed = false;
+ let issued = 0;
+ await page.route("**/v1/specialist/offers", route => route.fulfill({json:{offers:[offer]}}));
+ await page.route("**/v1/specialist/growth-report", route => route.fulfill({json:{items:[]}}));
+ await page.route("**/v1/specialist/growth-links", route => {
+  if (route.request().method() === "POST") {
+   issued++;
+   listFailed = true;
+   return route.fulfill({status:201,json:activeLink});
+  }
+  if (listFailed) return route.fulfill({status:503,json:{
+   code:"GROWTH_STORAGE_FAILED",message_safe:"Повторная проверка ссылок недоступна."
+  }});
+  return route.fulfill({json:{links:[]}});
+ });
+ await page.goto("/specialist/growth");
+ await expect(page.getByText("Вы ещё не создавали ссылок.")).toBeVisible();
+ await page.getByRole("button",{name:"Получить ссылку для предложения"}).click();
+ await expect(page.locator('a[href="/g/g1.abc.def"]')).toBeVisible();
+ await expect(page.getByRole("status").filter({hasText:"Ссылка выдана сервером и доступна ниже."})).toBeVisible();
+ await expect(page.getByRole("alert").filter({hasText:"Повторная проверка ссылок недоступна."})).toBeVisible();
+ expect(issued).toBe(1);
+});
