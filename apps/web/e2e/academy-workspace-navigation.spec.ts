@@ -291,3 +291,37 @@ test("R8 revoked author and learner readbacks do not retain private report or en
  await expect(page.getByRole("alert").filter({hasText:"Очередь проверки работ недоступна"})).toBeVisible();
  await expect(page.getByRole("button",{name:"Зафиксировать оценку"})).toBeDisabled();
 });
+
+
+test("R8 editor cannot remain open after canonical author ownership readback fails",async({page})=>{
+ let revoked=false;
+ let newVersions=0;
+ await page.route("**/v1/academy/**",async route=>{
+  const request=route.request(),path=new URL(request.url()).pathname;
+  if(request.method()==="POST"&&path===`/v1/academy/courses/${courseId}/versions`){
+   newVersions++;
+   revoked=true;
+   return route.fulfill({status:201,json:{...course,version_no:2}});
+  }
+  if(revoked&&path==="/v1/academy/my-courses")
+   return route.fulfill({status:401,json:{code:"SESSION_EXPIRED",message_safe:"Требуется вход"}});
+  let data:unknown={};
+  if(path==="/v1/academy/courses")data={courses:[]};
+  else if(path==="/v1/academy/my-courses")data={courses:[course]};
+  else if(path==="/v1/academy/my-enrollments")data={enrollments:[]};
+  else if(path==="/v1/academy/review/attempts")data={attempts:[]};
+  else if(path==="/v1/academy/author/report")data={courses:[],gross_captures:[],revenue_state:"UNAVAILABLE"};
+  else if(path==="/v1/academy/author/cohorts")data={cohorts:[]};
+  else if(path==="/v1/academy/me/course-access")data={course_ids:[]};
+  else if(path==="/v1/academy/me/certificates")data={certificates:[]};
+  else if(path.endsWith("/outline"))data={state:"DRAFT",modules:[],lessons:[]};
+  else return route.fulfill({status:501,json:{code:"UNMOCKED",path}});
+  return route.fulfill({status:200,json:data});
+ });
+ await page.goto("/academy?tab=courses");
+ await page.getByRole("button",{name:"Новая версия"}).click();
+ await expect(page.getByRole("alert").filter({hasText:"Не удалось загрузить ваши курсы"})).toBeVisible();
+ await expect(page.getByRole("heading",{name:"Курс по гипнозу"})).toHaveCount(0);
+ await expect(page.getByRole("button",{name:"Создать первый модуль"})).toHaveCount(0);
+ expect(newVersions).toBe(1);
+});
