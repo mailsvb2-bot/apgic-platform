@@ -96,5 +96,3 @@ func (c *Checker) AcademyCreateStandaloneDraft(actor, title, description string,
 	return academy.Course{ID: courseID, ProductID: productID, Title: title, Description: description, AuthorID: actor,
 		State: "DRAFT", VersionID: versionID, VersionNo: 1}, nil
 }
-
-[executed on device: msk-1-vm-9vrn (ce05cfe4-fa8e-495a-bd76-12d14a659df2)]
