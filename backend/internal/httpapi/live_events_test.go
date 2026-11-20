@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"crypto/ed25519"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -17,6 +18,12 @@ type liveEventStub struct {
 	LiveEventStore // non-invoked methods deliberately panic on unexpected route
 	actor          string
 	registerCount  int
+	webhookApplied int
+}
+
+func (s *liveEventStub) ApplyLiveProviderWebhook(_ context.Context, _ connector.WebhookEnvelope, _ connector.WebhookPublicKeyResolver) (connector.DeliveryDecision, error) {
+	s.webhookApplied++
+	return connector.DeliveryApply, nil
 }
 
 func (s *liveEventStub) RegisterLiveEvent(_ context.Context, actor, id string, at time.Time) (liveevents.Registration, error) {
@@ -199,5 +206,43 @@ func TestLiveAttendanceAggregateOwnerBoundary(t *testing.T) {
 	handler.ServeHTTP(denied, foreign)
 	if denied.Code != 403 {
 		t.Fatalf("foreign attendance status=%d body=%s", denied.Code, denied.Body.String())
+	}
+}
+
+func TestLiveProviderRejectsAdditionalSignedJsonWithoutApplying(t *testing.T) {
+	public, private, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stub := &liveEventStub{}
+	keys := providerWebhookKeyMap{"live-provider/key-1": public}
+	handler := New(Options{LiveEventsEnabled: true, LiveEvents: stub, ProviderWebhookKeys: keys})
+	event := signProviderWebhook(t, connector.WebhookEnvelope{
+		ConnectorInstanceID: "live-provider",
+		ExternalEventID:     "live-event-1",
+		StreamID:            "live-events/event-1",
+		Sequence:            1,
+		KeyID:               "key-1",
+		OccurredAt:          time.Now().UTC(),
+		Payload:             json.RawMessage(`{"event_id":"event-1"}`),
+	}, private)
+	encoded, err := json.Marshal(event)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, suffix := range []string{string(encoded), " trailing"} {
+		resp := httptest.NewRecorder()
+		handler.ServeHTTP(resp, httptest.NewRequest("POST", "/v1/live-provider-webhooks",
+			strings.NewReader(string(encoded)+" "+suffix)))
+		if resp.Code != http.StatusUnauthorized ||
+			!strings.Contains(resp.Body.String(), "LIVE_PROVIDER_EVIDENCE_UNVERIFIED") ||
+			stub.webhookApplied != 0 {
+			t.Fatalf("live provider accepted extra document: HTTP=%d applied=%d body=%s", resp.Code, stub.webhookApplied, resp.Body.String())
+		}
+	}
+	valid := httptest.NewRecorder()
+	handler.ServeHTTP(valid, httptest.NewRequest("POST", "/v1/live-provider-webhooks", strings.NewReader(string(encoded))))
+	if valid.Code != http.StatusOK || stub.webhookApplied != 1 {
+		t.Fatalf("valid live provider event failed: HTTP=%d applied=%d body=%s", valid.Code, stub.webhookApplied, valid.Body.String())
 	}
 }

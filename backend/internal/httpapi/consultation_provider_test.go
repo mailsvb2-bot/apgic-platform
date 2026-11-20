@@ -62,6 +62,21 @@ func TestConsultationWebhookRequiresVerifiedProviderSignatureAndReadRequiresSess
 	if accepted.Code != http.StatusOK || fake.applied != 1 {
 		t.Fatalf("signed provider event rejected: status=%d applied=%d body=%s", accepted.Code, fake.applied, accepted.Body.String())
 	}
+	// A valid signed first envelope must not authorize an additional JSON
+	// document or trailing non-JSON bytes in the same HTTP request.
+	for _, suffix := range []string{
+		"\\n" + string(signedJSON),
+		`  {"untrusted":true}`,
+		" trailing",
+	} {
+		bad := httptest.NewRecorder()
+		handler.ServeHTTP(bad, httptest.NewRequest(http.MethodPost,
+			"/v1/consultation-provider-webhooks", strings.NewReader(string(signedJSON)+suffix)))
+		if bad.Code != http.StatusUnauthorized || fake.applied != 1 ||
+			!strings.Contains(bad.Body.String(), "CONSULT_PROVIDER_EVIDENCE_UNVERIFIED") {
+			t.Fatalf("multiple/trailing provider documents accepted: status=%d applied=%d body=%s", bad.Code, fake.applied, bad.Body.String())
+		}
+	}
 	noSession := httptest.NewRecorder()
 	handler.ServeHTTP(noSession, httptest.NewRequest(http.MethodGet, "/v1/consultations/00000000-0000-4000-8000-000000000001/result", nil))
 	if noSession.Code != http.StatusUnauthorized || fake.read != 0 {
