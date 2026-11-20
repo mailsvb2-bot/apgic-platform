@@ -376,6 +376,7 @@ jobs:
           (cd backend && go test ./internal/runtimepostgres -run 'TestAcademyCloudMediaDraftOwnerAndVideoBoundaryPostgres|TestAcademyCloudMediaGenerationReconnectionPostgres' -count=1 -v)
           (cd backend && go test ./internal/runtimepostgres -run TestAcademyVideoFingerprintRevocationCommitBoundaryPostgres -count=1 -v)
           (cd backend && go test ./internal/httpapi -run TestAcademyVideoHTTPPerWriteDeniesCommittedPostgresRevocation -count=1 -v)
+          (cd backend && go test ./internal/httpapi -run TestAcademyVideoCommitRevocationStopsOtherProcessHTTP -count=1 -v)
           (cd backend && go test ./internal/runtimepostgres -run TestAccountDevicePairingPostgresOneTimeClaim -count=1 -v)
           (cd backend && go test ./internal/runtimepostgres -run TestAcademyNotificationConsentDurableOptOut -count=1 -v)
           (cd backend && go test ./internal/runtimepostgres -run TestAcademyOwnerPriceAndFreeEnrollmentNoPayment -count=1 -v)
