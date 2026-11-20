@@ -66,7 +66,7 @@ func TestConsultationWebhookRequiresVerifiedProviderSignatureAndReadRequiresSess
 	// document or trailing non-JSON bytes in the same HTTP request.
 	for _, suffix := range []string{
 		"\\n" + string(signedJSON),
-		"  {\\\"untrusted\\\":true}",
+		`  {"untrusted":true}`,
 		" trailing",
 	} {
 		bad := httptest.NewRecorder()
