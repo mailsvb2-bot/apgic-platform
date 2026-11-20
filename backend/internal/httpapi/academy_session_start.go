@@ -3,8 +3,6 @@ package httpapi
 import (
 	"errors"
 	"net/http"
-	"net/url"
-	"strings"
 )
 
 // Author onboarding is an explicit entrypoint to the existing signed Identity.
@@ -15,16 +13,11 @@ func registerAcademySessionStart(mux *http.ServeMux, sessions *clientSessionMana
 			writeDemandError(w, r, http.StatusServiceUnavailable, "ACADEMY_SESSION_UNAVAILABLE", "Подписанная сессия недоступна.", true, nil)
 			return
 		}
-		if r.Header.Get("Sec-Fetch-Site") == "cross-site" {
+		// Reuse the verified first-party Origin policy used for device pairing.
+		// Next.js proxies public requests to an internal upstream Host.
+		if !accountPairOrigin(r) {
 			writeDemandError(w, r, http.StatusForbidden, "ACADEMY_SESSION_ORIGIN_DENIED", "Непроверенный источник запроса.", false, nil)
 			return
-		}
-		if origin := r.Header.Get("Origin"); origin != "" {
-			u, err := url.Parse(origin)
-			if err != nil || !strings.EqualFold(u.Host, r.Host) || (u.Scheme != "https" && !(u.Scheme == "http" && strings.HasPrefix(r.Host, "127.0.0.1:"))) {
-				writeDemandError(w, r, http.StatusForbidden, "ACADEMY_SESSION_ORIGIN_DENIED", "Непроверенный источник запроса.", false, nil)
-				return
-			}
 		}
 		identity, cookie, err := sessions.identityForCreate(r)
 		if err != nil {
