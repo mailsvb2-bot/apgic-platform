@@ -20,6 +20,14 @@ func (c *Checker) AcademyCreateStandaloneDraft(actor, title, description string,
 		return academy.Course{}, err
 	}
 	defer tx.Rollback()
+	// A newly issued signed Academy session may not yet have an Identity row.
+	// Register its canonical principal in this same transaction BEFORE the
+	// owner-bound product trigger and Academy foreign key are evaluated.
+	if _, err := tx.ExecContext(ctx,
+		`INSERT INTO identities(id) VALUES($1::uuid) ON CONFLICT(id) DO NOTHING`,
+		actor); err != nil {
+		return academy.Course{}, fmt.Errorf("ensure signed academy author identity: %w", err)
+	}
 	var requestID string
 	if len(requestIDs) == 1 {
 		requestID = strings.TrimSpace(requestIDs[0])
