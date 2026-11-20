@@ -197,9 +197,7 @@ func registerAcademyVideoStreamWithClients(
 		// but a custom or stalled upstream body is not required to notice it.
 		// Explicitly close the actual provider reader on revocation, client
 		// disconnect and idle timeout so a blocked Read cannot pin this handler.
-		stopBodyClose := context.AfterFunc(streamCtx, func() {
-			_ = response.Body.Close()
-		})
+		stopBodyClose := academyCloseVideoBodyOnCancel(streamCtx, response.Body)
 		defer stopBodyClose()
 		if response.StatusCode == http.StatusRequestedRangeNotSatisfiable {
 			if !academyVideoRepresentationSizeMatches(response.StatusCode, response.Header, size) {
@@ -431,6 +429,15 @@ func academyVideoSingleRange(value string) bool {
 	}
 	finish, err := strconv.ParseInt(last, 10, 64)
 	return err == nil && finish >= start
+}
+
+// academyCloseVideoBodyOnCancel ensures the actual external body is closed
+// even if an upstream RoundTripper ignores request-context cancellation.
+// This is shared by the real gateway and its HTTP transport regression.
+func academyCloseVideoBodyOnCancel(ctx context.Context, body io.Closer) func() bool {
+	return context.AfterFunc(ctx, func() {
+		_ = body.Close()
+	})
 }
 
 // academyWatchVideoEntitlement watches idle, stalled and active video streams.
