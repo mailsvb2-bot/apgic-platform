@@ -16,9 +16,10 @@ import (
 // notification or production OAuth.
 func TestAcademyVideoRevocationUnblocksStalledUpstream(t *testing.T) {
 	for _, tc := range []struct {
-		name string
-		h2   bool
-	}{{"http1", false}, {"http2", true}} {
+		name    string
+		h2      bool
+		partial bool
+	}{{"http1-full", false, false}, {"http1-partial", false, true}, {"http2-full", true, false}, {"http2-partial", true, true}} {
 		t.Run(tc.name, func(t *testing.T) {
 			var entitled atomic.Bool
 			entitled.Store(true)
@@ -45,7 +46,13 @@ func TestAcademyVideoRevocationUnblocksStalledUpstream(t *testing.T) {
 					<-watchDone
 				}()
 				w.Header().Set("Content-Type", "video/mp4")
-				w.WriteHeader(http.StatusOK)
+				if tc.partial {
+					w.Header().Set("Content-Range", "bytes 0-9/10")
+					w.Header().Set("Content-Length", "10")
+					w.WriteHeader(http.StatusPartialContent)
+				} else {
+					w.WriteHeader(http.StatusOK)
+				}
 				if _, err := w.Write([]byte("first")); err != nil {
 					return
 				}
@@ -72,6 +79,16 @@ func TestAcademyVideoRevocationUnblocksStalledUpstream(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer resp.Body.Close()
+			wantStatus := http.StatusOK
+			if tc.partial {
+				wantStatus = http.StatusPartialContent
+				if got := resp.Header.Get("Content-Range"); got != "bytes 0-9/10" {
+					t.Fatalf("unexpected Content-Range %q", got)
+				}
+			}
+			if resp.StatusCode != wantStatus {
+				t.Fatalf("expected HTTP status %d, got %d", wantStatus, resp.StatusCode)
+			}
 			// Prove the HTTP/2 case negotiated HTTP/2 instead of silently
 			// exercising HTTP/1.1 over TLS.
 			wantProto := 1
