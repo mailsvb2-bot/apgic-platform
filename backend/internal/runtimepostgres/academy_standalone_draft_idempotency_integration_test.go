@@ -96,5 +96,3 @@ func TestAcademyStandaloneDraftIdempotentReplayAndIsolation(t *testing.T) {
 		t.Fatalf("expected one canonical creation event, count=%d err=%v", n, err)
 	}
 }
-
-[executed on device: msk-1-vm-9vrn (ce05cfe4-fa8e-495a-bd76-12d14a659df2)]
