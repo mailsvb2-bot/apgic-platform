@@ -9,9 +9,10 @@ import (
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/academy"
 )
 
-type academySessionAuthorStub struct { academyStore }
+type academySessionAuthorStub struct{ academyStore }
+
 func (*academySessionAuthorStub) AcademyAuthorCourses(string) ([]academy.Course, error) {
- return []academy.Course{}, nil
+	return []academy.Course{}, nil
 }
 
 func TestAcademyAuthorSessionExplicitBootstrap(t *testing.T) {
