@@ -7,6 +7,26 @@ import (
 	"strings"
 )
 
+// AcademyEnsureIdentity persists the existing signed first-party principal
+// in the one canonical identities table before the session cookie is issued.
+// A failed write must never result in a seemingly valid author session.
+func (c *Checker) AcademyEnsureIdentity(actor string) error {
+	if c == nil || c.db == nil {
+		return academy.ErrUnavailable
+	}
+	if actor == "" {
+		return academy.ErrInvalid
+	}
+	ctx, cancel := academyContext()
+	defer cancel()
+	_, err := c.db.ExecContext(ctx,
+		`INSERT INTO identities(id) VALUES($1::uuid) ON CONFLICT(id) DO NOTHING`, actor)
+	if err != nil {
+		return fmt.Errorf("ensure signed academy identity: %w", err)
+	}
+	return nil
+}
+
 // AcademyCreateStandaloneDraft writes a private unsellable Commerce DRAFT and
 // an Academy DRAFT in one transaction. It does not grant learning access.
 func (c *Checker) AcademyCreateStandaloneDraft(actor, title, description string, requestIDs ...string) (academy.Course, error) {
