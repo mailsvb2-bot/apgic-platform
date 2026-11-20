@@ -215,6 +215,7 @@ func New(options Options) http.Handler {
 	registerOrganizationAuthorization(mux, options.OrganizationAuth, sessions, sessionConfigErr, options.Now)
 	registerOrganizationRuntime(mux, options.Organizations, sessions, sessionConfigErr)
 	registerOrganizationProducts(mux, options.Products, sessions, sessionConfigErr, options.Now)
+	registerAcademySessionStart(mux, sessions, sessionConfigErr)
 	registerAcademy(mux, options.Academy, sessions, sessionConfigErr)
 	registerAccountDevicePairing(mux, options.AccountDevicePairing, sessions, sessionConfigErr)
 	registerHighRiskProductOwnership(mux, options.ProductOwnership, sessions, stepUp, sessionConfigErr, options.Now)
