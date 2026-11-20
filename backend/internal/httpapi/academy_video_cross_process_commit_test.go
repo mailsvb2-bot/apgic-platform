@@ -208,16 +208,37 @@ SET generation=gen_random_uuid() WHERE author_id=$1::uuid AND provider='YANDEX_D
 	if err := tx.Rollback(); err != nil {
 		t.Fatal(err)
 	}
+	// Observe the live stream from an independent reader while the commit
+	// is still absent. A failed rollback must not masquerade as revocation.
+	type readResult struct {
+		data []byte
+		err error
+	}
+	readDone := make(chan readResult, 1)
+	go func() {
+		data, err := io.ReadAll(resp.Body)
+		readDone <- readResult{data, err}
+	}()
+	select {
+	case result := <-readDone:
+		t.Fatalf("rolled-back change prematurely closed or leaked stream: %q %v", result.data, result.err)
+	case <-time.After(100 * time.Millisecond):
+		// The stream is still open; only a COMMIT may change its permission.
+	}
 	if _, err := db.Exec(`UPDATE academy_cloud_connections
 SET generation=gen_random_uuid() WHERE author_id=$1::uuid AND provider='YANDEX_DISK'`, author); err != nil {
 		t.Fatal(err)
 	}
-	// The remote process is now polling the committed canonical state.
-	// Its watcher must close a stalled read and its HTTP response.
+	// The remote process must observe the committed canonical state.
+	// Its watcher closes the stalled reader and the HTTP connection.
 	start := time.Now()
-	rest, readErr := io.ReadAll(resp.Body)
-	if readErr == nil || len(rest) != 0 {
-		t.Fatalf("cross-process revoked stream completed or leaked bytes: rest=%q err=%v", rest, readErr)
+	select {
+	case result := <-readDone:
+		if result.err == nil || len(result.data) != 0 {
+			t.Fatalf("cross-process revoked stream completed or leaked bytes: rest=%q err=%v", result.data, result.err)
+		}
+	case <-ctx.Done():
+		t.Fatalf("remote process did not terminate revoked HTTP stream: %v", ctx.Err())
 	}
 	if elapsed := time.Since(start); elapsed > 3*time.Second {
 		t.Fatalf("revoked stream exceeded bounded cross-process recheck: %s", elapsed)
