@@ -29,6 +29,13 @@ async function api<T>(path:string,body?:unknown):Promise<T>{
  return data as T;
 }
 
+function draftWriteWasRejected(error:unknown):boolean{
+ // Only definitive application-level rejections prove that no draft was
+ // committed. A timeout or 5xx can happen after commit: reconcile those.
+ const status=(error as {status?:number}|null)?.status;
+ return status===400||status===401||status===403||status===404||status===409||status===422;
+}
+
 async function downloadAcademyHistory():Promise<void>{
  const response=await fetch("/v1/academy/me/history/export",{
   method:"GET",credentials:"same-origin",cache:"no-store",headers:{"Accept":"application/json"}
@@ -83,7 +90,8 @@ export default function AcademyPage(){
  const [notice,setNotice]=useState("");
  const [busy,setBusy]=useState(false);
  // A lost HTTP response must not lead to a second, non-idempotent draft POST.
- const [pendingDraft,setPendingDraft]=useState<{title:string;description:string;baseline:string[]}|null>(null);
+ const [pendingDraft,setPendingDraft]=useState<{title:string;description:string;requestID:string}|null>(null);
+ const [confirmedDraft,setConfirmedDraft]=useState<Course|null>(null);
  const [notifications,setNotifications]=useState<AcademyNotifications|null>(null);
  const [title,setTitle]=useState("");
  const [description,setDescription]=useState("");
@@ -286,28 +294,48 @@ export default function AcademyPage(){
   setLearnerAppeals(appealList.items);setModules([]);
   setCohorts(cohortResult.items);setCohortError(!cohortResult.ok);setAppealError(!appealList.ok);
  }
- async function reconcileDraft(requested:{title:string;description:string;baseline:string[]}){
-  const owned=await api<{courses:Course[]}>("/v1/academy/my-courses");
-  setMine(owned.courses);
-  const matches=owned.courses.filter(item=>!requested.baseline.includes(item.id)&&
-   item.title===requested.title&&item.description===requested.description);
-  if(matches.length===1){
-   await loadOutline(matches[0]);
-   setPendingDraft(null);
-   setNotice("Черновик найден в сохранённых данных. Повторное создание не требуется.");
+ type DraftAttempt={title:string;description:string;requestID:string};
+ async function openAcknowledgedDraft(created:Course,attempt:DraftAttempt,message:string){
+  if(!created.id||!created.version_id||!created.product_id){
+   setPendingDraft(attempt);
+   setNotice("Сервер не вернул идентификатор созданного курса. Проверить сохранение можно безопасно тем же запросом.");
    return;
   }
-  setPendingDraft(requested);
-  setNotice(matches.length>1?
-   "Найдено несколько новых похожих черновиков. Выберите нужный в «Мои курсы»; повторное создание заблокировано.":
-   "Ответ создания не подтверждён. Проверьте «Мои курсы»; повторное создание заблокировано во избежание дубля.");
+  setPendingDraft(null);setConfirmedDraft(created);
+  try{
+   setEditorStep("structure");
+   await loadOutline(created);
+   await refresh();
+   // refresh() isolates failures rather than throwing. Never discard the
+   // acknowledged ID unless the signed owner's list confirms it.
+   const readback=await api<{courses:Course[]}>("/v1/academy/my-courses");
+   if(!readback.courses.some(item=>item.id===created.id&&item.version_id===created.version_id)){
+    throw Error("Черновик пока не появился в подтверждённом списке автора");
+   }
+   setConfirmedDraft(null);
+   setNotice(message);
+  }catch(error){
+   setCourse(null);
+   setNotice("Курс уже создан и сохранён. Нажмите «Открыть созданный курс» ниже. "+String(error));
+  }
  }
  async function verifyDraft(){
   if(!pendingDraft||busy)return;
-  setBusy(true);
-  try{await reconcileDraft(pendingDraft)}
-  catch(error){setNotice("Проверка сохранения недоступна. Повторное создание заблокировано: "+String(error))}
-  finally{setBusy(false)}
+  const attempt=pendingDraft;
+  setBusy(true);setNotice("");
+  try{
+   // No title-based matching or second create path: replay one canonical
+   // owner-bound request. PostgreSQL returns the original IDs atomically.
+   const created=await api<Course>("/v1/academy/drafts",{
+    title:attempt.title,description:attempt.description,request_id:attempt.requestID});
+   await openAcknowledgedDraft(created,attempt,"Черновик найден и открыт без дублирования.");
+  }catch(error){
+   // The original request may already have committed; even a later 401
+   // cannot prove it was not saved. Keep the owner-bound request identity.
+   if((error as {status?:number})?.status===401)setAuthorSessionMissing(true);
+   setNotice("Не удалось проверить сохранение. Исходный запрос сохранён без повторного создания: "+
+    (error instanceof Error?error.message:String(error)));
+  }finally{setBusy(false)}
  }
  async function startAuthorSession(){
   if(busy)return;
@@ -322,44 +350,35 @@ export default function AcademyPage(){
  }
  async function createCourse(event:FormEvent){
   event.preventDefault();
-  if(busy||pendingDraft||authorSessionMissing||title.trim().length<3)return;
+  if(busy||pendingDraft||confirmedDraft||authorSessionMissing||title.trim().length<1)return;
   setBusy(true);setNotice("");
-  const requested={title:title.trim(),description,baseline:[] as string[]};
+  const requested:DraftAttempt={title:title.trim(),description,requestID:crypto.randomUUID()};
+  const body={title:requested.title,description:requested.description,request_id:requested.requestID};
   try{
-   // Read before writing: distinguish a new draft from an older same-title course.
-   const owned=await api<{courses:Course[]}>("/v1/academy/my-courses");
-   requested.baseline=owned.courses.map(item=>item.id);
-   const created=await api<Course>("/v1/academy/drafts",
-    {title:requested.title,description:requested.description}).catch(async error=>{
-     setPendingDraft(requested);
-     try{await reconcileDraft(requested)}
-     catch(readError){setNotice("Результат создания неизвестен ("+String(error)+
-      "). Проверка сохранения недоступна ("+String(readError)+"). Повторное создание заблокировано.")}
-     return null;
-    });
-   if(!created)return;
-   if(!created.id||!created.version_id||!created.product_id){
-    // A successful status with an incomplete body is also an ambiguous write.
-    setPendingDraft(requested);
-    try{await reconcileDraft(requested)}
-    catch(error){setNotice("Ответ создания неполон. Проверка сохранения недоступна: "+String(error))}
-    return;
-   }
-   setPendingDraft(null);
+   let created:Course;
    try{
-    setEditorStep("structure");
-    await loadOutline(created);
-    await refresh();
-    setNotice("Черновик курса сохранён.");
+    created=await api<Course>("/v1/academy/drafts",body);
    }catch(error){
-    // The server returned an ID, but the UI has not confirmed the readback.
-    setPendingDraft(requested);
-    setNotice("Черновик создан, но загрузка данных не завершена: "+String(error)+
-     ". Проверьте сохранение перед повторной попыткой.");
+    if(draftWriteWasRejected(error)){
+     if((error as {status?:number}).status===401)setAuthorSessionMissing(true);
+     setNotice("Курс не был создан: "+(error instanceof Error?error.message:"Сервер отклонил запрос")+
+      ". Проверьте вход в аккаунт и повторите сохранение.");
+     return;
+    }
+    // A reply might be lost after COMMIT; retry the *same* request key
+    // exactly once. The server returns the existing private draft.
+    try{
+     created=await api<Course>("/v1/academy/drafts",body);
+    }catch(retryError){
+     if((retryError as {status?:number})?.status===401)setAuthorSessionMissing(true);
+     // A previous ambiguous write might have committed even if this
+     // readback/retry is rejected. Retain its key until proven otherwise.
+     setPendingDraft(requested);
+     setNotice("Ответ сервера не получен. Проверить тот же запрос без риска дубликата можно ниже.");
+     return;
+    }
    }
-  }catch(error){
-   // Preflight failed before POST: no write was attempted.
-   setNotice("Не удалось проверить список курсов перед созданием: "+String(error));
+   await openAcknowledgedDraft(created,requested,"Черновик курса сохранён.");
   }finally{setBusy(false)}
  }
  async function addModule(event:FormEvent){
@@ -525,7 +544,7 @@ export default function AcademyPage(){
      <p>Сначала создайте содержание курса. Настройка организации, направления и продукта для продаж доступна отдельно — в едином кабинете организации.</p>
      <a className="academy-organization-link" href="/organization">Настроить организацию и продажи ↗</a>
      <label htmlFor="academy-title">Название курса</label>
-     <input id="academy-title" value={title} onChange={e=>setTitle(e.target.value)} required minLength={3} maxLength={200} placeholder="Например: Гипноз с нуля"/>
+     <input id="academy-title" value={title} onChange={e=>setTitle(e.target.value)} required minLength={1} maxLength={200} placeholder="Например: Гипноз с нуля"/>
      <label htmlFor="academy-description">Описание (необязательно)</label>
      <textarea id="academy-description" value={description} onChange={e=>setDescription(e.target.value)}/>
      {authorSessionMissing&&<div role="alert" className="academy-session-guide">
@@ -533,8 +552,18 @@ export default function AcademyPage(){
        <p>Если у вас ещё нет аккаунта с курсами, можно явно начать новый. Он не объединится с прежними курсами другого аккаунта.</p>
        <button type="button" disabled={busy} onClick={()=>void startAuthorSession()}>Начать новый аккаунт автора</button>
       </div>}
-      <button disabled={busy||pendingDraft!==null||authorSessionMissing||title.trim().length<3}>Создать курс</button>
-     {pendingDraft&&<button type="button" disabled={busy} onClick={()=>void verifyDraft()}>Проверить сохранение черновика</button>}
+      <button className="academy-blue-button" disabled={busy||pendingDraft!==null||authorSessionMissing||title.trim().length<3}>Создать курс</button>
+     {pendingDraft&&<div role="alert" className="academy-draft-recovery">
+       <strong>Не удалось подтвердить сохранение курса.</strong>
+       <p>Повторное создание временно заблокировано, чтобы не дублировать курс. Кнопка ниже проверит сохранение и безопасно повторит тот же запрос при необходимости.</p>
+       <button className="academy-draft-check" type="button" disabled={busy} onClick={()=>void verifyDraft()}>Проверить сохранение черновика</button>
+      </div>}
+     {confirmedDraft&&!pendingDraft&&<div role="status" className="academy-draft-recovery">
+       <strong>«{confirmedDraft.title}» создан.</strong>
+       <p>Повторно создавать курс не нужно — достаточно открыть существующий черновик.</p>
+       <button className="academy-draft-check" type="button" disabled={busy} onClick={()=>void act(
+        ()=>Promise.resolve(confirmedDraft),async selected=>{await loadOutline(selected);setConfirmedDraft(null)})}>Открыть созданный курс</button>
+      </div>}
     </form>}
    </div>
   </section>}

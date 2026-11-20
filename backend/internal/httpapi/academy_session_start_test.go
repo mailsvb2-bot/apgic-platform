@@ -11,6 +11,8 @@ import (
 
 type academySessionAuthorStub struct{ academyStore }
 
+func (*academySessionAuthorStub) AcademyEnsureIdentity(string) error { return nil }
+
 func (*academySessionAuthorStub) AcademyAuthorCourses(string) ([]academy.Course, error) {
 	return []academy.Course{}, nil
 }

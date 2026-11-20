@@ -359,6 +359,8 @@ jobs:
           (cd backend && go test ./internal/runtimepostgres -run TestAcademyCreateCourseConcurrentRetry -count=1 -v)
           (cd backend && go test ./internal/httpapi -run TestAcademyAuthorSignedCommerceToPublishedCoursePostgres -count=1 -v)
           (cd backend && go test ./internal/runtimepostgres -run TestAcademyStandaloneDraftAtomicAndUnpublished -count=1 -v)
+          (cd backend && go test ./internal/runtimepostgres -run TestAcademyStandaloneDraftIdempotentReplayAndIsolation -count=1 -v)
+          (cd backend && go test ./internal/httpapi -run TestAcademySessionStartCreatesPersistedAuthorBeforeFirstDraftPostgres -count=1 -v)
           (cd backend && go test ./internal/runtimepostgres -run TestAcademyAppealIndependentReviewerAndImmutableEvidence -count=1 -v)
           # Clone the fully active paid-course fixture before the refund sequence.
           # The HTTP revocation proof commits a refund in the clone, leaving the

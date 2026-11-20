@@ -7,7 +7,7 @@ import (
 
 // Author onboarding is an explicit entrypoint to the existing signed Identity.
 // Never create a new identity from a course mutation or overwrite a valid one.
-func registerAcademySessionStart(mux *http.ServeMux, sessions *clientSessionManager, sessionErr error) {
+func registerAcademySessionStart(mux *http.ServeMux, store academyStore, sessions *clientSessionManager, sessionErr error) {
 	mux.HandleFunc("POST /v1/academy/session/start", func(w http.ResponseWriter, r *http.Request) {
 		if sessionErr != nil || sessions == nil {
 			writeDemandError(w, r, http.StatusServiceUnavailable, "ACADEMY_SESSION_UNAVAILABLE", "Подписанная сессия недоступна.", true, nil)
@@ -30,6 +30,20 @@ func registerAcademySessionStart(mux *http.ServeMux, sessions *clientSessionMana
 		}
 		if identity == "" {
 			writeDemandError(w, r, http.StatusServiceUnavailable, "ACADEMY_SESSION_UNAVAILABLE", "Не удалось открыть сессию автора.", true, nil)
+			return
+		}
+		// Persist the *same signed Identity* in canonical PostgreSQL before
+		// issuing the cookie. A session without an identities row cannot own a
+		// Commerce product: the owner FK trigger rejects Academy drafts.
+		registrar, ok := store.(interface{ AcademyEnsureIdentity(string) error })
+		if !ok {
+			writeDemandError(w, r, http.StatusServiceUnavailable, "ACADEMY_SESSION_UNAVAILABLE",
+				"Хранилище авторской сессии недоступно.", true, nil)
+			return
+		}
+		if err := registrar.AcademyEnsureIdentity(identity); err != nil {
+			writeDemandError(w, r, http.StatusServiceUnavailable, "ACADEMY_SESSION_UNAVAILABLE",
+				"Не удалось сохранить авторскую сессию. Повторите позже.", true, nil)
 			return
 		}
 		if cookie != nil {

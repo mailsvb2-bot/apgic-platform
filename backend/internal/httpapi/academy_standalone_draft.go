@@ -7,7 +7,7 @@ import (
 )
 
 type academyStandaloneDraftStore interface {
-	AcademyCreateStandaloneDraft(actor, title, description string) (academy.Course, error)
+	AcademyCreateStandaloneDraft(actor, title, description string, requestIDs ...string) (academy.Course, error)
 }
 
 func registerAcademyStandaloneDraft(mux *http.ServeMux, store academyStore, sessions *clientSessionManager, sessionConfigErr error) {
@@ -24,16 +24,24 @@ func registerAcademyStandaloneDraft(mux *http.ServeMux, store academyStore, sess
 		var input struct {
 			Title       string `json:"title"`
 			Description string `json:"description"`
+			RequestID   string `json:"request_id"`
 		}
 		if !academyRead(w, r, &input) {
 			return
 		}
 		input.Title = strings.TrimSpace(input.Title)
-		if len(input.Title) < 3 || len(input.Title) > 200 {
+		if len(input.Title) < 1 || len(input.Title) > 200 ||
+			(input.RequestID != "" && !academyUUID(input.RequestID)) {
 			academyHTTPError(w, r, academy.ErrInvalid)
 			return
 		}
-		course, err := writer.AcademyCreateStandaloneDraft(actor, input.Title, input.Description)
+		var course academy.Course
+		var err error
+		if input.RequestID == "" {
+			course, err = writer.AcademyCreateStandaloneDraft(actor, input.Title, input.Description)
+		} else {
+			course, err = writer.AcademyCreateStandaloneDraft(actor, input.Title, input.Description, input.RequestID)
+		}
 		if err != nil {
 			academyHTTPError(w, r, err)
 			return
