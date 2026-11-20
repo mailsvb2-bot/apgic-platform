@@ -232,6 +232,22 @@ class MobileNativeE2EHarnessTest(unittest.TestCase):
             self.assertIn('SIMCTL_CHILD_APGIC_E2E_COMPATIBILITY_BASE_URL="$COMPATIBILITY_BASE_URL"', ios_block)
             self.assertIn('SIMCTL_CHILD_APGIC_E2E_CONTRACT_VERSION="$COMPATIBILITY_CONTRACT_VERSION"', ios_block)
 
+    def test_android_workspace_switch_uses_local_compatibility_gate(self) -> None:
+        android = self._read("mobile_android_capability_e2e.sh")
+        start = android.index("assert_workspace_switch() {")
+        end = android.index("\n}\n", start)
+        block = android[start:end]
+        self.assertIn('APGIC_E2E_COMPATIBILITY_BASE_URL "$COMPATIBILITY_BASE_URL"', block)
+        self.assertIn('APGIC_E2E_CONTRACT_VERSION "$COMPATIBILITY_CONTRACT_VERSION"', block)
+        self.assertIn('APGIC_E2E_WORKSPACE_BASE_URL http://127.0.0.1:43113', block)
+        self.assertIn('APGIC_E2E_WORKSPACE_SESSION_COOKIE "$SESSION_COOKIE"', block)
+        for label in (
+            "workspace-e2e:PASS",
+            "workspace-e2e-kinds:CLIENT|SPECIALIST|ORGANIZATION",
+            "workspace-e2e-foreign-denied:true",
+        ):
+            self.assertIn(label, block)
+
     def test_android_realtime_script_finishes_with_audited_audio_route(self) -> None:
         text = self._read("mobile_android_capability_e2e.sh")
         marker = 'local events="'

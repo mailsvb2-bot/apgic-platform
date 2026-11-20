@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import json
+
+from jsonschema import validate as validate_json_schema, ValidationError
 import subprocess
 import tempfile
 import unittest
@@ -65,6 +68,8 @@ class R0ProductionAdmissionTests(unittest.TestCase):
         for mutate, expected in [
             ({"synthetic":True},"EVIDENCE_NOT_LIVE"),
             ({"evidence_class":"CI_CANDIDATE"},"EVIDENCE_NOT_LIVE"),
+            ({"evidence_class":"UNKNOWN_PROOF"},"EVIDENCE_NOT_LIVE"),
+            ({"evidence_class":None},"EVIDENCE_NOT_LIVE"),
             ({"candidate_sha":"b"*40},"EVIDENCE_CANDIDATE_MISMATCH"),
             ({"reviewed":False},"EVIDENCE_NOT_REVIEWED"),
             ({"sha256":"0"*64},"EVIDENCE_DIGEST_MISMATCH"),
@@ -75,6 +80,21 @@ class R0ProductionAdmissionTests(unittest.TestCase):
                 doc["records"][gate.REQUIRED_PROOFS[0]].update(mutate)
                 reasons=gate.inspect(registry(),doc,SHA,self.root,KEY)
                 self.assertTrue(any(x.startswith(expected) for x in reasons), reasons)
+
+    def test_r0_evidence_index_matches_shared_production_schema(self):
+        schema = json.loads((gate.ROOT / "canon/evidence/production-evidence-index-v1.schema.json").read_text(encoding="utf-8"))
+        validate_json_schema(self.evidence(), schema)
+        for mutate in (
+            {"evidence_class": "UNREVIEWED"},
+            {"reviewed": False},
+            {"attestation_hmac_sha256": "0"},
+            {"path": "../staging.json"},
+        ):
+            with self.subTest(mutate=mutate):
+                index = self.evidence()
+                index["records"][gate.REQUIRED_PROOFS[0]].update(mutate)
+                with self.assertRaises(ValidationError):
+                    validate_json_schema(index, schema)
 
     def test_missing_attestation_secret_and_mutated_review_are_rejected(self):
         records = self.evidence()

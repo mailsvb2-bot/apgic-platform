@@ -15,59 +15,110 @@
     "records": {
       "type": "object",
       "additionalProperties": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "evidence_type",
-          "status",
-          "synthetic",
-          "candidate_sha",
-          "source_ref",
-          "artifact_path",
-          "artifact_sha256",
-          "verified_at"
-        ],
-        "properties": {
-          "evidence_type": {
-            "type": "string",
-            "minLength": 1
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "evidence_type",
+              "status",
+              "synthetic",
+              "candidate_sha",
+              "source_ref",
+              "artifact_path",
+              "artifact_sha256",
+              "verified_at"
+            ],
+            "properties": {
+              "evidence_type": {
+                "type": "string",
+                "minLength": 1
+              },
+              "status": {
+                "const": "PASS"
+              },
+              "synthetic": {
+                "const": false
+              },
+              "candidate_sha": {
+                "type": "string",
+                "minLength": 7
+              },
+              "source_ref": {
+                "type": "string",
+                "minLength": 1
+              },
+              "artifact_path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "artifact_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "verified_at": {
+                "type": "string",
+                "minLength": 1
+              },
+              "journey_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "correlation_id": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
           },
-          "status": {
-            "const": "PASS"
-          },
-          "synthetic": {
-            "const": false
-          },
-          "candidate_sha": {
-            "type": "string",
-            "minLength": 7
-          },
-          "source_ref": {
-            "type": "string",
-            "minLength": 1
-          },
-          "artifact_path": {
-            "type": "string",
-            "minLength": 1
-          },
-          "artifact_sha256": {
-            "type": "string",
-            "pattern": "^[0-9a-f]{64}$"
-          },
-          "verified_at": {
-            "type": "string",
-            "minLength": 1
-          },
-          "journey_id": {
-            "type": "string",
-            "minLength": 1
-          },
-          "correlation_id": {
-            "type": "string",
-            "minLength": 1
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "candidate_sha",
+              "evidence_class",
+              "synthetic",
+              "reviewed",
+              "reviewer",
+              "path",
+              "sha256",
+              "attestation_hmac_sha256"
+            ],
+            "properties": {
+              "candidate_sha": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{40}$"
+              },
+              "evidence_class": {
+                "const": "PRODUCTION_OPERATIONAL"
+              },
+              "synthetic": {
+                "const": false
+              },
+              "reviewed": {
+                "const": true
+              },
+              "reviewer": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              "path": {
+                "type": "string",
+                "pattern": "^canon/evidence/production/.+"
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "attestation_hmac_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            }
           }
-        }
+        ]
       }
     }
-  }
+  },
+  "description": "Shared evidence index: launch-journey observations and independently attested R0 operational proofs are distinct record formats."
 }

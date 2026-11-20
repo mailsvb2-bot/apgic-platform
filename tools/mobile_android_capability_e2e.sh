@@ -792,6 +792,8 @@ assert_workspace_switch() {
   "$ADB" shell am start -W \
     -n com.apgic.ci/.MainActivity \
     --es APGIC_E2E_CAPABILITY_STATE GRANTED \
+    --es APGIC_E2E_COMPATIBILITY_BASE_URL "$COMPATIBILITY_BASE_URL" \
+    --es APGIC_E2E_CONTRACT_VERSION "$COMPATIBILITY_CONTRACT_VERSION" \
     --es APGIC_E2E_WORKSPACE_BASE_URL http://127.0.0.1:43113 \
     --es APGIC_E2E_WORKSPACE_SESSION_COOKIE "$SESSION_COOKIE" \
     >/dev/null

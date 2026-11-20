@@ -28,7 +28,7 @@ REQUIRED_PROOFS = (
     "R0_SIGNED_NATIVE_INSTALLATION_IOS",
     "R0_SIGNED_NATIVE_INSTALLATION_ANDROID",
 )
-PROHIBITED_CLASSES = {"CI_CANDIDATE", "CONFORMANCE", "SYNTHETIC", "TEST_FIXTURE"}
+PRODUCTION_OPERATIONAL_CLASS = "PRODUCTION_OPERATIONAL"
 
 
 def inspect(registry: dict, index: dict, candidate_sha: str, root: Path = ROOT, attestation_key: bytes | None = None) -> list[str]:
@@ -59,7 +59,7 @@ def inspect(registry: dict, index: dict, candidate_sha: str, root: Path = ROOT, 
             continue
         if entry.get("candidate_sha") != candidate_sha:
             blockers.append(f"EVIDENCE_CANDIDATE_MISMATCH:{proof}")
-        if entry.get("evidence_class") in PROHIBITED_CLASSES or entry.get("synthetic") is not False:
+        if entry.get("evidence_class") != PRODUCTION_OPERATIONAL_CLASS or entry.get("synthetic") is not False:
             blockers.append(f"EVIDENCE_NOT_LIVE:{proof}")
         if entry.get("reviewed") is not True or not isinstance(entry.get("reviewer"), str) or not str(entry.get("reviewer") or "").strip():
             blockers.append(f"EVIDENCE_NOT_REVIEWED:{proof}")
