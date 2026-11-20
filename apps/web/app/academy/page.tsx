@@ -324,12 +324,11 @@ export default function AcademyPage(){
     title:attempt.title,description:attempt.description,request_id:attempt.requestID});
    await openAcknowledgedDraft(created,attempt,"Черновик найден и открыт без дублирования.");
   }catch(error){
-   if(draftWriteWasRejected(error)){
-    setPendingDraft(null);
-    if((error as {status?:number}).status===401)setAuthorSessionMissing(true);
-    setNotice("Запрос отклонён: "+(error instanceof Error?error.message:String(error))+
-     ". Проверьте авторизацию и повторите.");
-   }else setNotice("Сервер пока не подтвердил создание. Запрос сохранён для безопасного повтора: "+String(error));
+   // The original request may already have committed; even a later 401
+   // cannot prove it was not saved. Keep the owner-bound request identity.
+   if((error as {status?:number})?.status===401)setAuthorSessionMissing(true);
+   setNotice("Не удалось проверить сохранение. Исходный запрос сохранён без повторного создания: "+
+    (error instanceof Error?error.message:String(error)));
   }finally{setBusy(false)}
  }
  async function startAuthorSession(){
@@ -365,12 +364,9 @@ export default function AcademyPage(){
     try{
      created=await api<Course>("/v1/academy/drafts",body);
     }catch(retryError){
-     if(draftWriteWasRejected(retryError)){
-      if((retryError as {status?:number}).status===401)setAuthorSessionMissing(true);
-      setNotice("Курс не подтверждён: "+(retryError instanceof Error?retryError.message:String(retryError))+
-       ". Проверьте доступ к аккаунту.");
-      return;
-     }
+     if((retryError as {status?:number})?.status===401)setAuthorSessionMissing(true);
+     // A previous ambiguous write might have committed even if this
+     // readback/retry is rejected. Retain its key until proven otherwise.
      setPendingDraft(requested);
      setNotice("Ответ сервера не получен. Проверить тот же запрос без риска дубликата можно ниже.");
      return;
