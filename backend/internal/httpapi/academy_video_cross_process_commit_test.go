@@ -212,7 +212,7 @@ SET generation=gen_random_uuid() WHERE author_id=$1::uuid AND provider='YANDEX_D
 	// is still absent. A failed rollback must not masquerade as revocation.
 	type readResult struct {
 		data []byte
-		err error
+		err  error
 	}
 	readDone := make(chan readResult, 1)
 	go func() {
