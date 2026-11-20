@@ -13,7 +13,7 @@ import (
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/academy"
 )
 
-type academyVideoStreamingStore interface {
+// The single canonical recheck cadence used by real HTTP video streams and\n// cross-process PostgreSQL revocation evidence. A COMMIT can take up to one\n// polling period to be observed; this is not zero-latency push delivery.\nconst academyVideoEntitlementRecheckInterval = time.Second\n\ntype academyVideoStreamingStore interface {
 	AcademyLearnerVideoSource(actor, enrollmentID, lessonID, mediaID string) (string, string, string, error)
 	AcademyReadCloudCredential(actor, provider string) (string, error)
 }
@@ -174,7 +174,7 @@ func registerAcademyVideoStreamWithClients(
 			academyWatchVideoEntitlement(streamCtx, func() {
 				stopStream()
 				deadline.revoke()
-			}, time.Second, authorized)
+			}, academyVideoEntitlementRecheckInterval, authorized)
 		}()
 		// The watcher must exit before ServeHTTP returns: it owns a reference
 		// to ResponseWriter and must never touch it after the handler finishes.
