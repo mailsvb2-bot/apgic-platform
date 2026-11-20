@@ -32,12 +32,17 @@ func TestAcademyVideoRevocationUnblocksStalledUpstream(t *testing.T) {
 				upstream, writer := io.Pipe()
 				defer upstream.Close()
 				defer writer.Close()
+				// Match the actual gateway: context cancellation closes the
+				// provider body, rather than the entitlement callback reaching
+				// inside the underlying transport.
+				stopClose := context.AfterFunc(ctx, func() {
+					_ = upstream.CloseWithError(context.Canceled)
+				})
+				defer stopClose()
 				watchDone := make(chan struct{})
 				go func() {
 					defer close(watchDone)
 					academyWatchVideoEntitlement(ctx, func() {
-						cancel()
-						_ = upstream.CloseWithError(context.Canceled)
 						academyCancelRevokedVideoResponse(w, cancel)
 					}, 5*time.Millisecond, entitled.Load)
 				}()
