@@ -20,6 +20,7 @@ type liveEventStub struct {
 	registerCount  int
 	webhookApplied int
 }
+
 func (s *liveEventStub) ApplyLiveProviderWebhook(_ context.Context, _ connector.WebhookEnvelope, _ connector.WebhookPublicKeyResolver) (connector.DeliveryDecision, error) {
 	s.webhookApplied++
 	return connector.DeliveryApply, nil
@@ -208,24 +209,27 @@ func TestLiveAttendanceAggregateOwnerBoundary(t *testing.T) {
 	}
 }
 
-
 func TestLiveProviderRejectsAdditionalSignedJsonWithoutApplying(t *testing.T) {
 	public, private, err := ed25519.GenerateKey(nil)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	stub := &liveEventStub{}
 	keys := providerWebhookKeyMap{"live-provider/key-1": public}
 	handler := New(Options{LiveEventsEnabled: true, LiveEvents: stub, ProviderWebhookKeys: keys})
 	event := signProviderWebhook(t, connector.WebhookEnvelope{
 		ConnectorInstanceID: "live-provider",
-		ExternalEventID: "live-event-1",
-		StreamID: "live-events/event-1",
-		Sequence: 1,
-		KeyID: "key-1",
-		OccurredAt: time.Now().UTC(),
-		Payload: json.RawMessage(`{"event_id":"event-1"}`),
+		ExternalEventID:     "live-event-1",
+		StreamID:            "live-events/event-1",
+		Sequence:            1,
+		KeyID:               "key-1",
+		OccurredAt:          time.Now().UTC(),
+		Payload:             json.RawMessage(`{"event_id":"event-1"}`),
 	}, private)
 	encoded, err := json.Marshal(event)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, suffix := range []string{string(encoded), " trailing"} {
 		resp := httptest.NewRecorder()
 		handler.ServeHTTP(resp, httptest.NewRequest("POST", "/v1/live-provider-webhooks",
