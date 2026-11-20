@@ -90,7 +90,7 @@ export default function AcademyPage(){
  const [notice,setNotice]=useState("");
  const [busy,setBusy]=useState(false);
  // A lost HTTP response must not lead to a second, non-idempotent draft POST.
- const [pendingDraft,setPendingDraft]=useState<{title:string;description:string;baseline:string[];requestID:string}|null>(null);
+ const [pendingDraft,setPendingDraft]=useState<{title:string;description:string;requestID:string}|null>(null);
  const [confirmedDraft,setConfirmedDraft]=useState<Course|null>(null);
  const [notifications,setNotifications]=useState<AcademyNotifications|null>(null);
  const [title,setTitle]=useState("");
@@ -294,50 +294,43 @@ export default function AcademyPage(){
   setLearnerAppeals(appealList.items);setModules([]);
   setCohorts(cohortResult.items);setCohortError(!cohortResult.ok);setAppealError(!appealList.ok);
  }
- async function reconcileDraft(requested:{title:string;description:string;baseline:string[];requestID:string}):Promise<boolean>{
-  const owned=await api<{courses:Course[]}>("/v1/academy/my-courses");
-  setMine(owned.courses);
-  const matches=owned.courses.filter(item=>!requested.baseline.includes(item.id)&&
-   item.title===requested.title&&item.description===requested.description);
-  if(matches.length===1){
-   await loadOutline(matches[0]);
-   setPendingDraft(null);
-   setNotice("Черновик найден в сохранённых данных. Повторное создание не требуется.");
-   return true;
+ type DraftAttempt={title:string;description:string;requestID:string};
+ async function openAcknowledgedDraft(created:Course,attempt:DraftAttempt,message:string){
+  if(!created.id||!created.version_id||!created.product_id){
+   setPendingDraft(attempt);
+   setNotice("Сервер не вернул идентификатор созданного курса. Проверить сохранение можно безопасно тем же запросом.");
+   return;
   }
-  setPendingDraft(requested);
-  setNotice(matches.length>1?
-   "Найдено несколько новых похожих черновиков. Выберите нужный в «Мои курсы»; повторное создание заблокировано.":
-   "Ответ создания не подтверждён. Безопасно повторите запрос той же кнопкой проверки — новый курс не дублируется.");
-  return matches.length>1;
+  setPendingDraft(null);setConfirmedDraft(created);
+  try{
+   setEditorStep("structure");
+   await loadOutline(created);
+   await refresh();
+   setConfirmedDraft(null);
+   setNotice(message);
+  }catch(error){
+   setCourse(null);
+   setNotice("Курс уже создан и сохранён. Нажмите «Открыть созданный курс» ниже. "+String(error));
+  }
  }
  async function verifyDraft(){
   if(!pendingDraft||busy)return;
-  setBusy(true);
+  const attempt=pendingDraft;
+  setBusy(true);setNotice("");
   try{
-   const resolved=await reconcileDraft(pendingDraft);
-   if(resolved)return;
-   // The server holds a unique (author, request_id) key. Replaying this
-   // exact request cannot create a second course, even after a lost reply.
-   const existing=await api<Course>("/v1/academy/drafts",{
-    title:pendingDraft.title,description:pendingDraft.description,request_id:pendingDraft.requestID});
-   if(!existing.id||!existing.version_id||!existing.product_id)throw Error("Неполный ответ сервера");
-   setPendingDraft(null);setConfirmedDraft(existing);
-   try{
-    await loadOutline(existing);await refresh();setConfirmedDraft(null);
-    setNotice("Черновик найден и открыт без повторного создания.");
-   }catch(error){
-    setCourse(null);setNotice("Курс сохранён. Нажмите «Открыть созданный курс»: "+String(error));
-   }
+   // No title-based matching or second create path: replay one canonical
+   // owner-bound request. PostgreSQL returns the original IDs atomically.
+   const created=await api<Course>("/v1/academy/drafts",{
+    title:attempt.title,description:attempt.description,request_id:attempt.requestID});
+   await openAcknowledgedDraft(created,attempt,"Черновик найден и открыт без дублирования.");
   }catch(error){
    if(draftWriteWasRejected(error)){
     setPendingDraft(null);
     if((error as {status?:number}).status===401)setAuthorSessionMissing(true);
-    setNotice("Курс не создан: "+(error instanceof Error?error.message:String(error))+
+    setNotice("Запрос отклонён: "+(error instanceof Error?error.message:String(error))+
      ". Проверьте авторизацию и повторите.");
-   }else setNotice("Сервер не подтвердил результат. Запрос сохранён для безопасной проверки: "+String(error));
-  }
-  finally{setBusy(false)}
+   }else setNotice("Сервер пока не подтвердил создание. Запрос сохранён для безопасного повтора: "+String(error));
+  }finally{setBusy(false)}
  }
  async function startAuthorSession(){
   if(busy)return;
@@ -352,52 +345,38 @@ export default function AcademyPage(){
  }
  async function createCourse(event:FormEvent){
   event.preventDefault();
-  if(busy||pendingDraft||authorSessionMissing||title.trim().length<1)return;
-  setBusy(true);setNotice("");setConfirmedDraft(null);
-  const requested={title:title.trim(),description,baseline:[] as string[],requestID:crypto.randomUUID()};
+  if(busy||pendingDraft||confirmedDraft||authorSessionMissing||title.trim().length<1)return;
+  setBusy(true);setNotice("");
+  const requested:DraftAttempt={title:title.trim(),description,requestID:crypto.randomUUID()};
+  const body={title:requested.title,description:requested.description,request_id:requested.requestID};
   try{
-   // Read before writing: distinguish a new draft from an older same-title course.
-   const owned=await api<{courses:Course[]}>("/v1/academy/my-courses");
-   requested.baseline=owned.courses.map(item=>item.id);
-   const created=await api<Course>("/v1/academy/drafts",
-    {title:requested.title,description:requested.description,request_id:requested.requestID}).catch(async error=>{
-     if(draftWriteWasRejected(error)){
-      if((error as {status?:number}).status===401)setAuthorSessionMissing(true);
-      setNotice("Курс не был создан: "+(error instanceof Error?error.message:"Сервер отклонил запрос")+
-       ". Проверьте вход в аккаунт и повторите сохранение.");
-      return null;
+   let created:Course;
+   try{
+    created=await api<Course>("/v1/academy/drafts",body);
+   }catch(error){
+    if(draftWriteWasRejected(error)){
+     if((error as {status?:number}).status===401)setAuthorSessionMissing(true);
+     setNotice("Курс не был создан: "+(error instanceof Error?error.message:"Сервер отклонил запрос")+
+      ". Проверьте вход в аккаунт и повторите сохранение.");
+     return;
+    }
+    // A reply might be lost after COMMIT; retry the *same* request key
+    // exactly once. The server returns the existing private draft.
+    try{
+     created=await api<Course>("/v1/academy/drafts",body);
+    }catch(retryError){
+     if(draftWriteWasRejected(retryError)){
+      if((retryError as {status?:number}).status===401)setAuthorSessionMissing(true);
+      setNotice("Курс не подтверждён: "+(retryError instanceof Error?retryError.message:String(retryError))+
+       ". Проверьте доступ к аккаунту.");
+      return;
      }
      setPendingDraft(requested);
-     try{await reconcileDraft(requested)}
-     catch(readError){setNotice("Результат создания неизвестен ("+String(error)+
-      "). Проверка сохранения недоступна ("+String(readError)+"). Повторное создание заблокировано.")}
-     return null;
-    });
-   if(!created)return;
-   if(!created.id||!created.version_id||!created.product_id){
-    // A successful status with an incomplete body is also an ambiguous write.
-    setPendingDraft(requested);
-    try{await reconcileDraft(requested)}
-    catch(error){setNotice("Ответ создания неполон. Проверка сохранения недоступна: "+String(error))}
-    return;
+     setNotice("Ответ сервера не получен. Проверить тот же запрос без риска дубликата можно ниже.");
+     return;
+    }
    }
-   setPendingDraft(null);
-   setConfirmedDraft(created);
-   try{
-    setEditorStep("structure");
-    await loadOutline(created);
-    await refresh();
-    setConfirmedDraft(null);
-    setNotice("Черновик курса сохранён.");
-   }catch(error){
-    // The server returned an ID, but the UI has not confirmed the readback.
-    setCourse(null);
-    setNotice("Курс уже создан и сохранён. Не создавайте его повторно. Не удалось открыть редактор: "+
-     String(error)+". Нажмите «Открыть созданный курс» ниже.");
-   }
-  }catch(error){
-   // Preflight failed before POST: no write was attempted.
-   setNotice("Не удалось проверить список курсов перед созданием: "+String(error));
+   await openAcknowledgedDraft(created,requested,"Черновик курса сохранён.");
   }finally{setBusy(false)}
  }
  async function addModule(event:FormEvent){
