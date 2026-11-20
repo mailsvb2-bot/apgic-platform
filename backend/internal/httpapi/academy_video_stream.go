@@ -193,6 +193,14 @@ func registerAcademyVideoStreamWithClients(
 			return
 		}
 		defer response.Body.Close()
+		// Canceling a request context is sufficient for net/http transports,
+		// but a custom or stalled upstream body is not required to notice it.
+		// Explicitly close the actual provider reader on revocation, client
+		// disconnect and idle timeout so a blocked Read cannot pin this handler.
+		stopBodyClose := context.AfterFunc(streamCtx, func() {
+			_ = response.Body.Close()
+		})
+		defer stopBodyClose()
 		if response.StatusCode == http.StatusRequestedRangeNotSatisfiable {
 			if !academyVideoRepresentationSizeMatches(response.StatusCode, response.Header, size) {
 				academyHTTPError(w, r, academy.ErrUnavailable)
