@@ -57,7 +57,7 @@ test("lost draft response replays same per-owner request key, not a second draft
   attempts++;
   if(attempts<=2)return {status:503,data:{code:"ACADEMY_UNAVAILABLE"}};
   return {status:201,data:draft};
- },outlineOk,()=>false,requests);
+ },outlineOk,()=>attempts>=3,requests);
  const form=page.locator("#academy-author");
  await form.getByRole("button",{name:"Создать курс",exact:true}).click();
  await expect(form.getByRole("alert")).toContainText("Не удалось подтвердить сохранение курса");
