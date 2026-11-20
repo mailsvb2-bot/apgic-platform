@@ -3,6 +3,7 @@ package httpapi
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -352,7 +353,15 @@ func registerDemand(
 			return
 		}
 		var envelope connector.WebhookEnvelope
-		if err := json.NewDecoder(r.Body).Decode(&envelope); err != nil {
+		decoder := json.NewDecoder(r.Body)
+		if err := decoder.Decode(&envelope); err != nil {
+			writeDemandError(w, r, http.StatusUnauthorized, "PROVIDER_WEBHOOK_UNVERIFIED", "Сообщение внешнего исполнителя не подтверждено.", false, nil)
+			return
+		}
+		// Reject additional JSON documents and garbage before processing a signed
+		// provider event. One HTTP request represents exactly one envelope.
+		var trailing json.RawMessage
+		if err := decoder.Decode(&trailing); err != io.EOF {
 			writeDemandError(w, r, http.StatusUnauthorized, "PROVIDER_WEBHOOK_UNVERIFIED", "Сообщение внешнего исполнителя не подтверждено.", false, nil)
 			return
 		}
