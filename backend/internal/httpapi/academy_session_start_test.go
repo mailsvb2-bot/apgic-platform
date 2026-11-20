@@ -5,11 +5,18 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/mailsvb2-bot/apgic-platform/backend/internal/academy"
 )
+
+type academySessionAuthorStub struct { academyStore }
+func (*academySessionAuthorStub) AcademyAuthorCourses(string) ([]academy.Course, error) {
+ return []academy.Course{}, nil
+}
 
 func TestAcademyAuthorSessionExplicitBootstrap(t *testing.T) {
 	key := []byte(strings.Repeat("s", 40))
-	handler := New(Options{ClientSessionKey: key})
+	handler := New(Options{ClientSessionKey: key, Academy: &academySessionAuthorStub{}})
 	noSession := httptest.NewRecorder()
 	handler.ServeHTTP(noSession, httptest.NewRequest(http.MethodGet, "/v1/academy/my-courses", nil))
 	if noSession.Code != http.StatusUnauthorized {
@@ -30,9 +37,8 @@ func TestAcademyAuthorSessionExplicitBootstrap(t *testing.T) {
 	r := httptest.NewRequest(http.MethodGet, "/v1/academy/my-courses", nil)
 	r.AddCookie(cookies[0])
 	handler.ServeHTTP(owner, r)
-	if owner.Code != http.StatusServiceUnavailable {
-		// Academy store is intentionally absent in this test; a valid session
-		// reaches the store rather than failing with 401.
+	if owner.Code != http.StatusOK {
+		// A valid session reaches the existing author-owned course list.
 		t.Fatalf("signed session was not accepted, status=%d body=%s", owner.Code, owner.Body.String())
 	}
 	reuse := httptest.NewRequest(http.MethodPost, "https://apgic.ru/v1/academy/session/start", strings.NewReader("{}"))
