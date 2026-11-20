@@ -90,7 +90,7 @@ export default function AcademyPage(){
  const [notice,setNotice]=useState("");
  const [busy,setBusy]=useState(false);
  // A lost HTTP response must not lead to a second, non-idempotent draft POST.
- const [pendingDraft,setPendingDraft]=useState<{title:string;description:string;baseline:string[]}|null>(null);
+ const [pendingDraft,setPendingDraft]=useState<{title:string;description:string;baseline:string[];requestID:string}|null>(null);
  const [confirmedDraft,setConfirmedDraft]=useState<Course|null>(null);
  const [notifications,setNotifications]=useState<AcademyNotifications|null>(null);
  const [title,setTitle]=useState("");
@@ -294,7 +294,7 @@ export default function AcademyPage(){
   setLearnerAppeals(appealList.items);setModules([]);
   setCohorts(cohortResult.items);setCohortError(!cohortResult.ok);setAppealError(!appealList.ok);
  }
- async function reconcileDraft(requested:{title:string;description:string;baseline:string[]}){
+ async function reconcileDraft(requested:{title:string;description:string;baseline:string[];requestID:string}):Promise<boolean>{
   const owned=await api<{courses:Course[]}>("/v1/academy/my-courses");
   setMine(owned.courses);
   const matches=owned.courses.filter(item=>!requested.baseline.includes(item.id)&&
@@ -303,18 +303,40 @@ export default function AcademyPage(){
    await loadOutline(matches[0]);
    setPendingDraft(null);
    setNotice("Черновик найден в сохранённых данных. Повторное создание не требуется.");
-   return;
+   return true;
   }
   setPendingDraft(requested);
   setNotice(matches.length>1?
    "Найдено несколько новых похожих черновиков. Выберите нужный в «Мои курсы»; повторное создание заблокировано.":
-   "Ответ создания не подтверждён. Проверьте «Мои курсы»; повторное создание заблокировано во избежание дубля.");
+   "Ответ создания не подтверждён. Безопасно повторите запрос той же кнопкой проверки — новый курс не дублируется.");
+  return matches.length>1;
  }
  async function verifyDraft(){
   if(!pendingDraft||busy)return;
   setBusy(true);
-  try{await reconcileDraft(pendingDraft)}
-  catch(error){setNotice("Проверка сохранения недоступна. Повторное создание заблокировано: "+String(error))}
+  try{
+   const resolved=await reconcileDraft(pendingDraft);
+   if(resolved)return;
+   // The server holds a unique (author, request_id) key. Replaying this
+   // exact request cannot create a second course, even after a lost reply.
+   const existing=await api<Course>("/v1/academy/drafts",{
+    title:pendingDraft.title,description:pendingDraft.description,request_id:pendingDraft.requestID});
+   if(!existing.id||!existing.version_id||!existing.product_id)throw Error("Неполный ответ сервера");
+   setPendingDraft(null);setConfirmedDraft(existing);
+   try{
+    await loadOutline(existing);await refresh();setConfirmedDraft(null);
+    setNotice("Черновик найден и открыт без повторного создания.");
+   }catch(error){
+    setCourse(null);setNotice("Курс сохранён. Нажмите «Открыть созданный курс»: "+String(error));
+   }
+  }catch(error){
+   if(draftWriteWasRejected(error)){
+    setPendingDraft(null);
+    if((error as {status?:number}).status===401)setAuthorSessionMissing(true);
+    setNotice("Курс не создан: "+(error instanceof Error?error.message:String(error))+
+     ". Проверьте авторизацию и повторите.");
+   }else setNotice("Сервер не подтвердил результат. Запрос сохранён для безопасной проверки: "+String(error));
+  }
   finally{setBusy(false)}
  }
  async function startAuthorSession(){
@@ -330,15 +352,15 @@ export default function AcademyPage(){
  }
  async function createCourse(event:FormEvent){
   event.preventDefault();
-  if(busy||pendingDraft||authorSessionMissing||title.trim().length<3)return;
+  if(busy||pendingDraft||authorSessionMissing||title.trim().length<1)return;
   setBusy(true);setNotice("");setConfirmedDraft(null);
-  const requested={title:title.trim(),description,baseline:[] as string[]};
+  const requested={title:title.trim(),description,baseline:[] as string[],requestID:crypto.randomUUID()};
   try{
    // Read before writing: distinguish a new draft from an older same-title course.
    const owned=await api<{courses:Course[]}>("/v1/academy/my-courses");
    requested.baseline=owned.courses.map(item=>item.id);
    const created=await api<Course>("/v1/academy/drafts",
-    {title:requested.title,description:requested.description}).catch(async error=>{
+    {title:requested.title,description:requested.description,request_id:requested.requestID}).catch(async error=>{
      if(draftWriteWasRejected(error)){
       if((error as {status?:number}).status===401)setAuthorSessionMissing(true);
       setNotice("Курс не был создан: "+(error instanceof Error?error.message:"Сервер отклонил запрос")+
@@ -541,7 +563,7 @@ export default function AcademyPage(){
      <p>Сначала создайте содержание курса. Настройка организации, направления и продукта для продаж доступна отдельно — в едином кабинете организации.</p>
      <a className="academy-organization-link" href="/organization">Настроить организацию и продажи ↗</a>
      <label htmlFor="academy-title">Название курса</label>
-     <input id="academy-title" value={title} onChange={e=>setTitle(e.target.value)} required minLength={3} maxLength={200} placeholder="Например: Гипноз с нуля"/>
+     <input id="academy-title" value={title} onChange={e=>setTitle(e.target.value)} required minLength={1} maxLength={200} placeholder="Например: Гипноз с нуля"/>
      <label htmlFor="academy-description">Описание (необязательно)</label>
      <textarea id="academy-description" value={description} onChange={e=>setDescription(e.target.value)}/>
      {authorSessionMissing&&<div role="alert" className="academy-session-guide">
@@ -552,7 +574,7 @@ export default function AcademyPage(){
       <button className="academy-blue-button" disabled={busy||pendingDraft!==null||authorSessionMissing||title.trim().length<3}>Создать курс</button>
      {pendingDraft&&<div role="alert" className="academy-draft-recovery">
        <strong>Не удалось подтвердить сохранение курса.</strong>
-       <p>Повторное создание временно заблокировано, чтобы не дублировать курс. Сначала проверьте сохранённые курсы.</p>
+       <p>Повторное создание временно заблокировано, чтобы не дублировать курс. Кнопка ниже проверит сохранение и безопасно повторит тот же запрос при необходимости.</p>
        <button className="academy-draft-check" type="button" disabled={busy} onClick={()=>void verifyDraft()}>Проверить сохранение черновика</button>
       </div>}
      {confirmedDraft&&!pendingDraft&&<div role="status" className="academy-draft-recovery">
