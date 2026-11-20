@@ -285,6 +285,21 @@ func TestTrustedProviderWebhookRequiresSignatureAndConfirmsExactlyOnce(t *testin
 		t.Fatalf("foreign payment affected booking state: hold=%#v err=%v", beforeCapture, err)
 	}
 
+	// A valid signed payment event must not capture an order when the HTTP
+	// body appends a second JSON document or trailing junk.
+	for _, suffix := range []string{string(encoded), " trailing"} {
+		bad := httptest.NewRecorder()
+		handler.ServeHTTP(bad, httptest.NewRequest(http.MethodPost,
+			"/v1/provider-webhooks", strings.NewReader(string(encoded)+" "+suffix)))
+		if bad.Code != http.StatusUnauthorized || !contains(bad.Body.String(), "PROVIDER_WEBHOOK_UNVERIFIED") {
+			t.Fatalf("payment provider accepted trailing body: status=%d body=%s", bad.Code, bad.Body.String())
+		}
+		stillUnpaid, err := service.HoldStatus(hold.ID, intent.ClientIdentityID)
+		if err != nil || stillUnpaid.BookingState != "PENDING_PAYMENT" {
+			t.Fatalf("trailing payment event mutated booking: hold=%#v err=%v", stillUnpaid, err)
+		}
+	}
+
 	first := httptest.NewRecorder()
 	handler.ServeHTTP(first, httptest.NewRequest(http.MethodPost, "/v1/provider-webhooks", strings.NewReader(string(encoded))))
 	if first.Code != http.StatusCreated || !contains(first.Body.String(), "\"booking_state\":\"CONFIRMED\"") {
