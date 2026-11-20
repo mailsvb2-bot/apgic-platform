@@ -369,3 +369,40 @@ test("R8 Continue makes one authorized lesson read and clears private lessons on
  await expect(page.getByRole("heading",{name:"Прохождение курса"})).toHaveCount(0);
  expect(learnCalls).toBe(2);
 });
+
+
+test("missing author session offers explicit onboarding before creating exactly one draft",async({page})=>{
+ let session=false,created=0;
+ await page.route("**/v1/academy/**",async route=>{
+  const request=route.request(),path=new URL(request.url()).pathname;
+  let status=200,data:unknown={};
+  if(path==="/v1/academy/session/start"&&request.method()==="POST"){
+   session=true;data={session_ready:true,new_identity:true};
+  }else if(path==="/v1/academy/courses")data={courses:[]};
+  else if(!session){status=401;data={code:"CLIENT_SESSION_REQUIRED",message_safe:"Требуется сессия клиента."};}
+  else if(path==="/v1/academy/my-courses")data={courses:created?[{...course,title:"гипноз",description:""}]:[]};
+  else if(path==="/v1/academy/drafts"&&request.method()==="POST"){
+   created++;data={...course,title:"гипноз",description:""};status=201;
+  }else if(path==="/v1/academy/my-enrollments")data={enrollments:[]};
+  else if(path==="/v1/academy/review/attempts")data={attempts:[]};
+  else if(path==="/v1/academy/author/report")data={courses:[],gross_captures:[],revenue_state:"UNAVAILABLE"};
+  else if(path==="/v1/academy/author/cohorts")data={cohorts:[]};
+  else if(path==="/v1/academy/me/course-access")data={course_ids:[]};
+  else if(path==="/v1/academy/me/certificates")data={certificates:[]};
+  else if(path.endsWith("/outline"))data={state:"DRAFT",modules:[],lessons:[]};
+  else if(path.endsWith("/rights/original"))data={confirmed:false,provenance_ref:""};
+  else{status=501;data={code:"UNMOCKED",path};}
+  await route.fulfill({status,contentType:"application/json",body:JSON.stringify(data)});
+ });
+ await page.goto("/academy?tab=courses&create=1");
+ await page.locator("#academy-title").fill("гипноз");
+ await expect(page.getByRole("alert").filter({hasText:"нет сессии APGIC"})).toBeVisible();
+ await expect(page.locator("#academy-author").getByRole("button",{name:"Создать курс",exact:true})).toBeDisabled();
+ await expect(page.getByRole("link",{name:"подключите это устройство к своему аккаунту"})).toHaveAttribute("href","/account");
+ expect(created).toBe(0);
+ await page.getByRole("button",{name:"Начать новый аккаунт автора"}).click();
+ await expect(page.getByRole("status").filter({hasText:"Сессия автора создана"})).toBeVisible();
+ await page.locator("#academy-author").getByRole("button",{name:"Создать курс",exact:true}).click();
+ await expect(page.getByRole("heading",{name:"гипноз",exact:true})).toBeVisible();
+ expect(created).toBe(1);
+});
