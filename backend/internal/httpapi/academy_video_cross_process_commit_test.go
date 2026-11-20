@@ -130,7 +130,7 @@ func TestAcademyVideoCommitRevocationStopsOtherProcessHTTP(t *testing.T) {
 		_, _ = db.Exec("DELETE FROM identities WHERE id=$1::uuid", author)
 	}()
 	if _, err := db.Exec(`INSERT INTO academy_cloud_connections(author_id,provider,encrypted_access_token)
-VALUES($1::uuid,'YANDEX_DISK','non-decryptable-isolated-ci-placeholder')`, author); err != nil {
+VALUES($1::uuid,'YANDEX_DISK','encrypted-test-only-placeholder-credential-000000000000000000000')`, author); err != nil {
 		t.Fatal(err)
 	}
 	const path = "disk:/r8-cross-process-commit-test.mp4"
