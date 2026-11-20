@@ -178,3 +178,10 @@
 .academy-course-editor .academy-publish-rights .academy-blue-button{width:auto;background:#1763ed;color:white}
 .academy-course-editor .academy-publish-submit .academy-publish-error{max-width:620px;font-weight:600}
 @media(max-width:620px){.academy-workspace .academy-offer-choice{grid-template-columns:1fr}.academy-workspace .academy-offer-panel{padding:18px}.academy-workspace .academy-offer-panel .academy-blue-button{width:100%}}
+
+/* An unconfirmed write is a recovery state, not a second primary action. */
+.academy-draft-recovery{margin-top:12px;padding:15px 17px;border:1px solid #bfd2f1;border-radius:12px;background:#f2f6ff;color:#233b61;line-height:1.5}
+.academy-draft-recovery strong{display:block;font-size:.95rem}
+.academy-draft-recovery p{margin:7px 0 12px;font-size:.9rem}
+.academy-workspace .academy-draft-recovery .academy-draft-check{width:100%;min-height:46px;background:#fff;color:#1554bb;border:1px solid #b8cef1;font-weight:730;cursor:pointer}
+.academy-workspace .academy-draft-recovery .academy-draft-check:hover:not(:disabled){background:#e7efff}
