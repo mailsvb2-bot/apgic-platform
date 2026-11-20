@@ -1,0 +1,99 @@
+package httpapi
+
+import (
+	"context"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"sync/atomic"
+	"testing"
+	"time"
+)
+
+// A provider can stop producing bytes after the first flush. The authorization
+// watcher must still cancel the request and unblock an idle upstream read.
+// This is a transport regression, NOT proof of cross-process PostgreSQL
+// notification or production OAuth.
+func TestAcademyVideoRevocationUnblocksStalledUpstream(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		h2   bool
+	}{{"http1", false}, {"http2", true}} {
+		t.Run(tc.name, func(t *testing.T) {
+			var entitled atomic.Bool
+			entitled.Store(true)
+			started := make(chan struct{})
+			finished := make(chan struct{})
+			server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				defer close(finished)
+				ctx, cancel := context.WithCancel(r.Context())
+				defer cancel()
+				upstream, writer := io.Pipe()
+				defer upstream.Close()
+				defer writer.Close()
+				watchDone := make(chan struct{})
+				go func() {
+					defer close(watchDone)
+					academyWatchVideoEntitlement(ctx, func() {
+						cancel()
+						_ = upstream.CloseWithError(context.Canceled)
+						academyCancelRevokedVideoResponse(w, cancel)
+					}, 5*time.Millisecond, entitled.Load)
+				}()
+				defer func() {
+					cancel()
+					<-watchDone
+				}()
+				w.Header().Set("Content-Type", "video/mp4")
+				w.WriteHeader(http.StatusOK)
+				if _, err := w.Write([]byte("first")); err != nil {
+					return
+				}
+				if err := http.NewResponseController(w).Flush(); err != nil {
+					return
+				}
+				close(started)
+				// No more provider bytes arrive. The read cannot finish until
+				// revocation closes the upstream reader.
+				buf := make([]byte, 16)
+				_, _ = upstream.Read(buf)
+			}))
+			server.EnableHTTP2 = tc.h2
+			if tc.h2 {
+				server.StartTLS()
+			} else {
+				server.Start()
+			}
+			defer server.Close()
+			client := server.Client()
+			client.Timeout = 3 * time.Second
+			resp, err := client.Get(server.URL)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer resp.Body.Close()
+			first := make([]byte, 5)
+			if _, err := io.ReadFull(resp.Body, first); err != nil {
+				t.Fatal(err)
+			}
+			if string(first) != "first" {
+				t.Fatalf("unexpected initial bytes %q", first)
+			}
+			select {
+			case <-started:
+			case <-time.After(2 * time.Second):
+				t.Fatal("initial video response did not flush")
+			}
+			entitled.Store(false)
+			select {
+			case <-finished:
+			case <-time.After(2 * time.Second):
+				t.Fatal("revocation did not unblock idle upstream read")
+			}
+			rest, _ := io.ReadAll(resp.Body)
+			if len(rest) != 0 {
+				t.Fatalf("revoked stream delivered %d additional bytes", len(rest))
+			}
+		})
+	}
+}
