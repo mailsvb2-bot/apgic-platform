@@ -72,6 +72,15 @@ func TestAcademyVideoRevocationUnblocksStalledUpstream(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer resp.Body.Close()
+			// Prove the HTTP/2 case negotiated HTTP/2 instead of silently
+			// exercising HTTP/1.1 over TLS.
+			wantProto := 1
+			if tc.h2 {
+				wantProto = 2
+			}
+			if resp.ProtoMajor != wantProto {
+				t.Fatalf("expected HTTP/%d, negotiated %s", wantProto, resp.Proto)
+			}
 			first := make([]byte, 5)
 			if _, err := io.ReadFull(resp.Body, first); err != nil {
 				t.Fatal(err)
