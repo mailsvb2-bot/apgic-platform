@@ -306,6 +306,12 @@ export default function AcademyPage(){
    setEditorStep("structure");
    await loadOutline(created);
    await refresh();
+   // refresh() isolates failures rather than throwing. Never discard the
+   // acknowledged ID unless the signed owner's list confirms it.
+   const readback=await api<{courses:Course[]}>("/v1/academy/my-courses");
+   if(!readback.courses.some(item=>item.id===created.id&&item.version_id===created.version_id)){
+    throw Error("Черновик пока не появился в подтверждённом списке автора");
+   }
    setConfirmedDraft(null);
    setNotice(message);
   }catch(error){
