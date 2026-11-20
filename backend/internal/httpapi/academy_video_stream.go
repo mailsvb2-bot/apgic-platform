@@ -13,7 +13,12 @@ import (
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/academy"
 )
 
-// The single canonical recheck cadence used by real HTTP video streams and\n// cross-process PostgreSQL revocation evidence. A COMMIT can take up to one\n// polling period to be observed; this is not zero-latency push delivery.\nconst academyVideoEntitlementRecheckInterval = time.Second\n\ntype academyVideoStreamingStore interface {
+// The single canonical recheck cadence used by real HTTP video streams and
+// cross-process PostgreSQL revocation evidence. A COMMIT can take up to one
+// polling period to be observed; this is not zero-latency push delivery.
+const academyVideoEntitlementRecheckInterval = time.Second
+
+type academyVideoStreamingStore interface {
 	AcademyLearnerVideoSource(actor, enrollmentID, lessonID, mediaID string) (string, string, string, error)
 	AcademyReadCloudCredential(actor, provider string) (string, error)
 }
