@@ -73,7 +73,7 @@ func TestAcademyVideoCrossProcessRevocationHelper(t *testing.T) {
 			academyWatchVideoEntitlement(ctx, func() {
 				cancel()
 				deadline.revoke()
-			}, 20*time.Millisecond, allowed)
+			}, academyVideoEntitlementRecheckInterval, allowed)
 		}()
 		defer func() {
 			cancel()
