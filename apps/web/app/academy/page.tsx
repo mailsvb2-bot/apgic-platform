@@ -25,7 +25,7 @@ async function api<T>(path:string,body?:unknown):Promise<T>{
   credentials:"same-origin",cache:"no-store",
   body:body===undefined?undefined:JSON.stringify(body)});
  const data=await response.json().catch(()=>({}));
- if(!response.ok)throw new Error(data.message_safe||data.code||"Сервис временно недоступен");
+ if(!response.ok)throw Object.assign(new Error(data.message_safe||data.code||"Сервис временно недоступен"),{code:data.code,status:response.status});
  return data as T;
 }
 
@@ -55,6 +55,7 @@ export default function AcademyPage(){
  const [mine,setMine]=useState<Course[]>([]);
  const [ownedCoursesError,setOwnedCoursesError]=useState("");
  const [ownedCoursesLoaded,setOwnedCoursesLoaded]=useState(false);
+ const [authorSessionMissing,setAuthorSessionMissing]=useState(false);
  const [enrollments,setEnrollments]=useState<Enrollment[]>([]);
  const [learningError,setLearningError]=useState("");
  const [verifiedCourseIDs,setVerifiedCourseIDs]=useState<string[]>([]);
@@ -136,12 +137,14 @@ export default function AcademyPage(){
   if(owned.status==="fulfilled"){
    setMine(owned.value.courses);
    setOwnedCoursesError("");
+   setAuthorSessionMissing(false);
   }else{
    setMine([]);
    // A previously open author editor must not remain visible after its
    // owner-scoped course list becomes unauthorizable or unavailable.
    setCourse(null);
    setOwnedCoursesError(owned.reason instanceof Error?owned.reason.message:"Не удалось проверить авторскую сессию");
+   setAuthorSessionMissing((owned.reason as {code?:string})?.code==="CLIENT_SESSION_REQUIRED");
   }
   setOwnedCoursesLoaded(true);
   if(owned.status==="rejected"&&learning.status==="rejected"){
@@ -306,9 +309,20 @@ export default function AcademyPage(){
   catch(error){setNotice("Проверка сохранения недоступна. Повторное создание заблокировано: "+String(error))}
   finally{setBusy(false)}
  }
+ async function startAuthorSession(){
+  if(busy)return;
+  setBusy(true);setNotice("");
+  try{
+   await api<{session_ready:boolean}>("/v1/academy/session/start",{});
+   window.dispatchEvent(new Event("apgic:client-session-established"));
+   await refresh();
+   setNotice("Сессия автора создана. Теперь нажмите «Создать курс».");
+  }catch(error){setNotice("Не удалось начать новую сессию: "+(error instanceof Error?error.message:String(error)))}
+  finally{setBusy(false)}
+ }
  async function createCourse(event:FormEvent){
   event.preventDefault();
-  if(busy||pendingDraft||title.trim().length<3)return;
+  if(busy||pendingDraft||authorSessionMissing||title.trim().length<3)return;
   setBusy(true);setNotice("");
   const requested={title:title.trim(),description,baseline:[] as string[]};
   try{
@@ -514,7 +528,12 @@ export default function AcademyPage(){
      <input id="academy-title" value={title} onChange={e=>setTitle(e.target.value)} required minLength={3} maxLength={200} placeholder="Например: Гипноз с нуля"/>
      <label htmlFor="academy-description">Описание (необязательно)</label>
      <textarea id="academy-description" value={description} onChange={e=>setDescription(e.target.value)}/>
-     <button disabled={busy||pendingDraft!==null||title.trim().length<3}>Создать курс</button>
+     {authorSessionMissing&&<div role="alert" className="academy-session-guide">
+       <p>На этом устройстве нет сессии APGIC. Чтобы сохранить курс в существующем аккаунте, сначала <a href="/account">подключите это устройство к своему аккаунту</a>.</p>
+       <p>Если у вас ещё нет аккаунта с курсами, можно явно начать новый. Он не объединится с прежними курсами другого аккаунта.</p>
+       <button type="button" disabled={busy} onClick={()=>void startAuthorSession()}>Начать новый аккаунт автора</button>
+      </div>}
+      <button disabled={busy||pendingDraft!==null||authorSessionMissing||title.trim().length<3}>Создать курс</button>
      {pendingDraft&&<button type="button" disabled={busy} onClick={()=>void verifyDraft()}>Проверить сохранение черновика</button>}
     </form>}
    </div>
