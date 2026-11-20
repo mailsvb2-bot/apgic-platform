@@ -29,6 +29,13 @@ async function api<T>(path:string,body?:unknown):Promise<T>{
  return data as T;
 }
 
+function draftWriteWasRejected(error:unknown):boolean{
+ // Only definitive application-level rejections prove that no draft was
+ // committed. A timeout or 5xx can happen after commit: reconcile those.
+ const status=(error as {status?:number}|null)?.status;
+ return status===400||status===401||status===403||status===404||status===409||status===422;
+}
+
 async function downloadAcademyHistory():Promise<void>{
  const response=await fetch("/v1/academy/me/history/export",{
   method:"GET",credentials:"same-origin",cache:"no-store",headers:{"Accept":"application/json"}
@@ -84,6 +91,7 @@ export default function AcademyPage(){
  const [busy,setBusy]=useState(false);
  // A lost HTTP response must not lead to a second, non-idempotent draft POST.
  const [pendingDraft,setPendingDraft]=useState<{title:string;description:string;baseline:string[]}|null>(null);
+ const [confirmedDraft,setConfirmedDraft]=useState<Course|null>(null);
  const [notifications,setNotifications]=useState<AcademyNotifications|null>(null);
  const [title,setTitle]=useState("");
  const [description,setDescription]=useState("");
@@ -323,7 +331,7 @@ export default function AcademyPage(){
  async function createCourse(event:FormEvent){
   event.preventDefault();
   if(busy||pendingDraft||authorSessionMissing||title.trim().length<3)return;
-  setBusy(true);setNotice("");
+  setBusy(true);setNotice("");setConfirmedDraft(null);
   const requested={title:title.trim(),description,baseline:[] as string[]};
   try{
    // Read before writing: distinguish a new draft from an older same-title course.
@@ -331,6 +339,12 @@ export default function AcademyPage(){
    requested.baseline=owned.courses.map(item=>item.id);
    const created=await api<Course>("/v1/academy/drafts",
     {title:requested.title,description:requested.description}).catch(async error=>{
+     if(draftWriteWasRejected(error)){
+      if((error as {status?:number}).status===401)setAuthorSessionMissing(true);
+      setNotice("Курс не был создан: "+(error instanceof Error?error.message:"Сервер отклонил запрос")+
+       ". Проверьте вход в аккаунт и повторите сохранение.");
+      return null;
+     }
      setPendingDraft(requested);
      try{await reconcileDraft(requested)}
      catch(readError){setNotice("Результат создания неизвестен ("+String(error)+
@@ -346,16 +360,18 @@ export default function AcademyPage(){
     return;
    }
    setPendingDraft(null);
+   setConfirmedDraft(created);
    try{
     setEditorStep("structure");
     await loadOutline(created);
     await refresh();
+    setConfirmedDraft(null);
     setNotice("Черновик курса сохранён.");
    }catch(error){
     // The server returned an ID, but the UI has not confirmed the readback.
-    setPendingDraft(requested);
-    setNotice("Черновик создан, но загрузка данных не завершена: "+String(error)+
-     ". Проверьте сохранение перед повторной попыткой.");
+    setCourse(null);
+    setNotice("Курс уже создан и сохранён. Не создавайте его повторно. Не удалось открыть редактор: "+
+     String(error)+". Нажмите «Открыть созданный курс» ниже.");
    }
   }catch(error){
    // Preflight failed before POST: no write was attempted.
@@ -533,8 +549,18 @@ export default function AcademyPage(){
        <p>Если у вас ещё нет аккаунта с курсами, можно явно начать новый. Он не объединится с прежними курсами другого аккаунта.</p>
        <button type="button" disabled={busy} onClick={()=>void startAuthorSession()}>Начать новый аккаунт автора</button>
       </div>}
-      <button disabled={busy||pendingDraft!==null||authorSessionMissing||title.trim().length<3}>Создать курс</button>
-     {pendingDraft&&<button type="button" disabled={busy} onClick={()=>void verifyDraft()}>Проверить сохранение черновика</button>}
+      <button className="academy-blue-button" disabled={busy||pendingDraft!==null||authorSessionMissing||title.trim().length<3}>Создать курс</button>
+     {pendingDraft&&<div role="alert" className="academy-draft-recovery">
+       <strong>Не удалось подтвердить сохранение курса.</strong>
+       <p>Повторное создание временно заблокировано, чтобы не дублировать курс. Сначала проверьте сохранённые курсы.</p>
+       <button className="academy-draft-check" type="button" disabled={busy} onClick={()=>void verifyDraft()}>Проверить сохранение черновика</button>
+      </div>}
+     {confirmedDraft&&!pendingDraft&&<div role="status" className="academy-draft-recovery">
+       <strong>«{confirmedDraft.title}» создан.</strong>
+       <p>Повторно создавать курс не нужно — достаточно открыть существующий черновик.</p>
+       <button className="academy-draft-check" type="button" disabled={busy} onClick={()=>void act(
+        ()=>Promise.resolve(confirmedDraft),async selected=>{await loadOutline(selected);setConfirmedDraft(null)})}>Открыть созданный курс</button>
+      </div>}
     </form>}
    </div>
   </section>}
