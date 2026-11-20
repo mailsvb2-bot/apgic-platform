@@ -52,9 +52,10 @@ test("definitive draft rejection never locks author into ambiguous write recover
 });
 
 test("lost draft response replays same per-owner request key, not a second draft",async({page})=>{
- const requests:string[]=[];let created=false;
+ const requests:string[]=[];let attempts=0;
  await mockAcademy(page,()=>{
-  if(!created){created=true;return {status:503,data:{code:"ACADEMY_UNAVAILABLE"}};}
+  attempts++;
+  if(attempts<=2)return {status:503,data:{code:"ACADEMY_UNAVAILABLE"}};
   return {status:201,data:draft};
  },outlineOk,()=>false,requests);
  const form=page.locator("#academy-author");
@@ -63,8 +64,8 @@ test("lost draft response replays same per-owner request key, not a second draft
  await expect(form.getByRole("button",{name:"Создать курс",exact:true})).toBeDisabled();
  await form.getByRole("button",{name:"Проверить сохранение черновика"}).click();
  await expect(page.getByRole("heading",{name:"гипноз",exact:true})).toBeVisible();
- expect(requests).toHaveLength(2);
- expect(requests[0]).toBe(requests[1]);
+ expect(requests).toHaveLength(3);
+ expect(new Set(requests).size).toBe(1);
 });
 
 test("confirmed draft with failed editor load reopens by ID without another POST",async({page})=>{
