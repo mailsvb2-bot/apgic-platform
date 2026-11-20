@@ -369,8 +369,16 @@ func registerLiveEvents(mux *http.ServeMux, store LiveEventStore, keys connector
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, 64*1024)
 		var envelope connector.WebhookEnvelope
-		if err := json.NewDecoder(r.Body).Decode(&envelope); err != nil {
+		decoder := json.NewDecoder(r.Body)
+		if err := decoder.Decode(&envelope); err != nil {
 			writeDemandError(w, r, 401, "LIVE_PROVIDER_EVIDENCE_UNVERIFIED", "Подпись провайдера не подтверждена.", false, nil)
+			return
+		}
+		// Reject additional JSON documents and garbage before processing a signed
+		// provider event. One HTTP request represents exactly one envelope.
+		var trailing json.RawMessage
+		if err := decoder.Decode(&trailing); err != io.EOF {
+			writeDemandError(w, r, http.StatusUnauthorized, "LIVE_PROVIDER_EVIDENCE_UNVERIFIED", "Подпись провайдера не подтверждена.", false, nil)
 			return
 		}
 		if err := connector.VerifyWebhook(envelope, keys); err != nil {
