@@ -90,6 +90,13 @@ VALUES($1::uuid,'YANDEX_DISK',$2)`, id, secret); err != nil {
 	if _, _, _, err = store.AcademyLearnerVideoFingerprint(other, "YANDEX_DISK", otherMedia.source, otherMedia.id); err != nil {
 		t.Fatalf("other author's media revoked: %v", err)
 	}
+	var eventCount int
+	if err := db.QueryRow(`SELECT count(*) FROM outbox_events
+WHERE aggregate_ref=$1 AND event_type='academy.cloud.disconnected'
+AND payload->>'provider'='YANDEX_DISK'
+AND payload->>'revoked_generation' IS NOT NULL`, "academy/cloud/"+author).Scan(&eventCount); err != nil || eventCount != 1 {
+		t.Fatalf("disconnect must commit exactly one safe canonical outbox event: count=%d err=%v", eventCount, err)
+	}
 	var remaining int
 	if err := db.QueryRow("SELECT count(*) FROM academy_cloud_connections WHERE author_id=$1::uuid", author).Scan(&remaining); err != nil || remaining != 0 {
 		t.Fatalf("removed author still has credential row: %d %v", remaining, err)
