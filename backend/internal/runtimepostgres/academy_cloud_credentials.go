@@ -102,7 +102,7 @@ func (c *Checker) AcademyDisconnectCloud(actor, provider string) error {
 	// No token, file path or provider URL is ever included in event payload.
 	if err = academyEvent(ctx, tx, actor, "academy/cloud/"+actor,
 		"academy.cloud.disconnected", map[string]string{
-			"provider": provider,
+			"provider":           provider,
 			"revoked_generation": revokedGeneration,
 		}); err != nil {
 		return err
