@@ -456,6 +456,12 @@ export default function AcademyPage(){
         {mine.some(x=>x.state==="DRAFT")?"▷ Добавить видео":"▷ Видео: нужен черновик"}</button>
        <button type="button" onClick={()=>setView("reviews")}>✓ Проверить работы</button>
        <button type="button" onClick={()=>setView("reports")}>▥ Результаты курсов</button>
+       <button type="button" disabled={busy||authorSessionMissing} onClick={()=>{
+        if(!window.confirm("Отключить Яндекс Диск? Все ранее подтверждённые видео станут недоступны ученикам до повторной проверки после подключения."))return;
+        void act(()=>api<{disconnected:boolean}>("/v1/academy/author/cloud/yandex/disconnect",{confirm:"DISCONNECT_YANDEX_DISK"}),()=>{
+         setNotice("Яндекс Диск отключён. Старые видео больше не доступны ученикам; подключите Диск заново перед использованием видео.");
+        });
+       }}>Отключить Яндекс Диск</button>
       </div>
      </section>
     </div>
