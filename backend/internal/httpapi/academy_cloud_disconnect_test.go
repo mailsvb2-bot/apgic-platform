@@ -46,9 +46,9 @@ func TestAcademyYandexDisconnectRequiresSignedAuthorAndExplicitOrigin(t *testing
 	const confirmed = `{"confirm":"DISCONNECT_YANDEX_DISK"}`
 	cases := []struct {
 		name, origin, fetchSite, body string
-		cookie *http.Cookie
-		want int
-		calls int
+		cookie                        *http.Cookie
+		want                          int
+		calls                         int
 	}{
 		{"anonymous", "https://apgic.ru", "", confirmed, nil, 401, 0},
 		{"missing origin", "", "", confirmed, ownerCookie, 403, 0},
