@@ -24,6 +24,7 @@ test("author resumes the selected course and lesson, imports Disk video, and sav
  let assignments:{lesson_id:string;media_id:string;ordinal:number}[]=[];
  let savedPayload:unknown;
  let importCalls=0;
+ let disconnectCalls=0;
  await page.route("**/v1/academy/**",async route=>{
   const request=route.request();
   const url=new URL(request.url());
@@ -56,6 +57,11 @@ test("author resumes the selected course and lesson, imports Disk video, and sav
    data={files,total:files.length,offset:Number(url.searchParams.get("offset")||0)};
   }else if(method==="POST"&&path==="/v1/academy/courses/"+courseID+"/versions/"+versionID+"/modules"){
    status=201;data={id:"99999999-9999-4999-8999-999999999999",version_id:versionID,title:"Новый модуль",ordinal:2};
+  }else if(method==="POST"&&path==="/v1/academy/author/cloud/yandex/disconnect"){
+   expect(request.postDataJSON()).toEqual({confirm:"DISCONNECT_YANDEX_DISK"});
+   disconnectCalls++;
+   media.forEach(item=>{item.active=false});
+   data={disconnected:true};
   }else if(method==="POST"&&path==="/v1/academy/author/cloud-media/import"){
    const body=request.postDataJSON() as {items:{provider_file_ref:string;title:string}[]};
    importCalls++;
@@ -106,6 +112,14 @@ test("author resumes the selected course and lesson, imports Disk video, and sav
   {lesson_id:lessonID,media_id:existingMediaID,ordinal:2}
  ]);
  expect(assignments).toEqual(savedPayload);
+ // The same author can revoke the provider token from the existing media
+ // editor. Saved mappings remain visible as stale until reverified.
+ page.once("dialog",dialog=>dialog.accept());
+ await page.getByRole("button",{name:"Отключить Яндекс Диск"}).click();
+ await expect(page.getByText("Яндекс Диск отключён.",{exact:false})).toBeVisible();
+ await expect(page.getByText("В сохранённых уроках есть видео от прежнего подключения Яндекс Диска.",{exact:false})).toBeVisible();
+ expect(disconnectCalls).toBe(1);
+
  // A successful editor mutation refreshes my-courses. The consumed OAuth
  // query must not send the author back to the media step or lose their form.
  await page.getByRole("button",{name:"1. Уроки"}).click();
