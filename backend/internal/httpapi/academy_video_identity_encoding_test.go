@@ -18,6 +18,9 @@ func TestAcademyVideoIdentityEncoding(t *testing.T) {
 		{name: "br is not the verified MP4", values: []string{"br"}},
 		{name: "combined codings", values: []string{"identity, gzip"}},
 		{name: "ambiguous repeated headers", values: []string{"identity", "gzip"}},
+		{name: "repeated identity headers are ambiguous", values: []string{"identity", "identity"}},
+		{name: "comma separated identity is ambiguous", values: []string{"identity,identity"}},
+		{name: "uppercase gzip rejected", values: []string{"GZIP"}},
 		{name: "empty coding", values: []string{""}},
 	}
 	for _, tt := range tests {
