@@ -35,3 +35,26 @@ func TestAcademyVideoIdentityEncoding(t *testing.T) {
 		})
 	}
 }
+
+// A custom or future transport may transparently decompress a response and
+// strip Content-Encoding. Never trust the resulting body as verified MP4 bytes.
+func TestAcademyVideoOriginalRepresentationRejectsTransparentDecompression(t *testing.T) {
+	for _, tt := range []struct {
+		name         string
+		response     *http.Response
+		allow        bool
+	}{
+		{name: "nil response fails closed"},
+		{name: "plain response", response: &http.Response{Header: http.Header{}}, allow: true},
+		{name: "explicit identity", response: &http.Response{Header: http.Header{"Content-Encoding": {"identity"}}}, allow: true},
+		{name: "gzip header", response: &http.Response{Header: http.Header{"Content-Encoding": {"gzip"}}}},
+		{name: "decoded gzip header stripped", response: &http.Response{Header: http.Header{}, Uncompressed: true}},
+		{name: "decoded despite identity header", response: &http.Response{Header: http.Header{"Content-Encoding": {"identity"}}, Uncompressed: true}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := academyVideoOriginalRepresentation(tt.response); got != tt.allow {
+				t.Fatalf("academyVideoOriginalRepresentation() = %v, want %v", got, tt.allow)
+			}
+		})
+	}
+}
