@@ -425,15 +425,22 @@ func academyVideoIdentityEncoding(headers http.Header) bool {
 	// can construct Response.Header directly with noncanonical casing. Scan
 	// every key to avoid treating a lowercase or duplicate coding as absent.
 	var values []string
+	seen := false
 	for key, fields := range headers {
 		if strings.EqualFold(key, "Content-Encoding") {
-			values = append(values, fields...)
+			// A custom transport can supply a present but empty field slice.
+			// Treat that malformed representation as ambiguous, not absent.
+			if seen || len(fields) != 1 {
+				return false
+			}
+			seen = true
+			values = fields
 		}
 	}
-	if len(values) == 0 {
+	if !seen {
 		return true
 	}
-	return len(values) == 1 && strings.EqualFold(strings.TrimSpace(values[0]), "identity")
+	return strings.EqualFold(strings.TrimSpace(values[0]), "identity")
 }
 
 // academyVideoRequestedRange accepts at most one canonical HTTP Range field.
