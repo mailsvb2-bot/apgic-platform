@@ -208,7 +208,7 @@ func registerAcademyVideoStreamWithClients(
 		// by Range and the imported SHA-256/size. Never forward or credit an
 		// encoded representation as the verified MP4, even when the cloud
 		// supplies otherwise plausible Content-Length/Content-Range headers.
-		if !academyVideoIdentityEncoding(response.Header) {
+		if !academyVideoOriginalRepresentation(response) {
 			academyHTTPError(w, r, academy.ErrUnavailable)
 			return
 		}
@@ -408,6 +408,13 @@ func academyVideoSourceStillAllowed(owner academyVideoStreamingStore, actor, enr
 func academyVideoCloudConnectionStillAllowed(owner academyVideoStreamingStore, author, provider, originalToken string) bool {
 	currentToken, err := owner.AcademyReadCloudCredential(author, provider)
 	return err == nil && originalToken != "" && subtle.ConstantTimeCompare([]byte(currentToken), []byte(originalToken)) == 1
+}
+
+// academyVideoOriginalRepresentation also rejects bodies transparently decoded by
+// a custom Go RoundTripper. In that case net/http may remove Content-Encoding,
+// leaving only Response.Uncompressed as evidence that the verified bytes changed.
+func academyVideoOriginalRepresentation(response *http.Response) bool {
+	return response != nil && !response.Uncompressed && academyVideoIdentityEncoding(response.Header)
 }
 
 // academyVideoIdentityEncoding rejects compressed or ambiguous upstream bodies.
