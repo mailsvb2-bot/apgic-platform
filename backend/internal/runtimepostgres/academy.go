@@ -108,7 +108,7 @@ func academyPublishedProductOwner(ctx context.Context, tx *sql.Tx, actor, produc
 }
 func (c *Checker) AcademyCreateCourse(actor string, input academy.Course) (academy.Course, error) {
 	input.Title = strings.TrimSpace(input.Title)
-	if actor == "" || len(input.Title) < 3 || len(input.Title) > 200 || input.ProductID == "" {
+	if actor == "" || !academy.ValidCourseTitle(input.Title) || input.ProductID == "" {
 		return academy.Course{}, academy.ErrInvalid
 	}
 	ctx, cancel, tx, err := academyBegin(c)

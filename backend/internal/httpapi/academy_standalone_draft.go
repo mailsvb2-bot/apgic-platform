@@ -30,7 +30,7 @@ func registerAcademyStandaloneDraft(mux *http.ServeMux, store academyStore, sess
 			return
 		}
 		input.Title = strings.TrimSpace(input.Title)
-		if len(input.Title) < 1 || len(input.Title) > 200 ||
+		if !academy.ValidCourseTitle(input.Title) ||
 			(input.RequestID != "" && !academyUUID(input.RequestID)) {
 			academyHTTPError(w, r, academy.ErrInvalid)
 			return

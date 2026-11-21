@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 
@@ -51,6 +52,24 @@ func TestAcademyStandaloneDraftIdempotentReplayAndIsolation(t *testing.T) {
 	other, err := store.AcademyCreateStandaloneDraft(foreign, "№1", "Учебный курс", key)
 	if err != nil || other.ID == first.ID {
 		t.Fatalf("different owner must not see or reuse private draft: %+v %v", other, err)
+	}
+
+	// PostgreSQL length(text) counts Unicode characters, not UTF-8 bytes.
+	// A 200-character Russian course name must survive the full Commerce
+	// + Academy transaction while 201 characters must be rejected.
+	unicodeKey, _ := academyID()
+	unicodeTitle := strings.Repeat("Я", 200)
+	unicodeCourse, err := store.AcademyCreateStandaloneDraft(owner, unicodeTitle, "", unicodeKey)
+	if err != nil {
+		t.Fatalf("valid 200-character Cyrillic course rejected: %v", err)
+	}
+	var storedUnicodeLength int
+	if err := db.QueryRow("SELECT length(title) FROM academy_courses WHERE id=$1::uuid", unicodeCourse.ID).Scan(&storedUnicodeLength); err != nil || storedUnicodeLength != 200 {
+		t.Fatalf("persisted Unicode course length=%d err=%v, want 200", storedUnicodeLength, err)
+	}
+	rejectedKey, _ := academyID()
+	if _, err := store.AcademyCreateStandaloneDraft(owner, strings.Repeat("Я", 201), "", rejectedKey); !errors.Is(err, academy.ErrInvalid) {
+		t.Fatalf("201-character title must be invalid, got %v", err)
 	}
 
 	concurrentKey, _ := academyID()

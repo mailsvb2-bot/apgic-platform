@@ -31,7 +31,7 @@ func (c *Checker) AcademyEnsureIdentity(actor string) error {
 // an Academy DRAFT in one transaction. It does not grant learning access.
 func (c *Checker) AcademyCreateStandaloneDraft(actor, title, description string, requestIDs ...string) (academy.Course, error) {
 	title = strings.TrimSpace(title)
-	if actor == "" || len(title) < 1 || len(title) > 200 || len(requestIDs) > 1 {
+	if actor == "" || !academy.ValidCourseTitle(title) || len(requestIDs) > 1 {
 		return academy.Course{}, academy.ErrInvalid
 	}
 	ctx, cancel, tx, err := academyBegin(c)
