@@ -552,7 +552,7 @@ export default function AcademyPage(){
        <p>Если у вас ещё нет аккаунта с курсами, можно явно начать новый. Он не объединится с прежними курсами другого аккаунта.</p>
        <button type="button" disabled={busy} onClick={()=>void startAuthorSession()}>Начать новый аккаунт автора</button>
       </div>}
-      <button className="academy-blue-button" disabled={busy||pendingDraft!==null||authorSessionMissing||title.trim().length<1}>Создать курс</button>
+      <button className="academy-blue-button" disabled={busy||pendingDraft!==null||confirmedDraft!==null||authorSessionMissing||title.trim().length<1}>Создать курс</button>
      {pendingDraft&&<div role="alert" className="academy-draft-recovery">
        <strong>Не удалось подтвердить сохранение курса.</strong>
        <p>Повторное создание временно заблокировано, чтобы не дублировать курс. Кнопка ниже проверит сохранение и безопасно повторит тот же запрос при необходимости.</p>
