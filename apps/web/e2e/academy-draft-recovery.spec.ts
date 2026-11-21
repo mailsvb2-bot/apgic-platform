@@ -77,6 +77,7 @@ test("confirmed draft with failed editor load reopens by ID without another POST
  const form=page.locator("#academy-author");
  await form.getByRole("button",{name:"Создать курс",exact:true}).click();
  await expect(form.getByRole("button",{name:"Открыть созданный курс"})).toBeVisible();
+ await expect(form.getByRole("button",{name:"Создать курс",exact:true})).toBeDisabled();
  await expect(form).toContainText("«гипноз» создан");
  await form.getByRole("button",{name:"Открыть созданный курс"}).click();
  await expect(page.getByRole("heading",{name:"гипноз",exact:true})).toBeVisible();
