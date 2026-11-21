@@ -198,6 +198,14 @@ func registerAcademyVideoStreamWithClients(
 			return
 		}
 		defer response.Body.Close()
+		// A provider-side content coding changes the byte representation used
+		// by Range and the imported SHA-256/size. Never forward or credit an
+		// encoded representation as the verified MP4, even when the cloud
+		// supplies otherwise plausible Content-Length/Content-Range headers.
+		if !academyVideoIdentityEncoding(response.Header) {
+			academyHTTPError(w, r, academy.ErrUnavailable)
+			return
+		}
 		// Canceling a request context is sufficient for net/http transports,
 		// but a custom or stalled upstream body is not required to notice it.
 		// Explicitly close the actual provider reader on revocation, client
@@ -394,6 +402,17 @@ func academyVideoSourceStillAllowed(owner academyVideoStreamingStore, actor, enr
 func academyVideoCloudConnectionStillAllowed(owner academyVideoStreamingStore, author, provider, originalToken string) bool {
 	currentToken, err := owner.AcademyReadCloudCredential(author, provider)
 	return err == nil && originalToken != "" && subtle.ConstantTimeCompare([]byte(currentToken), []byte(originalToken)) == 1
+}
+
+// academyVideoIdentityEncoding rejects compressed or ambiguous upstream bodies.
+// Verified media fingerprints and HTTP byte ranges apply to the original
+// MP4 representation, not to a provider-selected content coding.
+func academyVideoIdentityEncoding(headers http.Header) bool {
+	values := headers.Values("Content-Encoding")
+	if len(values) == 0 {
+		return true
+	}
+	return len(values) == 1 && strings.EqualFold(strings.TrimSpace(values[0]), "identity")
 }
 
 // academyVideoRequestedRange accepts at most one canonical HTTP Range field.
