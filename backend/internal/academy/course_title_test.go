@@ -8,7 +8,7 @@ import (
 func TestValidCourseTitleMatchesPostgresCharacterLength(t *testing.T) {
 	cases := []struct {
 		name, title string
-		want bool
+		want        bool
 	}{
 		{"empty", "", false},
 		{"whitespace", " \t\n ", false},
