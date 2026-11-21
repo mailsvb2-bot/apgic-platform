@@ -192,6 +192,12 @@ func registerAcademyVideoStreamWithClients(
 			academyHTTPError(w, r, academy.ErrUnavailable)
 			return
 		}
+		// Explicitly request the original representation. Besides informing the
+		// provider, this disables net/http automatic gzip decoding even when a
+		// caller injects a default Transport rather than our hardened client.
+		// Without this, transparent decompression strips Content-Encoding and
+		// could bypass the response-side identity check below.
+		request.Header.Set("Accept-Encoding", "identity")
 		response, err := upstreamClient.Do(request)
 		if err != nil {
 			academyHTTPError(w, r, academy.ErrUnavailable)
