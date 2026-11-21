@@ -421,7 +421,15 @@ func academyVideoOriginalRepresentation(response *http.Response) bool {
 // Verified media fingerprints and HTTP byte ranges apply to the original
 // MP4 representation, not to a provider-selected content coding.
 func academyVideoIdentityEncoding(headers http.Header) bool {
-	values := headers.Values("Content-Encoding")
+	// Header.Values canonicalizes the lookup key, but a custom RoundTripper
+	// can construct Response.Header directly with noncanonical casing. Scan
+	// every key to avoid treating a lowercase or duplicate coding as absent.
+	var values []string
+	for key, fields := range headers {
+		if strings.EqualFold(key, "Content-Encoding") {
+			values = append(values, fields...)
+		}
+	}
 	if len(values) == 0 {
 		return true
 	}
