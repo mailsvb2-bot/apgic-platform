@@ -9,13 +9,13 @@ const draft={
 
 async function mockAcademy(page:Page, create:(requestID:string)=>{status:number;data:unknown},
  outline:()=>{status:number;data:unknown}, saved:()=>boolean,
- requests:string[]){
+ requests:string[],courseTitle="гипноз"){
  await page.route("**/v1/academy/**",async route=>{
   const request=route.request(),path=new URL(request.url()).pathname;
   let status=200,data:unknown={};
   if(request.method()==="POST"&&path==="/v1/academy/drafts"){
    const payload=request.postDataJSON() as {title:string;request_id:string};
-   expect(payload.title).toBe("гипноз");
+   expect(payload.title).toBe(courseTitle);
    expect(payload.request_id).toMatch(/^[0-9a-f-]{36}$/);
    requests.push(payload.request_id);
    const result=create(payload.request_id);status=result.status;data=result.data;
@@ -34,7 +34,7 @@ async function mockAcademy(page:Page, create:(requestID:string)=>{status:number;
   await route.fulfill({status,contentType:"application/json",body:JSON.stringify(data)});
  });
  await page.goto("/academy?tab=courses&create=1");
- await page.locator("#academy-title").fill("гипноз");
+ await page.locator("#academy-title").fill(courseTitle);
 }
 
 const outlineOk=()=>({status:200,data:{state:"DRAFT",modules:[],lessons:[]}});
@@ -80,5 +80,18 @@ test("confirmed draft with failed editor load reopens by ID without another POST
  await expect(form).toContainText("«гипноз» создан");
  await form.getByRole("button",{name:"Открыть созданный курс"}).click();
  await expect(page.getByRole("heading",{name:"гипноз",exact:true})).toBeVisible();
+ expect(requests).toHaveLength(1);
+});
+
+
+test("author can create a one-character course title accepted by the canonical API",async({page})=>{
+ const requests:string[]=[];
+ const shortDraft={...draft,title:"1"};
+ await mockAcademy(page,()=>({status:201,data:shortDraft}),outlineOk,()=>true,requests,"1");
+ const form=page.locator("#academy-author");
+ const create=form.getByRole("button",{name:"Создать курс",exact:true});
+ await expect(create).toBeEnabled();
+ await create.click();
+ await expect(page.getByRole("heading",{name:"1",exact:true})).toBeVisible();
  expect(requests).toHaveLength(1);
 });
