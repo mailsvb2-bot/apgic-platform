@@ -58,3 +58,24 @@ func TestAcademyVideoOriginalRepresentationRejectsTransparentDecompression(t *te
 		})
 	}
 }
+
+func TestAcademyVideoIdentityEncodingNoncanonicalHeaders(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		headers http.Header
+		allow   bool
+	}{
+		{name: "lowercase gzip must not be invisible", headers: http.Header{"content-encoding": {"gzip"}}},
+		{name: "mixed-case br must not be invisible", headers: http.Header{"CONTENT-ENCODING": {"br"}}},
+		{name: "lowercase identity is accepted", headers: http.Header{"content-encoding": {"identity"}}, allow: true},
+		{name: "duplicate keys of different casing rejected", headers: http.Header{"Content-Encoding": {"identity"}, "content-encoding": {"gzip"}}},
+		{name: "duplicate identity keys rejected", headers: http.Header{"Content-Encoding": {"identity"}, "content-encoding": {"identity"}}},
+		{name: "noncanonical empty field rejected", headers: http.Header{"content-encoding": {""}}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := academyVideoIdentityEncoding(tt.headers); got != tt.allow {
+				t.Fatalf("academyVideoIdentityEncoding(%v) = %v, want %v", tt.headers, got, tt.allow)
+			}
+		})
+	}
+}
