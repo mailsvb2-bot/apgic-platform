@@ -96,6 +96,20 @@ export default function CloudMediaEditor({courseId,versionId,lessons,modules,foc
   oauthAutoOpened.current=true;
   void browseDisk("disk:/");
  },[courseId,versionId,lessons]);
+ async function disconnectDisk(){
+  if(busy||!window.confirm("Отключить Яндекс Диск? Текущие видео станут недоступны ученикам, пока вы не подключите Диск и не проверите файлы заново."))return;
+  setBusy(true);setMessage("");
+  try{
+   await request<{disconnected:boolean}>("/v1/academy/author/cloud/yandex/disconnect",{confirm:"DISCONNECT_YANDEX_DISK"});
+   setDiskFiles([]);setDiskTotal(0);setDiskOffset(0);setDiskPath("disk:/");
+   setDiskSelectedFiles({});setSelected([]);setMedia([]);
+   // Restore persisted mappings as stale so the author can explicitly
+   // remove/rebind them. Never silently rewrite a published curriculum.
+   await reload(undefined,true);
+   setMessage("Яндекс Диск отключён. Видеодоступ отозван; старые привязки недействительны. Подключите Диск и заново проверьте файлы.");
+  }catch(error){setMessage("Не удалось отключить Яндекс Диск: "+String(error))}
+  finally{setBusy(false)}
+ }
  async function importDiskSelection(){
   if(!Object.keys(diskSelectedFiles).length)return;
   setBusy(true);setMessage("");
@@ -256,6 +270,8 @@ export default function CloudMediaEditor({courseId,versionId,lessons,modules,foc
   <h4>Ваш Яндекс Диск</h4>
   <a href={`/v1/academy/author/cloud/yandex/connect?course_id=${encodeURIComponent(courseId)}&version_id=${encodeURIComponent(versionId)}&lesson_id=${encodeURIComponent(lessonId)}`}>Подключить Яндекс Диск</a>
   <p>После подтверждения в Яндексе файлы откроются автоматически. Выберите нужные видео.</p>
+  <button type="button" disabled={busy} onClick={()=>void disconnectDisk()}>Отключить Яндекс Диск</button>
+  <p>Отключение немедленно отзывает доступ ко всем ранее подтверждённым видео этого подключения. Файлы на самом Яндекс Диске не удаляются.</p>
   <button type="button" disabled={busy} onClick={()=>void browseDisk("disk:/")}>Открыть Яндекс Диск</button>
   <p>Папка: {diskPath}</p>
   {diskPath!=="disk:/"&&<button type="button" disabled={busy} onClick={()=>void browseDisk(diskPath.slice(0,diskPath.lastIndexOf("/"))==="disk:"?"disk:/":diskPath.slice(0,diskPath.lastIndexOf("/")))}>На уровень выше</button>}
