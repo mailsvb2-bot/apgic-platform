@@ -56,7 +56,7 @@ VALUES($1::uuid,'YANDEX_DISK',$2)`, id, secret); err != nil {
 		}
 	}
 	type mediaFixture struct {
-		id string
+		id     string
 		source string
 	}
 	create := func(actor, path string) mediaFixture {
