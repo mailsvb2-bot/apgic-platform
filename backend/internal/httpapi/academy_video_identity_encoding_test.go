@@ -40,9 +40,9 @@ func TestAcademyVideoIdentityEncoding(t *testing.T) {
 // strip Content-Encoding. Never trust the resulting body as verified MP4 bytes.
 func TestAcademyVideoOriginalRepresentationRejectsTransparentDecompression(t *testing.T) {
 	for _, tt := range []struct {
-		name         string
-		response     *http.Response
-		allow        bool
+		name     string
+		response *http.Response
+		allow    bool
 	}{
 		{name: "nil response fails closed"},
 		{name: "plain response", response: &http.Response{Header: http.Header{}}, allow: true},
