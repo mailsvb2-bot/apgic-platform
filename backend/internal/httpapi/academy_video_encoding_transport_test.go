@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// Exercise a real HTTP transport, not just a fabricated http.Response. A
+// Exercise a real HTTP transport, not just a fabricated http.Response.\n// The loopback test origin uses its own client because the production dialer\n// intentionally rejects loopback addresses (SSRF protection). A
 // provider can ignore Accept-Encoding and return gzip even for a Range seek.
 // The gateway must reject that body for every supported response status.
 func TestAcademyVideoUpstreamEncodingOverHTTP(t *testing.T) {
@@ -33,7 +33,7 @@ func TestAcademyVideoUpstreamEncodingOverHTTP(t *testing.T) {
 				t.Fatal(err)
 			}
 			req.Header.Set("Accept-Encoding", "identity")
-			response, err := academyVideoUpstreamClient().Do(req)
+			response, err := origin.Client().Do(req)
 			if err != nil {
 				t.Fatal(err)
 			}
