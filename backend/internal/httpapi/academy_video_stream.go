@@ -192,12 +192,26 @@ func registerAcademyVideoStreamWithClients(
 			academyHTTPError(w, r, academy.ErrUnavailable)
 			return
 		}
+		// Explicitly request the original representation. Besides informing the
+		// provider, this disables net/http automatic gzip decoding even when a
+		// caller injects a default Transport rather than our hardened client.
+		// Without this, transparent decompression strips Content-Encoding and
+		// could bypass the response-side identity check below.
+		request.Header.Set("Accept-Encoding", "identity")
 		response, err := upstreamClient.Do(request)
 		if err != nil {
 			academyHTTPError(w, r, academy.ErrUnavailable)
 			return
 		}
 		defer response.Body.Close()
+		// A provider-side content coding changes the byte representation used
+		// by Range and the imported SHA-256/size. Never forward or credit an
+		// encoded representation as the verified MP4, even when the cloud
+		// supplies otherwise plausible Content-Length/Content-Range headers.
+		if !academyVideoOriginalRepresentation(response) {
+			academyHTTPError(w, r, academy.ErrUnavailable)
+			return
+		}
 		// Canceling a request context is sufficient for net/http transports,
 		// but a custom or stalled upstream body is not required to notice it.
 		// Explicitly close the actual provider reader on revocation, client
@@ -394,6 +408,39 @@ func academyVideoSourceStillAllowed(owner academyVideoStreamingStore, actor, enr
 func academyVideoCloudConnectionStillAllowed(owner academyVideoStreamingStore, author, provider, originalToken string) bool {
 	currentToken, err := owner.AcademyReadCloudCredential(author, provider)
 	return err == nil && originalToken != "" && subtle.ConstantTimeCompare([]byte(currentToken), []byte(originalToken)) == 1
+}
+
+// academyVideoOriginalRepresentation also rejects bodies transparently decoded by
+// a custom Go RoundTripper. In that case net/http may remove Content-Encoding,
+// leaving only Response.Uncompressed as evidence that the verified bytes changed.
+func academyVideoOriginalRepresentation(response *http.Response) bool {
+	return response != nil && !response.Uncompressed && academyVideoIdentityEncoding(response.Header)
+}
+
+// academyVideoIdentityEncoding rejects compressed or ambiguous upstream bodies.
+// Verified media fingerprints and HTTP byte ranges apply to the original
+// MP4 representation, not to a provider-selected content coding.
+func academyVideoIdentityEncoding(headers http.Header) bool {
+	// Header.Values canonicalizes the lookup key, but a custom RoundTripper
+	// can construct Response.Header directly with noncanonical casing. Scan
+	// every key to avoid treating a lowercase or duplicate coding as absent.
+	var values []string
+	seen := false
+	for key, fields := range headers {
+		if strings.EqualFold(key, "Content-Encoding") {
+			// A custom transport can supply a present but empty field slice.
+			// Treat that malformed representation as ambiguous, not absent.
+			if seen || len(fields) != 1 {
+				return false
+			}
+			seen = true
+			values = fields
+		}
+	}
+	if !seen {
+		return true
+	}
+	return strings.EqualFold(strings.TrimSpace(values[0]), "identity")
 }
 
 // academyVideoRequestedRange accepts at most one canonical HTTP Range field.
