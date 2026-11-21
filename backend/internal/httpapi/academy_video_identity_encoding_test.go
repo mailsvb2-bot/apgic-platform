@@ -71,6 +71,9 @@ func TestAcademyVideoIdentityEncodingNoncanonicalHeaders(t *testing.T) {
 		{name: "duplicate keys of different casing rejected", headers: http.Header{"Content-Encoding": {"identity"}, "content-encoding": {"gzip"}}},
 		{name: "duplicate identity keys rejected", headers: http.Header{"Content-Encoding": {"identity"}, "content-encoding": {"identity"}}},
 		{name: "noncanonical empty field rejected", headers: http.Header{"content-encoding": {""}}},
+		{name: "present empty field slice rejected", headers: http.Header{"Content-Encoding": {}}},
+		{name: "noncanonical present empty slice rejected", headers: http.Header{"content-encoding": {}}},
+		{name: "empty slice alongside identity rejected", headers: http.Header{"Content-Encoding": {}, "content-encoding": {"identity"}}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := academyVideoIdentityEncoding(tt.headers); got != tt.allow {
