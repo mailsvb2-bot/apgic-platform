@@ -1,6 +1,7 @@
 package runtimepostgres
 
 import (
+	"database/sql"
 	"os"
 
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/academy"
@@ -81,19 +82,30 @@ func (c *Checker) AcademyDisconnectCloud(actor, provider string) error {
 	if !academyMediaUUID(actor) || provider != "YANDEX_DISK" {
 		return academy.ErrDenied
 	}
-	ctx, cancel := academyContext()
+	ctx, cancel, tx, err := academyBegin(c)
 	defer cancel()
-	result, err := c.db.ExecContext(ctx, `DELETE FROM academy_cloud_connections
- WHERE author_id=$1::uuid AND provider=$2`, actor, provider)
 	if err != nil {
 		return err
 	}
-	n, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if n == 0 {
+	defer tx.Rollback()
+	var revokedGeneration string
+	err = tx.QueryRowContext(ctx, `DELETE FROM academy_cloud_connections
+ WHERE author_id=$1::uuid AND provider=$2
+ RETURNING generation::text`, actor, provider).Scan(&revokedGeneration)
+	if err == sql.ErrNoRows {
 		return academy.ErrNotFound
 	}
-	return nil
+	if err != nil {
+		return err
+	}
+	// Commit the credential revocation and its canonical event together.
+	// No token, file path or provider URL is ever included in event payload.
+	if err = academyEvent(ctx, tx, actor, "academy/cloud/"+actor,
+		"academy.cloud.disconnected", map[string]string{
+			"provider":           provider,
+			"revoked_generation": revokedGeneration,
+		}); err != nil {
+		return err
+	}
+	return tx.Commit()
 }

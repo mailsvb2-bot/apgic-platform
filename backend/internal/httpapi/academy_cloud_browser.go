@@ -13,6 +13,12 @@ type academyCloudBrowser interface {
 	AcademyBrowseYandexDisk(actor, path string, offset, limit int) ([]academy.YandexDiskFile, int, error)
 }
 
+// Disconnect uses the existing canonical PostgreSQL credential owner.
+// Removing the connection invalidates all current-generation media and streams.
+type academyCloudDisconnector interface {
+	AcademyDisconnectCloud(actor, provider string) error
+}
+
 // academyCloudBrowserQuery rejects ambiguous or malformed folder and page
 // selectors before the author's OAuth credential is read. URL.Query().Get()
 // silently picks the first duplicate and ignores invalid percent escapes.
@@ -53,6 +59,39 @@ func academyCloudBrowserQuery(rawQuery string) (string, int, error) {
 
 // A same-origin authenticated file picker API. It returns metadata only.
 func registerAcademyCloudBrowser(mux *http.ServeMux, store academyStore, sessions *clientSessionManager, sessionErr error) {
+	mux.HandleFunc("POST /v1/academy/author/cloud/yandex/disconnect", func(w http.ResponseWriter, r *http.Request) {
+		actor, ok := academyIdentity(w, r, sessions, sessionErr)
+		if !ok {
+			return
+		}
+		// Credential-revoking operations require a first-party browser POST,
+		// not a cross-site form or a forged cookie-bearing request.
+		if !accountPairOrigin(r) {
+			academyHTTPError(w, r, academy.ErrDenied)
+			return
+		}
+		var input struct {
+			Confirm string `json:"confirm"`
+		}
+		if !academyRead(w, r, &input) {
+			return
+		}
+		if input.Confirm != "DISCONNECT_YANDEX_DISK" {
+			academyHTTPError(w, r, academy.ErrInvalid)
+			return
+		}
+		owner, ok := store.(academyCloudDisconnector)
+		if !ok {
+			academyHTTPError(w, r, academy.ErrUnavailable)
+			return
+		}
+		if err := owner.AcademyDisconnectCloud(actor, "YANDEX_DISK"); err != nil {
+			academyHTTPError(w, r, err)
+			return
+		}
+		w.Header().Set("Cache-Control", "private, no-store")
+		writeJSON(w, http.StatusOK, map[string]bool{"disconnected": true})
+	})
 	mux.HandleFunc("GET /v1/academy/author/cloud/yandex/files", func(w http.ResponseWriter, r *http.Request) {
 		actor, ok := academyIdentity(w, r, sessions, sessionErr)
 		if !ok {
