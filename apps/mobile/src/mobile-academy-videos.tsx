@@ -24,7 +24,7 @@ export default function NativeAcademyLessonVideos({enrollmentId,lessonId,availab
    // Unmount the native player on background, not merely pause its cursor:
    // the decoded/seek buffer may outlive a revoked entitlement.
    setVisible(state==="active");
-   if(state!=="active"){setBlocked(true);setVideos([]);setError("Для возобновления видео подтвердите доступ.");}
+   if(state!=="active"){setBlocked(true);setVideos([]);setSelectedVideoId(null);setError("Для возобновления видео подтвердите доступ.");}
   });
   return ()=>subscription.remove();
  },[]);
@@ -51,11 +51,11 @@ export default function NativeAcademyLessonVideos({enrollmentId,lessonId,availab
     if(!verified|| (videos.length>0 &&
       (verified.length!==videos.length||videos.some((v,i)=>
         v.id!==verified[i].id||v.title!==verified[i].title||v.ordinal!==verified[i].ordinal)))){
-     setBlocked(true);setVideos([]);setError("Видеодоступ изменился или отозван. Повторите проверку.");return;
+     setBlocked(true);setVideos([]);setSelectedVideoId(null);setError("Видеодоступ изменился или отозван. Повторите проверку.");return;
     }
     if(videos.length===0){setVideos(verified);setError("");}
    }catch{
-    if(!disposed){setBlocked(true);setVideos([]);setError("Видеодоступ не подтверждён. Проигрыватель остановлен.");}
+    if(!disposed){setBlocked(true);setVideos([]);setSelectedVideoId(null);setError("Видеодоступ не подтверждён. Проигрыватель остановлен.");}
    }finally{clearTimeout(timeout);if(currentRequest===controller)currentRequest=null;checking=false;}
   };
   void check();
@@ -69,15 +69,15 @@ export default function NativeAcademyLessonVideos({enrollmentId,lessonId,availab
   {!visible?<Text>Просмотр приостановлен при сворачивании приложения.</Text>:null}
   {error?<View style={{gap:6}}>
    <Text accessibilityRole="alert">{error}</Text>
-   <Pressable accessibilityRole="button" onPress={()=>{setFailed({});setBlocked(false);setGeneration(n=>n+1);}}>
+   <Pressable accessibilityRole="button" onPress={()=>{setSelectedVideoId(null);setFailed({});setBlocked(false);setGeneration(n=>n+1);}}>
     <Text>Проверить доступ повторно</Text>
    </Pressable>
   </View>:null}
-  {visible&&videos.map(video=>{
+  {available&&visible&&!blocked&&videos.map(video=>{
    const path=nativeAcademyVideoPath(enrollmentId,lessonId,video.id);
    if(!path||failed[video.id])return <View key={video.id}>
     <Text>{video.title}: воспроизведение недоступно.</Text>
-    <Pressable accessibilityRole="button" onPress={()=>{setVideos([]);setBlocked(false);setGeneration(n=>n+1);}}>
+    <Pressable accessibilityRole="button" onPress={()=>{setSelectedVideoId(null);setVideos([]);setBlocked(false);setGeneration(n=>n+1);}}>
      <Text>Повторить проверку доступа</Text>
     </Pressable>
    </View>;
@@ -90,7 +90,7 @@ export default function NativeAcademyLessonVideos({enrollmentId,lessonId,availab
      controls
      resizeMode="contain"
      preventsDisplaySleepDuringVideoPlayback
-     onError={()=>{setFailed(old=>({...old,[video.id]:true}));setBlocked(true);setVideos([]);setError("Видео не удалось загрузить. Проверьте вход и доступ к курсу.");}}
+     onError={()=>{setFailed(old=>({...old,[video.id]:true}));setSelectedVideoId(null);setBlocked(true);setVideos([]);setError("Видео не удалось загрузить. Проверьте вход и доступ к курсу.");}}
      style={{width:"100%",height:220,backgroundColor:"#101827"}}
     />}
     <Text>Видео загружается только через защищённый APGIC. Сохранение офлайн отключено.</Text>
