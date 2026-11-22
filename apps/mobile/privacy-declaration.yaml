@@ -18,6 +18,12 @@ runtime_dependency_assertions:
     data_classes:
       - INTERNAL
     permissions: []
+  react-native-video:
+    egress: CANONICAL_APGIC_HTTPS_ONLY_BY_CALLER
+    data_classes:
+      - PRIVATE_LEARNER_VIDEO
+      - SESSION_SCOPED_MEDIA_REQUEST
+    permissions: []
   tweetnacl:
     egress: NONE
     data_classes:
