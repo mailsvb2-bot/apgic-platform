@@ -13,7 +13,7 @@ export default function NativeAcademyLessonVideos({enrollmentId,lessonId,availab
  const [videos,setVideos]=useState<LearnerVideo[]>([]);
  const [error,setError]=useState("");
  const [generation,setGeneration]=useState(0);
- const [visible,setVisible]=useState(AppState.currentState!=="background"&&AppState.currentState!=="inactive");
+ const [visible,setVisible]=useState(AppState.currentState==="active");
  const [failed,setFailed]=useState<Record<string,boolean>>({});
  const [blocked,setBlocked]=useState(false);
  const [selectedVideoId,setSelectedVideoId]=useState<string|null>(null);
@@ -67,7 +67,7 @@ export default function NativeAcademyLessonVideos({enrollmentId,lessonId,availab
  if(!available)return <Text>Видеоурок ещё не открыт.</Text>;
  return <View style={{gap:10}} accessibilityLabel="Видео Academy">
   {!visible?<Text>Просмотр приостановлен при сворачивании приложения.</Text>:null}
-  {error?<View style={{gap:6}}>
+  {error&&visible?<View style={{gap:6}}>
    <Text accessibilityRole="alert">{error}</Text>
    <Pressable accessibilityRole="button" onPress={()=>{setSelectedVideoId(null);setFailed({});setBlocked(false);setGeneration(n=>n+1);}}>
     <Text>Проверить доступ повторно</Text>
