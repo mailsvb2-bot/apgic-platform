@@ -197,7 +197,7 @@ export function AcademySurface(){
     <Text style={{fontWeight:"700"}}>{lesson.title}{lesson.completed?" ✓":""}</Text>
     {lesson.available===false&&<Text>Урок пока не открыт или его срок завершился.</Text>}
     {lesson.kind==="READING"&&lesson.available!==false&&<Text>{lesson.body}</Text>}
-    {lesson.kind==="VIDEO"&&<NativeAcademyLessonVideos key={`${selected.id}:${lesson.id}`} enrollmentId={selected.id} lessonId={lesson.id} available={lesson.available!==false&&selected.access_state==="ACTIVE"} requestManifest={nativeVideoManifest}/>}
+    {lesson.kind==="VIDEO"&&<NativeAcademyLessonVideos key={`${selected.id}:${lesson.id}`} enrollmentId={selected.id} lessonId={lesson.id} available={lesson.available!==false&&selected.state!=="REVOKED"&&selected.access_state!=="REVOKED"} requestManifest={nativeVideoManifest}/>}
     {lesson.kind==="ASSESSMENT"&&lesson.available!==false&&<View style={{gap:8}}>
       {attempts.filter(a=>a.lesson_id===lesson.id).map(a=><Text key={a.id}>Попытка {a.attempt_no}: {a.result==="PENDING"?"Ожидает проверки":a.result==="PASSED"?"Зачтено":"Не зачтено"}{a.score!==undefined?` · оценка ${a.score}`:""}</Text>)}
       {attempts.filter(a=>a.lesson_id===lesson.id&&(a.result==="FAILED"||a.result==="PASSED")).map(a=>
