@@ -446,14 +446,28 @@ func academyVideoIdentityEncoding(headers http.Header) bool {
 // academyVideoRequestedRange accepts at most one canonical HTTP Range field.
 // net/http Header.Get hides additional values supplied by a client.
 func academyVideoRequestedRange(headers http.Header) (string, bool) {
-	values := headers.Values("Range")
-	if len(values) == 0 {
+	// Inspect raw keys: injected transports and direct handler callers can
+	// supply noncanonical casing, which Header.Values("Range") would miss.
+	// Never forward a hidden second Range to the upstream provider.
+	var value string
+	seen := false
+	for key, fields := range headers {
+		if !strings.EqualFold(key, "Range") {
+			continue
+		}
+		if seen || len(fields) != 1 {
+			return "", false
+		}
+		seen = true
+		value = fields[0]
+	}
+	if !seen {
 		return "", true
 	}
-	if len(values) != 1 || !academyVideoSingleRange(values[0]) {
+	if !academyVideoSingleRange(value) {
 		return "", false
 	}
-	return values[0], true
+	return value, true
 }
 
 func academyVideoSingleRange(value string) bool {
