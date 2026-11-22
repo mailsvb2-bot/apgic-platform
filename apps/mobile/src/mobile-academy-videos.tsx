@@ -40,9 +40,16 @@ export default function NativeAcademyLessonVideos({enrollmentId,lessonId,availab
    checking=true;
    const controller=new AbortController();
    currentRequest=controller;
-   const timeout=setTimeout(()=>controller.abort(),2000);
+   // AbortSignal is advisory to a custom transport. A stalled native fetch
+   // must never leave a previously authorized decoder running indefinitely.
+   let rejectTimeout:(reason?:unknown)=>void=()=>{};
+   const deadline=new Promise<never>((_,reject)=>{rejectTimeout=reject;});
+   const timeout=setTimeout(()=>{
+    controller.abort();
+    rejectTimeout(new Error("ACADEMY_MANIFEST_TIMEOUT"));
+   },2000);
    try{
-    const data=await requestManifest(manifestPath,controller.signal);
+    const data=await Promise.race([requestManifest(manifestPath,controller.signal),deadline]);
     if(disposed)return;
     const verified=nativeAcademyValidatedVideos(data,enrollmentId,lessonId);
     // A binding can change without changing its media ID (title/order), and
