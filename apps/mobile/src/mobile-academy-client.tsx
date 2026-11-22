@@ -28,10 +28,10 @@ export type NativeAcademyAppeal={id:string;attempt_id:string;state:string;reason
 type AcademyFetch=(url:string,init?:RequestInit)=>Promise<Response>;
 
 export async function academyRequest<T>(
- path:string,method:"GET"|"POST"="GET",fetchImpl:AcademyFetch=fetch,origin=canonicalAPGICOrigin,body?:unknown,
+ path:string,method:"GET"|"POST"="GET",fetchImpl:AcademyFetch=fetch,origin=canonicalAPGICOrigin,body?:unknown,signal?:AbortSignal,
 ):Promise<T>{
  const response=await fetchImpl(new URL(path,origin).toString(),{
-  method,credentials:"include",headers:{"Accept":"application/json","Content-Type":"application/json"},
+  method,credentials:"include",signal,headers:{"Accept":"application/json","Content-Type":"application/json"},
   body:body===undefined?undefined:JSON.stringify(body),
  });
  // Even a malformed 401 response must revoke the local view of identity data.
@@ -47,6 +47,8 @@ export async function academyRequest<T>(
  }
  return value as T;
 }
+
+const nativeVideoManifest:FetchManifest=(path,signal)=>academyRequest(path,"GET",fetch,canonicalAPGICOrigin,undefined,signal);
 
 export function AcademySurface(){
  const [courses,setCourses]=useState<NativeAcademyCourse[]>([]);
@@ -195,7 +197,7 @@ export function AcademySurface(){
     <Text style={{fontWeight:"700"}}>{lesson.title}{lesson.completed?" ✓":""}</Text>
     {lesson.available===false&&<Text>Урок пока не открыт или его срок завершился.</Text>}
     {lesson.kind==="READING"&&lesson.available!==false&&<Text>{lesson.body}</Text>}
-    {lesson.kind==="VIDEO"&&<NativeAcademyLessonVideos key={`${selected.id}:${lesson.id}`} enrollmentId={selected.id} lessonId={lesson.id} available={lesson.available!==false&&selected.access_state==="ACTIVE"} requestManifest={academyRequest as FetchManifest}/>}
+    {lesson.kind==="VIDEO"&&<NativeAcademyLessonVideos key={`${selected.id}:${lesson.id}`} enrollmentId={selected.id} lessonId={lesson.id} available={lesson.available!==false&&selected.access_state==="ACTIVE"} requestManifest={nativeVideoManifest}/>}
     {lesson.kind==="ASSESSMENT"&&lesson.available!==false&&<View style={{gap:8}}>
       {attempts.filter(a=>a.lesson_id===lesson.id).map(a=><Text key={a.id}>Попытка {a.attempt_no}: {a.result==="PENDING"?"Ожидает проверки":a.result==="PASSED"?"Зачтено":"Не зачтено"}{a.score!==undefined?` · оценка ${a.score}`:""}</Text>)}
       {attempts.filter(a=>a.lesson_id===lesson.id&&(a.result==="FAILED"||a.result==="PASSED")).map(a=>
