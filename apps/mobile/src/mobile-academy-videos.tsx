@@ -13,7 +13,7 @@ export default function NativeAcademyLessonVideos({enrollmentId,lessonId,availab
  const [videos,setVideos]=useState<LearnerVideo[]>([]);
  const [error,setError]=useState("");
  const [generation,setGeneration]=useState(0);
- const [visible,setVisible]=useState(AppState.currentState==="active");
+ const [visible,setVisible]=useState(AppState.currentState!=="background"&&AppState.currentState!=="inactive");
  const [failed,setFailed]=useState<Record<string,boolean>>({});
  const [blocked,setBlocked]=useState(false);
  const manifestPath=`/v1/academy/enrollments/${encodeURIComponent(enrollmentId)}/lessons/${encodeURIComponent(lessonId)}/videos`;
