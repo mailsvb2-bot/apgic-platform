@@ -2,11 +2,10 @@ import React,{useCallback,useEffect,useState} from "react";
 import {AppState,Pressable,Text,View} from "react-native";
 import Video from "react-native-video";
 import {canonicalAPGICOrigin} from "./mobile-deep-link-client.ts";
-import {academyRequest} from "./mobile-academy-client.tsx";
 
 type LearnerVideo={id:string;title:string;ordinal:number};
 type Manifest={videos:LearnerVideo[]};
-type FetchManifest=(path:string)=>Promise<Manifest>;
+export type FetchManifest=(path:string)=>Promise<Manifest>;
 const idPattern=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // The only media origin in the native app is the authenticated APGIC gateway.
@@ -16,8 +15,8 @@ export function nativeAcademyVideoPath(enrollmentId:string,lessonId:string,media
  return `/v1/academy/enrollments/${enrollmentId}/lessons/${lessonId}/videos/${mediaId}/stream`;
 }
 
-export default function NativeAcademyLessonVideos({enrollmentId,lessonId,available}:{
- enrollmentId:string;lessonId:string;available:boolean
+export default function NativeAcademyLessonVideos({enrollmentId,lessonId,available,requestManifest}:{
+ enrollmentId:string;lessonId:string;available:boolean;requestManifest:FetchManifest
 }){
  const [videos,setVideos]=useState<LearnerVideo[]>([]);
  const [error,setError]=useState("");
@@ -28,7 +27,7 @@ export default function NativeAcademyLessonVideos({enrollmentId,lessonId,availab
  const load=useCallback(async()=>{
   if(!available||!visible)return;
   try{
-   const result=await academyRequest<Manifest>(manifestPath);
+   const result=await requestManifest(manifestPath);
    if(!Array.isArray(result.videos)||result.videos.length===0||
     result.videos.some(v=>!nativeAcademyVideoPath(enrollmentId,lessonId,v.id))){
     throw new Error("Invalid video manifest");
