@@ -2,6 +2,7 @@ import React,{useCallback,useState} from "react";
 import {Linking,Pressable,Text,TextInput,View} from "react-native";
 import {canonicalAPGICOrigin} from "./mobile-deep-link-client.ts";
 import {AcademyAccessError,academyOptional,academySessionRejected} from "./mobile-academy-session.ts";
+import {academyVerifiedVideoEntries,academyVideoStreamPath,type AcademyVideoEntry} from "./mobile-academy-video.ts";
 
 export type NativeAcademyNotifications={enabled:boolean;learning_updates:boolean;assessment_results:boolean;certificate_updates:boolean};
 export type NativeAcademyCourse={
@@ -52,6 +53,7 @@ export function AcademySurface(){
  const [verifiedCourseIDs,setVerifiedCourseIDs]=useState<string[]>([]);
  const [enrollments,setEnrollments]=useState<NativeAcademyEnrollment[]>([]);
  const [lessons,setLessons]=useState<NativeAcademyLesson[]>([]);
+ const [lessonVideos,setLessonVideos]=useState<Record<string,AcademyVideoEntry[]>>({});
  const [selected,setSelected]=useState<NativeAcademyEnrollment|null>(null);
  const [certificate,setCertificate]=useState<NativeAcademyCertificate|null>(null);
  const [certificates,setCertificates]=useState<NativeLearnerCertificate[]>([]);
@@ -72,7 +74,7 @@ export function AcademySurface(){
     // previously fetched learner or purchase evidence when the server denies
     // the current signed session.
     setCourses([]);setVerifiedCourseIDs([]);setEnrollments([]);setLessons([]);
-    setSelected(null);setCertificate(null);setCertificates([]);setAttempts([]);
+    setSelected(null);setCertificate(null);setCertificates([]);setAttempts([]);setLessonVideos({});
     setAppeals([]);setAppealsUnavailable(false);setCohorts([]);
     setAppealReasons({});setNotifications(null);setAssessmentAnswer("");
     setStatus("Сессия завершилась. Войдите снова.");
@@ -94,7 +96,7 @@ export function AcademySurface(){
      .then(value=>({ok:true,items:value.cohorts})),
     {ok:false,items:[] as NativeAcademyCohort[]})
   ]);
-  setSelected(e);setLessons(data.lessons);setAttempts(history.attempts);
+  setSelected(e);setLessons(data.lessons);setAttempts(history.attempts);setLessonVideos({});
   setAppeals(review.items);setAppealsUnavailable(!review.ok);setCohorts(groups.items);setCertificate(null);
   setStatus(review.ok&&groups.ok?"Ваш прогресс синхронизируется с APGIC.":"Уроки доступны. Дополнительные сведения временно недоступны.");
  },[]);
@@ -194,7 +196,28 @@ export function AcademySurface(){
     <Text style={{fontWeight:"700"}}>{lesson.title}{lesson.completed?" ✓":""}</Text>
     {lesson.available===false&&<Text>Урок пока не открыт или его срок завершился.</Text>}
     {lesson.kind==="READING"&&lesson.available!==false&&<Text>{lesson.body}</Text>}
-    {lesson.kind==="VIDEO"&&<Text>Видеоматериал требует подтверждённого media grant.</Text>}
+    {lesson.kind==="VIDEO"&&<View style={{gap:8}}>
+     {lesson.available===false?<Text>Видеоматериал сейчас недоступен.</Text>:<>
+      <Pressable accessibilityRole="button" disabled={busy}
+       onPress={()=>void act(async()=>{
+        const result=await academyRequest<unknown>(
+         `/v1/academy/enrollments/${encodeURIComponent(selected.id)}/lessons/${encodeURIComponent(lesson.id)}/videos`);
+        const videos=academyVerifiedVideoEntries(result);
+        setLessonVideos(old=>({...old,[lesson.id]:videos}));
+        setStatus(videos.length?"Выберите видео. Для просмотра в браузере может потребоваться вход в тот же аккаунт.":"Видео пока не назначено.");
+       })}><Text>Проверить доступ к видео</Text></Pressable>
+      {(lessonVideos[lesson.id]||[]).map(video=><Pressable key={video.id}
+       accessibilityRole="button" disabled={busy}
+       onPress={()=>void act(async()=>{
+        const result=await academyRequest<unknown>(
+         `/v1/academy/enrollments/${encodeURIComponent(selected.id)}/lessons/${encodeURIComponent(lesson.id)}/videos`);
+        if(!academyVerifiedVideoEntries(result).some(item=>item.id===video.id))
+         throw new Error("Доступ к видео отозван. Обновите урок.");
+        await Linking.openURL(new URL(academyVideoStreamPath(selected.id,lesson.id,video.id),canonicalAPGICOrigin).toString());
+        setStatus("Открыт защищённый видеопоток APGIC. При необходимости войдите в браузере.");
+       })}><Text>Смотреть в браузере: {video.ordinal}. {video.title}</Text></Pressable>)}
+     </>}
+    </View>}
     {lesson.kind==="ASSESSMENT"&&lesson.available!==false&&<View style={{gap:8}}>
       {attempts.filter(a=>a.lesson_id===lesson.id).map(a=><Text key={a.id}>Попытка {a.attempt_no}: {a.result==="PENDING"?"Ожидает проверки":a.result==="PASSED"?"Зачтено":"Не зачтено"}{a.score!==undefined?` · оценка ${a.score}`:""}</Text>)}
       {attempts.filter(a=>a.lesson_id===lesson.id&&(a.result==="FAILED"||a.result==="PASSED")).map(a=>
