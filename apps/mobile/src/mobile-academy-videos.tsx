@@ -6,7 +6,7 @@ import {nativeAcademyVideoPath} from "./mobile-academy-video-url.ts";
 
 type LearnerVideo={id:string;title:string;ordinal:number};
 type Manifest={videos:LearnerVideo[]};
-export type FetchManifest=(path:string)=>Promise<Manifest>;
+export type FetchManifest=(path:string,signal?:AbortSignal)=>Promise<Manifest>;
 export default function NativeAcademyLessonVideos({enrollmentId,lessonId,available,requestManifest}:{
  enrollmentId:string;lessonId:string;available:boolean;requestManifest:FetchManifest
 }){
@@ -33,11 +33,15 @@ export default function NativeAcademyLessonVideos({enrollmentId,lessonId,availab
    return;
   }
   let disposed=false,checking=false;
+  let currentRequest:AbortController|null=null;
   const check=async()=>{
    if(disposed||checking)return;
    checking=true;
+   const controller=new AbortController();
+   currentRequest=controller;
+   const timeout=setTimeout(()=>controller.abort(),2000);
    try{
-    const data=await requestManifest(manifestPath);
+    const data=await requestManifest(manifestPath,controller.signal);
     if(disposed)return;
     if(!Array.isArray(data.videos)||data.videos.length===0||
      data.videos.some(v=>!nativeAcademyVideoPath(enrollmentId,lessonId,v.id))||
@@ -47,13 +51,13 @@ export default function NativeAcademyLessonVideos({enrollmentId,lessonId,availab
     if(videos.length===0){setVideos(data.videos);setError("");}
    }catch{
     if(!disposed){setBlocked(true);setVideos([]);setError("Видеодоступ не подтверждён. Проигрыватель остановлен.");}
-   }finally{checking=false;}
+   }finally{clearTimeout(timeout);if(currentRequest===controller)currentRequest=null;checking=false;}
   };
   void check();
   // The gateway also verifies every media byte write and PostgreSQL
   // entitlement. This poll drops already buffered native bytes on revoke.
   const interval=setInterval(()=>void check(),1000);
-  return ()=>{disposed=true;clearInterval(interval);};
+  return ()=>{disposed=true;clearInterval(interval);currentRequest?.abort();};
  },[available,visible,blocked,manifestPath,enrollmentId,lessonId,generation,videos,requestManifest]);
  if(!available)return <Text>Видеоурок ещё не открыт.</Text>;
  return <View style={{gap:10}} accessibilityLabel="Видео Academy">
