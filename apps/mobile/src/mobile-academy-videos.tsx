@@ -2,7 +2,7 @@ import React,{useEffect,useState} from "react";
 import {AppState,Pressable,Text,View} from "react-native";
 import Video from "react-native-video";
 import {canonicalAPGICOrigin} from "./mobile-deep-link-client.ts";
-import {nativeAcademyVideoPath} from "./mobile-academy-video-url.ts";
+import {nativeAcademyVideoPath,nativeAcademyValidatedVideos} from "./mobile-academy-video-url.ts";
 
 type LearnerVideo={id:string;title:string;ordinal:number};
 type Manifest={videos:LearnerVideo[]};
@@ -43,12 +43,11 @@ export default function NativeAcademyLessonVideos({enrollmentId,lessonId,availab
    try{
     const data=await requestManifest(manifestPath,controller.signal);
     if(disposed)return;
-    if(!Array.isArray(data.videos)||data.videos.length===0||
-     data.videos.some(v=>!nativeAcademyVideoPath(enrollmentId,lessonId,v.id))||
-     videos.some(v=>!data.videos.some(next=>next.id===v.id))){
+    const verified=nativeAcademyValidatedVideos(data,enrollmentId,lessonId);
+    if(!verified||videos.some(v=>!verified.some(next=>next.id===v.id))){
      setBlocked(true);setVideos([]);setError("Видеодоступ изменился или отозван. Повторите проверку.");return;
     }
-    if(videos.length===0){setVideos(data.videos);setError("");}
+    if(videos.length===0){setVideos(verified);setError("");}
    }catch{
     if(!disposed){setBlocked(true);setVideos([]);setError("Видеодоступ не подтверждён. Проигрыватель остановлен.");}
    }finally{clearTimeout(timeout);if(currentRequest===controller)currentRequest=null;checking=false;}
