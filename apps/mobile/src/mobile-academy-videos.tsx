@@ -16,6 +16,7 @@ export default function NativeAcademyLessonVideos({enrollmentId,lessonId,availab
  const [visible,setVisible]=useState(AppState.currentState!=="background"&&AppState.currentState!=="inactive");
  const [failed,setFailed]=useState<Record<string,boolean>>({});
  const [blocked,setBlocked]=useState(false);
+ const [selectedVideoId,setSelectedVideoId]=useState<string|null>(null);
  const manifestPath=`/v1/academy/enrollments/${encodeURIComponent(enrollmentId)}/lessons/${encodeURIComponent(lessonId)}/videos`;
 
  useEffect(()=>{
@@ -29,7 +30,7 @@ export default function NativeAcademyLessonVideos({enrollmentId,lessonId,availab
  },[]);
  useEffect(()=>{
   if(!available||!visible||blocked){
-   setVideos([]);
+   setVideos([]);setSelectedVideoId(null);
    return;
   }
   let disposed=false,checking=false;
@@ -81,16 +82,17 @@ export default function NativeAcademyLessonVideos({enrollmentId,lessonId,availab
     </Pressable>
    </View>;
    return <View key={video.id} style={{gap:6}}>
-    <Text>{video.ordinal}. {video.title}</Text>
-    <Video
+    <Pressable accessibilityRole="button" onPress={()=>setSelectedVideoId(video.id)}>
+     <Text>{video.ordinal}. {video.title}{selectedVideoId===video.id?" · воспроизводится":" · смотреть"}</Text>
+    </Pressable>
+    {selectedVideoId===video.id&&<Video
      source={{uri:canonicalAPGICOrigin+path}}
-     paused={false}
      controls
      resizeMode="contain"
      preventsDisplaySleepDuringVideoPlayback
      onError={()=>{setFailed(old=>({...old,[video.id]:true}));setBlocked(true);setVideos([]);setError("Видео не удалось загрузить. Проверьте вход и доступ к курсу.");}}
      style={{width:"100%",height:220,backgroundColor:"#101827"}}
-    />
+    />}
     <Text>Видео загружается только через защищённый APGIC. Сохранение офлайн отключено.</Text>
    </View>;
   })}
