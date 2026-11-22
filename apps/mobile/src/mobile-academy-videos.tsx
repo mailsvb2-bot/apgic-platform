@@ -37,7 +37,7 @@ export default function NativeAcademyLessonVideos({enrollmentId,lessonId,availab
    if(disposed||checking)return;
    checking=true;
    try{
-    const data=await academyRequest<Manifest>(manifestPath);
+    const data=await requestManifest(manifestPath);
     if(disposed)return;
     if(!Array.isArray(data.videos)||data.videos.length===0||
      data.videos.some(v=>!nativeAcademyVideoPath(enrollmentId,lessonId,v.id))||
@@ -54,7 +54,7 @@ export default function NativeAcademyLessonVideos({enrollmentId,lessonId,availab
   // entitlement. This poll drops already buffered native bytes on revoke.
   const interval=setInterval(()=>void check(),1000);
   return ()=>{disposed=true;clearInterval(interval);};
- },[available,visible,blocked,manifestPath,enrollmentId,lessonId,generation,videos]);
+ },[available,visible,blocked,manifestPath,enrollmentId,lessonId,generation,videos,requestManifest]);
  if(!available)return <Text>Видеоурок ещё не открыт.</Text>;
  return <View style={{gap:10}} accessibilityLabel="Видео Academy">
   {!visible?<Text>Просмотр приостановлен при сворачивании приложения.</Text>:null}
