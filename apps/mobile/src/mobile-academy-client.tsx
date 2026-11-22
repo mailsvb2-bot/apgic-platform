@@ -2,6 +2,7 @@ import React,{useCallback,useState} from "react";
 import {Linking,Pressable,Text,TextInput,View} from "react-native";
 import {canonicalAPGICOrigin} from "./mobile-deep-link-client.ts";
 import {AcademyAccessError,academyOptional,academySessionRejected} from "./mobile-academy-session.ts";
+import NativeAcademyLessonVideos,{type FetchManifest} from "./mobile-academy-videos.tsx";
 
 export type NativeAcademyNotifications={enabled:boolean;learning_updates:boolean;assessment_results:boolean;certificate_updates:boolean};
 export type NativeAcademyCourse={
@@ -194,7 +195,7 @@ export function AcademySurface(){
     <Text style={{fontWeight:"700"}}>{lesson.title}{lesson.completed?" ✓":""}</Text>
     {lesson.available===false&&<Text>Урок пока не открыт или его срок завершился.</Text>}
     {lesson.kind==="READING"&&lesson.available!==false&&<Text>{lesson.body}</Text>}
-    {lesson.kind==="VIDEO"&&<Text>Видеоматериал требует подтверждённого media grant.</Text>}
+    {lesson.kind==="VIDEO"&&<NativeAcademyLessonVideos key={`${selected.id}:${lesson.id}`} enrollmentId={selected.id} lessonId={lesson.id} available={lesson.available!==false&&selected.access_state==="ACTIVE"} requestManifest={academyRequest as FetchManifest}/>}
     {lesson.kind==="ASSESSMENT"&&lesson.available!==false&&<View style={{gap:8}}>
       {attempts.filter(a=>a.lesson_id===lesson.id).map(a=><Text key={a.id}>Попытка {a.attempt_no}: {a.result==="PENDING"?"Ожидает проверки":a.result==="PASSED"?"Зачтено":"Не зачтено"}{a.score!==undefined?` · оценка ${a.score}`:""}</Text>)}
       {attempts.filter(a=>a.lesson_id===lesson.id&&(a.result==="FAILED"||a.result==="PASSED")).map(a=>
