@@ -12,30 +12,30 @@ var ErrInvalidOrderSnapshot = errors.New("invalid immutable order snapshot")
 var directCheckoutKeyPattern = regexp.MustCompile(`^[A-Za-z0-9._~-]{8,128}$`)
 
 type OrderSnapshot struct {
-	ID                      string
-	BookingID               string
-	DirectBuyerIdentityID string
+	ID                           string
+	BookingID                    string
+	DirectBuyerIdentityID        string
 	DirectCheckoutIdempotencyKey string
-	OfferRef                string
-	PriceSourceRef          string
-	AmountMinor             int64
-	Currency                string
-	CommissionMinor         int64
-	PricingPolicyVersion    string
-	CommissionPolicyVersion string
-	LegalSnapshotRef        string
-	ProductID               string
-	OrganizationDirectionID string
-	ProductOwnerRef         string
-	AuthorRefs              []string
-	SellerRef               string
-	CommercialOwnerRef      string
-	PaymentRecipientRef     string
-	PlatformRole            string
-	FiscalResponsibilityRef string
-	RefundResponsibilityRef string
-	PayoutBeneficiaryRef    string
-	CapturedAt              time.Time
+	OfferRef                     string
+	PriceSourceRef               string
+	AmountMinor                  int64
+	Currency                     string
+	CommissionMinor              int64
+	PricingPolicyVersion         string
+	CommissionPolicyVersion      string
+	LegalSnapshotRef             string
+	ProductID                    string
+	OrganizationDirectionID      string
+	ProductOwnerRef              string
+	AuthorRefs                   []string
+	SellerRef                    string
+	CommercialOwnerRef           string
+	PaymentRecipientRef          string
+	PlatformRole                 string
+	FiscalResponsibilityRef      string
+	RefundResponsibilityRef      string
+	PayoutBeneficiaryRef         string
+	CapturedAt                   time.Time
 }
 
 func NewOrderSnapshot(snapshot OrderSnapshot) (OrderSnapshot, error) {
