@@ -114,6 +114,11 @@ BEGIN
 END;
 $$;
 
+-- Bank-acquired verification must not fabricate an Apple/Google store policy.
+-- Existing mobile STORE_BILLING verifications still require their snapshot.
+ALTER TABLE store_transaction_verifications
+ ALTER COLUMN policy_snapshot_id DROP NOT NULL;
+
 -- Preserve the same verified store purchase, capture and ledger lineage.
 -- Allow the canonical externally-routed provider only for direct orders,
 -- while keeping STORE_BILLING strictly linked to the original booking.
@@ -141,13 +146,14 @@ BEGIN
  IF order_row.id IS NULL OR config.provider_instance_id IS DISTINCT FROM NEW.provider_instance_id
  THEN RAISE EXCEPTION 'verified purchase provider/order mismatch'; END IF;
  IF order_row.booking_id IS NOT NULL THEN
-   IF route.selected_rail_code<>'STORE_BILLING'
-   THEN RAISE EXCEPTION 'booking purchase requires store billing rail'; END IF;
+   IF route.selected_rail_code<>'STORE_BILLING' OR NEW.policy_snapshot_id IS NULL
+   THEN RAISE EXCEPTION 'booking purchase requires store billing rail and policy'; END IF;
    SELECT client_identity_id INTO booking_client FROM bookings WHERE id=order_row.booking_id;
    IF booking_client IS DISTINCT FROM NEW.identity_id
    THEN RAISE EXCEPTION 'store verification identity must match booking'; END IF;
  ELSE
    IF route.selected_rail_code<>'APGIC_PAYMENT_PROVIDER'
+      OR NEW.policy_snapshot_id IS NOT NULL
       OR route.selected_method_code<>'BANK_CARD'
       OR NEW.entitlement_kind<>'ONE_TIME'
       OR NEW.identity_id IS DISTINCT FROM order_row.direct_buyer_identity_id
