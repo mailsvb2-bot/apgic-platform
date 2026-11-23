@@ -36,14 +36,14 @@ export default function NativeAcademyLessonVideos({enrollmentId,lessonId,availab
  // Native decoders may hang without emitting onError (e.g. missing cookies,
  // provider outage). Never leave a black player mounted indefinitely.
  useEffect(()=>{
-  if(!loadingVideoId)return;
+  if(!loadingVideoId||!visible||blocked||verifiedScope!==scopeKey)return;
   const timer=setTimeout(()=>{
    setSelectedVideoId(null);setLoadingVideoId(null);setBlocked(true);
    setVideos([]);setVerifiedScope(null);
    setError("Время загрузки видео истекло. Проверьте вход и доступ к курсу.");
   },12000);
   return ()=>clearTimeout(timer);
- },[loadingVideoId,generation,scopeKey]);
+ },[loadingVideoId,generation,scopeKey,visible,blocked,verifiedScope]);
  useEffect(()=>{
   if(!available||!visible||blocked||!manifestPath){
    setVideos([]);setSelectedVideoId(null);setVerifiedScope(null);
