@@ -17,6 +17,10 @@ export default function NativeAcademyLessonVideos({enrollmentId,lessonId,availab
  const [failed,setFailed]=useState<Record<string,boolean>>({});
  const [blocked,setBlocked]=useState(false);
  const [selectedVideoId,setSelectedVideoId]=useState<string|null>(null);
+ // Keep a decoder tied to the exact enrollment/lesson that was verified.
+ // React may reuse this component when navigation switches lesson props.
+ const scopeKey=`${enrollmentId}/${lessonId}`;
+ const [verifiedScope,setVerifiedScope]=useState<string|null>(null);
  const manifestPath=`/v1/academy/enrollments/${encodeURIComponent(enrollmentId)}/lessons/${encodeURIComponent(lessonId)}/videos`;
 
  useEffect(()=>{
@@ -30,7 +34,7 @@ export default function NativeAcademyLessonVideos({enrollmentId,lessonId,availab
  },[]);
  useEffect(()=>{
   if(!available||!visible||blocked){
-   setVideos([]);setSelectedVideoId(null);
+   setVideos([]);setSelectedVideoId(null);setVerifiedScope(null);
    return;
   }
   let disposed=false,checking=false;
@@ -60,7 +64,7 @@ export default function NativeAcademyLessonVideos({enrollmentId,lessonId,availab
         v.id!==verified[i].id||v.title!==verified[i].title||v.ordinal!==verified[i].ordinal)))){
      setBlocked(true);setVideos([]);setSelectedVideoId(null);setError("Видеодоступ изменился или отозван. Повторите проверку.");return;
     }
-    if(videos.length===0){setVideos(verified);setError("");}
+    if(videos.length===0||verifiedScope!==scopeKey){setVideos(verified);setVerifiedScope(scopeKey);setSelectedVideoId(null);setError("");}
    }catch{
     if(!disposed){setBlocked(true);setVideos([]);setSelectedVideoId(null);setError("Видеодоступ не подтверждён. Проигрыватель остановлен.");}
    }finally{clearTimeout(timeout);if(currentRequest===controller)currentRequest=null;checking=false;}
@@ -70,7 +74,7 @@ export default function NativeAcademyLessonVideos({enrollmentId,lessonId,availab
   // entitlement. This poll drops already buffered native bytes on revoke.
   const interval=setInterval(()=>void check(),1000);
   return ()=>{disposed=true;clearInterval(interval);currentRequest?.abort();};
- },[available,visible,blocked,manifestPath,enrollmentId,lessonId,generation,videos,requestManifest]);
+ },[available,visible,blocked,manifestPath,enrollmentId,lessonId,scopeKey,verifiedScope,generation,videos,requestManifest]);
  if(!available)return <Text>Видеоурок ещё не открыт.</Text>;
  return <View style={{gap:10}} accessibilityLabel="Видео Academy">
   {!visible?<Text>Просмотр приостановлен при сворачивании приложения.</Text>:null}
@@ -80,7 +84,7 @@ export default function NativeAcademyLessonVideos({enrollmentId,lessonId,availab
     <Text>Проверить доступ повторно</Text>
    </Pressable>
   </View>:null}
-  {available&&visible&&!blocked&&videos.map(video=>{
+  {available&&visible&&!blocked&&verifiedScope===scopeKey&&videos.map(video=>{
    const path=nativeAcademyVideoPath(enrollmentId,lessonId,video.id);
    if(!path||failed[video.id])return <View key={video.id}>
     <Text>{video.title}: воспроизведение недоступно.</Text>
