@@ -115,27 +115,38 @@ func (a *TBankAcquiring) ConfirmNotificationWithGetState(
 	return webhook, nil
 }
 
-
 // Bank response must be a single JSON object with unique root keys.
 // Nested data may be provider-specific; it is never used for payment facts.
 func tbankUniqueRootFields(raw []byte) bool {
- decoder := json.NewDecoder(bytes.NewReader(raw))
- decoder.UseNumber()
- start,err:=decoder.Token()
- if err!=nil||start!=json.Delim('{'){return false}
- seen:=make(map[string]struct{})
- for decoder.More(){
-  token,err:=decoder.Token()
-  if err!=nil{return false}
-  key,ok:=token.(string)
-  if !ok{return false}
-  if _,exists:=seen[key];exists{return false}
-  seen[key]=struct{}{}
-  var field json.RawMessage
-  if decoder.Decode(&field)!=nil{return false}
- }
- end,err:=decoder.Token()
- if err!=nil||end!=json.Delim('}') {return false}
- _,err=decoder.Token()
- return err==io.EOF
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+	start, err := decoder.Token()
+	if err != nil || start != json.Delim('{') {
+		return false
+	}
+	seen := make(map[string]struct{})
+	for decoder.More() {
+		token, err := decoder.Token()
+		if err != nil {
+			return false
+		}
+		key, ok := token.(string)
+		if !ok {
+			return false
+		}
+		if _, exists := seen[key]; exists {
+			return false
+		}
+		seen[key] = struct{}{}
+		var field json.RawMessage
+		if decoder.Decode(&field) != nil {
+			return false
+		}
+	}
+	end, err := decoder.Token()
+	if err != nil || end != json.Delim('}') {
+		return false
+	}
+	_, err = decoder.Token()
+	return err == io.EOF
 }
