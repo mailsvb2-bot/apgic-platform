@@ -43,7 +43,7 @@ test("native manifest rejects ambiguous ordering and unsafe display titles",()=>
  assert.equal(nativeAcademyValidatedVideos({videos:[
   {id:m,title:"First",ordinal:1},{id:other,title:"Second",ordinal:1}
  ]},e,l),null);
- for(const title of ["Video\\nInjected", "Video\\u0000Hidden", "Video\\u007fHidden"]){
+ for(const title of ["Video\nInjected", "Video\u0000Hidden", "Video\u007fHidden"]){
   assert.equal(nativeAcademyValidatedVideos({videos:[{id:m,title,ordinal:1}]},e,l),null);
  }
  assert.deepEqual(nativeAcademyValidatedVideos({videos:[
