@@ -98,6 +98,7 @@ export default function NativeAcademyLessonVideos({enrollmentId,lessonId,availab
      <Text>{video.ordinal}. {video.title}{selectedVideoId===video.id?" · воспроизводится":" · смотреть"}</Text>
     </Pressable>
     {selectedVideoId===video.id&&<Video
+     key={`${scopeKey}/${generation}/${video.id}`}
      source={{uri:canonicalAPGICOrigin+path}}
      controls
      resizeMode="contain"
