@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"math"
+	"math/big"
 	"strconv"
 	"strings"
 )
@@ -58,6 +59,14 @@ func validateTBankReceipt(raw json.RawMessage, orderAmountMinor int64) bool {
 			math.IsNaN(qty) || math.IsInf(qty, 0) ||
 			qty > 99999.999999 ||
 			amount > orderAmountMinor-sum {
+			return false
+		}
+		quantity, ok := new(big.Rat).SetString(string(item.Quantity))
+		if !ok || quantity.Sign() <= 0 {
+			return false
+		}
+		product := new(big.Rat).Mul(new(big.Rat).SetInt64(price), quantity)
+		if !product.IsInt() || product.Num().Cmp(big.NewInt(amount)) != 0 {
 			return false
 		}
 		switch item.Tax {
