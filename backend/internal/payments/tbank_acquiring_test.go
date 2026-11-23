@@ -80,6 +80,7 @@ func TestTBankInitRejectsUnsafeOrderBeforeNetwork(t *testing.T) {
 		func(o *TBankInitRequest) { o.NotificationURL = "https://evil.example/webhook" },
 		func(o *TBankInitRequest) { o.NotificationURL = "http://apgic.ru/v1/payments/tbank/notification" },
 		func(o *TBankInitRequest) { o.Receipt = nil },
+		func(o *TBankInitRequest) { o.Description = "invalid\r\nheader" },
 	} {
 		v := validBankOrder()
 		change(&v)
