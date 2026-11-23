@@ -84,3 +84,16 @@ test("native manifest rejects provider credentials and cloud URLs at envelope le
  assert.equal(nativeAcademyValidatedVideos([safe],e,l),null);
  assert.deepEqual(nativeAcademyValidatedVideos({...safe,course_id:e},e,l),safe.videos);
 });
+
+
+test("native manifest refuses nested provider secrets without rejecting safe metadata",()=>{
+ const video={id:m,title:"Урок",ordinal:1};
+ for(const nested of [{provider:{accessToken:"secret"}},{metadata:{source:{downloadUrl:"https://disk.yandex.ru/private"}}},{audit:[{cookie:"secret"}]}]){
+  assert.equal(nativeAcademyValidatedVideos({videos:[video],...nested},e,l),null);
+  assert.equal(nativeAcademyValidatedVideos({videos:[{...video,details:nested}]},e,l),null);
+ }
+ assert.deepEqual(nativeAcademyValidatedVideos({videos:[video],metadata:{revision:2,flags:["ready"]}},e,l),[video]);
+ let deep:unknown={accessToken:"secret"};
+ for(let i=0;i<12;i++)deep={child:deep};
+ assert.equal(nativeAcademyValidatedVideos({videos:[video],metadata:deep},e,l),null);
+});
