@@ -21,6 +21,12 @@ CREATE UNIQUE INDEX orders_direct_checkout_idempotency
  ON orders(direct_buyer_identity_id,direct_checkout_idempotency_key)
  WHERE booking_id IS NULL;
 
+-- Provider PaymentId must never be bound to two different bank attempts.
+-- Legacy provider references retain their existing semantics.
+CREATE UNIQUE INDEX payment_attempts_tbank_reference_unique
+ ON payment_attempts(provider_reference)
+ WHERE provider_reference LIKE 'tbank/%';
+
 CREATE OR REPLACE FUNCTION apgic_order_snapshot_guard()
 RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE
