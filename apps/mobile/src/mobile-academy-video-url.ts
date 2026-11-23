@@ -17,14 +17,17 @@ export function nativeAcademyValidatedVideos(
  const raw=(payload as {videos:unknown[]}).videos;
  if(raw.length===0||raw.length>100)return null;
  const seen=new Set<string>();
+ const ordinals=new Set<number>();
  const videos:NativeAcademyVideo[]=[];
  for(const entry of raw){
   if(!entry||typeof entry!=="object")return null;
   const video=entry as Partial<NativeAcademyVideo>;
   if(typeof video.id!=="string"||!nativeAcademyVideoPath(enrollmentId,lessonId,video.id)||
    seen.has(video.id.toLowerCase())||typeof video.title!=="string"||video.title.length>300||
-   typeof video.ordinal!=="number"||!Number.isSafeInteger(video.ordinal)||video.ordinal<0)return null;
+   /[\u0000-\u001f\u007f]/.test(video.title)||
+   typeof video.ordinal!=="number"||!Number.isSafeInteger(video.ordinal)||video.ordinal<0||ordinals.has(video.ordinal))return null;
   seen.add(video.id.toLowerCase());
+  ordinals.add(video.ordinal);
   videos.push({id:video.id,title:video.title,ordinal:video.ordinal});
  }
  return videos;
