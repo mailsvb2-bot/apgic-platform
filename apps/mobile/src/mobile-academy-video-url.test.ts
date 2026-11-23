@@ -74,3 +74,13 @@ test("native manifest requests reject malformed navigation identities before sig
   assert.equal(nativeAcademyManifestPath(e,invalid),null);
  }
 });
+
+
+test("native manifest rejects provider credentials and cloud URLs at envelope level",()=>{
+ const safe={videos:[{id:m,title:"Урок",ordinal:1}]};
+ for(const key of ["provider_url","downloadUrl","stream_uri","authorization","access_token","refreshToken","cookie","credentials","secret"]){
+  assert.equal(nativeAcademyValidatedVideos({...safe,[key]:"https://disk.yandex.ru/private?token=secret"},e,l),null);
+ }
+ assert.equal(nativeAcademyValidatedVideos([safe],e,l),null);
+ assert.deepEqual(nativeAcademyValidatedVideos({...safe,course_id:e},e,l),safe.videos);
+});
