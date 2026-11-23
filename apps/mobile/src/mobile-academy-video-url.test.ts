@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {nativeAcademyVideoPath,nativeAcademyValidatedVideos} from "./mobile-academy-video-url.ts";
+import {nativeAcademyManifestPath,nativeAcademyVideoPath,nativeAcademyValidatedVideos} from "./mobile-academy-video-url.ts";
 
 const e="22222222-2222-4222-8222-222222222222";
 const l="33333333-3333-4333-8333-333333333333";
@@ -61,4 +61,13 @@ test("native manifest rejects invisible and bidi-spoofed lesson titles",()=>{
  assert.deepEqual(nativeAcademyValidatedVideos({videos:[{id:m,title:"Урок — введение",ordinal:1}]},e,l),[
   {id:m,title:"Урок — введение",ordinal:1}
  ]);
+});
+
+
+test("native manifest requests reject malformed navigation identities before signed fetch",()=>{
+ assert.equal(nativeAcademyManifestPath(e,l),`/v1/academy/enrollments/${e}/lessons/${l}/videos`);
+ for(const invalid of ["", "../admin", "https://disk.yandex.ru/private", "?token=secret", e+"/../other", "00000000-0000-0000-0000-00000000000x"]){
+  assert.equal(nativeAcademyManifestPath(invalid,l),null);
+  assert.equal(nativeAcademyManifestPath(e,invalid),null);
+ }
 });
