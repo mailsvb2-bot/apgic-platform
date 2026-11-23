@@ -17,6 +17,15 @@ test("reject any injection, foreign cloud origin, malformed path or token",()=>{
  }
 });
 
+test("native manifest rejects UUID case aliases of the same media",()=>{
+ const upper="AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA";
+ const lower=upper.toLowerCase();
+ assert.equal(nativeAcademyValidatedVideos({videos:[
+  {id:upper,title:"First",ordinal:1},
+  {id:lower,title:"Second",ordinal:2},
+ ]},e,l),null);
+});
+
 test("native manifest rejects duplicate ids and malformed or unbounded video metadata",()=>{
  const good={videos:[{id:m,title:"Lesson",ordinal:1,provider_url:"https://untrusted.invalid/private"}]};
  assert.deepEqual(nativeAcademyValidatedVideos(good,e,l),[{id:m,title:"Lesson",ordinal:1}]);
