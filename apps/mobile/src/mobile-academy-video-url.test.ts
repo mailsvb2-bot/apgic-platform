@@ -52,3 +52,13 @@ test("native manifest rejects ambiguous ordering and unsafe display titles",()=>
   {id:m,title:"Урок 1",ordinal:1},{id:other,title:"Урок 2",ordinal:2}
  ]);
 });
+
+
+test("native manifest rejects invisible and bidi-spoofed lesson titles",()=>{
+ for(const title of ["", "   ", "\u202eVideo", "Video\u202c", "\u2066Lesson\u2069"]){
+  assert.equal(nativeAcademyValidatedVideos({videos:[{id:m,title,ordinal:1}]},e,l),null);
+ }
+ assert.deepEqual(nativeAcademyValidatedVideos({videos:[{id:m,title:"Урок — введение",ordinal:1}]},e,l),[
+  {id:m,title:"Урок — введение",ordinal:1}
+ ]);
+});
