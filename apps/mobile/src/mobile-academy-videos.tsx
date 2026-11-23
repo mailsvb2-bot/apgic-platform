@@ -1,4 +1,4 @@
-import React,{useEffect,useState} from "react";
+import React,{useEffect,useRef,useState} from "react";
 import {AppState,Pressable,Text,View} from "react-native";
 import Video from "react-native-video";
 import {canonicalAPGICOrigin} from "./mobile-deep-link-client.ts";
@@ -13,6 +13,9 @@ export default function NativeAcademyLessonVideos({enrollmentId,lessonId,availab
  const [videos,setVideos]=useState<LearnerVideo[]>([]);
  const [error,setError]=useState("");
  const [generation,setGeneration]=useState(0);
+ // Native callbacks may arrive after an old decoder has been unmounted.
+ // Only the currently rendered decoder generation may mutate access state.
+ const currentDecoder=useRef("");
  const [visible,setVisible]=useState(AppState.currentState==="active");
  const [failed,setFailed]=useState<{scope:string;ids:Record<string,boolean>}>({scope:"",ids:{}});
  const [blocked,setBlocked]=useState(false);
@@ -23,6 +26,8 @@ export default function NativeAcademyLessonVideos({enrollmentId,lessonId,availab
  const scopeKey=`${enrollmentId}/${lessonId}`;
  const [verifiedScope,setVerifiedScope]=useState<string|null>(null);
  const manifestPath=nativeAcademyManifestPath(enrollmentId,lessonId);
+ const decoderIdentity=`${scopeKey}/${generation}/${selectedVideoId??""}`;
+ currentDecoder.current=decoderIdentity;
 
  useEffect(()=>{
   const subscription=AppState.addEventListener("change",state=>{
@@ -113,10 +118,10 @@ export default function NativeAcademyLessonVideos({enrollmentId,lessonId,availab
      key={`${scopeKey}/${generation}/${video.id}`}
      source={{uri:canonicalAPGICOrigin+path}}
      controls
-     onLoad={()=>setLoadingVideoId(current=>current===video.id?null:current)}
+     onLoad={()=>{if(currentDecoder.current===`${scopeKey}/${generation}/${video.id}`)setLoadingVideoId(current=>current===video.id?null:current);}}
      resizeMode="contain"
      preventsDisplaySleepDuringVideoPlayback
-     onError={()=>{setLoadingVideoId(null);setFailed(old=>({scope:scopeKey,ids:{...(old.scope===scopeKey?old.ids:{}),[video.id]:true}}));setSelectedVideoId(null);setBlocked(true);setVideos([]);setError("Видео не удалось загрузить. Проверьте вход и доступ к курсу.");}}
+     onError={()=>{if(currentDecoder.current!==`${scopeKey}/${generation}/${video.id}`)return;setLoadingVideoId(null);setFailed(old=>({scope:scopeKey,ids:{...(old.scope===scopeKey?old.ids:{}),[video.id]:true}}));setSelectedVideoId(null);setBlocked(true);setVideos([]);setError("Видео не удалось загрузить. Проверьте вход и доступ к курсу.");}}
      style={{width:"100%",height:220,backgroundColor:"#101827"}}
     />}
     <Text>Видео загружается только через защищённый APGIC. Сохранение офлайн отключено.</Text>
