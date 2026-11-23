@@ -59,12 +59,12 @@ func (c *Checker) AcademyBindBankInit(buyer, orderID, attemptID, terminalKey, pa
 		}
 		return tx.Commit()
 	}
-	if state != "CREATED" {
+	if state != "SENT" {
 		return academy.ErrConflict
 	}
 	result, err := tx.ExecContext(ctx, `UPDATE payment_attempts
  SET provider_reference=$1,state='SENT',updated_at=now()
- WHERE id=$2::uuid AND order_id=$3::uuid AND state='CREATED' AND provider_reference IS NULL`,
+ WHERE id=$2::uuid AND order_id=$3::uuid AND state='SENT' AND provider_reference IS NULL`,
 		ref, attemptID, orderID)
 	if err != nil {
 		return fmt.Errorf("bind bank payment to canonical attempt: %w", err)
