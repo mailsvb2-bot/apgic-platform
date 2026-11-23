@@ -113,7 +113,7 @@ export default function NativeAcademyLessonVideos({enrollmentId,lessonId,availab
      key={`${scopeKey}/${generation}/${video.id}`}
      source={{uri:canonicalAPGICOrigin+path}}
      controls
-     onLoad={()=>setLoadingVideoId(null)}
+     onLoad={()=>setLoadingVideoId(current=>current===video.id?null:current)}
      resizeMode="contain"
      preventsDisplaySleepDuringVideoPlayback
      onError={()=>{setLoadingVideoId(null);setFailed(old=>({scope:scopeKey,ids:{...(old.scope===scopeKey?old.ids:{}),[video.id]:true}}));setSelectedVideoId(null);setBlocked(true);setVideos([]);setError("Видео не удалось загрузить. Проверьте вход и доступ к курсу.");}}
