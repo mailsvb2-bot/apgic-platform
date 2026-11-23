@@ -89,9 +89,9 @@ func VerifyTBankCapturedEvent(raw []byte, password string, expected TBankCapture
 // network operation. Separate from GetState so callers can distinguish a
 // forged notification (reject) from a transient bank outage (retry).
 func (a *TBankAcquiring) VerifyCapturedNotification(raw []byte,
- expected TBankCaptureExpectation) (TBankCapturedEvent,error) {
- if a==nil||expected.TerminalKey!=a.terminalKey{
-  return TBankCapturedEvent{},ErrTBankCapture
- }
- return VerifyTBankCapturedEvent(raw,a.password,expected)
+	expected TBankCaptureExpectation) (TBankCapturedEvent, error) {
+	if a == nil || expected.TerminalKey != a.terminalKey {
+		return TBankCapturedEvent{}, ErrTBankCapture
+	}
+	return VerifyTBankCapturedEvent(raw, a.password, expected)
 }
