@@ -59,6 +59,12 @@ func NewTBankAcquiring(terminalKey, password string, client *http.Client) (*TBan
 	return &TBankAcquiring{terminalKey: terminalKey, password: password, client: &safe}, nil
 }
 
+// TerminalKey is public PSP routing identity, never the secret password.
+func (a *TBankAcquiring) TerminalKey() string {
+ if a==nil{return ""}
+ return a.terminalKey
+}
+
 // Bank returns a payment form URL only. Success=true is NOT a captured payment.
 func (a *TBankAcquiring) Init(ctx context.Context, order TBankInitRequest) (TBankInitResult, error) {
 	if a == nil || a.client == nil || ctx == nil || !tbankOrderPattern.MatchString(order.OrderID) ||
