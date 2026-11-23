@@ -22,9 +22,9 @@ export function nativeAcademyValidatedVideos(
   if(!entry||typeof entry!=="object")return null;
   const video=entry as Partial<NativeAcademyVideo>;
   if(typeof video.id!=="string"||!nativeAcademyVideoPath(enrollmentId,lessonId,video.id)||
-   seen.has(video.id)||typeof video.title!=="string"||video.title.length>300||
+   seen.has(video.id.toLowerCase())||typeof video.title!=="string"||video.title.length>300||
    typeof video.ordinal!=="number"||!Number.isSafeInteger(video.ordinal)||video.ordinal<0)return null;
-  seen.add(video.id);
+  seen.add(video.id.toLowerCase());
   videos.push({id:video.id,title:video.title,ordinal:video.ordinal});
  }
  return videos;
