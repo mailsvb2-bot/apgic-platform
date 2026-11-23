@@ -61,8 +61,10 @@ func NewTBankAcquiring(terminalKey, password string, client *http.Client) (*TBan
 
 // TerminalKey is public PSP routing identity, never the secret password.
 func (a *TBankAcquiring) TerminalKey() string {
- if a==nil{return ""}
- return a.terminalKey
+	if a == nil {
+		return ""
+	}
+	return a.terminalKey
 }
 
 // Bank returns a payment form URL only. Success=true is NOT a captured payment.
