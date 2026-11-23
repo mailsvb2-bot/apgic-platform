@@ -18,20 +18,20 @@ func validateTBankReceipt(raw json.RawMessage, orderAmountMinor int64) bool {
 	}
 	var receipt struct {
 		Taxation string `json:"Taxation"`
-		Items []struct {
-			Name string `json:"Name"`
-			Price json.Number `json:"Price"`
-			Quantity json.Number `json:"Quantity"`
-			Amount json.Number `json:"Amount"`
-			Tax string `json:"Tax"`
-			PaymentObject string `json:"PaymentObject"`
+		Items    []struct {
+			Name          string      `json:"Name"`
+			Price         json.Number `json:"Price"`
+			Quantity      json.Number `json:"Quantity"`
+			Amount        json.Number `json:"Amount"`
+			Tax           string      `json:"Tax"`
+			PaymentObject string      `json:"PaymentObject"`
 		} `json:"Items"`
 		Payments *struct {
-			Electronic json.Number `json:"Electronic"`
-			Cash json.Number `json:"Cash"`
+			Electronic     json.Number `json:"Electronic"`
+			Cash           json.Number `json:"Cash"`
 			AdvancePayment json.Number `json:"AdvancePayment"`
-			Credit json.Number `json:"Credit"`
-			Provision json.Number `json:"Provision"`
+			Credit         json.Number `json:"Credit"`
+			Provision      json.Number `json:"Provision"`
 		} `json:"Payments"`
 	}
 	decoder := json.NewDecoder(bytes.NewReader(raw))
