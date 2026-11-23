@@ -43,6 +43,8 @@ func TestTBankGetStateConfirmsPersistedOrderOnly(t *testing.T) {
 func TestTBankGetStateRejectsMismatchedOrUnsettledStatus(t *testing.T) {
 	expect := TBankCaptureExpectation{TerminalKey: "merchant", OrderID: "academy123", PaymentID: "234567", AmountMinor: 49900}
 	bad := []string{
+		`{"TerminalKey":"merchant","OrderId":"academy123","PaymentId":234567,"Amount":49900,"Amount":49901,"Status":"CONFIRMED","Success":true,"ErrorCode":"0"}`,
+		`{"TerminalKey":"merchant","OrderId":"academy123","OrderId":"different","PaymentId":234567,"Amount":49900,"Status":"CONFIRMED","Success":true,"ErrorCode":"0"}`,
 		`{"TerminalKey":"merchant","OrderId":"academy123","PaymentId":234567,"Amount":49900,"Status":"AUTHORIZED","Success":true,"ErrorCode":"0"}`,
 		`{"TerminalKey":"merchant","OrderId":"academy123","PaymentId":234567,"Amount":49900,"Status":"REFUNDED","Success":true,"ErrorCode":"0"}`,
 		`{"TerminalKey":"merchant","OrderId":"academy123","PaymentId":234567,"Amount":49901,"Status":"CONFIRMED","Success":true,"ErrorCode":"0"}`,
