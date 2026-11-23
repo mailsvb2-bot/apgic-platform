@@ -21,6 +21,12 @@ CREATE UNIQUE INDEX orders_direct_checkout_idempotency
  ON orders(direct_buyer_identity_id,direct_checkout_idempotency_key)
  WHERE booking_id IS NULL;
 
+-- ONE_TIME paid Academy access must not create parallel bank charges under
+-- different idempotency keys from the same buyer for the same product.
+CREATE UNIQUE INDEX orders_direct_once_per_buyer_product
+ ON orders(direct_buyer_identity_id,product_id)
+ WHERE booking_id IS NULL;
+
 -- Provider PaymentId must never be bound to two different bank attempts.
 -- Legacy provider references retain their existing semantics.
 CREATE UNIQUE INDEX payment_attempts_tbank_reference_unique
