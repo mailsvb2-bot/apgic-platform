@@ -29,7 +29,7 @@ export default function NativeAcademyLessonVideos({enrollmentId,lessonId,availab
    // Unmount the native player on background, not merely pause its cursor:
    // the decoded/seek buffer may outlive a revoked entitlement.
    setVisible(state==="active");
-   if(state!=="active"){setBlocked(true);setVideos([]);setSelectedVideoId(null);setError("Для возобновления видео подтвердите доступ.");}
+   if(state!=="active"){setLoadingVideoId(null);setBlocked(true);setVideos([]);setSelectedVideoId(null);setError("Для возобновления видео подтвердите доступ.");}
   });
   return ()=>subscription.remove();
  },[]);
@@ -46,7 +46,7 @@ export default function NativeAcademyLessonVideos({enrollmentId,lessonId,availab
  },[loadingVideoId,generation,scopeKey,visible,blocked,verifiedScope]);
  useEffect(()=>{
   if(!available||!visible||blocked||!manifestPath){
-   setVideos([]);setSelectedVideoId(null);setVerifiedScope(null);
+   setLoadingVideoId(null);setVideos([]);setSelectedVideoId(null);setVerifiedScope(null);
    return;
   }
   let disposed=false,checking=false;
@@ -74,11 +74,11 @@ export default function NativeAcademyLessonVideos({enrollmentId,lessonId,availab
     if(!verified|| (verifiedScope===scopeKey && videos.length>0 &&
       (verified.length!==videos.length||videos.some((v,i)=>
         v.id!==verified[i].id||v.title!==verified[i].title||v.ordinal!==verified[i].ordinal)))){
-     setBlocked(true);setVideos([]);setSelectedVideoId(null);setError("Видеодоступ изменился или отозван. Повторите проверку.");return;
+     setLoadingVideoId(null);setBlocked(true);setVideos([]);setSelectedVideoId(null);setError("Видеодоступ изменился или отозван. Повторите проверку.");return;
     }
     if(videos.length===0||verifiedScope!==scopeKey){setVideos(verified);setVerifiedScope(scopeKey);setSelectedVideoId(null);setError("");}
    }catch{
-    if(!disposed){setBlocked(true);setVideos([]);setSelectedVideoId(null);setError("Видеодоступ не подтверждён. Проигрыватель остановлен.");}
+    if(!disposed){setLoadingVideoId(null);setBlocked(true);setVideos([]);setSelectedVideoId(null);setError("Видеодоступ не подтверждён. Проигрыватель остановлен.");}
    }finally{clearTimeout(timeout);if(currentRequest===controller)currentRequest=null;checking=false;}
   };
   void check();
@@ -93,7 +93,7 @@ export default function NativeAcademyLessonVideos({enrollmentId,lessonId,availab
   {!visible?<Text>Просмотр приостановлен при сворачивании приложения.</Text>:null}
   {error&&visible?<View style={{gap:6}}>
    <Text accessibilityRole="alert">{error}</Text>
-   <Pressable accessibilityRole="button" onPress={()=>{setSelectedVideoId(null);setVideos([]);setVerifiedScope(null);setFailed({scope:"",ids:{}});setError("");setBlocked(false);setGeneration(n=>n+1);}}>
+   <Pressable accessibilityRole="button" onPress={()=>{setLoadingVideoId(null);setSelectedVideoId(null);setVideos([]);setVerifiedScope(null);setFailed({scope:"",ids:{}});setError("");setBlocked(false);setGeneration(n=>n+1);}}>
     <Text>Проверить доступ повторно</Text>
    </Pressable>
   </View>:null}
@@ -101,7 +101,7 @@ export default function NativeAcademyLessonVideos({enrollmentId,lessonId,availab
    const path=nativeAcademyVideoPath(enrollmentId,lessonId,video.id);
    if(!path||(failed.scope===scopeKey&&failed.ids[video.id]))return <View key={video.id}>
     <Text>{video.title}: воспроизведение недоступно.</Text>
-    <Pressable accessibilityRole="button" onPress={()=>{setSelectedVideoId(null);setVideos([]);setVerifiedScope(null);setFailed({scope:"",ids:{}});setError("");setBlocked(false);setGeneration(n=>n+1);}}>
+    <Pressable accessibilityRole="button" onPress={()=>{setLoadingVideoId(null);setSelectedVideoId(null);setVideos([]);setVerifiedScope(null);setFailed({scope:"",ids:{}});setError("");setBlocked(false);setGeneration(n=>n+1);}}>
      <Text>Повторить проверку доступа</Text>
     </Pressable>
    </View>;
