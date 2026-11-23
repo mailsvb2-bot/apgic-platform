@@ -37,3 +37,18 @@ test("native manifest rejects duplicate ids and malformed or unbounded video met
    {videos:Array(101).fill(good.videos[0])}
  ])assert.equal(nativeAcademyValidatedVideos(bad,e,l),null);
 });
+
+test("native manifest rejects ambiguous ordering and unsafe display titles",()=>{
+ const other="55555555-5555-4555-8555-555555555555";
+ assert.equal(nativeAcademyValidatedVideos({videos:[
+  {id:m,title:"First",ordinal:1},{id:other,title:"Second",ordinal:1}
+ ]},e,l),null);
+ for(const title of ["Video\\nInjected", "Video\\u0000Hidden", "Video\\u007fHidden"]){
+  assert.equal(nativeAcademyValidatedVideos({videos:[{id:m,title,ordinal:1}]},e,l),null);
+ }
+ assert.deepEqual(nativeAcademyValidatedVideos({videos:[
+  {id:m,title:"Урок 1",ordinal:1},{id:other,title:"Урок 2",ordinal:2}
+ ]},e,l),[
+  {id:m,title:"Урок 1",ordinal:1},{id:other,title:"Урок 2",ordinal:2}
+ ]);
+});
