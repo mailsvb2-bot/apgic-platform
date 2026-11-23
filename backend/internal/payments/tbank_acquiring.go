@@ -65,7 +65,7 @@ func (a *TBankAcquiring) Init(ctx context.Context, order TBankInitRequest) (TBan
 		order.AmountMinor <= 0 || order.AmountMinor > 10000000000 ||
 		len(order.Description) == 0 || len(order.Description) > 140 ||
 		len(order.Receipt) == 0 || len(order.Receipt) > 8192 || !json.Valid(order.Receipt) ||
-		strings.ContainsAny(order.Description, "\\r\\n") {
+		strings.ContainsAny(order.Description, "\r\n") {
 		return TBankInitResult{}, ErrTBankInit
 	}
 	var receipt map[string]any
