@@ -88,7 +88,7 @@ export default function NativeAcademyLessonVideos({enrollmentId,lessonId,availab
    const path=nativeAcademyVideoPath(enrollmentId,lessonId,video.id);
    if(!path||(failed.scope===scopeKey&&failed.ids[video.id]))return <View key={video.id}>
     <Text>{video.title}: воспроизведение недоступно.</Text>
-    <Pressable accessibilityRole="button" onPress={()=>{setSelectedVideoId(null);setVideos([]);setBlocked(false);setGeneration(n=>n+1);}}>
+    <Pressable accessibilityRole="button" onPress={()=>{setSelectedVideoId(null);setVideos([]);setVerifiedScope(null);setFailed({scope:"",ids:{}});setError("");setBlocked(false);setGeneration(n=>n+1);}}>
      <Text>Повторить проверку доступа</Text>
     </Pressable>
    </View>;
