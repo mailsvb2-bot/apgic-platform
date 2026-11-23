@@ -59,7 +59,7 @@ export default function NativeAcademyLessonVideos({enrollmentId,lessonId,availab
     // A binding can change without changing its media ID (title/order), and
     // a new video can be added while a native decoder still holds old bytes.
     // Treat any manifest mutation as an authorization boundary.
-    if(!verified|| (videos.length>0 &&
+    if(!verified|| (verifiedScope===scopeKey && videos.length>0 &&
       (verified.length!==videos.length||videos.some((v,i)=>
         v.id!==verified[i].id||v.title!==verified[i].title||v.ordinal!==verified[i].ordinal)))){
      setBlocked(true);setVideos([]);setSelectedVideoId(null);setError("Видеодоступ изменился или отозван. Повторите проверку.");return;
