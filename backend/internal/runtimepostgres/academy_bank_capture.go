@@ -64,9 +64,14 @@ func (c *Checker) AcademyCommitBankCapture(ctx context.Context, orderID string,
 	}
 	proofCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
-	confirmed, err := bank.ConfirmNotificationWithGetState(proofCtx, signedNotification, expected)
-	if err != nil {
+	if _, err := bank.VerifyCapturedNotification(signedNotification, expected); err != nil {
 		return AcademyBankCaptureResult{}, academy.ErrDenied
+	}
+	confirmed, err := bank.GetState(proofCtx, expected)
+	if err != nil {
+		// Valid signed payment notifications must be retried when the bank
+		// cannot prove its current state. Never commit a payment on outage.
+		return AcademyBankCaptureResult{}, academy.ErrUnavailable
 	}
 	if confirmed.OrderID != orderID || confirmed.PaymentID != paymentID ||
 		confirmed.AmountMinor != basis.AmountMinor || confirmed.ProviderStatus != "CONFIRMED" {
