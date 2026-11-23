@@ -7,19 +7,7 @@ import (
  "github.com/mailsvb2-bot/apgic-platform/backend/internal/academy"
 )
 
-// AcademyBankOrderStatus is read only, buyer-scoped canonical Commerce state.
-// It never infers that the buyer paid from a browser redirect or PSP Init.
-type AcademyBankOrderStatus struct {
- OrderID string `json:"order_id"`
- CourseID string `json:"course_id"`
- AmountMinor int64 `json:"amount_minor"`
- Currency string `json:"currency"`
- PaymentState string `json:"payment_state"`
- HasProviderReference bool `json:"provider_reference_recorded"`
- EntitlementActive bool `json:"entitlement_active"`
- EntitlementID string `json:"entitlement_id,omitempty"`
- RequiresReconciliation bool `json:"requires_reconciliation"`
-}
+type AcademyBankOrderStatus = academy.BankOrderStatus
 
 func (c *Checker) AcademyReadBankOrderStatus(buyer,orderID string)(AcademyBankOrderStatus,error){
  if !academyMediaUUID(buyer)||!academyMediaUUID(orderID){
