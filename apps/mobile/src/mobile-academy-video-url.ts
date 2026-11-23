@@ -21,7 +21,10 @@ export type NativeAcademyVideo={id:string;title:string;ordinal:number};
 export function nativeAcademyValidatedVideos(
  payload:unknown,enrollmentId:string,lessonId:string,
 ):NativeAcademyVideo[]|null{
- if(!payload||typeof payload!=="object"||!Array.isArray((payload as {videos?:unknown}).videos))return null;
+ if(!payload||typeof payload!=="object"||Array.isArray(payload)||!Array.isArray((payload as {videos?:unknown}).videos))return null;
+ // Fail closed if the manifest envelope itself leaks upstream URLs or secrets.
+ // Checking only individual video entries misses provider metadata at the root.
+ if(Object.keys(payload).some(key=>/(?:url|uri|href|token|authorization|cookie|secret|credential)/i.test(key)))return null;
  const raw=(payload as {videos:unknown[]}).videos;
  if(raw.length===0||raw.length>100)return null;
  const seen=new Set<string>();
