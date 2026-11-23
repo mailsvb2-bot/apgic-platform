@@ -54,6 +54,12 @@ func (a *TBankAcquiring) GetState(ctx context.Context, expected TBankCaptureExpe
 	if err != nil || len(raw) > 16384 {
 		return TBankCapturedEvent{}, ErrTBankCapture
 	}
+	// Reject duplicate top-level fields before decoding typed economic facts.
+	// A provider response containing conflicting OrderId/Amount/Status values
+	// must never become an independent confirmation of a signed webhook.
+	if !tbankUniqueRootFields(raw) {
+		return TBankCapturedEvent{}, ErrTBankCapture
+	}
 	// Bank GetState is signed as a REQUEST; its response is separately
 	// validated for all economic and identity fields. A status response
 	// without an independent signed notification is not sufficient for
@@ -107,4 +113,29 @@ func (a *TBankAcquiring) ConfirmNotificationWithGetState(
 		return TBankCapturedEvent{}, ErrTBankCapture
 	}
 	return webhook, nil
+}
+
+
+// Bank response must be a single JSON object with unique root keys.
+// Nested data may be provider-specific; it is never used for payment facts.
+func tbankUniqueRootFields(raw []byte) bool {
+ decoder := json.NewDecoder(bytes.NewReader(raw))
+ decoder.UseNumber()
+ start,err:=decoder.Token()
+ if err!=nil||start!=json.Delim('{'){return false}
+ seen:=make(map[string]struct{})
+ for decoder.More(){
+  token,err:=decoder.Token()
+  if err!=nil{return false}
+  key,ok:=token.(string)
+  if !ok{return false}
+  if _,exists:=seen[key];exists{return false}
+  seen[key]=struct{}{}
+  var field json.RawMessage
+  if decoder.Decode(&field)!=nil{return false}
+ }
+ end,err:=decoder.Token()
+ if err!=nil||end!=json.Delim('}') {return false}
+ _,err=decoder.Token()
+ return err==io.EOF
 }
