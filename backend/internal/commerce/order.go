@@ -2,15 +2,29 @@ package commerce
 
 import (
 	"errors"
+	"regexp"
 	"strings"
 	"time"
 )
 
 var ErrInvalidOrderSnapshot = errors.New("invalid immutable order snapshot")
 
+var directCheckoutKeyPattern = regexp.MustCompile(`^[A-Za-z0-9._~-]{8,128}package commerce
+
+import (
+	"errors"
+	"regexp"
+	"strings"
+	"time"
+)
+
+)
+
 type OrderSnapshot struct {
 	ID                      string
 	BookingID               string
+	DirectBuyerIdentityID    string
+	DirectCheckoutIdempotencyKey string
 	OfferRef                string
 	PriceSourceRef          string
 	AmountMinor             int64
@@ -37,14 +51,12 @@ func NewOrderSnapshot(snapshot OrderSnapshot) (OrderSnapshot, error) {
 	snapshot.Currency = strings.ToUpper(strings.TrimSpace(snapshot.Currency))
 	required := []string{
 		snapshot.ID,
-		snapshot.BookingID,
 		snapshot.OfferRef,
 		snapshot.PriceSourceRef,
 		snapshot.PricingPolicyVersion,
 		snapshot.CommissionPolicyVersion,
 		snapshot.LegalSnapshotRef,
 		snapshot.ProductID,
-		snapshot.OrganizationDirectionID,
 		snapshot.ProductOwnerRef,
 		snapshot.SellerRef,
 		snapshot.CommercialOwnerRef,
@@ -72,6 +84,21 @@ func NewOrderSnapshot(snapshot OrderSnapshot) (OrderSnapshot, error) {
 			return OrderSnapshot{}, ErrInvalidOrderSnapshot
 		}
 		seenAuthors[author] = struct{}{}
+	}
+	// Direct Academy checkout shares this same immutable Commerce order, with
+	// an identity/idempotency basis instead of a fabricated booking.
+	if snapshot.BookingID == "" {
+		if strings.TrimSpace(snapshot.DirectBuyerIdentityID) == "" ||
+			!directCheckoutKeyPattern.MatchString(snapshot.DirectCheckoutIdempotencyKey) ||
+			!strings.HasPrefix(snapshot.OfferRef, "academy/course/") ||
+			!strings.HasPrefix(snapshot.PriceSourceRef, "academy/offer/revision/") ||
+			snapshot.Currency != "RUB" {
+			return OrderSnapshot{}, ErrInvalidOrderSnapshot
+		}
+	} else if snapshot.DirectBuyerIdentityID != "" ||
+		snapshot.DirectCheckoutIdempotencyKey != "" ||
+		snapshot.OrganizationDirectionID == "" {
+		return OrderSnapshot{}, ErrInvalidOrderSnapshot
 	}
 	snapshot.AuthorRefs = append([]string(nil), snapshot.AuthorRefs...)
 	if snapshot.AmountMinor <= 0 ||
