@@ -5,6 +5,7 @@ import (
  "encoding/json"
  "errors"
  "io"
+ "mime"
  "net/http"
  "os"
  "strings"
@@ -12,10 +13,6 @@ import (
  "github.com/mailsvb2-bot/apgic-platform/backend/internal/academy"
  "github.com/mailsvb2-bot/apgic-platform/backend/internal/payments"
 )
-
-type academyBankCaptureStore interface {
- AcademyCommitBankCapture(context.Context,string,[]byte,*payments.TBankAcquiring)(struct{},error)
-}
 
 // The provider notification is not a learner request. No client cookie,
 // browser identity or caller-provided buyer/price may authorize a capture.
@@ -61,7 +58,8 @@ func registerAcademyBankWebhook(mux *http.ServeMux, committer academyBankCommitt
     "Проверка банка недоступна.",true,nil)
    return
   }
-  if r.Header.Get("Content-Type")!="application/json"{
+  mediaType,_,mediaErr:=mime.ParseMediaType(r.Header.Get("Content-Type"))
+  if mediaErr!=nil||mediaType!="application/json"{
    writeDemandError(w,r,http.StatusUnsupportedMediaType,"ACADEMY_BANK_INVALID_NOTIFICATION",
     "Некорректное банковское уведомление.",false,nil)
    return
