@@ -80,7 +80,7 @@ export default function NativeAcademyLessonVideos({enrollmentId,lessonId,availab
   {!visible?<Text>Просмотр приостановлен при сворачивании приложения.</Text>:null}
   {error&&visible?<View style={{gap:6}}>
    <Text accessibilityRole="alert">{error}</Text>
-   <Pressable accessibilityRole="button" onPress={()=>{setSelectedVideoId(null);setFailed({scope:"",ids:{}});setBlocked(false);setGeneration(n=>n+1);}}>
+   <Pressable accessibilityRole="button" onPress={()=>{setSelectedVideoId(null);setVideos([]);setVerifiedScope(null);setFailed({scope:"",ids:{}});setError("");setBlocked(false);setGeneration(n=>n+1);}}>
     <Text>Проверить доступ повторно</Text>
    </Pressable>
   </View>:null}
