@@ -27,8 +27,11 @@ test("native manifest rejects UUID case aliases of the same media",()=>{
 });
 
 test("native manifest rejects duplicate ids and malformed or unbounded video metadata",()=>{
- const good={videos:[{id:m,title:"Lesson",ordinal:1,provider_url:"https://untrusted.invalid/private"}]};
- assert.deepEqual(nativeAcademyValidatedVideos(good,e,l),[{id:m,title:"Lesson",ordinal:1}]);
+ const good={videos:[{id:m,title:"Lesson",ordinal:1}]};
+ assert.deepEqual(nativeAcademyValidatedVideos(good,e,l),good.videos);
+ for(const key of ["provider_url","cloud_url","download_url","access_token","refresh_token","authorization","cookie"]){
+  assert.equal(nativeAcademyValidatedVideos({videos:[{...good.videos[0],[key]:"secret"}]},e,l),null);
+ }
  for(const bad of [null,{}, {videos:[]}, {videos:[null]},
    {videos:[good.videos[0],good.videos[0]]},
    {videos:[{id:"../token",title:"Oops",ordinal:1}]},
