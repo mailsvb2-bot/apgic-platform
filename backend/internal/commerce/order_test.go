@@ -107,10 +107,10 @@ func TestOrderSnapshotDirectAcademyUsesSameCommerceOwnerWithoutBooking(t *testin
 	for name, mutate := range map[string]func(*OrderSnapshot){
 		"missing identity":    func(v *OrderSnapshot) { v.DirectBuyerIdentityID = "" },
 		"missing idempotency": func(v *OrderSnapshot) { v.DirectCheckoutIdempotencyKey = "" },
-		"invalid key":        func(v *OrderSnapshot) { v.DirectCheckoutIdempotencyKey = "../\nother" },
-		"wrong offer":        func(v *OrderSnapshot) { v.OfferRef = "book/offer" },
-		"wrong price source": func(v *OrderSnapshot) { v.PriceSourceRef = "client/price/1" },
-		"wrong currency":     func(v *OrderSnapshot) { v.Currency = "USD" },
+		"invalid key":         func(v *OrderSnapshot) { v.DirectCheckoutIdempotencyKey = "../\nother" },
+		"wrong offer":         func(v *OrderSnapshot) { v.OfferRef = "book/offer" },
+		"wrong price source":  func(v *OrderSnapshot) { v.PriceSourceRef = "client/price/1" },
+		"wrong currency":      func(v *OrderSnapshot) { v.Currency = "USD" },
 	} {
 		t.Run(name, func(t *testing.T) {
 			v := s
