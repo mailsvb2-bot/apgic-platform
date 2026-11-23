@@ -88,7 +88,6 @@ func (a *TBankAcquiring) GetState(ctx context.Context, expected TBankCaptureExpe
 	}, nil
 }
 
- 
 // ConfirmNotificationWithGetState requires two independently obtained pieces
 // of bank evidence: a signed CONFIRMED webhook and a fresh authenticated
 // GetState read. It remains a precondition for the canonical Commerce writer,
