@@ -27,6 +27,16 @@ func (a academyBankCommitAdapter) Commit(ctx context.Context,id string,body []by
  return a.call(ctx,id,body,bank)
 }
 
+func registerAcademyBankNotificationFromStore(mux *http.ServeMux,store academyStore){
+ if writer,ok:=store.(interface{
+  AcademyBankCommitNotification(context.Context,string,[]byte,*payments.TBankAcquiring)error
+ });ok{
+  registerAcademyBankWebhook(mux,academyBankCommitAdapter{call:writer.AcademyBankCommitNotification})
+  return
+ }
+ registerAcademyBankWebhook(mux,nil)
+}
+
 // registerAcademyBankWebhook is disabled unless an operator explicitly
 // configures the bank terminal, scoped trust roots, and release gate.
 // It never uses secrets from requests. No generic HTTP handler can mint rights.
