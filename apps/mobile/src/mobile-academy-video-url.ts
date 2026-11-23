@@ -15,6 +15,19 @@ export function nativeAcademyVideoPath(enrollmentId:string,lessonId:string,media
  return `/v1/academy/enrollments/${enrollmentId}/lessons/${lessonId}/videos/${mediaId}/stream`;
 }
 
+// Reject secret-bearing nested metadata too: checking only direct keys allows
+// {provider:{accessToken:...}} to pass into the native authorization boundary.
+// Bound recursion so malformed provider responses cannot exhaust the client.
+function hasForbiddenManifestMetadata(value:unknown,depth=0,budget={remaining:512}):boolean{
+ if(--budget.remaining<0||depth>8)return true;
+ if(value===null||typeof value!=="object")return false;
+ for(const [key,child] of Object.entries(value)){
+  if(/(?:url|uri|href|token|authorization|cookie|secret|credential)/i.test(key)||
+     hasForbiddenManifestMetadata(child,depth+1,budget))return true;
+ }
+ return false;
+}
+
 export type NativeAcademyVideo={id:string;title:string;ordinal:number};
 // Treat the server manifest as an authorization projection, not a media URL.
 // Do not accept provider URLs, duplicate IDs or unbounded/ambiguous payloads.
@@ -24,7 +37,7 @@ export function nativeAcademyValidatedVideos(
  if(!payload||typeof payload!=="object"||Array.isArray(payload)||!Array.isArray((payload as {videos?:unknown}).videos))return null;
  // Fail closed if the manifest envelope itself leaks upstream URLs or secrets.
  // Checking only individual video entries misses provider metadata at the root.
- if(Object.keys(payload).some(key=>/(?:url|uri|href|token|authorization|cookie|secret|credential)/i.test(key)))return null;
+ if(hasForbiddenManifestMetadata(Object.fromEntries(Object.entries(payload).filter(([key])=>key!=="videos"))))return null;
  const raw=(payload as {videos:unknown[]}).videos;
  if(raw.length===0||raw.length>100)return null;
  const seen=new Set<string>();
@@ -35,7 +48,7 @@ export function nativeAcademyValidatedVideos(
   const video=entry as Partial<NativeAcademyVideo>;
   // A manifest is metadata, never a carrier for upstream credentials or
   // provider addresses. Reject accidental server-side leakage outright.
-  if(Object.keys(entry).some(key=>/(?:url|uri|href|token|authorization|cookie|secret|credential)/i.test(key)))return null;
+  if(hasForbiddenManifestMetadata(entry))return null;
   if(typeof video.id!=="string"||!nativeAcademyVideoPath(enrollmentId,lessonId,video.id)||
    seen.has(video.id.toLowerCase())||typeof video.title!=="string"||
    video.title.trim().length===0||video.title.length>300||
