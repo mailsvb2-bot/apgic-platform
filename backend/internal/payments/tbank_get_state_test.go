@@ -99,8 +99,6 @@ func TestTBankCaptureAdmissionRequiresBothSignedWebhookAndGetState(t *testing.T)
 	if _, err = bank.ConfirmNotificationWithGetState(context.Background(), signed, expected); err == nil {
 		t.Fatal("accepted webhook with unconfirmed bank state")
 	}
-	tampered := append([]byte(nil), signed...)
-	tampered = append(tampered, ' ')
 	callsBefore := calls
 	if _, err = bank.ConfirmNotificationWithGetState(context.Background(), []byte(`{}`), expected); err == nil || calls != callsBefore {
 		t.Fatalf("invalid notification was sent to GetState: %v", err)
