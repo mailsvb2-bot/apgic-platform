@@ -111,7 +111,7 @@ export default function NativeAcademyLessonVideos({enrollmentId,lessonId,availab
     </Pressable>
    </View>;
    return <View key={video.id} style={{gap:6}}>
-    <Pressable accessibilityRole="button" onPress={()=>{setLoadingVideoId(video.id);setSelectedVideoId(video.id);}}>
+    <Pressable accessibilityRole="button" onPress={()=>{setGeneration(n=>n+1);setLoadingVideoId(video.id);setSelectedVideoId(video.id);}}>
      <Text>{video.ordinal}. {video.title}{selectedVideoId===video.id?" · воспроизводится":" · смотреть"}</Text>
     </Pressable>
     {selectedVideoId===video.id&&<Video
