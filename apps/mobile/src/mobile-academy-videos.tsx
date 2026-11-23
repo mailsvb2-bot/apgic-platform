@@ -2,7 +2,7 @@ import React,{useEffect,useState} from "react";
 import {AppState,Pressable,Text,View} from "react-native";
 import Video from "react-native-video";
 import {canonicalAPGICOrigin} from "./mobile-deep-link-client.ts";
-import {nativeAcademyVideoPath,nativeAcademyValidatedVideos} from "./mobile-academy-video-url.ts";
+import {nativeAcademyManifestPath,nativeAcademyVideoPath,nativeAcademyValidatedVideos} from "./mobile-academy-video-url.ts";
 
 type LearnerVideo={id:string;title:string;ordinal:number};
 type Manifest={videos:LearnerVideo[]};
@@ -21,7 +21,7 @@ export default function NativeAcademyLessonVideos({enrollmentId,lessonId,availab
  // React may reuse this component when navigation switches lesson props.
  const scopeKey=`${enrollmentId}/${lessonId}`;
  const [verifiedScope,setVerifiedScope]=useState<string|null>(null);
- const manifestPath=`/v1/academy/enrollments/${encodeURIComponent(enrollmentId)}/lessons/${encodeURIComponent(lessonId)}/videos`;
+ const manifestPath=nativeAcademyManifestPath(enrollmentId,lessonId);
 
  useEffect(()=>{
   const subscription=AppState.addEventListener("change",state=>{
@@ -33,7 +33,7 @@ export default function NativeAcademyLessonVideos({enrollmentId,lessonId,availab
   return ()=>subscription.remove();
  },[]);
  useEffect(()=>{
-  if(!available||!visible||blocked){
+  if(!available||!visible||blocked||!manifestPath){
    setVideos([]);setSelectedVideoId(null);setVerifiedScope(null);
    return;
   }
@@ -76,6 +76,7 @@ export default function NativeAcademyLessonVideos({enrollmentId,lessonId,availab
   return ()=>{disposed=true;clearInterval(interval);currentRequest?.abort();};
  },[available,visible,blocked,manifestPath,enrollmentId,lessonId,scopeKey,verifiedScope,generation,videos,requestManifest]);
  if(!available)return <Text>Видеоурок ещё не открыт.</Text>;
+ if(!manifestPath)return <Text accessibilityRole="alert">Некорректный идентификатор видеоурока. Доступ закрыт.</Text>;
  return <View style={{gap:10}} accessibilityLabel="Видео Academy">
   {!visible?<Text>Просмотр приостановлен при сворачивании приложения.</Text>:null}
   {error&&visible?<View style={{gap:6}}>
