@@ -17,6 +17,7 @@ export default function NativeAcademyLessonVideos({enrollmentId,lessonId,availab
  const [failed,setFailed]=useState<{scope:string;ids:Record<string,boolean>}>({scope:"",ids:{}});
  const [blocked,setBlocked]=useState(false);
  const [selectedVideoId,setSelectedVideoId]=useState<string|null>(null);
+ const [loadingVideoId,setLoadingVideoId]=useState<string|null>(null);
  // Keep a decoder tied to the exact enrollment/lesson that was verified.
  // React may reuse this component when navigation switches lesson props.
  const scopeKey=`${enrollmentId}/${lessonId}`;
@@ -32,6 +33,17 @@ export default function NativeAcademyLessonVideos({enrollmentId,lessonId,availab
   });
   return ()=>subscription.remove();
  },[]);
+ // Native decoders may hang without emitting onError (e.g. missing cookies,
+ // provider outage). Never leave a black player mounted indefinitely.
+ useEffect(()=>{
+  if(!loadingVideoId)return;
+  const timer=setTimeout(()=>{
+   setSelectedVideoId(null);setLoadingVideoId(null);setBlocked(true);
+   setVideos([]);setVerifiedScope(null);
+   setError("Время загрузки видео истекло. Проверьте вход и доступ к курсу.");
+  },12000);
+  return ()=>clearTimeout(timer);
+ },[loadingVideoId,generation,scopeKey]);
  useEffect(()=>{
   if(!available||!visible||blocked||!manifestPath){
    setVideos([]);setSelectedVideoId(null);setVerifiedScope(null);
@@ -94,16 +106,17 @@ export default function NativeAcademyLessonVideos({enrollmentId,lessonId,availab
     </Pressable>
    </View>;
    return <View key={video.id} style={{gap:6}}>
-    <Pressable accessibilityRole="button" onPress={()=>setSelectedVideoId(video.id)}>
+    <Pressable accessibilityRole="button" onPress={()=>{setLoadingVideoId(video.id);setSelectedVideoId(video.id);}}>
      <Text>{video.ordinal}. {video.title}{selectedVideoId===video.id?" · воспроизводится":" · смотреть"}</Text>
     </Pressable>
     {selectedVideoId===video.id&&<Video
      key={`${scopeKey}/${generation}/${video.id}`}
      source={{uri:canonicalAPGICOrigin+path}}
      controls
+     onLoad={()=>setLoadingVideoId(null)}
      resizeMode="contain"
      preventsDisplaySleepDuringVideoPlayback
-     onError={()=>{setFailed(old=>({scope:scopeKey,ids:{...(old.scope===scopeKey?old.ids:{}),[video.id]:true}}));setSelectedVideoId(null);setBlocked(true);setVideos([]);setError("Видео не удалось загрузить. Проверьте вход и доступ к курсу.");}}
+     onError={()=>{setLoadingVideoId(null);setFailed(old=>({scope:scopeKey,ids:{...(old.scope===scopeKey?old.ids:{}),[video.id]:true}}));setSelectedVideoId(null);setBlocked(true);setVideos([]);setError("Видео не удалось загрузить. Проверьте вход и доступ к курсу.");}}
      style={{width:"100%",height:220,backgroundColor:"#101827"}}
     />}
     <Text>Видео загружается только через защищённый APGIC. Сохранение офлайн отключено.</Text>
