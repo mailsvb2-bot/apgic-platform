@@ -19,7 +19,7 @@ func tbankReply(status int, body string) *http.Response {
 func validBankOrder() TBankInitRequest {
 	return TBankInitRequest{
 		OrderID: "abc_123", AmountMinor: 259900, Description: "Покупка курса",
-		Receipt:         json.RawMessage(`{"Taxation":"usn_income","Items":[{"Name":"Курс","Price":259900,"Quantity":1,"Amount":259900,"Tax":"none"}]}`),
+		Receipt:         json.RawMessage(`{"Taxation":"usn_income","Items":[{"Name":"Курс","Price":259900,"Quantity":1,"Amount":259900,"Tax":"none","PaymentObject":"service"}]}`),
 		NotificationURL: "https://apgic.ru/v1/payments/tbank/notification",
 	}
 }
