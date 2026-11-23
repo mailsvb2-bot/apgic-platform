@@ -69,7 +69,8 @@ func (a *TBankAcquiring) Init(ctx context.Context, order TBankInitRequest) (TBan
 		return TBankInitResult{}, ErrTBankInit
 	}
 	var receipt map[string]any
-	if json.Unmarshal(order.Receipt, &receipt) != nil || len(receipt) == 0 {
+	if json.Unmarshal(order.Receipt, &receipt) != nil || len(receipt) == 0 ||
+		!validateTBankReceipt(order.Receipt, order.AmountMinor) {
 		return TBankInitResult{}, ErrTBankInit
 	}
 	callback, err := url.Parse(order.NotificationURL)
