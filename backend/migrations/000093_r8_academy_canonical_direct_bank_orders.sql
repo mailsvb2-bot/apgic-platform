@@ -99,7 +99,12 @@ BEGIN
      WHERE course.product_id=NEW.product_id AND course.state='PUBLISHED'
        AND terms.access_mode='PAID' AND terms.price_minor>0
        AND EXISTS(SELECT 1 FROM academy_course_versions v
-         WHERE v.course_id=course.id AND v.state='PUBLISHED');
+         WHERE v.course_id=course.id AND v.state='PUBLISHED'
+           AND v.version_no=(SELECT max(latest.version_no)
+             FROM academy_course_versions latest
+             WHERE latest.course_id=course.id AND latest.state='PUBLISHED')
+           AND academy_video_learner_delivery_ready(v.id))
+     FOR SHARE OF terms;
    IF course_id IS NULL OR NEW.amount_minor IS DISTINCT FROM current_price OR
       NEW.offer_ref IS DISTINCT FROM ('academy/course/'||course_id::text) OR
       NEW.price_source_ref IS DISTINCT FROM ('academy/offer/revision/'||current_revision::text)
@@ -143,6 +148,8 @@ BEGIN
    THEN RAISE EXCEPTION 'store verification identity must match booking'; END IF;
  ELSE
    IF route.selected_rail_code<>'APGIC_PAYMENT_PROVIDER'
+      OR route.selected_method_code<>'BANK_CARD'
+      OR NEW.entitlement_kind<>'ONE_TIME'
       OR NEW.identity_id IS DISTINCT FROM order_row.direct_buyer_identity_id
       OR order_row.product_id IS NULL
       OR NEW.product_ref IS DISTINCT FROM order_row.product_id::text
