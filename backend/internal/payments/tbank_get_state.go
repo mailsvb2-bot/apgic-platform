@@ -87,3 +87,25 @@ func (a *TBankAcquiring) GetState(ctx context.Context, expected TBankCaptureExpe
 		AmountMinor: amount, ProviderStatus: value.Status,
 	}, nil
 }
+
+ 
+// ConfirmNotificationWithGetState requires two independently obtained pieces
+// of bank evidence: a signed CONFIRMED webhook and a fresh authenticated
+// GetState read. It remains a precondition for the canonical Commerce writer,
+// not an alternative payment ledger or a grant operation.
+func (a *TBankAcquiring) ConfirmNotificationWithGetState(
+	ctx context.Context, signedNotification []byte, expected TBankCaptureExpectation,
+) (TBankCapturedEvent, error) {
+	if a == nil || expected.TerminalKey != a.terminalKey {
+		return TBankCapturedEvent{}, ErrTBankCapture
+	}
+	webhook, err := VerifyTBankCapturedEvent(signedNotification, a.password, expected)
+	if err != nil {
+		return TBankCapturedEvent{}, ErrTBankCapture
+	}
+	state, err := a.GetState(ctx, expected)
+	if err != nil || state != webhook {
+		return TBankCapturedEvent{}, ErrTBankCapture
+	}
+	return webhook, nil
+}
