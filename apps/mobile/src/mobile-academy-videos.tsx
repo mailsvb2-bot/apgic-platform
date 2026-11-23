@@ -14,7 +14,7 @@ export default function NativeAcademyLessonVideos({enrollmentId,lessonId,availab
  const [error,setError]=useState("");
  const [generation,setGeneration]=useState(0);
  const [visible,setVisible]=useState(AppState.currentState==="active");
- const [failed,setFailed]=useState<Record<string,boolean>>({});
+ const [failed,setFailed]=useState<{scope:string;ids:Record<string,boolean>}>({scope:"",ids:{}});
  const [blocked,setBlocked]=useState(false);
  const [selectedVideoId,setSelectedVideoId]=useState<string|null>(null);
  // Keep a decoder tied to the exact enrollment/lesson that was verified.
@@ -80,13 +80,13 @@ export default function NativeAcademyLessonVideos({enrollmentId,lessonId,availab
   {!visible?<Text>Просмотр приостановлен при сворачивании приложения.</Text>:null}
   {error&&visible?<View style={{gap:6}}>
    <Text accessibilityRole="alert">{error}</Text>
-   <Pressable accessibilityRole="button" onPress={()=>{setSelectedVideoId(null);setFailed({});setBlocked(false);setGeneration(n=>n+1);}}>
+   <Pressable accessibilityRole="button" onPress={()=>{setSelectedVideoId(null);setFailed({scope:"",ids:{}});setBlocked(false);setGeneration(n=>n+1);}}>
     <Text>Проверить доступ повторно</Text>
    </Pressable>
   </View>:null}
   {available&&visible&&!blocked&&verifiedScope===scopeKey&&videos.map(video=>{
    const path=nativeAcademyVideoPath(enrollmentId,lessonId,video.id);
-   if(!path||failed[video.id])return <View key={video.id}>
+   if(!path||(failed.scope===scopeKey&&failed.ids[video.id]))return <View key={video.id}>
     <Text>{video.title}: воспроизведение недоступно.</Text>
     <Pressable accessibilityRole="button" onPress={()=>{setSelectedVideoId(null);setVideos([]);setBlocked(false);setGeneration(n=>n+1);}}>
      <Text>Повторить проверку доступа</Text>
@@ -101,7 +101,7 @@ export default function NativeAcademyLessonVideos({enrollmentId,lessonId,availab
      controls
      resizeMode="contain"
      preventsDisplaySleepDuringVideoPlayback
-     onError={()=>{setFailed(old=>({...old,[video.id]:true}));setSelectedVideoId(null);setBlocked(true);setVideos([]);setError("Видео не удалось загрузить. Проверьте вход и доступ к курсу.");}}
+     onError={()=>{setFailed(old=>({scope:scopeKey,ids:{...(old.scope===scopeKey?old.ids:{}),[video.id]:true}}));setSelectedVideoId(null);setBlocked(true);setVideos([]);setError("Видео не удалось загрузить. Проверьте вход и доступ к курсу.");}}
      style={{width:"100%",height:220,backgroundColor:"#101827"}}
     />}
     <Text>Видео загружается только через защищённый APGIC. Сохранение офлайн отключено.</Text>
