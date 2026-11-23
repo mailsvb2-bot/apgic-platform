@@ -84,3 +84,14 @@ func VerifyTBankCapturedEvent(raw []byte, password string, expected TBankCapture
 	}
 	return TBankCapturedEvent{OrderID: orderID, PaymentID: string(paymentID), AmountMinor: amountValue, ProviderStatus: status}, nil
 }
+
+// VerifyCapturedNotification validates bank-origin evidence without any
+// network operation. Separate from GetState so callers can distinguish a
+// forged notification (reject) from a transient bank outage (retry).
+func (a *TBankAcquiring) VerifyCapturedNotification(raw []byte,
+ expected TBankCaptureExpectation) (TBankCapturedEvent,error) {
+ if a==nil||expected.TerminalKey!=a.terminalKey{
+  return TBankCapturedEvent{},ErrTBankCapture
+ }
+ return VerifyTBankCapturedEvent(raw,a.password,expected)
+}
