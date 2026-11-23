@@ -30,6 +30,9 @@ export function nativeAcademyValidatedVideos(
  for(const entry of raw){
   if(!entry||typeof entry!=="object")return null;
   const video=entry as Partial<NativeAcademyVideo>;
+  // A manifest is metadata, never a carrier for upstream credentials or
+  // provider addresses. Reject accidental server-side leakage outright.
+  if(Object.keys(entry).some(key=>/^(?:provider_?url|cloud_?url|download_?url|access_?token|refresh_?token|authorization|cookie)$/i.test(key)))return null;
   if(typeof video.id!=="string"||!nativeAcademyVideoPath(enrollmentId,lessonId,video.id)||
    seen.has(video.id.toLowerCase())||typeof video.title!=="string"||
    video.title.trim().length===0||video.title.length>300||
