@@ -73,3 +73,36 @@ func TestTBankGetStateRequiresStoredTerminal(t *testing.T) {
 		t.Fatal("accepted invalid bank payment id")
 	}
 }
+
+func TestTBankCaptureAdmissionRequiresBothSignedWebhookAndGetState(t *testing.T) {
+	expected := TBankCaptureExpectation{
+		TerminalKey: "merchant", OrderID: "academy123", PaymentID: "234567", AmountMinor: 49900,
+	}
+	signed := signedTBankCapture(t, map[string]any{
+		"TerminalKey": "merchant", "OrderId": "academy123",
+		"PaymentId": json.Number("234567"), "Amount": json.Number("49900"),
+		"Status": "CONFIRMED", "Success": true, "ErrorCode": "0",
+	})
+	calls := 0
+	state := `{"TerminalKey":"merchant","OrderId":"academy123","PaymentId":234567,"Amount":49900,"Status":"CONFIRMED","Success":true,"ErrorCode":"0"}`
+	bank, err := NewTBankAcquiring("merchant", "test-password", &http.Client{Transport: tbankRoundTrip(func(*http.Request) (*http.Response, error) {
+		calls++
+		return tbankReply(http.StatusOK, state), nil
+	})})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = bank.ConfirmNotificationWithGetState(context.Background(), signed, expected); err != nil || calls != 1 {
+		t.Fatalf("valid independent evidence rejected: %v calls=%d", err, calls)
+	}
+	state = `{"TerminalKey":"merchant","OrderId":"academy123","PaymentId":234567,"Amount":49900,"Status":"AUTHORIZED","Success":true,"ErrorCode":"0"}`
+	if _, err = bank.ConfirmNotificationWithGetState(context.Background(), signed, expected); err == nil {
+		t.Fatal("accepted webhook with unconfirmed bank state")
+	}
+	tampered := append([]byte(nil), signed...)
+	tampered = append(tampered, ' ')
+	callsBefore := calls
+	if _, err = bank.ConfirmNotificationWithGetState(context.Background(), []byte(`{}`), expected); err == nil || calls != callsBefore {
+		t.Fatalf("invalid notification was sent to GetState: %v", err)
+	}
+}
