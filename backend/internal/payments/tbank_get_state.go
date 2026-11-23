@@ -1,0 +1,89 @@
+package payments
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"io"
+	"net/http"
+	"strconv"
+)
+
+const tbankGetStateEndpoint = "https://securepay.tinkoff.ru/v2/GetState"
+
+// GetState performs a second read-only provider check of a previously
+// persisted canonical Commerce payment attempt. Only CONFIRMED can be
+// returned as capture evidence; this method never updates the ledger or
+// issues an Entitlement.
+func (a *TBankAcquiring) GetState(ctx context.Context, expected TBankCaptureExpectation) (TBankCapturedEvent, error) {
+	if a == nil || a.client == nil || ctx == nil ||
+		expected.TerminalKey != a.terminalKey ||
+		!tbankOrderPattern.MatchString(expected.OrderID) ||
+		expected.AmountMinor <= 0 || expected.AmountMinor > 10000000000 ||
+		expected.PaymentID == "" || len(expected.PaymentID) > 32 {
+		return TBankCapturedEvent{}, ErrTBankCapture
+	}
+	if _, err := strconv.ParseUint(expected.PaymentID, 10, 64); err != nil {
+		return TBankCapturedEvent{}, ErrTBankCapture
+	}
+	fields := map[string]any{"TerminalKey": a.terminalKey, "PaymentId": expected.PaymentID}
+	token, err := TBankToken(fields, a.password)
+	if err != nil {
+		return TBankCapturedEvent{}, ErrTBankCapture
+	}
+	fields["Token"] = token
+	payload, err := json.Marshal(fields)
+	if err != nil {
+		return TBankCapturedEvent{}, ErrTBankCapture
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, tbankGetStateEndpoint, bytes.NewReader(payload))
+	if err != nil {
+		return TBankCapturedEvent{}, ErrTBankCapture
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	resp, err := a.client.Do(req)
+	if err != nil {
+		return TBankCapturedEvent{}, ErrTBankCapture
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return TBankCapturedEvent{}, ErrTBankCapture
+	}
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, 16385))
+	if err != nil || len(raw) > 16384 {
+		return TBankCapturedEvent{}, ErrTBankCapture
+	}
+	// Bank GetState is signed as a REQUEST; its response is separately
+	// validated for all economic and identity fields. A status response
+	// without an independent signed notification is not sufficient for
+	// granting paid Academy rights.
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+	var value struct {
+		TerminalKey string      `json:"TerminalKey"`
+		OrderID     string      `json:"OrderId"`
+		PaymentID   json.Number `json:"PaymentId"`
+		Amount      json.Number `json:"Amount"`
+		Status      string      `json:"Status"`
+		Success     bool        `json:"Success"`
+		ErrorCode   string      `json:"ErrorCode"`
+	}
+	if decoder.Decode(&value) != nil {
+		return TBankCapturedEvent{}, ErrTBankCapture
+	}
+	if _, err := decoder.Token(); err != io.EOF {
+		return TBankCapturedEvent{}, ErrTBankCapture
+	}
+	amount, err := value.Amount.Int64()
+	if err != nil || !value.Success || value.ErrorCode != "0" ||
+		value.Status != "CONFIRMED" || value.TerminalKey != expected.TerminalKey ||
+		value.OrderID != expected.OrderID || string(value.PaymentID) != expected.PaymentID ||
+		amount != expected.AmountMinor {
+		return TBankCapturedEvent{}, ErrTBankCapture
+	}
+	return TBankCapturedEvent{
+		OrderID: value.OrderID, PaymentID: string(value.PaymentID),
+		AmountMinor: amount, ProviderStatus: value.Status,
+	}, nil
+}
