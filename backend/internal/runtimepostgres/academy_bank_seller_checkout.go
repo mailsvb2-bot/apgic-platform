@@ -52,7 +52,12 @@ func academyLoadApprovedBankSellerSecret(configID, terminal, expectedDigest stri
 	if !filepath.IsAbs(directory) || !strings.HasPrefix(directory, "/run/secrets/apgic/") {
 		return academyBankSellerSecret{}, academy.ErrUnavailable
 	}
-	target := filepath.Join(directory, configID+".json")
+	return academyLoadApprovedBankSellerSecretAtPath(filepath.Join(directory, configID+".json"), terminal, expectedDigest)
+}
+
+// Isolated test seam for secure file material. The actual runtime always
+// obtains this path from a server-controlled /run/secrets directory.
+func academyLoadApprovedBankSellerSecretAtPath(target, terminal, expectedDigest string) (academyBankSellerSecret, error) {
 	info, err := os.Lstat(target)
 	if err != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0077 != 0 || info.Size() <= 0 || info.Size() > 16384 {
 		return academyBankSellerSecret{}, academy.ErrUnavailable
