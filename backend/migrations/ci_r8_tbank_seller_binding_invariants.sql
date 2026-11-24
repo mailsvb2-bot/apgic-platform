@@ -17,11 +17,12 @@ BEGIN
  BEGIN
   INSERT INTO academy_bank_seller_bindings(
    id,product_owner_ref,provider_config_id,terminal_key,
-   credential_version_ref,approval_evidence_ref,approved_by,approved_at)
+   credential_version_ref,approved_config_sha256,approval_evidence_ref,approved_by,approved_at)
   VALUES(
    '00000000-0000-0000-0000-00000000e901',owner_ref,
    '00000000-0000-0000-0000-00000000d102',
    'ci-foreign-provider','secret-version/ci-payment-b/v1',
+   repeat('a',64),
    'ci-approval/wrong-connector',approver,now());
  EXCEPTION WHEN raise_exception THEN blocked:=true;
  END;
@@ -38,17 +39,19 @@ BEGIN
   '00000000-0000-0000-0000-00000000e911'::uuid,
   'ci-r8-bank-v1','ACTIVE',priority,manifest_version,
   certification_evidence_refs,jurisdiction_codes,currencies,method_codes,
-  rail_codes,execution_owner,'secret-version/ci-r8-tbank/1',now()
+  rail_codes,execution_owner,'secret-version/ci-r8-tbank/1',
+   repeat('a',64),now()
  FROM payment_provider_config_versions
  WHERE id='00000000-0000-0000-0000-00000000d102'::uuid;
 
  INSERT INTO academy_bank_seller_bindings(
   id,product_owner_ref,provider_config_id,terminal_key,
-  credential_version_ref,approval_evidence_ref,approved_by,approved_at)
+  credential_version_ref,approved_config_sha256,approval_evidence_ref,approved_by,approved_at)
  VALUES('00000000-0000-0000-0000-00000000e913',owner_ref,
   '00000000-0000-0000-0000-00000000e912',
   'ci-seller-terminal',
-  'secret-version/ci-r8-tbank/1','ci-approval/owner-verified',approver,now());
+  'secret-version/ci-r8-tbank/1',
+   repeat('a',64),'ci-approval/owner-verified',approver,now());
  IF NOT EXISTS(
   SELECT 1 FROM academy_bank_seller_bindings
   WHERE product_owner_ref=owner_ref AND terminal_key='ci-seller-terminal'
@@ -66,10 +69,11 @@ BEGIN
  BEGIN
   INSERT INTO academy_bank_seller_bindings(
    id,product_owner_ref,provider_config_id,terminal_key,
-   credential_version_ref,approval_evidence_ref,approved_by,approved_at)
+   credential_version_ref,approved_config_sha256,approval_evidence_ref,approved_by,approved_at)
   VALUES('00000000-0000-0000-0000-00000000e914',owner_ref,
    '00000000-0000-0000-0000-00000000e912','another-seller-terminal',
-   'secret-version/ci-r8-tbank/1','ci-approval/duplicate',approver,now());
+   'secret-version/ci-r8-tbank/1',
+   repeat('a',64),'ci-approval/duplicate',approver,now());
  EXCEPTION WHEN unique_violation THEN blocked:=true;
  END;
  IF NOT blocked THEN RAISE EXCEPTION 'seller had two simultaneous active bank terminal bindings'; END IF;
