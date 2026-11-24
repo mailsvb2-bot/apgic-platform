@@ -7,8 +7,8 @@ DECLARE
  approver uuid;
  blocked boolean;
 BEGIN
- SELECT product_owner_ref INTO owner_ref FROM orders
- WHERE id='00000000-0000-0000-0000-00000000b501'::uuid;
+ SELECT lower(owner_type)||'/'||owner_id::text INTO owner_ref
+ FROM products WHERE owner_id IS NOT NULL ORDER BY id LIMIT 1;
  SELECT id INTO approver FROM identities ORDER BY id LIMIT 1;
  IF owner_ref IS NULL OR approver IS NULL THEN
   RAISE EXCEPTION 'bank seller proof requires existing Commerce owner and approver';
