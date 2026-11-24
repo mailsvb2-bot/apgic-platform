@@ -143,6 +143,7 @@ func (c *Checker) AcademyPrepareBankAttempt(buyer, courseID, idempotency string,
  WHERE cfg.id=$1::uuid AND cfg.status='ACTIVE'
   AND cfg.effective_from<=now() AND ci.status='ACTIVE'
   AND ci.capability_class='PAYMENT_PROVIDER'
+  AND ci.provider_kind='TBANK'
   AND 'RU'=ANY(cfg.jurisdiction_codes) AND 'RUB'=ANY(cfg.currencies)
   AND 'BANK_CARD'=ANY(cfg.method_codes)
   AND 'APGIC_PAYMENT_PROVIDER'=ANY(cfg.rail_codes)
