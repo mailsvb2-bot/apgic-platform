@@ -6,6 +6,7 @@ DECLARE
   function_sql text;
   sample orders%ROWTYPE;
   refused boolean := false;
+  improperly_accepted boolean := false;
 BEGIN
   SELECT pg_get_functiondef('apgic_refund_request_insert_guard()'::regprocedure) INTO function_sql;
   IF function_sql NOT LIKE '%direct bank refund requires entire verified one-time purchase%'
@@ -50,11 +51,20 @@ BEGIN
     JOIN payment_routing_decisions d ON d.id=a.routing_decision_id
     WHERE o.id=sample.id LIMIT 1;
     IF FOUND THEN
-      RAISE EXCEPTION 'unauthorized direct refund inserted';
+      -- Force a rollback of a wrongly admitted fixture row; do not mistake
+      -- our own exception for proof that a database guard rejected it.
+      RAISE EXCEPTION 'TEST_UNAUTHORIZED_DIRECT_REFUND_INSERTED';
     END IF;
-  EXCEPTION WHEN raise_exception THEN
-    refused := true;
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM = 'TEST_UNAUTHORIZED_DIRECT_REFUND_INSERTED' THEN
+      improperly_accepted := true;
+    ELSE
+      refused := true;
+    END IF;
   END;
+  IF improperly_accepted THEN
+    RAISE EXCEPTION 'canonical guard admitted unauthorized direct refund';
+  END IF;
   IF NOT refused THEN
     RAISE EXCEPTION 'non-Academy bookingless refund was not rejected';
   END IF;
