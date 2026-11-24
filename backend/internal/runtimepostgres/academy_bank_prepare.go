@@ -147,9 +147,16 @@ func (c *Checker) AcademyPrepareBankAttempt(buyer, courseID, idempotency string,
   AND 'RU'=ANY(cfg.jurisdiction_codes) AND 'RUB'=ANY(cfg.currencies)
   AND 'BANK_CARD'=ANY(cfg.method_codes)
   AND 'APGIC_PAYMENT_PROVIDER'=ANY(cfg.rail_codes)
+  AND EXISTS (
+    SELECT 1 FROM academy_bank_seller_bindings binding
+    WHERE binding.product_owner_ref=$2
+      AND binding.provider_config_id=cfg.id
+      AND binding.credential_version_ref=cfg.credential_version_ref
+      AND binding.revoked_at IS NULL
+  )
   AND h.health='HEALTHY' AND h.guardrail_action='ALLOW_NEW_ATTEMPTS'
   AND h.observed_at>=now()-interval '10 minutes'
- FOR SHARE OF cfg`, policy.ProviderConfigID).Scan(&healthID)
+ FOR SHARE OF cfg`, policy.ProviderConfigID, productOwnerRef).Scan(&healthID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return AcademyBankAttempt{}, academy.ErrUnavailable
 	}
