@@ -113,19 +113,19 @@ func TestAcademyBankBuyerCheckoutDoesNotTrustClientEconomics(t *testing.T) {
 }
 
 func TestAcademyBuyerCheckoutKeyRejectsRawDuplicateCasing(t *testing.T) {
- cases:=[]http.Header{
-  {"Idempotency-Key":{"academy-order-001"},"idempotency-key":{"academy-order-002"}},
-  {"Idempotency-Key":{"academy-order-001","academy-order-002"}},
-  {"idempotency-key":{}},
-  {"Idempotency-Key":{"abc"}},
-  {"Idempotency-Key":{"../../sneaky"}},
- }
- for _,headers:=range cases{
-  if key,ok:=academyBuyerCheckoutKey(headers);ok{
-   t.Fatalf("accepted ambiguous/untrusted checkout key %q %#v",key,headers)
-  }
- }
- if key,ok:=academyBuyerCheckoutKey(http.Header{"idempotency-key":{"academy-order-001"}});!ok||key!="academy-order-001"{
-  t.Fatalf("rejected valid case-insensitive key: %q %v",key,ok)
- }
+	cases := []http.Header{
+		{"Idempotency-Key": {"academy-order-001"}, "idempotency-key": {"academy-order-002"}},
+		{"Idempotency-Key": {"academy-order-001", "academy-order-002"}},
+		{"idempotency-key": {}},
+		{"Idempotency-Key": {"abc"}},
+		{"Idempotency-Key": {"../../sneaky"}},
+	}
+	for _, headers := range cases {
+		if key, ok := academyBuyerCheckoutKey(headers); ok {
+			t.Fatalf("accepted ambiguous/untrusted checkout key %q %#v", key, headers)
+		}
+	}
+	if key, ok := academyBuyerCheckoutKey(http.Header{"idempotency-key": {"academy-order-001"}}); !ok || key != "academy-order-001" {
+		t.Fatalf("rejected valid case-insensitive key: %q %v", key, ok)
+	}
 }
