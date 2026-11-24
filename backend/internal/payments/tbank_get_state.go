@@ -16,6 +16,16 @@ const tbankGetStateEndpoint = "https://securepay.tinkoff.ru/v2/GetState"
 // returned as capture evidence; this method never updates the ledger or
 // issues an Entitlement.
 func (a *TBankAcquiring) GetState(ctx context.Context, expected TBankCaptureExpectation) (TBankCapturedEvent, error) {
+ return a.getStateWithRequiredStatus(ctx, expected, "CONFIRMED")
+}
+
+// GetRefundedState accepts only a full settled REFUNDED bank status for the
+// persisted original order/attempt. A Cancel response is NOT sufficient.
+func (a *TBankAcquiring) GetRefundedState(ctx context.Context, expected TBankCaptureExpectation) (TBankCapturedEvent, error) {
+ return a.getStateWithRequiredStatus(ctx, expected, "REFUNDED")
+}
+
+func (a *TBankAcquiring) getStateWithRequiredStatus(ctx context.Context, expected TBankCaptureExpectation, requiredStatus string) (TBankCapturedEvent, error) {
 	if a == nil || a.client == nil || ctx == nil ||
 		expected.TerminalKey != a.terminalKey ||
 		!tbankOrderPattern.MatchString(expected.OrderID) ||
@@ -83,7 +93,7 @@ func (a *TBankAcquiring) GetState(ctx context.Context, expected TBankCaptureExpe
 	}
 	amount, err := value.Amount.Int64()
 	if err != nil || !value.Success || value.ErrorCode != "0" ||
-		value.Status != "CONFIRMED" || value.TerminalKey != expected.TerminalKey ||
+		value.Status != requiredStatus || value.TerminalKey != expected.TerminalKey ||
 		value.OrderID != expected.OrderID || string(value.PaymentID) != expected.PaymentID ||
 		amount != expected.AmountMinor {
 		return TBankCapturedEvent{}, ErrTBankCapture
