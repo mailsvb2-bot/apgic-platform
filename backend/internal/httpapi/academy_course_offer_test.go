@@ -76,8 +76,8 @@ func TestAcademyBankBuyerCheckoutDoesNotTrustClientEconomics(t *testing.T) {
 	mux := http.NewServeMux()
 	registerAcademyCourseOffers(mux, stub, sessions, nil)
 	path := "/v1/academy/courses/22222222-2222-4222-8222-222222222222/checkout"
-	send := func(key string) *httptest.ResponseRecorder {
-		req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{"amount_minor":1,"terminal":"foreign","seller_id":"other"}`))
+	send := func(key, body string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
 		req.AddCookie(cookie)
 		if key != "" {
 			req.Header.Set("Idempotency-Key", key)
@@ -86,10 +86,14 @@ func TestAcademyBankBuyerCheckoutDoesNotTrustClientEconomics(t *testing.T) {
 		mux.ServeHTTP(out, req)
 		return out
 	}
-	if got := send(""); got.Code != http.StatusBadRequest || stub.calls != 0 {
+	if got := send("", "{}"); got.Code != http.StatusBadRequest || stub.calls != 0 {
 		t.Fatalf("missing idempotency key reached PSP: %d calls=%d", got.Code, stub.calls)
 	}
-	got := send("academy-order-001")
+	attacker := send("academy-order-001", `{"amount_minor":1,"terminal":"foreign","seller_id":"other"}`)
+	if attacker.Code != http.StatusBadRequest || stub.calls != 0 {
+		t.Fatalf("client economics reached PSP: %d calls=%d", attacker.Code, stub.calls)
+	}
+	got := send("academy-order-001", "{}")
 	if got.Code != http.StatusCreated || stub.calls != 1 {
 		t.Fatalf("trusted redirect not returned: %d body=%s calls=%d", got.Code, got.Body.String(), stub.calls)
 	}
@@ -102,8 +106,26 @@ func TestAcademyBankBuyerCheckoutDoesNotTrustClientEconomics(t *testing.T) {
 		t.Fatalf("checkout redirect unexpectedly grants rights/reflects client economics: %s", got.Body.String())
 	}
 	stub.redirect.PaymentURL = "https://tinkoff.ru.evil.example/checkout"
-	got = send("academy-order-002")
+	got = send("academy-order-002", "{}")
 	if got.Code != http.StatusServiceUnavailable {
 		t.Fatalf("untrusted redirect accepted: %d %s", got.Code, got.Body.String())
 	}
+}
+
+func TestAcademyBuyerCheckoutKeyRejectsRawDuplicateCasing(t *testing.T) {
+ cases:=[]http.Header{
+  {"Idempotency-Key":{"academy-order-001"},"idempotency-key":{"academy-order-002"}},
+  {"Idempotency-Key":{"academy-order-001","academy-order-002"}},
+  {"idempotency-key":{}},
+  {"Idempotency-Key":{"abc"}},
+  {"Idempotency-Key":{"../../sneaky"}},
+ }
+ for _,headers:=range cases{
+  if key,ok:=academyBuyerCheckoutKey(headers);ok{
+   t.Fatalf("accepted ambiguous/untrusted checkout key %q %#v",key,headers)
+  }
+ }
+ if key,ok:=academyBuyerCheckoutKey(http.Header{"idempotency-key":{"academy-order-001"}});!ok||key!="academy-order-001"{
+  t.Fatalf("rejected valid case-insensitive key: %q %v",key,ok)
+ }
 }
