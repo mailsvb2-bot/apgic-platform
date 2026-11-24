@@ -51,10 +51,10 @@ type academyCheckoutReadyStub struct {
 	*academyCheckoutQuoteStub
 	buyer, course, key string
 	calls              int
-	redirect           academyBuyerCheckoutRedirect
+	redirect           academy.BankCheckoutRedirect
 }
 
-func (s *academyCheckoutReadyStub) AcademyStartBankCheckout(_ context.Context, buyer, course, key string) (academyBuyerCheckoutRedirect, error) {
+func (s *academyCheckoutReadyStub) AcademyStartBankCheckout(_ context.Context, buyer, course, key string) (academy.BankCheckoutRedirect, error) {
 	s.calls++
 	s.buyer, s.course, s.key = buyer, course, key
 	return s.redirect, nil
@@ -69,7 +69,7 @@ func TestAcademyBankBuyerCheckoutDoesNotTrustClientEconomics(t *testing.T) {
 		t.Fatal(err)
 	}
 	stub := &academyCheckoutReadyStub{academyCheckoutQuoteStub: &academyCheckoutQuoteStub{&academyStoreStub{}}}
-	stub.redirect = academyBuyerCheckoutRedirect{
+	stub.redirect = academy.BankCheckoutRedirect{
 		OrderID:    "33333333-3333-4333-8333-333333333333",
 		PaymentURL: "https://securepay.tinkoff.ru/checkout", State: "SENT",
 	}
