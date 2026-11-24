@@ -1,7 +1,6 @@
 -- R8 Academy refund: reuse canonical R2 refund requests, signed PSP
 -- receipts, reversal ledger and immutable effects. No synthetic Booking.
 -- Existing booking refunds retain their cancellation gate.
-BEGIN;
 ALTER TABLE refund_requests ALTER COLUMN booking_id DROP NOT NULL;
 
 CREATE OR REPLACE FUNCTION apgic_refund_request_insert_guard()
@@ -272,4 +271,3 @@ END;
 $$;
 
 
-COMMIT;
