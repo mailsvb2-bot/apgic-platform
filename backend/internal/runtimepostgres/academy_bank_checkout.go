@@ -51,6 +51,13 @@ func (c *Checker) AcademyRunBankCheckout(
 	if err = ctx.Err(); err != nil {
 		return AcademyBankCheckoutResult{}, err
 	}
+	// The Bank instance supplied by the server must be authorized for the
+	// exact owner of this persisted Order. This check happens BEFORE the
+	// one-shot SENT claim and BEFORE any external PSP call.
+	if err = c.AcademyBankSellerTerminalAuthorized(ctx, buyer, prepared.OrderID,
+		prepared.AttemptID, bank.TerminalKey()); err != nil {
+		return AcademyBankCheckoutResult{}, err
+	}
 	if err = c.AcademyClaimBankInit(buyer, prepared.OrderID, prepared.AttemptID); err != nil {
 		return AcademyBankCheckoutResult{}, err
 	}
