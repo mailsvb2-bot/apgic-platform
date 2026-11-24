@@ -27,16 +27,20 @@ var academyCheckoutKeyPattern = regexp.MustCompile(`^[A-Za-z0-9._~-]{8,128}$`)
 // Inspect every raw spelling of Idempotency-Key; Header.Get hides
 // duplicates injected through noncanonical casing. No two PSP Init calls
 // may be justified by an ambiguous buyer key.
-func academyBuyerCheckoutKey(headers http.Header) (string,bool) {
- var key string
- found:=false
- for name,values:=range headers {
-  if !strings.EqualFold(name,"Idempotency-Key"){continue}
-  if found||len(values)!=1{return "",false}
-  found=true
-  key=values[0]
- }
- return key,found&&academyCheckoutKeyPattern.MatchString(key)
+func academyBuyerCheckoutKey(headers http.Header) (string, bool) {
+	var key string
+	found := false
+	for name, values := range headers {
+		if !strings.EqualFold(name, "Idempotency-Key") {
+			continue
+		}
+		if found || len(values) != 1 {
+			return "", false
+		}
+		found = true
+		key = values[0]
+	}
+	return key, found && academyCheckoutKeyPattern.MatchString(key)
 }
 func academyTrustedBankRedirect(raw string) bool {
 	parsed, err := url.Parse(raw)
@@ -122,7 +126,9 @@ func registerAcademyCourseOffers(mux *http.ServeMux, store academyStore, session
 		// Only an empty JSON object is valid. Browser pricing, merchant IDs,
 		// tax options and terminal credentials never enter a signed checkout.
 		var input struct{}
-		if !academyRead(w, r, &input) { return }
+		if !academyRead(w, r, &input) {
+			return
+		}
 		starter, ready := store.(academyBankCheckoutStarter)
 		if !ready {
 			writeDemandError(w, r, http.StatusServiceUnavailable,
