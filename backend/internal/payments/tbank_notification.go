@@ -29,6 +29,17 @@ type TBankCapturedEvent struct {
 // persisted bank attempt. It cannot issue rights, ledger entries, or receipts.
 // Only the existing Commerce transaction owner may commit those effects.
 func VerifyTBankCapturedEvent(raw []byte, password string, expected TBankCaptureExpectation) (TBankCapturedEvent, error) {
+ return verifyTBankNotificationStatus(raw, password, expected, "CONFIRMED")
+}
+
+// VerifyTBankRefundedEvent validates a full REFUNDED bank notification.
+// It does not write a refund or revoke paid access; the persisted approved
+// refund and the independent GetState proof are mandatory downstream.
+func VerifyTBankRefundedEvent(raw []byte, password string, expected TBankCaptureExpectation) (TBankCapturedEvent, error) {
+ return verifyTBankNotificationStatus(raw, password, expected, "REFUNDED")
+}
+
+func verifyTBankNotificationStatus(raw []byte, password string, expected TBankCaptureExpectation, requiredStatus string) (TBankCapturedEvent, error) {
 	if len(raw) == 0 || len(raw) > 16384 || expected.TerminalKey == "" ||
 		!tbankOrderPattern.MatchString(expected.OrderID) || expected.PaymentID == "" ||
 		expected.AmountMinor <= 0 {
@@ -79,7 +90,7 @@ func VerifyTBankCapturedEvent(raw []byte, password string, expected TBankCapture
 	if !amountOK || !paymentOK || !orderOK || !terminalOK || !statusOK || !successOK || !codeOK ||
 		amountErr != nil || amountValue != expected.AmountMinor || orderID != expected.OrderID ||
 		terminal != expected.TerminalKey || string(paymentID) != expected.PaymentID ||
-		!success || errorCode != "0" || status != "CONFIRMED" {
+		!success || errorCode != "0" || status != requiredStatus {
 		return TBankCapturedEvent{}, ErrTBankCapture
 	}
 	return TBankCapturedEvent{OrderID: orderID, PaymentID: string(paymentID), AmountMinor: amountValue, ProviderStatus: status}, nil
