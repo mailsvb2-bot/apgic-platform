@@ -29,14 +29,14 @@ type TBankCapturedEvent struct {
 // persisted bank attempt. It cannot issue rights, ledger entries, or receipts.
 // Only the existing Commerce transaction owner may commit those effects.
 func VerifyTBankCapturedEvent(raw []byte, password string, expected TBankCaptureExpectation) (TBankCapturedEvent, error) {
- return verifyTBankNotificationStatus(raw, password, expected, "CONFIRMED")
+	return verifyTBankNotificationStatus(raw, password, expected, "CONFIRMED")
 }
 
 // VerifyTBankRefundedEvent validates a full REFUNDED bank notification.
 // It does not write a refund or revoke paid access; the persisted approved
 // refund and the independent GetState proof are mandatory downstream.
 func VerifyTBankRefundedEvent(raw []byte, password string, expected TBankCaptureExpectation) (TBankCapturedEvent, error) {
- return verifyTBankNotificationStatus(raw, password, expected, "REFUNDED")
+	return verifyTBankNotificationStatus(raw, password, expected, "REFUNDED")
 }
 
 func verifyTBankNotificationStatus(raw []byte, password string, expected TBankCaptureExpectation, requiredStatus string) (TBankCapturedEvent, error) {
