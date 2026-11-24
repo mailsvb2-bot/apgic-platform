@@ -57,12 +57,27 @@ RCT_REMAP_METHOD(debugEmit,
                  resolver:(RCTPromiseResolveBlock)resolve
                  rejecter:(RCTPromiseRejectBlock)reject) {
 #if DEBUG
-  if ([type isEqualToString:@"NETWORK_TRANSPORT_CHANGED"]) {
-    [self emitNetworkTransport:(route ?: @"UNKNOWN")];
-  } else {
-    [self emit:type route:route];
-  }
-  resolve(nil);
+  // Acknowledge native debug injection only after it has been delivered to
+  // RCTEventEmitter on the main queue. Resolving before dispatch_async raced
+  // with the JS reducer on loaded iOS simulators and could falsely time out
+  // before the event had even entered the React Native bridge.
+  dispatch_async(dispatch_get_main_queue(), ^{
+    if (!self.started) {
+      reject(@"REALTIME_NATIVE_NOT_STARTED",
+             @"Realtime lifecycle must be active before event injection", nil);
+      return;
+    }
+    if ([type isEqualToString:@"NETWORK_TRANSPORT_CHANGED"]) {
+      NSString *transport = route ?: @"UNKNOWN";
+      [self sendEventWithName:@"APGICRealtimeLifecycleEvent"
+                        body:@{@"type": type, @"transport": transport}];
+    } else {
+      NSMutableDictionary *payload = [@{@"type": type} mutableCopy];
+      if (route != nil) payload[@"route"] = route;
+      [self sendEventWithName:@"APGICRealtimeLifecycleEvent" body:payload];
+    }
+    resolve(nil);
+  });
 #else
   reject(@"REALTIME_DEBUG_DISABLED", @"Debug lifecycle injection is disabled", nil);
 #endif
