@@ -48,18 +48,18 @@ func registerAcademyBankNotificationFromStore(mux *http.ServeMux, store academyS
 // A TerminalKey is an untrusted lookup key until the canonical bank token and
 // independent GetState have been verified by the Commerce capture writer.
 type academyBankTerminalResolver interface {
- AcademyBankForTerminal(context.Context,string)(*payments.TBankAcquiring,error)
+	AcademyBankForTerminal(context.Context, string) (*payments.TBankAcquiring, error)
 }
 
 // registerAcademyBankWebhook is disabled unless an operator explicitly
 // configures the bank terminal, scoped trust roots, and release gate.
 // It never uses secrets from requests. No generic HTTP handler can mint rights.
 func registerAcademyBankWebhook(mux *http.ServeMux, committer academyBankCommitter) {
- registerAcademyBankWebhookWithResolver(mux,committer,nil)
+	registerAcademyBankWebhookWithResolver(mux, committer, nil)
 }
 func registerAcademyBankWebhookWithResolver(
- mux *http.ServeMux, committer academyBankCommitter,
- resolver academyBankTerminalResolver,
+	mux *http.ServeMux, committer academyBankCommitter,
+	resolver academyBankTerminalResolver,
 ) {
 	mux.HandleFunc("POST /v1/payments/tbank/notification", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
@@ -71,7 +71,7 @@ func registerAcademyBankWebhookWithResolver(
 		var bank *payments.TBankAcquiring
 		var err error
 		if resolver == nil {
-		terminal := os.Getenv("TBANK_TERMINAL_KEY")
+			terminal := os.Getenv("TBANK_TERMINAL_KEY")
 			secret := os.Getenv("TBANK_TERMINAL_PASSWORD")
 			caPath := os.Getenv("APGIC_TBANK_CA_BUNDLE_PATH")
 			if terminal == "" || secret == "" || caPath == "" || !strings.HasPrefix(caPath, "/") {
@@ -91,7 +91,7 @@ func registerAcademyBankWebhookWithResolver(
 					"Проверка банка недоступна.", true, nil)
 				return
 			}
-			}
+		}
 		mediaType, _, mediaErr := mime.ParseMediaType(r.Header.Get("Content-Type"))
 		if mediaErr != nil || mediaType != "application/json" {
 			writeDemandError(w, r, http.StatusUnsupportedMediaType, "ACADEMY_BANK_INVALID_NOTIFICATION",
@@ -105,7 +105,7 @@ func registerAcademyBankWebhookWithResolver(
 			return
 		}
 		var input struct {
-			OrderID string `json:"OrderId"`
+			OrderID     string `json:"OrderId"`
 			TerminalKey string `json:"TerminalKey"`
 		}
 		if err = json.Unmarshal(raw, &input); err != nil || !academyUUID(input.OrderID) {
