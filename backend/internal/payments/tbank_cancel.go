@@ -60,7 +60,7 @@ func (a *TBankAcquiring) Cancel(ctx context.Context,request TBankCancelRequest)(
  if resp.StatusCode!=http.StatusOK{return TBankCancelResult{},ErrTBankCancel}
  raw,err:=io.ReadAll(io.LimitReader(resp.Body,8193))
  if err!=nil||len(raw)>8192{return TBankCancelResult{},ErrTBankCancel}
- if err=tbankUniqueRootFields(raw);err!=nil{
+ if !tbankUniqueRootFields(raw){
   return TBankCancelResult{},ErrTBankCancel
  }
  var result struct{
