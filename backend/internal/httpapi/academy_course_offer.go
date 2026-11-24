@@ -21,20 +21,7 @@ type academyBuyerCheckoutRedirect struct {
  PaymentURL string `json:"payment_url"`
  State string `json:"state"`
 }
-var academyCheckoutKeyPattern = regexp.MustCompile(`^[A-Za-z0-9._~-]{8,128}package httpapi
-
-import (
-	"context"
-	"errors"
-	"net/http"
-	"regexp"
-	"strings"
-	"net/url"
-
-	"github.com/mailsvb2-bot/apgic-platform/backend/internal/academy"
-)
-
-)
+var academyCheckoutKeyPattern = regexp.MustCompile(`^[A-Za-z0-9._~-]{8,128}$`)
 func academyTrustedBankRedirect(raw string) bool {
  parsed, err:=url.Parse(raw)
  if err!=nil||parsed.Scheme!="https"||parsed.User!=nil||parsed.Fragment!=""||parsed.Port()!="" {
