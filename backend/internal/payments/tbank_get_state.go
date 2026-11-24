@@ -16,13 +16,13 @@ const tbankGetStateEndpoint = "https://securepay.tinkoff.ru/v2/GetState"
 // returned as capture evidence; this method never updates the ledger or
 // issues an Entitlement.
 func (a *TBankAcquiring) GetState(ctx context.Context, expected TBankCaptureExpectation) (TBankCapturedEvent, error) {
- return a.getStateWithRequiredStatus(ctx, expected, "CONFIRMED")
+	return a.getStateWithRequiredStatus(ctx, expected, "CONFIRMED")
 }
 
 // GetRefundedState accepts only a full settled REFUNDED bank status for the
 // persisted original order/attempt. A Cancel response is NOT sufficient.
 func (a *TBankAcquiring) GetRefundedState(ctx context.Context, expected TBankCaptureExpectation) (TBankCapturedEvent, error) {
- return a.getStateWithRequiredStatus(ctx, expected, "REFUNDED")
+	return a.getStateWithRequiredStatus(ctx, expected, "REFUNDED")
 }
 
 func (a *TBankAcquiring) getStateWithRequiredStatus(ctx context.Context, expected TBankCaptureExpectation, requiredStatus string) (TBankCapturedEvent, error) {
