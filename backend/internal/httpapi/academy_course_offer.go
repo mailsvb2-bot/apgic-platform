@@ -16,6 +16,7 @@ import (
 type academyBankCheckoutStarter interface {
 	AcademyStartBankCheckout(context.Context, string, string, string) (academy.BankCheckoutRedirect, error)
 }
+
 var academyCheckoutKeyPattern = regexp.MustCompile(`^[A-Za-z0-9._~-]{8,128}$`)
 
 // Inspect every raw spelling of Idempotency-Key; Header.Get hides
