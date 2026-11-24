@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
-	"net/url"
 
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/academy"
 )
@@ -14,23 +14,26 @@ import (
 // The buyer only sends course identity and an idempotency key. Seller
 // policy and PSP identity must be resolved from trusted Commerce state.
 type academyBankCheckoutStarter interface {
- AcademyStartBankCheckout(context.Context,string,string,string)(academyBuyerCheckoutRedirect,error)
+	AcademyStartBankCheckout(context.Context, string, string, string) (academyBuyerCheckoutRedirect, error)
 }
 type academyBuyerCheckoutRedirect struct {
- OrderID string `json:"order_id"`
- PaymentURL string `json:"payment_url"`
- State string `json:"state"`
+	OrderID    string `json:"order_id"`
+	PaymentURL string `json:"payment_url"`
+	State      string `json:"state"`
 }
+
 var academyCheckoutKeyPattern = regexp.MustCompile(`^[A-Za-z0-9._~-]{8,128}$`)
+
 func academyTrustedBankRedirect(raw string) bool {
- parsed, err:=url.Parse(raw)
- if err!=nil||parsed.Scheme!="https"||parsed.User!=nil||parsed.Fragment!=""||parsed.Port()!="" {
-  return false
- }
- host:=strings.ToLower(parsed.Hostname())
- return host=="tbank.ru"||strings.HasSuffix(host,".tbank.ru")||
-  host=="tinkoff.ru"||strings.HasSuffix(host,".tinkoff.ru")
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Scheme != "https" || parsed.User != nil || parsed.Fragment != "" || parsed.Port() != "" {
+		return false
+	}
+	host := strings.ToLower(parsed.Hostname())
+	return host == "tbank.ru" || strings.HasSuffix(host, ".tbank.ru") ||
+		host == "tinkoff.ru" || strings.HasSuffix(host, ".tinkoff.ru")
 }
+
 type academyCourseCheckoutQuoteStore interface {
 	AcademyCheckoutOffer(courseID string) (academy.CourseOffer, error)
 }
