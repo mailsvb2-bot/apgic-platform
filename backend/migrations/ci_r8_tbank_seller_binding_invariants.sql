@@ -39,8 +39,7 @@ BEGIN
   '00000000-0000-0000-0000-00000000e911'::uuid,
   'ci-r8-bank-v1','ACTIVE',priority,manifest_version,
   certification_evidence_refs,jurisdiction_codes,currencies,method_codes,
-  rail_codes,execution_owner,'secret-version/ci-r8-tbank/1',
-   repeat('a',64),now()
+  rail_codes,execution_owner,'secret-version/ci-r8-tbank/1',now()
  FROM payment_provider_config_versions
  WHERE id='00000000-0000-0000-0000-00000000d102'::uuid;
 
