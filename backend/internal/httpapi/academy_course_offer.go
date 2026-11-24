@@ -14,14 +14,8 @@ import (
 // The buyer only sends course identity and an idempotency key. Seller
 // policy and PSP identity must be resolved from trusted Commerce state.
 type academyBankCheckoutStarter interface {
-	AcademyStartBankCheckout(context.Context, string, string, string) (academyBuyerCheckoutRedirect, error)
+	AcademyStartBankCheckout(context.Context, string, string, string) (academy.BankCheckoutRedirect, error)
 }
-type academyBuyerCheckoutRedirect struct {
-	OrderID    string `json:"order_id"`
-	PaymentURL string `json:"payment_url"`
-	State      string `json:"state"`
-}
-
 var academyCheckoutKeyPattern = regexp.MustCompile(`^[A-Za-z0-9._~-]{8,128}$`)
 
 // Inspect every raw spelling of Idempotency-Key; Header.Get hides
