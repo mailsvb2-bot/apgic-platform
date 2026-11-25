@@ -11,7 +11,7 @@ type BankOrderStatus struct {
 	HasProviderReference   bool   `json:"provider_reference_recorded"`
 	EntitlementActive      bool   `json:"entitlement_active"`
 	EntitlementID          string `json:"entitlement_id,omitempty"`
-	RefundID                string `json:"refund_id,omitempty"`
-	RefundState             string `json:"refund_state,omitempty"`
+	RefundID               string `json:"refund_id,omitempty"`
+	RefundState            string `json:"refund_state,omitempty"`
 	RequiresReconciliation bool   `json:"requires_reconciliation"`
 }
