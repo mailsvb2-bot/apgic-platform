@@ -15,9 +15,14 @@ function discardVideoBuffer(player:HTMLVideoElement){
  }
 }
 
-export default function AcademyLessonVideos({enrollmentId,lessonId,available}:{
- enrollmentId:string;lessonId:string;available:boolean
-}){
+export default function AcademyLessonVideos({enrollmentId,authorVersionId,lessonId,available}:({
+ enrollmentId:string;authorVersionId?:never
+}|{
+ authorVersionId:string;enrollmentId?:never
+})&{lessonId:string;available:boolean}){
+ const videoBase=authorVersionId
+  ? `/v1/academy/author/versions/${authorVersionId}/lessons/${lessonId}/videos`
+  : `/v1/academy/enrollments/${enrollmentId}/lessons/${lessonId}/videos`;
  const [videos,setVideos]=useState<LessonVideo[]>([]);
  const [error,setError]=useState("");
  const [playbackError,setPlaybackError]=useState<Record<string,string>>({});
@@ -28,7 +33,7 @@ export default function AcademyLessonVideos({enrollmentId,lessonId,available}:{
   const controller=new AbortController();
   void (async()=>{
    try{
-    const response=await fetch(`/v1/academy/enrollments/${enrollmentId}/lessons/${lessonId}/videos`,{
+    const response=await fetch(videoBase,{
      credentials:"same-origin",cache:"no-store",signal:controller.signal
     });
     if(!response.ok)throw new Error("Видеоматериалы пока недоступны");
@@ -40,7 +45,7 @@ export default function AcademyLessonVideos({enrollmentId,lessonId,available}:{
    controller.abort();
    for(const video of Object.values(refs.current)){if(video){discardVideoBuffer(video)}}
   };
- },[available,enrollmentId,lessonId,reloadVersion]);
+ },[available,videoBase,reloadVersion]);
  // Browsers throttle JavaScript timers in background tabs. A learner can
  // otherwise keep an already-buffered video after access is revoked while
  // the tab is hidden. Drop the source proactively on hide/pagehide and require
@@ -88,7 +93,7 @@ export default function AcademyLessonVideos({enrollmentId,lessonId,available}:{
    inFlight=controller;
    const timeout=window.setTimeout(()=>controller.abort(),2000);
    try{
-    const response=await fetch(`/v1/academy/enrollments/${enrollmentId}/lessons/${lessonId}/videos`,{
+    const response=await fetch(videoBase,{
      credentials:"same-origin",cache:"no-store",signal:controller.signal
     });
     if(!response.ok)throw new Error("Access unavailable");
@@ -114,7 +119,7 @@ export default function AcademyLessonVideos({enrollmentId,lessonId,available}:{
   void revalidate();
   const timer=window.setInterval(()=>{void revalidate()},1000);
   return ()=>{disposed=true;window.clearInterval(timer);inFlight?.abort()};
- },[available,enrollmentId,lessonId,videos]);
+ },[available,videoBase,videos]);
  async function retryVideo(id:string){
   const player=refs.current[id];
   if(!player)return;
@@ -122,7 +127,7 @@ export default function AcademyLessonVideos({enrollmentId,lessonId,available}:{
   try{
    // A failed media element has no reusable source or trustworthy buffer.
    // Prove the canonical entitlement again before creating a new request.
-   const response=await fetch(`/v1/academy/enrollments/${enrollmentId}/lessons/${lessonId}/videos`,{
+   const response=await fetch(videoBase,{
     credentials:"same-origin",cache:"no-store"
    });
    if(!response.ok)throw new Error("Access unavailable");
@@ -132,7 +137,7 @@ export default function AcademyLessonVideos({enrollmentId,lessonId,available}:{
    }
    if(refs.current[id]!==player)return;
    // Only the APGIC gateway URL is ever placed in the browser, never cloud hrefs.
-   player.src=`/v1/academy/enrollments/${enrollmentId}/lessons/${lessonId}/videos/${id}/stream`;
+   player.src=`${videoBase}/${id}/stream`;
    // This click initiates an asynchronous entitlement fetch. Once it
    // resolves, the original user activation may have expired: calling play()
    // here can raise NotAllowedError even when the gateway is healthy.
@@ -168,7 +173,7 @@ export default function AcademyLessonVideos({enrollmentId,lessonId,available}:{
      onPlaying={()=>setPlaybackError(prev=>({...prev,[video.id]:""}))}
      aria-label={video.title}
      style={{width:"100%",display:"block"}}
-     src={`/v1/academy/enrollments/${enrollmentId}/lessons/${lessonId}/videos/${video.id}/stream`}>
+     src={`${videoBase}/${video.id}/stream`}>
      Ваш браузер не поддерживает HTML5-видео.
     </video>
     <div style={{position:"absolute",top:12,left:12,pointerEvents:"none",color:"white",fontWeight:700,textShadow:"0 1px 4px black"}}>APGIC Academy</div>
