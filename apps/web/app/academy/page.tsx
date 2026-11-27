@@ -55,7 +55,7 @@ async function downloadAcademyHistory():Promise<void>{
 
 export default function AcademyPage(){
  const [view,setView]=useState<"home"|"courses"|"learning"|"catalog"|"reports"|"reviews">("home");
- const [editorStep,setEditorStep]=useState<"structure"|"media"|"publish">("structure");
+ const [editorStep,setEditorStep]=useState<"structure"|"media"|"publish"|"preview">("structure");
  const [showCreate,setShowCreate]=useState(false);
  const [catalog,setCatalog]=useState<Course[]>([]);
  const [catalogError,setCatalogError]=useState("");
@@ -75,6 +75,7 @@ export default function AcademyPage(){
  const mediaLessonOptions=useMemo(()=>lessons.map(l=>({id:l.id,title:l.title,kind:l.kind,module_id:l.module_id})),[lessons]);
  const mediaModuleOptions=useMemo(()=>modules.map(m=>({id:m.id,title:m.title,ordinal:m.ordinal})),[modules]);
  const [focusedVideoLessonID,setFocusedVideoLessonID]=useState("");
+ const [previewLessonID,setPreviewLessonID]=useState("");
  const [activeEnrollment,setActiveEnrollment]=useState<Enrollment|null>(null);
  const [certificate,setCertificate]=useState<Certificate|null>(null);
  const [certificates,setCertificates]=useState<LearnerCertificate[]>([]);
@@ -200,7 +201,7 @@ export default function AcademyPage(){
   setPublishError("");setRightsFeedback("");setOfferFeedback(null);setRightsRecorded(false);setRightsAgreed(false);setRightsSource("");
   setOfferMode(selected.access_mode==="PAID"?"PAID":"FREE");
   setOfferPriceRub(selected.price_minor?String(selected.price_minor/100):"1000");
-  setView("courses");setCourse(selected);setFocusedVideoLessonID("");setActiveEnrollment(null);setCertificate(null);setLearnerAttempts([]);setCohorts([]);
+  setView("courses");setCourse(selected);setModules([]);setLessons([]);setPreviewLessonID("");setFocusedVideoLessonID("");setActiveEnrollment(null);setCertificate(null);setLearnerAttempts([]);setCohorts([]);
   const d=await api<{state:string;modules:Module[];lessons:Lesson[]}>(
    `/v1/academy/courses/${selected.id}/versions/${selected.version_id}/outline`);
   setModules(d.modules);setLessons(d.lessons);setModuleID(d.modules[0]?.id||"");
@@ -414,6 +415,16 @@ export default function AcademyPage(){
     }
    });
  }
+ async function openAuthorPreview(selected:Course,lessonID?:string){
+  setBusy(true);setNotice("");setEditorStep("structure");
+  try{
+   await loadOutline(selected);
+   setPreviewLessonID(lessonID||"");
+   setEditorStep("preview");
+  }catch(error){
+   setNotice(error instanceof Error?error.message:"Не удалось открыть предпросмотр.");
+  }finally{setBusy(false)}
+ }
  return <main className="academy-workspace">
   <aside className="academy-sidebar" aria-label="Навигация Академии">
    <a className="academy-logo" href="/"><span className="academy-logo-mark">A</span><span>APGIC<small>Академия</small></span></a>
@@ -584,6 +595,7 @@ export default function AcademyPage(){
      <button disabled={busy} onClick={()=>void act(
       ()=>Promise.resolve(c),
       async()=>{setEditorStep("structure");await loadOutline(c)})}>Открыть редактор</button>
+     <button type="button" disabled={busy} onClick={()=>void openAuthorPreview(c)}>{c.state==="PUBLISHED"?"Посмотреть курс":"Предпросмотр"}</button>
      <button disabled={busy} onClick={()=>void act(
       ()=>api<Course>(`/v1/academy/courses/${c.id}/versions`,{}),
       async d=>loadOutline({...c,version_id:d.version_id,version_no:d.version_no}))}>Новая версия</button>
@@ -594,11 +606,39 @@ export default function AcademyPage(){
    <button type="button" className="academy-return" onClick={()=>setCourse(null)}>← Все курсы</button>
    <p className="academy-overline">Версия {course.version_no} · {course.state==="DRAFT"?"Черновик":"Опубликован"}</p>
    <h1>{course.title}</h1>
+   <div className="academy-action-buttons"><button type="button" className="academy-blue-button" disabled={busy} onClick={()=>void openAuthorPreview(course)}>{course.state==="PUBLISHED"?"Посмотреть курс":"Предпросмотр"}</button>{editorStep==="preview"&&<button type="button" onClick={()=>setEditorStep("structure")}>Вернуться к редактированию</button>}</div>
    <nav className="academy-steps" aria-label="Редактирование курса">
     <button type="button" aria-current={editorStep==="structure"?"step":undefined} onClick={()=>setEditorStep("structure")}>1. Уроки</button>
     <button type="button" aria-current={editorStep==="media"?"step":undefined} disabled={!modules.length||course.state!=="DRAFT"} onClick={()=>setEditorStep("media")}>2. Видео</button>
     <button type="button" aria-current={editorStep==="publish"?"step":undefined} disabled={!lessons.length} onClick={()=>setEditorStep("publish")}>3. Публикация</button>
    </nav>
+   {editorStep==="preview"&&<section className="academy-structure" aria-label="Предпросмотр курса">
+    <section className="panel academy-outline-tree">
+     <h2>Содержание курса</h2>
+     <p>Режим автора · версия {course.version_no}. Покупки, зачисления и прогресс не создаются.</p>
+     {modules.length===0&&<p>В курсе пока нет модулей.</p>}
+     {[...modules].sort((a,b)=>a.ordinal-b.ordinal).map(m=><div key={m.id}>
+      <h3>{m.title}</h3>
+      {lessons.filter(l=>l.module_id===m.id).sort((a,b)=>a.ordinal-b.ordinal).map(l=>
+       <button key={l.id} type="button" className="academy-module-heading" aria-current={previewLessonID===l.id?"true":undefined} onClick={()=>setPreviewLessonID(l.id)}>{l.ordinal}. {l.title}</button>)}
+     </div>)}
+    </section>
+    <section className="panel academy-outline-action">
+     {course.description&&<p>{course.description}</p>}
+     {(()=>{const ordered=[...modules].sort((a,b)=>a.ordinal-b.ordinal).flatMap(m=>lessons.filter(l=>l.module_id===m.id).sort((a,b)=>a.ordinal-b.ordinal));
+      const index=Math.max(0,ordered.findIndex(l=>l.id===previewLessonID));
+      const lesson=ordered[index];
+      if(!lesson)return <p>Добавьте уроки, чтобы проверить курс.</p>;
+      return <article key={lesson.id}>
+       <p>Урок {index+1} из {ordered.length}</p><h2>{lesson.title}</h2>
+       {lesson.kind==="READING"&&<p style={{whiteSpace:"pre-wrap"}}>{lesson.body}</p>}
+       {lesson.kind==="VIDEO"&&<AcademyLessonVideos key={course.version_id+":"+lesson.id} authorVersionId={course.version_id} lessonId={lesson.id} available={true}/>}
+       {lesson.kind==="ASSESSMENT"&&<div><p>Задание · проходной балл: {lesson.passing_score}</p>{lesson.body&&<p style={{whiteSpace:"pre-wrap"}}>{lesson.body}</p>}<label>Ответ ученика (предпросмотр)<textarea disabled placeholder="В режиме автора ответы не отправляются"/></label></div>}
+       <div className="academy-action-buttons"><button type="button" disabled={index===0} onClick={()=>setPreviewLessonID(ordered[index-1].id)}>← Предыдущий урок</button><button type="button" disabled={index===ordered.length-1} onClick={()=>setPreviewLessonID(ordered[index+1].id)}>Следующий урок →</button></div>
+      </article>
+     })()}
+    </section>
+   </section>}
    {editorStep==="structure"&&<div className="academy-structure">
     <section className="panel academy-outline-tree" aria-label="Дерево курса">
      <div className="academy-tree-heading">
@@ -622,7 +662,7 @@ export default function AcademyPage(){
          <span className="academy-lesson-icon" aria-hidden="true">{l.kind==="VIDEO"?"▶":l.kind==="READING"?"▤":"✓"}</span>
          <span className="academy-lesson-name">{i+1}. {l.title}<small>{l.kind==="VIDEO"?"Видеоурок":l.kind==="READING"?"Текст":"Задание"}</small></span>
          {l.kind==="VIDEO"&&<button type="button" className="academy-lesson-video"
-          disabled={course.state!=="DRAFT"} onClick={()=>{setFocusedVideoLessonID(l.id);setEditorStep("media")}}>
+          disabled={busy} onClick={()=>{if(course.state==="DRAFT"){setFocusedVideoLessonID(l.id);setEditorStep("media")}else void openAuthorPreview(course,l.id)}}>
           Видео →</button>}
         </div>)}
        {course.state==="DRAFT"&&<button type="button" className="academy-add-lesson"
@@ -710,7 +750,7 @@ export default function AcademyPage(){
    {editorStep==="structure"&&<div className="academy-next"><button type="button" className="academy-blue-button" disabled={!modules.length||course.state!=="DRAFT"} onClick={()=>setEditorStep("media")}>Далее: видео →</button></div>}
    {editorStep==="media"&&course.state==="DRAFT"&&<CloudMediaEditor key={`${course.id}:${course.version_id}`} courseId={course.id} versionId={course.version_id} modules={mediaModuleOptions} focusedLessonId={focusedVideoLessonID} lessons={mediaLessonOptions}/>}
    {editorStep==="media"&&<div className="academy-next"><button type="button" onClick={()=>setEditorStep("structure")}>← К урокам</button><button type="button" className="academy-blue-button" onClick={()=>setEditorStep("publish")}>Далее: публикация →</button></div>}
-   {editorStep==="publish"&&<section className="panel academy-publish-overview"><h2>1. Проверьте содержание курса</h2><p>Модулей: {modules.length} · уроков: {lessons.length} · видеоуроков: {lessons.filter(l=>l.kind==="VIDEO").length}</p><p>Перед публикацией проверьте содержание и прикреплённые видео. После публикации эта версия станет неизменяемой.</p><div className="academy-publish-review-actions"><button type="button" onClick={()=>setEditorStep("structure")}>Проверить уроки</button><button type="button" onClick={()=>setEditorStep("media")}>Проверить видео</button></div></section>}
+   {editorStep==="publish"&&<section className="panel academy-publish-overview"><h2>1. Проверьте содержание курса</h2><p>Модулей: {modules.length} · уроков: {lessons.length} · видеоуроков: {lessons.filter(l=>l.kind==="VIDEO").length}</p><p>Перед публикацией проверьте содержание и прикреплённые видео. После публикации эта версия станет неизменяемой.</p><div className="academy-publish-review-actions"><button type="button" onClick={()=>void openAuthorPreview(course)}>Проверить уроки</button><button type="button" onClick={()=>void openAuthorPreview(course,lessons.find(l=>l.kind==="VIDEO")?.id)}>Проверить видео</button></div></section>}
    {editorStep==="publish"&&course.state==="DRAFT"&&<section className="panel academy-publish-rights" aria-label="Декларация авторских прав">
       <h2>2. Подтвердите авторские права</h2>
       <p>Один раз укажите, откуда материалы курса, и подтвердите своё право их публиковать.</p>
