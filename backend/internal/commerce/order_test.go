@@ -86,3 +86,51 @@ func TestOrderSnapshotIsValueCopy(t *testing.T) {
 		t.Fatalf("captured snapshot changed with source object: %#v", snapshot)
 	}
 }
+
+func TestOrderSnapshotDirectAcademyUsesSameCommerceOwnerWithoutBooking(t *testing.T) {
+	s := validOrderSnapshot()
+	s.BookingID = ""
+	s.OrganizationDirectionID = "" // Identity-owned published product.
+	s.DirectBuyerIdentityID = "22222222-2222-4222-8222-222222222222"
+	s.DirectCheckoutIdempotencyKey = "academy_checkout_abc_1"
+	s.OfferRef = "academy/course/33333333-3333-4333-8333-333333333333"
+	s.PriceSourceRef = "academy/offer/revision/7"
+	s.Currency = "RUB"
+	got, err := NewOrderSnapshot(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.BookingID != "" || got.DirectBuyerIdentityID != s.DirectBuyerIdentityID ||
+		got.DirectCheckoutIdempotencyKey != s.DirectCheckoutIdempotencyKey {
+		t.Fatalf("direct order lost durable customer identity: %#v", got)
+	}
+	for name, mutate := range map[string]func(*OrderSnapshot){
+		"missing identity":    func(v *OrderSnapshot) { v.DirectBuyerIdentityID = "" },
+		"missing idempotency": func(v *OrderSnapshot) { v.DirectCheckoutIdempotencyKey = "" },
+		"invalid key":         func(v *OrderSnapshot) { v.DirectCheckoutIdempotencyKey = "../\nother" },
+		"wrong offer":         func(v *OrderSnapshot) { v.OfferRef = "book/offer" },
+		"wrong price source":  func(v *OrderSnapshot) { v.PriceSourceRef = "client/price/1" },
+		"wrong currency":      func(v *OrderSnapshot) { v.Currency = "USD" },
+	} {
+		t.Run(name, func(t *testing.T) {
+			v := s
+			mutate(&v)
+			if _, err := NewOrderSnapshot(v); err != ErrInvalidOrderSnapshot {
+				t.Fatalf("unsafe direct order accepted: %v", err)
+			}
+		})
+	}
+}
+
+func TestOrderSnapshotBookedPathCannotSmuggleDirectBuyer(t *testing.T) {
+	for _, mutate := range []func(*OrderSnapshot){
+		func(v *OrderSnapshot) { v.DirectBuyerIdentityID = "22222222-2222-4222-8222-222222222222" },
+		func(v *OrderSnapshot) { v.DirectCheckoutIdempotencyKey = "another_checkout_1" },
+	} {
+		v := validOrderSnapshot()
+		mutate(&v)
+		if _, err := NewOrderSnapshot(v); err != ErrInvalidOrderSnapshot {
+			t.Fatalf("booked order with direct buyer metadata accepted: %v", err)
+		}
+	}
+}

@@ -320,7 +320,10 @@ jobs:
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_growth_conversion_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_growth_link_lifecycle_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r2_booking_order_invariants.sql
+          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r8_direct_bank_order_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r2_payment_invariants.sql
+          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r8_tbank_seller_binding_invariants.sql
+          psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r8_direct_bank_refund_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r2_transaction_edge_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r2_payment_governance_invariants.sql
           psql -h 127.0.0.1 -U apgic -d apgic_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r2_mobile_store_invariants.sql
@@ -354,6 +357,9 @@ jobs:
             psql -h 127.0.0.1 -U apgic -d apgic_academy_ci -v ON_ERROR_STOP=1 -f "backend/migrations/$fixture" > /dev/null
           done
           psql -h 127.0.0.1 -U apgic -d apgic_academy_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r2_mobile_store_invariants.sql > /dev/null
+          psql -h 127.0.0.1 -U apgic -d apgic_academy_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r8_direct_bank_order_invariants.sql
+          psql -h 127.0.0.1 -U apgic -d apgic_academy_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r8_tbank_seller_binding_invariants.sql > /dev/null
+          psql -h 127.0.0.1 -U apgic -d apgic_academy_ci -v ON_ERROR_STOP=1 -f backend/migrations/ci_r8_direct_bank_refund_invariants.sql > /dev/null
           (cd backend && go test ./internal/runtimepostgres -run TestAcademyStoreVerifiedPaidJourneySurvivesRestart -count=1 -v)
           (cd backend && go test ./internal/runtimepostgres -run TestAcademyVideoRangesCoverDurationRejectsMalformedRowsPostgres -count=1 -v)
           (cd backend && go test ./internal/runtimepostgres -run TestAcademyCreateCourseConcurrentRetry -count=1 -v)

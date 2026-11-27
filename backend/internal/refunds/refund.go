@@ -28,6 +28,7 @@ var (
 type Request struct {
 	ID                       string
 	BookingID                string
+	DirectBuyerIdentityID    string
 	OrderID                  string
 	OriginalPaymentAttemptID string
 	OriginalProviderID       string
@@ -49,7 +50,10 @@ type Request struct {
 func New(request Request) (Request, error) {
 	request.Currency = strings.ToUpper(request.Currency)
 	if strings.TrimSpace(request.ID) == "" ||
-		strings.TrimSpace(request.BookingID) == "" ||
+		(strings.TrimSpace(request.BookingID) == "" &&
+			strings.TrimSpace(request.DirectBuyerIdentityID) == "") ||
+		(strings.TrimSpace(request.BookingID) != "" &&
+			strings.TrimSpace(request.DirectBuyerIdentityID) != "") ||
 		strings.TrimSpace(request.OrderID) == "" ||
 		strings.TrimSpace(request.OriginalPaymentAttemptID) == "" ||
 		strings.TrimSpace(request.OriginalProviderID) == "" ||

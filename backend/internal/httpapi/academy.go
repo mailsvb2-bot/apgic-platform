@@ -33,6 +33,8 @@ type academyStore interface {
 func registerAcademy(mux *http.ServeMux, store academyStore, sessions *clientSessionManager, sessionConfigErr error) {
 	registerAcademyCourseAccess(mux, store, sessions, sessionConfigErr)
 	registerAcademyCourseOffers(mux, store, sessions, sessionConfigErr)
+	registerAcademyBankNotificationFromStore(mux, store)
+	registerAcademyBankOrderStatus(mux, store, sessions, sessionConfigErr)
 	registerAcademyLearnerCertificates(mux, store, sessions, sessionConfigErr)
 	registerAcademyAuthorProducts(mux, store, sessions, sessionConfigErr)
 	registerAcademyStandaloneDraft(mux, store, sessions, sessionConfigErr)

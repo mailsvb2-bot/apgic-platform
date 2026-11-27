@@ -111,12 +111,19 @@ function provider(reconnectFailures: number, actions: string[]): CommunicationPr
   };
 }
 
-async function waitForReduction(count: () => number, previous: number): Promise<void> {
-  for (let attempt = 0; attempt < 100; attempt += 1) {
+async function waitForReduction(
+  count: () => number,
+  previous: number,
+  event: NativeRealtimeEvent,
+): Promise<void> {
+  // The real iOS event goes through the main dispatch queue and RN bridge.
+  // Give bridge delivery a bounded 5 seconds on hosted simulators; never
+  // synthesize a reducer transition or accept missing native evidence.
+  for (let attempt = 0; attempt < 500; attempt += 1) {
     if (count() > previous) return;
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
-  throw new Error("REALTIME_E2E_NATIVE_EVENT_TIMEOUT");
+  throw new Error(`REALTIME_E2E_NATIVE_EVENT_TIMEOUT:${event.type}`);
 }
 
 export async function runNativeRealtimeE2E(
@@ -153,7 +160,7 @@ export async function runNativeRealtimeE2E(
     for (const event of events) {
       const before = reductions;
       await debugEmitNativeRealtimeEvent(event);
-      await waitForReduction(() => reductions, before);
+      await waitForReduction(() => reductions, before, event);
       await controller.settle();
     }
     await controller.settle();
