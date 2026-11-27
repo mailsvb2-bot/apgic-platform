@@ -1,4 +1,4 @@
-import React,{useCallback,useEffect,useState} from "react";
+import React,{useCallback,useEffect,useRef,useState} from "react";
 import {AppState,Linking,Pressable,Text,TextInput,View} from "react-native";
 import {canonicalAPGICOrigin} from "./mobile-deep-link-client.ts";
 import {AcademyAccessError,academyOptional,academySessionRejected} from "./mobile-academy-session.ts";
@@ -57,12 +57,38 @@ export function AcademySurface(){
  const [ownedCourses,setOwnedCourses]=useState<NativeAuthorCourse[]>([]);
  const [preview,setPreview]=useState<{course:NativeAuthorCourse;outline:NativeAuthorOutline}|null>(null);
  const [previewIndex,setPreviewIndex]=useState(0);
+ const authorEpoch=useRef(0);
+ useEffect(()=>()=>{authorEpoch.current++;},[]);
  useEffect(()=>{
   const subscription=AppState.addEventListener("change",state=>{
-   if(state!=="active"){setPreview(null);setOwnedCourses([]);}
+   if(state!=="active"){authorEpoch.current++;setPreview(null);setOwnedCourses([]);}
   });
   return ()=>subscription.remove();
  },[]);
+ // Revalidate the exact author outline while it is visible, including non-video lessons.
+ useEffect(()=>{
+  if(!preview)return;
+  let disposed=false,checking=false;
+  let controller:AbortController|null=null;
+  const verify=async()=>{
+   if(disposed||checking)return;
+   checking=true;
+   const request=new AbortController();controller=request;
+   let timer:ReturnType<typeof setTimeout>|undefined;
+   try{
+    const outline=await Promise.race([
+     academyRequest<NativeAuthorOutline>(`/v1/academy/courses/${encodeURIComponent(preview.course.id)}/versions/${encodeURIComponent(preview.course.version_id)}/outline`,"GET",fetch,canonicalAPGICOrigin,undefined,request.signal),
+     new Promise<never>((_,reject)=>{timer=setTimeout(()=>{request.abort();reject(new Error("AUTHOR_PREVIEW_TIMEOUT"));},2000);})
+    ]);
+    if(disposed)return;
+    if(outline.version_id!==preview.course.version_id||JSON.stringify(outline)!==JSON.stringify(preview.outline))throw new Error("AUTHOR_PREVIEW_CHANGED");
+   }catch{
+    if(!disposed){authorEpoch.current++;setPreview(null);setOwnedCourses([]);setStatus("Предпросмотр закрыт: доступ или версия курса изменились. Откройте курс повторно.");}
+   }finally{if(timer!==undefined)clearTimeout(timer);checking=false;controller=null;}
+  };
+  const interval=setInterval(()=>void verify(),1000);
+  return ()=>{disposed=true;clearInterval(interval);controller?.abort();};
+ },[preview]);
  const [verifiedCourseIDs,setVerifiedCourseIDs]=useState<string[]>([]);
  const [enrollments,setEnrollments]=useState<NativeAcademyEnrollment[]>([]);
  const [lessons,setLessons]=useState<NativeAcademyLesson[]>([]);
@@ -85,7 +111,7 @@ export function AcademySurface(){
     // The screen persists across native account/session changes. Never keep
     // previously fetched learner or purchase evidence when the server denies
     // the current signed session.
-    setCourses([]);setOwnedCourses([]);setPreview(null);setVerifiedCourseIDs([]);setEnrollments([]);setLessons([]);
+    authorEpoch.current++;setCourses([]);setOwnedCourses([]);setPreview(null);setVerifiedCourseIDs([]);setEnrollments([]);setLessons([]);
     setSelected(null);setCertificate(null);setCertificates([]);setAttempts([]);
     setAppeals([]);setAppealsUnavailable(false);setCohorts([]);
     setAppealReasons({});setNotifications(null);setAssessmentAnswer("");
@@ -137,8 +163,9 @@ export function AcademySurface(){
   </View>}
   <Pressable accessibilityRole="button" disabled={busy}
    onPress={()=>void act(async()=>{
-    setPreview(null);setOwnedCourses([]);
+    const epoch=++authorEpoch.current;setPreview(null);setOwnedCourses([]);
     const data=await academyRequest<{courses:NativeAuthorCourse[]}>("/v1/academy/my-courses");
+    if(epoch!==authorEpoch.current||AppState.currentState!=="active")return;
     setOwnedCourses(data.courses);
     setStatus(data.courses.length?"Выберите собственный курс для просмотра.":"У вас пока нет авторских курсов.");
    })} style={{minHeight:48,borderWidth:1,borderRadius:9,padding:12}}>
@@ -148,10 +175,10 @@ export function AcademySurface(){
    <Text style={{fontWeight:"700"}}>{course.title} · версия {course.version_no}</Text>
    <Pressable accessibilityRole="button" disabled={busy} style={{minHeight:48,justifyContent:"center"}}
     onPress={()=>void act(async()=>{
-     setPreview(null);setSelected(null);setLessons([]);
+     const epoch=++authorEpoch.current;setPreview(null);setSelected(null);setLessons([]);
      const outline=await academyRequest<NativeAuthorOutline>(`/v1/academy/courses/${encodeURIComponent(course.id)}/versions/${encodeURIComponent(course.version_id)}/outline`);
      if(outline.version_id!==course.version_id||!["DRAFT","PUBLISHED"].includes(outline.state)||!Array.isArray(outline.modules)||!Array.isArray(outline.lessons))throw new Error("Не удалось подтвердить версию курса.");
-     if(AppState.currentState!=="active")return;
+     if(epoch!==authorEpoch.current||AppState.currentState!=="active")return;
      setPreviewIndex(0);setPreview({course,outline});setStatus("Предпросмотр автора. Учебный прогресс не записывается.");
     })}><Text>{course.state==="PUBLISHED"?"Посмотреть курс":"Предпросмотр"}</Text></Pressable>
   </View>)}
@@ -159,7 +186,7 @@ export function AcademySurface(){
    <Text style={{fontSize:20,fontWeight:"700"}}>{preview.course.title}</Text>
    <Text>{preview.course.description}</Text>
    <Text>Режим автора · версия {preview.course.version_no}. Без покупок и зачислений.</Text>
-   <Pressable accessibilityRole="button" onPress={()=>setPreview(null)}><Text>← Закрыть предпросмотр</Text></Pressable>
+   <Pressable accessibilityRole="button" onPress={()=>{authorEpoch.current++;setPreview(null);}}><Text>← Закрыть предпросмотр</Text></Pressable>
    {(()=>{
     const ordered=[...preview.outline.modules].sort((a,b)=>a.ordinal-b.ordinal).flatMap(m=>preview.outline.lessons.filter(l=>l.module_id===m.id).sort((a,b)=>a.ordinal-b.ordinal).map(lesson=>({module:m.title,lesson})));
     const current=ordered[previewIndex];
