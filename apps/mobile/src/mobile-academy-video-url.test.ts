@@ -97,3 +97,11 @@ test("native manifest refuses nested provider secrets without rejecting safe met
  for(let i=0;i<12;i++)deep={child:deep};
  assert.equal(nativeAcademyValidatedVideos({videos:[video],metadata:deep},e,l),null);
 });
+
+test("author preview routes bind owned version and never use enrollment paths",()=>{
+ assert.equal(nativeAcademyManifestPath(e,l,"author"),`/v1/academy/author/versions/${e}/lessons/${l}/videos`);
+ assert.equal(nativeAcademyVideoPath(e,l,m,"author"),`/v1/academy/author/versions/${e}/lessons/${l}/videos/${m}/stream`);
+ assert.equal(nativeAcademyVideoPath("../other",l,m,"author"),null);
+ assert.equal(nativeAcademyVideoPath(e,l,"https://disk.yandex.ru","author"),null);
+ assert.notEqual(nativeAcademyVideoPath(e,l,m,"author"),nativeAcademyVideoPath(e,l,m));
+});
