@@ -49,7 +49,7 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 		// not silently fall back to Yandex or advertise a CDN stream before
 		// the production CDN_PROVIDER adapter is registered and certified.
 		// The one public media route stays closed on unknown/CDN modes.
-		mux.HandleFunc("GET /v1/academy/enrollments/{enrollmentID}/lessons/{lessonID}/videos/{mediaID}/stream", func(w http.ResponseWriter, r *http.Request) {
+		unavailable := func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Cache-Control", "private, no-store")
 			w.Header().Set("Referrer-Policy", "no-referrer")
 			w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -57,7 +57,9 @@ func registerAcademyVideoStream(mux *http.ServeMux, store academyStore, sessions
 				return
 			}
 			academyHTTPError(w, r, academy.ErrUnavailable)
-		})
+		}
+		mux.HandleFunc("GET /v1/academy/enrollments/{enrollmentID}/lessons/{lessonID}/videos/{mediaID}/stream", unavailable)
+		mux.HandleFunc("GET /v1/academy/author/versions/{versionID}/lessons/{lessonID}/videos/{mediaID}/stream", unavailable)
 		return
 	}
 	registerAcademyVideoStreamWithClients(mux, store, sessions, sessionErr, academy.YandexDiskClient{}, academyVideoUpstreamClient())
@@ -74,7 +76,7 @@ func registerAcademyVideoStreamWithClients(
 	if upstreamClient == nil {
 		upstreamClient = academyVideoUpstreamClient()
 	}
-	mux.HandleFunc("GET /v1/academy/enrollments/{enrollmentID}/lessons/{lessonID}/videos/{mediaID}/stream", func(w http.ResponseWriter, r *http.Request) {
+	handler := func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "private, no-store")
 		w.Header().Set("Referrer-Policy", "no-referrer")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -100,7 +102,20 @@ func registerAcademyVideoStreamWithClients(
 			academyHTTPError(w, r, academy.ErrUnavailable)
 			return
 		}
-		author, provider, path, err := owner.AcademyLearnerVideoSource(actor, r.PathValue("enrollmentID"), r.PathValue("lessonID"), r.PathValue("mediaID"))
+		preview := r.PathValue("versionID") != ""
+		source := func() (string, string, string, error) {
+			if preview {
+				reader, ok := store.(interface {
+					AcademyAuthorVideoSource(actor, versionID, lessonID, mediaID string) (string, string, string, error)
+				})
+				if !ok {
+					return "", "", "", academy.ErrUnavailable
+				}
+				return reader.AcademyAuthorVideoSource(actor, r.PathValue("versionID"), r.PathValue("lessonID"), r.PathValue("mediaID"))
+			}
+			return owner.AcademyLearnerVideoSource(actor, r.PathValue("enrollmentID"), r.PathValue("lessonID"), r.PathValue("mediaID"))
+		}
+		author, provider, path, err := source()
 		if err != nil {
 			academyHTTPError(w, r, err)
 			return
@@ -147,8 +162,8 @@ func registerAcademyVideoStreamWithClients(
 		// The same canonical access check guards startup, byte copying and
 		// idle upstream reads. A stalled provider must not outlive revocation.
 		allowed := func() bool {
-			return academyVideoSourceStillAllowed(owner, actor,
-				r.PathValue("enrollmentID"), r.PathValue("lessonID"), r.PathValue("mediaID"), author, provider, path)
+			currentAuthor, currentProvider, currentPath, err := source()
+			return err == nil && currentAuthor == author && currentProvider == provider && currentPath == path
 		}
 		// A reconnected cloud account may point the same disk:/ path at a
 		// different author-owned file. Bind the stream to the credential used
@@ -296,6 +311,10 @@ func registerAcademyVideoStreamWithClients(
 			deadline.revoke()
 			return
 		}
+		// Author preview never creates learner delivery evidence or progress.
+		if preview {
+			return
+		}
 		// Only flushed bytes count. The SQL owner checks entitlement and
 		// every assigned media file before permitting lesson completion.
 		start, end, valid := academyDeliveredVideoInterval(response.StatusCode, response.Header, size)
@@ -320,7 +339,9 @@ func registerAcademyVideoStreamWithClients(
 				r.PathValue("enrollmentID"), r.PathValue("lessonID"),
 				r.PathValue("mediaID"), digest, size, start, end)
 		}
-	})
+	}
+	mux.HandleFunc("GET /v1/academy/enrollments/{enrollmentID}/lessons/{lessonID}/videos/{mediaID}/stream", handler)
+	mux.HandleFunc("GET /v1/academy/author/versions/{versionID}/lessons/{lessonID}/videos/{mediaID}/stream", handler)
 }
 
 // academyDeliveredVideoInterval translates an already validated upstream
