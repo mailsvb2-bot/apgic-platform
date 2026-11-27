@@ -1109,17 +1109,27 @@ PY
 }
 
 dismiss_android_ime() {
-  local state i
-  for i in 1 2 3; do
-    state="$("$ADB" shell dumpsys input_method 2>/dev/null || true)"
-    if ! grep -qE 'mInputShown=true|isInputViewShown=true' <<<"$state"; then
-      return 0
+  local state i poll
+  # Read the actual state after each Back, including the final one. The
+  # previous loop reported failure even when its final Back hid the IME.
+  # Wait for the asynchronous hide transition before injecting another Back.
+  for i in 0 1 2 3; do
+    for poll in 1 2 3 4 5; do
+      if state="$("$ADB" shell dumpsys input_method 2>/dev/null)" &&
+         grep -qE 'mInputShown=(true|false)|isInputViewShown=(true|false)' <<<"$state" &&
+         ! grep -qE 'mInputShown=true|isInputViewShown=true' <<<"$state"; then
+        return 0
+      fi
+      sleep 0.4
+    done
+    # Do not send Back if the device state is unknown, or after the final
+    # observation: Back with a hidden keyboard can leave the activity.
+    if (( i < 3 )) && grep -qE 'mInputShown=true|isInputViewShown=true' <<<"$state"; then
+      "$ADB" shell input keyevent KEYCODE_BACK >/dev/null 2>&1 || return 1
     fi
-    "$ADB" shell input keyevent KEYCODE_BACK >/dev/null 2>&1 || true
-    sleep 0.8
   done
-  "$ADB" shell dumpsys input_method 2>/dev/null | grep -E 'mInputShown|isInputViewShown' >&2 || true
-  echo "Android IME remains visible before confirmation" >&2
+  printf '%s\n' "$state" | grep -E 'mInputShown|isInputViewShown' >&2 || true
+  echo "Android IME did not reach a verified hidden state before confirmation" >&2
   return 1
 }
 
