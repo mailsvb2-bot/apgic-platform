@@ -192,7 +192,7 @@ export default function AcademyPage(){
   setCertificatesUnavailable(credentials.status!=="fulfilled");
  },[]);
  useEffect(()=>{void refresh().catch(error=>setNotice(String(error)))},[refresh]);
- async function buyCourse(c:Course){
+ async function buyCourse(c:Course,readOnly=false){
   if(checkoutLock.current.has(c.id))return;
   checkoutLock.current.add(c.id);setCheckoutBusy(prev=>({...prev,[c.id]:true}));
   setCheckoutProblem(prev=>({...prev,[c.id]:""}));
@@ -208,6 +208,7 @@ export default function AcademyPage(){
     setCheckoutProblem(prev=>({...prev,[c.id]:status.entitlement_active?"Покупка подтверждена сервером. Откройте обучение.":status.refund_state?"Возврат: "+status.refund_state:status.requires_reconciliation?"Банк проверяет операцию. Не оформляйте повторную покупку.":"Оплата не подтверждена. Статус: "+status.payment_state}));
     return;
    }
+   if(readOnly){setCheckoutProblem(prev=>({...prev,[c.id]:"Номер заказа ещё не получен. Если предыдущая операция прервалась, повторный запрос покупки использует тот же ключ."}));return;}
    let key=sessionStorage.getItem(keyName);
    if(!key){key=crypto.randomUUID();sessionStorage.setItem(keyName,key);}
    const result=await api<BankRedirect>(`/v1/academy/courses/${c.id}/checkout`,{},{"Idempotency-Key":key});
@@ -549,7 +550,7 @@ export default function AcademyPage(){
         c.access_mode==="PAID"?
          <div>
           <button type="button" disabled={busy||checkoutBusy[c.id]} onClick={()=>void buyCourse(c)}>Купить курс</button>
-          <button type="button" disabled={busy||checkoutBusy[c.id]} onClick={()=>void buyCourse(c)}>Проверить статус покупки</button>
+          <button type="button" disabled={busy||checkoutBusy[c.id]} onClick={()=>void buyCourse(c,true)}>Проверить статус покупки</button>
           {checkoutProblem[c.id]&&<p role="alert">{checkoutProblem[c.id]}</p>}
           <p>Оплату выполняет внешний банк. APGIC не получает деньги. Доступ открывается только после подтверждения оплаты сервером.</p>
          </div>:
