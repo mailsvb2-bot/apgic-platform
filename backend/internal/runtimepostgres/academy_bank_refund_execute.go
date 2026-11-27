@@ -96,3 +96,66 @@ func (c *Checker) AcademyExecuteApprovedBankRefund(ctx context.Context, refundID
 	// signed REFUNDED webhook + GetState writer commits the reversal.
 	return nil
 }
+
+// AcademyExecutePendingBankRefunds drains only policy-approved direct Academy
+// refunds through the existing atomic claim. A concurrent worker may select
+// the same ID, but only one can transition REQUESTED to SENT and call Cancel.
+func (c *Checker) AcademyExecutePendingBankRefunds(ctx context.Context, limit int) (int, error) {
+	if os.Getenv("APGIC_ACADEMY_TBANK_REFUND_ENABLED") != "true" {
+		return 0, nil
+	}
+	if ctx == nil || limit < 1 || limit > 1000 {
+		return 0, academy.ErrInvalid
+	}
+	if c == nil || c.db == nil {
+		return 0, academy.ErrUnavailable
+	}
+	rows, err := c.db.QueryContext(ctx, `SELECT r.id::text FROM refund_requests r
+ JOIN orders o ON o.id=r.order_id
+ JOIN payment_attempts pa ON pa.id=r.original_payment_attempt_id AND pa.order_id=o.id
+ JOIN payment_routing_decisions route ON route.id=pa.routing_decision_id
+ JOIN payment_provider_config_versions cfg ON cfg.id=route.provider_config_id AND cfg.id=r.original_provider_config_id
+ JOIN connector_instances ci ON ci.id=cfg.provider_instance_id
+ JOIN academy_bank_seller_bindings seller ON seller.provider_config_id=cfg.id
+ AND seller.product_owner_ref=o.product_owner_ref AND seller.credential_version_ref=cfg.credential_version_ref
+ WHERE r.state='REQUESTED' AND r.provider_reference IS NULL
+ AND r.policy_decision='ALLOW' AND r.execution_owner='EXTERNAL_PROVIDER'
+ AND r.booking_id IS NULL AND o.booking_id IS NULL AND o.direct_buyer_identity_id IS NOT NULL
+ AND pa.state='SUCCEEDED' AND r.amount_minor=pa.amount_minor AND r.currency='RUB' AND pa.currency='RUB'
+ AND route.selected_rail_code='APGIC_PAYMENT_PROVIDER' AND route.selected_method_code='BANK_CARD'
+ AND ci.provider_kind='TBANK' AND ci.status='ACTIVE' AND cfg.status='ACTIVE'
+ AND seller.revoked_at IS NULL
+ ORDER BY r.updated_at,r.id LIMIT $1`, limit)
+	if err != nil {
+		return 0, err
+	}
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return 0, err
+		}
+		ids = append(ids, id)
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return 0, err
+	}
+	var processed int
+	var cycleErr error
+	for _, id := range ids {
+		if ctx.Err() != nil {
+			return processed, ctx.Err()
+		}
+		if err := c.AcademyExecuteApprovedBankRefund(ctx, id); err != nil {
+			if !errors.Is(err, academy.ErrConflict) {
+				cycleErr = errors.Join(cycleErr, err)
+			}
+			continue
+		}
+		processed++
+	}
+	return processed, cycleErr
+}
