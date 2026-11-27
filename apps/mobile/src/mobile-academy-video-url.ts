@@ -3,16 +3,16 @@ const idPattern=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // A manifest request must be bound to the same canonical UUID identifiers as
 // its protected byte-stream route. Never encode arbitrary navigation input into
 // an authenticated Academy request.
-export function nativeAcademyManifestPath(enrollmentId:string,lessonId:string):string|null{
+export function nativeAcademyManifestPath(enrollmentId:string,lessonId:string,scope:"learner"|"author"="learner"):string|null{
  if(!idPattern.test(enrollmentId)||!idPattern.test(lessonId))return null;
- return `/v1/academy/enrollments/${enrollmentId}/lessons/${lessonId}/videos`;
+ return `/v1/academy/${scope==="author"?"author/versions":"enrollments"}/${enrollmentId}/lessons/${lessonId}/videos`;
 }
 
 // The media source is always the protected first-party APGIC gateway. No
 // provider paths, cloud URLs, query credentials, or arbitrary hosts accepted.
-export function nativeAcademyVideoPath(enrollmentId:string,lessonId:string,mediaId:string):string|null{
+export function nativeAcademyVideoPath(enrollmentId:string,lessonId:string,mediaId:string,scope:"learner"|"author"="learner"):string|null{
  if(![enrollmentId,lessonId,mediaId].every(id=>idPattern.test(id)))return null;
- return `/v1/academy/enrollments/${enrollmentId}/lessons/${lessonId}/videos/${mediaId}/stream`;
+ return `${nativeAcademyManifestPath(enrollmentId,lessonId,scope)}/${mediaId}/stream`;
 }
 
 // Reject secret-bearing nested metadata too: checking only direct keys allows
