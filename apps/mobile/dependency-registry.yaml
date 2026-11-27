@@ -174,3 +174,17 @@ dependencies:
     security_status: REVIEWED_CRYPTO_VERIFY_ONLY
     removal_strategy: Replace detached-signature verifier and rebuild native clients
     kill_strategy: Fail safe with remote-configurable capabilities disabled until a trusted verifier is available
+  - name: react-native-video
+    declared_version: "6.18.0"
+    scope: RUNTIME
+    purpose: Native AVPlayer/ExoPlayer adapter for the existing signed APGIC Academy video gateway
+    data_classes:
+      - PRIVATE_LEARNER_VIDEO
+      - SESSION_SCOPED_MEDIA_REQUEST
+    egress: CANONICAL_APGIC_HTTPS_ONLY_BY_CALLER
+    permissions: []
+    provenance: "npm:react-native-video@6.18.0 sha512-9BjAtAh1uGq6h/GNCCh5yzb/iI9qJHuflwNGExyhoUxbhPD1s+15h+CdpJ2MKKJTXw6J7w+nQOp1Ywa54R8w7Q=="
+    privacy_status: REVIEWED_APGIC_ORIGIN_BOUNDARY_NO_ADDITIONAL_MANIFEST_PERMISSIONS
+    security_status: REVIEWED_CANONICAL_GATEWAY_ENTITLEMENT_AND_FAIL_CLOSED_UI
+    removal_strategy: Remove native VIDEO UI and dependency and rebuild Android and iOS; retain protected web gateway
+    kill_strategy: Keep Academy VIDEO publication disabled and revoke canonical Entitlement; native player unloads on denial and background
