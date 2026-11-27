@@ -7,9 +7,9 @@ import {nativeAcademyManifestPath,nativeAcademyVideoPath,nativeAcademyValidatedV
 type LearnerVideo={id:string;title:string;ordinal:number};
 type Manifest={videos:LearnerVideo[]};
 export type FetchManifest=(path:string,signal?:AbortSignal)=>Promise<Manifest>;
-export default function NativeAcademyLessonVideos({enrollmentId,lessonId,available,requestManifest}:{
- enrollmentId:string;lessonId:string;available:boolean;requestManifest:FetchManifest
-}){
+export default function NativeAcademyLessonVideos({enrollmentId,authorVersionId,lessonId,available,requestManifest}:({enrollmentId:string;authorVersionId?:never}|{authorVersionId:string;enrollmentId?:never})&{lessonId:string;available:boolean;requestManifest:FetchManifest}){
+ const scope=authorVersionId?"author":"learner";
+ const subjectId=authorVersionId??enrollmentId??"";
  const [videos,setVideos]=useState<LearnerVideo[]>([]);
  const [error,setError]=useState("");
  const [generation,setGeneration]=useState(0);
@@ -23,9 +23,9 @@ export default function NativeAcademyLessonVideos({enrollmentId,lessonId,availab
  const [loadingVideoId,setLoadingVideoId]=useState<string|null>(null);
  // Keep a decoder tied to the exact enrollment/lesson that was verified.
  // React may reuse this component when navigation switches lesson props.
- const scopeKey=`${enrollmentId}/${lessonId}`;
+ const scopeKey=`${scope}/${subjectId}/${lessonId}`;
  const [verifiedScope,setVerifiedScope]=useState<string|null>(null);
- const manifestPath=nativeAcademyManifestPath(enrollmentId,lessonId);
+ const manifestPath=nativeAcademyManifestPath(subjectId,lessonId,scope);
  const decoderIdentity=`${scopeKey}/${generation}/${selectedVideoId??""}`;
  currentDecoder.current=decoderIdentity;
 
@@ -72,7 +72,7 @@ export default function NativeAcademyLessonVideos({enrollmentId,lessonId,availab
    try{
     const data=await Promise.race([requestManifest(manifestPath,controller.signal),deadline]);
     if(disposed)return;
-    const verified=nativeAcademyValidatedVideos(data,enrollmentId,lessonId);
+    const verified=nativeAcademyValidatedVideos(data,subjectId,lessonId);
     // A binding can change without changing its media ID (title/order), and
     // a new video can be added while a native decoder still holds old bytes.
     // Treat any manifest mutation as an authorization boundary.
@@ -91,7 +91,7 @@ export default function NativeAcademyLessonVideos({enrollmentId,lessonId,availab
   // entitlement. This poll drops already buffered native bytes on revoke.
   const interval=setInterval(()=>void check(),1000);
   return ()=>{disposed=true;clearInterval(interval);currentRequest?.abort();};
- },[available,visible,blocked,manifestPath,enrollmentId,lessonId,scopeKey,verifiedScope,generation,videos,requestManifest]);
+ },[available,visible,blocked,manifestPath,subjectId,lessonId,scopeKey,verifiedScope,generation,videos,requestManifest]);
  if(!available)return <Text>Видеоурок ещё не открыт.</Text>;
  if(!manifestPath)return <Text accessibilityRole="alert">Некорректный идентификатор видеоурока. Доступ закрыт.</Text>;
  return <View style={{gap:10}} accessibilityLabel="Видео Academy">
@@ -103,7 +103,7 @@ export default function NativeAcademyLessonVideos({enrollmentId,lessonId,availab
    </Pressable>
   </View>:null}
   {available&&visible&&!blocked&&verifiedScope===scopeKey&&videos.map(video=>{
-   const path=nativeAcademyVideoPath(enrollmentId,lessonId,video.id);
+   const path=nativeAcademyVideoPath(subjectId,lessonId,video.id,scope);
    if(!path||(failed.scope===scopeKey&&failed.ids[video.id]))return <View key={video.id}>
     <Text>{video.title}: воспроизведение недоступно.</Text>
     <Pressable accessibilityRole="button" onPress={()=>{setLoadingVideoId(null);setSelectedVideoId(null);setVideos([]);setVerifiedScope(null);setFailed({scope:"",ids:{}});setError("");setBlocked(false);setGeneration(n=>n+1);}}>
