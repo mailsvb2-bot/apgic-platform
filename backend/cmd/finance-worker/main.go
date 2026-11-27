@@ -58,6 +58,15 @@ func main() {
 		for _, outcome := range outcomes {
 			log.Printf("APGIC finance settlement order=%s status=%s reason=%s", outcome.OrderID, outcome.Status, outcome.ReasonCode)
 		}
+		// Execute only approved Academy bank refunds through the existing
+		// canonical durable refund claim. Settlement is confirmed separately
+		// by the signed webhook and independent provider readback.
+		refundCount, refundErr := storage.AcademyExecutePendingBankRefunds(ctx, cfg.batchSize)
+		if refundErr != nil && ctx.Err() == nil {
+			log.Printf("APGIC Academy bank refund cycle incomplete: submitted=%d error=%v", refundCount, refundErr)
+		} else if refundCount > 0 {
+			log.Printf("APGIC Academy bank refunds submitted=%d", refundCount)
+		}
 		// Failed provider reconciliation is not a completed accounting run.
 		// Retry it on a bounded cadence rather than leaving unverified money
 		// movements unexamined for an entire reconciliation interval.
