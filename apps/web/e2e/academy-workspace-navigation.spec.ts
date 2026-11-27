@@ -406,3 +406,42 @@ test("missing author session offers explicit onboarding before creating exactly 
  await expect(page.getByRole("heading",{name:"гипноз",exact:true})).toBeVisible();
  expect(created).toBe(1);
 });
+
+
+test("owner previews a published course through read-only outline and protected video manifest",async({page})=>{
+ const requests:string[]=[];
+ const readingId="55555555-5555-4555-8555-555555555555";
+ const mediaId="66666666-6666-4666-8666-666666666666";
+ const published={...course,state:"PUBLISHED"};
+ await page.route("**/v1/academy/**",async route=>{
+  const req=route.request(),path=new URL(req.url()).pathname;
+  requests.push(req.method()+" "+path);
+  let data:unknown={};let status=200;
+  if(req.method()!=="GET"){status=405;data={code:"NO_PREVIEW_MUTATIONS"};}
+  else if(path==="/v1/academy/my-courses")data={courses:[published]};
+  else if(path==="/v1/academy/courses")data={courses:[published]};
+  else if(path==="/v1/academy/my-enrollments")data={enrollments:[]};
+  else if(path==="/v1/academy/review/attempts")data={attempts:[]};
+  else if(path==="/v1/academy/author/report")data={courses:[],gross_captures:[],revenue_state:"UNAVAILABLE"};
+  else if(path==="/v1/academy/author/cohorts")data={cohorts:[]};
+  else if(path==="/v1/academy/author/eligible-products")data={products:[]};
+  else if(path==="/v1/academy/me/course-access")data={course_ids:[]};
+  else if(path==="/v1/academy/me/certificates")data={certificates:[]};
+  else if(path===`/v1/academy/courses/${courseId}/versions/${versionId}/outline`)data={state:"PUBLISHED",version_id:versionId,modules:[{id:moduleId,version_id:versionId,ordinal:1,title:"Основы"}],lessons:[{id:readingId,module_id:moduleId,title:"Теория",kind:"READING",ordinal:1,body:"Авторский материал"},{id:lessonId,module_id:moduleId,title:"Практика",kind:"VIDEO",ordinal:2}]};
+  else if(path===`/v1/academy/author/versions/${versionId}/lessons/${lessonId}/videos`)data={videos:[{id:mediaId,title:"Видео автора",ordinal:1}]};
+  else {status=501;data={code:"UNMOCKED",path};}
+  await route.fulfill({status,contentType:"application/json",body:JSON.stringify(data)});
+ });
+ await page.goto("/academy");
+ await page.getByRole("button",{name:"Мои курсы",exact:true}).click();
+ await page.getByRole("button",{name:"Посмотреть курс",exact:true}).click();
+ const preview=page.getByRole("region",{name:"Предпросмотр курса"});
+ await expect(preview.getByText("Авторский материал",{exact:true})).toBeVisible();
+ await preview.getByRole("button",{name:"Следующий урок →"}).click();
+ await expect(preview.getByRole("heading",{name:"Практика",exact:true})).toBeVisible();
+ await expect(preview.locator("video")).toHaveAttribute("src",`/v1/academy/author/versions/${versionId}/lessons/${lessonId}/videos/${mediaId}/stream`);
+ await page.getByRole("button",{name:"Вернуться к редактированию"}).click();
+ await expect(preview).toHaveCount(0);
+ await expect(page.getByRole("region",{name:"Дерево курса"})).toBeVisible();
+ expect(requests.every(request=>request.startsWith("GET "))).toBe(true);
+});

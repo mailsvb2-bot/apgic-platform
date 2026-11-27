@@ -11,6 +11,7 @@
   "dependencies": {
     "react": "19.3.0",
     "react-native": "0.87.1",
+    "react-native-video": "6.18.0",
     "tweetnacl": "1.0.3"
   },
   "devDependencies": {
