@@ -3,6 +3,7 @@ package runtimepostgres
 import (
 	"database/sql"
 	"errors"
+	"strings"
 
 	"github.com/mailsvb2-bot/apgic-platform/backend/internal/academy"
 )
@@ -13,6 +14,21 @@ func (c *Checker) AcademyReadBankOrderStatus(buyer, orderID string) (AcademyBank
 	if !academyMediaUUID(buyer) || !academyMediaUUID(orderID) {
 		return AcademyBankOrderStatus{}, academy.ErrInvalid
 	}
+	return c.academyReadBankOrderStatus(buyer, orderID, "", "")
+}
+
+// AcademyRecoverBankOrderStatus resolves a lost checkout response using
+// the same immutable buyer/course/idempotency basis as order creation.
+func (c *Checker) AcademyRecoverBankOrderStatus(buyer, courseID, key string) (AcademyBankOrderStatus, error) {
+	if !academyMediaUUID(buyer) || !academyMediaUUID(courseID) ||
+		len(key) < 8 || len(key) > 128 ||
+		strings.Trim(key, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._~-") != "" {
+		return AcademyBankOrderStatus{}, academy.ErrInvalid
+	}
+	return c.academyReadBankOrderStatus(buyer, "", courseID, key)
+}
+
+func (c *Checker) academyReadBankOrderStatus(buyer, orderID, courseID, key string) (AcademyBankOrderStatus, error) {
 	if c == nil || c.db == nil {
 		return AcademyBankOrderStatus{}, academy.ErrUnavailable
 	}
@@ -40,11 +56,12 @@ func (c *Checker) AcademyReadBankOrderStatus(buyer, orderID string) (AcademyBank
  AND rr.booking_id IS NULL
  ORDER BY rr.created_at DESC,rr.id DESC LIMIT 1
  ) refund ON true
- WHERE o.id=$1::uuid AND o.direct_buyer_identity_id=$2::uuid
+ WHERE o.direct_buyer_identity_id=$2::uuid
+  AND (o.id=NULLIF($1, '')::uuid OR ($1='' AND o.offer_ref='academy/course/'||$3 AND o.direct_checkout_idempotency_key=$4))
   AND o.booking_id IS NULL AND ci.provider_kind='TBANK'
   AND r.selected_rail_code='APGIC_PAYMENT_PROVIDER'
   AND r.selected_method_code='BANK_CARD'
- ORDER BY pa.created_at DESC LIMIT 1`, orderID, buyer).
+ ORDER BY pa.created_at DESC,pa.id DESC LIMIT 1`, orderID, buyer, courseID, key).
 		Scan(&out.OrderID, &out.CourseID, &out.AmountMinor, &out.Currency,
 			&out.PaymentState, &reference, &entitlement, &active, &refundID, &refundState)
 	if errors.Is(err, sql.ErrNoRows) {
