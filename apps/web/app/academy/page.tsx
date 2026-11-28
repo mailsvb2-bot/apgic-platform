@@ -19,9 +19,17 @@ type LearnerAttempt = {id:string;lesson_id:string;attempt_no:number;result:"PEND
 type ReviewAttempt = {attempt_id:string;enrollment_id:string;lesson_id:string;attempt_no:number;response_text:string;submitted_at:string;rubric_version:string;passing_score:number;course_title:string;lesson_title:string};
 type AuthorReport = {courses:{course_id:string;title:string;enrollments:number;completed:number;active_access:number;pending_assessments:number;passed_assessments:number}[];gross_captures:{course_id:string;currency:string;captured_count:number;captured_gross_minor:number}[];revenue_state:string};
 
-async function api<T>(path:string,body?:unknown):Promise<T>{
+type BankRedirect = {order_id:string;payment_url:string;state:string};
+type BankStatus = {order_id:string;course_id:string;payment_state:string;entitlement_active:boolean;refund_state?:string;requires_reconciliation:boolean};
+const bankUUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function bankPaymentURL(raw:string):string{
+ const url=new URL(raw);
+ if(url.protocol!=="https:"||url.username||url.password||url.port||url.hash||!/(^|\.)(tbank|tinkoff)\.ru$/i.test(url.hostname))throw new Error("Некорректная банковская ссылка.");
+ return url.href;
+}
+async function api<T>(path:string,body?:unknown,extraHeaders?:Record<string,string>):Promise<T>{
  const response=await fetch(path,{method:body===undefined?"GET":"POST",
-  headers:{"Content-Type":"application/json"},
+  headers:{"Content-Type":"application/json",...extraHeaders},
   credentials:"same-origin",cache:"no-store",
   body:body===undefined?undefined:JSON.stringify(body)});
  const data=await response.json().catch(()=>({}));
@@ -127,6 +135,8 @@ export default function AcademyPage(){
  const [offerPriceRub,setOfferPriceRub]=useState("1000");
  const [checkoutProblem,setCheckoutProblem]=useState<Record<string,string>>({});
 
+ const checkoutLock=useRef(new Set<string>());
+ const [checkoutBusy,setCheckoutBusy]=useState<Record<string,boolean>>({});
  const refresh=useCallback(async()=>{
   // Public discovery must never become a prerequisite for author work or
   // learner history: each canonical read has an independent failure boundary.
@@ -182,6 +192,45 @@ export default function AcademyPage(){
   setCertificatesUnavailable(credentials.status!=="fulfilled");
  },[]);
  useEffect(()=>{void refresh().catch(error=>setNotice(String(error)))},[refresh]);
+ async function buyCourse(c:Course,readOnly=false){
+  if(checkoutLock.current.has(c.id))return;
+  checkoutLock.current.add(c.id);setCheckoutBusy(prev=>({...prev,[c.id]:true}));
+  setCheckoutProblem(prev=>({...prev,[c.id]:""}));
+  try{
+   const keyName="apgic:academy:checkout:"+c.id;
+   const orderName=keyName+":order";
+   const knownOrder=sessionStorage.getItem(orderName);
+   let key=sessionStorage.getItem(keyName);
+   const showStatus=async(status:BankStatus)=>{
+    if(!bankUUID.test(status.order_id)||status.course_id!==c.id||(knownOrder&&status.order_id!==knownOrder))throw new Error("Заказ не подтверждён.");
+    sessionStorage.setItem(orderName,status.order_id);
+    await refresh();
+    setCheckoutProblem(prev=>({...prev,[c.id]:status.entitlement_active?"Покупка подтверждена сервером. Откройте обучение.":status.refund_state?"Возврат: "+status.refund_state:status.requires_reconciliation?"Банк проверяет операцию. Не оформляйте повторную покупку.":"Оплата не подтверждена. Статус: "+status.payment_state}));
+   };
+   if(knownOrder){
+    if(!bankUUID.test(knownOrder))throw new Error("Номер заказа недействителен.");
+    await showStatus(await api<BankStatus>(`/v1/academy/bank/orders/${knownOrder}`));
+    return;
+   }
+   if(key){
+    try{
+     await showStatus(await api<BankStatus>(`/v1/academy/courses/${c.id}/checkout/status`,undefined,{"Idempotency-Key":key}));
+     return;
+    }catch(error){
+     if((error as {status?:number})?.status!==404)throw error;
+    }
+   }
+   if(readOnly){setCheckoutProblem(prev=>({...prev,[c.id]:"Сохранённый заказ пока не найден. Повторный запрос использует исходный ключ покупки."}));return;}
+   if(!key){key=crypto.randomUUID();sessionStorage.setItem(keyName,key);}
+   const result=await api<BankRedirect>(`/v1/academy/courses/${c.id}/checkout`,{},{"Idempotency-Key":key});
+   if(!bankUUID.test(result.order_id)||result.state!=="SENT")throw new Error("Банк не подтвердил создание платёжной формы.");
+   const target=bankPaymentURL(result.payment_url);
+   sessionStorage.setItem(orderName,result.order_id);
+   window.location.assign(target);
+  }catch(error){setCheckoutProblem(prev=>({...prev,[c.id]:error instanceof Error?error.message:"Оплата пока недоступна."}));}
+  finally{checkoutLock.current.delete(c.id);setCheckoutBusy(prev=>({...prev,[c.id]:false}));}
+ }
+
  // Links from the specialist workspace select a real Academy section.
  // OAuth course/version return parameters remain owned by the existing effect.
  useEffect(()=>{
@@ -511,15 +560,10 @@ export default function AcademyPage(){
         </button>:
         c.access_mode==="PAID"?
          <div>
-          <button type="button" disabled={busy} onClick={async()=>{
-           setCheckoutProblem(prev=>({...prev,[c.id]:""}));
-           try{
-            await api(`/v1/academy/courses/${c.id}/checkout`,{});
-            setCheckoutProblem(prev=>({...prev,[c.id]:"Проверьте статус заказа: платёжный провайдер не подтвердил покупку."}));
-           }catch(error){setCheckoutProblem(prev=>({...prev,[c.id]:error instanceof Error?error.message:"Оплата пока недоступна."}))}
-          }}>Купить курс</button>
+          <button type="button" disabled={busy||checkoutBusy[c.id]} onClick={()=>void buyCourse(c)}>Купить курс</button>
+          <button type="button" disabled={busy||checkoutBusy[c.id]} onClick={()=>void buyCourse(c,true)}>Проверить статус покупки</button>
           {checkoutProblem[c.id]&&<p role="alert">{checkoutProblem[c.id]}</p>}
-          <p>Оплату выполняет внешний банк. APGIC не получает деньги. Т-Банк и мультирасчёты пока не подключены.</p>
+          <p>Оплату выполняет внешний банк. APGIC не получает деньги. Доступ открывается только после подтверждения оплаты сервером.</p>
          </div>:
          <p>Автор ещё не открыл запись на этот курс.</p>}
       </article>)}
