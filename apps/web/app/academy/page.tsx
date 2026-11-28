@@ -200,16 +200,27 @@ export default function AcademyPage(){
    const keyName="apgic:academy:checkout:"+c.id;
    const orderName=keyName+":order";
    const knownOrder=sessionStorage.getItem(orderName);
-   if(knownOrder){
-    if(!bankUUID.test(knownOrder))throw new Error("Номер заказа недействителен.");
-    const status=await api<BankStatus>(`/v1/academy/bank/orders/${knownOrder}`);
-    if(status.order_id!==knownOrder||status.course_id!==c.id)throw new Error("Заказ не подтверждён.");
+   let key=sessionStorage.getItem(keyName);
+   const showStatus=async(status:BankStatus)=>{
+    if(!bankUUID.test(status.order_id)||status.course_id!==c.id||(knownOrder&&status.order_id!==knownOrder))throw new Error("Заказ не подтверждён.");
+    sessionStorage.setItem(orderName,status.order_id);
     await refresh();
     setCheckoutProblem(prev=>({...prev,[c.id]:status.entitlement_active?"Покупка подтверждена сервером. Откройте обучение.":status.refund_state?"Возврат: "+status.refund_state:status.requires_reconciliation?"Банк проверяет операцию. Не оформляйте повторную покупку.":"Оплата не подтверждена. Статус: "+status.payment_state}));
+   };
+   if(knownOrder){
+    if(!bankUUID.test(knownOrder))throw new Error("Номер заказа недействителен.");
+    await showStatus(await api<BankStatus>(`/v1/academy/bank/orders/${knownOrder}`));
     return;
    }
-   if(readOnly){setCheckoutProblem(prev=>({...prev,[c.id]:"Номер заказа ещё не получен. Если предыдущая операция прервалась, повторный запрос покупки использует тот же ключ."}));return;}
-   let key=sessionStorage.getItem(keyName);
+   if(key){
+    try{
+     await showStatus(await api<BankStatus>(`/v1/academy/courses/${c.id}/checkout/status`,undefined,{"Idempotency-Key":key}));
+     return;
+    }catch(error){
+     if((error as {status?:number})?.status!==404)throw error;
+    }
+   }
+   if(readOnly){setCheckoutProblem(prev=>({...prev,[c.id]:"Сохранённый заказ пока не найден. Повторный запрос использует исходный ключ покупки."}));return;}
    if(!key){key=crypto.randomUUID();sessionStorage.setItem(keyName,key);}
    const result=await api<BankRedirect>(`/v1/academy/courses/${c.id}/checkout`,{},{"Idempotency-Key":key});
    if(!bankUUID.test(result.order_id)||result.state!=="SENT")throw new Error("Банк не подтвердил создание платёжной формы.");
